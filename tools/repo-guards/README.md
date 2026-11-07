@@ -58,7 +58,7 @@ One per file; its header and its failure message state the rule in full.
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
 - `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.
-- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery, or a reasoned row.
+- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery.
 - `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
 - `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.
 - `compiled-hook-shapes.test.ts`: no react source defines a `use*` hook inside another function.
@@ -79,7 +79,7 @@ One per file; its header and its failure message state the rule in full.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
 
-Every exception table — `ALLOWED_EXPORTS`, `NOT_DEMOED`,
+Every exception table — `NOT_DEMOED`,
 `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
 `DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
 `NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row

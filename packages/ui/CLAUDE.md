@@ -5,13 +5,12 @@ Decisions says how a bullet is written and cited.
 
 ## Shape
 
-EVERY COMPONENT HAS A SURFACE THAT DRAWS IT. `packages/ui/src/ai` is the action
-timeline's vocabulary and the library's selection strip; `components/card-grid.tsx`,
-`media-card.tsx` and `toggle-group.tsx` are the library's grid, cards and kind
-chips. A component nothing draws is deleted, not held for a coming surface
-(owner decision): a held one is a file the guards read and the gallery demos for
-nobody, and git keeps it. A single export beside a drawn component is a reasoned
-`ALLOWED_EXPORTS` row (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
+EVERY COMPONENT HAS A SURFACE THAT DRAWS IT. `packages/ui/src/ai` is the agent
+panel's vocabulary; `components/card-grid.tsx`, `media-card.tsx` and
+`toggle-group.tsx` are the library's grid, cards and kind chips. A component or
+an export nothing draws is deleted, not held for a coming surface (owner
+decision): a held one is a file the guards read and the gallery demos for
+nobody, and git keeps it (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
 
 ## Editor and dialect
 
@@ -34,9 +33,8 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   (`apps/workspace/src/app/library/quick-look.tsx`). The one exception is the
   selection toolbar (`packages/editor/src/selection-toolbar.tsx`): with no
   open/dismiss lifecycle, a Popover would still need its selection-driven `open`
-  and its `frozen` hold. Not popups: the drop layer and the selection strip
-  (over the grid's foot, so selecting moves no card), which have no anchor or
-  dismissal of their own.
+  and its `frozen` hold. Not a popup: the drop layer, which has no anchor or
+  dismissal of its own.
 
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24: `typeScale`'s compact column
@@ -84,10 +82,10 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
 ## Repo guards, vendoring and tooling
 
 - **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under
-  the wildcard-exported directories needs a consumer outside the gallery or a
-  reasoned allowance row (`tools/repo-guards/src/ui-orphan-exports.test.ts` says
-  why neither a file guard nor knip can ask this). Base UI's `render` prop is
-  the polymorphism channel; there is no Slot.
+  the wildcard-exported directories needs a consumer outside the gallery
+  (`tools/repo-guards/src/ui-orphan-exports.test.ts` says why neither a file
+  guard nor knip can ask this). Base UI's `render` prop is the polymorphism
+  channel; there is no Slot.
 
 - **A ROW DOES NOT ANSWER FOR ITS OWN POSITION; ITS CONTAINER DOES.** The list
   keeps the set and reads document order itself through one registry

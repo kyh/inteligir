@@ -319,11 +319,7 @@ const Conversation = ({
               }
             }}
           >
-            <ApprovalQuestion
-              questionId={approval.eventId}
-              prompt={approvalQuestion(approval)}
-              kind="radio"
-            >
+            <ApprovalQuestion questionId={approval.eventId} prompt={approvalQuestion(approval)}>
               <ApprovalOption optionId="allow">Approve</ApprovalOption>
               <ApprovalOption optionId="deny">Cancel</ApprovalOption>
             </ApprovalQuestion>

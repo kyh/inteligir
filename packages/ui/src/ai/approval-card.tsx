@@ -2,8 +2,8 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
-import { ArrowUpIcon, CheckIcon } from "lucide-react";
+import type { HTMLAttributes, RefAttributes } from "react";
+import { CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -16,8 +16,7 @@ interface ApprovalCardContextValue {
   register: (questionId: string) => void;
   answer: (questionId: string, optionIds: string[]) => void;
   picked: Record<string, string[]>;
-  submit: (pending?: ApprovalAnswer) => void;
-  hasAnswer: boolean;
+  submit: (pending: ApprovalAnswer) => void;
   sending: boolean;
 }
 
@@ -32,10 +31,8 @@ const useApprovalCard = (): ApprovalCardContextValue => {
 };
 
 interface ApprovalQuestionContextValue {
-  questionId: string;
-  kind: "radio" | "check";
   selected: string[];
-  toggle: (optionId: string) => void;
+  pick: (optionId: string) => void;
 }
 
 const ApprovalQuestionContext = createContext<ApprovalQuestionContextValue | null>(null);
@@ -72,8 +69,6 @@ const ApprovalCard = ({
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState<ApprovalCardStatus>("open");
 
-  const answered = order.filter((id) => (picked[id] ?? []).length > 0);
-
   const register = useCallback((questionId: string) => {
     setOrder((current) => (current.includes(questionId) ? current : [...current, questionId]));
   }, []);
@@ -81,10 +76,9 @@ const ApprovalCard = ({
     setPicked((current) => ({ ...current, [questionId]: optionIds }));
   }, []);
   const submit = useCallback(
-    (pending?: ApprovalAnswer) => {
-      // a commit-on-pick answer arrives in the handler that made the pick, before state holds it
-      const nextPicked =
-        pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
+    (pending: ApprovalAnswer) => {
+      // the pick arrives in the handler that made it, before state holds it
+      const nextPicked = { ...picked, [pending.questionId]: pending.optionIds };
       const answers = order.map((questionId): ApprovalAnswer => ({
         optionIds: nextPicked[questionId] ?? [],
         questionId,
@@ -101,11 +95,10 @@ const ApprovalCard = ({
     },
     [order, picked, onSubmit],
   );
-  const hasAnswer = order.length > 0 && answered.length === order.length;
   const sending = status === "sending";
   const value = useMemo<ApprovalCardContextValue>(
-    () => ({ answer, hasAnswer, picked, register, sending, submit }),
-    [register, answer, picked, submit, hasAnswer, sending],
+    () => ({ answer, picked, register, sending, submit }),
+    [register, answer, picked, submit, sending],
   );
 
   if (status === "sent") {
@@ -149,16 +142,12 @@ interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
   questionId: string;
   prompt: string;
   detail?: string;
-  kind?: "radio" | "check";
-  action?: ReactNode;
 }
 
 const ApprovalQuestion = ({
   questionId,
   prompt,
   detail,
-  kind = "radio",
-  action,
   className,
   children,
   ref,
@@ -171,25 +160,16 @@ const ApprovalQuestion = ({
 
   const selected = picked[questionId] ?? noSelection;
 
-  const toggle = useCallback(
+  const pick = useCallback(
     (optionId: string): void => {
-      const toggled = selected.includes(optionId)
-        ? selected.filter((entry) => entry !== optionId)
-        : [...selected, optionId];
-      const next = kind === "radio" ? [optionId] : toggled;
+      const next = [optionId];
       answer(questionId, next);
-      // a single choice commits on pick, so the pick has to ride the submit
-      if (kind === "radio") {
-        submit({ optionIds: next, questionId });
-      }
+      submit({ optionIds: next, questionId });
     },
-    [answer, kind, questionId, selected, submit],
+    [answer, questionId, submit],
   );
 
-  const context = useMemo(
-    () => ({ kind, questionId, selected, toggle }),
-    [kind, questionId, selected, toggle],
-  );
+  const context = useMemo(() => ({ pick, selected }), [pick, selected]);
 
   return (
     <ApprovalQuestionContext value={context}>
@@ -199,13 +179,10 @@ const ApprovalQuestion = ({
         className={cn("animate-in fade-in slide-in-from-bottom-1 p-3", className)}
         {...props}
       >
-        <div className="flex items-start justify-between gap-3">
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-subtitle font-medium text-ink">{prompt}</span>
-            {detail === undefined ? null : <span className="text-body text-ink-2">{detail}</span>}
-          </span>
-          {action}
-        </div>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-subtitle font-medium text-ink">{prompt}</span>
+          {detail === undefined ? null : <span className="text-body text-ink-2">{detail}</span>}
+        </span>
         <div className="mt-2 flex flex-col gap-0.5">{children}</div>
       </div>
     </ApprovalQuestionContext>
@@ -225,7 +202,7 @@ const ApprovalOption = ({
   ...props
 }: ApprovalOptionProps & RefAttributes<HTMLButtonElement>) => {
   const { sending } = useApprovalCard();
-  const { kind, selected, toggle } = useApprovalQuestion();
+  const { pick, selected } = useApprovalQuestion();
   const on = selected.includes(optionId);
   return (
     <button
@@ -234,7 +211,7 @@ const ApprovalOption = ({
       aria-pressed={on}
       disabled={sending}
       onClick={() => {
-        toggle(optionId);
+        pick(optionId);
       }}
       data-slot="approval-option"
       className={cn(
@@ -245,23 +222,18 @@ const ApprovalOption = ({
     >
       <span
         className={cn(
-          "flex size-4 shrink-0 items-center justify-center transition-colors duration-200",
-          kind === "radio" ? "rounded-full" : "rounded-[5px]",
+          "flex size-4 shrink-0 items-center justify-center rounded-full transition-colors duration-200",
           on
             ? "bg-ink text-background"
             : "text-transparent shadow-[inset_0_0_0_1.5px_var(--line-strong)]",
         )}
       >
-        {kind === "radio" ? (
-          <span
-            className={cn(
-              "size-1.5 rounded-full bg-background transition-transform duration-200",
-              on ? "scale-100" : "scale-0",
-            )}
-          />
-        ) : (
-          <CheckIcon size={12} strokeWidth={3} />
-        )}
+        <span
+          className={cn(
+            "size-1.5 rounded-full bg-background transition-transform duration-200",
+            on ? "scale-100" : "scale-0",
+          )}
+        />
       </span>
       <span
         className={cn(
@@ -275,40 +247,4 @@ const ApprovalOption = ({
   );
 };
 
-const ApprovalActions = ({
-  className,
-  children,
-  ref,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => {
-  const { hasAnswer, sending, submit } = useApprovalCard();
-  return (
-    <div
-      ref={ref}
-      data-slot="approval-actions"
-      className={cn("flex items-center justify-between border-t border-line px-3 py-2", className)}
-      {...props}
-    >
-      <span className="min-w-0">{children}</span>
-      <button
-        type="button"
-        aria-label="Send answers"
-        disabled={!hasAnswer || sending}
-        onClick={() => {
-          submit();
-        }}
-        className={cn(
-          "-mr-0.5 flex size-7 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.96]",
-          hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",
-        )}
-      >
-        <ArrowUpIcon size={14} strokeWidth={2.5} />
-      </button>
-    </div>
-  );
-};
-
 export { ApprovalCard, ApprovalQuestion, ApprovalOption };
-// held beside its drawn component, a reasoned row of ui-orphan-exports.test.ts
-/** @public */
-export { ApprovalActions };

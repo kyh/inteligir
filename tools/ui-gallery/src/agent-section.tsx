@@ -1,12 +1,7 @@
-import {
-  ApprovalActions,
-  ApprovalCard,
-  ApprovalOption,
-  ApprovalQuestion,
-} from "@repo/ui/ai/approval-card";
+import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import { LoadingState } from "@repo/ui/ai/loading-state";
-import { StreamingAction, StreamingText } from "@repo/ui/ai/streaming-text";
-import { Thinking, ThinkingReasoning, ThinkingStep, ThinkingTool } from "@repo/ui/ai/thinking";
+import { StreamingText } from "@repo/ui/ai/streaming-text";
+import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { useState } from "react";
 
@@ -42,24 +37,22 @@ export const AgentSection = () => {
       </Demo>
 
       <Demo
-        name="Thinking · ThinkingStep · ThinkingReasoning · ThinkingTool"
-        purpose="The turn's trace, expandable. One row per thing the agent did or considered."
+        name="Thinking · ThinkingReasoning"
+        purpose="The turn's trace, expandable: what the agent noted while it worked."
         stack
       >
         <div className="w-full max-w-md">
-          <Thinking label="Working" doneLabel="Thought for 4s" working defaultExpanded>
-            <ThinkingStep>Read Getting Started.md</ThinkingStep>
+          <Thinking label="Working" doneLabel="Thought for 4s" working>
             <ThinkingReasoning>
               The link is unresolved because the target was renamed, not deleted.
             </ThinkingReasoning>
-            <ThinkingTool secondary="2 matches" mono>
-              grep &quot;Welcome&quot;
-            </ThinkingTool>
           </Thinking>
         </div>
         <div className="w-full max-w-md">
           <Thinking label="Working" doneLabel="Thought for 4s">
-            <ThinkingStep>Settled — collapsed by default once the turn is done.</ThinkingStep>
+            <ThinkingReasoning>
+              Settled — collapsed by default once the turn is done.
+            </ThinkingReasoning>
           </Thinking>
         </div>
       </Demo>
@@ -70,30 +63,24 @@ export const AgentSection = () => {
         stack
       >
         <div className="w-full max-w-md">
-          <ToolChipList summary="3 files changed" defaultExpanded>
-            <ToolChip icon="write" label="Edited" chip="Getting Started.md" mono>
-              <ToolChipDetail tone="add">+ Added a section on backlinks</ToolChipDetail>
+          <ToolChipList summary="3 files changed">
+            <ToolChip icon="write" label="Edited" chip="Getting Started.md">
+              <ToolChipDetail>+ Added a section on backlinks</ToolChipDetail>
               <ToolChipDetail>- Removed the stale link</ToolChipDetail>
             </ToolChip>
-            <ToolChip icon="read" label="Read" chip="Use Cases.md" mono />
-            <ToolChip icon="run" label="Ran" chip="pnpm verify" mono detailMono>
-              <ToolChipDetail>18 tasks, all green</ToolChipDetail>
-            </ToolChip>
+            <ToolChip icon="read" label="Read" chip="Use Cases.md" />
           </ToolChipList>
         </div>
       </Demo>
 
       <Demo
-        name="StreamingText · StreamingAction"
-        purpose="The assistant's answer, with the actions that belong to it."
+        name="StreamingText"
+        purpose="The assistant's answer, as it arrives."
         note="The word-by-word reveal is off in the product — the text is already live. It is shown on here."
         stack
       >
         <div className="w-full max-w-md">
-          <StreamingText text={ANSWER_TEXT} streaming={false} animate={false}>
-            <StreamingAction label="Copy" />
-            <StreamingAction label="Retry" />
-          </StreamingText>
+          <StreamingText text={ANSWER_TEXT} streaming={false} animate={false} />
         </div>
       </Demo>
 
@@ -114,13 +101,11 @@ export const AgentSection = () => {
               questionId="write-getting-started"
               prompt="Write to Getting Started.md?"
               detail="The turn wants to add a section on backlinks."
-              kind="radio"
             >
               <ApprovalOption optionId="allow">Allow once</ApprovalOption>
               <ApprovalOption optionId="allow-always">Allow for this turn</ApprovalOption>
               <ApprovalOption optionId="deny">Deny</ApprovalOption>
             </ApprovalQuestion>
-            <ApprovalActions />
           </ApprovalCard>
         </div>
       </Demo>

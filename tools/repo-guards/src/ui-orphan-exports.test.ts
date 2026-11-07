@@ -11,26 +11,6 @@ import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
 
-// keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
-const ALLOWED_EXPORTS = new Map<string, string>([
-  [
-    "packages/ui/src/ai/thinking.tsx#ThinkingStep",
-    "The trace vocabulary's step row, held with the wired Thinking though the provider grammar carries no step: no pinned adapter sends a plan.",
-  ],
-  [
-    "packages/ui/src/ai/thinking.tsx#ThinkingTool",
-    "The trace vocabulary's tool row, held with the wired Thinking for the timeline that renders tool calls.",
-  ],
-  [
-    "packages/ui/src/ai/approval-card.tsx#ApprovalActions",
-    "The consumed ApprovalCard's multi-answer footer — single-choice questions commit on pick today; held for the first multi-answer approval.",
-  ],
-  [
-    "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
-    "The consumed StreamingText's inline action chip, held for answer-with-actions turns.",
-  ],
-]);
-
 const SOURCE_FILE = /\.tsx?$/u;
 
 interface BraceEntry {
@@ -192,7 +172,6 @@ const consumes = (consumption: Consumption, name: string): boolean =>
 
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
-  const byFile = new Map(files.map((target) => [target.file, target]));
   const sweptDirs = sweptRoots()
     .map((root) => `src/${root.dir}`)
     .join(", ");
@@ -203,9 +182,7 @@ describe("no orphan @repo/ui exports", () => {
 
     for (const target of files) {
       const consumption = consumptionAcross(target, consumers);
-      const unconsumed = exportedNames(target.file).filter(
-        (name) => !ALLOWED_EXPORTS.has(`${target.file}#${name}`) && !consumes(consumption, name),
-      );
+      const unconsumed = exportedNames(target.file).filter((name) => !consumes(consumption, name));
       for (const name of unconsumed.toSorted()) {
         orphans.push(`  ${target.file} — ${name}`);
       }
@@ -217,29 +194,7 @@ describe("no orphan @repo/ui exports", () => {
         `Every named export under ${sweptDirs} must be reachable from a consumer —\n` +
         `the gallery does NOT count: it imports everything by design, and rendering\n` +
         `there is not the same claim as the product needing it.\n` +
-        `Wire each up, delete it, or record it: a single export that must stay goes in\n` +
-        `ALLOWED_EXPORTS with its reason (tools/repo-guards/src/ui-orphan-exports.test.ts):\n${orphans.join(
-          "\n",
-        )}`,
-    ).toStrictEqual([]);
-  });
-
-  it("no ALLOWED_EXPORTS row outlives its export", () => {
-    const consumers = consumerFiles();
-    const stale = [...ALLOWED_EXPORTS.keys()].filter((key) => {
-      const [file, name] = key.split("#");
-      const target = file === undefined ? undefined : byFile.get(file);
-      if (target === undefined || name === undefined) {
-        return true;
-      }
-      if (!exportedNames(target.file).includes(name)) {
-        return true;
-      }
-      return consumes(consumptionAcross(target, consumers), name);
-    });
-    expect(
-      stale,
-      `ALLOWED_EXPORTS rows whose export is gone, is outside ${sweptDirs}, or now has a consumer — delete these:\n${stale.map((key) => `  ${key}`).join("\n")}`,
+        `Wire each up or delete it:\n${orphans.join("\n")}`,
     ).toStrictEqual([]);
   });
 });
