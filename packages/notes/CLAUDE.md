@@ -20,7 +20,8 @@ root.
   zod, every node the editor round-trips: every element a strict object, only
   a top-level block named, by its id and optionally the `ref` a link's
   `blockRef` reaches, a depth and a size checked before the recursive parse
-  (`storableBlockSchema`). The editor holds these nodes as they are: a link or
+  (`storableBlockSchema`), and a list's indent held to what the writer can nest
+  (`LIST_MAX_INDENT`). The editor holds these nodes as they are: a link or
   an embed names its target by id with the title the writer saw, a `#tag` is
   its text, media a sha or a url. Rejected: the vocabulary in `@repo/editor`
   (the cell and the replicas cannot load Plate), a tag node (two spellings of
@@ -194,9 +195,13 @@ root.
   meets a link; a definition nothing used stays its line, and a footnote's call
   and definition stay theirs, as source, so one takes no paragraph with it
   (`@repo/notes/markdown/remark-references`,
-  `@repo/notes/markdown/remark-opaque`). Rejected: a second, plain-markdown
-  grammar for an import (it needed a bridge to say where the two disagreed) and
-  a node for a reference in the library (a second spelling of every link).
+  `@repo/notes/markdown/remark-opaque`). A call reads the same with its
+  definition out of view, as it is in an edit of its own line, since typed text
+  that spells one has its `[` escaped. Rejected: a second, plain-markdown
+  grammar for an import (it needed a bridge to say where the two disagreed), a
+  node for a reference in the library (a second spelling of every link), and
+  handing an edit the item's definitions to parse beside (every reader of a
+  stretch would need them, and a paste holds none).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An

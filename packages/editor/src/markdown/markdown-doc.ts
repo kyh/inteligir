@@ -13,7 +13,7 @@ import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
-import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import { mdToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
 import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
 // Why a value cannot stand for its markdown: never the bytes, which always parse, but the
@@ -66,7 +66,12 @@ export class RoundTripError extends Error {
 // fresh per call: Slate editors carry mutable state.
 export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
-const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+// the tag the table writer joins a cell's blocks with spells no word of the note
+const letters = (s: string): string =>
+  s
+    .replaceAll("<br/>", "")
+    .replaceAll(/[^\p{L}\p{N}]+/gu, "")
+    .toLowerCase();
 
 const lineEndOffsets = (lines: readonly string[]): number[] => {
   const ends: number[] = [];
@@ -136,16 +141,10 @@ export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNo
   return { markdown, spans: recorder.spans };
 };
 
-// stringify overflows the stack at the same depth the conversion does
+// stringify overflows the stack short of the depth the conversion reaches
 const serialize = (editor: SlateEditor, value: Value): Serialized => {
-  try {
-    return { ok: true, out: serializeNote(editor, value) };
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return { ok: false, reason: { kind: "too-deep" } };
-    }
-    throw error;
-  }
+  const out = withinStack(() => serializeNote(editor, value));
+  return out === null ? { ok: false, reason: { kind: "too-deep" } } : { ok: true, out };
 };
 
 const roundTripResult = (md: string): Serialized => {

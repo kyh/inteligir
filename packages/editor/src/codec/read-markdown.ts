@@ -10,7 +10,7 @@ import type { Descendant, TElement } from "platejs";
 
 import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import { mdToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
 import { wikiFieldsOf, wikiPartsOf } from "@repo/editor/wiki/wiki-node";
 import { mdLinkUrl } from "@repo/notes/knowledge/link-extract";
 
@@ -62,24 +62,20 @@ export const settled = (
   }
   const editor = headlessEditor();
   let current = value;
-  try {
+  withinStack(() => {
     let written = serializeNote(editor, current);
     for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
       const back = mdToSlate(editor, written, read);
       if (!back.ok) {
-        return current;
+        return;
       }
       current = elementsOf(back.nodes);
       const again = serializeNote(editor, current);
       if (again === written) {
-        return current;
+        return;
       }
       written = again;
     }
-  } catch (error) {
-    if (!(error instanceof RangeError)) {
-      throw error;
-    }
-  }
+  });
   return current;
 };

@@ -33,11 +33,18 @@ alone, and no walk narrows structurally.
   whole-value pre-pass. Byte stability is the codec's tested contract: a
   canonical file round-trips byte-exact, a churn-class construct may
   canonicalize on its first read (said per fixture), the fixtures are
-  formatter-exempt, and a file nested past the conversion's depth is refused
-  (an import leaves it out, an agent's edit is turned down), so every item
-  opens rich. Rejected: a raw editor beside the rich one (markdown is not at
-  rest), a paragraph rule's prune (a heading or list item saved `**a****b**`)
-  and Plate's `serializeMd` (no pre-pass, a ZWSP beside every chip).
+  formatter-exempt, and a file nested past what the conversion and the writer
+  hold is refused (an import leaves it out, an agent's edit is turned down, a
+  paste lands as plain text), so every item opens rich and writes. A list is
+  flat in the model, so nothing but a cap holds it inside the writer's
+  recursion: `LIST_MAX_INDENT`, which the rule table refuses past, the
+  vocabulary stores no deeper than and a Tab stops at. Any other nesting is
+  refused where a stack runs out, which V8 says as a RangeError or, compiling a
+  regular expression, as a SyntaxError (`withinStack`). Rejected: a raw
+  editor beside the rich one (markdown is not at rest), a paragraph rule's
+  prune (a heading or list item saved `**a****b**`), Plate's `serializeMd` (no
+  pre-pass, a ZWSP beside every chip) and a catch per item around an export (a
+  list a writer cannot hold would land, and read nowhere after).
   `packages/editor/src/markdown/markdown-doc.ts`, `packages/editor/README.md`
   § Invariants.
 
@@ -79,18 +86,20 @@ alone, and no walk narrows structurally.
   is plain nested `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
-  TEXT.** Pills, dates, annotation markers and `:::` lines are read from
-  finished text, so a backslash before one's first character keeps it text
-  (`\@2026-08-22`), and the serializer writes that escape before typed text the
-  next parse would read as one, so what a person types stays text. A `=== Label`
-  line is one finished text too: a label is plain words, a construct in one
-  leaves the whole group prose, and the writer escapes a label that would read
-  as one, a bare url among them, since what GFM reads past that escape is still
-  the line's text. Rejected: reading a construct in a label (a label is a
-  string, with no inline to hold it). Obsidian's spellings in a note hold to
-  the same rule (MARKDOWN IS A CODEC BESIDE THE LIBRARY).
+  TEXT.** Pills, dates, annotation markers, `:::` lines and a footnote's call
+  with its definition out of view are read from finished text, so a backslash
+  before one's first character keeps it text (`\@2026-08-22`, `\[^a]`), and the
+  serializer writes that escape before typed text the next parse would read as
+  one, so what a person types stays text. A `=== Label` line is one finished
+  text too: a label is plain words, a construct in one leaves the whole group
+  prose, and the writer escapes a label that would read as one, a bare url
+  among them, since what GFM reads past that escape is still the line's text.
+  Rejected: reading a construct in a label (a label is a string, with no inline
+  to hold it). Obsidian's spellings in a note hold to the same rule (MARKDOWN
+  IS A CODEC BESIDE THE LIBRARY).
   `packages/notes/src/markdown/text-escapes.ts`,
   `packages/notes/src/markdown/remark-inline-constructs.ts`,
+  `packages/notes/src/markdown/remark-references.ts`,
   `packages/notes/src/markdown/remark-containers.ts`.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
@@ -321,10 +330,11 @@ alone, and no walk narrows structurally.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
-  takes no block with it. A list item is its words: a list an item opens with
-  nests under an empty line, and any other block it opens with keeps its type
-  and stands outside the list where the item stood, a to-do's box on a line
-  above it. Rejected: Plate's list rule (it made every such block a `p`, which
+  takes no block with it, and one with a title is its source, which keeps the
+  title (`packages/notes/src/markdown/remark-opaque.ts`). A list item is its
+  words: a list an item opens with nests under an empty line, and any other
+  block it opens with keeps its type and stands outside the list where the item
+  stood, a to-do's box on a line above it. Rejected: Plate's list rule (it made every such block a `p`, which
   holds no address, fence or source, and laid a nested list over its parent's
   line). What follows a `$$` on its line leads the expression, since an
   equation holds no fence meta and a person who opens `$$ E = mc^2` wrote it
@@ -409,6 +419,30 @@ alone, and no walk narrows structurally.
   text as the key (it stayed on the phone after a sign-out). Residual: the
   phone's page keeps the ids and hashes, which name nothing, past a sign-out.
   `packages/editor/src/heading-collapse.tsx`.
+
+- **A SPAN HELD LITERALLY KEEPS ITS PIPES IN A TABLE CELL.** A wiki body and an
+  inline equation are read as source, so a row's `\|` reaches them: each drops
+  it on the read, as gfm does for inline code, and writes a bare pipe that way,
+  which is how Obsidian spells `[[Title\|alias]]`. TeX's own `\|` would read
+  back as a pipe, so in a cell it is written `\Vert`, the same bar. A code
+  span's own `\|` has no spelling in a cell, and gfm's handler would write it
+  as a divider, so it gains a backslash and the row stands. Rejected: `\vert`
+  for a bare pipe (it means nothing in `\begin{array}{c|c}` or `\text{a|b}`),
+  and escaping with no read (`|x|` would come back as `\|x\|`, a different
+  bar). `packages/notes/src/markdown/line-scan.ts`,
+  `packages/notes/src/markdown/md-plugins.ts`.
+
+- **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
+  writer joins a cell's blocks with that tag and has no other word for a cell's
+  second line, so the read cuts a cell at it. An image is a block wherever it
+  stands in a cell, so a tag beside one is the edge it already has. A cell
+  settles on its first write, and its two lines stay two through an edit or a
+  highlight anywhere in the table. Only the writer's spelling is the boundary:
+  `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of
+  the table would turn a person's second line into a tag), an inline image in a
+  cell (a second image node for one place), and a writer that drops the tag
+  beside an image (it would filter Plate's private output).
+  `packages/editor/src/markdown/md-rules.ts`.
 
 ## The open item's merge
 

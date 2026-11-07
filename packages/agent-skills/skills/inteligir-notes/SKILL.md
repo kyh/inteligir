@@ -88,8 +88,9 @@ in a cell; put it after the table.
 | Queue | Ana   | [[Queue Design]] |
 ```
 
-A literal pipe in a cell is `\|`. Inside a table cell, escape a pill's own pipes as `\|` (see
-inteligir Formulas And Variables, In Tables).
+A literal pipe in a cell is `\|`, and so is the pipe in a wiki link there (`[[Title\|id]]`).
+Inside a table cell, escape a pill's own pipes as `\|` (see inteligir Formulas And Variables, In
+Tables). A second line in a cell is `<br/>`.
 
 ### Code
 

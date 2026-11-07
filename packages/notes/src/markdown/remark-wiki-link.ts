@@ -1,24 +1,24 @@
 // own micromark constructs rather than an npm package: the published wiki-link packages are
-// years stale and lack embeds. `body` is the raw source between the brackets, verbatim;
-// anchor/alias splitting is display-time only. a single `]` inside the body rejects the whole
-// construct, which then falls through to standard link parsing.
+// years stale and lack embeds. `body` is the raw source between the brackets, verbatim but for a
+// table row's own `\|`; anchor/alias splitting is display-time only. a single `]` inside the body
+// rejects the whole construct, which then falls through to standard link parsing.
 
 // remark-stringify's augmentation declares `Data.toMarkdownExtensions` (types-only).
 /// <reference types="remark-stringify" />
 
-import type { Node } from "mdast";
+import type { Node, Parents } from "mdast";
 import type {
   CompileContext,
   Extension as FromMarkdownExtension,
   Token,
 } from "mdast-util-from-markdown";
-import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
+import type { State as WriteState, Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import { markdownLineEnding } from "micromark-util-character";
 import { codes } from "micromark-util-symbol";
 import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
-import { isEscapedAt } from "./line-scan";
+import { escapeCellPipes, isEscapedAt, readCellPipes } from "./line-scan";
 
 export interface WikiLink extends Node {
   type: "wikiLink";
@@ -146,20 +146,30 @@ const wikiFromMarkdown: FromMarkdownExtension = {
     wikiLinkBody(this: CompileContext, token: Token) {
       const node = this.stack.at(-1);
       if (node && (node.type === "wikiLink" || node.type === "wikiEmbed")) {
-        node.body = this.sliceSerialize(token);
+        const source = this.sliceSerialize(token);
+        node.body = this.data.inTable === true ? readCellPipes(source) : source;
       }
     },
   },
 };
 
+// a title's own last backslash, `[[a\|shown]]`, stands escaped in a cell: the body's dialect reads
+// `\\` as that backslash
+const bodyAsWritten = (body: string, state: WriteState): string =>
+  state.stack.includes("tableCell") ? escapeCellPipes(body, String.raw`\\\|`) : body;
+
 const wikiToMarkdown: ToMarkdownExtension = {
   handlers: {
-    wikiEmbed: Object.assign((node: WikiEmbed) => `![[${node.body}]]`, {
-      peek: () => "!",
-    }),
-    wikiLink: Object.assign((node: WikiLink) => `[[${node.body}]]`, {
-      peek: () => "[",
-    }),
+    wikiEmbed: Object.assign(
+      (node: WikiEmbed, _parent: Parents | undefined, state: WriteState) =>
+        `![[${bodyAsWritten(node.body, state)}]]`,
+      { peek: () => "!" },
+    ),
+    wikiLink: Object.assign(
+      (node: WikiLink, _parent: Parents | undefined, state: WriteState) =>
+        `[[${bodyAsWritten(node.body, state)}]]`,
+      { peek: () => "[" },
+    ),
   },
 };
 

@@ -29,6 +29,7 @@ import type {
 } from "@platejs/markdown";
 import { z } from "zod";
 
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
@@ -300,6 +301,47 @@ const paragraphRule: WideMdRule = {
   serialize: defaultParagraphSerialize,
 };
 
+const isCellBreak = (node: Descendant): boolean =>
+  ElementApi.isElement(node) && node.type === OPAQUE_KEY && stringProp(node, "source") === "<br/>";
+
+const cellLines = (children: readonly Descendant[]): Descendant[][] => {
+  const lines: Descendant[][] = [[]];
+  for (const child of children) {
+    if (isCellBreak(child)) {
+      lines.push([]);
+    } else {
+      lines.at(-1)?.push(child);
+    }
+  }
+  return lines;
+};
+
+// The table writer joins a cell's blocks with `<br/>` and has no other word for its second line, so
+// the tag reads back as that boundary. A block lifted out of the line, an image, already stands
+// on one, so the empty line a tag beside it leaves is not the cell's.
+const cellBlocks = (blocks: readonly Descendant[]): Descendant[] =>
+  blocks.flatMap((block, index): Descendant[] => {
+    if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
+      return [block];
+    }
+    const lines = cellLines(block.children);
+    const start = index > 0 && lines[0]?.length === 0 ? 1 : 0;
+    const end = index < blocks.length - 1 && lines.at(-1)?.length === 0 ? -1 : lines.length;
+    return lines
+      .slice(start, end)
+      .map((children) => ({ ...block, children: children.length > 0 ? children : [{ text: "" }] }));
+  });
+
+const withCellBlocks = (row: Descendant): Descendant =>
+  ElementApi.isElement(row)
+    ? {
+        ...row,
+        children: row.children.map((cell) =>
+          ElementApi.isElement(cell) ? { ...cell, children: cellBlocks(cell.children) } : cell,
+        ),
+      }
+    : row;
+
 // the blocks that are an item's own line: words, whichever block spelled them
 const ITEM_LINES: ReadonlySet<string> = new Set([KEYS.p, ...KEYS.heading]);
 
@@ -309,6 +351,14 @@ const elementsIn = (nodes: readonly Descendant[]): TElement[] =>
   nodes.flatMap((node) => (ElementApi.isElement(node) ? [node] : []));
 
 const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
+
+// a level past what an item holds is the conversion's own refusal, as an overflow of its stack is
+const nestedIndent = (indent: number): number => {
+  if (indent >= LIST_MAX_INDENT) {
+    throw new RangeError(`a list nests past ${String(LIST_MAX_INDENT)} levels`);
+  }
+  return indent + 1;
+};
 
 // Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
 // and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
@@ -358,10 +408,10 @@ const listBlocks = (
     });
     const nested = rest.flatMap((child): TElement[] =>
       child.type === "list"
-        ? listBlocks(child, indent + 1, deco, options)
+        ? listBlocks(child, nestedIndent(indent), deco, options)
         : elementsIn(convertChildrenDeserialize([child], deco, options)).map((block) => ({
             ...block,
-            indent: indent + 1,
+            indent: nestedIndent(indent),
           })),
     );
     return [...placed, ...nested];
@@ -723,11 +773,8 @@ export const MD_RULES: MdRules = {
         }
         return { children: cells, type: "tableRow" };
       };
-      const element = defaultTableDeserialize(
-        { ...node, children: rows.map(padRow) },
-        deco,
-        options,
-      );
+      const read = defaultTableDeserialize({ ...node, children: rows.map(padRow) }, deco, options);
+      const element = { ...read, children: read.children.map(withCellBlocks) };
       const align = node.align ?? [];
       return align.some((entry) => entry !== null) ? { ...element, align } : element;
     },

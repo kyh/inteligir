@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
 
 import { exportItem, importItem } from "./codec/item-markdown";
@@ -14,8 +15,9 @@ import { pretendLibrary } from "./test-support/codec-ports";
 // byte-stable modulo trailing whitespace; (c) roundTrip output re-parses and is a
 // fixpoint; (d) canonical ⇒ no letters invented or lost; (e) analysis refuses conversion ⟺
 // roundTrip throws; (f) every doc, canonical or not, keeps its words through importItem, an
-// exportItem and a second trip, or the import counts what it left out. Fix the pipeline, never
-// relax an invariant.
+// exportItem and a second trip, or the import counts what it left out; (g) an import is its own
+// fixpoint: that second trip writes the first's bytes, modulo trailing whitespace. Fix the
+// pipeline, never relax an invariant.
 
 type ViolationKind =
   | "a-analyze-throw"
@@ -24,7 +26,8 @@ type ViolationKind =
   | "c-output-does-not-reparse"
   | "d-canonical-content-loss"
   | "e-analysis-roundtrip-disagree"
-  | "f-import-words-lost";
+  | "f-import-words-lost"
+  | "g-import-not-settled";
 
 // `signature` is the dedupe key across inputs
 interface Violation {
@@ -209,27 +212,39 @@ const docWords = (md: string): readonly string[] => {
   return [...words];
 };
 
-// what an export of this doc no longer holds, the first trip and the second, or null when the
-// import said so itself: a refusal keeps the file out whole, and `leftOut` counts a block
-const wordsLost = (md: string, words: readonly string[]): string[] | null => {
+// a doc's export and that export's own, the second null when the import refused its own export,
+// or null when the first import said what it left out: a refusal keeps the file out whole, and
+// `leftOut` counts a block
+type Trips = { first: string; second: string | null } | null;
+
+const tripsOf = (md: string): Trips => {
   const read = importItem({ annotations: null, name: "Doc", text: md }, library.importPorts());
   if (!read.ok || read.item.leftOut > 0) {
     return null;
   }
   const first = trip(read.item);
   const reread = importItem({ ...first, name: "Doc" }, library.importPorts());
-  if (!reread.ok || reread.item.leftOut > 0) {
+  return {
+    first: first.text,
+    second: !reread.ok || reread.item.leftOut > 0 ? null : trip(reread.item).text,
+  };
+};
+
+// what those exports no longer hold, or null when the import said so itself
+const wordsLost = (trips: Trips, words: readonly string[]): string[] | null => {
+  if (trips === null) {
+    return null;
+  }
+  if (trips.second === null) {
     return [...words];
   }
-  const held = [first, trip(reread.item)].map(({ text }) =>
-    letters(text.replace(FRONTMATTER_RE, "")),
-  );
+  const held = [trips.first, trips.second].map((text) => letters(text.replace(FRONTMATTER_RE, "")));
   return words.filter((word) => !held.every((body) => body.includes(word)));
 };
 
 // (f): every doc keeps its words, whatever its bytes become, or says what it left out
-const wordsViolations = (md: string): Violation[] => {
-  const lost = wordsLost(md, docWords(md)) ?? [];
+const wordsViolations = (md: string, trips: Trips): Violation[] => {
+  const lost = wordsLost(trips, docWords(md)) ?? [];
   return lost.length === 0
     ? []
     : [
@@ -241,6 +256,19 @@ const wordsViolations = (md: string): Violation[] => {
         },
       ];
 };
+
+// (g): a doc that came in holds still, on the second trip as on the first
+const settleViolations = (md: string, trips: Trips): Violation[] =>
+  trips === null || trips.second === null || trips.second.trimEnd() === trips.first.trimEnd()
+    ? []
+    : [
+        {
+          detail: firstDiff(trips.first, trips.second),
+          input: md,
+          kind: "g-import-not-settled",
+          signature: "g|bytes",
+        },
+      ];
 
 const hunt = (md: string): Violation[] => {
   let analysis: Analysis;
@@ -272,7 +300,8 @@ const hunt = (md: string): Violation[] => {
   if (analysis.kind === "canonical") {
     found.push(...canonicalViolations(md, out, rtError));
   }
-  found.push(...wordsViolations(md));
+  const trips = tripsOf(md);
+  found.push(...wordsViolations(md, trips), ...settleViolations(md, trips));
   return found;
 };
 
@@ -486,15 +515,30 @@ const CORPUS = {
   "tab-indented-code": "\tindented code\n",
   "tab-inline": "a\tb\n",
   "table-alignment": "| a | b | c |\n|:- | -:|:-:|\n| 1 | 2 | 3 |\n",
+  "table-code-span-backslash-pipe": "| `a\\\\\\|b` |\n| - |\n| x |\n",
   "table-code-span-pipe": "| `a|b` |\n| ----- |\n| x     |\n",
   "table-empty-cells": "| a |  |\n| - | - |\n|   | b |\n",
   "table-escaped-pipe": "| a\\|b |\n| ---- |\n| c    |\n",
+  "table-image-after-words": "| a |\n| - |\n| see ![i](https://x.cd/p.png) |\n",
+  "table-image-before-words": "| a |\n| - |\n| ![i](https://x.cd/p.png) here |\n",
+  "table-image-beside-break": "| a |\n| - |\n| see<br/>![i](https://x.cd/p.png)<br/>here |\n",
+  "table-image-between-words": "| a |\n| - |\n| see ![i](https://x.cd/p.png) here |\n",
+  "table-image-in-mark": "| a |\n| - |\n| see **![i](https://x.cd/p.png)** here |\n",
+  "table-images-apart": "| a |\n| - |\n| ![i](https://x.cd/p.png) ![j](https://x.cd/q.png) |\n",
+  "table-images-together": "| a |\n| - |\n| ![i](https://x.cd/p.png)![j](https://x.cd/q.png) |\n",
   "table-inline-jsx":
     '| <date value="2026-01-01" /> |\n| --------------------------- |\n| y                           |\n',
   "table-inside-toggle": "<toggle>\n  | a |\n  | - |\n  | b |\n</toggle>\n",
+  "table-math-pipe": "| $$\\|x\\|$$ |\n| - |\n| $$a\\\\\\|b$$ |\n",
   "table-ragged-body-long": "| a |\n| - |\n| 1 | 2 |\n",
   "table-ragged-body-short": "| a | b |\n| - | - |\n| 1 |\n",
   "table-ragged-header": "| a |\n| - | - |\n",
+  "table-wiki-alias":
+    "| [[Note\\|shown]] | b |\n| - | - |\n| ![[img.png\\|300]] | [[a\\\\\\|c]] |\n",
+  "table-word-break": "| a |\n| - |\n| one<br/>two |\n",
+  "table-word-break-at-edges": "| a |\n| - |\n| <br/>one<br/> |\n",
+  "table-word-break-empty-line": "| a |\n| - |\n| one<br/><br/>two |\n",
+  "table-word-break-in-mark": "| a |\n| - |\n| **one<br/>two** |\n",
   "tabs-in-toggle": ":::toggle\n:::tabs\n=== A\nx\n:::\n:::\n",
   "tilde-fence": "~~~js\ncode\n~~~\n",
   "todo-capital-x": "- [X] done\n",
@@ -623,12 +667,19 @@ const WHOLE: readonly (readonly [string, readonly string[]])[] = [
   ['[unused]: /nowhere "unsaid"\n', ["unused", "nowhere", "unsaid"]],
   ["before\n\n[unused]: /nowhere\n\nafter\n", ["before", "unused", "nowhere", "after"]],
   ["[missing][handle] stays\n", ["missing", "handle", "stays"]],
+  ['![seen](<> "titled words")\n', ["seen", "titled", "words"]],
+  ['[shown](<> "titled words")\n', ["shown", "titled", "words"]],
+  ['[handle]\n\n[handle]: <> "titled"\n', ["handle", "titled"]],
+  ['![handle][handle]\n\n[handle]: <> "titled"\n', ["handle", "titled"]],
   ["claim[^mark] follows\n\n[^mark]: the source\n", ["claim", "mark", "follows", "source"]],
   ["# heading[^mark]\n\n[^mark]: see [[target]]\n", ["heading", "mark", "target"]],
   ["- item[^mark]\n- other\n\n[^mark]: the source\n", ["item", "other", "mark", "source"]],
   ["> quoted[^mark]\n\n[^mark]: the source\n", ["quoted", "mark", "source"]],
   [":::toggle\nfolded[^mark]\n\n[^mark]: the source\n:::\n", ["folded", "mark", "source"]],
 ];
+
+const nestedList = (depth: number): string =>
+  `${Array.from({ length: depth }, (_, at) => `${"  ".repeat(at)}- x`).join("\n")}\n`;
 
 describe("adversarial round-trip hunt", () => {
   it("handcrafted corpus upholds the invariants", { timeout: 90_000 }, () => {
@@ -638,7 +689,7 @@ describe("adversarial round-trip hunt", () => {
   it("a reference, a definition and a footnote land whole", { timeout: 30_000 }, () => {
     expect(
       WHOLE.flatMap(([md, words]) => {
-        const lost = wordsLost(md, words);
+        const lost = wordsLost(tripsOf(md), words);
         return lost === null || lost.length > 0 ? [{ lost, md }] : [];
       }),
     ).toStrictEqual([]);
@@ -656,10 +707,13 @@ describe("adversarial round-trip hunt", () => {
       ["toggle-depth-300", `${"<toggle>\n".repeat(300)}x\n${"</toggle>\n".repeat(300)}`],
       ["container-depth-300", `${":::toggle\n".repeat(300)}x\n${":::\n".repeat(300)}`],
       ["container-unclosed-3000", ":::toggle\n".repeat(3000)],
-      [
-        "list-depth-300",
-        `${Array.from({ length: 300 }, (_, i) => `${"  ".repeat(i)}- x`).join("\n")}\n`,
-      ],
+      ["list-depth-300", nestedList(300)],
+      ["list-openers-at-the-limit", `${"- ".repeat(LIST_MAX_INDENT)}x\n`],
+      ["list-openers-past-the-limit", `${"- ".repeat(LIST_MAX_INDENT + 1)}x\n`],
+      ["list-openers-past-the-writer", `${"- ".repeat(450)}x\n`],
+      ["list-openers-past-the-stack", `${"- ".repeat(1000)}x\n`],
+      ["list-at-the-limit", nestedList(LIST_MAX_INDENT)],
+      ["list-past-the-limit", nestedList(LIST_MAX_INDENT + 1)],
       ["emphasis-run-2000", `${"*".repeat(2000)}x\n`],
       ["bracket-run-2000", `${"[".repeat(2000)}x\n`],
       ["long-line-200kb", `${"word ".repeat(40_000)}\n`],

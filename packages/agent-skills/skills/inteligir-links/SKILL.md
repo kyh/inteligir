@@ -16,12 +16,12 @@ something that should render, not for something to click.
 The body of a wiki link is `target`, then an optional `#heading`, then an optional `|alias` — and
 **the LAST pipe starts the alias**, so a title containing a pipe still works.
 
-`read_item` writes every link to an item as `[[Title|id]]`: its title as it is now, and after the
-last pipe the id of the item it points at. That id is the link: it keeps pointing at the right item
-after a rename, and the reader sees the item's title, never the id. **Keep every id you read, and
-never replace one with a display alias** — you would be throwing away the only durable pointer in
-the link. To link to an item you found, write its title and the id `search_library` or
-`list_items` answered; never type an id from memory.
+`read_item` writes every link to an item as `[[Title|id]]`, or `[[Title\|id]]` in a table cell: its
+title as it is now, and after the last pipe the id of the item it points at. That id is the link: it
+keeps pointing at the right item after a rename, and the reader sees the item's title, never the id.
+**Keep every id you read, and never replace one with a display alias** — you would be throwing away
+the only durable pointer in the link. To link to an item you found, write its title and the id
+`search_library` or `list_items` answered; never type an id from memory.
 
 A link written `[[Title]]` with no id finds the item of that title or alias. One that finds
 nothing renders dashed and offers to create the note — that is a working state, not an error, and

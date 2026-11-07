@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LIST_MAX_INDENT,
   collectFileShas,
   libraryBlockSchema,
   libraryNodeSchema,
@@ -142,6 +143,10 @@ describe("the persisted node set", () => {
     ],
     ["a heading past six", { children: [{ text: "a" }], id: "h", type: "h7" }],
     [
+      "a list nested past what the writer holds",
+      { children: [{ text: "a" }], id: "l", indent: LIST_MAX_INDENT + 1, type: "p" },
+    ],
+    [
       "a date that is no day",
       { children: [{ children: leaf, date: "2026-02-30", type: "date" }], id: "p", type: "p" },
     ],
@@ -167,6 +172,17 @@ describe("the persisted node set", () => {
     ],
   ])("refuses %s", (_, block) => {
     expect(libraryBlockSchema.validate(block)).toBe(false);
+  });
+
+  it("holds a list as deep as the writer does", () => {
+    expect(
+      libraryBlockSchema.validate({
+        children: [{ text: "a" }],
+        id: "l",
+        indent: LIST_MAX_INDENT,
+        type: "p",
+      }),
+    ).toBe(true);
   });
 
   it("reads a text leaf and an inline element as nodes", () => {

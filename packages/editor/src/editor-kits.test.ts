@@ -10,6 +10,7 @@ import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 
 const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);
@@ -26,6 +27,19 @@ const el = (node: Descendant | undefined): TElement => {
   }
   return node;
 };
+
+describe("a list's depth", () => {
+  it("stops at what an item stores, so a Tab past it leaves nothing no write can save", () => {
+    const editor = createSlateEditor({
+      plugins: EDITOR_KIT,
+      value: [
+        { children: [{ text: "x" }], indent: LIST_MAX_INDENT, listStyleType: "disc", type: "p" },
+      ],
+    });
+    editor.tf.setNodes({ indent: LIST_MAX_INDENT + 1 }, { at: [0] });
+    expect(el(editor.children[0]).indent).toBe(LIST_MAX_INDENT);
+  });
+});
 
 describe("column normalizer (suppressed width writer)", () => {
   it("keeps bare columns bare through a forced normalize + edit", () => {

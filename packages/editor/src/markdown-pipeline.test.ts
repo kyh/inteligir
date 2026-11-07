@@ -9,10 +9,13 @@ import { stringProp } from "@repo/editor/node-props";
 import {
   RoundTripError,
   analyzeMarkdown,
+  headlessEditor,
   parseMarkdown,
   roundTrip,
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
+import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
@@ -35,6 +38,13 @@ const listPropsOf = (md: string): string[][] => {
       .filter((key) => LIST_PROPS.has(key))
       .toSorted(),
   ]);
+};
+
+// a stack that runs out as V8 compiles a regular expression throws what nesting past its compiler
+// throws, whichever the conversion's own patterns it reaches first
+const regexpOverflow = (): never => {
+  const nested = new RegExp(`${"(".repeat(20_000)}a${")".repeat(20_000)}`, "u");
+  throw new Error(`compiled: ${String(nested.test("a"))}`);
 };
 
 describe("a block a list item opens with", () => {
@@ -505,6 +515,22 @@ describe("the round trip's API", () => {
   it("names a file holding the codec's article section a loss: the live editor holds no section", () => {
     const md = "# Note\n\nmine\n\n:::article\n\nThe page.\n\n:::\n";
     expect(analyzeMarkdown(md)).toStrictEqual({ kind: "roundtrip-loss" });
+  });
+
+  it("refuses a list past what the writer holds, for a paste as for an import", () => {
+    const deep = `${"- ".repeat(LIST_MAX_INDENT + 1)}x\n`;
+    expect(mdToSlate(headlessEditor(), deep)).toStrictEqual({
+      ok: false,
+      reason: { kind: "too-deep" },
+    });
+    expect(analyzeMarkdown(deep)).toStrictEqual({ kind: "too-deep" });
+  });
+
+  it("reads the regular expression engine's overflow as the depth failure it is", () => {
+    expect(mdToSlate(headlessEditor(), "x\n", regexpOverflow)).toStrictEqual({
+      ok: false,
+      reason: { kind: "too-deep" },
+    });
   });
 
   it("classifies conversion stack overflow as too deep instead of throwing (V1)", () => {
