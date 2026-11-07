@@ -1,8 +1,3 @@
----
-name: inteligir-annotations
-description: Highlights in inteligir items — the markers around a highlighted passage, quotes, notes, replies, and how to add one.
----
-
 # inteligir Highlights
 
 A highlight is a passage of an item and an optional note on it: a claim to check, a decision, or an

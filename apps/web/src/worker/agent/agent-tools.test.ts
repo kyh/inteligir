@@ -51,12 +51,12 @@ const words = (count: number, seed: string): string =>
   Array.from({ length: count }, (_, index) => `${seed}${String(index)}`).join(" ");
 
 describe("the built-in agent's tools", () => {
-  it("are the connector's tools but undo_change, each by its name, deleting on the person's word", async () => {
+  it("are the connector's tools but undo_change, each by its name, deleting and reaching the web on the person's word", async () => {
     const listed = await registered();
     const names = AGENT_TOOL_DEFINITIONS.map((tool) => tool.name);
     expect(names).toStrictEqual(listed.filter((name) => name !== "undo_change").toSorted());
     expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toStrictEqual(names);
-    expect(names.filter(asksFirst)).toStrictEqual(["delete_items"]);
+    expect(names.filter(asksFirst)).toStrictEqual(["delete_items", "save_link"]);
   });
 
   it("are defined as the committed snapshot holds them, with no op id the agent could write", async () => {

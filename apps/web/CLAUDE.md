@@ -504,13 +504,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/agent/agent-tools.ts`.
 
 - **AN APPROVAL WAITS ON THE PERSON TEN MINUTES IN THE THREAD'S OWN ROWS, AND A
-  CANCEL DENIES BEFORE IT STOPS.** `delete_items` is journaled awaiting the
-  person under a Lifecycle job that denies at ten minutes; an answer decides
-  once; a cancel marks the turn durably, cuts the model call whether it is
-  still being reserved or already streaming, and answers every open call
-  `is_error`, so the next request is valid. Rejected: a tool that waits in
-  memory (it dies with an eviction); the platform's `auto` judgment (not the
-  person). `apps/web/src/worker/agent/agent-thread.ts`, `thread-loop.ts`.
+  CANCEL DENIES BEFORE IT STOPS.** `delete_items` and `save_link` are journaled
+  awaiting the person under a Lifecycle job that denies at ten minutes; an
+  answer decides once; a cancel marks the turn durably, cuts the model call
+  whether it is still being reserved or already streaming, and answers every
+  open call `is_error`, so the next request is valid. Rejected: a tool that
+  waits in memory (it dies with an eviction); the platform's `auto` judgment
+  (not the person). `apps/web/src/worker/agent/agent-thread.ts`,
+  `thread-loop.ts`.
 
 - **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
   GOES** (owner decision: about fifty free turns a month, a day's share first).
@@ -524,10 +525,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `max_tokens` written, the summary the answer's input); each reply books its
   exact usage at list price in micro-cents, a cut call its reservation against
   the day but not its turn's ceiling, and a turn that cost nothing is
-  refunded. Rejected: the gateway's spend limit (eventually consistent, a
-  backstop); an estimate booked as spend; one pass priced for a call that may
-  make two (a turn would book past what it reserved); characters / 3 (it
-  counted CJK at a quarter of its tokens and ids at a third).
+  refunded. The one pass no reservation holds is a fallback's: it books past
+  what the call reserved, and past the turn's ceiling by one call at most,
+  since the next call then finds nothing left. Rejected: the gateway's spend
+  limit (eventually consistent, a backstop); an estimate booked as spend; one
+  pass priced for a compaction that makes two (a turn would book past what it
+  reserved); reserving the fallback too (a cold first call at the 50-cent
+  ceiling buys under the smallest cap, so every new conversation is refused);
+  characters / 3 (it counted CJK at a quarter of its tokens and ids at a third).
   `apps/web/src/worker/agent/agent-allowance.ts`, `thread-request.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX
@@ -633,3 +638,33 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cap); the id from the link (a link could name another extension).
   `apps/web/src/routes/connect/extension.tsx`,
   `apps/web/src/worker/wire/account-router.ts`.
+
+- **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON
+  SEES THE WHOLE ADDRESS BEFORE IT GOES.** The cloud reads a saved page, so a
+  link's address reaches that site, and a saved page the agent read can ask it
+  to carry the person's words there; `save_link` asks first, and its card shows
+  the address as the library would read it, the host named beside it, since
+  the model's own reply is what such a page writes. Nothing a
+  device draws is the same door: the page, the Mac and the phone's editor page
+  each draw no remote image, frame or media
+  (`tools/repo-guards/src/remote-media.test.ts`).
+  Rejected: holding the read until the person confirms it after the turn (a
+  second gate beside the one approvals are); trusting the prompt's rule against
+  following a page (a request sent cannot be undone).
+  `apps/web/src/worker/agent/library-agent.ts`,
+  `packages/agent-panel/src/thread-entries.ts`.
+
+- **FILING RULES ARE THE PERSON'S OWN WORDS, AND ONLY THE PERSON WRITES THEM.**
+  They reach the agent as a system message, above anything a saved page or a
+  note can say, so `library.agent.setRules` is their one writer: an import
+  reads an `AGENTS.md` as a note like any other, and an export writes the rules
+  under that name, no file for a blank page, so moving them is a paste. A
+  running conversation hears of a change at its next reply, and of a clearing
+  too, in a system message of its own, since the rules it holds outlive the
+  turn that sent them.
+  Rejected: adopting a folder's rules while the library keeps none (a zip is
+  anyone's text, and it would become instructions no person wrote); clearing by
+  sending nothing (the old message replays on every call).
+  `apps/web/src/worker/library/library-rules.ts`,
+  `apps/web/src/worker/agent/thread-loop.ts`,
+  `packages/editor/src/codec/import-plan.ts`.

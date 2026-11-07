@@ -1,8 +1,3 @@
----
-name: inteligir-writing
-description: How an inteligir note should read — leading with the answer, choosing structure that fits the information, and knowing when to stop.
----
-
 # inteligir Writing
 
 Write for someone who skims first and reads only if the skim earns it. This section owns structure

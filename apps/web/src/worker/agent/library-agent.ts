@@ -14,9 +14,10 @@ export const AGENT_MAX_TOKENS = 64_000;
 
 // every library tool the agent may call, by the name it is listed under, and whether it runs at
 // once or waits for the person: an allowlist, so a tool the library gains later stays off until it
-// is named here. Deleting asks, since it is the one change a person approves first; every other
-// change joins the turn's one undoable set. undo_change is left out: the person's Undo is a
-// button, and an agent undoing its own turn would undo it under them
+// is named here. Deleting asks, and so does saving a link: the cloud reads a saved page, so its
+// address reaches that site, the one way the agent's words leave the library, and no Undo recalls
+// a request. Every other change joins the turn's one undoable set. undo_change is left out: the
+// person's Undo is a button, and an agent undoing its own turn would undo it under them
 export const AGENT_TOOL_POLICIES = {
   add_highlight: "run",
   create_note: "run",
@@ -28,7 +29,7 @@ export const AGENT_TOOL_POLICIES = {
   list_tags_and_folders: "run",
   organize_items: "run",
   read_item: "run",
-  save_link: "run",
+  save_link: "ask",
   search_library: "run",
 } as const;
 

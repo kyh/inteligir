@@ -8,7 +8,7 @@ import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
   agentRefusalWords,
-  approvalQuestion,
+  approvalWords,
   endingWords,
   isWorking,
   readsOnly,
@@ -222,6 +222,7 @@ const Conversation = ({
 }) => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
+  const replica = useReplica();
   const queries = useReplicaQueries();
   const stored = useQuery(queries.threadEvents(threadId));
   const rows = stored.data ?? [];
@@ -310,28 +311,35 @@ const Conversation = ({
         ),
       )}
       {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
-      {waiting.map((approval) => (
-        <div key={approval.eventId} data-approval={approval.eventId}>
-          <ApprovalCard
-            sentLabel="Answered"
-            onSubmit={(answers: readonly ApprovalAnswer[]) => {
-              const picked = answers[0]?.optionIds[0];
-              if (picked === "allow" || picked === "deny") {
-                respond.mutate({ eventId: approval.eventId, result: picked, threadId });
-              }
-            }}
-          >
-            <ApprovalQuestion
-              questionId={approval.eventId}
-              prompt={approvalQuestion(approval)}
-              kind="radio"
+      {waiting.map((approval) => {
+        const { detail, question } = approvalWords(
+          approval,
+          (id) => replica.row(id)?.title ?? null,
+        );
+        return (
+          <div key={approval.eventId} data-approval={approval.eventId}>
+            <ApprovalCard
+              sentLabel="Answered"
+              onSubmit={(answers: readonly ApprovalAnswer[]) => {
+                const picked = answers[0]?.optionIds[0];
+                if (picked === "allow" || picked === "deny") {
+                  respond.mutate({ eventId: approval.eventId, result: picked, threadId });
+                }
+              }}
             >
-              <ApprovalOption optionId="allow">Approve</ApprovalOption>
-              <ApprovalOption optionId="deny">Cancel</ApprovalOption>
-            </ApprovalQuestion>
-          </ApprovalCard>
-        </div>
-      ))}
+              <ApprovalQuestion
+                questionId={approval.eventId}
+                prompt={question}
+                detail={detail ?? undefined}
+                kind="radio"
+              >
+                <ApprovalOption optionId="allow">Approve</ApprovalOption>
+                <ApprovalOption optionId="deny">Cancel</ApprovalOption>
+              </ApprovalQuestion>
+            </ApprovalCard>
+          </div>
+        );
+      })}
       <div className="flex flex-wrap items-center gap-1.5">
         {thread === undefined || statusWords(thread.status) === "" ? null : (
           <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>

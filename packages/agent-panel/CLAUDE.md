@@ -18,3 +18,11 @@ says how a bullet is written and cited.
   the composer under a soft keyboard the page cannot lay out); a copy of the
   fold per device (the words drift).
   `packages/agent-panel/src/thread-entries.ts`, `agent-send.ts`.
+
+- **AN APPROVAL SAYS WHAT ITS CALL WOULD DO, READ OFF THE CALL.** A card counts
+  the items a delete would move and names the first it holds, and shows the
+  whole address a save would send a site, read off the event's input, because
+  the card is the one gate on a call a hostile page may have prompted. Rejected:
+  a fixed sentence per tool beside the agent's own reply (the reply is what such
+  a page writes); a title the cell puts on the event (every device already
+  holds it). `packages/agent-panel/src/thread-entries.ts`.

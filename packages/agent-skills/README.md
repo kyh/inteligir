@@ -45,9 +45,8 @@ skills/
                                   # the one fixed palette
 ```
 
-Each `SKILL.md` opens with frontmatter — `name` (the directory) and a one-line `description` —
-then the contract, and ends with a "Before You Finish" checklist the agent runs against its own
-edit. The frontmatter is the file's own; the prompt carries the body alone.
+Each `SKILL.md` is its contract, every word of it read by the agent, and ends with a "Before You
+Finish" checklist the agent runs against its own edit.
 
 ## How it reaches the agent
 
@@ -70,8 +69,8 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
   turn; what a turn needs rides its messages: the view context the person's message, and the
   filing rules a system message after it.
-- **Adding a skill** is one directory, one `SKILL.md`, frontmatter `name` equal to the directory,
-  and a row under the hub's "Focused Contracts", which places it in the prompt. A new construct
+- **Adding a skill** is one directory, one `SKILL.md`, and a row under the hub's "Focused
+  Contracts", which places it in the prompt. A new construct
   lands in the editor kit, the rule table and `fence-langs` FIRST, then the words.
 - The files are ordinary tracked markdown: oxfmt formats them, and the dangling-reference guard
   sweeps them like any other `.md`.
@@ -79,7 +78,7 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 ## Testing
 
 No suite of its own — `package.json` has no scripts. `tools/repo-guards/src/agent-skills.test.ts`
-pins the set (every directory's `SKILL.md` names it, the hub names every focused skill and no
+pins the set (every directory holds a `SKILL.md`, the hub names every focused skill and no
 phantom), holds every `inteligir-*` fence an example opens to `@repo/notes/markdown/fence-langs`,
 runs the script's `--check` against the committed module, which the script holds under 100,000
 characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache. `packages/editor/src/skill-examples.test.ts` opens each

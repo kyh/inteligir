@@ -31,6 +31,7 @@ import type { CellResult } from "../library/cell-refusal";
 import { deleteThread } from "../library/cell-threads";
 import { sealChangeSet } from "../library/change-sets";
 import type { LibraryEngine } from "../library/library-engine";
+import { filingRules } from "../library/library-rules";
 import { errorFields } from "../log";
 import { pushedEventId, storeEvent, turnEventId } from "./agent-events";
 import type { ThreadEventRow } from "./agent-events";
@@ -54,7 +55,7 @@ import {
 } from "./agent-allowance";
 import type { Allowance, PriceTable } from "./agent-allowance";
 import { agentConfigured } from "./anthropic-client";
-import { filingRules, turnUserMessage } from "./turn-message";
+import { turnUserMessage } from "./turn-message";
 import {
   agentIsOn,
   createThread,
@@ -267,20 +268,20 @@ const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): P
 };
 
 // the open turn handed to its thread's object, and stopped there when the person stopped it; the
-// job stays for the alarm until both landed. False when the object could not be reached
-const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> => {
+// job stays for the alarm until both landed
+const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((sql) => {
     const turn = openTurnOf(sql, threadId);
     return turn === null ? null : { rules: filingRules(sql), turn };
   });
   if (!read.ok) {
-    return false;
+    return;
   }
   if (read.value === null) {
     await landRows(cell, (scope) => {
       dropJob(scope.storage, deliverJob(threadId).id);
     });
-    return true;
+    return;
   }
   const { rules, turn } = read.value;
   const stub = threadStub(cell.exports, cell.accountId, threadId);
@@ -300,7 +301,7 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> 
     await landRows(cell, (scope) => {
       deferJob(scope.storage, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
     });
-    return false;
+    return;
   }
   await landRows(cell, (scope) => {
     // a stop asked for meanwhile is delivered by the job it asked for
@@ -308,7 +309,6 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> 
       dropJob(scope.storage, deliverJob(threadId).id);
     }
   });
-  return true;
 };
 
 // ---- sending ----
@@ -697,7 +697,8 @@ const settleEntry = (
 };
 
 // one push of a thread's object, applied once by its sequence in one transaction: its events
-// stored, its calls settled, the turn's phase moved, and the turn sealed by the push that ends it
+// stored, its calls settled, the thread's status moved, and the turn sealed by the push that ends
+// it
 export const landPush = async (
   cell: AgentCell,
   request: PushRequest,
@@ -740,12 +741,12 @@ export const landPush = async (
           rows.push(row);
         }
         if (entry.event.type === "approval.asked" || entry.event.type === "approval.answered") {
-          const phase = moveWaiting(
+          const status = moveWaiting(
             storage,
             push.threadId,
             entry.event.type === "approval.asked" ? 1 : -1,
           );
-          setThreadStatus(scope, push.threadId, phase);
+          setThreadStatus(scope, push.threadId, status);
         }
         ended ||= entry.event.type === "turn.ended";
       }

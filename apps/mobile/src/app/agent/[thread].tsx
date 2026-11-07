@@ -16,7 +16,7 @@ import { composerPlaceholder, sendInput, viewContextOf } from "@repo/agent-panel
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
   agentRefusalWords,
-  approvalQuestion,
+  approvalWords,
   endingWords,
   isWorking,
   statusWords,
@@ -120,27 +120,36 @@ const Approval = ({
 }: {
   approval: WaitingApproval;
   onAnswer: (result: "allow" | "deny") => void;
-}) => (
-  <View className="gap-2 rounded-lg border border-border bg-card p-3">
-    <Text className="text-15 text-card-foreground">{approvalQuestion(approval)}</Text>
-    <View className="flex-row gap-6">
-      <TextButton
-        fontSize={16}
-        label="Approve"
-        onPress={() => {
-          onAnswer("allow");
-        }}
-      />
-      <TextButton
-        fontSize={16}
-        label="Cancel"
-        onPress={() => {
-          onAnswer("deny");
-        }}
-      />
+}) => {
+  const { replica } = useLibrary();
+  const { detail, question } = approvalWords(approval, (id) => replica.row(id)?.title ?? null);
+  return (
+    <View className="gap-2 rounded-lg border border-border bg-card p-3">
+      <Text className="text-15 text-card-foreground">{question}</Text>
+      {detail === null ? null : (
+        <Text selectable className="text-13 text-muted-foreground">
+          {detail}
+        </Text>
+      )}
+      <View className="flex-row gap-6">
+        <TextButton
+          fontSize={16}
+          label="Approve"
+          onPress={() => {
+            onAnswer("allow");
+          }}
+        />
+        <TextButton
+          fontSize={16}
+          label="Cancel"
+          onPress={() => {
+            onAnswer("deny");
+          }}
+        />
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const Conversation = ({ threadId }: { threadId: string }) => {
   const { queries } = useLibrary();

@@ -157,7 +157,7 @@ const BYTES_FOLDER_PATH = new RegExp(
 
 export const isBytesFolderPath = (path: string): boolean => BYTES_FOLDER_PATH.test(path);
 
-// the library's filing rules, which the agent reads; hidden from the grid
+// where an export writes the library's filing rules
 export const LIBRARY_RULES_PATH = "AGENTS.md";
 
 // what a device says of a link it will not save, in the one sentence every device says it

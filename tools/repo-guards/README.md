@@ -70,7 +70,7 @@ One per file; its header and its failure message state the rule in full.
 - `tailwind-source.test.ts`: every `@source` glob's static base exists.
 - `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves, and no earlier than the first date a Durable Object's pending I/O holds it from eviction.
 - `d1-unique-index.test.ts`: no `d1-http` schema declares `.unique()`; a unique is a `uniqueIndex` row.
-- `agent-skills.test.ts`: every skill names itself, the hub indexes every skill, and the built-in agent's prompt module is what its script writes.
+- `agent-skills.test.ts`: every skill directory holds a `SKILL.md`, the hub indexes every skill, and the built-in agent's prompt module is what its script writes.
 - `control-bytes.test.ts`: no tracked text file carries a raw control byte other than tab, LF and CR.
 - `changelog.test.ts`: `CHANGELOG.md` runs newest first, its top release naming the desktop's version.
 - `release-versions.test.ts`: the desktop, the extension and the phone carry one version, and EAS builds with the repo's pins.
@@ -82,6 +82,7 @@ One per file; its header and its failure message state the rule in full.
 - `icon-buttons.test.ts`: every icon-size `Button` carries a label, and no `Tooltip` wraps one.
 - `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs cite is one the source holds.
 - `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
+- `remote-media.test.ts`: the tab's, the Mac's and the phone's editor page's content policies let no item draw from the web.
 
 Every exception table — `ALLOWED`, `ALLOWED_EXPORTS`, `DATA_FILES`,
 `DECLARED_SPLITS`, `DELIBERATE_NON_REFERENCES`, `EDITOR_PAGE_CLIENTS`,

@@ -107,7 +107,7 @@ taken up at the start of the thread's next turn, never mid-turn, its requests
 from then on carrying no thinking from before that turn.
 
 A person's send (`library.agent.send`) is admitted in one transaction of the
-account's cell: refused `AGENT_UNAVAILABLE` while the agent is off or the
+account's cell: refused `SERVICE_UNAVAILABLE` while the agent is off or the
 Worker has no Claude to call, `AGENT_BUDGET` once the day's turns or list cost
 (`AGENT_ALLOWANCE`) are spent, queued behind its thread's open turn or while
 the account runs two, and otherwise opened and handed to its thread's object,

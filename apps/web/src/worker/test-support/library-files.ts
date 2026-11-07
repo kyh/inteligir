@@ -95,10 +95,9 @@ export const zipOf = async (files: Readonly<Record<string, Uint8Array>>): Promis
   );
 
 // an Obsidian vault in small: a note in a folder linking another and embedding a picture, a PDF
-// no note embeds, Obsidian's settings, and the filing rules at its root
+// no note embeds, and Obsidian's settings
 export const OBSIDIAN_VAULT = {
   ".obsidian/app.json": encoder.encode("{}"),
-  "AGENTS.md": encoder.encode("File recipes under Cooking.\n"),
   "Attachments/lone.pdf": encoder.encode("%PDF-1.7\n% a file no note embeds\n"),
   "Beta.md": encoder.encode("Beta's own words.\n"),
   "Notes/Alpha.md": encoder.encode(

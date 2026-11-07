@@ -1,8 +1,3 @@
----
-name: inteligir-notes
-description: The dialect every item in an inteligir library is read and written in, notes and saved links alike. Read this before creating or editing any item, choosing a block, or writing a construct the editor must keep.
----
-
 # inteligir Notes
 
 Every item in the library, a note the person wrote or a link, an image or a PDF they saved, is a

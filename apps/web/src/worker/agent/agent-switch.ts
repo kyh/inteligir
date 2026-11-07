@@ -18,7 +18,7 @@ export const setAgentEnabled = (
 ): CellResult<z.infer<typeof switchedSchema>> =>
   cell.library.landApart({ answer: switchedSchema, opId: input.opId }, (scope) => {
     if (agentIsOn(scope.storage) !== input.enabled) {
-      setSwitch(scope.storage, input.enabled, scope.now);
+      setSwitch(scope.storage, input.enabled);
       if (!input.enabled) {
         stopEveryTurn(scope);
       }

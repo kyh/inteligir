@@ -1,8 +1,3 @@
----
-name: inteligir-items
-description: The items of an inteligir library — saved links, videos, images, PDFs, files and notes — their kinds and fields, Unsorted, folders and tags, and how to save, find, file and tag one. Read this before saving, filing or tagging an item.
----
-
 # inteligir Items
 
 The library is everything the person saved and wrote, and every item in it has one shape: fields

@@ -24,7 +24,6 @@ import {
 import { cellOf, clockAt, engineIn, inCell, newAccountId } from "../test-support/library-cell";
 import { readBlobRow } from "./cell-blobs";
 import { LIBRARY_FULL } from "./cell-import-host";
-import { readLibraryRules } from "./library-rules";
 import { runImports } from "./cell-imports";
 import { cellStorageOf } from "./cell-storage";
 import { z } from "zod";
@@ -216,7 +215,7 @@ describe("a Raindrop import", () => {
 });
 
 describe("a zip of notes", () => {
-  it("reads Obsidian's vault: its notes, their links and files, its folders, its filing rules", async () => {
+  it("reads Obsidian's vault: its notes, their links and files, its folders", async () => {
     const accountId = newAccountId();
     const started = await startImport(
       accountId,
@@ -244,7 +243,26 @@ describe("a zip of notes", () => {
       });
       expect(JSON.stringify(alpha)).toContain(z.string().parse(beta?.id));
       expect(alpha.fields.tags).toStrictEqual(["project"]);
-      expect(readLibraryRules(cellStorageOf(state.storage))).toBe("File recipes under Cooking.\n");
+    });
+  });
+
+  it("lands a folder's AGENTS.md as a note, so no zip's text ever reaches the agent as the person's rules", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      {
+        bytes: await zipOf({ "AGENTS.md": encoder.encode("File recipes under Cooking.\n") }),
+        mime: "application/zip",
+      },
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      await expect(library.agent.rules()).resolves.toStrictEqual({ rules: null });
+      const note = items(state).find((row) => row.title === "AGENTS");
+      const read = await library.items.read({ id: z.string().parse(note?.id) });
+      expect(JSON.stringify(read)).toContain("File recipes under Cooking.");
     });
   });
 
@@ -376,13 +394,21 @@ describe("what a zip's note left out", () => {
   });
 
   it.each([
-    ["filing rules", "AGENTS.md", "x".repeat(PAST_A_ROW)],
     ["highlights' store", `.inteligir/annotations/${ID}.json`, `"${"x".repeat(PAST_A_ROW)}"`],
     ["frontmatter", "Long.md", `---\nauthor: ${"x".repeat(PAST_A_ROW)}\n---\nWords.\n`],
   ])("counts %s past what a plan row holds, and reads the rest", async (_, path, text) => {
     const { job, stored } = await importedZip({
       "Whole.md": encoder.encode("A whole note.\n"),
       [path]: encoder.encode(text),
+    });
+    expect(job).toMatchObject({ added: 1, state: "done", unreadable: 1 });
+    expect(stored).toContain("A whole note.");
+  });
+
+  it("counts an AGENTS.md past what a note holds, as any note, and reads the rest", async () => {
+    const { job, stored } = await importedZip({
+      "AGENTS.md": encoder.encode("x".repeat(PAST_A_ROW)),
+      "Whole.md": encoder.encode("A whole note.\n"),
     });
     expect(job).toMatchObject({ added: 1, state: "done", unreadable: 1 });
     expect(stored).toContain("A whole note.");

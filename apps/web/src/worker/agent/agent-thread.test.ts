@@ -28,6 +28,7 @@ import {
 } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
 import { blockTypesOf, expectSharedPrefixes, unmarkedOf } from "../test-support/request-bodies";
+import { cellOf } from "../test-support/library-cell";
 import { inSteppedThread } from "../test-support/thread-host";
 import { pricesOf, priceUsage, usageReportSchema } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
@@ -43,6 +44,7 @@ import {
   transcriptMessage,
 } from "./thread-request";
 import type { ThreadDefinition } from "./thread-request";
+import { RULES_CLEARED } from "./turn-message";
 import type { CallEstimate } from "./thread-wire";
 
 // a turn's end can take a few model calls, each a round trip through the fake
@@ -50,8 +52,8 @@ const TURN_MS = 30_000;
 
 const callSchema = z.object({
   call_id: z.string(),
-  max_tokens: z.number(),
-  request_sha: z.string(),
+  max_tokens: z.number().nullable(),
+  request_sha: z.string().nullable(),
   status: z.string(),
   step: z.number(),
   turn: z.number(),
@@ -192,7 +194,7 @@ const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string)
     const body = agentRequest(
       storedDefinition(inForce),
       requestMessages(messages.slice(0, at), inForce.since_seq),
-      call.max_tokens,
+      call.max_tokens ?? 0,
     );
     await expect(sha256(JSON.stringify(body)), `reply ${String(index)}`).resolves.toBe(
       call.request_sha,
@@ -215,7 +217,7 @@ const sentAs = (definition: ThreadDefinition) => ({
 // the filing rules as a system message holds them
 const rulesMessage = (text: string) => z.json().parse([{ text, type: "text" }]);
 
-// the library's filing rules, as an import of a folder that brings them leaves them
+// the library's filing rules as the person left them
 const rulesIn = async (account: AgentAccount, rules: string): Promise<void> => {
   await cellRows(
     account,
@@ -426,12 +428,12 @@ describe("a conversation's object", () => {
         compacting?.call_id ?? "",
       );
       const table = pricesOf(env);
-      const priced = priceUsage(usage, AGENT_MODEL.id, table).costUcents;
+      const priced = priceUsage(usage, AGENT_MODEL.id, table);
       const answering = priceUsage(
         { ...usage, iterations: usage.iterations?.filter((entry) => entry.type !== "compaction") },
         AGENT_MODEL.id,
         table,
-      ).costUcents;
+      );
       expect(booked?.cost_ucents).toBe(priced);
       expect(priced).toBeGreaterThan(answering);
       // the next turn answers, sending the filing rules again: the compaction summarized them
@@ -512,6 +514,85 @@ describe("a conversation's object", () => {
         { reason: "done" },
       ]);
       // each first reply was asked with its rules last, and every later call replays them in place
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation that carried filing rules they are cleared, once, and sends them again when they return",
+    // four turns, and two in a conversation that never carried any
+    { timeout: 2 * TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const { threadId: plain } = await send(account, script("First."), undefined, ROOMY);
+      await settled(account, plain);
+      await rulesIn(account, "");
+      await send(account, script("Second."), plain, ROOMY);
+      await settled(account, plain);
+      const none = await transcriptOf(account, plain);
+      expect(none.map((row) => row.role)).toStrictEqual(["user", "assistant", "user", "assistant"]);
+
+      await rulesIn(account, "File trips under Travel.");
+      const { threadId } = await send(account, script("Noted."), undefined, ROOMY);
+      await settled(account, threadId);
+      await rulesIn(account, "  \n");
+      await send(account, script("Cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      await send(account, script("Still cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      await rulesIn(account, "File trips under Travel.");
+      await send(account, script("Back again."), threadId, ROOMY);
+      await settled(account, threadId);
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.map((row) =>
+          row.role === "system"
+            ? [row.turn, row.role, z.json().parse(JSON.parse(row.content))]
+            : [row.turn, row.role],
+        ),
+      ).toStrictEqual([
+        [1, "user"],
+        [1, "system", rulesMessage("File trips under Travel.")],
+        [1, "assistant"],
+        [2, "user"],
+        [2, "system", rulesMessage(RULES_CLEARED)],
+        [2, "assistant"],
+        [3, "user"],
+        [3, "assistant"],
+        [4, "user"],
+        [4, "system", rulesMessage("File trips under Travel.")],
+        [4, "assistant"],
+      ]);
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation past a compaction its filing rules are cleared, since the summary may hold them",
+    // three model calls in two turns, each a round trip through the fake
+    { timeout: 2 * TURN_MS },
+    async () => {
+      const account = agentAccount();
+      await rulesIn(account, "File trips under Travel.");
+      const { threadId } = await send(
+        account,
+        script('call create_note {"markdown":"Before."}', "compact", "Done."),
+        undefined,
+        ROOMY,
+      );
+      await settled(account, threadId);
+      await rulesIn(account, "");
+      await send(account, script("Cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.flatMap((row) =>
+          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
+        ),
+      ).toStrictEqual([
+        [1, rulesMessage("File trips under Travel.")],
+        [2, rulesMessage(RULES_CLEARED)],
+      ]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );
@@ -601,12 +682,14 @@ describe("a conversation's object", () => {
       );
       expect(tool).toStrictEqual({ attempts: 1, is_error: 0 });
       // a second answer decides nothing
-      const decided = await threadOf(account.accountId, sent.threadId).respond({
+      await threadOf(account.accountId, sent.threadId).respond({
         approved: false,
         reason: null,
         toolUseId: z.object({ toolUseId: z.string() }).parse(asked?.event).toolUseId,
       });
-      expect(decided).toStrictEqual({ decided: false });
+      await expect(
+        threadRows(account.accountId, sent.threadId, "SELECT decision FROM tool_calls"),
+      ).resolves.toStrictEqual([{ decision: "approved" }]);
     },
   );
 
@@ -812,7 +895,7 @@ describe("a conversation's object", () => {
       expect(messages.map(({ event }) => event)).toStrictEqual([
         { text: "Answered by the fallback model.", type: "agent.message" },
       ]);
-      const [usage] = await cellRows(account, "SELECT output_tokens, cost_ucents FROM agent_usage");
+      const [usage] = await cellRows(account, "SELECT cost_ucents FROM agent_usage");
       expect(usage?.cost_ucents).toBeGreaterThan(0);
       await send(account, script("Thanks."), sent.threadId);
       await settled(account, sent.threadId);
@@ -874,7 +957,6 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       let stepped: ThreadHost | null = null;
-      const cancels: boolean[] = [];
       await inSteppedThread(
         account,
         threadId,
@@ -892,7 +974,7 @@ describe("a conversation's loop, stepped", () => {
             agentReserve: async (request) => {
               const answer = await real.agentReserve(request);
               if (stepped !== null) {
-                cancels.push(requestCancel(stepped, request.turn));
+                requestCancel(stepped, request.turn);
               }
               return answer;
             },
@@ -900,9 +982,10 @@ describe("a conversation's loop, stepped", () => {
           }),
         },
       );
-      expect(cancels).toStrictEqual([true]);
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([["cancelled", 0]]);
+      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([
+        ["cancelled", null],
+      ]);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
       const roles = await threadRows(account.accountId, threadId, "SELECT role FROM transcript");
       expect(roles).toStrictEqual([{ role: "user" }]);
@@ -1110,6 +1193,42 @@ describe("a conversation's loop, stepped", () => {
       expect(rolesOf(2).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
       expect(rolesOf(3)).not.toContain("system");
       expect(rolesOf(4)).toStrictEqual(["user", "system", "assistant"]);
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation taking up a deploy's definition that its filing rules are cleared",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await rulesIn(account, "File trips under Travel.");
+      const first = deployedDefinition();
+      let deployed = first;
+      await inSteppedThread(
+        account,
+        threadId,
+        script("Noted."),
+        async ({ deliver, run }) => {
+          await expect(restsAt(run)).resolves.toBe("idle");
+          deployed = { ...first, system: [...first.system, { text: "A deploy.", type: "text" }] };
+          // a stub made here, inside the thread's object, which may not use one made outside it
+          await rulesIn({ ...account, cell: cellOf(account.accountId) }, "");
+          await deliver(script("Cleared."));
+          await expect(restsAt(run)).resolves.toBe("idle");
+        },
+        { definition: () => deployed },
+      );
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.flatMap((row) =>
+          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
+        ),
+      ).toStrictEqual([
+        [1, rulesMessage("File trips under Travel.")],
+        [2, rulesMessage(RULES_CLEARED)],
+      ]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );

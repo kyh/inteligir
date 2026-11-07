@@ -120,7 +120,7 @@ describe("a call's reservation", () => {
         output_tokens: part(rand, answer.maxTokens),
       };
       const billed = priceUsage(usage, AGENT_MODEL.id, table);
-      expect(billed.costUcents).toBeLessThanOrEqual(answer.reservedUcents);
+      expect(billed).toBeLessThanOrEqual(answer.reservedUcents);
       expect(Number.isInteger(answer.reservedUcents)).toBe(true);
     }
     expect(granted).toBeGreaterThan(1000);
@@ -176,7 +176,7 @@ describe("a call's reservation", () => {
         },
       ];
       const billed = priceUsage({ iterations }, AGENT_MODEL.id, table);
-      expect(billed.costUcents).toBeLessThanOrEqual(answer.reservedUcents);
+      expect(billed).toBeLessThanOrEqual(answer.reservedUcents);
       expect(Number.isInteger(answer.reservedUcents)).toBe(true);
       // and a step sent again at its first cap is held to the same bound
       const again = resendReservationOf(
@@ -261,7 +261,7 @@ describe("a call's reservation", () => {
       const billed = priceUsage(usage, AGENT_MODEL.id, table);
       // each pass's prompt written cold, at most: the summary's whole, the answer's frozen part
       const coldTokens = estimate.promptTokens + (compacts ? estimate.frozenTokens : 0);
-      expect(billed.costUcents - answer.reservedUcents).toBeLessThanOrEqual(
+      expect(billed - answer.reservedUcents).toBeLessThanOrEqual(
         coldTokens * (price.cacheWrite1h - price.cacheRead),
       );
     }
@@ -421,9 +421,7 @@ describe("a call's reservation", () => {
               ],
             }
           : pass(prompt, output);
-        expect(priceUsage(usage, AGENT_MODEL.id, table).costUcents).toBeLessThanOrEqual(
-          answer.reservedUcents,
-        );
+        expect(priceUsage(usage, AGENT_MODEL.id, table)).toBeLessThanOrEqual(answer.reservedUcents);
       }
       expect(granted).toBeGreaterThan(100);
       expect(compacted).toBeGreaterThan(10);
@@ -467,10 +465,11 @@ describe("a call's reservation", () => {
             if (settling !== undefined) {
               valueOf(
                 library.landApart({ answer: z.null(), opId: undefined }, (scope) => {
-                  settleCall(scope.storage, settling.callId, {
-                    costUcents: Math.floor(rand() * settling.reserved),
-                    tokens: { cacheRead: 0, cacheWrite1h: 0, cacheWrite5m: 0, input: 0, output: 0 },
-                  });
+                  settleCall(
+                    scope.storage,
+                    settling.callId,
+                    Math.floor(rand() * settling.reserved),
+                  );
                   return null;
                 }),
               );
@@ -534,10 +533,7 @@ describe("the prices", () => {
     };
     // claude-opus-5-5 in micro-cents a token: 400, 2000, 20, 500, 800
     const whole = 400 * 400 + 500 * 2000 + 300 * 20 + 200 * 500 + 100 * 800;
-    expect(priceUsage(tokens, "claude-opus-5-5", table)).toStrictEqual({
-      costUcents: whole,
-      tokens: { cacheRead: 300, cacheWrite1h: 100, cacheWrite5m: 200, input: 400, output: 500 },
-    });
+    expect(priceUsage(tokens, "claude-opus-5-5", table)).toBe(whole);
     // a fallback's reply: the declined hop at the asked model's prices, the answer at its own
     const fallen = priceUsage(
       {
@@ -553,8 +549,7 @@ describe("the prices", () => {
     const declined = whole - 500 * 2000 + 8 * 2000;
     // claude-opus-5 in micro-cents a token: 500, 2500, 50, 625, 1000
     const answered = 400 * 500 + 500 * 2500 + 300 * 50 + 200 * 625 + 100 * 1000;
-    expect(fallen.costUcents).toBe(declined + answered);
-    expect(fallen.tokens.output).toBe(508);
+    expect(fallen).toBe(declined + answered);
   });
 
   it("price a model the table does not hold at its dearest row, and say so", () => {

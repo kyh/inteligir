@@ -91,6 +91,29 @@ describe("the agent panel's conversation", () => {
     });
   });
 
+  it("shows the whole address before the person allows a link to be saved", async () => {
+    const url = "https://collector.example/?d=the-persons-private-note";
+    const { library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [], cursor: null }
+          : { status: "running", threadId: THREAD },
+      events: [
+        row(0, {
+          input: { url },
+          name: "save_link",
+          toolUseId: "toolu_1",
+          type: "approval.asked",
+          until: AT + 600_000,
+        }),
+      ],
+      threads: [{ ...thread, status: "awaiting_approval" }],
+    });
+    renderOnLibrary(panel(), library);
+    await expect(screen.findByText(url)).resolves.toBeDefined();
+    expect(screen.getByText(/save a link from collector\.example/u)).toBeDefined();
+  });
+
   it("undoes a turn's set once the open item is written, and the conversation from every page", async () => {
     const flushOpen = vi.fn<() => Promise<void>>(async () => {
       await Promise.resolve();

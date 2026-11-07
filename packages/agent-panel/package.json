@@ -18,6 +18,7 @@
   "dependencies": {
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

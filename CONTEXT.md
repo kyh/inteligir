@@ -109,9 +109,9 @@ Account shows. Not the **built-in agent**, though both call the same tools.
 Object for each **thread** (`apps/web/src/worker/agent/agent-thread.ts`),
 calling Claude through AI Gateway. It changes the library only through the
 account's cell, by the procedures the **connector** serves, run as the
-agent's; it has no shell, files or web of its own, deleting is the one call
-that asks the person first, and it runs on our bill, within the account's
-allowance. Not a **connected assistant**.
+agent's; it has no shell, files or web of its own, deleting and saving a link
+are the calls that ask the person first, and it runs on our bill, within the
+account's allowance. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
 Claude ends it, the person stops it, or the allowance does; waiting on an
@@ -194,10 +194,10 @@ stays Unsorted until it is filed, whatever it is tagged.
 
 **filing rules** — what the person wrote for the agent about their library, one
 row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
-written from Settings › Account, or brought by an import's `AGENTS.md` while the
-library keeps none, which every turn of the built-in agent carries after the
-person's message. Tidy my library files and tags by them. Not the repo's
-`AGENTS.md`.
+written only from Settings › Account, which every turn of the built-in agent
+carries after the person's message. Tidy my library files and tags by them. An
+export writes them as `AGENTS.md`, and an import reads any `AGENTS.md` as a note,
+never as filing rules. Not the repo's `AGENTS.md`.
 
 **fill** — the cloud's reading of a link the library holds unread (a
 `saveLink`, a refresh, an import's): the cell asks the fill queue, and the

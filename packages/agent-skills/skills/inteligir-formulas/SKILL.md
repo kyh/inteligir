@@ -1,8 +1,3 @@
----
-name: inteligir-formulas
-description: Formula pills and named variables in inteligir notes — the persisted grammar, identity, bound references, and metadata.
----
-
 # inteligir Formulas And Variables
 
 A pill holds a computed or reusable value inline. Two fields are enough for a
