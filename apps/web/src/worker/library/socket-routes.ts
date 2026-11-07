@@ -17,6 +17,7 @@ import { CELL_SOCKET_PATH, holderHeaderValue, SOCKET_HOLDER_HEADER } from "./cel
 import type { SocketHolder } from "./cell-sockets";
 import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
+import { headersForCell } from "./library-principal";
 import { readSocketTicket } from "./socket-ticket";
 
 const NOT_AN_UPGRADE = "This route only upgrades to a WebSocket.";
@@ -31,8 +32,7 @@ const forwardToCell = async (
   accountId: string,
   holder: SocketHolder,
 ): Promise<Response> => {
-  const headers = new Headers(request.headers);
-  headers.delete("authorization");
+  const headers = headersForCell(request);
   headers.set(SOCKET_HOLDER_HEADER, holderHeaderValue(holder));
   return await libraryCell(ctx.exports, accountId).fetch(
     new Request(`https://library-cell${CELL_SOCKET_PATH}`, { headers }),
