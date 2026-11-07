@@ -14,6 +14,7 @@ import type {
   ReplicaStatus,
 } from "@repo/library-replica/library-replica";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import { watchFile } from "../files/watch-file";
 import type { PhoneLibrary } from "./compose-runtime";
 
 export const LibraryContext = createContext<PhoneLibrary | null>(null);
@@ -134,24 +135,22 @@ export const usePreview = (threadId: string): string | null => {
 };
 
 // where a file draws from on this phone, or a card's cover drawn small: undefined while it is
-// asked for, null when it cannot be had now (offline, before it was ever drawn here)
+// asked for, null while it cannot be had (offline, before it was ever drawn here), which comes
+// right once the library can be reached
 export const useFileUri = (sha: string | null, small = false): string | null | undefined => {
-  const { files } = useLibrary();
+  const { files, replica } = useLibrary();
   const [held, setHeld] = useState<{ sha: string; uri: string | null } | null>(null);
   useEffect(() => {
     if (sha === null) {
       return;
     }
-    let live = true;
-    void (async () => {
-      const uri = small ? await files.thumbUri(sha) : await files.fileUri(sha);
-      if (live) {
+    return watchFile({
+      ask: async () => (small ? await files.thumbUri(sha) : await files.fileUri(sha)),
+      replica,
+      told: (uri) => {
         setHeld({ sha, uri });
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [files, sha, small]);
+      },
+    });
+  }, [files, replica, sha, small]);
   return held?.sha === sha ? held.uri : undefined;
 };

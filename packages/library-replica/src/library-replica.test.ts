@@ -660,6 +660,25 @@ describe("the replica's pull", () => {
   });
 });
 
+describe("what a pass says", () => {
+  it("ends in one status, so a listener never hears a failed pass as a clean one", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    await phone.replica.sync();
+    phone.network.setOffline(true);
+    const heard: { syncing: boolean; failure: string | null }[] = [];
+    phone.replica.onStatus(() => {
+      const { failure, syncing } = phone.replica.status();
+      heard.push({ failure: failure?.kind ?? null, syncing });
+    });
+    await phone.replica.sync();
+    expect(heard).toStrictEqual([
+      { failure: null, syncing: true },
+      { failure: "unreachable", syncing: false },
+    ]);
+  });
+});
+
 describe("what the screens read", () => {
   it("finds what landed, less what this device deleted", async () => {
     const cell = createFakeCell();

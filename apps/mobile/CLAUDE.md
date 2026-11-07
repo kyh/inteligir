@@ -93,7 +93,10 @@ how it ships.
   is small, any other picture is measured by the decoder before it decodes,
   and one refused or that made no thumbnail shows the card's placeholder, since
   a few bytes can name a bitmap that kills the app on every launch
-  (`apps/mobile/src/files/expo-thumbnail.ts`). A sign-out moves the cache's
+  (`apps/mobile/src/files/expo-thumbnail.ts`). A screen waiting on a file it
+  could not reach asks again after each pass of the replica that ends clean, a
+  failed one saying nothing of the file
+  (`apps/mobile/src/files/watch-file.ts`). A sign-out moves the cache's
   generation, so a download begun before it lands nothing
   (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
   (its promise API is deprecated); a staged upload discarded once sent (the

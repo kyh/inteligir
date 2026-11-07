@@ -414,18 +414,17 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
         };
       } finally {
         running = null;
-        setStatus({ syncing: false });
       }
       if (outcome.kind !== "failed") {
         failures = 0;
         cancelRetry?.();
         cancelRetry = null;
-        if (outcome.kind !== "closed") {
-          setStatus({ failure: null });
-        }
+        setStatus(
+          outcome.kind === "closed" ? { syncing: false } : { failure: null, syncing: false },
+        );
         return;
       }
-      setStatus({ failure: outcome.failure });
+      setStatus({ failure: outcome.failure, syncing: false });
       if (outcome.failure.kind === "session") {
         // the host answers it (a sign-out wipes the replica); nothing runs until it starts again
         stopped = true;

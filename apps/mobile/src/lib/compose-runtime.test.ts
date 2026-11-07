@@ -7,8 +7,9 @@ import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { idSource, keepBoth, openDevice } from "@repo/library-replica/test-support/replica-harness";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { KeptCredential } from "../credential/credential-codec";
+import { watchFile } from "../files/watch-file";
 import { memoryFolders } from "../test-support/memory-folders";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, CredentialStore, PhoneLibrary } from "./compose-runtime";
@@ -121,11 +122,102 @@ const noteOnTheMac = async (cell: FakeCell, title: string): Promise<void> => {
   await mac.replica.close();
 };
 
+// a file the account holds, added by another device
+const fileOnTheMac = async (cell: FakeCell): Promise<string> => {
+  const mac = await openDevice(cell, "mac");
+  const { sha } = await mac.replica.createFile({
+    file: { bytes: new Uint8Array([1, 2, 3, 4]), mime: "image/png" },
+    folderId: null,
+    name: "diagram.png",
+    tags: [],
+  });
+  await mac.replica.sync();
+  await mac.replica.close();
+  return sha;
+};
+
 const KEPT: KeptCredential = {
   credential: `igd_${"9".repeat(64)}`,
   deviceId: "device-0",
   email: "ada@example.com",
 };
+
+// a phone signed in, gone offline, with a screen waiting for `sha`
+const offlineWatch = async (cell: FakeCell, sha: string) => {
+  const { network, runtime } = runtimeOver(cell, {
+    keys: keychain(),
+    sql: openNodeReplicaSql(":memory:"),
+  });
+  await runtime.start();
+  await runtime.login.login(SIGN_IN);
+  const library = signedIn(runtime);
+  await library.replica.sync();
+  network.setOffline(true);
+  const told: (string | null)[] = [];
+  let asked = 0;
+  const stop = watchFile({
+    ask: async () => {
+      asked += 1;
+      return await library.files.fileUri(sha);
+    },
+    replica: library.replica,
+    told: (uri) => {
+      told.push(uri);
+    },
+  });
+  await vi.waitFor(() => {
+    expect(told).toStrictEqual([null]);
+  });
+  return { asked: () => asked, library, network, runtime, stop, told };
+};
+
+describe("a screen waiting for a file", () => {
+  it("hears nothing more while the library cannot be reached, and gets the file once it can", async () => {
+    const cell = createFakeCell();
+    const sha = await fileOnTheMac(cell);
+    const { asked, library, network, runtime, stop, told } = await offlineWatch(cell, sha);
+
+    await library.replica.sync();
+    expect(library.replica.status().failure?.kind).toBe("unreachable");
+    expect(asked(), "a pass that failed says nothing of the file").toBe(1);
+
+    network.setOffline(false);
+    runtime.resume();
+    await vi.waitFor(() => {
+      expect(told.at(-1)).toBe(`memory://cache/${sha}`);
+    });
+
+    await library.replica.sync();
+    expect(asked(), "a file it holds is not asked for again").toBe(2);
+    stop();
+  });
+
+  it("gets the file after a clean pass even when no pass failed while it could not be reached", async () => {
+    const cell = createFakeCell();
+    const sha = await fileOnTheMac(cell);
+    const { library, network, runtime, stop, told } = await offlineWatch(cell, sha);
+
+    expect(library.replica.status().failure).toBeNull();
+    network.setOffline(false);
+    runtime.resume();
+    await vi.waitFor(() => {
+      expect(told.at(-1)).toBe(`memory://cache/${sha}`);
+    });
+    stop();
+  });
+
+  it("asks for nothing once the screen has gone", async () => {
+    const cell = createFakeCell();
+    const sha = await fileOnTheMac(cell);
+    const { asked, library, network, stop, told } = await offlineWatch(cell, sha);
+
+    stop();
+    network.setOffline(false);
+    await library.replica.sync();
+    expect(asked()).toBe(1);
+    expect(told).toStrictEqual([null]);
+  });
+});
 
 describe("the phone's runtime", () => {
   it("is signed out with nothing kept, and says nothing about it", async () => {

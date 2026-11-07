@@ -229,7 +229,7 @@ export const createFakeCell = (): FakeCell => {
   const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
   const log = new Map<string, Entry>();
-  const blobs = new Set<string>();
+  const blobs = new Map<string, Uint8Array<ArrayBuffer>>();
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
@@ -699,14 +699,22 @@ export const createFakeCell = (): FakeCell => {
       return new Response(null, { status: 400 });
     }
     uploads.push(sha);
-    blobs.add(sha);
+    blobs.set(sha, bytes);
     return new Response(null, { status: 201 });
+  };
+
+  const download = (sha: string): Response => {
+    const bytes = blobs.get(sha);
+    return bytes === undefined
+      ? new Response(null, { status: 404 })
+      : new Response(bytes, { headers: { "content-type": "application/octet-stream" } });
   };
 
   const serve = async (name: string, request: Request): Promise<Response> => {
     const path = request.url.slice(ORIGIN.length);
-    if (path.startsWith(`${V1_BLOBS_PATH}/`) && request.method === "PUT") {
-      return await upload(request, path.slice(V1_BLOBS_PATH.length + 1));
+    if (path.startsWith(`${V1_BLOBS_PATH}/`)) {
+      const sha = path.slice(V1_BLOBS_PATH.length + 1);
+      return request.method === "PUT" ? await upload(request, sha) : download(sha);
     }
     calls.push(`${name} ${path.slice(V1_RPC_PATH.length + 1)}`);
     const { matched, response } = await handler.handle(request, { prefix: V1_RPC_PATH });
