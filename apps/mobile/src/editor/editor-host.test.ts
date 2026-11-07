@@ -307,11 +307,11 @@ describe("the native end of the editor page's bridge", () => {
     const { events, fromPage, host, injected, load } = hostOver();
     const nonce = load();
     fromPage({ itemId: OTHER, nonce, type: "openItem" });
-    fromPage({ dirty: true, nonce, saveError: "the library is full", type: "editorState" });
+    fromPage({ nonce, saveError: "the library is full", type: "editorState" });
     fromPage({ ids: ["c1"], nonce, type: "showAnnotations" });
     expect(events).toStrictEqual([
       { itemId: OTHER, nonce, type: "openItem" },
-      { dirty: true, nonce, saveError: "the library is full", type: "editorState" },
+      { nonce, saveError: "the library is full", type: "editorState" },
       { ids: ["c1"], nonce, type: "showAnnotations" },
     ]);
 

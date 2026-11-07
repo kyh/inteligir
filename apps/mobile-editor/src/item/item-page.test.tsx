@@ -343,7 +343,6 @@ describe("an item page over the phone's replica", () => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: false }]);
     });
     expect(phone.events("editorState").at(-1)).toMatchObject({
-      dirty: true,
       saveError: ITEM_UNSAVED,
     });
   });
@@ -367,7 +366,6 @@ describe("an item page over the phone's replica", () => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: false }]);
     });
     expect(phone.events("editorState").at(-1)).toMatchObject({
-      dirty: true,
       saveError: BLOCK_HELD_BACK,
     });
     expect(screen.getByRole("alert").textContent).toBe(BLOCK_HELD_BACK);

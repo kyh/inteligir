@@ -71,8 +71,8 @@ end that receives it.
   as queued), `createNote` (a note of blocks an extract
   moved, or a link's new note, made in the open item's folder and answered
   with its id) — and events:
-  `editorState` (dirty and why a write failed, sent only when either changes,
-  which the screen asks about before letting the item go), `showAnnotations`
+  `editorState` (why a write failed, sent only when that changes, which the
+  screen asks about before letting the item go), `showAnnotations`
   (the highlights a tap on a marked passage names), `openItem` (the page has
   written what it holds and asks the stack to open the item a link names),
   `flushed`.

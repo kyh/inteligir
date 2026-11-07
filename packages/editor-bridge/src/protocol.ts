@@ -216,7 +216,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   // the receiver is installed and the page waits for `init`; it knows no nonce yet
   z.strictObject({ type: z.literal("ready") }),
   z.strictObject({
-    dirty: z.boolean(),
     nonce: nonceSchema,
     // why the last write did not land, said in the person's words
     saveError: z.string().nullable(),
