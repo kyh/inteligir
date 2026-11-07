@@ -29,6 +29,7 @@ import type {
 } from "@platejs/markdown";
 import { z } from "zod";
 
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
@@ -310,6 +311,14 @@ const elementsIn = (nodes: readonly Descendant[]): TElement[] =>
 
 const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
 
+// a level past what an item holds is the conversion's own refusal, as an overflow of its stack is
+const nestedIndent = (indent: number): number => {
+  if (indent >= LIST_MAX_INDENT) {
+    throw new RangeError(`a list nests past ${String(LIST_MAX_INDENT)} levels`);
+  }
+  return indent + 1;
+};
+
 // Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
 // and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
 // none of them. Only words are an item here: any other block stands where the item stood, outside
@@ -358,10 +367,10 @@ const listBlocks = (
     });
     const nested = rest.flatMap((child): TElement[] =>
       child.type === "list"
-        ? listBlocks(child, indent + 1, deco, options)
+        ? listBlocks(child, nestedIndent(indent), deco, options)
         : elementsIn(convertChildrenDeserialize([child], deco, options)).map((block) => ({
             ...block,
-            indent: indent + 1,
+            indent: nestedIndent(indent),
           })),
     );
     return [...placed, ...nested];

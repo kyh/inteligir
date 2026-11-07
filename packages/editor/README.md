@@ -87,8 +87,10 @@ src/
   HTML, a footnote, a definition nothing used — are opaque inline nodes
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte, and `{` is prose. Only a nesting deeper than the
-  conversion holds is refused (an import leaves the file out, an agent's edit
-  is turned down), so nothing is written over it; a round trip that never
+  conversion or the writer holds is refused, a list past `LIST_MAX_INDENT`
+  among it (an import leaves the file out, an agent's edit is turned down, a
+  paste lands as plain text), so nothing is written over it and every item
+  exports; a round trip that never
   settles or would lose a letter is a rule or serializer bug, which the
   fixtures and `analyzeMarkdown` (`RoundTripFailure` in
   `markdown/markdown-doc.ts`) name.

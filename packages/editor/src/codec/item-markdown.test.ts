@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { ordsBetween } from "@repo/notes/library/block-order";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
+import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
 import { generateDoc } from "../test-support/markdown-doc-generator";
@@ -487,6 +487,39 @@ describe("a block a list item opens with", () => {
     const item = imported("- # kept\n");
     expect(types(item)).toStrictEqual(["p"]);
     expect(bodyOf(exported(item).text)).toBe("- kept\n");
+  });
+});
+
+describe("a list as deep as an item holds", () => {
+  const SPELLINGS = [
+    ["a line of openers", (depth: number) => `${"- ".repeat(depth)}x\n`],
+    [
+      "items nested one in another",
+      (depth: number) =>
+        `${Array.from({ length: depth }, (_, at) => `${"  ".repeat(at)}- x`).join("\n")}\n`,
+    ],
+  ] as const;
+
+  it.each(SPELLINGS)("lands at the limit and comes back, as %s", (_name, text) => {
+    const item = imported(text(LIST_MAX_INDENT));
+    expect(item.leftOut).toBe(0);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it.each(SPELLINGS)("is refused one level past it, as %s", (_name, text) => {
+    expect(
+      importItem(
+        { annotations: null, name: "Deep", text: text(LIST_MAX_INDENT + 1) },
+        library.importPorts(),
+      ),
+    ).toStrictEqual({ ok: false, reason: "too-deep" });
+  });
+
+  it("refuses a block nested under an item at the last level", () => {
+    const text = `${"- ".repeat(LIST_MAX_INDENT)}x\n\n${"  ".repeat(LIST_MAX_INDENT)}after\n`;
+    expect(
+      importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
+    ).toStrictEqual({ ok: false, reason: "too-deep" });
   });
 });
 

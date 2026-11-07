@@ -20,7 +20,8 @@ root.
   zod, every node the editor round-trips: every element a strict object, only
   a top-level block named, by its id and optionally the `ref` a link's
   `blockRef` reaches, a depth and a size checked before the recursive parse
-  (`storableBlockSchema`). The editor holds these nodes as they are: a link or
+  (`storableBlockSchema`), and a list's indent held to what the writer can nest
+  (`LIST_MAX_INDENT`). The editor holds these nodes as they are: a link or
   an embed names its target by id with the title the writer saw, a `#tag` is
   its text, media a sha or a url. Rejected: the vocabulary in `@repo/editor`
   (the cell and the replicas cannot load Plate), a tag node (two spellings of

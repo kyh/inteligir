@@ -33,11 +33,18 @@ alone, and no walk narrows structurally.
   whole-value pre-pass. Byte stability is the codec's tested contract: a
   canonical file round-trips byte-exact, a churn-class construct may
   canonicalize on its first read (said per fixture), the fixtures are
-  formatter-exempt, and a file nested past the conversion's depth is refused
-  (an import leaves it out, an agent's edit is turned down), so every item
-  opens rich. Rejected: a raw editor beside the rich one (markdown is not at
-  rest), a paragraph rule's prune (a heading or list item saved `**a****b**`)
-  and Plate's `serializeMd` (no pre-pass, a ZWSP beside every chip).
+  formatter-exempt, and a file nested past what the conversion and the writer
+  hold is refused (an import leaves it out, an agent's edit is turned down, a
+  paste lands as plain text), so every item opens rich and writes. A list is
+  flat in the model, so nothing but a cap holds it inside the writer's
+  recursion: `LIST_MAX_INDENT`, which the rule table refuses past, the
+  vocabulary stores no deeper than and a Tab stops at. Any other nesting is
+  refused where a stack runs out, which V8 says as a RangeError or, compiling a
+  regular expression, as a SyntaxError (`withinStack`). Rejected: a raw
+  editor beside the rich one (markdown is not at rest), a paragraph rule's
+  prune (a heading or list item saved `**a****b**`), Plate's `serializeMd` (no
+  pre-pass, a ZWSP beside every chip) and a catch per item around an export (a
+  list a writer cannot hold would land, and read nowhere after).
   `packages/editor/src/markdown/markdown-doc.ts`, `packages/editor/README.md`
   § Invariants.
 

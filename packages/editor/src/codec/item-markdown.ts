@@ -27,7 +27,7 @@ import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";
-import { mdToSlate, rootToSlate } from "@repo/editor/markdown/md-to-slate";
+import { mdToSlate, rootToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
 import { stringProp } from "@repo/editor/node-props";
 
 import { readFrontmatter, writeFrontmatter } from "./item-fields";
@@ -225,19 +225,13 @@ const annotationsOf = (
 // one markdown file as its item
 export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport => {
   const person = obsidianReader(ports.newAnnotationId);
-  let parts: Parts;
-  try {
+  const parts = withinStack((): Parts => {
     const parsed = partsOf(parseMdast(source.text).root);
     const before = person.read(parsed.before);
-    parts = { ...parsed, after: person.read(parsed.after), before };
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return { ok: false, reason: "too-deep" };
-    }
-    throw error;
-  }
-  const values = sectionValues(parts);
-  if (values === null) {
+    return { ...parsed, after: person.read(parsed.after), before };
+  });
+  const values = parts === null ? null : sectionValues(parts);
+  if (parts === null || values === null) {
     return { ok: false, reason: "too-deep" };
   }
   const front = readFrontmatter(parts.yaml, source.name, ports.now);

@@ -7,7 +7,7 @@ import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { compareBlockPlaces } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
+import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView, placeItemQuotes } from "./item-edit";
@@ -347,6 +347,16 @@ describe("an edit made on the view", () => {
         String(depth),
       ).toStrictEqual({ kind: "refused", refusal: { edit: 0, kind: "too-deep" } });
     }
+  });
+
+  it("refuses a list nested past what the writer holds, in a few bytes as in many", () => {
+    expect(
+      editItemView(
+        storedOf(NOTE),
+        [{ newText: `${"- ".repeat(LIST_MAX_INDENT + 1)}x`, oldText: "Last line." }],
+        portsWith(),
+      ),
+    ).toStrictEqual({ kind: "refused", refusal: { edit: 0, kind: "too-deep" } });
   });
 
   it("keeps the item a link it did not change names, and finds one written by title", () => {

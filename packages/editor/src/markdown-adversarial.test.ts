@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
 import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
 
 import { exportItem, importItem } from "./codec/item-markdown";
@@ -630,6 +631,9 @@ const WHOLE: readonly (readonly [string, readonly string[]])[] = [
   [":::toggle\nfolded[^mark]\n\n[^mark]: the source\n:::\n", ["folded", "mark", "source"]],
 ];
 
+const nestedList = (depth: number): string =>
+  `${Array.from({ length: depth }, (_, at) => `${"  ".repeat(at)}- x`).join("\n")}\n`;
+
 describe("adversarial round-trip hunt", () => {
   it("handcrafted corpus upholds the invariants", { timeout: 90_000 }, () => {
     expect(report(Object.entries(CORPUS))).toStrictEqual([]);
@@ -656,10 +660,13 @@ describe("adversarial round-trip hunt", () => {
       ["toggle-depth-300", `${"<toggle>\n".repeat(300)}x\n${"</toggle>\n".repeat(300)}`],
       ["container-depth-300", `${":::toggle\n".repeat(300)}x\n${":::\n".repeat(300)}`],
       ["container-unclosed-3000", ":::toggle\n".repeat(3000)],
-      [
-        "list-depth-300",
-        `${Array.from({ length: 300 }, (_, i) => `${"  ".repeat(i)}- x`).join("\n")}\n`,
-      ],
+      ["list-depth-300", nestedList(300)],
+      ["list-openers-at-the-limit", `${"- ".repeat(LIST_MAX_INDENT)}x\n`],
+      ["list-openers-past-the-limit", `${"- ".repeat(LIST_MAX_INDENT + 1)}x\n`],
+      ["list-openers-past-the-writer", `${"- ".repeat(450)}x\n`],
+      ["list-openers-past-the-stack", `${"- ".repeat(1000)}x\n`],
+      ["list-at-the-limit", nestedList(LIST_MAX_INDENT)],
+      ["list-past-the-limit", nestedList(LIST_MAX_INDENT + 1)],
       ["emphasis-run-2000", `${"*".repeat(2000)}x\n`],
       ["bracket-run-2000", `${"[".repeat(2000)}x\n`],
       ["long-line-200kb", `${"word ".repeat(40_000)}\n`],

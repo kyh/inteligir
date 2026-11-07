@@ -31,6 +31,11 @@ export const BLOCK_MAX_BYTES = 512 * 1024;
 /** @internal */
 export const BLOCK_MAX_DEPTH = 32;
 
+// how deep a list nests. A list is flat here, an item's depth one number, and the writer turns that
+// number back into nesting a recursion walks, which ran out near 450 on a cold Worker; past that an
+// export and an agent's view of the item throw, so the cap stands well inside what either holds
+export const LIST_MAX_INDENT = 128;
+
 const mark = z.literal(true).optional();
 
 export const libraryTextSchema = z.strictObject({
@@ -48,7 +53,7 @@ const voidChildren = z.tuple([libraryTextSchema.extend({ text: z.literal("") })]
 // the indent list's props, which every indentable block may carry (`kits/headless/list-base.ts`),
 // spelled into each object below: a spread beside a recursive getter defeats TypeScript's inference
 const listChecked = z.boolean().optional();
-const listIndent = z.number().int().min(1).optional();
+const listIndent = z.number().int().min(1).max(LIST_MAX_INDENT).optional();
 // an ordered list's number, which markdown lets start at 0; a restart is where the writer began a
 // list anew, which the list plugin reads when it numbers the items after
 const listNumber = z.number().int().nonnegative().optional();
