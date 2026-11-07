@@ -93,9 +93,10 @@ alone, and no walk narrows structurally.
   one, so what a person types stays text. A bare link has no escape to write and
   needs none: its text is its address, which no call stands in (A LINK IS
   SPELLED BARE ONLY WHERE GFM READS IT BACK IN ITS PLACE). A `=== Label` line is
-  one finished text too: a label is plain words, a construct in one leaves the whole group
-  prose, and the writer escapes a label that would read as one, a bare url
-  among them, since what GFM reads past that escape is still the line's text.
+  one finished text too: a label is plain words, a construct in one leaves the
+  whole group prose, and the writer escapes a label that would read as one, a
+  bare url among them, since what GFM reads past that escape is still the line's
+  text.
   Rejected: reading a construct in a label (a label is a string, with no inline
   to hold it). Obsidian's spellings in a note hold to the same rule (MARKDOWN
   IS A CODEC BESIDE THE LIBRARY).

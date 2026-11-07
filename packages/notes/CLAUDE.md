@@ -244,11 +244,11 @@ root.
   the next space and wants no word before it, so the writer's link handler asks
   gfm itself, over the literal and the bytes either side as they are about to be
   written, and every other link keeps `[text](url)`, which always reads back.
-  What it answers for a tree the footnote hold and the passage projection hear
-  too (`isBareLink`), each by what it can see, so a link the writer labels is a
-  labelled link to them. A link touching a mark keeps its label, since the writer
-  may spell the character beside a mark as a reference, and a literal with no
-  space before the next link does too. Rejected: a copy of gfm's rules (it reads
+  The footnote hold and the passage projection put the same question through
+  `isBareLink`, each with the neighbours it can see, so a link the writer labels
+  is a labelled link to them. A link touching a mark keeps its label, since the
+  writer may spell the character beside a mark as a reference, and a literal with
+  no space before the next link does too. Rejected: a copy of gfm's rules (it reads
   a literal twice, in its tokenizer and over finished text, by two different
   trails, and a copy of either drifts), deciding in the rule table (a rule sees
   no neighbour) and a pass over the tree ahead of the write (only the write knows

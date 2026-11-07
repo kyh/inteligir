@@ -177,15 +177,14 @@ const bareSpelling = (
   state: State,
   info: Info,
 ): string | null => {
+  const literal = literalOf(link, state);
+  if (literal === null) {
+    return null;
+  }
   const siblings = phrasingOf(parent);
   const index = siblings.indexOf(link);
-  const literal = literalOf(link, state);
   const before = edgeOf(info.before.slice(-1), state);
-  if (
-    literal === null ||
-    touchesMark(siblings, index) ||
-    (literal.type !== "html" && WORD_END_RE.test(before))
-  ) {
+  if (touchesMark(siblings, index) || (literal.type !== "html" && WORD_END_RE.test(before))) {
     return null;
   }
   const spelled = state.handle(literal, parent, state, info);
@@ -196,8 +195,8 @@ const bareSpelling = (
   return readsBack(spelled, link.url, { after, before }) ? spelled : null;
 };
 
-// the same, asked ahead of the link's write by what stands before it: there the bytes before the
-// link are the tree's, not yet written
+// the same for a writer that is not at the link, a peek or the break after it: what stands before
+// the link is what the tree shows
 export const bareAhead = (
   link: Link,
   parent: Parents | undefined,

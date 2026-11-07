@@ -185,6 +185,8 @@ describe("a plain bare url stays as it is written", () => {
     ["| a                 |\n| ----------------- |\n| see https://x.y/a |\n"],
     ["| a               |\n| --------------- |\n| https://x.y/a b |\n"],
     ["| a       |\n| ------- |\n| www.x.y |\n"],
+    ["[^a]: see https://x.y/a\n"],
+    ["<span>https://x.y/a</span>\n"],
   ])("%j", (md) => {
     expect(kept(md)).toBe(md);
   });
