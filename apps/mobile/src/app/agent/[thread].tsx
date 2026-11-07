@@ -44,13 +44,15 @@ const refusalNow = (cause: unknown): string => sendRefusalWords(cause, Date.now(
 const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
   viewContextOf({ kind: null, openItem: fromItem, scope: { kind: "all" }, selected: [] });
 
-const Block = ({ block }: { block: ThreadBlock }) => {
+const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
   if (block.kind === "work") {
     return (
       <View className="gap-1 rounded-lg border border-border px-3 py-2">
-        <Text className="text-13 font-semibold text-muted-foreground">
-          {workWords(block.uses.length)}
-        </Text>
+        {live ? null : (
+          <Text className="text-13 font-semibold text-muted-foreground">
+            {workWords(block.uses.length)}
+          </Text>
+        )}
         {block.notes.map((note) => (
           <Text key={note.eventId} className="text-13 text-muted-foreground">
             {note.text}
@@ -148,8 +150,8 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const failure = respond.error ?? cancel.error;
   return (
     <View className="gap-3">
-      {blocks.map((block) => (
-        <Block key={block.key} block={block} />
+      {blocks.map((block, index) => (
+        <Block key={block.key} block={block} live={working && index === blocks.length - 1} />
       ))}
       {preview === null ? null : (
         <Text className="text-16 text-foreground leading-[22px]">{preview}</Text>
