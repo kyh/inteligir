@@ -113,7 +113,7 @@ describe("reading the session the tab opens on", () => {
         leave: createLeaveGuard(new EventTarget()),
         onSessionEnd: () => {},
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow("the session read answered 503");
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
     expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
   });
