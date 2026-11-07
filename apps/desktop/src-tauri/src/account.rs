@@ -96,10 +96,10 @@ impl Account {
     /// Answers the credential let go, for a page whose library never opened to give its device
     /// back; a Keychain that will not read it stops none of the rest.
     pub fn forget(&self) -> ShellResult<Option<DeviceCredential>> {
-        let kept = self.credentials.read().unwrap_or_default();
         self.close();
         file_cache::remove_dir_if_there(&self.library_dir)?;
         self.files.clear()?;
+        let kept = self.credentials.read().unwrap_or_default();
         self.credentials.forget()?;
         Ok(kept)
     }
