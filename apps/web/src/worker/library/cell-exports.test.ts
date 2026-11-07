@@ -224,12 +224,7 @@ describe("an export", () => {
       expect(zip).toHaveLength(written.bytes);
       const entries = await entriesOf(zip);
       expect([...entries.keys()]).toStrictEqual(
-        expect.arrayContaining([
-          "AGENTS.md",
-          "Beta.md",
-          "Notes/Alpha.md",
-          "A page worth reading.md",
-        ]),
+        expect.arrayContaining(["Beta.md", "Notes/Alpha.md", "A page worth reading.md"]),
       );
 
       const into = newAccountId();
@@ -246,6 +241,34 @@ describe("an export", () => {
       expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "writes the person's filing rules at its root, which a later import reads as a note",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await withLibrary(from);
+      await inCell(cellOf(from), async (state) => {
+        await libraryIn(state, from).agent.setRules({ rules: "File recipes under Cooking.\n" });
+      });
+      const { export: written } = await exported(from);
+      const zip = await zipIn(from, written.id);
+      const entries = await entriesOf(zip);
+      expect([...entries.keys()]).toContain("AGENTS.md");
+
+      const into = newAccountId();
+      const started = await startImport(into, { bytes: zip, mime: "application/zip" }, "markdown");
+      await runImportToEnd(into, started.jobId);
+      await inCell(cellOf(into), async (state) => {
+        const client = libraryIn(state, into);
+        await expect(client.agent.rules()).resolves.toStrictEqual({ rules: null });
+        const { items } = await client.items.list({});
+        const note = items.find((item) => item.title === "AGENTS");
+        const read = await client.items.read({ id: note?.id ?? "" });
+        expect(JSON.stringify(read)).toContain("File recipes under Cooking.");
+      });
     },
   );
 

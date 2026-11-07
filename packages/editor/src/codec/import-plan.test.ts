@@ -13,7 +13,6 @@ import {
   exportFolderPaths,
   exportTarget,
   planExportDoc,
-  rulesFile,
 } from "./export-plan";
 import type { ExportFile, ExportStore, PlannedExportDoc } from "./export-plan";
 import {
@@ -32,7 +31,6 @@ const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
 // an Obsidian vault beside a note this app wrote, the binaries named by a pretend sha
 const OBSIDIAN_VAULT = {
   ".obsidian/app.json": '{"theme":"moonstone"}',
-  "AGENTS.md": "File what I read under Inbox.\n",
   ".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json": `${JSON.stringify(
     {
       h1: {
@@ -159,7 +157,6 @@ interface ReadLibrary {
   readonly folders: PlannedFolder[];
   readonly folderPaths: Map<string, string>;
   readonly skipped: string[];
-  readonly rules: string | null;
 }
 
 // the three passes over a folder's files, as an import job runs them
@@ -172,7 +169,7 @@ const readFolder = (
   const entries: ImportEntry[] = [];
   for (const [path, text] of Object.entries(files)) {
     const kind = importPathKind(path);
-    if (kind === "doc" || kind === "rules" || kind === "store") {
+    if (kind === "doc" || kind === "store") {
       entries.push({ kind, path, text });
     } else if (kind === "skipped") {
       skipped.push(path);
@@ -220,7 +217,7 @@ const readFolder = (
       itemId: item.itemId,
     });
   }
-  return { folderPaths, folders, items, rules: plan.rules, skipped };
+  return { folderPaths, folders, items, skipped };
 };
 
 const byTitle = (library: ReadLibrary, title: string): LibraryItem => {
@@ -271,8 +268,15 @@ describe("an Obsidian vault read into the library", () => {
     ]);
   });
 
-  it("keeps the filing rules apart from every item, and a cover no item holds is no item", () => {
-    expect(library.rules).toBe("File what I read under Inbox.\n");
+  it("reads an AGENTS.md at the root as a note like any other", () => {
+    const { items, skipped } = readFolder({ "AGENTS.md": "File under Inbox.\n" }, new Map());
+    expect(items.map((item) => [item.fields.title, item.folderPath])).toStrictEqual([
+      ["AGENTS", null],
+    ]);
+    expect(skipped).toStrictEqual([]);
+  });
+
+  it("makes no item of a cover no item holds", () => {
     expect(
       library.items.some(
         (item) => item.fields.originalSha === shaOf("assets/covers/fedcba9876543210.jpg"),
@@ -428,7 +432,6 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
     return doc === undefined ? [] : exportDoc(item, doc, { mediaType: mediaTypeOf, store, target });
   });
   return [
-    ...(library.rules === null ? [] : [rulesFile(library.rules)]),
     ...texts,
     ...[...placed.values()].map((file): ExportFile => ({ kind: "bytes", ...file })),
   ];
@@ -497,6 +500,5 @@ describe("export, then import, gives the library back", () => {
     );
     const second = readFolder(texts, bytes);
     expect(contentOf(second)).toStrictEqual(contentOf(first));
-    expect(second.rules).toBe(first.rules);
   });
 });

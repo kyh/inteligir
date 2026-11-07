@@ -5,11 +5,12 @@
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
 // `@repo/notes/knowledge/link-resolve`). Last, every file no doc embedded becomes an item of its
 // own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
-// every other dot-folder are skipped, the folder's filing rules (`AGENTS.md` at its root) are kept
-// apart from every item, and a `.canvas` or a `.base` is always an item, never an attachment.
+// every other dot-folder are skipped, and a `.canvas` or a `.base` is always an item, never an
+// attachment. An `AGENTS.md` is a note like any other: filing rules reach the agent as the person's
+// own instructions, so only the person writes them, and a zip is anyone's text.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
-import { COVERS_DIR, fileKindOf, LIBRARY_RULES_PATH, PAGES_DIR } from "@repo/notes/items/item-kind";
+import { COVERS_DIR, fileKindOf, PAGES_DIR } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
@@ -32,7 +33,7 @@ import type { FoundFile, ImportedFields, ImportedItem } from "./item-markdown";
 import type { Reached } from "./read-blocks";
 
 // what a path in the folder is to an import
-export type ImportPathKind = "doc" | "file" | "rules" | "store" | "skipped";
+export type ImportPathKind = "doc" | "file" | "store" | "skipped";
 
 // Obsidian's whiteboard and its database view: files of their own, never shown inside a note
 const ITEM_ONLY_EXTENSIONS = new Set([".canvas", ".base"]);
@@ -45,17 +46,12 @@ export const importPathKind = (raw: string): ImportPathKind => {
   if (path === "" || isDotEntryPath(path)) {
     return "skipped";
   }
-  if (path.toLowerCase() === LIBRARY_RULES_PATH.toLowerCase()) {
-    return "rules";
-  }
   return isDocPath(path) ? "doc" : "file";
 };
 
-// one path of the folder, as pass one reads it: a doc's, the rules' or a store's text, a file's
-// bytes by sha
+// one path of the folder, as pass one reads it: a doc's or a store's text, a file's bytes by sha
 export type ImportEntry =
   | { readonly kind: "doc"; readonly path: string; readonly text: string }
-  | { readonly kind: "rules"; readonly path: string; readonly text: string }
   | { readonly kind: "store"; readonly path: string; readonly text: string }
   | { readonly kind: "file"; readonly path: string; readonly sha: string };
 
@@ -92,8 +88,6 @@ export interface ImportPlan {
   readonly files: readonly PlannedFile[];
   // the docs' highlight stores, each by the frontmatter id it is keyed by
   readonly stores: readonly { readonly key: string; readonly text: string }[];
-  // the library's filing rules, which the agent reads and no item holds
-  readonly rules: string | null;
 }
 
 export interface PlanIds {
@@ -159,14 +153,9 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
   const files: PlannedFile[] = [];
   const stores: { key: string; text: string }[] = [];
   const usedIds = new Set<string>();
-  let rules: string | null = null;
   for (const entry of entries) {
     const path = normalizePath(entry.path);
     switch (entry.kind) {
-      case "rules": {
-        rules = entry.text;
-        break;
-      }
       case "store": {
         const key = annotationsStoreItemId(path);
         if (key !== null) {
@@ -198,7 +187,7 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
       // no default
     }
   }
-  return { docs, files, folders: table.folders, rules, stores };
+  return { docs, files, folders: table.folders, stores };
 };
 
 // a plan opened for pass two: its lookups and its resolver, built once for every doc it reads

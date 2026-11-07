@@ -85,7 +85,7 @@ const CONTENT_ADDRESS_HEX_CHARS = 16;
 export const contentAddressedName = (sha256Hex: string, extension: string): string =>
   `${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}.${extension}`;
 
-// the library's filing rules, which the agent reads; hidden from the grid
+// where an export writes the library's filing rules
 export const LIBRARY_RULES_PATH = "AGENTS.md";
 
 // what a device says of a link it will not save, in the one sentence every device says it

@@ -192,10 +192,10 @@ stays Unsorted until it is filed, whatever it is tagged.
 
 **filing rules** — what the person wrote for the agent about their library, one
 row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
-written from Settings › Account, or brought by an import's `AGENTS.md` while the
-library keeps none, which every turn of the built-in agent carries after the
-person's message. Tidy my library files and tags by them. Not the repo's
-`AGENTS.md`.
+written only from Settings › Account, which every turn of the built-in agent
+carries after the person's message. Tidy my library files and tags by them. An
+export writes them as `AGENTS.md`, and an import reads any `AGENTS.md` as a note,
+never as filing rules. Not the repo's `AGENTS.md`.
 
 **fill** — the cloud's reading of a link the library holds unread (a
 `saveLink`, a refresh, an import's): the cell asks the fill queue, and the

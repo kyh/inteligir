@@ -1,9 +1,8 @@
 // A zip of markdown read into the library: this app's export, an Obsidian vault, or any
 // folder of notes, by the codec's two-pass plan (`@repo/editor/codec/import-plan`). The first runs
-// walk the zip's directory, keeping each note's frontmatter, each highlights' store and the
-// filing rules, and putting every file in the library under its sha; then the plan is made once,
-// every note's item and id minted and kept, an address or an id the library holds already standing
-// for its item. Later runs land a page of notes at a time, each read whole against the plan, and
+// walk the zip's directory, keeping each note's frontmatter and each highlights' store, and
+// putting every file in the library under its sha; then the plan is made once, every note's item
+// and id minted and kept, an address or an id the library holds already standing for its item. Later runs land a page of notes at a time, each read whole against the plan, and
 // last every file no note embedded becomes an item of its own. Every run reads the zip where it
 // lies in R2, a range at a time.
 
@@ -48,7 +47,6 @@ import { landNew, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import type { CellStorage } from "./cell-storage";
-import { adoptImportedRules } from "./library-rules";
 
 // a file read whole to hash it; a larger one is read twice, once to hash it and once to store it
 const BUFFERED_MAX_BYTES = 8 * 1024 * 1024;
@@ -85,7 +83,6 @@ const zipEntrySchema = z.object({
 // a path of the zip as the first runs read it; a note keeps its frontmatter alone
 const entrySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("doc"), path: z.string(), text: z.string(), zip: zipEntrySchema }),
-  z.object({ kind: z.literal("rules"), path: z.string(), text: z.string() }),
   z.object({ kind: z.literal("store"), path: z.string(), text: z.string() }),
   z.object({ kind: z.literal("file"), path: z.string(), sha: z.string() }),
 ]);
@@ -223,7 +220,6 @@ const readEntry = async (
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
       return { kind: "row", value: { kind, path: entry.path, text: front, zip: entry } };
     }
-    case "rules":
     case "store": {
       return {
         kind: "row",
@@ -324,10 +320,6 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
     ROWS.store,
     plan.stores.map((value, idx) => ({ idx, value })),
   );
-  // the filing rules the folder brings, which never replace the library's own
-  if (plan.rules !== null) {
-    adoptImportedRules(sql, plan.rules);
-  }
   dropImportRows(sql, job.id, ROWS.entry);
   advanceImport(sql, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });
 };
@@ -411,7 +403,6 @@ const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
       docs: docs.map((row) => row.doc),
       files: importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
       folders,
-      rules: null,
       stores: importRows(sql, jobId, ROWS.store, ALL, storeRowSchema).map((row) => row.value),
     },
   };
