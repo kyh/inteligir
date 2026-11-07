@@ -1,9 +1,10 @@
 // The library's procedures, implemented once over the account's cell: `/v1/rpc/library` serves
-// them to the apps (`./library-rpc`) and the connector to every agent, each call by the actor the
-// principal the Worker verified resolves to. Every write lands through the engine in one
-// transaction, joins its actor's change set, and is settled after it commits (the sockets told,
-// the alarm set); every refusal answers as the error its row declares
-// (`@repo/contract/cloud/v1-errors`). The built-in agent's turns are `../agent/agent-turns`'.
+// them to the apps (`./library-rpc`), the connector serves its tools to assistants, and the cell
+// runs those for the built-in agent (`../agent/agent-tools`), each call by the actor its principal
+// resolves to. Every write lands through the engine in one transaction, joins its actor's change
+// set, and is settled after it commits (the sockets told, the alarm set); every refusal answers as
+// the error its row declares (`@repo/contract/cloud/v1-errors`). The built-in agent's turns are
+// `../agent/agent-turns`'.
 
 import {
   AccountGoneError,

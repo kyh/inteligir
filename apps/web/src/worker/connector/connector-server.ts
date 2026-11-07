@@ -1,5 +1,5 @@
 // The connector served in the account's cell: the library's tool rows as an MCP server, the
-// same procedures `/v1/rpc/library` answers the apps (`../library/library-router`). The two
+// same procedures `/v1/rpc/library` serves (`../library/library-router`). The two
 // registrars are built once, here, over the cell's router: the full one exposes every row with
 // tool meta, and the read-only one only those whose verb is GET, which is what a `library:read`
 // grant gets. Each request then builds a fresh `McpServer` from `createMcpHandler`'s factory
