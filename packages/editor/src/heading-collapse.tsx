@@ -1,4 +1,5 @@
-// Collapse is view state keyed `level:text:ordinal` per item id in localStorage;
+// Collapse is view state kept per item id in localStorage, each fold by a hash of its
+// `level:text:ordinal`, since that storage sits outside the phone's wipe and inside its backup;
 // it never touches bytes or history. What a fold hides is derived once per document
 // change in a provider, a per-block backward walk being quadratic under keystrokes, and
 // addressed by block id: Plate re-renders a block only when its own node changes, so the
@@ -21,6 +22,7 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
 import { useOpenItemId } from "@repo/editor/open-item";
+import { contentHash } from "@repo/notes/library/block-hash";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
@@ -109,6 +111,17 @@ export const toggleHeadingCollapse = (itemId: string, key: string): void => {
   foldsStore.setState((folds) => new Map(folds).set(itemId, keys), true);
 };
 
+// every item's folds go: the account they belong to left this device
+export const forgetHeadingFolds = (): void => {
+  restored.clear();
+  foldsStore.setState(new Map(), true);
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // storage unavailable
+  }
+};
+
 const NO_FOLDS: ReadonlySet<string> = new Set();
 
 interface Derived {
@@ -147,7 +160,7 @@ const derive = (
     const base = `${String(rank)}:${text}`;
     const ordinal = ordinals.get(base) ?? 0;
     ordinals.set(base, ordinal + 1);
-    const key = `${base}:${String(ordinal)}`;
+    const key = contentHash(`${base}:${String(ordinal)}`);
     if (id !== undefined) {
       keys.set(id, key);
     }

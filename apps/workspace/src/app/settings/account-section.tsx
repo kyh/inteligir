@@ -18,7 +18,6 @@ import { useAccount, useLeft, useReplica, useWire } from "../cloud/library-conte
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
-import { forgetPref, PREFS } from "../prefs";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { FILING_RULES_TEXT } from "./filing-rules";
 import { Row, SectionHeading } from "./settings-chrome";
@@ -282,7 +281,6 @@ const DeleteAccount = () => {
     },
     onSuccess: async () => {
       await replica.wipe();
-      forgetPref(PREFS.libraryScope);
       await left("deleted");
     },
   });
@@ -349,7 +347,6 @@ export const AccountSection = () => {
     },
     onSuccess: async () => {
       await replica.wipe();
-      forgetPref(PREFS.libraryScope);
       await left("signed-out");
     },
   });

@@ -3,6 +3,7 @@
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PREFS, readPref, writePref } from "../prefs";
 import { createLeaveGuard } from "./leave-guard";
 import { openPageLibrary, pageClock } from "./page-library";
 import { SESSION_READ_MS } from "./session-keeper";
@@ -103,6 +104,42 @@ describe("a session that ends under the open page", () => {
     // what moves after, a write queued as the page goes, is no second end
     await replica.saveLink({ folderId: null, tags: [], url: "https://example.com/" });
     expect(onSessionEnd).toHaveBeenCalledOnce();
+    await replica.close();
+  });
+
+  it("takes what the page's own storage holds of the account with it", async () => {
+    const cell = createFakeCell();
+    const { transport } = cell.device("tab");
+    vi.stubGlobal("fetch", async (input: Request | string) =>
+      input instanceof Request ? await transport.fetch(input) : Response.json(SIGNED_IN),
+    );
+    const { replica } = await opened(() => {});
+    writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    await replica.sync();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+
+    cell.signOut();
+    await replica.sync();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
+    await replica.close();
+  });
+});
+
+describe("a tab that leaves its account", () => {
+  it("takes what the page's own storage holds of the account with it", async () => {
+    const cell = createFakeCell();
+    const { transport } = cell.device("tab");
+    vi.stubGlobal("fetch", async (input: Request | string) =>
+      input instanceof Request ? await transport.fetch(input) : Response.json(SIGNED_IN),
+    );
+    const { left, replica } = await opened(() => {});
+    writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    await left("signed-out");
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
     await replica.close();
   });
 });

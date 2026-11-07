@@ -10,6 +10,7 @@ import { APP_COMMANDS } from "../../shell/ipc-contract";
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import { ShellError } from "../../shell/shell-error";
 import { clearShell, mockShell, reply } from "../../shell/test-support/mock-shell";
+import { PREFS, readPref, writePref } from "../prefs";
 import { OpenFailedPage } from "./open-failed-page";
 import { createShellLeaveGuard, openShellLibrary } from "./shell-library";
 import { createPageQueryClient } from "./v1";
@@ -157,6 +158,18 @@ describe("signing out of a library that would not open", () => {
       expect(reload).toHaveBeenCalledOnce();
     });
     expect(order).toStrictEqual(["forgotten", `revoked Bearer ${KEPT.credential}`, "reloaded"]);
+  });
+
+  it("lets go of what the page's own storage holds of the account", async () => {
+    writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    const reload = await openedOverARefusingKeychain(() => null);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
   });
 
   it("asks the cloud nothing when the shell held no credential to give back", async () => {

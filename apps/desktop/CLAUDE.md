@@ -65,8 +65,10 @@ a bullet is written and cited.
   and nowhere else on disk, and hands the page when it opens; the page sends it
   as the bearer of every `/v1` call, the socket opening on the short-lived
   ticket it mints. Leaving the account forgets the credential, the account's
-  replica file and its files, and a credential the cloud no longer takes leaves
-  it too. On Linux, where the shell runs only under the scenario suite,
+  replica file and its files, the page dropping what its own storage remembers
+  of the account (`apps/workspace/src/app/cloud/account-storage.ts`), and a
+  credential the cloud no longer takes leaves it too. On Linux, where the shell
+  runs only under the scenario suite,
   keyring-core's sample store in a file stands in. Rejected: the shell as the
   page's proxy so the page never holds it (a scheme handler carries neither the
   socket's upgrade nor a streamed body: the browser's path rebuilt in Rust); the

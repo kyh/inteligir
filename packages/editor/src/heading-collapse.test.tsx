@@ -6,7 +6,11 @@ import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
+import {
+  forgetHeadingFolds,
+  headingCollapseKeys,
+  toggleHeadingCollapse,
+} from "@repo/editor/heading-collapse";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
@@ -45,6 +49,17 @@ describe("heading collapse", () => {
     expect(written.size).toBe(1);
     const stored: unknown = JSON.parse([...written.values()][0] ?? "{}");
     expect(stored).toStrictEqual({ "notes/c.md": ["1:Intro:0"], "notes/d.md": ["2:Details:0"] });
+  });
+
+  it("lets every note's folds go when the account leaves", () => {
+    const written = stubStorage();
+    toggleHeadingCollapse("notes/e.md", "1:Intro:0");
+    expect(written.size).toBe(1);
+
+    forgetHeadingFolds();
+
+    expect(written.size).toBe(0);
+    expect([...headingCollapseKeys("notes/e.md")]).toStrictEqual([]);
   });
 });
 
@@ -122,6 +137,14 @@ describe("folds over a live document", () => {
       editor.tf.insertNodes(p("inside"), { at: [2] });
     });
     expect(hiddenBlocks()).toStrictEqual(["inside", "a body"]);
+  });
+
+  it("keeps none of a heading's words in the page's storage", () => {
+    mountNote("notes/fold-private.md", [h2("Termination plan for Dana"), p("a body")]);
+
+    fireEvent.click(chevronOf("Termination plan for Dana"));
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
+    expect(localStorage.getItem("inteligir.collapsed-headings")).not.toMatch(/Termination/u);
   });
 
   it("drops the fold when the heading's text changes, since the text is its key", async () => {

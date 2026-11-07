@@ -21,6 +21,7 @@ import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
+import { forgetAccountStorage } from "./account-storage";
 import {
   shellConfig,
   shellCredential,
@@ -117,14 +118,21 @@ export const createShellLeaveGuard = (): LeaveGuard => {
   };
 };
 
-// this Mac leaves its account: the shell lets go of the credential, the replica's file and every
-// file of the account, and the page opens again on the sign-in. A sign-out, the replica and every
-// wire call may each ask, and share the one leaving; only one that failed goes again
+// the shell lets go of the credential, the replica's file and every file of the account, then the
+// page of what its own storage holds; answers the credential let go
+const forgetThisMac = async (): Promise<KeptCredential | null> => {
+  const kept = await shellCredential.forget();
+  forgetAccountStorage();
+  return kept;
+};
+
+// this Mac leaves its account, and the page opens again on the sign-in. A sign-out, the replica
+// and every wire call may each ask, and share the one leaving; only one that failed goes again
 const leaveAccount = (reload: () => void): (() => Promise<void>) => {
   let leaving: Promise<void> | null = null;
   const leave = async (): Promise<void> => {
     try {
-      await shellCredential.forget();
+      await forgetThisMac();
     } catch (error) {
       leaving = null;
       throw error;
@@ -140,7 +148,7 @@ const leaveAccount = (reload: () => void): (() => Promise<void>) => {
 // this Mac leaves an account whose library never opened, so no wire stands to sign out over: the
 // copy goes first, then the device, under the credential the shell let go
 export const signOutUnopened = async (): Promise<void> => {
-  const kept = await shellCredential.forget();
+  const kept = await forgetThisMac();
   if (kept === null) {
     return;
   }

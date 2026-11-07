@@ -100,7 +100,9 @@ is parsed in `src/shell/shell-commands.ts`.
   host is one `PageLibrary`: where a file is drawn and read from, the transport an
   upload or an export rides, what the page does about what it holds before it
   goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
-  edit when the shell says it is quitting) and where a sign-out goes. The
+  edit when the shell says it is quitting) and where a sign-out goes, each
+  host's every way of leaving taking what the page's own storage remembers of
+  the account (`apps/workspace/src/app/cloud/account-storage.ts`). The
   Mac's routes ride the hash, since its document never changes. Rejected: a
   first-run window of the shell's own (a second page beside the one the shell
   carries); the tab's cookie in the window (a cross-site cookie WebKit would
