@@ -309,8 +309,8 @@ const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
 
 // Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
 // and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
-// none of them. Only words are an item here: any other block stands where the item stood, and the
-// list writes it outside itself, with a to-do's box on a line of its own above it.
+// none of them. Only words are an item here: any other block stands where the item stood, outside
+// the list, with a to-do's box on a line of its own above it.
 const listBlocks = (
   list: MdList,
   indent: number,
@@ -333,20 +333,19 @@ const listBlocks = (
         ? [emptyLine()]
         : elementsIn(convertChildrenDeserialize([head], deco, options));
     const blocks = todo && !opened.some(isItemLine) ? [emptyLine(), ...opened] : opened;
+    const firstLine = blocks.find(isItemLine);
     const number = first + index;
-    const placed = blocks.map((block, at): TElement => {
-      const element: TElement = {
-        ...block,
-        indent,
-        listStyleType,
-        type: isItemLine(block) ? KEYS.p : block.type,
-      };
+    const placed = blocks.map((block): TElement => {
+      if (!isItemLine(block)) {
+        return block;
+      }
+      const element: TElement = { ...block, indent, listStyleType, type: KEYS.p };
       if (todo) {
         element.checked = checked;
       }
       if (ordered) {
         element.listStart = number;
-        if (index === 0 && at === 0 && number > 1) {
+        if (index === 0 && block === firstLine && number > 1) {
           element.listRestartPolite = number;
         }
       }

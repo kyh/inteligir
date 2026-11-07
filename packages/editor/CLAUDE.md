@@ -316,15 +316,18 @@ alone, and no walk narrows structurally.
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
   takes no block with it. A list item is its words: any other block an item
-  opens with keeps its type where the item stood, written outside the list, a
-  to-do's box on a line above it. Rejected: Plate's list rule (it made every
-  such block a `p`, which holds no address, fence or source). An agent's edit
-  must match once, keep the article's
-  own lines and nest no deeper than the editor reads; only the blocks it spans
-  are read again, matched by content so the rest keep their ids and markers,
-  and a highlight it took either edge of is named. Rejected: a second markdown
-  grammar for import (two readings drift) and re-reading a whole item per edit
-  (every block's id would turn over). `packages/editor/src/codec/item-edit.ts`.
+  opens with keeps its type and stands outside the list where the item stood,
+  a to-do's box on a line above it. Rejected: Plate's list rule (it made every
+  such block a `p`, which holds no address, fence or source). What follows a
+  `$$` on its line leads the expression, since an equation holds no fence meta
+  and a person who opens `$$ E = mc^2` wrote it there. An agent's edit must
+  match once, keep the article's own lines and nest no deeper than the editor
+  reads; only the blocks it spans are read again, matched by content so the
+  rest keep their ids and markers, and a highlight it took either edge of is
+  named. Rejected: a second markdown grammar for import (two readings drift)
+  and re-reading a whole item per edit (every block's id would turn over).
+  `packages/editor/src/markdown/md-rules.ts`,
+  `packages/editor/src/codec/item-edit.ts`.
 
 - **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
   OPS.** `createItemSession` opens an item over the replica's read, write and
