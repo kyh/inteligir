@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { APP_COMMANDS } from "./shell/ipc-contract";
 import type { KeptCredential, ShellConfig } from "./shell/shell-config";
 import { clearShell, mockShell, replicaReplies, reply } from "./shell/test-support/mock-shell";
+import type { ShellReply } from "./shell/test-support/mock-shell";
 
 // main.tsx is the whole page and its top-level await, loaded once a test
 const LOADS_THE_PAGE_MS = 60_000;
@@ -89,7 +90,7 @@ describe("a Mac that lands signed out", () => {
   };
   const LAST_ACCOUNTS_ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
 
-  const opensWith = (kept: KeptCredential | null, ...replies: Parameters<typeof mockShell>) => {
+  const opensWith = (kept: KeptCredential | null, ...replies: readonly ShellReply[]) => {
     mockShell(
       reply(APP_COMMANDS.config)(() => CONFIG),
       reply(APP_COMMANDS.credential.restore)(() => kept),
