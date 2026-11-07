@@ -51,6 +51,7 @@ import type {
 } from "./thread-request";
 import { THREAD_TURN_STATUSES } from "./thread-schema";
 import { pushEntrySchema } from "./thread-wire";
+import { RULES_CLEARED } from "./turn-message";
 import type {
   CallEstimate,
   CellAnswer,
@@ -224,6 +225,14 @@ const openTurnOf = (sql: SqlStatements): OpenTurn | null => {
 };
 
 const metaSchema = z.object({ v: z.string() });
+
+// `rules_hash` is absent while the conversation carries no filing rules and the last landed
+// rules' hash while it does. Rules a compaction summarized or a new definition stopped replaying
+// are neither: the next turn owes their words, or word that they are cleared, so the row stays
+// and holds what no hash equals.
+const markRulesOwed = (sql: SqlStatements): void => {
+  sql.run("UPDATE meta SET v = '' WHERE k = 'rules_hash'", []);
+};
 
 const metaOf = (sql: SqlStatements, key: string): string | null => {
   const [row] = sql.all("SELECT v FROM meta WHERE k = ?", [key]);
@@ -433,7 +442,7 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
           threadId: host.threadId,
           turn: turn.turn,
         });
-        host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
+        markRulesOwed(host.sql);
       }
     }
     append(host.sql, { content: turn.content, role: "user", turn: turn.turn }, "person");
@@ -528,12 +537,10 @@ const estimateOf = (
   );
 };
 
-// the turn's filing rules while they are still to land: the rules of a turn whose first reply has
-// not landed, when they differ from the last that did
+// what the turn has to say of the filing rules while it is still to land: on a first reply, the
+// rules when they differ from the last that landed, or that they are cleared when some had
 const pendingRules = (sql: SqlStatements, turn: OpenTurn, step: number): string | null =>
-  step === 0 && turn.rules !== null && turn.rulesHash !== metaOf(sql, "rules_hash")
-    ? turn.rules
-    : null;
+  step !== 0 || turn.rulesHash === metaOf(sql, "rules_hash") ? null : (turn.rules ?? RULES_CLEARED);
 
 const withRules = (
   transcript: readonly TranscriptMessage[],
@@ -711,7 +718,11 @@ const landReply = (
           },
           "rules",
         );
-        setMeta(host.sql, "rules_hash", turn.rulesHash ?? "");
+        if (turn.rulesHash === null) {
+          host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
+        } else {
+          setMeta(host.sql, "rules_hash", turn.rulesHash);
+        }
       }
       append(
         host.sql,
@@ -723,7 +734,7 @@ const landReply = (
         [call.callId],
       );
       if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
-        host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
+        markRulesOwed(host.sql);
       }
       entries.push(...replyEvents(blocks));
     }

@@ -43,6 +43,7 @@ import {
   transcriptMessage,
 } from "./thread-request";
 import type { ThreadDefinition } from "./thread-request";
+import { RULES_CLEARED } from "./turn-message";
 import type { CallEstimate } from "./thread-wire";
 
 // a turn's end can take a few model calls, each a round trip through the fake
@@ -215,7 +216,7 @@ const sentAs = (definition: ThreadDefinition) => ({
 // the filing rules as a system message holds them
 const rulesMessage = (text: string) => z.json().parse([{ text, type: "text" }]);
 
-// the library's filing rules, as an import of a folder that brings them leaves them
+// the library's filing rules as the person left them
 const rulesIn = async (account: AgentAccount, rules: string): Promise<void> => {
   await cellRows(
     account,
@@ -512,6 +513,85 @@ describe("a conversation's object", () => {
         { reason: "done" },
       ]);
       // each first reply was asked with its rules last, and every later call replays them in place
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation that carried filing rules they are cleared, once, and sends them again when they return",
+    // four turns, and two in a conversation that never carried any
+    { timeout: 2 * TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const { threadId: plain } = await send(account, script("First."), undefined, ROOMY);
+      await settled(account, plain);
+      await rulesIn(account, "");
+      await send(account, script("Second."), plain, ROOMY);
+      await settled(account, plain);
+      const none = await transcriptOf(account, plain);
+      expect(none.map((row) => row.role)).toStrictEqual(["user", "assistant", "user", "assistant"]);
+
+      await rulesIn(account, "File trips under Travel.");
+      const { threadId } = await send(account, script("Noted."), undefined, ROOMY);
+      await settled(account, threadId);
+      await rulesIn(account, "  \n");
+      await send(account, script("Cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      await send(account, script("Still cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      await rulesIn(account, "File trips under Travel.");
+      await send(account, script("Back again."), threadId, ROOMY);
+      await settled(account, threadId);
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.map((row) =>
+          row.role === "system"
+            ? [row.turn, row.role, z.json().parse(JSON.parse(row.content))]
+            : [row.turn, row.role],
+        ),
+      ).toStrictEqual([
+        [1, "user"],
+        [1, "system", rulesMessage("File trips under Travel.")],
+        [1, "assistant"],
+        [2, "user"],
+        [2, "system", rulesMessage(RULES_CLEARED)],
+        [2, "assistant"],
+        [3, "user"],
+        [3, "assistant"],
+        [4, "user"],
+        [4, "system", rulesMessage("File trips under Travel.")],
+        [4, "assistant"],
+      ]);
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation past a compaction its filing rules are cleared, since the summary may hold them",
+    // three model calls in two turns, each a round trip through the fake
+    { timeout: 2 * TURN_MS },
+    async () => {
+      const account = agentAccount();
+      await rulesIn(account, "File trips under Travel.");
+      const { threadId } = await send(
+        account,
+        script('call create_note {"markdown":"Before."}', "compact", "Done."),
+        undefined,
+        ROOMY,
+      );
+      await settled(account, threadId);
+      await rulesIn(account, "");
+      await send(account, script("Cleared."), threadId, ROOMY);
+      await settled(account, threadId);
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.flatMap((row) =>
+          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
+        ),
+      ).toStrictEqual([
+        [1, rulesMessage("File trips under Travel.")],
+        [2, rulesMessage(RULES_CLEARED)],
+      ]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );

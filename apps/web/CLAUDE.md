@@ -629,8 +629,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   (owner decision). They reach the agent as a system message, above anything a
   saved page or a note can say, so `library.agent.setRules` is their one writer:
   an import reads an `AGENTS.md` as a note like any other, and an export writes
-  the rules under that name, so moving them is a paste. Rejected: adopting a
-  folder's rules while the library keeps none (a zip is anyone's text, and it
-  would become instructions no person wrote).
+  the rules under that name, so moving them is a paste. A running conversation
+  hears of a change at its next reply, and of a clearing too, in a system
+  message of its own, since the rules it holds outlive the turn that sent them.
+  Rejected: adopting a folder's rules while the library keeps none (a zip is
+  anyone's text, and it would become instructions no person wrote); clearing by
+  sending nothing (the old message replays on every call).
   `apps/web/src/worker/library/library-rules.ts`,
+  `apps/web/src/worker/agent/thread-loop.ts`,
   `packages/editor/src/codec/import-plan.ts`.

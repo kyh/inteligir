@@ -53,6 +53,7 @@ item it names before you change it.
 
 The person's own filing rules, when they wrote some, come in a system message after their first
 message, and again after a later one whenever they change. Follow the latest over your own taste.
+When they clear them, a system message says so, and none apply from then on.
 
 ## Answering
 
