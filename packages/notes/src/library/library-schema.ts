@@ -103,7 +103,6 @@ const ITEMS_DDL = `CREATE TABLE IF NOT EXISTS items (
   deleted_at INTEGER,
   purged INTEGER NOT NULL DEFAULT 0 CHECK (purged IN (0, 1)),
   card TEXT,
-  schema INTEGER NOT NULL,
   seq INTEGER NOT NULL,
   CHECK (purged = 1 OR (kind IS NOT NULL AND title IS NOT NULL AND aliases IS NOT NULL
     AND tags IS NOT NULL AND properties IS NOT NULL AND fetch_state IS NOT NULL
@@ -290,7 +289,6 @@ const CELL_DDL = [
   `CREATE INDEX IF NOT EXISTS history_blobs_sha ON history_blobs (sha256)`,
   `CREATE TABLE IF NOT EXISTS applied_ops (
     op_id TEXT PRIMARY KEY,
-    change_set_id TEXT,
     answer TEXT NOT NULL,
     at INTEGER NOT NULL
   ) STRICT`,
@@ -298,8 +296,7 @@ const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS blob_uploads (
     sha256 TEXT PRIMARY KEY,
     bytes INTEGER NOT NULL,
-    mime TEXT NOT NULL,
-    reserved_at INTEGER NOT NULL
+    mime TEXT NOT NULL
   ) STRICT`,
   // the built-in agent's switch: no row is on, the default, since there is no credential to make
   `CREATE TABLE IF NOT EXISTS agent_switch (
@@ -431,7 +428,6 @@ const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
-    state TEXT NOT NULL,
     payload TEXT NOT NULL,
     attempts INTEGER NOT NULL,
     next_at INTEGER

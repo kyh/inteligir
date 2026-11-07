@@ -250,10 +250,9 @@ export const reserveUpload = (
   const growth = request.bytes - (prior?.bytes ?? 0);
   holdRoomFor(storage, bytesCap, growth);
   storage.run(
-    `INSERT INTO blob_uploads (sha256, bytes, mime, reserved_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (sha256) DO UPDATE SET bytes = excluded.bytes, mime = excluded.mime,
-       reserved_at = excluded.reserved_at`,
-    [request.sha, request.bytes, request.mime, now],
+    `INSERT INTO blob_uploads (sha256, bytes, mime) VALUES (?, ?, ?)
+     ON CONFLICT (sha256) DO UPDATE SET bytes = excluded.bytes, mime = excluded.mime`,
+    [request.sha, request.bytes, request.mime],
   );
   addFileBytes(storage, growth);
   scheduleJob(

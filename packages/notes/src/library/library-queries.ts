@@ -27,7 +27,7 @@ import type { DerivedItem, ItemCard, ItemSearchText } from "./derive-item";
 import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema } from "./library-nodes";
-import { LIBRARY_CHANGE_KINDS, LIBRARY_SCHEMA_VERSION } from "./library-schema";
+import { LIBRARY_CHANGE_KINDS } from "./library-schema";
 import type { LibraryChangeKind } from "./library-schema";
 import { all, chunkStatement, LibraryRowError, run } from "./library-sql";
 import type { SqlPlan, SqlRow, SqlStatement, SqlValue } from "./library-sql";
@@ -103,7 +103,6 @@ const ITEM_COLUMNS = [
   "deleted_at",
   "purged",
   "card",
-  "schema",
   "seq",
 ] as const;
 
@@ -141,7 +140,6 @@ export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan
     published: fields.published,
     purged: 0,
     saved_at: fields.savedAt,
-    schema: LIBRARY_SCHEMA_VERSION,
     seq: write.seq,
     site: fields.site,
     tags: JSON.stringify(fields.tags),
@@ -167,14 +165,14 @@ const ITEM_TABLES_BY_ID = [
 const DELETE_SEARCH_ROW =
   "DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)";
 
-const UPSERT_TOMBSTONE = `INSERT INTO items (id, purged, deleted_at, updated_at, schema, seq)
-VALUES (?, 1, ?, ?, ?, ?)
+const UPSERT_TOMBSTONE = `INSERT INTO items (id, purged, deleted_at, updated_at, seq)
+VALUES (?, 1, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET ${ITEM_COLUMNS.filter(
-  (column) => !["id", "purged", "deleted_at", "updated_at", "schema", "seq"].includes(column),
+  (column) => !["id", "purged", "deleted_at", "updated_at", "seq"].includes(column),
 )
   .map((column) => `${column} = NULL`)
   .join(", ")}, purged = 1, deleted_at = excluded.deleted_at, updated_at = excluded.updated_at,
-  schema = excluded.schema, seq = excluded.seq
+  seq = excluded.seq
 WHERE excluded.seq > items.seq
 RETURNING seq`;
 
@@ -192,7 +190,6 @@ export const storeTombstone = function* storeTombstone(write: TombstoneWrite): S
     write.id,
     write.deletedAt,
     write.updatedAt,
-    LIBRARY_SCHEMA_VERSION,
     write.seq,
   ]);
   if (landed.length === 0) {

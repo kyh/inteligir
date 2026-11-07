@@ -219,10 +219,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           sealChangeSet(storage, joined.id, now);
         }
         if (request.opId !== undefined) {
-          storage.run(
-            "INSERT INTO applied_ops (op_id, change_set_id, answer, at) VALUES (?, ?, ?, ?)",
-            [request.opId, joined?.id ?? null, JSON.stringify(value), now],
-          );
+          storage.run("INSERT INTO applied_ops (op_id, answer, at) VALUES (?, ?, ?)", [
+            request.opId,
+            JSON.stringify(value),
+            now,
+          ]);
           ensureJob(storage, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
         return { head: taken.seq, ok: true, value };

@@ -33,9 +33,6 @@ export interface DueJob<K extends JobKind = JobKind> {
   readonly attempts: number;
 }
 
-// a job waiting for its turn; a run that fails tries again later, as `attempts` counts
-const JOB_STATE = "waiting";
-
 // a job asked for at `nextAt`; one already waiting is asked for again, its count of failed runs
 // started over
 export const scheduleJob = (
@@ -44,10 +41,10 @@ export const scheduleJob = (
   nextAt: number,
 ): void => {
   sql.run(
-    `INSERT INTO jobs (id, kind, state, payload, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)
+    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (id) DO UPDATE SET payload = excluded.payload, next_at = excluded.next_at,
        attempts = 0`,
-    [job.id, job.kind, JOB_STATE, job.payload, nextAt],
+    [job.id, job.kind, job.payload, nextAt],
   );
 };
 
@@ -58,9 +55,9 @@ export const ensureJob = (
   nextAt: number,
 ): void => {
   sql.run(
-    `INSERT INTO jobs (id, kind, state, payload, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)
+    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (id) DO NOTHING`,
-    [job.id, job.kind, JOB_STATE, job.payload, nextAt],
+    [job.id, job.kind, job.payload, nextAt],
   );
 };
 
