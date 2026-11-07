@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { nextTask } from "../test-support/async";
+import { deferred, nextTask } from "../test-support/async";
 import { createShareQueue } from "./share-queue";
 
 // a settle the test ends when it chooses, as a page read that takes its time
@@ -82,6 +82,27 @@ describe("the shares the inbox settles", () => {
         return await Promise.resolve("settled");
       },
     });
+    await vi.waitFor(() => {
+      expect(reset).toHaveBeenCalledOnce();
+    });
+    expect(settled).toStrictEqual(["only"]);
+  });
+
+  it("settles a held share through the library a failed sign-out opened again meanwhile", async () => {
+    const reset = vi.fn<() => void>();
+    const left = deferred<"held">();
+    const settled: string[] = [];
+    const queue = createShareQueue<string>();
+    queue.offer("only", { reset, settle: async () => await left.promise });
+    queue.offer("only", {
+      reset,
+      settle: async (intent) => {
+        settled.push(intent);
+        return await Promise.resolve("settled");
+      },
+    });
+
+    left.resolve("held");
     await vi.waitFor(() => {
       expect(reset).toHaveBeenCalledOnce();
     });

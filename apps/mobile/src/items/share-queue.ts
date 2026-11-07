@@ -3,10 +3,12 @@
 // tens of seconds (the page's fetch alone may take 20), so a share made meanwhile is settled once
 // the one before it is done, and the context is let go only once the intent just settled is still
 // the one it holds: a reset after the first would clear the second unsaved. A share the library
-// left under is held in the context, for the sign-in after to settle.
+// left under is held in the context, for the sign-in after to settle, or at once by the screen a
+// sign-out that failed opened again meanwhile.
 
 interface ShareQueuePorts<T> {
-  // saves the share and opens its item; it never throws
+  // saves the share and opens its item, or answers "held" for a library that left under it; it
+  // never throws
   readonly settle: (intent: T) => Promise<"settled" | "held">;
   // lets the context's intent go
   readonly reset: () => void;
@@ -28,13 +30,15 @@ export const createShareQueue = <T>(): ShareQueue<T> => {
     try {
       for (;;) {
         const intent = held;
-        if (intent === null || latest === null) {
+        const ports = latest;
+        if (intent === null || ports === null) {
           return;
         }
-        if ((await latest.settle(intent)) === "held") {
-          return;
-        }
-        if (held === intent) {
+        if ((await ports.settle(intent)) === "held") {
+          if (latest === ports) {
+            return;
+          }
+        } else if (held === intent) {
           held = null;
           latest.reset();
         }
