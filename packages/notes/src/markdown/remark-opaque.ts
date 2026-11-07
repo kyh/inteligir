@@ -63,12 +63,12 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   // a pair of tags the editor has no mark for
   htmlElement: true,
   image: false,
-  // a reference `./remark-references` found no definition for
+  // `./remark-references` reads every reference; one it missed would keep its words here
   imageReference: true,
   inlineCode: false,
   inlineMath: false,
   link: false,
-  // as an image's
+  // as `imageReference`
   linkReference: true,
   list: false,
   listItem: false,
