@@ -275,7 +275,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A FILE'S BYTES ARE R2'S, ADDRESSED BY THEIR SHA, AND R2 CHECKS IT.** A
   `PUT /v1/blobs/<sha>` takes room in the cell at the length it declares, at
   most 100 MB, streams into `BLOBS` with `sha256`, so R2 keeps nothing that
-  hashes otherwise, and settles the row at the size R2 holds. A read hands R2
+  hashes otherwise, and settles the row at the size R2 holds. Only R2's own
+  checksum refusal answers 400, which a device parks for good; any other failed
+  put answers 500, which it sends again on its doubling wait, since R2 said
+  nothing of the bytes. A read hands R2
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
