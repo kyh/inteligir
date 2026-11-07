@@ -364,14 +364,23 @@ describe("the account's assistants", () => {
       .object({ access_token: z.string(), refresh_token: z.string() })
       .parse(await renewal.json());
 
+    // the grant is back in KV, and still nobody's to list or to reach
+    const heldGrants = async (): Promise<number> => {
+      const { items } = await connectorAuth(env).helpers.listUserGrants(await userIdOf(cookie));
+      return items.length;
+    };
+    await expect(heldGrants()).resolves.toBe(1);
+    const left = await account.assistants.list();
+    expect(left.assistants).toStrictEqual([]);
     const challenged = await drained(
       initialize({ authorization: `Bearer ${renewed.access_token}` }),
     );
     expect(challenged.status).toBe(401);
+
+    // the next renewal is refused, and the provider deletes what the first wrote back
     const refused = await refresh(minted.clientId, renewed.refresh_token);
     await expect(refused.json()).resolves.toMatchObject({ error: "invalid_grant" });
-    const left = await account.assistants.list();
-    expect(left.assistants).toStrictEqual([]);
+    await expect(heldGrants()).resolves.toBe(0);
   });
 
   it("names no other account's grant", async () => {
