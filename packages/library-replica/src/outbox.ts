@@ -20,7 +20,17 @@ import type { z } from "zod";
 
 import { CHANGE_REFUSED, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
-import { coalesceWrites, itemIdsOf, repointedOp, shasNamed, stagedOf } from "./outbox-ops";
+import type { FoldedMakes } from "./folded-makes";
+import {
+  coalesceWrites,
+  foldersFiledIn,
+  foldersMadeBy,
+  itemIdsOf,
+  repointedOp,
+  shasNamed,
+  stagedOf,
+  unfiledOp,
+} from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
 import type { OutboxRow } from "./outbox-rows";
@@ -79,6 +89,7 @@ export interface OutboxContext {
   readonly merge: BlockMerge;
   readonly newId: NewId;
   readonly clock: ReplicaClock;
+  readonly folded: FoldedMakes;
   // false once the replica is closed: an answer heard after lands nothing
   readonly live: () => boolean;
   // the rows moved, or a landing laid the replica's own: what the screens read again, over the
@@ -102,7 +113,7 @@ type SendOutcome =
   | { readonly kind: "closed" };
 
 // a make the cell folded onto the item already at its address, which never takes the make's own id
-interface Folded {
+interface Fold {
   readonly from: string;
   readonly to: string;
 }
@@ -129,29 +140,54 @@ export interface Outbox {
   readonly wipe: () => Promise<void>;
 }
 
-// the folders one folder op needs as it left them: its own, and the one it goes under
-const foldersOf = (op: Extract<OutboxOp, { kind: "folders" }>["ops"][number]): string[] =>
-  (op.op === "create" || op.op === "move") && op.parentId !== null ? [op.id, op.parentId] : [op.id];
-
 // what a row holds a later row behind: the items or the folders it writes, so a refused folder
 // leaves the person free to rename the one in its way
 const holdsOf = (op: OutboxOp): readonly string[] =>
-  op.kind === "folders" ? op.ops.flatMap(foldersOf) : itemIdsOf(op);
+  op.kind === "folders"
+    ? [...op.ops.map((folder) => folder.id), ...foldersFiledIn(op)]
+    : itemIdsOf(op);
 
 // oldest first; a row on what a parked row writes, or on what one held behind such a row writes,
-// waits
+// waits, and so does a row filing into a folder no row has made yet, whose id the cell would take
+// or refuse with nothing there. A folder that stands files what comes, whatever parked on it
 const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
   const held = new Set<string>();
+  const unmade = new Set<string>();
   for (const row of rows) {
     const holds = holdsOf(row.op);
-    if (row.state !== "parked" && !holds.some((id) => held.has(id))) {
+    const waits =
+      holds.some((id) => held.has(id)) || foldersFiledIn(row.op).some((id) => unmade.has(id));
+    if (row.state !== "parked" && !waits) {
       return row;
     }
     for (const id of holds) {
       held.add(id);
     }
+    for (const id of foldersMadeBy(row.op)) {
+      unmade.add(id);
+    }
   }
   return null;
+};
+
+// a write joined to `row` would file past the row behind it that makes the folder, and go first
+const filesAheadOf = (op: WriteOp, row: OutboxRow, rows: readonly OutboxRow[]): boolean => {
+  const filed = foldersFiledIn(op);
+  return rows.some(
+    (behind) => behind.seq > row.seq && foldersMadeBy(behind.op).some((id) => filed.includes(id)),
+  );
+};
+
+// a queued row as another row's end left it, null where that leaves it asking nothing
+interface Rewritten {
+  readonly held: OutboxRow;
+  readonly op: OutboxOp | null;
+}
+
+const saveRewritten = function* saveRewritten(rewritten: readonly Rewritten[]): SqlPlan<void> {
+  for (const { held, op } of rewritten) {
+    yield* op === null ? deleteRow(held.seq) : saveRow({ ...held, op });
+  }
 };
 
 const touchedItems = (ids: readonly string[]): Touched => {
@@ -212,7 +248,7 @@ const withKeptFiles = (op: OutboxOp, rows: readonly OutboxRow[]): OutboxOp => {
 };
 
 export const createOutbox = (context: OutboxContext): Outbox => {
-  const { blobs, client, sql } = context;
+  const { blobs, client, folded, sql } = context;
   // one change to the outbox at a time, from its transaction through the rows it leaves in memory
   // and the staged files it puts or lets go, so each change decides on the rows the table holds: a
   // pass's pin reads the row a write may have joined since the pass chose it, and a write never
@@ -251,6 +287,17 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       }
       uploaded.delete(file.sha);
       await blobs.remove(file.sha);
+    }
+  };
+
+  const adopt = async (rewritten: readonly Rewritten[]): Promise<void> => {
+    for (const { held, op } of rewritten) {
+      if (op === null) {
+        forget(held.seq);
+        await release(held.op);
+      } else {
+        replace({ ...held, op });
+      }
     }
   };
 
@@ -296,20 +343,18 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     row: OutboxRow,
     work: () => SqlPlan<void>,
     touched: Touched,
-    folded: Folded | null = null,
+    fold: Fold | null = null,
   ): Promise<SendOutcome> => {
     await hold(async () => {
-      const moved =
-        folded === null
+      const followed =
+        fold === null
           ? []
           : rows
-              .filter((held) => held.seq !== row.seq && itemIdsOf(held.op).includes(folded.from))
-              .map((held) => ({ ...held, op: repointedOp(held.op, folded.from, folded.to) }));
+              .filter((held) => held.seq !== row.seq && itemIdsOf(held.op).includes(fold.from))
+              .map((held) => ({ held, op: repointedOp(held.op, fold.from, fold.to) }));
       const retire = function* retire(): SqlPlan<void> {
         yield* deleteRow(row.seq);
-        for (const held of moved) {
-          yield* saveRow(held);
-        }
+        yield* saveRewritten(followed);
       };
       try {
         await sql.exclusive(async (tx) => {
@@ -322,9 +367,10 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         });
       }
       forget(row.seq);
-      for (const held of moved) {
-        replace(held);
+      if (fold !== null) {
+        folded.add(fold.from, fold.to);
       }
+      await adopt(followed);
       await release(row.op);
     });
     for (const id of itemIdsOf(row.op)) {
@@ -465,6 +511,11 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       switch (error.code) {
         case "CONFLICT": {
           const { current } = error.data;
+          // another item holding the address this write leaves: no base answers that, so the
+          // cell's words are the person's
+          if (current.some((met) => met.kind === "item" && met.itemId !== op.itemId)) {
+            return null;
+          }
           return await (async () => {
             const outcome = await settleWrite(op, current, {
               merge: context.merge,
@@ -511,8 +562,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "closed" };
     }
     if (error === null) {
-      const folded = "folded" in answer && answer.folded === true;
-      const written = folded ? [] : [...madeBy(op).blocks.values()];
+      const elsewhere = "folded" in answer && answer.folded === true;
+      const written = elsewhere ? [] : [...madeBy(op).blocks.values()];
       return await landMake(row, op.input.id, answer.item, written);
     }
     return await refused(row, error, async () => {
@@ -614,6 +665,63 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return pinned;
     });
 
+  // an op computed under an id that folded since, as the rows queued then were followed, so a write
+  // past its check never parks on an id no item will hold; null where it names nothing else
+  const followFolds = (op: OutboxOp): OutboxOp | null => {
+    let followed: OutboxOp | null = op;
+    for (const id of itemIdsOf(op)) {
+      const holder = folded.landedAs(id);
+      if (followed !== null && holder !== id) {
+        followed = repointedOp(followed, id, holder);
+      }
+    }
+    return followed;
+  };
+
+  // a write joins the last row naming its item, a delete or a restore of several included, so it
+  // joins only a write nothing on its item has queued behind, only one no pin has sent, and only one
+  // it would not carry ahead of a folder it files in
+  const queue = async (
+    given: OutboxOp,
+    files: readonly StagedBytes[],
+    createdAt: number,
+  ): Promise<void> => {
+    for (const file of files) {
+      await blobs.put(file.sha, file.bytes, file.mime);
+    }
+    const op = withKeptFiles(given, rows);
+    const last =
+      op.kind === "write"
+        ? rows.findLast((row) => itemIdsOf(row.op).includes(op.itemId))
+        : undefined;
+    if (
+      op.kind !== "write" ||
+      last?.state !== "queued" ||
+      last.op.kind !== "write" ||
+      filesAheadOf(op, last, rows)
+    ) {
+      const row = await sql.exclusive(
+        async (tx) => await runPlanAsync(tx, insertRow({ createdAt, op, opId: context.newId() })),
+      );
+      rows = [...rows, row];
+      return;
+    }
+    const joined = coalesceWrites(last.op, op);
+    if (joined.ops.length === 0 && joined.annotations.length === 0) {
+      await sql.exclusive(async (tx) => {
+        await runPlanAsync(tx, deleteRow(last.seq));
+      });
+      forget(last.seq);
+      await release(joined);
+      return;
+    }
+    const next: OutboxRow = { ...last, op: joined };
+    await sql.exclusive(async (tx) => {
+      await runPlanAsync(tx, saveRow(next));
+    });
+    replace(next);
+  };
+
   const send = async (chosen: OutboxRow): Promise<SendOutcome> => {
     const row = await pin(chosen.seq);
     if (row === null) {
@@ -651,20 +759,30 @@ export const createOutbox = (context: OutboxContext): Outbox => {
 
   return {
     discard: async (seq) => {
-      const row = await hold(async () => {
-        const held = rows.find((candidate) => candidate.seq === seq);
-        if (held?.state !== "parked") {
+      const touched = await hold(async () => {
+        const row = rows.find((candidate) => candidate.seq === seq);
+        if (row?.state !== "parked") {
           return null;
         }
+        // a folder let go is an id the cell will never hold, so nothing queued may go on naming it
+        const gone = new Set(foldersMadeBy(row.op));
+        const named = (op: OutboxOp): boolean =>
+          [...holdsOf(op), ...foldersFiledIn(op)].some((id) => gone.has(id));
+        const unfiled = rows
+          .filter((held) => held.seq !== seq && named(held.op))
+          .map((held) => ({ held, op: unfiledOp(held.op, gone) }));
         await sql.exclusive(async (tx) => {
           await runPlanAsync(tx, deleteRow(seq));
+          await runPlanAsync(tx, saveRewritten(unfiled));
         });
         forget(seq);
-        await release(held.op);
-        return held;
+        await adopt(unfiled);
+        await release(row.op);
+        return touchedItems([row.op, ...unfiled.map(({ held }) => held.op)].flatMap(itemIdsOf));
       });
-      if (row !== null) {
-        await changedRow(row.op, []);
+      if (touched !== null) {
+        touched.kinds.add("folder");
+        await context.changed(touched, rows);
       }
     },
 
@@ -699,45 +817,20 @@ export const createOutbox = (context: OutboxContext): Outbox => {
 
     enqueue: async (given, files) => {
       const createdAt = context.clock.now();
-      await hold(async () => {
+      const queued = await hold(async () => {
         // under the hold, which a wipe takes too: a write past this check is one the wipe removes
         if (!context.live()) {
           throw new ReplicaClosedError();
         }
-        for (const file of files) {
-          await blobs.put(file.sha, file.bytes, file.mime);
+        const op = followFolds(given);
+        if (op !== null) {
+          await queue(op, files, createdAt);
         }
-        const op = withKeptFiles(given, rows);
-        // the last row naming the item, a delete or a restore of several included, so a write
-        // joins only a write nothing on its item has queued behind, and only one no pin has sent
-        const last =
-          op.kind === "write"
-            ? rows.findLast((row) => itemIdsOf(row.op).includes(op.itemId))
-            : undefined;
-        if (op.kind !== "write" || last?.state !== "queued" || last.op.kind !== "write") {
-          const row = await sql.exclusive(
-            async (tx) =>
-              await runPlanAsync(tx, insertRow({ createdAt, op, opId: context.newId() })),
-          );
-          rows = [...rows, row];
-          return;
-        }
-        const joined = coalesceWrites(last.op, op);
-        if (joined.ops.length === 0 && joined.annotations.length === 0) {
-          await sql.exclusive(async (tx) => {
-            await runPlanAsync(tx, deleteRow(last.seq));
-          });
-          forget(last.seq);
-          await release(joined);
-          return;
-        }
-        const next: OutboxRow = { ...last, op: joined };
-        await sql.exclusive(async (tx) => {
-          await runPlanAsync(tx, saveRow(next));
-        });
-        replace(next);
+        return op;
       });
-      await changedRow(given, []);
+      if (queued !== null) {
+        await changedRow(queued, []);
+      }
     },
 
     load: async () => {

@@ -111,9 +111,10 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       },
       items: {
         createNote: async (note) => {
+          const beside = showing === null ? null : await replica.item(showing);
           const made = await replica.createNote({
             blocks: note.blocks.map(({ block, ord }) => ({ block, ord, section: "note" })),
-            folderId: showing === null ? null : (replica.row(showing)?.fields.folderId ?? null),
+            folderId: beside?.fields.folderId ?? null,
             tags: [],
             title: note.title,
           });

@@ -172,4 +172,28 @@ describe("an item page's questions, answered from the phone's replica", () => {
     expect(cell.item(id)?.fields.folderId).toBe(folderId);
     expect(cell.item(id)?.blocks.get("p2")).toMatchObject({ section: "note" });
   });
+
+  it("makes a note beside a card that folded in the folder of the item it landed on", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const folderId = mac.newId();
+    await mac.replica.writeFolders([
+      { id: folderId, name: "Reading", op: "create", parentId: null, sort: "a0" },
+    ]);
+    const url = "https://example.com/article";
+    await mac.replica.saveLink({ folderId, tags: [], url });
+    await mac.replica.sync();
+    const phone = await openDevice(cell, "phone");
+    const card = await phone.replica.saveLink({ folderId: null, tags: [], url });
+    await phone.replica.sync();
+    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+
+    const { id } = await ports.createNote({
+      besideId: card.id,
+      blocks: [{ block: paragraph("p2", "moved"), ord: "a0" }],
+      title: "moved",
+    });
+
+    expect(phone.replica.row(id)?.fields).toMatchObject({ folderId });
+  });
 });

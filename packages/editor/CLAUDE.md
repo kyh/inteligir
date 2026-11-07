@@ -339,9 +339,12 @@ alone, and no walk narrows structurally.
   a picker open in a block is read around, since its query is nobody's writing.
   A write the store rejects stays unsaved and goes again after a pause, and a
   first read that fails says so and offers another, each in the person's words.
-  A file still being kept counts as unsaved and a leave waits for it, since the
-  block that names it is in no value until it is, while what the value holds
-  goes at once.
+  The block that names a file is in no value until the file is kept, so the keep
+  writes it, surface or none, and counts as unsaved until that write is done; a
+  leave writes what the value holds at once and waits for each keep's write.
+  A card that folds stays open under its id, which the replica
+  answers as the item it landed on, and that item lands as any change from
+  elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`).
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored
@@ -349,7 +352,9 @@ alone, and no walk narrows structurally.
   edits to different blocks would meet); one editor handed from item to item
   (a closing write would diff the next one's blocks); a section by where a block
   stands (a read deleted what was typed below the article); rebasing the undo
-  through a landing (each recorded batch would be transformed against it).
+  through a landing (each recorded batch would be transformed against it); a
+  leave writing what a keep brought (a keep landing under its first write needs
+  a flag between the two, and a closed surface has no leave).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS

@@ -117,6 +117,62 @@ describe("when the replica syncs", () => {
     await phone.replica.close();
   });
 
+  it("asks for the body an open card's item still wants, as a screen takes the card up", async () => {
+    const cell = createFakeCell();
+    const url = "https://example.com/article";
+    const phone = await openDevice(cell, "phone");
+    phone.network.setOffline(true);
+    const card = await phone.replica.saveLink({ folderId: null, tags: [], url });
+    const mac = await openDevice(cell, "mac");
+    const holder = await mac.replica.saveLink({ folderId: null, tags: [], url });
+    await mac.replica.sync();
+    cell.setBodiesPerAnswer(0);
+    phone.network.setOffline(false);
+    phone.replica.start();
+    await idle(phone);
+    await expect(phone.replica.item(card.id)).resolves.toMatchObject({
+      bodyHeld: false,
+      id: holder.id,
+    });
+
+    cell.setBodiesPerAnswer(1000);
+    phone.replica.focus(card.id);
+    await vi.waitFor(async () => {
+      await expect(phone.replica.item(card.id)).resolves.toMatchObject({ bodyHeld: true });
+    });
+    await phone.replica.close();
+  });
+
+  it("sends what a parked row held the moment the person lets it go", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    phone.replica.start();
+    const folder = async (): Promise<string> => {
+      const id = phone.newId();
+      await phone.replica.writeFolders([
+        { id, name: "Reading", op: "create", parentId: null, sort: "a0" },
+      ]);
+      await idle(phone);
+      return id;
+    };
+    await folder();
+    const clash = await folder();
+    const note = await phone.replica.createNote({
+      blocks: [],
+      folderId: clash,
+      tags: [],
+      title: "Filed",
+    });
+    await idle(phone);
+    expect(cell.item(note.id)).toBeNull();
+
+    await phone.replica.discard(phone.replica.status().parked[0]?.seq ?? 0);
+    await idle(phone);
+
+    expect(cell.item(note.id)?.fields.folderId).toBeNull();
+    await phone.replica.close();
+  });
+
   it("tries a failed pass again after a second, doubling to a minute, and from a second once one passes", async () => {
     const cell = createFakeCell();
     const network = countedNetwork(cell, "phone");

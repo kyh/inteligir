@@ -563,22 +563,27 @@ export const createItemSession = (
     });
   };
 
-  const followFileKeep = async (keep: Promise<void>): Promise<void> => {
-    keeping.add(keep);
-    publish();
+  const writeBehind = async (keep: Promise<void>): Promise<void> => {
     await Promise.allSettled([keep]);
-    keeping.delete(keep);
+    await writeNow();
+  };
+
+  // a file's block is in no value until it is kept, so the keep writes it, with or without a
+  // surface still open to see it land, and counts as unsaved until that write is done
+  const followFileKeep = async (keep: Promise<void>): Promise<void> => {
+    const written = writeBehind(keep);
+    keeping.add(written);
+    publish();
+    await Promise.allSettled([written]);
+    keeping.delete(written);
     publish();
   };
-  // what the value holds goes at once, however long a file takes, and a file being kept goes behind
-  // it: its block is in no value until it is, which can be after that first write read the value
+
+  // what the value holds goes at once, however long a file takes, and each keep's own write ends it
   const flush = async (): Promise<void> => {
-    let filesOut = keeping.size > 0;
     await writeNow();
-    while (filesOut || keeping.size > 0) {
+    while (keeping.size > 0) {
       await Promise.allSettled(keeping);
-      filesOut = false;
-      await writeNow();
     }
   };
 

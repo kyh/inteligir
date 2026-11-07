@@ -268,7 +268,8 @@ const SHA = "a".repeat(64);
 const pasteHeld = async (items: Map<string, ItemState>) => {
   const kept = deferred<{ readonly sha: string }>();
   installFakeEditorHost({ keepFile: async () => await kept.promise });
-  const view = render(<Host itemId={A} ports={portsOver(memoryStore(items).store)} />);
+  const { held, store } = memoryStore(items);
+  const view = render(<Host itemId={A} ports={portsOver(store)} />);
   await screen.findByText("A one");
   const editor = made.editors.at(-1);
   const target = editable();
@@ -283,7 +284,7 @@ const pasteHeld = async (items: Map<string, ItemState>) => {
       types: ["Files"],
     },
   });
-  return { kept, view };
+  return { held, kept, view };
 };
 
 const storedShas = (items: Map<string, ItemState>): readonly unknown[] =>
@@ -353,6 +354,70 @@ describe("a file still being kept in an open item", () => {
       await leaving;
     });
     expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
+  it("writes its block once kept, with no pause and no leave to ask", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept } = await pasteHeld(items);
+
+    kept.resolve({ sha: SHA });
+
+    await waitFor(() => {
+      expect(storedShas(items)).toStrictEqual([SHA]);
+    });
+    expect(lastSession().status()).toMatchObject({ kind: "open", unsaved: false });
+  });
+
+  it("writes its block when it is kept under a leave's first write", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { held, kept } = await pasteHeld(items);
+    const session = lastSession();
+    made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    const firstWrite = deferred<null>();
+    held.write = firstWrite;
+
+    const leaving = session.flush();
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await delay(0);
+    });
+    firstWrite.resolve(null);
+    await act(async () => {
+      await leaving;
+    });
+
+    expect(textsOf(items.get(A))).toContain("A one!");
+    expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
+  it("holds a leave, and counts as unsaved, until the write behind it is done", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { held, kept } = await pasteHeld(items);
+    const session = lastSession();
+
+    let left = false;
+    const leaving = (async () => {
+      await session.flush();
+      left = true;
+    })();
+    await act(async () => {
+      await delay(0);
+    });
+    const keptWrite = deferred<null>();
+    held.write = keptWrite;
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await delay(0);
+    });
+    expect(left).toBe(false);
+    expect(session.status()).toMatchObject({ kind: "open", unsaved: true });
+
+    keptWrite.resolve(null);
+    await act(async () => {
+      await leaving;
+    });
+    expect(storedShas(items)).toStrictEqual([SHA]);
+    expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
   });
 
   it("is written when the surface closed before it was kept", async () => {

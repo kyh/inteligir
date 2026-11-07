@@ -46,25 +46,53 @@ and cited.
 
 - **THE OUTBOX SENDS OLDEST FIRST UNDER AN OP ID PINNED BEFORE IT FIRST GOES.**
   A write joins the item's last row while it waits, compacted onto the first
-  bases; one change to the outbox runs at a time, so a pin sends what a join
-  left, and a staged file goes once no row names it. A `CONFLICT` settles
+  bases, unless a row behind that one makes a folder it files in; one change to
+  the outbox runs at a time, so a pin sends what a join left, and a staged file
+  goes once no row names it. A `CONFLICT` settles
   through the merge, whose overlap the change it emits names (`overlapped`), a
   `BLOB_MISSING` uploads again, a refusal no resend passes
   parks the row and the rows on its items or folders behind it, and a landing
   this copy cannot lay leaves the row to the pull. A folder name a sibling
-  holds is such a refusal, and so is a row its last resend left as it was: a
+  holds is such a refusal, and so is an address another item holds, in the cell's
+  own words, and a row its last resend left as it was: a
   parked row stops neither the pass nor the pull, and a folder's holds no other
-  folder, so the person can rename the one in its way. A make the cell folds
-  onto the item at its address takes the rows naming it along, in its landing's
-  transaction, and a block they name there settles as any other. A restore the
-  cell leaves in Deleted for an address another item holds parks what it left
-  under a new op id, since the cell keeps its answer under the old one. Rejected:
-  dropping a refused write; a whole-item retry (two devices' edits to different
-  blocks would meet); stopping the pass on a row that cannot change (every later
-  write and the pull wait on it, with nothing for the person to answer); parking
-  a row on a folded id (its text shows nowhere and no resend can pass).
+  folder, so the person can rename the one in its way. A folder a row has yet to
+  make holds what is filed in it, since its id names nothing at the cell; let go,
+  it takes the ops on it along and what was filed in it lands unfiled, in the one
+  transaction, while a folder that stands files what comes whatever parked on it.
+  A make the cell folds onto the item at its address takes the writes naming it
+  along, in its landing's
+  transaction, and a block they name there settles as any other; a delete or a
+  restore of it lets its id go, since the fold took the card away and the item it
+  met is another's, older and with notes of its own. A restore the cell leaves
+  in Deleted for an address another item holds parks what it left under a new op
+  id, since the cell keeps its answer under the old one. Rejected: dropping a
+  refused write; a whole-item retry (two devices' edits to different blocks would
+  meet); stopping the pass on a row that cannot change (every later write and the
+  pull wait on it, with nothing for the person to answer); parking a row on a
+  folded id (its text shows nowhere and no resend can pass); filing past a folder
+  the cell has yet to hold (a note lands with an id no folder takes, a link parks
+  not-found); a delete following
+  the card to the item it met (an older item binned for a duplicate).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
+
+- **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR AS LONG AS A SCREEN
+  CAN HOLD IT.** An item's read, its highlights, a write and the change feed take
+  the id a make was queued under to the item the cell folded it onto, so a screen
+  open on the card stays open through the fold, its unsaved words going on to that
+  item and a write past its check landing there. No table keeps this, since no
+  screen outlives the run, and the listing knows nothing of it, since a selection
+  still naming the card must not reach the older item: `row` answers no row, and a
+  delete asked by that id goes nowhere, so a screen acts on what it shows through
+  its item read, by the id that answered and the fields it holds. Residual: a call
+  only the cell answers that no item read names, History or the agent's view of the
+  open item, names the old id until the item opens again.
+  Rejected: the session following the id alone (the item view, the phone's screen
+  and its page read that id too, and the screen drops its page on an item it
+  cannot read); a move in every host (a bridge event and a route per surface for
+  what one map answers). `packages/library-replica/src/folded-makes.ts`,
+  `library-replica.ts`.
 
 - **THE SOCKET IS A HINT, AND THE MINUTE'S CHECK-IN THE FLOOR.** A pass runs as
   the socket opens, on a frame naming a head past the cursor, on a thread's

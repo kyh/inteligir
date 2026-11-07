@@ -171,15 +171,19 @@ export const itemIdsOf = (op: OutboxOp): readonly string[] => {
   }
 };
 
-// a row's op with the item `from` named as `to`: a make folded onto the item already at its address
-export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp => {
+// a row's op once the make `from` folded onto the item `to`. A write is the person's words, which go
+// on to `to`. A delete or a restore named the card, which the fold took away already, and asks
+// nothing of `to`, an older item with notes of its own: it lets `from` go, and is null once it names
+// nothing else
+export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp | null => {
   switch (op.kind) {
     case "write": {
       return op.itemId === from ? { ...op, itemId: to } : op;
     }
     case "delete":
     case "restore": {
-      return { ...op, ids: [...new Set(op.ids.map((id) => (id === from ? to : id)))] };
+      const ids = op.ids.filter((id) => id !== from);
+      return ids.length === 0 ? null : { ...op, ids };
     }
     case "create":
     case "saveLink":
@@ -188,6 +192,46 @@ export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp =>
     case "keep":
     case "folders": {
       return op;
+    }
+    // no default
+  }
+};
+
+// the folders a row makes, which the cell holds nothing of until it lands
+export const foldersMadeBy = (op: OutboxOp): readonly string[] =>
+  op.kind === "folders"
+    ? op.ops.flatMap((folder) => (folder.op === "create" ? [folder.id] : []))
+    : [];
+
+// the folders a row files something in
+export const foldersFiledIn = (op: OutboxOp): readonly string[] => {
+  switch (op.kind) {
+    case "write": {
+      return op.ops.flatMap((libraryOp) =>
+        libraryOp.op === "set" && libraryOp.field === "folderId" && libraryOp.value !== null
+          ? [libraryOp.value]
+          : [],
+      );
+    }
+    case "create":
+    case "save":
+    case "createFile": {
+      return op.input.folderId === null ? [] : [op.input.folderId];
+    }
+    case "saveLink": {
+      return op.input.folder === null ? [] : [op.input.folder.id];
+    }
+    case "folders": {
+      return op.ops.flatMap((folder) =>
+        (folder.op === "create" || folder.op === "move") && folder.parentId !== null
+          ? [folder.parentId]
+          : [],
+      );
+    }
+    case "keep":
+    case "delete":
+    case "restore": {
+      return [];
     }
     // no default
   }
@@ -502,6 +546,55 @@ export const coalesceWrites = (queued: WriteOp, next: WriteOp): WriteOp => ({
     ...next.staged.filter((file) => !queued.staged.some((held) => held.sha === file.sha)),
   ],
 });
+
+// a row's op once the folders `gone` will never exist: what it files there lands unfiled, an op on
+// one of them goes, and null is a row left asking nothing
+export const unfiledOp = (op: OutboxOp, gone: ReadonlySet<string>): OutboxOp | null => {
+  const standing = (id: string | null): string | null => (id !== null && gone.has(id) ? null : id);
+  switch (op.kind) {
+    case "write": {
+      const ops = compactOps(
+        op.ops.map((libraryOp) =>
+          libraryOp.op === "set" && libraryOp.field === "folderId"
+            ? { ...libraryOp, value: standing(libraryOp.value) }
+            : libraryOp,
+        ),
+      );
+      return ops.length === 0 && op.annotations.length === 0 ? null : { ...op, ops };
+    }
+    case "create": {
+      return { ...op, input: { ...op.input, folderId: standing(op.input.folderId) } };
+    }
+    case "save": {
+      return { ...op, input: { ...op.input, folderId: standing(op.input.folderId) } };
+    }
+    case "createFile": {
+      return { ...op, input: { ...op.input, folderId: standing(op.input.folderId) } };
+    }
+    case "saveLink": {
+      const { folder } = op.input;
+      return folder !== null && gone.has(folder.id)
+        ? { ...op, input: { ...op.input, folder: null } }
+        : op;
+    }
+    case "folders": {
+      const ops = op.ops
+        .filter((folder) => !gone.has(folder.id))
+        .map((folder) =>
+          folder.op === "create" || folder.op === "move"
+            ? { ...folder, parentId: standing(folder.parentId) }
+            : folder,
+        );
+      return ops.length === 0 ? null : { ...op, ops };
+    }
+    case "keep":
+    case "delete":
+    case "restore": {
+      return op;
+    }
+    // no default
+  }
+};
 
 // the base block a write's ops were computed from, for each block a put or a drop names
 export const basesOf = (

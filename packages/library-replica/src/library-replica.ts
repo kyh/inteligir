@@ -33,6 +33,7 @@ import type { SqlPlan } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import type { CallFailure } from "./call-outcome";
+import { createFoldedMakes } from "./folded-makes";
 import { itemIdsOf } from "./outbox-ops";
 import { createOutbox } from "./outbox";
 import type { OutboxRow } from "./outbox-rows";
@@ -110,7 +111,8 @@ export interface ReplicaStatus {
 
 // what moved: the kinds of row and their ids (an item's, a folder's, a thread's, a file's sha),
 // or the whole library at once, and the items a write of this device was merged into keeping its
-// lines where another device changed the same ones, which a screen says
+// lines where another device changed the same ones, which a screen says. An item a make folded
+// onto is named by that make's id too, so a screen still open on it hears
 export interface ReplicaChange {
   readonly kinds: ReadonlySet<string>;
   readonly ids: ReadonlySet<string>;
@@ -142,7 +144,10 @@ export interface LibraryReplica extends ReplicaCommands {
   readonly listing: (query: ListingQuery) => ListingPage<ReplicaListingRow>;
   readonly scopes: () => ListingScopes;
   readonly folders: () => readonly ListingFolder[];
+  // the listing's own, which holds no card for a make that folded
   readonly row: (itemId: string) => ReplicaListingRow | null;
+  // an item as a screen open on it reads it, and writes to it: a make that folded answers as the
+  // item it landed on, under the id the screen was opened with
   readonly item: (itemId: string) => Promise<ReplicaItem | null>;
   readonly annotations: (itemId: string) => Promise<AnnotationStore>;
   // the library's ranked search over what has landed, less what this device moved to the other
@@ -249,6 +254,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
   const changeListeners = new Set<(change: ReplicaChange) => void>();
   const threadListeners = new Set<(frame: ThreadFrame) => void>();
+  const folded = createFoldedMakes();
 
   let index = new LibraryIndex<ReplicaListingRow>();
   let rowsById = new Map<string, ReplicaListingRow>();
@@ -312,9 +318,9 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     });
     outboxStatus(pending);
     emit({
-      ids: touched.ids,
+      ids: folded.namesOf(touched.ids),
       kinds: touched.kinds,
-      overlapped: touched.overlapped,
+      overlapped: folded.namesOf(touched.overlapped),
       reset: reset || touched.ids.size > REREAD_ALL_OVER,
     });
   };
@@ -326,6 +332,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     },
     client,
     clock,
+    folded,
     live,
     merge: deps.merge,
     newId: deps.newId,
@@ -373,7 +380,13 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     }
     const state = await runPlanAsync(sql, readSyncState());
     setStatus({ cursor: state.cursor });
-    const bodies = await fetchBodies({ client, focused: () => focused, landed, live, sql });
+    const bodies = await fetchBodies({
+      client,
+      focused: () => (focused === null ? null : folded.landedAs(focused)),
+      landed,
+      live,
+      sql,
+    });
     if (bodies.kind !== "done") {
       return bodies;
     }
@@ -519,6 +532,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
   const commands = createCommands({
     clock,
+    folded,
     newId: deps.newId,
     outbox,
     queued: kick,
@@ -528,20 +542,23 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const replica: LibraryReplica = {
     ...commands,
 
-    annotations: async (itemId) =>
-      await runPlanAsync(
+    annotations: async (asked) => {
+      const itemId = folded.landedAs(asked);
+      return await runPlanAsync(
         sql,
         readReplicaAnnotations(
           itemId,
           rowsNaming(outbox.rows(), itemId),
           Math.floor(clock.now() / 1000),
         ),
-      ),
+      );
+    },
 
     close,
 
     discard: async (seq) => {
       await outbox.discard(seq);
+      kick();
     },
 
     focus: (itemId) => {
@@ -551,7 +568,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
       }
       void (async () => {
         try {
-          const item = await runPlanAsync(sql, readReplicaItem(itemId, []));
+          const item = await runPlanAsync(sql, readReplicaItem(folded.landedAs(itemId), []));
           if (item !== null && !item.bodyHeld) {
             kick();
           }
@@ -563,8 +580,10 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
     folders: () => folders,
 
-    item: async (itemId) =>
-      await runPlanAsync(sql, readReplicaItem(itemId, rowsNaming(outbox.rows(), itemId))),
+    item: async (asked) => {
+      const itemId = folded.landedAs(asked);
+      return await runPlanAsync(sql, readReplicaItem(itemId, rowsNaming(outbox.rows(), itemId)));
+    },
 
     listing: (query) => index.items(query),
 

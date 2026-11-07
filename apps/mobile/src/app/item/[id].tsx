@@ -160,7 +160,8 @@ const ItemScreen = () => {
           onPress: () => {
             void (async () => {
               await host.flush();
-              await replica.deleteItems([itemId]);
+              // the item this screen shows, which a fold may have moved off the id it opened under
+              await replica.deleteItems([item?.id ?? itemId]);
               router.back();
             })();
           },

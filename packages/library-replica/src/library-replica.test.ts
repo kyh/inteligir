@@ -9,6 +9,7 @@ import { fileSha, ReplicaClosedError } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
+import type { WriteOp } from "./outbox-ops";
 import type { LibraryReplica } from "./library-replica";
 import type { BlockMerge, ReplicaTransport } from "./replica-ports";
 import { deferred, nextTurn } from "./test-support/deferred";
@@ -170,6 +171,7 @@ const heldNetwork = (cell: FakeCell, name: string): HeldNetwork => {
 };
 
 const PULL = "/v1/rpc/library/sync/pull";
+const BODIES = "/v1/rpc/library/sync/bodies";
 
 describe("the replica's outbox", () => {
   it("keeps offline writes across a relaunch and lands them in order once the cell answers", async () => {
@@ -1315,6 +1317,24 @@ describe("a change no resend can pass", () => {
   it("parks a write whose resends go out unchanged, and pulls all the same", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
+    const url = "https://example.com/stuck";
+    const link = await phone.replica.saveLink({ folderId: null, tags: [], url });
+    await phone.replica.sync();
+    cell.unsettled.add(link.id);
+    await write(phone.replica, link.id, [
+      { base: url, field: "url", op: "set", value: `${url}/2` },
+    ]);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({
+      failure: null,
+      parked: [{ itemIds: [link.id], reason: "Your library couldn't take this change." }],
+    });
+    expect(cell.item(link.id)?.fields.url).toBe(url);
+  });
+
+  it("parks a write to an address another item holds in the cell's words", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
     const held = await phone.replica.saveLink({
       folderId: null,
       tags: [],
@@ -1337,7 +1357,9 @@ describe("a change no resend can pass", () => {
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({
       failure: null,
-      parked: [{ itemIds: [other.id], reason: "Your library couldn't take this change." }],
+      parked: [
+        { itemIds: [other.id], reason: "Another item in your library already holds this link." },
+      ],
     });
     expect(cell.item(other.id)?.fields.url).toBe("https://example.com/other");
     expect(cell.item(held.id)?.fields.url).toBe("https://example.com/held");
@@ -1613,6 +1635,38 @@ describe("a save the cell folds onto another item", () => {
     await expect(replicaText(phone.replica, holder, "n1")).resolves.toBe("my note");
   });
 
+  it("puts the words each save brought after the note of the item holding the address", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    phone.network.setOffline(true);
+    const mac = await openDevice(cell, "mac");
+    const holder = await mac.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
+    await write(mac.replica, holder.id, [noted("n1", "my note")]);
+    await mac.replica.sync();
+
+    await phone.replica.saveLink({ folderId: null, note: "saved", tags: [], url: ADDRESS });
+    await phone.replica.savePage({
+      article: [],
+      cover: null,
+      facts: { author: null, description: null, lang: null, published: null, site: null },
+      folderId: null,
+      note: "read",
+      selection: null,
+      tags: [],
+      title: "An article",
+      url: ADDRESS,
+    });
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+
+    const item = await phone.replica.item(holder.id);
+    expect(item?.blocks.map(({ block }) => textOf(block))).toStrictEqual([
+      "my note",
+      "saved",
+      "read",
+    ]);
+  });
+
   it("keeps the rows on the item that holds the address across a relaunch", async () => {
     const cell = createFakeCell();
     const network = heldNetwork(cell, "phone");
@@ -1633,7 +1687,75 @@ describe("a save the cell folds onto another item", () => {
     expect(cellText(cell, holder, "n1")).toBe("my note");
   });
 
-  it("carries a delete queued behind the save to the item holding the address", async () => {
+  it("reads the highlights of the item a screen open on the card landed on", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { card, holder } = await savedOnBoth(cell, phone);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+
+    const added: WriteOp["annotations"][number] = {
+      createdAt: 1,
+      id: "h1",
+      occurrence: null,
+      op: "add",
+      parentId: null,
+      quote: "a passage",
+      text: "",
+    };
+    await phone.replica.write(holder, { annotations: [added], ops: [] });
+
+    await expect(phone.replica.annotations(card)).resolves.toHaveProperty("h1");
+  });
+
+  it("says a merge on the item to a screen still open on the card", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone", { merge: keepMine });
+    const { card, holder } = await savedOnBoth(cell, phone);
+    const laptop = await openDevice(cell, "laptop");
+    await laptop.replica.sync();
+    await write(laptop.replica, holder, [noted("n1", "the laptop's")]);
+    await laptop.replica.sync();
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    const overlapped: string[] = [];
+    phone.replica.onChange((change) => {
+      overlapped.push(...change.overlapped);
+    });
+
+    await write(laptop.replica, holder, [
+      await putText(laptop.replica, holder, "n1", "the laptop's again"),
+    ]);
+    await laptop.replica.sync();
+    await write(phone.replica, card, [await putText(phone.replica, card, "n1", "the phone's")]);
+    await phone.replica.sync();
+
+    expect(overlapped).toContain(card);
+  });
+
+  it("fetches the body of the item an open card landed on ahead of a newer one", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+    const { card, holder } = await savedOnBoth(cell, phone);
+    cell.setBodiesPerAnswer(0);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    await landedNote(cell, await openDevice(cell, "laptop"));
+    cell.setBodiesPerAnswer(1);
+    phone.replica.focus(card);
+
+    const first = network.hold(BODIES);
+    const syncing = phone.replica.sync();
+    await first.reached;
+    network.refused.add(BODIES);
+    first.release();
+    await syncing;
+
+    await expect(phone.replica.item(card)).resolves.toMatchObject({ bodyHeld: true, id: holder });
+  });
+
+  it("drops a delete queued behind the save, leaving the item holding the address live", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
     const { card, holder } = await savedOnBoth(cell, phone);
@@ -1641,7 +1763,21 @@ describe("a save the cell folds onto another item", () => {
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
-    expect(cell.item(holder)?.fields.deletedAt).not.toBeNull();
+    expect(cell.item(holder)?.fields.deletedAt).toBeNull();
+    expect(cell.calls).not.toContain("phone library/items/delete");
+  });
+
+  it("drops a restore of the card with the delete it undid", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { card, holder } = await savedOnBoth(cell, phone);
+    await phone.replica.deleteItems([card]);
+    await phone.replica.restoreItems([card]);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(cell.item(holder)?.fields.deletedAt).toBeNull();
+    expect(cell.calls).not.toContain("phone library/items/restore");
   });
 
   it("lands two offline saves of one address and what was written on each as one item", async () => {
