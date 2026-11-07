@@ -14,8 +14,6 @@ const SKILLS_DIR = "packages/agent-skills/skills";
 const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 
-const FRONTMATTER_NAME = /^name:\s*(?<name>\S+)\s*$/mu;
-const FRONTMATTER_DESCRIPTION = /^description:\s*(?<description>\S.*)$/mu;
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
 // read as text: @repo/notes is no dependency of this package, and the constants are plain literals.
@@ -76,28 +74,12 @@ describe("the agent skills", () => {
     expect(skillDirs()).toContain(HUB);
   });
 
-  it("every skill directory carries a SKILL.md whose frontmatter names the directory", () => {
-    const violations: string[] = [];
-    for (const dir of skillDirs()) {
-      const text = skillText(dir);
-      if (text === null) {
-        violations.push(`${SKILLS_DIR}/${dir} — no SKILL.md`);
-        continue;
-      }
-      const name = FRONTMATTER_NAME.exec(text)?.groups?.name;
-      if (name !== dir) {
-        violations.push(`${SKILLS_DIR}/${dir}/SKILL.md — frontmatter name is ${name ?? "missing"}`);
-      }
-      if (FRONTMATTER_DESCRIPTION.exec(text) === null) {
-        violations.push(`${SKILLS_DIR}/${dir}/SKILL.md — frontmatter has no description`);
-      }
-    }
+  it("every skill directory carries a SKILL.md", () => {
+    const missing = skillDirs().filter((dir) => skillText(dir) === null);
     expect(
-      violations,
-      violations.length === 0
-        ? ""
-        : `SKILL FILES OUT OF SHAPE\n${violations.map((line) => `  ${line}`).join("\n")}\n` +
-            `  rule: a skill is one directory with one SKILL.md whose frontmatter name is the directory — the agent reads these by that name`,
+      missing,
+      `SKILL FILES OUT OF SHAPE\n${missing.map((dir) => `  ${SKILLS_DIR}/${dir} — no SKILL.md`).join("\n")}\n` +
+        `  rule: a skill is one directory with one SKILL.md, the file the prompt script reads by the name in the hub's index`,
     ).toStrictEqual([]);
   });
 
@@ -119,7 +101,7 @@ describe("the agent skills", () => {
     expect(
       [...missing.map((dir) => `unlisted: ${dir}`), ...phantom.map((name) => `phantom: ${name}`)],
       `THE HUB'S INDEX DISAGREES WITH THE SKILL SET\n` +
-        `  rule: the first turn points the agent at ${HUB} and the hub is where it learns the rest exist — a skill it does not list is never read, a name it lists that has no directory is a dead end`,
+        `  rule: the prompt holds ${HUB} and then each skill its index names, in that order — a skill it does not list never reaches the agent, a name it lists that has no directory stops the prompt being built`,
     ).toStrictEqual([]);
   });
 

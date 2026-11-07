@@ -1,8 +1,3 @@
----
-name: inteligir-canvas
-description: Canvas blocks in inteligir notes — when a spatial sketch is the right answer, and the exact grid payload.
----
-
 # inteligir Canvas
 
 Canvas is a rough spatial surface: boxes, connectors, and relative position. It
@@ -51,8 +46,8 @@ The labels line must be valid compact JSON on one line.
 
 ## Drawing Something Readable
 
-- Count columns deliberately, or generate the rows programmatically. Hand-aligned
-  ASCII drifts by one character and the whole sketch skews.
+- Count columns deliberately. Hand-aligned ASCII drifts by one character and the
+  whole sketch skews.
 - Favor rectangles, straight connectors, and generous space.
 - Do not draw arrowheads out of `<` and `>`; show direction with layout and
   labels.

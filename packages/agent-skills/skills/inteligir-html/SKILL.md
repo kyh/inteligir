@@ -1,8 +1,3 @@
----
-name: inteligir-html
-description: Self-contained HTML blocks in inteligir notes — when a drawn document earns one, the frame's limits, and the sandbox contract.
----
-
 # inteligir HTML
 
 An `inteligir-html` fence holds a complete, self-contained document drawn in a

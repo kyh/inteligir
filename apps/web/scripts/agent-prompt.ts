@@ -17,7 +17,6 @@ const SYSTEM_MAX_CHARS = 100_000;
 const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
-const FRONTMATTER = /^---\n[\s\S]*?\n---\n/u;
 
 const MODULE = "src/worker/agent/agent-prompt.ts";
 
@@ -25,8 +24,6 @@ const webRoot = path.resolve(import.meta.dirname, "..");
 
 const skillsFile = (relative: string): string =>
   readFileSync(fileURLToPath(import.meta.resolve(`@repo/agent-skills/${relative}`)), "utf-8");
-
-const withoutFrontmatter = (text: string): string => text.replace(FRONTMATTER, "").trim();
 
 // the hub's index, in its own order: the hub is read first and names where every other skill sits
 const focusedSkills = (hub: string): string[] => {
@@ -46,7 +43,7 @@ const systemPrompt = (): string => {
     hub,
     ...focusedSkills(hub).map((skill) => skillsFile(`skills/${skill}/SKILL.md`)),
   ];
-  const system = parts.map(withoutFrontmatter).join("\n\n");
+  const system = parts.map((part) => part.trim()).join("\n\n");
   if (system.length > SYSTEM_MAX_CHARS) {
     throw new Error(
       `the system prompt is ${String(system.length)} characters, over ${String(SYSTEM_MAX_CHARS)}`,

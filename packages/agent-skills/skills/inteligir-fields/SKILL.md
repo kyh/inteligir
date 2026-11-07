@@ -1,8 +1,3 @@
----
-name: inteligir-fields
-description: An inteligir item's fields — what each one holds, which you change and with which call, and what is never invented or rewritten.
----
-
 # inteligir Fields
 
 An item's fields are what the library knows about it beside its text: its title, tags, folder and

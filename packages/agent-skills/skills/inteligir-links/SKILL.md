@@ -1,8 +1,3 @@
----
-name: inteligir-links
-description: Wiki links, heading anchors, aliases, id-resolved links, external links, embeds, and files in inteligir items.
----
-
 # inteligir Links
 
 Wiki links move between items in the library. Markdown links go out to the web. Image syntax is for
