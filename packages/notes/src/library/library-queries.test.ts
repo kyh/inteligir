@@ -435,7 +435,7 @@ describe(literalMatches, () => {
 });
 
 describe("links", () => {
-  it("answers backlinks by id, Linked from by address, and dangling links by title", () => {
+  it("answers backlinks by id and Linked from by address, and holds no row for a link to no item", () => {
     const port = library();
     put(
       port,
@@ -457,6 +457,12 @@ describe("links", () => {
     );
     expect(exec(port, linksTo("target"))).toStrictEqual(["source"]);
     expect(exec(port, linksToUrl("example.com/t"))).toStrictEqual(["source"]);
+    expect(
+      port.all("SELECT target_id, target_key FROM links ORDER BY target_key", []),
+    ).toStrictEqual([
+      { target_id: "target", target_key: null },
+      { target_id: null, target_key: "example.com/t" },
+    ]);
   });
 });
 

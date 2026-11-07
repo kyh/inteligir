@@ -185,10 +185,12 @@ root.
   against). `packages/editor/src/codec/import-plan.ts`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
-  PARSER WRITES IT.** `.md` is the one extension a link leaves off
-  (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
-  that name, so a `.txt` note links as `[[todo.txt]]`. Rejected: dropping every
-  doc extension (it loses Obsidian's reading and the pinned resolver). An
+  PARSER WRITES IT.** `.md` is the one extension a file's link leaves off
+  (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and `buildResolver`,
+  which an import and an export read a zip's links by, keys that name, so a
+  `.txt` note links as `[[todo.txt]]`. Past the zip there are no files: the cell
+  and the editor reach an item by its id or by `titleKey`. Rejected: dropping
+  every doc extension (it loses Obsidian's reading and the pinned resolver). An
   export spells a link by `wikiTargetForPath`
   (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
   the path), and the `[[` picker links an item by its id, with its title, so

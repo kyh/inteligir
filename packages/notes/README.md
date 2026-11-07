@@ -151,8 +151,8 @@ the basename buckets among them) and the search policy; `src/text/` pins the
 diff3 merge; `src/library/` runs its SQL on SQLite's own wasm build behind a
 port that refuses what a Durable Object refuses
 (`src/test-support/wasm-sql-port.ts`), and its properties (rebases commute,
-undo restores, revert-edit's orientation, chunking under both caps) draw from
-the one seeded generator. The suites run under a 512MB heap ceiling
+undo restores, undo agrees with its line oracle, chunking under both caps) draw
+from the one seeded generator. The suites run under a 512MB heap ceiling
 (`vitest.config.ts`), so an allocation that grows with a note's size, like a
 diff trace that copies the whole frontier every round, fails here rather than
 passing on a default heap.
