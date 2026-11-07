@@ -400,7 +400,11 @@ describe("an Obsidian vault read into the library", () => {
 // the plan's steps as a writer with room for the whole library takes them, over a store in memory:
 // every item given its file first, each written with its links spelled from the files that share
 // their keys, the files the items hold last
-const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): ExportFile[] => {
+const exportInSteps = (
+  library: ReadLibrary,
+  items: readonly ExportItem[],
+  rules: string | null,
+): ExportFile[] => {
   const taken = new Map<string, string>();
   const searched = new Map<string, number>();
   const placed = new Map<string, { readonly path: string; readonly sha: string }>();
@@ -418,7 +422,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
     },
     taken: (key) => taken.has(key),
   };
-  beginExport(store);
+  beginExport(store, rules);
   const folders = exportFolderPaths(library.folders);
   const planned = new Map<string, PlannedExportDoc & { readonly aliases: readonly string[] }>();
   for (const item of items) {
@@ -449,7 +453,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
   ];
 };
 
-const exportOf = (library: ReadLibrary): ExportFile[] => {
+const exportOf = (library: ReadLibrary, rules: string | null = null): ExportFile[] => {
   const items = library.items.map((item): ExportItem => ({
     annotations: item.annotations,
     blocks: new Map(
@@ -465,7 +469,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
     },
     id: item.itemId,
   }));
-  return exportInSteps(library, items);
+  return exportInSteps(library, items, rules);
 };
 
 // where an export writes bytes no name came with: under their sha
@@ -540,7 +544,9 @@ describe("export, then import, gives the library back", () => {
       new Map(),
     );
     const texts = Object.fromEntries(
-      exportOf(first).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      exportOf(first, "File under Inbox.\n").flatMap((file) =>
+        file.kind === "text" ? [[file.path, file.text]] : [],
+      ),
     );
     expect(Object.keys(texts).toSorted()).toStrictEqual(["AGENTS 2.md", "Home 2.md", "Home.md"]);
     const titles = readFolder(texts, new Map()).items.map((item) => item.fields.title);

@@ -204,6 +204,10 @@ const entriesOf = async (zip: Uint8Array): Promise<Map<string, string>> => {
   return digests;
 };
 
+// every path the zip holds, a path it holds twice twice
+const pathsIn = async (zip: Uint8Array): Promise<string[]> =>
+  (await readZipEntries(sourceOf(zip))).map((entry) => entry.path);
+
 // the library as another library holding the same items would read: each item's fields, its
 // note's and its article's text, the items it links by their titles and the files it holds, which
 // are named by their bytes and so the same in any library
@@ -500,6 +504,60 @@ describe("an export", () => {
     const { export: written } = await exported(accountId);
     const entries = await entriesOf(await zipIn(accountId, written.id));
     expect([...entries.keys()]).not.toContain("AGENTS.md");
+  });
+
+  it("leaves a root note its own name while the library holds no filing rules", async () => {
+    const accountId = newAccountId();
+    await imported(accountId, await zipOf({ "AGENTS.md": encoder.encode("A note of my own.\n") }));
+    const { export: written } = await exported(accountId);
+    const paths = await pathsIn(await zipIn(accountId, written.id));
+    expect(paths).toContain("AGENTS.md");
+    expect(paths).not.toContain("AGENTS 2.md");
+  });
+
+  it("gives the filing rules the root name, and a note of that title the next", async () => {
+    const accountId = newAccountId();
+    await imported(accountId, await zipOf({ "AGENTS.md": encoder.encode("A note of my own.\n") }));
+    await inCell(cellOf(accountId), async (state) => {
+      await libraryIn(state, accountId).agent.setRules({ rules: "File recipes under Cooking.\n" });
+    });
+    const { export: written } = await exported(accountId);
+    const zip = await zipIn(accountId, written.id);
+    expect(await pathsIn(zip)).toStrictEqual(expect.arrayContaining(["AGENTS.md", "AGENTS 2.md"]));
+
+    const into = newAccountId();
+    await imported(into, zip);
+    await inCell(cellOf(into), async (state) => {
+      const { items } = await libraryIn(state, into).items.list({});
+      expect(items.filter((item) => item.title === "AGENTS")).toHaveLength(2);
+    });
+  });
+
+  it("writes the filing rules its plan found, whatever the person changes as it is written", async () => {
+    const setRules = async (accountId: string, rules: string) => {
+      await inCell(cellOf(accountId), async (state) => {
+        await libraryIn(state, accountId).agent.setRules({ rules });
+      });
+    };
+    const late = newAccountId();
+    await imported(late, await zipOf({ "AGENTS.md": encoder.encode("A note of my own.\n") }));
+    const { export: first } = await exported(late, EXPORT_LIMITS, async (run) => {
+      if (run === 1) {
+        await setRules(late, "Written after the plan.\n");
+      }
+    });
+    const firstPaths = await pathsIn(await zipIn(late, first.id));
+    expect(firstPaths.filter((path) => path === "AGENTS.md")).toHaveLength(1);
+
+    const cleared = newAccountId();
+    await imported(cleared, await zipOf({ "Alpha.md": encoder.encode("A note.\n") }));
+    await setRules(cleared, "Held when the plan ran.\n");
+    const { export: second } = await exported(cleared, EXPORT_LIMITS, async (run) => {
+      if (run === 1) {
+        await setRules(cleared, "");
+      }
+    });
+    await expect(pathsIn(await zipIn(cleared, second.id))).resolves.toContain("AGENTS.md");
   });
 
   it("is written over many runs, an eviction among them, into the entries one run writes", async () => {

@@ -80,9 +80,11 @@ const take = (store: ExportStore, path: string): string => {
   return path;
 };
 
-// the plan begun: the rules' name taken first, so no item is written over them
-export const beginExport = (store: ExportStore): void => {
-  take(store, LIBRARY_RULES_PATH);
+// the plan begun: the name of the rules it will write taken first, so no item is written over them
+export const beginExport = (store: ExportStore, rules: string | null): void => {
+  if (rules !== null) {
+    take(store, LIBRARY_RULES_PATH);
+  }
 };
 
 // the library's filing rules, written at the root
