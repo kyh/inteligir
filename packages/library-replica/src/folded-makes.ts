@@ -6,6 +6,8 @@ export interface FoldedMakes {
   readonly add: (from: string, to: string) => void;
   // the item an id names now
   readonly landedAs: (itemId: string) => string;
+  // whether a make folded onto this item
+  readonly tookFold: (itemId: string) => boolean;
   // these items' ids, and every id a make folded onto them went by
   readonly namesOf: (ids: ReadonlySet<string>) => ReadonlySet<string>;
 }
@@ -26,5 +28,6 @@ export const createFoldedMakes = (): FoldedMakes => {
       }
       return names;
     },
+    tookFold: (itemId) => [...folds.values()].includes(itemId),
   };
 };

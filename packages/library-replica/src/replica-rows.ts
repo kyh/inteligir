@@ -107,6 +107,16 @@ const wantBody = function* wantBody(itemId: string, seq: number): SqlPlan<void> 
   );
 };
 
+// the row is held ahead of every block: an older body stands where a moved item's is wanted again
+export const bodyToCome = function* bodyToCome(itemId: string): SqlPlan<boolean> {
+  const rows = yield all(
+    `SELECT item_id FROM body_wants WHERE item_id = ?
+       AND NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.item_id = body_wants.item_id)`,
+    [itemId],
+  );
+  return rows.length > 0;
+};
+
 // its links, tags and index row again from the fields that landed and the body held, which the
 // body's own landing derives again once it arrives
 const deriveHeld = function* deriveHeld(itemId: string): SqlPlan<void> {

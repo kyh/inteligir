@@ -344,7 +344,9 @@ alone, and no walk narrows structurally.
   leave writes what the value holds at once and waits for each keep's write.
   A card that folds stays open under its id, which the replica
   answers as the item it landed on, and that item lands as any change from
-  elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`).
+  elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`). An
+  edit of a block that item's body has yet to bring waits on the body, unsaved
+  and said so a leave holds, and goes after the next pause once it lands.
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored
@@ -354,7 +356,9 @@ alone, and no walk narrows structurally.
   stands (a read deleted what was typed below the article); rebasing the undo
   through a landing (each recorded batch would be transformed against it); a
   leave writing what a keep brought (a keep landing under its first write needs
-  a flag between the two, and a closed surface has no leave).
+  a flag between the two, and a closed surface has no leave); settling over a
+  body not yet here (its blocks left the editor, and the edit met the cell as a
+  new block, which a CONFLICT drops).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS

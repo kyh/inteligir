@@ -62,6 +62,21 @@ describe("an item page's questions, answered from the phone's replica", () => {
     });
   });
 
+  it("answers a pause on blocks of a body still to come as waiting for it", async () => {
+    const { cell, id } = await phoneWithNote();
+    cell.setBodiesPerAnswer(0);
+    const phone = await openDevice(cell, "second phone");
+    await phone.replica.sync();
+    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+
+    await expect(
+      ports.writeItem({
+        itemId: id,
+        ops: [{ baseHash: "seen", block: paragraph("p1", "typed"), op: "put" }],
+      }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
+  });
+
   it("names every item a link can open, by id and by title", async () => {
     const { id, ports } = await phoneWithNote();
     await expect(ports.linkTargets({})).resolves.toStrictEqual({

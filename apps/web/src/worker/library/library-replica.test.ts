@@ -84,6 +84,8 @@ interface Device {
   readonly loseAnswer: () => void;
   // the next read of this statement waits, its answer in hand, until the suite lets it go
   readonly holdRead: (statement: string) => HeldRead;
+  // no item's body reaches the device until the suite says so again
+  readonly withholdBodies: (withheld: boolean) => void;
 }
 
 // a database whose reads a suite can stop one at a time
@@ -126,6 +128,7 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
   const headers = deviceHeaders(credential);
   const asked: string[] = [];
   let lose = false;
+  let noBodies = false;
   let minted = 0;
   const prefix = devices.toString(16).padStart(4, "0");
   const blobs = stagedInMemory();
@@ -142,7 +145,11 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
     sql,
     transport: {
       fetch: async (request) => {
-        asked.push(new URL(request.url).pathname);
+        const { pathname } = new URL(request.url);
+        asked.push(pathname);
+        if (noBodies && pathname === "/v1/rpc/library/sync/bodies") {
+          throw new TypeError("the body did not come");
+        }
         const signed = new Request(request);
         for (const [key, value] of Object.entries(headers)) {
           signed.headers.set(key, value);
@@ -169,6 +176,9 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
       lose = true;
     },
     replica: opening.replica,
+    withholdBodies: (withheld) => {
+      noBodies = withheld;
+    },
   };
 };
 
@@ -263,6 +273,28 @@ const heldAddress = async (phone: Device, laptop: Device) => {
   ]);
   await laptop.replica.sync();
   return { card, holder };
+};
+
+// the laptop holds an address the phone has not pulled, and the phone, reading the page itself, has
+// its card open on two blocks of the article
+const openOnUnpulledAddress = async (phone: Device, laptop: Device) => {
+  const url = "https://example.com/article";
+  const holder = await laptop.replica.saveLink({ folderId: null, tags: [], url });
+  await laptop.replica.sync();
+  const card = await phone.replica.savePage({
+    article: [
+      { block: paragraph("a1", "page one"), ord: "a0" },
+      { block: paragraph("a2", "page two"), ord: "a1" },
+    ],
+    cover: null,
+    facts: { author: null, description: null, lang: null, published: null, site: null },
+    folderId: null,
+    selection: null,
+    tags: [],
+    title: "The article",
+    url,
+  });
+  return { holder, open: await openOn(phone, card.id) };
 };
 
 const folderMade = async (device: Device, id: string, name: string): Promise<string> => {
@@ -790,6 +822,116 @@ describe("the replica engine against the account's cell", () => {
 
       await phone.replica.saveLink({ folderId: later, tags: [], url });
       await expect(foldersAfterSend()).resolves.toStrictEqual([later, later]);
+    },
+  );
+
+  it(
+    "keeps an edit of a save's article through a pause that ends before the item's body comes",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-put");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+
+      open.editor.tf.insertText(" EDITED", { at: { offset: 8, path: [0, 0] } });
+      open.session.edited();
+      phone.withholdBodies(true);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+
+      expect(open.words()).toContain("page one EDITED");
+      expect(open.words()).toContain("page two");
+      expect(open.session.status()).toMatchObject({ kind: "open", unsaved: true });
+      expect(writesBy(phone)).toBe(0);
+
+      phone.withholdBodies(false);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one EDITED");
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
+    },
+  );
+
+  it(
+    "keeps a block taken out of a save through a pause that ends before the item's body comes",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-drop");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+
+      open.editor.tf.removeNodes({ at: [1] });
+      open.session.edited();
+      phone.withholdBodies(true);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      expect(open.session.status()).toMatchObject({ kind: "open", unsaved: true });
+
+      phone.withholdBodies(false);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+
+      expect(open.words()).not.toContain("page two");
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one");
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBeNull();
+    },
+  );
+
+  it(
+    "reads no part of a body as the whole, when a write lands on an item whose body is still to come",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-part");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+
+      open.editor.tf.insertNodes(paragraph("n1", "my note"), { at: [0] });
+      open.session.edited();
+      open.endPause();
+      await open.caughtUp();
+      open.editor.tf.insertText(" EDITED", { at: { offset: 8, path: [1, 0] } });
+      open.session.edited();
+      phone.withholdBodies(true);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+
+      expect(open.words()).toContain("page one EDITED");
+      expect(open.words()).toContain("page two");
+      expect(open.words()).toContain("my note");
+
+      phone.withholdBodies(false);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one EDITED");
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
     },
   );
 

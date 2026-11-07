@@ -16,7 +16,7 @@ import type {
 } from "@repo/contract/cloud/library/library-wire";
 import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { applyOps } from "@repo/notes/library/block-ops";
-import type { ApplyOutcome, LibraryOp } from "@repo/notes/library/block-ops";
+import type { ApplyOutcome, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { z } from "zod";
@@ -62,7 +62,9 @@ type WriteOutcome =
   | {
       readonly kind: "invalid";
       readonly fields: Extract<ApplyOutcome, { kind: "invalid" }>["fields"];
-    };
+    }
+  // the item's body is still to come and the write names blocks of it: it goes once they are here
+  | { readonly kind: "waiting" };
 
 interface WriteInput {
   readonly ops: readonly LibraryOp[];
@@ -142,6 +144,12 @@ const touchesNothing = (outcome: Extract<ApplyOutcome, { kind: "applied" }>): bo
   outcome.touched.blocks.size === 0 &&
   outcome.touched.dropped.size === 0 &&
   !outcome.touched.fields;
+
+// an op on a block this device does not hold: over a body still to come it would read a put as
+// moved and a drop or a move as already true, and what the screen holds would go
+const namesUnheldBlock = (op: LibraryOp, blocks: ReadonlyMap<string, StoredBlock>): boolean =>
+  (op.op === "put" && !blocks.has(op.block.id)) ||
+  ((op.op === "drop" || op.op === "move") && !blocks.has(op.blockId));
 
 const tagsOf = (tags: readonly string[]): LibraryItemFields["tags"] => [...new Set(tags)];
 
@@ -288,6 +296,9 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
           return { kind: "missing" };
         }
         const blocks = new Map(item.blocks.map((held) => [held.block.id, held]));
+        if (!item.bodyHeld && input.ops.some((op) => namesUnheldBlock(op, blocks))) {
+          return { kind: "waiting" };
+        }
         const outcome = applyOps({ blocks, fields: item.fields }, input.ops);
         if (outcome.kind === "conflict") {
           return { conflicts: outcome.conflicts, item, kind: "changed" };

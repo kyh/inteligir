@@ -23,10 +23,15 @@ and cited.
   item holding it at the higher one, whichever came first; a moved item's body
   is wanted at its row's sequence and fetched the open item first, then the
   newest, laid only under the row it was sent for. An answer naming another
-  epoch wipes the rows, keeps the outbox and pulls from nothing. Rejected:
-  bodies in the log (a page of long notes); dropping the outbox on a reset
-  (the person's writes lost). `packages/library-replica/src/replica-pull.ts`,
-  `replica-rows.ts`.
+  epoch wipes the rows, keeps the outbox and pulls from nothing. A row held
+  ahead of every block is a body still to come, and a write on a block it may
+  hold answers `waiting` until it lands, while a field or a new block goes.
+  Residual: after a reset, a queued write's landing reads as the whole body
+  until the body comes. Rejected: bodies in the log (a page of long notes);
+  dropping the outbox on a reset (the person's writes lost); a write judged over
+  a body not here (no blocks calls a put moved and a drop or a move already
+  true). `packages/library-replica/src/replica-pull.ts`, `replica-rows.ts`,
+  `replica-commands.ts`.
 
 - **THE SYNCED TABLES HOLD ONLY WHAT THE CELL SENT, AND THE OUTBOX IS LAID OVER
   THEM AS A SCREEN READS.** An item, its listing row and its highlights are
@@ -81,8 +86,10 @@ and cited.
   CAN HOLD IT.** An item's read, its highlights, a write and the change feed take
   the id a make was queued under to the item the cell folded it onto, so a screen
   open on the card stays open through the fold, its unsaved words going on to that
-  item and a write past its check landing there. No table keeps this, since no
-  screen outlives the run, and the listing knows nothing of it, since a selection
+  item and a write past its check landing there. A write landing on that item
+  while its body is still to come lays no block, since a part would read as all
+  of it and take the open card's blocks away; the body brings them. No table keeps
+  this, since no screen outlives the run, and the listing knows nothing of it, since a selection
   still naming the card must not reach the older item: `row` answers no row, and a
   delete asked by that id goes nowhere, so a screen acts on what it shows through
   its item read, by the id that answered and the fields it holds. Residual: a call

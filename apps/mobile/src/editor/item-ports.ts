@@ -30,7 +30,8 @@ const writeItem = async (
   switch (outcome.kind) {
     case "queued":
     case "unchanged":
-    case "missing": {
+    case "missing":
+    case "waiting": {
       return { kind: outcome.kind };
     }
     case "changed": {

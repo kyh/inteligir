@@ -55,13 +55,15 @@ const heldItemSchema = z.strictObject({
 });
 
 // what the phone's replica made of an item page's write: queued for the cell, already true, no
-// such item, a base that moved (with the item as it reads now), or fields past the item's caps
+// such item, a base that moved (with the item as it reads now), fields past the item's caps, or
+// blocks of a body still to come
 const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("queued") }),
   z.strictObject({ kind: z.literal("unchanged") }),
   z.strictObject({ kind: z.literal("missing") }),
   z.strictObject({ item: heldItemSchema, kind: z.literal("changed") }),
   z.strictObject({ fields: z.array(z.string()), kind: z.literal("invalid") }),
+  z.strictObject({ kind: z.literal("waiting") }),
 ]);
 
 // whether the phone queued a highlight's write

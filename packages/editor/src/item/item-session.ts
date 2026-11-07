@@ -46,7 +46,9 @@ type ItemWriteOutcome =
   | { readonly kind: "missing" }
   // a base the write names no longer holds against the item as the store reads it now
   | { readonly kind: "changed"; readonly item: HeldItem }
-  | { readonly kind: "invalid"; readonly fields: readonly string[] };
+  | { readonly kind: "invalid"; readonly fields: readonly string[] }
+  // the item's body is still to come, so nothing can tell what the write's blocks are written over
+  | { readonly kind: "waiting" };
 
 // what moved in the store: these items or all of them, and the items a queued write of this
 // device was merged into keeping its lines over another device's change to the same ones
@@ -123,6 +125,9 @@ export const BLOCK_HELD_BACK =
 export const ITEM_UNSAVED = "This item couldn't be saved just now. It will try again.";
 /** @internal */
 export const ITEM_UNREAD = "This item couldn't be read just now.";
+/** @internal */
+export const BODY_TO_COME =
+  "This item is still on its way to this device. Your edit saves once it's here.";
 
 // a stored block as the element the editor holds
 /** @internal */
@@ -527,6 +532,12 @@ export const createItemSession = (
         case "missing": {
           missing = true;
           break;
+        }
+        // said, so a leave holds: its own write would meet this same answer and nothing after it
+        case "waiting": {
+          failure = refused ?? BODY_TO_COME;
+          behind = true;
+          return "ran-out";
         }
         // no default
       }
