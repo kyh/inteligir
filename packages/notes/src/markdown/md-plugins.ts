@@ -47,9 +47,7 @@ const BARE_URL_TAIL = /(?:https?:\/\/|www\.)\S*$/iu;
 
 const endsWithBareUrl = (node: Nodes): boolean => {
   switch (node.type) {
-    case "text":
-    case "html":
-    case "opaqueInline": {
+    case "text": {
       return BARE_URL_TAIL.test(node.value);
     }
     case "delete":

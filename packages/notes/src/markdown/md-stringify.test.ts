@@ -32,7 +32,6 @@ describe("MD_STRINGIFY hard break", () => {
   it("is two trailing spaces after a bare url, which would read a backslash as its own", () => {
     const rows: [PhrasingContent, string][] = [
       [{ type: "text", value: "see https://example.com/a" }, "see https://example.com/a  \nnext\n"],
-      [{ type: "html", value: "www.example.com" }, "www.example.com  \nnext\n"],
       [
         { children: [{ type: "text", value: "http://example.com" }], type: "strong" },
         "**http://example.com**  \nnext\n",
