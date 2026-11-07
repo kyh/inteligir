@@ -507,6 +507,24 @@ describe("export, then import, gives the library back", () => {
     expect(second.rules).toBe(first.rules);
   });
 
+  it.each(["Invoice #12.pdf", "a%20b.pdf", "100%.pdf"])(
+    "keeps %s one item with its bytes",
+    (name) => {
+      const sha = shaOf(name);
+      const files = exportOf(readFolder({}, new Map([[name, sha]])));
+      const texts = Object.fromEntries(
+        files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      );
+      const bytes = new Map(
+        files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
+      );
+      const { items } = readFolder(texts, bytes);
+      expect(items.map((item) => item.fields)).toMatchObject([
+        { kind: "pdf", originalName: name, originalSha: sha },
+      ]);
+    },
+  );
+
   it("keeps the title of an item whose file took another spelling", () => {
     const first = readFolder(
       {

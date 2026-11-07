@@ -25,6 +25,7 @@ import {
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
 import { docStem, freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
+import { mdLinkUrl } from "@repo/notes/knowledge/link-extract";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath, joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
 
@@ -279,7 +280,12 @@ export const exportDoc = (
   // title it cannot carry is written
   const exported = exportItem(
     item,
-    { held: places.held, path: places.body, target: ports.target, withIds: false },
+    {
+      held: (file) => mdLinkUrl(places.held(file)),
+      path: (file) => mdLinkUrl(places.body(file)),
+      target: ports.target,
+      withIds: false,
+    },
     docStem(doc.path) === item.fields.title ? null : item.fields.title,
   );
   const files: ExportFile[] = [{ kind: "text", path: doc.path, text: exported.text }];
