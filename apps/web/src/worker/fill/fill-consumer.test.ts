@@ -204,6 +204,44 @@ describe("a saved link's reading", () => {
     expect(textOfSection(item, "article")).toContain("Words only the host's answer holds.");
   });
 
+  it("asks the host a short link landed on for what an app shell hides", async () => {
+    const url = "https://t.co/abc";
+    const post = "https://x.com/kyh/status/1";
+    const { accountId, itemId, job } = await savedLink(url);
+    serveWeb({
+      [oembedEndpoint(post, null) ?? ""]: () =>
+        Response.json({
+          html: `<blockquote><p>${"Words only the host's answer holds. ".repeat(6)}</p></blockquote>`,
+        }),
+      [post]: htmlPage(
+        "<html><head><title>X</title></head><body><div id=root></div></body></html>",
+      ),
+      [url]: () => new Response(null, { headers: { location: post }, status: 301 }),
+    });
+    await deliver(job);
+    const item = await itemIn(accountId, itemId);
+    expect(textOfSection(item, "article")).toContain("Words only the host's answer holds.");
+  });
+
+  it("asks the saved address's host when the page landed on a sign-in", async () => {
+    const url = "https://x.com/kyh/status/1";
+    const login = "https://x.com/i/flow/login";
+    const { accountId, itemId, job } = await savedLink(url);
+    serveWeb({
+      [login]: htmlPage(
+        "<html><head><title>X</title></head><body><div id=root></div></body></html>",
+      ),
+      [oembedEndpoint(url, null) ?? ""]: () =>
+        Response.json({
+          html: `<blockquote><p>${"Words only the host's answer holds. ".repeat(6)}</p></blockquote>`,
+        }),
+      [url]: () => new Response(null, { headers: { location: login }, status: 302 }),
+    });
+    await deliver(job);
+    const item = await itemIn(accountId, itemId);
+    expect(textOfSection(item, "article")).toContain("Words only the host's answer holds.");
+  });
+
   it.each([
     "http://10.0.0.5/oembed?url=post",
     "http://127.0.0.1:8080/oembed?url=post",

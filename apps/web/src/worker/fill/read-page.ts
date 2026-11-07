@@ -61,8 +61,15 @@ const failed = (job: FillJob, sentence: string): PageRead => ({
   landing: { itemId: job.itemId, kind: "failed", sentence, url: job.url },
 });
 
-const askOEmbed = async (ports: ReadPorts, url: string, discovered: string | null) => {
-  const endpoint = oembedEndpoint(url, discovered);
+// the host of the address saved first, since a post that lands on a sign-in still has its answer,
+// then the host a short link landed on
+const askOEmbed = async (
+  ports: ReadPorts,
+  saved: string,
+  landed: string,
+  discovered: string | null,
+) => {
+  const endpoint = oembedEndpoint(saved, oembedEndpoint(landed, discovered));
   if (endpoint === null) {
     return null;
   }
@@ -143,10 +150,16 @@ const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
       };
 };
 
-const coverCandidates = (job: FillJob, images: readonly string[], oembed: OEmbed | null) => [
+const coverCandidates = (
+  job: FillJob,
+  landed: string,
+  images: readonly string[],
+  oembed: OEmbed | null,
+) => [
   ...images,
   ...(oembed?.thumbnail === null || oembed === null ? [] : [oembed.thumbnail]),
   ...youTubeStills(job.url),
+  ...youTubeStills(landed),
   ...(job.coverHint === null ? [] : [job.coverHint]),
 ];
 
@@ -181,21 +194,24 @@ const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
 const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
   const html = decodeText(page.bytes.subarray(0, FILL_LIMITS.htmlBytes), page.charset);
   const readHtml = await loadReader();
-  const prefer = preferredText(job.url, finalAddress(job, page));
-  const read = readHtml({ html, prefer, url: page.url }, newBlockId);
+  const landed = finalAddress(job, page);
+  const read = readHtml(
+    { html, prefer: preferredText(job.url, landed), url: page.url },
+    newBlockId,
+  );
   if (!fillKeepsReading(read)) {
     return failed(job, TEXT_NOT_SAVED);
   }
-  const oembed = await askOEmbed(ports, job.url, read.facts.oembed);
+  const oembed = await askOEmbed(ports, job.url, landed, read.facts.oembed);
   const article = articleOf(readHtml, read, oembed, job.url);
-  const coverSha = await keepCover(ports, coverCandidates(job, read.facts.images, oembed));
+  const coverSha = await keepCover(ports, coverCandidates(job, landed, read.facts.images, oembed));
   return {
     kind: "landing",
     landing: {
       article: article.blocks.map(({ block, ord }) => ({ block, ord })),
       coverSha,
       facts: factsOf(read.facts, oembed),
-      finalUrl: finalAddress(job, page),
+      finalUrl: landed,
       itemId: job.itemId,
       kind: "read",
       playable: null,
