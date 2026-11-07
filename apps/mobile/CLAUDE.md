@@ -50,8 +50,9 @@ how it ships.
   revocation and a refused login show (`apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`). A sign-in is ONE library, its
   replica, `/v1` client, query helpers, files and previews made together and
-  closed together, so a revocation any request hears ends it for all and a
-  refusal heard under an earlier sign-in never ends the next. The route guard,
+  closed together, so a revocation a pass of the replica hears ends it for all,
+  a refusal on any other call waits for the next pass, and a refusal heard
+  under an earlier sign-in never ends the next. The route guard,
   never a per-screen branch, decides which screens exist (`Stack.Protected` in
   `apps/mobile/src/app/_layout.tsx`): signed in, the Library, an item, a
   script-less viewer of a file and the agent; signed out, the sign-in.

@@ -74,8 +74,8 @@ sheet is imported once, by `app/_layout.tsx`.
   equal in both schemes, so a color changes in both or the suite fails.
 - **A rem is the web's.** react-native-css reads every rem at the sheet's
   `:root` font size, 16px, so Tailwind's spacing and radii are the web's:
-  `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and
-  utilities apart, with no preflight, as NativeWind 5 sets a sheet up. The type
+  `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and preflight
+  layered and its utilities unlayered, as NativeWind 5 sets a sheet up. The type
   sizes are the phone's own, named by their px (`text-12` to `text-30`), each a
   size alone, and a reading line's height is a `leading-*` class beside it.
 - **A multi-line field is padded `pt-*` and `pb-*`.** `py-*` compiles to
@@ -159,14 +159,16 @@ the error shows.
 
 A sign-in is one library (`src/lib/compose-runtime.ts`): its replica, its
 `/v1` client and query helpers, its files and its previews, made together and
-closed together. An `unauthorized` any request hears ends it for all of them
-and wipes the rows and files, keeping the credential so the sign-in screen can
-say this device was signed out; a `client-outdated` ends it as `outdated` and
-wipes nothing, so the next build resumes from what the phone holds. Which
-screens exist is the ROUTE GUARD's answer (`Stack.Protected` in
-`app/_layout.tsx`), never a per-screen branch, and a cold launch is
-`restoring` until the Keychain read ends, so the sign-in form never flashes
-over a device that is signed in.
+closed together. An `unauthorized` a pass of the replica hears ends it for all
+of them and takes the rows, the files and the credential, which stays only
+when the copy would not go, so the next launch meets the same refusal; the
+sign-in screen says this device was signed out from the session's notice. A
+refusal on any other call, a file's or the agent's, waits for the replica's
+next pass. A `client-outdated` ends it as `outdated` and wipes nothing, so the
+next build resumes from what the phone holds. Which screens exist is the ROUTE
+GUARD's answer (`Stack.Protected` in `app/_layout.tsx`), never a per-screen
+branch, and a cold launch is `restoring` until the Keychain read ends, so the
+sign-in form never flashes over a device that is signed in.
 
 ## Verified vs device-side
 
@@ -233,15 +235,16 @@ last transformed it, so a class just added that draws nothing under a running
 `dev` needs `pnpm --filter @repo/mobile dev --clear`; `pnpm --filter
 @repo/mobile test` compiles it the same way without a device.
 
-Unset, the phone talks to the production origin, the same rule the desktop
-follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, the one
-spelling both read). `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time,
-through `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no
-value and cannot point anywhere else. A value that is not an absolute http(s)
-URL throws rather than guessing, and there is no LAN-host fallback: the
-Worker's dev server binds localhost, so an origin derived from the Metro host
-could never answer a phone. The simulator shares the Mac's localhost; a
-physical phone needs a URL it can reach.
+Unset, the phone talks to the production origin in every build
+(`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, which the desktop
+spells again in `apps/desktop/src-tauri/src/cloud.rs` under a repo guard).
+`EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time, through
+`src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no value and
+cannot point anywhere else. A value that is not an absolute http(s) URL throws
+rather than guessing, and there is no LAN-host fallback: the Worker's dev
+server binds localhost, so an origin derived from the Metro host could never
+answer a phone. The simulator shares the Mac's localhost; a physical phone
+needs a URL it can reach.
 
 ## Shipping
 

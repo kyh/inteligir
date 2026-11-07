@@ -38,7 +38,6 @@ export interface HeadlessPageHost {
   reload: () => void;
 }
 
-// the Mac's fill worker gives a job as long before it replaces the worker
 const JOB_TIMEOUT_MS = 30_000;
 
 const PAGE_GONE = "the headless page went away before it answered";

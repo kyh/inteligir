@@ -32,7 +32,7 @@ export const phoneTransport = (args: {
   origin: args.origin,
 });
 
-// the cell's calls the replica does not make (the agent, History), over the same transport
+// the cell's calls the replica does not make (the agent, the account), over the same transport
 export const v1ClientOver = (transport: ReplicaTransport): V1Client =>
   createORPCClient<V1Client>(
     new RPCLink({

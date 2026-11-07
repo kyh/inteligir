@@ -1,14 +1,14 @@
-// The phone's copy of the library's files (spec §6, "What each device holds"): each by its
-// SHA-256 with the type it was kept or served as, fetched from the cloud once, the first time a
-// screen draws it, however many screens ask at once. A file a live note of the person's embeds is
-// pinned, kept in Documents out of the device backup and out of the cap's reach; everything else
-// is a discardable copy in the OS's cache, which iOS may purge, the least recently drawn let go
-// first past the cap. A file this phone added waits, staged, until the write that names it lands
-// (the engine's StagedBlobs), draws from there meanwhile, and is kept once it lands, so the phone
-// never downloads what it sent. A card's cover over 512 KB draws from a thumbnail made once, in a
-// format that keeps a transparent cover's transparency. A cover is drawn whole only when its header
-// says it is small; one past what a phone may decode, or whose thumbnail could not be made, shows
-// the card's placeholder, and is not tried again this session.
+// The phone's copy of the library's files: each by its SHA-256 with the type it was kept or served
+// as, fetched from the cloud once, the first time a screen draws it, however many screens ask at
+// once. A file a live note of the person's embeds is pinned, kept in Documents out of the device
+// backup and out of the cap's reach; everything else is a discardable copy in the OS's cache, which
+// iOS may purge, the least recently drawn let go first past the cap. A file this phone added waits,
+// staged, until the write that names it lands (the engine's StagedBlobs), draws from there
+// meanwhile, and is kept once it lands, so the phone never downloads what it sent. A card's cover
+// over 512 KB draws from a thumbnail made once, in a format that keeps a transparent cover's
+// transparency. A cover is drawn whole only when its header says it is small; one past what a phone
+// may decode, or whose thumbnail could not be made, shows the card's placeholder, and is not tried
+// again this session.
 //
 // Every landing in a folder or the index runs under one lock with the sign-in's clear, and checks
 // that no clear came between its download and its landing, so a file of an account this phone

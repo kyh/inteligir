@@ -44,8 +44,7 @@ export interface CredentialStore {
   readonly clear: () => Promise<void>;
 }
 
-// the discardable copies of the library's files, past which the least recently drawn go (spec §6:
-// about a gigabyte on the phone)
+// the discardable copies of the library's files, past which the least recently drawn go
 const CACHE_BYTES = 1024 * 1024 * 1024;
 
 export interface ComposeRuntimeArgs {

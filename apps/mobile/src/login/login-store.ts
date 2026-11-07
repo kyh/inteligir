@@ -34,7 +34,7 @@ export interface LoginRequest {
 export interface LoginStoreArgs {
   // `/v1` with no credential yet, and with the one a sign-in just answered
   readonly client: (credential: string | null) => V1Client;
-  // keeps the credential, then opens the library under it
+  // opens the library under the credential `keep` kept
   readonly signedIn: (kept: KeptCredential) => Promise<void>;
   readonly keep: (kept: KeptCredential) => Promise<void>;
   // lets go of the credential `keep` kept
@@ -43,7 +43,7 @@ export interface LoginStoreArgs {
 
 export interface LoginStore extends ReadableStore<LoginState> {
   readonly login: (request: LoginRequest) => Promise<void>;
-  // a Keychain that refuses outside a sign-in (the boot read, the sign-out delete) is shown here too
+  // a Keychain that refuses the boot read is shown here too
   readonly fail: (message: string) => void;
 }
 
