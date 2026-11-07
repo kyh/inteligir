@@ -5,9 +5,12 @@
 // (`./cell-fills`), Raindrop's own picture tried after the page's; an address the library holds
 // already is counted, not saved twice.
 
-import { parseRaindropCsv, planRaindropImport } from "@repo/notes/imports/raindrop";
+import {
+  parseRaindropCsv,
+  planRaindropImport,
+  plannedItemSchema,
+} from "@repo/notes/imports/raindrop";
 import type { PlannedItem } from "@repo/notes/imports/raindrop";
-import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
 import { itemNameFromUrl } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
 import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
@@ -17,7 +20,6 @@ import { blobKey } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
 import { askFill } from "./cell-fills";
 import { folderOfTarget } from "./cell-folders";
-import type { FolderTarget } from "./cell-folders";
 import { apart, DONE, failed, importActor, LIBRARY_FULL, MORE, PAGE_MS } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
@@ -43,48 +45,6 @@ const UNREADABLE: Readonly<Record<"not-csv" | "no-url-column" | "empty", string>
     "This file isn't a Raindrop export. In Raindrop, open Settings › Backups, create a backup and choose its CSV file.",
 };
 
-const plannedSchema = z.object({
-  cover: z.string().nullable(),
-  description: z.string().nullable(),
-  folder: z.string(),
-  highlights: z.array(z.object({ quote: z.string(), text: z.string() })),
-  key: z.string(),
-  note: z.string(),
-  pinned: z.boolean(),
-  savedMs: z.number(),
-  savedSeconds: z.number(),
-  tags: z.array(z.string()),
-  title: z.string().nullable(),
-  url: z.string(),
-});
-type Planned = z.infer<typeof plannedSchema>;
-
-const plannedOf = (item: PlannedItem): Planned => ({
-  cover: item.cover,
-  description: item.description,
-  folder: item.folder,
-  highlights: item.highlights,
-  key: item.key,
-  note: item.note,
-  pinned: item.pinned,
-  savedMs: item.savedMs,
-  savedSeconds: item.savedSeconds,
-  tags: item.tags,
-  title: item.title,
-  url: item.url,
-});
-
-// Raindrop's folder as the library's, a name cut to what a folder holds; its Unsorted is none
-const folderOf = (folder: string): FolderTarget =>
-  folder === UNSORTED_FOLDER
-    ? null
-    : {
-        path: folder
-          .split("/")
-          .map((name) => name.trim().slice(0, 255))
-          .join("/"),
-      };
-
 // the first run: the CSV read into the plan, its rows counted
 const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome> => {
   const object = await host.env.BLOBS.get(blobKey(host.accountId, job.sha));
@@ -96,20 +56,18 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
     return failed(UNREADABLE[parse.reason]);
   }
   const plan = planRaindropImport(parse.rows, host.now());
-  const rows = plan.items
-    .map((item, idx) => ({ idx, value: plannedOf(item) }))
-    .filter(fitsImportRow);
+  const rows = plan.items.map((value, idx) => ({ idx, value })).filter(fitsImportRow);
   const written = apart(host.library, (scope) => {
     putImportRows(scope.storage, job.id, ROW, rows);
     advanceImport(scope.storage, job.id, {
       counts: {
         alreadySaved: plan.duplicates,
-        skipped: parse.skipped.length,
+        skipped: parse.skipped,
         unreadable: plan.items.length - rows.length,
       },
       cursor: 0,
       phase: "landing",
-      total: parse.rows.length + parse.skipped.length,
+      total: parse.rows.length + parse.skipped,
     });
   });
   return written ? MORE : DONE;
@@ -125,7 +83,7 @@ const landBookmark = (
   scope: LandingScope,
   host: ImportHost,
   job: ImportJob,
-  planned: Planned,
+  planned: PlannedItem,
 ): Landed => {
   if (urlHolder(scope.storage, planned.key, null) !== null) {
     return { highlights: 0, kind: "held" };
@@ -152,7 +110,12 @@ const landBookmark = (
       ...blankFields(scope.now),
       description: planned.description,
       fetchState: "pending",
-      folderId: folderOfTarget(scope, folderOf(planned.folder), library.ids.item) ?? null,
+      folderId:
+        folderOfTarget(
+          scope,
+          planned.folder === null ? null : { path: planned.folder },
+          library.ids.item,
+        ) ?? null,
       kind: kindForUrl(planned.url),
       pinnedAt: planned.pinned ? planned.savedMs : null,
       savedAt: planned.savedMs,
@@ -173,7 +136,7 @@ const LANDED = z.object({ highlights: z.number(), kind: z.enum(["added", "held"]
 const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutcome => {
   const { library } = host;
   const page = library.read((sql) =>
-    importRows(sql, job.id, ROW, { from: job.cursor, limit: PAGE_ROWS }, plannedSchema),
+    importRows(sql, job.id, ROW, { from: job.cursor, limit: PAGE_ROWS }, plannedItemSchema),
   );
   if (!page.ok) {
     return DONE;

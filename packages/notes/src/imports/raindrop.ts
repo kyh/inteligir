@@ -5,18 +5,14 @@
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
+import { z } from "zod";
+
 import { clipQuote } from "../annotations/store-schema";
-import { UNSORTED_FOLDER } from "../items/item-kind";
-import { itemNameFromTitle, itemStem } from "../items/item-name";
-import { formatItemTime, parseItemTime } from "../items/item-time";
+import { parseItemTime } from "../items/item-time";
 import { cleanUrl, isWebUrl, urlKey } from "../items/item-url";
 import { isTagName } from "../knowledge/tag-grammar";
 import { ITEM_FIELD_CAPS } from "../library/library-item";
 import { parseCsv } from "./csv";
-
-// why a row of the export is left out: it names no address, one off the web, or sits in the bin
-const IMPORT_SKIP_REASONS = ["no-url", "not-web-url", "in-trash"] as const;
-type ImportSkipReason = (typeof IMPORT_SKIP_REASONS)[number];
 
 /** @internal */
 export interface RaindropHighlight {
@@ -25,8 +21,6 @@ export interface RaindropHighlight {
 }
 
 export interface RaindropRow {
-  // the row's record number among the data rows, 1 the first under the header
-  record: number;
   url: string;
   title: string;
   note: string;
@@ -39,13 +33,9 @@ export interface RaindropRow {
   favorite: boolean;
 }
 
-interface SkippedRow {
-  record: number;
-  reason: ImportSkipReason;
-}
-
+// `skipped` counts the rows left out: one with no web address, or one in the bin
 export type RaindropParse =
-  | { ok: true; rows: RaindropRow[]; skipped: SkippedRow[] }
+  | { ok: true; rows: RaindropRow[]; skipped: number }
   | { ok: false; reason: "not-csv" | "no-url-column" | "empty" };
 
 const COLUMNS = [
@@ -125,21 +115,16 @@ export const parseRaindropCsv = (text: string): RaindropParse => {
     return { ok: false, reason: "empty" };
   }
   const rows: RaindropRow[] = [];
-  const skipped: SkippedRow[] = [];
-  for (const [offset, record] of data.entries()) {
+  let skipped = 0;
+  for (const record of data) {
     const cell = (column: Column): string => {
       const index = indexes.get(column);
       return index === undefined ? "" : (record[index] ?? "");
     };
-    const number = offset + 1;
     const url = cell("url").trim();
     const folder = folderSegments(cell("folder"));
-    if (url === "") {
-      skipped.push({ reason: "no-url", record: number });
-    } else if (!isWebUrl(url)) {
-      skipped.push({ reason: "not-web-url", record: number });
-    } else if (folder[0]?.toLowerCase() === TRASH) {
-      skipped.push({ reason: "in-trash", record: number });
+    if (!isWebUrl(url) || folder[0]?.toLowerCase() === TRASH) {
+      skipped += 1;
     } else {
       const cover = cell("cover").trim();
       const created = cell("created").trim();
@@ -151,7 +136,6 @@ export const parseRaindropCsv = (text: string): RaindropParse => {
         folder,
         highlights: parseRaindropHighlights(cell("highlights")),
         note: cell("note"),
-        record: number,
         tags: cell("tags")
           .split(",")
           .map((tag) => tag.trim())
@@ -164,36 +148,32 @@ export const parseRaindropCsv = (text: string): RaindropParse => {
   return { ok: true, rows, skipped };
 };
 
-// what one row becomes: an item of the library, keyed once
-export interface PlannedItem {
-  record: number;
-  key: string;
-  url: string;
-  // the row's own title, null when it gave none
-  title: string | null;
-  stem: string;
-  folder: string;
-  tags: string[];
-  // formatItemTime, and the same instant in unix milliseconds and in unix seconds, for the
-  // highlights' dates
-  saved: string;
-  savedMs: number;
-  savedSeconds: number;
-  description: string | null;
-  // the item's body: the person's note on the bookmark
-  note: string;
-  pinned: boolean;
+// what one row becomes: an item of the library, keyed once, as the import job keeps it
+export const plannedItemSchema = z.object({
   // Raindrop's own picture, a hint the fill tries after the page's
-  cover: string | null;
-  highlights: { quote: string; text: string }[];
-}
+  cover: z.string().nullable(),
+  description: z.string().nullable(),
+  // its folder's path, null when Raindrop filed it in none
+  folder: z.string().nullable(),
+  highlights: z.array(z.object({ quote: z.string(), text: z.string() })),
+  key: z.string(),
+  // the item's body: the person's note on the bookmark
+  note: z.string(),
+  pinned: z.boolean(),
+  // one instant, in unix milliseconds and in unix seconds for the highlights' dates
+  savedMs: z.number(),
+  savedSeconds: z.number(),
+  tags: z.array(z.string()),
+  // the row's own title, null when it gave none
+  title: z.string().nullable(),
+  url: z.string(),
+});
+export type PlannedItem = z.infer<typeof plannedItemSchema>;
 
 export interface ImportPlan {
   items: PlannedItem[];
   // rows folded into an earlier row with the same url key
   duplicates: number;
-  // raw tags no tag name could be made of, each once
-  droppedTags: string[];
 }
 
 const DESCRIPTION_MAX = 1000;
@@ -219,17 +199,11 @@ export const toTagName = (raw: string): string | null => {
   return isTagName(name) ? name : null;
 };
 
-// a library folder: each segment a name, `Unsorted` for none
-const folderOf = (segments: readonly string[]): string => {
-  const names = segments.flatMap((segment) => {
-    const name = itemNameFromTitle(segment);
-    return name === null ? [] : [name];
-  });
-  if (names.length === 0 || (names.length === 1 && names[0]?.toLowerCase() === "unsorted")) {
-    return UNSORTED_FOLDER;
-  }
-  return names.join("/");
-};
+// a bookmark's collection as a folder's path: Raindrop's own Unsorted is no folder
+const folderOf = (segments: readonly string[]): string | null =>
+  segments.length === 0 || (segments.length === 1 && segments[0]?.toLowerCase() === "unsorted")
+    ? null
+    : segments.join("/");
 
 const readCreated = (created: string): number | null =>
   /^\d+(?:\.\d+)?$/u.test(created)
@@ -252,7 +226,6 @@ const sameTag = (a: string, b: string): boolean => a.toLowerCase() === b.toLower
 
 export const planRaindropImport = (rows: readonly RaindropRow[], now: number): ImportPlan => {
   const byKey = new Map<string, PlannedItem>();
-  const dropped = new Set<string>();
   let duplicates = 0;
   for (const row of rows) {
     const key = urlKey(row.url);
@@ -263,9 +236,7 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
     const tags: string[] = [];
     for (const raw of row.tags) {
       const name = toTagName(raw);
-      if (name === null) {
-        dropped.add(raw);
-      } else if (!tags.some((tag) => sameTag(tag, name))) {
+      if (name !== null && !tags.some((tag) => sameTag(tag, name))) {
         tags.push(name);
       }
     }
@@ -300,15 +271,12 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       key,
       note: row.note.trim(),
       pinned: row.favorite,
-      record: row.record,
-      saved: formatItemTime(savedMs),
       savedMs,
       savedSeconds: Math.floor(savedMs / MS_PER_SECOND),
-      stem: itemStem(row.title.trim() === "" ? null : row.title, url),
       tags,
       title: row.title.trim() === "" ? null : row.title.trim(),
       url,
     });
   }
-  return { droppedTags: [...dropped], duplicates, items: [...byKey.values()] };
+  return { duplicates, items: [...byKey.values()] };
 };

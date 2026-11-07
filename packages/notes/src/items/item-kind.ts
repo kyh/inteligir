@@ -75,7 +75,6 @@ export const UNKNOWN_FILE_TYPE = "application/octet-stream";
 export const keptFileType = (handed: string): string =>
   handed === "" ? UNKNOWN_FILE_TYPE : handed;
 
-export const UNSORTED_FOLDER = "Unsorted";
 export const COVERS_DIR = "assets/covers";
 
 const CONTENT_ADDRESS_HEX_CHARS = 16;

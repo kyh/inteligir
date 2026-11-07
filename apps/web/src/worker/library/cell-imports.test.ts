@@ -6,6 +6,7 @@
 import { evictDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import { FOLDER_NAME_MAX } from "@repo/contract/cloud/library/library-wire";
 import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
 import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { libraryIn } from "../fill/test-support/fill-cell";
@@ -174,6 +175,24 @@ describe("a Raindrop import", () => {
       added: 1,
       state: "done",
       unreadable: 1,
+    });
+  });
+
+  it("keeps a collection's name as Raindrop spelled it, cut to what a folder holds", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      csv(`title,url,folder\nA,https://example.com/a,R&D: Notes/${"n".repeat(300)}\n`),
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await inCell(cellOf(accountId), async (state) => {
+      const { folders } = await libraryIn(state, accountId).organize.outline();
+      expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual([
+        "R&D: Notes",
+        "n".repeat(FOLDER_NAME_MAX),
+      ]);
     });
   });
 

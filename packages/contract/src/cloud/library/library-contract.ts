@@ -36,6 +36,7 @@ import {
   exportJobSchema,
   folderNameSchema,
   folderOpSchema,
+  FOLDER_NAME_MAX,
   folderPathNames,
   highlightSchema,
   isoDate,
@@ -89,7 +90,7 @@ const folderPathSchema = z
       const names = folderPathNames(path);
       return names.length > 0 && names.every((name) => folderNameSchema.validate(name));
     },
-    { error: "names each folder in 1 to 255 characters" },
+    { error: `names each folder in 1 to ${String(FOLDER_NAME_MAX)} characters` },
   );
 const folderTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])

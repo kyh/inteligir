@@ -9,7 +9,6 @@ import {
   keptFileType,
   LIBRARY_RULES_PATH,
   UNKNOWN_FILE_TYPE,
-  UNSORTED_FOLDER,
   URL_ITEM_KINDS,
   WEB_URL_RULE,
 } from "./item-kind";
@@ -52,11 +51,7 @@ describe("item kinds", () => {
   });
 
   it("spells the library's own places", () => {
-    expect([UNSORTED_FOLDER, COVERS_DIR, LIBRARY_RULES_PATH]).toStrictEqual([
-      "Unsorted",
-      "assets/covers",
-      "AGENTS.md",
-    ]);
+    expect([COVERS_DIR, LIBRARY_RULES_PATH]).toStrictEqual(["assets/covers", "AGENTS.md"]);
   });
 });
 

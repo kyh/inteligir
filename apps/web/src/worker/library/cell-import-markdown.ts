@@ -148,17 +148,8 @@ const decoder = new TextDecoder();
 const hex = (digest: ArrayBuffer): string =>
   [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-// a folder's path of the zip as the library's: each name cut to what a folder holds
-const libraryPath = (path: string): string =>
-  path
-    .split("/")
-    .map((name) => name.trim().slice(0, 255))
-    .join("/");
-
 const folderIdOf = (scope: LandingScope, host: ImportHost, path: string): string | null =>
-  path === ""
-    ? null
-    : (folderOfTarget(scope, { path: libraryPath(path) }, host.library.ids.item) ?? null);
+  path === "" ? null : (folderOfTarget(scope, { path }, host.library.ids.item) ?? null);
 
 // ---- the first runs: the zip's paths ----
 

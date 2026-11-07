@@ -21,17 +21,13 @@ const rowsOf = (text: string): RaindropRow[] => {
 };
 
 describe(parseRaindropCsv, () => {
-  it("reads the export's rows and says why the others were left out", () => {
+  it("reads the export's rows and counts those it leaves out", () => {
     const parsed = parseRaindropCsv(FIXTURE);
     if (!parsed.ok) {
       throw new Error(parsed.reason);
     }
-    expect(parsed.rows.map((row) => row.record)).toStrictEqual([1, 2, 3, 7, 8, 9, 10]);
-    expect(parsed.skipped).toStrictEqual([
-      { reason: "in-trash", record: 4 },
-      { reason: "no-url", record: 5 },
-      { reason: "not-web-url", record: 6 },
-    ]);
+    expect(parsed.rows).toHaveLength(7);
+    expect(parsed.skipped).toBe(3);
     const [first] = parsed.rows;
     expect(first).toMatchObject({
       cover: "https://stephango.com/og.jpg",
@@ -57,9 +53,9 @@ describe(parseRaindropCsv, () => {
     ]);
   });
 
-  it("puts every row of a per-collection export, which has no folder column, in Unsorted", () => {
+  it("files no row of a per-collection export, which has no folder column", () => {
     const plan = planRaindropImport(rowsOf("title,url\nA,https://a.example/\n"), NOW);
-    expect(plan.items.map((item) => item.folder)).toStrictEqual(["Unsorted"]);
+    expect(plan.items.map((item) => item.folder)).toStrictEqual([null]);
   });
 
   it("refuses a file that is no Raindrop export, saying how", () => {
@@ -124,9 +120,7 @@ describe(planRaindropImport, () => {
       folder: "Reading",
       note: "For Tuesday.",
       pinned: true,
-      saved: "2023-07-01T09:12:30Z",
       savedMs: Date.UTC(2023, 6, 1, 9, 12, 30),
-      stem: "File over app",
       tags: ["philosophy", "files", "ideas", "c"],
       title: "File over app",
     });
@@ -135,24 +129,29 @@ describe(planRaindropImport, () => {
       { quote: "Apps are ephemeral, but files are not.", text: "" },
       { quote: "A third one.", text: "" },
     ]);
-    expect(plan.droppedTags).toStrictEqual(["2024"]);
   });
 
-  it("nests folders, names each segment, and sends empty and Unsorted to Unsorted", () => {
+  it("nests folders, and files an empty folder and Raindrop's Unsorted in none", () => {
     expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.folder).toBe(
       "Cooking/Weeknight",
     );
     expect(byUrl.get("https://example.com/deep")?.folder).toBe("Reading/Long reads/2024");
-    expect(byUrl.get("https://example.com/untitled")?.folder).toBe("Unsorted");
-    expect(byUrl.get("https://example.com/unsorted")?.folder).toBe("Unsorted");
+    expect(byUrl.get("https://example.com/untitled")?.folder).toBeNull();
+    expect(byUrl.get("https://example.com/unsorted")?.folder).toBeNull();
+  });
+
+  it("keeps a folder's name as Raindrop spelled it", () => {
+    const rows = rowsOf('url,folder\nhttps://a.example/,"R&D: Notes/What next? [Aux]"\n');
+    const [item] = planRaindropImport(rows, NOW).items;
+    expect(item?.folder).toBe("R&D: Notes/What next? [Aux]");
   });
 
   it("reads created as ISO 8601 or unix seconds, and anything else as the import's moment", () => {
-    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.saved).toBe(
-      "2023-10-01T08:00:00Z",
+    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.savedMs).toBe(
+      Date.UTC(2023, 9, 1, 8, 0, 0),
     );
     const deep = byUrl.get("https://example.com/deep");
-    expect(deep?.saved).toBe("2026-10-17T09:00:00Z");
+    expect(deep?.savedMs).toBe(NOW);
     expect(deep?.savedSeconds).toBe(NOW / 1000);
   });
 
@@ -180,9 +179,8 @@ describe(planRaindropImport, () => {
     expect(past?.cover).toBeNull();
   });
 
-  it("keeps only a web cover, and names an untitled row after its url", () => {
+  it("keeps only a web cover, and leaves an untitled row's title to its landing", () => {
     expect(byUrl.get("https://example.com/deep")?.cover).toBeNull();
-    expect(byUrl.get("https://example.com/untitled")?.stem).toBe("example.com - untitled");
     expect(byUrl.get("https://example.com/untitled")?.title).toBeNull();
     expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.tags).toStrictEqual([
       "recipes",
