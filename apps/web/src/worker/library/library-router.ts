@@ -22,8 +22,8 @@ import {
   importJobSchema,
   liveItemRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
-import { blankFields } from "@repo/notes/library/library-item";
 import { ORPCError, implement } from "@orpc/server";
+import { noteFields } from "@repo/notes/library/item-makes";
 import { z } from "zod";
 
 import { setAgentEnabled } from "../agent/agent-switch";
@@ -153,7 +153,11 @@ const PAGE_DEFAULT = 50;
 const savedSchema = z.object({ folded: z.boolean(), item: liveItemRowSchema });
 const editedSchema = z.object({ dropped: z.array(z.string()), seq: z.number() });
 const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
-const changedSchema = z.object({ changed: z.array(z.string()), missing: z.array(z.string()) });
+const changedSchema = z.object({
+  addressHeld: z.array(z.string()),
+  changed: z.array(z.string()),
+  missing: z.array(z.string()),
+});
 const highlightedSchema = z.object({
   createdAt: z.number(),
   id: z.string(),
@@ -351,13 +355,7 @@ export const libraryRouter = os.router({
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
           item: landNew(scope, actor, {
             blocks: input.blocks,
-            fields: {
-              ...blankFields(scope.now),
-              folderId: input.folderId,
-              savedAt: input.savedAt,
-              tags: input.tags,
-              title: input.title,
-            },
+            fields: noteFields(input),
             id: input.id,
           }),
         })),
@@ -452,7 +450,7 @@ export const libraryRouter = os.router({
     }),
     restore: os.items.restore.handler(async ({ context, input }) => {
       const actor = context.actor();
-      const { changed, missing } = await committed(
+      const { addressHeld, changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) => {
           const restored = setDeleted(scope, actor, { deleted: false, ids: input.ids });
@@ -462,7 +460,7 @@ export const libraryRouter = os.router({
           return restored;
         }),
       );
-      return { missing, restored: changed };
+      return { addressHeld, missing, restored: changed };
     }),
     save: os.items.save.handler(async ({ context, input }) => {
       const actor = context.actor();

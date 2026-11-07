@@ -194,6 +194,7 @@ describe("a write the cell answered CONFLICT", () => {
 
 describe("a folder write the cell answered CONFLICT", () => {
   const FOLDER = "01900000-0000-7000-8000-0000000000f1";
+  const OTHER_FOLDER = "01900000-0000-7000-8000-0000000000f2";
   const folder = (name: string) => ({
     deletedAt: null,
     id: FOLDER,
@@ -211,5 +212,56 @@ describe("a folder write the cell answered CONFLICT", () => {
     expect(
       settleFolders([rename], [{ current: folder("To read"), id: FOLDER, kind: "folder" }]),
     ).toStrictEqual({ kind: "satisfied" });
+  });
+
+  it("refuses a create or a rename whose name a sibling holds, naming no op of its own", () => {
+    const sibling = {
+      current: { ...folder("Reading"), id: OTHER_FOLDER },
+      id: OTHER_FOLDER,
+      kind: "folder" as const,
+    };
+    const create = {
+      id: FOLDER,
+      name: "reading",
+      op: "create" as const,
+      parentId: null,
+      sort: "a1",
+    };
+    const rename = { base: "Later", id: FOLDER, name: "reading", op: "rename" as const };
+    for (const op of [create, rename]) {
+      expect(settleFolders([op], [sibling])).toMatchObject({
+        kind: "refused",
+        reason: expect.stringContaining("already has this name"),
+      });
+    }
+  });
+
+  it("refuses a move the cell answers with the folder it would go under", () => {
+    const move = {
+      baseParentId: null,
+      id: FOLDER,
+      op: "move" as const,
+      parentId: OTHER_FOLDER,
+      sort: "a1",
+    };
+    const parent = { current: { ...folder("Inside"), id: OTHER_FOLDER }, id: OTHER_FOLDER };
+    expect(settleFolders([move], [{ ...parent, kind: "folder" }])).toStrictEqual({
+      kind: "refused",
+      reason: "This folder can't go there.",
+    });
+  });
+
+  it("sends an op the conflict did not name again with the one it settled", () => {
+    const rename = { base: "Reading", id: FOLDER, name: "To read", op: "rename" as const };
+    const create = {
+      id: OTHER_FOLDER,
+      name: "New",
+      op: "create" as const,
+      parentId: null,
+      sort: "a1",
+    };
+    expect(
+      settleFolders([rename, create], [{ current: folder("Later"), id: FOLDER, kind: "folder" }]),
+    ).toStrictEqual({ kind: "resend", op: [{ ...rename, base: "Later" }, create] });
   });
 });

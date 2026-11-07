@@ -10,13 +10,13 @@ import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
 import { compareText, ordsBetween } from "@repo/notes/library/block-order";
-import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { pageFields, stubFields } from "@repo/notes/library/item-makes";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
 import { itemNameFromUrl } from "@repo/notes/items/item-name";
-import { cleanUrl, kindForUrl, urlKey } from "@repo/notes/items/item-url";
+import { urlKey } from "@repo/notes/items/item-url";
 
 import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
@@ -167,19 +167,7 @@ const newPage = (
   input: SaveInput,
   highlight: Highlight,
 ): LiveItemRow => {
-  const fields: LibraryItemFields = {
-    ...blankFields(scope.now),
-    ...input.facts,
-    coverSha: input.coverSha,
-    fetchState: "filled",
-    fetchedAt: scope.now,
-    folderId: input.folderId,
-    kind: kindForUrl(input.url),
-    savedAt: input.savedAt,
-    tags: [...new Set(input.tags)],
-    title: input.title === "" ? itemNameFromUrl(input.url) : input.title,
-    url: cleanUrl(input.url),
-  };
+  const fields = pageFields(input, scope.now);
   let state: ItemState = {
     blocks: new Map(
       articleOf(input).map((placed) => [
@@ -306,16 +294,13 @@ const newStub = (
   return landNew(scope, actor, {
     annotations: [...(note?.highlights ?? []), ...selected],
     blocks: note?.blocks ?? [],
-    fields: {
-      ...blankFields(scope.now),
-      fetchState: "pending",
+    fields: stubFields({
       folderId,
-      kind: kindForUrl(input.url),
       savedAt: input.savedAt ?? scope.now,
-      tags: [...new Set(input.tags)],
-      title: input.title ?? itemNameFromUrl(input.url),
-      url: cleanUrl(input.url),
-    },
+      tags: input.tags ?? [],
+      title: input.title,
+      url: input.url,
+    }),
     id: input.id ?? ids.item(),
   });
 };

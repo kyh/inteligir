@@ -19,7 +19,7 @@ export interface ReplicaSql extends ReplicaStatements {
   readonly exclusive: <T>(work: (tx: ReplicaStatements) => Promise<T>) => Promise<T>;
 }
 
-// the time, and a timer the engine cancels: the outbox's backoff, the socket's keepalive and
+// the time, and a timer the engine cancels: the pass's retry, the socket's keepalive and
 // reconnect, and the minute's check-in
 export interface ReplicaClock {
   readonly now: () => number;
@@ -28,7 +28,7 @@ export interface ReplicaClock {
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the device's credential
 // and build (or, in the browser tab, the session's cookie). The RPC link and every file upload go
-// through it
+// through it; the host keeps the request's signal, by which a close calls a call off
 export interface ReplicaTransport {
   readonly origin: string;
   readonly fetch: (request: Request) => Promise<Response>;
@@ -37,9 +37,8 @@ export interface ReplicaTransport {
 // the account's socket, as every platform's WebSocket is
 export interface ReplicaSocket {
   readonly addEventListener: {
-    (type: "open" | "error", listener: () => void): void;
+    (type: "open" | "close", listener: () => void): void;
     (type: "message", listener: (event: { readonly data?: unknown }) => void): void;
-    (type: "close", listener: (event: { readonly code?: number | undefined }) => void): void;
   };
   readonly send: (data: string) => void;
   readonly close: () => void;
@@ -55,6 +54,7 @@ export interface StagedBlobs {
   // null when the device no longer holds them
   readonly read: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
   readonly remove: (sha: string) => Promise<void>;
+  // over a database of any shape: the engine calls it when it starts one over
   readonly clear: () => Promise<void>;
 }
 

@@ -7,23 +7,21 @@ import { all, LibraryRowError, run } from "@repo/notes/library/library-sql";
 import type { SqlPlan, SqlRow } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-import { itemIdOf, outboxOpSchema } from "./outbox-ops";
+import { outboxOpSchema } from "./outbox-ops";
 import type { OutboxOp } from "./outbox-ops";
 
-type OutboxState = (typeof OUTBOX_STATES)[number];
-
-export interface OutboxRow {
+export type OutboxRow = {
   // the row's place, oldest first
   readonly seq: number;
   // the key the cell keeps the row's answer under, so a resend after a lost answer lands once
   readonly opId: string;
-  readonly itemId: string | null;
   readonly op: OutboxOp;
-  readonly state: OutboxState;
-  // why a parked row waits for the person
-  readonly reason: string | null;
   readonly createdAt: number;
-}
+} & (
+  | { readonly state: "queued" | "sent"; readonly reason: null }
+  // `reason`: why it waits for the person
+  | { readonly state: "parked"; readonly reason: string }
+);
 
 const opJsonSchema = z.string().transform((text, context) => {
   try {
@@ -34,17 +32,23 @@ const opJsonSchema = z.string().transform((text, context) => {
   }
 });
 
-const rowSchema = z.object({
+const rowColumns = {
   created_at: z.number(),
-  item_id: z.string().nullable(),
   op: opJsonSchema,
   op_id: z.string(),
-  reason: z.string().nullable(),
   seq: z.number(),
-  state: z.enum(OUTBOX_STATES),
-});
+};
 
-const ROW_COLUMNS = "seq, op_id, item_id, op, state, reason, created_at";
+const rowSchema = z.discriminatedUnion("state", [
+  z.object({
+    ...rowColumns,
+    reason: z.null(),
+    state: z.enum(OUTBOX_STATES).exclude(["parked"]),
+  }),
+  z.object({ ...rowColumns, reason: z.string(), state: z.literal("parked") }),
+]);
+
+const ROW_COLUMNS = "seq, op_id, op, state, reason, created_at";
 
 const rowOf = (raw: SqlRow): OutboxRow => {
   const parsed = rowSchema.safeParse(raw);
@@ -53,16 +57,8 @@ const rowOf = (raw: SqlRow): OutboxRow => {
       cause: parsed.error,
     });
   }
-  const row = parsed.data;
-  return {
-    createdAt: row.created_at,
-    itemId: row.item_id,
-    op: row.op,
-    opId: row.op_id,
-    reason: row.reason,
-    seq: row.seq,
-    state: row.state,
-  };
+  const { created_at: createdAt, op_id: opId, ...row } = parsed.data;
+  return { ...row, createdAt, opId };
 };
 
 export const readRows = function* readRows(): SqlPlan<OutboxRow[]> {
@@ -87,9 +83,9 @@ export const insertRow = function* insertRow(row: {
   readonly createdAt: number;
 }): SqlPlan<OutboxRow> {
   const [raw] = yield all(
-    `INSERT INTO outbox (op_id, item_id, op, state, reason, created_at)
-     VALUES (?, ?, ?, 'queued', NULL, ?) RETURNING ${ROW_COLUMNS}`,
-    [row.opId, itemIdOf(row.op), opJsonOf(row.op), row.createdAt],
+    `INSERT INTO outbox (op_id, op, state, reason, created_at)
+     VALUES (?, ?, 'queued', NULL, ?) RETURNING ${ROW_COLUMNS}`,
+    [row.opId, opJsonOf(row.op), row.createdAt],
   );
   if (raw === undefined) {
     throw new LibraryRowError("an outbox row did not come back from its own insert");
@@ -98,9 +94,9 @@ export const insertRow = function* insertRow(row: {
 };
 
 export const saveRow = function* saveRow(row: OutboxRow): SqlPlan<void> {
-  yield run("UPDATE outbox SET op = ?, item_id = ?, state = ?, reason = ? WHERE seq = ?", [
+  yield run("UPDATE outbox SET op_id = ?, op = ?, state = ?, reason = ? WHERE seq = ?", [
+    row.opId,
     opJsonOf(row.op),
-    itemIdOf(row.op),
     row.state,
     row.reason,
     row.seq,

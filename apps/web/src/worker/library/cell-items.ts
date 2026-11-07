@@ -9,10 +9,9 @@ import type { EditOutcome } from "@repo/editor/codec/item-edit";
 import { editItemView, placeItemQuotes } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
 import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/store-schema";
-import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
-import { blankFields } from "@repo/notes/library/library-item";
+import { blankItemFields, fileFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { readItem, readItemState } from "@repo/notes/library/library-queries";
@@ -23,7 +22,6 @@ import { annotationSourceOf } from "./cell-actor";
 import type { CellActor } from "./cell-actor";
 import { applyAnnotationOps, readAnnotationRow } from "./cell-annotations";
 import { readBlobRow } from "./cell-blobs";
-import { fileKindOfMime } from "./cell-codec";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
@@ -182,7 +180,7 @@ export const createNote = (
   }
   const imported = read.item.fields;
   const fields: LibraryItemFields = {
-    ...blankFields(scope.now),
+    ...blankItemFields(scope.now),
     aliases: imported.aliases,
     properties: imported.properties,
     tags: [...new Set([...imported.tags, ...(input.tags ?? [])])],
@@ -207,8 +205,7 @@ export interface CreateFileInput {
   readonly savedAt: number;
 }
 
-// a file whose bytes the library holds: its kind from the type it was uploaded as, else its name;
-// an image is its own cover
+// a file whose bytes the library holds
 export const createFile = (
   scope: LandingScope,
   actor: CellActor,
@@ -218,22 +215,9 @@ export const createFile = (
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
-  const byType = fileKindOfMime(blob.mime);
-  const kind = byType === "file" ? (fileKindOf(input.name) ?? "file") : byType;
-  const stem = input.name.replace(/\.[^.]+$/u, "");
   return landNew(scope, actor, {
     blocks: [],
-    fields: {
-      ...blankFields(scope.now),
-      coverSha: kind === "image" ? input.sha : null,
-      folderId: input.folderId,
-      kind,
-      originalName: input.name,
-      originalSha: input.sha,
-      savedAt: input.savedAt,
-      tags: [...input.tags],
-      title: input.title ?? (stem === "" ? input.name : stem),
-    },
+    fields: fileFields({ ...input, mime: blob.mime }),
     id: input.id,
   });
 };
@@ -411,10 +395,12 @@ export const organizeItems = (
 export interface BulkAnswer {
   readonly changed: string[];
   readonly missing: string[];
+  // left in Deleted, each address another live item's now
+  readonly addressHeld: string[];
 }
 
-// to Deleted, or back: an item already where it is asked to be counts as changed, an id naming
-// no live item as missing, and so does an item whose address another live item holds now
+// to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
+// no live item as missing
 export const setDeleted = (
   scope: LandingScope,
   actor: CellActor,
@@ -423,6 +409,7 @@ export const setDeleted = (
   const changed: string[] = [];
   const missing: string[] = [];
   const landed: LiveItemRow[] = [];
+  const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
     const item = runPlan(scope.storage, readItem(itemId));
     if (item?.kind !== "live") {
@@ -447,10 +434,10 @@ export const setDeleted = (
       if (!(error instanceof RefusedWriteError) || error.refusal.kind !== "url-held") {
         throw error;
       }
-      missing.push(itemId);
+      addressHeld.push(itemId);
     }
   }
-  return { changed, landed, missing };
+  return { addressHeld, changed, landed, missing };
 };
 
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no

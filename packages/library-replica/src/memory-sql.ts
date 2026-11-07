@@ -7,15 +7,17 @@
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { Sqlite3Static } from "@sqlite.org/sqlite-wasm";
+import { serialLock } from "@repo/library-replica/serial-lock";
 import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlRow } from "@repo/notes/library/library-sql";
 
 import type { ReplicaSql, ReplicaStatements } from "./replica-ports";
 
 // the wasm loads once a page, on the first database asked for. The module imports nothing of this
-// package's but types, and of `@repo/notes` only the row's schema, which imports zod alone, so node
-// loads it as it stands: the Worker's suites serve a replica's database from their node side
-// (apps/web/replica-sql-service.ts)
+// package's but types and the serial lock, by the package's name since node resolves no relative
+// path without its extension, and of `@repo/notes` only the row's schema, which imports zod alone,
+// so node loads it as it stands: the Worker's suites serve a replica's database from their node
+// side (apps/web/replica-sql-service.ts)
 let loading: Promise<Sqlite3Static> | null = null;
 
 export interface MemorySql extends ReplicaSql {
@@ -26,21 +28,7 @@ export const openMemorySql = async (): Promise<MemorySql> => {
   loading ??= sqlite3InitModule();
   const sqlite3 = await loading;
   const db = new sqlite3.oo1.DB(":memory:", "c");
-  // a queue of one: each call starts once the one before it has settled, whichever way
-  let tail: Promise<unknown> = Promise.resolve();
-  const serial = async <T>(task: () => Promise<T>): Promise<T> => {
-    const previous = tail;
-    const next = (async () => {
-      try {
-        await previous;
-      } catch {
-        // that call's caller heard its failure; this one only waited for it to end
-      }
-      return await task();
-    })();
-    tail = next;
-    return await next;
-  };
+  const serial = serialLock();
   const statements: ReplicaStatements = {
     all: async (sql, params) =>
       await Promise.resolve(

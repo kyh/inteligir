@@ -184,6 +184,19 @@ const SYNCED_DDL = [
     seq INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS thread_events_thread ON thread_events (thread_id, idx)`,
+] as const;
+
+// the cell's alone: the change log a replica pulls from; the files it holds and the items naming
+// each, which no device reads, since a device asks for a file by the sha an item's row names;
+// History, the op ledger, the uploads it holds room for, the built-in agent, imports and exports,
+// and the jobs its alarm runs. A change set's item names its before and after by part: an item's
+// fields, its manifest (each block's id, hash, order key and section) and its highlights are each
+// kept once per item under their content hash (`snapshot_parts`), so a revision that changed one
+// block stores one new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's
+// after is null while the set is open and the item is as it left it; it is written when the set
+// seals, or when another set is about to change the item. A block a write replaces or drops keeps
+// its content in `block_versions`, which the prune job sweeps of what no part names.
+const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS changes (
     kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_CHANGE_KINDS)})),
     id TEXT NOT NULL,
@@ -192,19 +205,6 @@ const SYNCED_DDL = [
     PRIMARY KEY (kind, id)
   ) STRICT, WITHOUT ROWID`,
   `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
-] as const;
-
-// the cell's alone: the files it holds and the items naming each, which no device reads, since a
-// device asks for a file by the sha an item's row names; History, the op ledger, the uploads it
-// holds room for, the built-in agent, imports and exports, and the jobs its alarm runs. A change
-// set's item names its before and after by part: an item's fields, its manifest (each block's id,
-// hash, order key and section) and its highlights are each kept once per item under their content
-// hash (`snapshot_parts`), so a revision that changed one block stores one new manifest and nothing
-// else, and no row nears a Durable Object's 2 MB. A set's after is null while the set is open and
-// the item is as it left it; it is written when the set seals, or when another set is about to
-// change the item. A block a write replaces or drops keeps its content in `block_versions`, which
-// the prune job sweeps of what no part names.
-const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS blobs (
     sha256 TEXT PRIMARY KEY,
     bytes INTEGER NOT NULL,
@@ -441,7 +441,6 @@ const REPLICA_DDL = [
   `CREATE TABLE IF NOT EXISTS outbox (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     op_id TEXT NOT NULL UNIQUE,
-    item_id TEXT,
     op TEXT NOT NULL,
     state TEXT NOT NULL CHECK (state IN (${oneOf(OUTBOX_STATES)})),
     reason TEXT,

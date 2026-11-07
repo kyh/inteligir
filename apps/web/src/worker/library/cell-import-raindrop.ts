@@ -13,7 +13,8 @@ import {
 import type { PlannedItem } from "@repo/notes/imports/raindrop";
 import { itemNameFromUrl } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
-import { blankFields, ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { blankItemFields } from "@repo/notes/library/item-makes";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { z } from "zod";
 
 import { blobKey } from "./cell-blobs";
@@ -116,7 +117,7 @@ const landBookmark = (
     annotations: [...(note?.highlights ?? []), ...highlights],
     blocks: note?.blocks ?? [],
     fields: {
-      ...blankFields(scope.now),
+      ...blankItemFields(scope.now),
       description: planned.description,
       fetchState: "pending",
       folderId:

@@ -31,13 +31,13 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
-import { fileKindOf } from "@repo/notes/items/item-kind";
+import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { deriveItem } from "@repo/notes/library/derive-item";
-import { blankFields } from "@repo/notes/library/library-item";
+import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
+import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { z } from "zod";
@@ -50,7 +50,7 @@ type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type AnnotationOp = z.infer<typeof annotationOpSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type AnnotationRow = Exclude<Extract<LibraryChange, { kind: "annotation" }>["row"], null>;
-type FolderRow = Exclude<Extract<LibraryChange, { kind: "folder" }>["row"], null>;
+type FolderRow = Extract<LibraryChange, { kind: "folder" }>["row"];
 type ChangeKind = LibraryChange["kind"];
 
 interface CellItem {
@@ -90,13 +90,14 @@ export interface FakeCell {
   readonly annotation: (id: string) => AnnotationRow | null;
   readonly folder: (id: string) => FolderRow | null;
   readonly head: () => number;
-  readonly epoch: () => string;
   // the library under a new epoch, its rows kept, as a restore leaves it
   readonly startOver: () => void;
   // each call, as `<device> <procedure>` (`library/write`), and each upload by sha
   readonly calls: string[];
   readonly uploads: string[];
   readonly forgetBlob: (sha: string) => void;
+  // an item the cell no longer holds, and has told no device of yet
+  readonly forgetItem: (id: string) => void;
   // the op ids the cell keeps answers for go, as thirty days take them
   readonly forgetAnswers: () => void;
   // writes to these items are refused as too large
@@ -197,7 +198,8 @@ export const createFakeCell = (): FakeCell => {
   const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
   const log = new Map<string, Entry>();
-  const blobs = new Set<string>();
+  // each file's type, as its upload named it
+  const blobs = new Map<string, string>();
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
@@ -321,6 +323,29 @@ export const createFakeCell = (): FakeCell => {
     };
   };
 
+  // the live item at an address, which a save folds onto
+  const holderOf = (url: string): string | null => {
+    const key = urlKey(url);
+    for (const [id, item] of items) {
+      const { deletedAt, url: address } = item.fields;
+      if (key !== null && deletedAt === null && address !== null && urlKey(address) === key) {
+        return id;
+      }
+    }
+    return null;
+  };
+
+  // a write refused for leaving its item live at an address another live item holds
+  const refuseHeldAddress = (itemId: string, fields: LibraryItemFields): void => {
+    const holder = fields.url === null || fields.deletedAt !== null ? null : holderOf(fields.url);
+    const item = holder === null || holder === itemId ? undefined : items.get(holder);
+    if (holder !== null && item !== undefined) {
+      throw new ConflictError({
+        data: { current: [{ itemId: holder, kind: "item", seq: item.seq }] },
+      });
+    }
+  };
+
   const write = (input: {
     readonly itemId: string;
     readonly ops: readonly LibraryOp[];
@@ -349,6 +374,7 @@ export const createFakeCell = (): FakeCell => {
     if (outcome.kind !== "applied") {
       throw new Error("a write met a conflict it did not answer");
     }
+    refuseHeldAddress(input.itemId, outcome.state.fields);
     const { touched } = outcome;
     // every op already true, a resend's after its answer was let go: the item as it stands
     if (
@@ -379,22 +405,38 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // the live item at an address, which a save folds onto
-  const holderOf = (url: string): string | null => {
-    const key = urlKey(url);
-    for (const [id, item] of items) {
-      const { deletedAt, url: address } = item.fields;
-      if (key !== null && deletedAt === null && address !== null && urlKey(address) === key) {
-        return id;
-      }
-    }
-    return null;
-  };
-
   const foldTags = (id: string, tags: readonly string[]) => {
     const item = held(id);
     const merged = [...new Set([...item.fields.tags, ...tags])];
     return { folded: true, ...land(id, { ...item.fields, tags: merged }, item.blocks) };
+  };
+
+  // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
+  const namesakeOf = (op: FolderOp, folder: FolderRow | null): FolderRow | null => {
+    const parentId = op.op === "create" || op.op === "move" ? op.parentId : folder?.parentId;
+    const name = op.op === "create" || op.op === "rename" ? op.name : folder?.name;
+    if (op.op === "delete" || name === undefined) {
+      return null;
+    }
+    return (
+      [...folders.values()].find(
+        (sibling) =>
+          sibling.id !== op.id &&
+          sibling.deletedAt === null &&
+          sibling.parentId === parentId &&
+          titleKey(sibling.name) === titleKey(name),
+      ) ?? null
+    );
+  };
+
+  const deleteUnder = (parentId: string): void => {
+    for (const folder of folders.values()) {
+      if (folder.parentId === parentId && folder.deletedAt === null) {
+        folders.set(folder.id, { ...folder, deletedAt: NOW, seq: head });
+        record("folder", folder.id, head);
+        deleteUnder(folder.id);
+      }
+    }
   };
 
   const folderWrite = (ops: readonly FolderOp[]) => {
@@ -406,8 +448,11 @@ export const createFakeCell = (): FakeCell => {
         (op.op !== "create" && folder === null) ||
         (op.op === "rename" && folder?.name !== op.base) ||
         (op.op === "move" && folder?.parentId !== op.baseParentId);
+      const namesake = namesakeOf(op, folder);
       if (moved) {
         conflicts.push({ current: folder, id: op.id, kind: "folder" });
+      } else if (namesake !== null) {
+        conflicts.push({ current: namesake, id: namesake.id, kind: "folder" });
       }
     }
     throwConflicts(conflicts);
@@ -418,6 +463,9 @@ export const createFakeCell = (): FakeCell => {
         folders.set(op.id, next);
         record("folder", op.id, head);
       }
+      if (op.op === "delete") {
+        deleteUnder(op.id);
+      }
     }
     return { seq: head };
   };
@@ -425,11 +473,10 @@ export const createFakeCell = (): FakeCell => {
   const changeOf = (entry: Entry): LibraryChange => {
     switch (entry.kind) {
       case "item": {
-        const item = items.get(entry.id);
         return {
           id: entry.id,
           kind: "item",
-          row: item === undefined ? null : liveRow(entry.id, item),
+          row: liveRow(entry.id, held(entry.id)),
           seq: entry.seq,
         };
       }
@@ -442,7 +489,11 @@ export const createFakeCell = (): FakeCell => {
         };
       }
       case "folder": {
-        return { id: entry.id, kind: "folder", row: folders.get(entry.id) ?? null, seq: entry.seq };
+        const row = folders.get(entry.id);
+        if (row === undefined) {
+          throw new Error(`the fake cell logs a folder it does not hold: ${entry.id}`);
+        }
+        return { id: entry.id, kind: "folder", row, seq: entry.seq };
       }
       default: {
         throw new Error(`the fake cell logs no ${entry.kind}`);
@@ -451,6 +502,11 @@ export const createFakeCell = (): FakeCell => {
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
+  const restoredSchema = z.object({
+    addressHeld: z.array(z.string()),
+    missing: z.array(z.string()),
+    restored: z.array(z.string()),
+  });
   const os = implement(v1Contract);
 
   const router = {
@@ -484,12 +540,7 @@ export const createFakeCell = (): FakeCell => {
             needsBlobs(shasIn(JSON.stringify(input.blocks)));
             return land(
               input.id,
-              {
-                ...blankFields(input.savedAt),
-                folderId: input.folderId,
-                tags: input.tags,
-                title: input.title,
-              },
+              noteFields(input),
               new Map(
                 input.blocks.map((block) => [
                   block.block.id,
@@ -503,19 +554,8 @@ export const createFakeCell = (): FakeCell => {
           once(input.opId, landedSchema, () => {
             made(input.id);
             needsBlobs([input.sha]);
-            return land(
-              input.id,
-              {
-                ...blankFields(input.savedAt),
-                folderId: input.folderId,
-                kind: fileKindOf(input.name) ?? "file",
-                originalName: input.name,
-                originalSha: input.sha,
-                tags: input.tags,
-                title: input.title ?? input.name,
-              },
-              new Map(),
-            );
+            const mime = blobs.get(input.sha) ?? UNKNOWN_FILE_TYPE;
+            return land(input.id, fileFields({ ...input, mime }), new Map());
           }),
         ),
         delete: os.library.items.delete.handler(({ input }) => {
@@ -526,14 +566,26 @@ export const createFakeCell = (): FakeCell => {
           }
           return { deleted, missing: input.ids.filter((id) => !deleted.includes(id)) };
         }),
-        restore: os.library.items.restore.handler(({ input }) => {
-          const restored = input.ids.filter((id) => items.has(id));
-          for (const id of restored) {
-            const item = held(id);
-            land(id, { ...item.fields, deletedAt: null }, item.blocks);
-          }
-          return { missing: input.ids.filter((id) => !restored.includes(id)), restored };
-        }),
+        restore: os.library.items.restore.handler(({ input }) =>
+          once(input.opId, restoredSchema, () => {
+            const known = input.ids.filter((id) => items.has(id));
+            const addressHeld = known.filter((id) => {
+              const address = held(id).fields.url;
+              const holder = address === null ? null : holderOf(address);
+              return holder !== null && holder !== id;
+            });
+            const restored = known.filter((id) => !addressHeld.includes(id));
+            for (const id of restored) {
+              const item = held(id);
+              land(id, { ...item.fields, deletedAt: null }, item.blocks);
+            }
+            return {
+              addressHeld,
+              missing: input.ids.filter((id) => !known.includes(id)),
+              restored,
+            };
+          }),
+        ),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
@@ -546,17 +598,7 @@ export const createFakeCell = (): FakeCell => {
               folded: false,
               ...land(
                 input.id,
-                {
-                  ...blankFields(input.savedAt),
-                  ...input.facts,
-                  coverSha: input.coverSha,
-                  fetchState: "filled",
-                  folderId: input.folderId,
-                  kind: "link",
-                  tags: input.tags,
-                  title: input.title,
-                  url: input.url,
-                },
+                pageFields(input, NOW),
                 new Map(
                   input.article.map((block) => [
                     block.block.id,
@@ -583,15 +625,13 @@ export const createFakeCell = (): FakeCell => {
               folded: false,
               ...land(
                 id,
-                {
-                  ...blankFields(input.savedAt ?? NOW),
-                  fetchState: "pending",
+                stubFields({
                   folderId,
-                  kind: "link",
+                  savedAt: input.savedAt ?? NOW,
                   tags: input.tags ?? [],
-                  title: input.title ?? input.url,
+                  title: input.title,
                   url: input.url,
-                },
+                }),
                 new Map(),
               ),
             };
@@ -634,7 +674,6 @@ export const createFakeCell = (): FakeCell => {
           return {
             changes: taken.map(changeOf),
             epoch,
-            head,
             kind: "changes" as const,
             more,
             upto: more ? (taken.at(-1)?.seq ?? input.cursor) : head,
@@ -666,7 +705,7 @@ export const createFakeCell = (): FakeCell => {
       return new Response(null, { status: 400 });
     }
     uploads.push(sha);
-    blobs.add(sha);
+    blobs.set(sha, request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE);
     return new Response(null, { status: 201 });
   };
 
@@ -718,13 +757,15 @@ export const createFakeCell = (): FakeCell => {
         transport,
       };
     },
-    epoch: () => epoch,
     folder: (id) => folders.get(id) ?? null,
     forgetAnswers: () => {
       answers.clear();
     },
     forgetBlob: (sha) => {
       blobs.delete(sha);
+    },
+    forgetItem: (id) => {
+      items.delete(id);
     },
     head: () => head,
     item: (id) => items.get(id) ?? null,

@@ -6,7 +6,6 @@ import type { ReplicaSocket, SocketDial } from "../replica-ports";
 // what any of a socket's events carries
 interface SocketEvent {
   readonly data?: unknown;
-  readonly code?: number | undefined;
 }
 
 interface FakeSocket extends ReplicaSocket {

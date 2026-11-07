@@ -481,8 +481,9 @@ describe("the library's procedures", () => {
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
         fields: { deletedAt: expect.any(String) },
       });
-      await expect(library.items.restore({ ids: [item.id] })).resolves.toStrictEqual({
-        missing: [],
+      await expect(library.items.restore({ ids: [item.id, nobody] })).resolves.toStrictEqual({
+        addressHeld: [],
+        missing: [nobody],
         restored: [item.id],
       });
       await library.items.delete({ ids: [item.id] });
@@ -492,6 +493,21 @@ describe("the library's procedures", () => {
       });
       await expect(refusalOf(library.items.read({ id: item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",
+      });
+    });
+  });
+
+  it("leaves in Deleted an item whose address another item holds now, and says which", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/held";
+      const { item: first } = await library.items.saveLink({ url });
+      await library.items.delete({ ids: [first.id] });
+      await library.items.saveLink({ url });
+      await expect(library.items.restore({ ids: [first.id] })).resolves.toStrictEqual({
+        addressHeld: [first.id],
+        missing: [],
+        restored: [],
       });
     });
   });
@@ -815,7 +831,7 @@ describe("the library's procedures", () => {
       expect(
         sql.exec("SELECT event_id FROM thread_events WHERE thread_id = ?", older).toArray(),
       ).toStrictEqual([]);
-      const after = await library.sync.pull({ cursor: before.head, epoch: before.epoch });
+      const after = await library.sync.pull({ cursor: before.upto, epoch: before.epoch });
       expect(after.kind === "changes" ? after.changes : []).toStrictEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: older, kind: "thread", row: null }),

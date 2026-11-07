@@ -4,8 +4,9 @@
 // resumes, when a write is queued, when the socket says the library moved or opens, and on the
 // minute's check-in, so nothing it holds rests on the socket. A failure waits a doubling while
 // and goes again; a session's end stops the replica, which its host answers (a sign-out wipes it).
-// The screens read the listing from memory and an item, its highlights, a search and the
-// threads from SQL, each with this device's unsent writes laid over.
+// The screens read the listing from memory and an item and its highlights from SQL, each with
+// this device's unsent writes laid over; a search reads what landed, less what this device
+// deleted, and the threads as the cell sent them.
 
 import { createORPCClient, safe } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -46,7 +47,7 @@ import {
   rowsNaming,
 } from "./replica-listing";
 import type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
-import type { ReplicaDeps } from "./replica-ports";
+import type { ReplicaDeps, ReplicaTransport } from "./replica-ports";
 import { fetchBodies, pullChanges } from "./replica-pull";
 import type { FetchOutcome } from "./replica-pull";
 import {
@@ -102,11 +103,8 @@ export interface ReplicaStatus {
   // counts only once it is parked, since the write that names it is the change
   readonly unsent: number;
   readonly parked: readonly ParkedWrite[];
-  // the bodies this pass fetched, of all it wants
-  readonly bodies: { readonly fetched: number; readonly total: number };
-  // where the pull stands in the change log, and the newest head heard
+  // where the pull stands in the change log
   readonly cursor: number;
-  readonly head: number;
 }
 
 // what moved: the kinds of row and their ids (an item's, a folder's, a thread's, a file's sha),
@@ -189,21 +187,29 @@ const isChange = (row: OutboxRow): boolean => row.op.kind !== "keep" || row.stat
 
 const parkedOf = (rows: readonly OutboxRow[]): ParkedWrite[] =>
   rows.flatMap((row) =>
-    row.state === "parked" && row.reason !== null
+    row.state === "parked"
       ? [{ itemIds: itemIdsOf(row.op), reason: row.reason, seq: row.seq }]
       : [],
   );
 
 export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpening> => {
-  const { blobs, clock, sql, transport } = deps;
+  const { blobs, clock, sql } = deps;
+  // called off by a close, which waits for the running pass and so for the call it is in
+  const closing = new AbortController();
+  const transport: ReplicaTransport = {
+    fetch: async (request) =>
+      await deps.transport.fetch(new Request(request, { signal: closing.signal })),
+    origin: deps.transport.origin,
+  };
   const ensure = async () =>
     await sql.exclusive(async (tx) => await runPlanAsync(tx, ensureLibrarySchema("replica")));
   let verdict = await ensure();
   if (verdict.kind === "mismatch") {
+    // before the drop: once that commits, the next open finds an empty database and clears nothing
+    await blobs.clear();
     await sql.exclusive(async (tx) => {
       await runPlanAsync(tx, dropEverything());
     });
-    await blobs.clear();
     verdict = await ensure();
   }
   if (verdict.kind === "unsupported") {
@@ -225,10 +231,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const live = (): boolean => !closed;
 
   let status: ReplicaStatus = {
-    bodies: { fetched: 0, total: 0 },
     cursor: 0,
     failure: null,
-    head: 0,
     parked: [],
     syncing: false,
     unsent: 0,
@@ -331,7 +335,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     await readAll(outbox.rows());
   });
   const held = await runPlanAsync(sql, readSyncState());
-  setStatus({ cursor: held.cursor, head: held.head });
+  setStatus({ cursor: held.cursor });
   outboxStatus(outbox.rows());
 
   // ---- the passes ----
@@ -366,17 +370,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
       return pulled;
     }
     const state = await runPlanAsync(sql, readSyncState());
-    setStatus({ cursor: state.cursor, head: Math.max(status.head, state.head) });
-    const bodies = await fetchBodies({
-      client,
-      focused: () => focused,
-      landed,
-      live,
-      progress: (progress) => {
-        setStatus({ bodies: progress });
-      },
-      sql,
-    });
+    setStatus({ cursor: state.cursor });
+    const bodies = await fetchBodies({ client, focused: () => focused, landed, live, sql });
     if (bodies.kind !== "done") {
       return bodies;
     }
@@ -452,7 +447,6 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const onFrame = (frame: LibrarySocketFrame): void => {
     if (frame.type === "library") {
       if (frame.head > status.cursor) {
-        setStatus({ head: Math.max(status.head, frame.head) });
         kick();
       }
       return;
@@ -518,6 +512,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const close = async (): Promise<void> => {
     halt();
     closed = true;
+    closing.abort();
     await running;
   };
 
@@ -631,7 +626,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
         await readAll(outbox.rows());
       });
       outboxStatus(outbox.rows());
-      setStatus({ cursor: 0, head: 0 });
+      setStatus({ cursor: 0 });
       const nothing = touchedNothing();
       emit({ ids: nothing.ids, kinds: nothing.kinds, overlapped: nothing.overlapped, reset: true });
     },

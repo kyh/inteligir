@@ -69,6 +69,8 @@ export const cursorSchema = z.string().min(1).max(512);
 // one write's ops (the item's text cap binds first), and one bulk change's items
 export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
+// the items one call for bodies names
+export const BODY_IDS_MAX = 1000;
 // a highlight's own note, and a note or link note an agent writes as markdown
 export const ANNOTATION_NOTE_MAX = 20_000;
 export const MARKDOWN_MAX = 1_000_000;
@@ -175,17 +177,18 @@ export const threadEventRowSchema = z.object({
   type: z.string().min(1),
 });
 
-// one entry of the change log: the row as it is now, or null when it is gone; a body is not a row,
+// one entry of the change log: the row as it is now, null when it is gone, which an item and a
+// folder never are, since each keeps its row once it is deleted or emptied; a body is not a row,
 // and is wanted again whenever its item's sequence moves
 const changeOf = <K extends string, R extends z.ZodType>(kind: K, row: R) =>
-  z.object({ id: z.string().min(1), kind: z.literal(kind), row: row.nullable(), seq: seqSchema });
+  z.object({ id: z.string().min(1), kind: z.literal(kind), row, seq: seqSchema });
 
 export const libraryChangeSchema = z.discriminatedUnion("kind", [
   changeOf("item", itemRowSchema),
   changeOf("folder", folderRowSchema),
-  changeOf("annotation", annotationRowSchema),
-  changeOf("thread", threadRowSchema),
-  changeOf("thread_event", threadEventRowSchema),
+  changeOf("annotation", annotationRowSchema.nullable()),
+  changeOf("thread", threadRowSchema.nullable()),
+  changeOf("thread_event", threadEventRowSchema.nullable()),
 ]);
 
 // ---- bodies ----

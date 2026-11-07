@@ -6,6 +6,7 @@
 // sent for.
 
 import { safe } from "@orpc/client";
+import { BODY_IDS_MAX } from "@repo/contract/cloud/library/library-wire";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { readItem, storeItemBody } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
@@ -44,8 +45,6 @@ export type FetchOutcome =
 
 // a library restored twice in one pull is a cell to ask again later
 const MAX_RESETS = 2;
-// the most ids one bodies call names
-const BODY_IDS_MAX = 1000;
 
 const failedWith = (error: Error): FetchOutcome => ({
   failure: sharedFailure(error) ?? { kind: "unreachable", message: UNREACHABLE },
@@ -65,11 +64,7 @@ const layPage = function* layPage(
   for (const change of answer.changes) {
     yield* applyChange(change, touched);
   }
-  yield* writeSyncState({
-    cursor: answer.upto,
-    epoch: answer.epoch,
-    head: Math.max(now.head, answer.head),
-  });
+  yield* writeSyncState({ cursor: answer.upto, epoch: answer.epoch });
   return true;
 };
 
@@ -114,7 +109,6 @@ export const pullChanges = async (context: PullContext): Promise<FetchOutcome> =
 export interface BodiesContext extends PullContext {
   // the item open on a screen, whose body goes first
   readonly focused: () => string | null;
-  readonly progress: (progress: { readonly fetched: number; readonly total: number }) => void;
 }
 
 const layBodies = function* layBodies(
@@ -144,7 +138,6 @@ export const fetchBodies = async (context: BodiesContext): Promise<FetchOutcome>
   const { client, sql } = context;
   // each id is asked at most once a pass, so a body that cannot land yet is not asked for again
   const asked = new Set<string>();
-  let fetched = 0;
   for (;;) {
     const focused = context.focused();
     const held = await runPlanAsync(sql, readWants());
@@ -156,7 +149,6 @@ export const fetchBodies = async (context: BodiesContext): Promise<FetchOutcome>
           b.seq - a.seq ||
           (a.itemId < b.itemId ? -1 : 1),
       );
-    context.progress({ fetched, total: fetched + wants.length });
     if (wants.length === 0) {
       return { kind: "done" };
     }
@@ -175,7 +167,6 @@ export const fetchBodies = async (context: BodiesContext): Promise<FetchOutcome>
     await sql.exclusive(async (tx) => {
       await runPlanAsync(tx, layBodies(answer, touched));
     });
-    fetched += answer.bodies.length;
     await context.landed(touched, false);
     // an answer that settles nothing is not one to ask again this pass
     if (answer.bodies.length === 0 && answer.gone.length === 0) {

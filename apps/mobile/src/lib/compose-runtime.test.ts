@@ -9,6 +9,7 @@ import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { idSource, keepBoth, openDevice } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
 import type { KeptCredential } from "../credential/credential-codec";
+import { deferred } from "../test-support/async";
 import { memoryFolders } from "../test-support/memory-folders";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, CredentialStore, PhoneLibrary } from "./compose-runtime";
@@ -79,7 +80,12 @@ const stillClock = {
 
 const runtimeOver = (
   cell: FakeCell,
-  options: { readonly sql: ReplicaSql; readonly keys: ReturnType<typeof keychain> },
+  options: {
+    readonly sql: ReplicaSql;
+    readonly keys: ReturnType<typeof keychain>;
+    readonly folders?: ReturnType<typeof memoryFolders>;
+    readonly fetch?: (request: Request) => Promise<Response>;
+  },
 ) => {
   const network = cell.device("phone");
   const runtime = composeRuntime({
@@ -88,8 +94,8 @@ const runtimeOver = (
     cloudUrl: "https://cell.test",
     credentials: options.keys.store,
     dial: null,
-    fetch: async (request) => await network.transport.fetch(request),
-    folders: memoryFolders(),
+    fetch: options.fetch ?? (async (request) => await network.transport.fetch(request)),
+    folders: options.folders ?? memoryFolders(),
     merge: keepBoth,
     newId: idSource(7),
     openSql: async () => await Promise.resolve(options.sql),
@@ -209,6 +215,67 @@ describe("the phone's runtime", () => {
     expect(titles(signedIn(again.runtime))).toStrictEqual(["Plans"]);
   });
 
+  it("starts over on a file of another schema version, its unsent files with it", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const folders = memoryFolders();
+    const first = runtimeOver(cell, { folders, keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    first.network.setOffline(true);
+    await signedIn(first.runtime).replica.createFile({
+      file: { bytes: new Uint8Array([1, 2, 3]), mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    expect(folders.held("staged")).toHaveLength(1);
+    await signedIn(first.runtime).replica.close();
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const again = runtimeOver(cell, { folders, keys: keychain(KEPT), sql });
+    await again.runtime.start();
+    const library = signedIn(again.runtime);
+    expect(library.replica.status().unsent).toBe(0);
+    expect(folders.held("staged")).toStrictEqual([]);
+    await library.replica.sync();
+    expect(titles(library)).toStrictEqual(["Plans"]);
+  });
+
+  it("signs in over a file of another schema version", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const first = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    await signedIn(first.runtime).replica.close();
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const { runtime } = runtimeOver(cell, { keys: keychain(), sql });
+    await runtime.start();
+    await runtime.login.login(SIGN_IN);
+    expect(runtime.login.get()).toStrictEqual({ kind: "idle" });
+    await signedIn(runtime).replica.sync();
+    expect(titles(signedIn(runtime))).toStrictEqual(["Plans"]);
+  });
+
+  it("starts over on a file that holds none of the phone's own tables", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const first = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    await signedIn(first.runtime).replica.close();
+    await sql.run("DROP TABLE phone_staged", []);
+    await sql.run("DROP TABLE phone_files", []);
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const again = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await again.runtime.start();
+    await signedIn(again.runtime).replica.sync();
+    expect(titles(signedIn(again.runtime))).toStrictEqual(["Plans"]);
+  });
+
   it("pulls the library again for a credential whose database is empty", async () => {
     const cell = createFakeCell();
     await noteOnTheMac(cell, "Plans");
@@ -268,6 +335,31 @@ describe("the phone's runtime", () => {
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
     expect(keys.held()).toBeNull();
     expect(cell.calls).toContain("phone account/signOut");
+  });
+
+  it("signs out at once though a call on its way never answers", async () => {
+    const cell = createFakeCell();
+    const reached = deferred();
+    const { runtime } = runtimeOver(cell, {
+      fetch: async (request) => {
+        const calledOff = deferred();
+        request.signal.addEventListener("abort", () => {
+          calledOff.resolve();
+        });
+        reached.resolve();
+        await calledOff.promise;
+        throw new TypeError("the call was called off");
+      },
+      keys: keychain(KEPT),
+      sql: openNodeReplicaSql(":memory:"),
+    });
+    await runtime.start();
+    await reached.promise;
+
+    await expect(runtime.logout({ discardUnsent: true })).resolves.toStrictEqual({
+      kind: "signed-out",
+    });
+    expect(runtime.session.get().kind).toBe("signed-out");
   });
 
   it("stays signed in, working and the account's, when the phone cannot take its copy away", async () => {

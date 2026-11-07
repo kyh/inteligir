@@ -119,7 +119,7 @@ const createFileSchema = z.strictObject({
     title: FIELDS.title.optional(),
   }),
   kind: z.literal("createFile"),
-  staged: z.array(stagedSchema),
+  staged: z.tuple([stagedSchema]),
 });
 
 // a file kept on the device for a write still to come, a picture pasted into a note's text: it goes
@@ -146,36 +146,50 @@ export type OutboxOp = z.infer<typeof outboxOpSchema>;
 
 type AnnotationOp = WriteOp["annotations"][number];
 
-// the item a row writes, which holds every later row on that item behind it; a folder write and
-// a delete or restore of several name none of their own
-export const itemIdOf = (op: OutboxOp): string | null => {
+// the items a row changes: the overlay lays it over each, and a parked one holds their later rows
+export const itemIdsOf = (op: OutboxOp): readonly string[] => {
   switch (op.kind) {
     case "write": {
-      return op.itemId;
+      return [op.itemId];
     }
     case "create":
     case "saveLink":
     case "save":
     case "createFile": {
-      return op.input.id;
+      return [op.input.id];
+    }
+    case "delete":
+    case "restore": {
+      return op.ids;
     }
     case "keep":
-    case "delete":
-    case "restore":
     case "folders": {
-      return null;
+      return [];
     }
     // no default
   }
 };
 
-// the items a row changes, which the overlay lays it over
-export const itemIdsOf = (op: OutboxOp): readonly string[] => {
-  if (op.kind === "delete" || op.kind === "restore") {
-    return op.ids;
+// a row's op with the item `from` named as `to`: a make folded onto the item already at its address
+export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp => {
+  switch (op.kind) {
+    case "write": {
+      return op.itemId === from ? { ...op, itemId: to } : op;
+    }
+    case "delete":
+    case "restore": {
+      return { ...op, ids: [...new Set(op.ids.map((id) => (id === from ? to : id)))] };
+    }
+    case "create":
+    case "saveLink":
+    case "save":
+    case "createFile":
+    case "keep":
+    case "folders": {
+      return op;
+    }
+    // no default
   }
-  const id = itemIdOf(op);
-  return id === null ? [] : [id];
 };
 
 export const stagedOf = (op: OutboxOp): readonly StagedFile[] =>

@@ -143,25 +143,21 @@ const touchesNothing = (outcome: Extract<ApplyOutcome, { kind: "applied" }>): bo
 
 const tagsOf = (tags: readonly string[]): LibraryItemFields["tags"] => [...new Set(tags)];
 
-// what a row names of a command's files, once each by their bytes' sha, and the bytes the outbox
-// stages with the row
+// a file as its row names it and as the outbox stages it with the row, from one sha, so neither
+// goes without the other
 interface Staging {
-  readonly staged: StagedFile[];
-  readonly bytes: StagedBytes[];
+  readonly sha: string;
+  readonly staged: [StagedFile];
+  readonly bytes: [StagedBytes];
 }
 
-const staging = (files: readonly NewFile[]): Staging => {
-  const staged: StagedFile[] = [];
-  const bytes: StagedBytes[] = [];
-  for (const file of files) {
-    const sha = fileSha(file.bytes);
-    if (staged.some((held) => held.sha === sha)) {
-      continue;
-    }
-    staged.push({ mime: file.mime, sha });
-    bytes.push({ bytes: file.bytes, mime: file.mime, sha });
-  }
-  return { bytes, staged };
+const staging = (file: NewFile): Staging => {
+  const sha = fileSha(file.bytes);
+  return {
+    bytes: [{ bytes: file.bytes, mime: file.mime, sha }],
+    sha,
+    staged: [{ mime: file.mime, sha }],
+  };
 };
 
 export const createCommands = (context: CommandContext): ReplicaCommands => {
@@ -178,7 +174,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
     createFile: async (input) =>
       await serial(async () => {
         const id = newId();
-        const sha = fileSha(input.file.bytes);
+        const { bytes, sha, staged } = staging(input.file);
         const made: Extract<OutboxOp, { kind: "createFile" }>["input"] = {
           folderId: input.folderId,
           id,
@@ -190,10 +186,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         if (input.title !== undefined) {
           made.title = input.title;
         }
-        await enqueue(
-          { input: made, kind: "createFile", staged: [{ mime: input.file.mime, sha }] },
-          [{ bytes: input.file.bytes, mime: input.file.mime, sha }],
-        );
+        await enqueue({ input: made, kind: "createFile", staged }, bytes);
         return { folded: false, id, sha };
       }),
 
@@ -225,10 +218,8 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
 
     keepFile: async (file) =>
       await serial(async () => {
-        const sha = fileSha(file.bytes);
-        await enqueue({ kind: "keep", staged: [{ mime: file.mime, sha }] }, [
-          { bytes: file.bytes, mime: file.mime, sha },
-        ]);
+        const { bytes, sha, staged } = staging(file);
+        await enqueue({ kind: "keep", staged }, bytes);
         return { sha };
       }),
 
@@ -265,21 +256,21 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
       await serial(async () => {
         const id = newId();
         const holder = await runPlanAsync(sql, heldAtAddress(input.url));
-        const { cover: coverFile, tags, ...page } = input;
-        const files = staging(coverFile === null ? [] : [coverFile]);
+        const { cover, tags, ...page } = input;
+        const file = cover === null ? null : staging(cover);
         await enqueue(
           {
             input: {
               ...page,
-              coverSha: coverFile === null ? null : fileSha(coverFile.bytes),
+              coverSha: file?.sha ?? null,
               id,
               savedAt: clock.now(),
               tags: tagsOf(tags),
             },
             kind: "save",
-            staged: files.staged,
+            staged: file?.staged ?? [],
           },
-          files.bytes,
+          file?.bytes ?? [],
         );
         return holder === null ? { folded: false, id } : { folded: true, id: holder };
       }),

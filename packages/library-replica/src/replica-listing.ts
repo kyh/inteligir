@@ -16,7 +16,7 @@ import {
   readItemState,
   readLiveItems,
 } from "@repo/notes/library/library-queries";
-import type { StoredItem } from "@repo/notes/library/library-queries";
+import type { LiveStoredItem } from "@repo/notes/library/library-queries";
 import { all } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 import { urlKey } from "@repo/notes/items/item-url";
@@ -35,8 +35,6 @@ export interface ReplicaItem {
   // in reading order: the note, then the article
   readonly blocks: readonly StoredBlock[];
   readonly card: ItemCard;
-  // the sequence of the row the cell sent; null for one this device made that has not landed
-  readonly seq: number | null;
   // false while its body is still to come from the cloud
   readonly bodyHeld: boolean;
   // a write of this device's on it has not landed
@@ -78,7 +76,7 @@ export const heldAtAddress = function* heldAtAddress(url: string): SqlPlan<strin
 };
 
 interface Held {
-  readonly stored: Extract<StoredItem, { kind: "live" }> | null;
+  readonly stored: LiveStoredItem | null;
   readonly state: ItemState | null;
   readonly wanted: boolean;
 }
@@ -122,7 +120,6 @@ const laidItem = (id: string, held: Held, pending: readonly OutboxRow[]): Replic
     fields: state.fields,
     id,
     parked: pending.some((row) => row.state === "parked"),
-    seq: stored?.seq ?? null,
     unsent: pending.length > 0,
   };
 };
@@ -159,7 +156,7 @@ export const readReplicaAnnotations = function* readReplicaAnnotations(
 const uniqueTags = (tags: readonly string[]): string[] => [...new Set(tags)];
 
 const listingRowOf = (
-  item: ReplicaItem,
+  item: Pick<ReplicaItem, "card" | "fields" | "id" | "parked" | "unsent">,
   tags: readonly string[],
   updatedAt: number,
 ): ReplicaListingRow => ({
@@ -179,10 +176,14 @@ const listingRowOf = (
   url: item.fields.url,
 });
 
+// an item no row names, as it landed
+const storedListingRow = (stored: LiveStoredItem, tags: readonly string[]): ReplicaListingRow =>
+  listingRowOf({ ...stored, parked: false, unsent: false }, tags, stored.updatedAt);
+
 // an item a row names: its tags derived from the laid state, as the cell will derive them
 const laidListingRow = (
   item: ReplicaItem,
-  stored: StoredItem | null,
+  stored: LiveStoredItem | null,
   pending: readonly OutboxRow[],
 ) => {
   const blocks = new Map(item.blocks.map((held) => [held.block.id, held]));
@@ -221,25 +222,7 @@ export const readListingRows = function* readListingRows(
       continue;
     }
     if (pending.length === 0) {
-      answer.set(
-        id,
-        stored === null
-          ? null
-          : listingRowOf(
-              {
-                blocks: [],
-                bodyHeld: true,
-                card: stored.card,
-                fields: stored.fields,
-                id,
-                parked: false,
-                seq: stored.seq,
-                unsent: false,
-              },
-              tags.get(id) ?? [],
-              stored.updatedAt,
-            ),
-      );
+      answer.set(id, stored === null ? null : storedListingRow(stored, tags.get(id) ?? []));
       continue;
     }
     const item = yield* readReplicaItem(id, pending);
@@ -261,33 +244,9 @@ export const readAllListingRows = function* readAllListingRows(
   const items = yield* readLiveItems();
   const tags = yield* readTagsByItem(null);
   const named = new Set(rows.flatMap((row) => itemIdsOf(row.op)));
-  const listed: ReplicaListingRow[] = [];
-  const held = new Set<string>();
-  for (const stored of items) {
-    if (stored.kind !== "live") {
-      continue;
-    }
-    held.add(stored.id);
-    if (named.has(stored.id)) {
-      continue;
-    }
-    listed.push(
-      listingRowOf(
-        {
-          blocks: [],
-          bodyHeld: true,
-          card: stored.card,
-          fields: stored.fields,
-          id: stored.id,
-          parked: false,
-          seq: stored.seq,
-          unsent: false,
-        },
-        tags.get(stored.id) ?? [],
-        stored.updatedAt,
-      ),
-    );
-  }
+  const listed = items
+    .filter((stored) => !named.has(stored.id))
+    .map((stored) => storedListingRow(stored, tags.get(stored.id) ?? []));
   const laid = yield* readListingRows([...named], rows);
   for (const row of laid.values()) {
     if (row !== null) {
@@ -299,6 +258,7 @@ export const readAllListingRows = function* readAllListingRows(
 
 type FolderOp = Extract<OutboxOp, { kind: "folders" }>["ops"][number];
 
+// one op laid down as the cell lands it, which takes a deleted folder's subtree with it
 const layFolderOp = (folders: Map<string, ListingFolder>, op: FolderOp): void => {
   switch (op.op) {
     case "create": {
@@ -322,7 +282,16 @@ const layFolderOp = (folders: Map<string, ListingFolder>, op: FolderOp): void =>
       return;
     }
     case "delete": {
-      folders.delete(op.id);
+      // an array's iterator reads the entries pushed while it runs, so each folder's children follow
+      const gone = [op.id];
+      for (const id of gone) {
+        folders.delete(id);
+        gone.push(
+          ...[...folders.values()]
+            .filter((folder) => folder.parentId === id)
+            .map((folder) => folder.id),
+        );
+      }
     }
     // no default
   }

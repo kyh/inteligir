@@ -14,9 +14,9 @@ export const SOCKET_TICKET_PARAM = "ticket";
 export const SOCKET_KEEPALIVE_PING = "ping";
 export const SOCKET_KEEPALIVE_PONG = "pong";
 
-// RFC 6455's policy violation: the cell closes a revoked credential's sockets with it. A hint,
-// never the verdict: the client answers it with a call under its credential, and that call's
-// refusal is what ends it
+// RFC 6455's policy violation: the cell closes a revoked credential's sockets with it. No client
+// reads it: a closed socket dials again, its ticket is refused, and the refusal of the replica's
+// next pass, at its minute's check-in at the latest, is what ends the session
 export const SOCKET_REVOKED_CLOSE_CODE = 1008;
 
 // the library committed a write: a replica behind `head` pulls

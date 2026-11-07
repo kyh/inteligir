@@ -3,30 +3,30 @@
 // on. A row is pinned before it first goes, so a resend after a lost answer is the same call
 // under the same op id, which the cell answers once; the files it names go to `/v1/blobs` first. A
 // CONFLICT settles through the block merge and goes again; a refusal no resend passes parks the
-// row for the person, holding the rows on its item behind it while every other item goes on; no
-// answer stops the pass with every row kept. The outbox's changes run one at a time, each over
-// the rows as the one before it left them, so a write that joins a row and the pass that pins it
-// never decide on two different rows.
+// row for the person, holding the rows on its items or folders behind it while everything else
+// goes on; no answer stops the pass with every row kept. The outbox's changes run one at a time,
+// each over the rows as the one before it left them, so a write that joins a row and the pass that
+// pins it never decide on two different rows.
 
 import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/cloud/v1";
-import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { sameJson } from "@repo/notes/library/canonical-json";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 import type { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
 import type { z } from "zod";
 
-import { sharedFailure, uploadBlob } from "./call-outcome";
+import { CHANGE_REFUSED, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
-import { coalesceWrites, itemIdsOf, shasNamed, stagedOf } from "./outbox-ops";
+import { coalesceWrites, itemIdsOf, repointedOp, shasNamed, stagedOf } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
 import type { OutboxRow } from "./outbox-rows";
 import { settleFolders, settleWrite } from "./outbox-settle";
 import type { Settled } from "./outbox-settle";
-import { layRow } from "./overlay";
+import { layRow, madeBy } from "./overlay";
 import { serialLock } from "./serial-lock";
 import type {
   BlockMerge,
@@ -48,15 +48,18 @@ import type { Touched } from "./replica-rows";
 
 type LiveItemRow = z.infer<typeof liveItemRowSchema>;
 
-// a row whose every resend meets a library that moved again waits for the next pass
+// a row whose every resend meets a library that moved again waits for the next pass; one the last
+// resend left as it was would meet the same answer there, so it parks
 const MAX_ROUNDS_PER_ROW = 3;
-// bounds one pass, so the pull after it is never starved and a close waits out few calls
+// bounds one pass, so the pull after it is never starved
 const MAX_ROWS_PER_PASS = 100;
 
 /** @internal */
 export const STAGED_FILE_GONE = "This file is no longer on this device.";
 const FILE_NOT_STAGED = "A file this names was never on this device.";
 const KEPT_CHANGING = "Your library kept changing while this device saved. It will try again.";
+const ADDRESS_HELD =
+  "Another item already holds this address. Delete it and try again, or let this change go.";
 
 export interface OutboxContext {
   readonly sql: ReplicaSql;
@@ -88,6 +91,12 @@ type SendOutcome =
   | { readonly kind: "stopped"; readonly failure: CallFailure }
   | { readonly kind: "closed" };
 
+// a make the cell folded onto the item already at its address, which never takes the make's own id
+interface Folded {
+  readonly from: string;
+  readonly to: string;
+}
+
 // a file a row stages, put on the device with the row that names it
 export interface StagedBytes {
   readonly sha: string;
@@ -109,11 +118,17 @@ export interface Outbox {
   readonly wipe: () => Promise<void>;
 }
 
-// what a row holds a later row behind: the items it writes, and the folder tree for a folder write
-const holdsOf = (op: OutboxOp): readonly string[] =>
-  op.kind === "folders" ? ["#folders"] : itemIdsOf(op);
+// the folders one folder op needs as it left them: its own, and the one it goes under
+const foldersOf = (op: Extract<OutboxOp, { kind: "folders" }>["ops"][number]): string[] =>
+  (op.op === "create" || op.op === "move") && op.parentId !== null ? [op.id, op.parentId] : [op.id];
 
-// oldest first; a row on an item a parked row writes, or one held behind such a row, waits
+// what a row holds a later row behind: the items or the folders it writes, so a refused folder
+// leaves the person free to rename the one in its way
+const holdsOf = (op: OutboxOp): readonly string[] =>
+  op.kind === "folders" ? op.ops.flatMap(foldersOf) : itemIdsOf(op);
+
+// oldest first; a row on what a parked row writes, or on what one held behind such a row writes,
+// waits
 const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
   const held = new Set<string>();
   for (const row of rows) {
@@ -138,12 +153,6 @@ const touchedItems = (ids: readonly string[]): Touched => {
   }
   return touched;
 };
-
-const stored = (placed: {
-  readonly block: StoredBlock["block"];
-  readonly ord: string;
-  readonly section: StoredBlock["section"];
-}): StoredBlock => ({ ...placed, hash: blockHash(placed.block) });
 
 // the blocks a write lands as the cell does: each one it inserts, puts or moves, as the item this
 // replica holds is with the write laid over, and each it drops
@@ -234,13 +243,13 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
   };
 
-  const park = async (row: OutboxRow, reason: string): Promise<SendOutcome> => {
+  const park = async (
+    row: OutboxRow,
+    reason: string,
+    rest: Pick<OutboxRow, "op" | "opId"> | null = null,
+  ): Promise<SendOutcome> => {
+    const parked: OutboxRow = { ...row, ...rest, reason, state: "parked" };
     await hold(async () => {
-      const held = rows.find((candidate) => candidate.seq === row.seq);
-      if (held === undefined) {
-        return;
-      }
-      const parked: OutboxRow = { ...held, reason, state: "parked" };
       await sql.exclusive(async (tx) => {
         await runPlanAsync(tx, saveRow(parked));
       });
@@ -270,24 +279,41 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   // the row is retired in the transaction that lays what it landed. The cell holds the write
   // either way, so a landing this device cannot lay over the rows it holds (a row whose newer
   // change is still to come in its way) retires the row alone, and the pull after lays what the
-  // cell holds: a row is never sent again for what only this device's copy refused
+  // cell holds: a row is never sent again for what only this device's copy refused. A make the
+  // cell folded takes the rows naming it along, since the id they name will never exist
   const land = async (
     row: OutboxRow,
     work: () => SqlPlan<void>,
     touched: Touched,
+    folded: Folded | null = null,
   ): Promise<SendOutcome> => {
     await hold(async () => {
+      const moved =
+        folded === null
+          ? []
+          : rows
+              .filter((held) => held.seq !== row.seq && itemIdsOf(held.op).includes(folded.from))
+              .map((held) => ({ ...held, op: repointedOp(held.op, folded.from, folded.to) }));
+      const retire = function* retire(): SqlPlan<void> {
+        yield* deleteRow(row.seq);
+        for (const held of moved) {
+          yield* saveRow(held);
+        }
+      };
       try {
         await sql.exclusive(async (tx) => {
-          await runPlanAsync(tx, deleteRow(row.seq));
+          await runPlanAsync(tx, retire());
           await runPlanAsync(tx, work());
         });
       } catch {
         await sql.exclusive(async (tx) => {
-          await runPlanAsync(tx, deleteRow(row.seq));
+          await runPlanAsync(tx, retire());
         });
       }
       forget(row.seq);
+      for (const held of moved) {
+        replace(held);
+      }
       await release(row.op);
     });
     for (const id of itemIdsOf(row.op)) {
@@ -298,17 +324,29 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     return { kind: "landed" };
   };
 
-  const landItem = async (
+  // the cell holds what the row asked for already, or the row asked nothing of it
+  const satisfied = async (row: OutboxRow): Promise<SendOutcome> =>
+    await land(
+      row,
+      function* nothing() {
+        yield* [];
+      },
+      touchedNothing(),
+    );
+
+  const landMake = async (
     row: OutboxRow,
+    madeAs: string,
     item: LiveItemRow,
-    blocksOf: () => SqlPlan<{ readonly written: StoredBlock[]; readonly dropped: string[] }>,
+    written: readonly StoredBlock[],
   ): Promise<SendOutcome> =>
     await land(
       row,
       function* landed() {
-        yield* landOwnRow(item, yield* blocksOf());
+        yield* landOwnRow(item, { dropped: [], written });
       },
       touchedItems([item.id]),
+      madeAs === item.id ? null : { from: madeAs, to: item.id },
     );
 
   const settled = async <T>(
@@ -318,13 +356,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     overlapped: readonly string[],
   ): Promise<SendOutcome> => {
     if (outcome.kind === "satisfied") {
-      return await land(
-        row,
-        function* nothing() {
-          yield* [];
-        },
-        touchedNothing(),
-      );
+      return await satisfied(row);
     }
     return await resend(row, again(outcome.op), overlapped);
   };
@@ -368,9 +400,6 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         case "stored": {
           uploaded.add(sha);
           break;
-        }
-        case "again": {
-          return { kind: "again" };
         }
         case "refused": {
           return await park(row, outcome.reason);
@@ -472,25 +501,26 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     if (error === null) {
       const folded = "folded" in answer && answer.folded === true;
-      return await landItem(row, answer.item, function* blocksOfMake() {
-        yield* [];
-        if (op.kind === "create") {
-          return { dropped: [], written: op.input.blocks.map(stored) };
-        }
-        if (op.kind === "save" && !folded) {
-          return {
-            dropped: [],
-            written: op.input.article.map((placed) => stored({ ...placed, section: "article" })),
-          };
-        }
-        return { dropped: [], written: [] };
-      });
+      const written = folded ? [] : [...madeBy(op).blocks.values()];
+      return await landMake(row, op.input.id, answer.item, written);
     }
-    return await refused(row, error, async () =>
-      isDefinedError(error) && error.code === "BLOB_MISSING" && "shas" in error.data
-        ? await missingFiles(row, error.data.shas)
-        : null,
-    );
+    return await refused(row, error, async () => {
+      if (!isDefinedError(error)) {
+        return null;
+      }
+      if (error.code === "BLOB_MISSING" && "shas" in error.data) {
+        return await missingFiles(row, error.data.shas);
+      }
+      // the id is minted for this row alone, so an item under it is this row's, landed under an
+      // op id the cell has since let go; the pull lays it
+      return error.code === "CONFLICT" &&
+        "current" in error.data &&
+        error.data.current.some(
+          (current) => current.kind === "item" && current.itemId === op.input.id,
+        )
+        ? await satisfied(row)
+        : null;
+    });
   };
 
   const sendDeletion = async (
@@ -506,6 +536,15 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     if (error !== null) {
       return await refused(row, error, async () => await Promise.resolve(null));
+    }
+    // the cell keeps this answer under the row's op id, so what it left goes again under a new one;
+    // what it did restore stands once the pull brings it
+    if ("restored" in answer && answer.addressHeld.length > 0) {
+      const ids = answer.addressHeld;
+      return await park(row, ADDRESS_HELD, {
+        op: { ids, kind: "restore" },
+        opId: context.newId(),
+      });
     }
     const changed = "deleted" in answer ? answer.deleted : answer.restored;
     return await land(
@@ -536,16 +575,15 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         touched,
       );
     }
-    return await refused(row, error, async () =>
-      isDefinedError(error) && error.code === "CONFLICT"
-        ? await settled(
-            row,
-            settleFolders(op.ops, error.data.current),
-            (ops) => ({ kind: "folders", ops }),
-            [],
-          )
-        : null,
-    );
+    return await refused(row, error, async () => {
+      if (!isDefinedError(error) || error.code !== "CONFLICT") {
+        return null;
+      }
+      const outcome = settleFolders(op.ops, error.data.current);
+      return outcome.kind === "refused"
+        ? await park(row, outcome.reason)
+        : await settled(row, outcome, (ops) => ({ kind: "folders", ops }), []);
+    });
   };
 
   // pinned before it first goes, so every resend is the call that went: the row as it stands once
@@ -554,11 +592,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   const pin = async (seq: number): Promise<OutboxRow | null> =>
     await hold(async () => {
       const row = rows.find((candidate) => candidate.seq === seq);
-      if (row === undefined || row.state === "parked") {
-        return null;
-      }
-      if (row.state === "sent") {
-        return row;
+      if (row?.state !== "queued") {
+        return row ?? null;
       }
       const pinned: OutboxRow = { ...row, state: "sent" };
       await sql.exclusive(async (tx) => {
@@ -597,13 +632,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       }
       // its file is up, which was all it asked
       case "keep": {
-        return await land(
-          row,
-          function* nothing() {
-            yield* [];
-          },
-          touchedNothing(),
-        );
+        return await satisfied(row);
       }
       // no default
     }
@@ -629,7 +658,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     },
 
     drain: async () => {
-      const rounds = new Map<number, number>();
+      // how often this pass has sent each row, and what it held the last time it went
+      const rounds = new Map<number, { readonly count: number; readonly op: OutboxOp }>();
       for (let sent = 0; sent < MAX_ROWS_PER_PASS; sent += 1) {
         if (!context.live()) {
           return { kind: "closed" };
@@ -638,11 +668,16 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         if (row === null) {
           return { kind: "caught-up" };
         }
-        const round = (rounds.get(row.seq) ?? 0) + 1;
-        rounds.set(row.seq, round);
-        if (round > MAX_ROUNDS_PER_ROW) {
-          return { failure: { kind: "unreachable", message: KEPT_CHANGING }, kind: "stopped" };
+        const last = rounds.get(row.seq);
+        const count = (last?.count ?? 0) + 1;
+        if (last !== undefined && count > MAX_ROUNDS_PER_ROW) {
+          if (!sameJson(last.op, row.op)) {
+            return { failure: { kind: "unreachable", message: KEPT_CHANGING }, kind: "stopped" };
+          }
+          await park(row, CHANGE_REFUSED);
+          continue;
         }
+        rounds.set(row.seq, { count, op: row.op });
         const outcome = await send(row);
         if (outcome.kind === "stopped" || outcome.kind === "closed") {
           return outcome;

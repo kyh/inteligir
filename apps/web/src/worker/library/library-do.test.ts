@@ -79,7 +79,7 @@ describe("the library cell", () => {
     const pulled = await inCell(theirs, (state) =>
       landedValue(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
     );
-    expect(pulled).toMatchObject({ changes: [], head: 0, kind: "changes" });
+    expect(pulled).toMatchObject({ changes: [], kind: "changes", upto: 0 });
   });
 
   it("takes a library call only with a principal of its own account", async () => {

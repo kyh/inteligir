@@ -49,7 +49,6 @@ export type PullAnswer =
       readonly kind: "changes";
       readonly changes: LibraryChange[];
       readonly epoch: string;
-      readonly head: number;
       readonly more: boolean;
       readonly upto: number;
     }
@@ -83,7 +82,7 @@ const itemRowOf = (
 ): Extract<LibraryChange, { kind: "item" }>["row"] => {
   const item = runPlan(sql, readItem(id));
   if (item === null) {
-    return null;
+    throw new LibraryRowError(`the change log names an item the library does not hold: ${id}`);
   }
   return item.kind === "purged"
     ? { deletedAt: item.deletedAt, id, kind: "purged", seq: item.seq, updatedAt: item.updatedAt }
@@ -95,6 +94,14 @@ const itemRowOf = (
         seq: item.seq,
         updatedAt: item.updatedAt,
       };
+};
+
+const folderRowOf = (sql: SqlStatements, id: string) => {
+  const row = readFolder(sql, id);
+  if (row === null) {
+    throw new LibraryRowError(`the change log names a folder the library does not hold: ${id}`);
+  }
+  return row;
 };
 
 export const THREAD_COLUMNS = "id, title, status, created_at, updated_at, seq";
@@ -142,10 +149,10 @@ const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
   const { id, seq } = entry;
   switch (entry.kind) {
     case "item": {
-      return { id, kind: "item", row: entry.gone ? null : itemRowOf(sql, id), seq };
+      return { id, kind: "item", row: itemRowOf(sql, id), seq };
     }
     case "folder": {
-      return { id, kind: "folder", row: entry.gone ? null : readFolder(sql, id), seq };
+      return { id, kind: "folder", row: folderRowOf(sql, id), seq };
     }
     case "annotation": {
       const row = entry.gone ? null : readAnnotationRow(sql, id);
@@ -176,7 +183,6 @@ export const pullChanges = (
   return {
     changes: page.changes.map((entry) => changeOf(sql, entry)),
     epoch,
-    head: libraryHead(sql),
     kind: "changes",
     more: page.more,
     upto: page.upto,

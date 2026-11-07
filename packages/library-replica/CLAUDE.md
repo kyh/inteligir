@@ -34,10 +34,14 @@ and cited.
   landing writes the answered row and the blocks it wrote at the answer's
   sequence, and a folder or highlight stands at sequence 0 until the pull
   replaces it. A save of an address another item holds lists no card of its
-  own. Residuals: search finds an unsent edit's words once it lands; a landing
-  asks for the item's body again. Rejected: optimistic rows in the synced
-  tables (a pull could not tell them apart).
-  `packages/library-replica/src/replica-listing.ts`, `overlay.ts`.
+  own. A make shows by the field rules the cell lands it by, so a card reads
+  alike on both sides of its landing. Residuals: search finds an unsent edit's
+  words once it lands; a landing asks for the item's body again; a saved link's
+  note shows once the cell has read it from markdown. Rejected: optimistic rows
+  in the synced tables (a pull could not tell them apart); a device's own guess
+  at a make's fields (a video listed as a link until it landed).
+  `packages/library-replica/src/replica-listing.ts`, `overlay.ts`,
+  `packages/notes/src/library/item-makes.ts`.
 
 - **THE OUTBOX SENDS OLDEST FIRST UNDER AN OP ID PINNED BEFORE IT FIRST GOES.**
   A write joins the item's last row while it waits, compacted onto the first
@@ -45,9 +49,19 @@ and cited.
   left, and a staged file goes once no row names it. A `CONFLICT` settles
   through the merge, whose overlap the change it emits names (`overlapped`), a
   `BLOB_MISSING` uploads again, a refusal no resend passes
-  parks the row and its items' rows behind it, and a landing this copy cannot
-  lay leaves the row to the pull. Rejected: dropping a refused write; a
-  whole-item retry (two devices' edits to different blocks would meet).
+  parks the row and the rows on its items or folders behind it, and a landing
+  this copy cannot lay leaves the row to the pull. A folder name a sibling
+  holds is such a refusal, and so is a row its last resend left as it was: a
+  parked row stops neither the pass nor the pull, and a folder's holds no other
+  folder, so the person can rename the one in its way. A make the cell folds
+  onto the item at its address takes the rows naming it along, in its landing's
+  transaction, and a block they name there settles as any other. A restore the
+  cell leaves in Deleted for an address another item holds parks what it left
+  under a new op id, since the cell keeps its answer under the old one. Rejected:
+  dropping a refused write; a whole-item retry (two devices' edits to different
+  blocks would meet); stopping the pass on a row that cannot change (every later
+  write and the pull wait on it, with nothing for the person to answer); parking
+  a row on a folded id (its text shows nowhere and no resend can pass).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 
@@ -62,8 +76,9 @@ and cited.
 - **THE BROWSER TAB'S REPLICA AND THE SUITES' ARE SQLITE'S OWN WASM, IN
   MEMORY.** `@sqlite.org/sqlite-wasm` with FTS5, one connection serving every
   call in order, a transaction `BEGIN IMMEDIATE` to `COMMIT`; it imports
-  nothing of the package's but types, so the Worker's suite holds it on its
-  node side, since workerd compiles no WebAssembly a module did not ship.
+  nothing of the package's but types and the serial lock, by the package's
+  name, so the Worker's suite holds it on its node side, since workerd
+  compiles no WebAssembly a module did not ship.
   Rejected: a fake SQL in the suites (the shared plans would go untried); the
   wasm in workerd (sqlite-wasm compiles its glue at load).
   `packages/library-replica/src/memory-sql.ts`,

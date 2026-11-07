@@ -1,9 +1,9 @@
 // The account's socket, a hint and never the state: a frame that says the library moved past the
-// head the replica holds asks it to sync, and so does every time the socket opens, since a deploy
-// or a drop may have hidden a write meanwhile (CF14). It opens with a short-lived ticket an
-// authenticated call mints, as a browser's socket carries no header, keeps itself alive with the
-// cell's auto-answered ping, and dials again on a doubling wait while it is wanted. Nothing the
-// replica holds rests on it: the minute's check-in and every write sync without it.
+// replica's cursor asks it to sync, and so does every time the socket opens, since a deploy or a
+// drop may have hidden a write meanwhile. It opens with a short-lived ticket an authenticated call
+// mints, as a browser's socket carries no header, keeps itself alive with the cell's auto-answered
+// ping, and dials again on a doubling wait while it is wanted. Nothing the replica holds rests on
+// it: the minute's check-in and every write sync without it.
 
 import {
   librarySocketFrameSchema,
@@ -148,10 +148,10 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
     };
     dialling = true;
     const ticket = await args.ticket();
-    dialling = false;
     if (owner !== generation || !wanted) {
       return;
     }
+    dialling = false;
     if (ticket === null) {
       scheduleReconnect(owner, redial);
       return;

@@ -41,10 +41,8 @@ const nothingToStop = (): void => {
 const follows = (): (() => void) => nothingToStop;
 
 const STATUS: ReplicaStatus = {
-  bodies: { fetched: 0, total: 0 },
   cursor: 0,
   failure: null,
-  head: 0,
   parked: [],
   syncing: false,
   unsent: 0,

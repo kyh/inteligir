@@ -175,8 +175,9 @@ export interface TombstoneWrite {
   readonly seq: number;
 }
 
-// a purged item: its id, sequence and deletion stay forever, and everything it held goes; whether
-// it landed, since a row newer than the tombstone keeps everything it holds
+// a purged item: its id, sequence and deletion stay forever, and everything it held goes but the
+// files it named, which the cell counts for itself; whether it landed, since a row newer than the
+// tombstone keeps everything it holds
 export const storeTombstone = function* storeTombstone(write: TombstoneWrite): SqlPlan<boolean> {
   const landed = yield all(UPSERT_TOMBSTONE, [
     write.id,
@@ -224,16 +225,18 @@ const itemRowSchema = z.object({
   url_key: z.string().nullable(),
 });
 
+export interface LiveStoredItem {
+  readonly kind: "live";
+  readonly id: string;
+  readonly fields: LibraryItemFields;
+  readonly card: ItemCard;
+  readonly urlKey: string | null;
+  readonly updatedAt: number;
+  readonly seq: number;
+}
+
 export type StoredItem =
-  | {
-      readonly kind: "live";
-      readonly id: string;
-      readonly fields: LibraryItemFields;
-      readonly card: ItemCard;
-      readonly urlKey: string | null;
-      readonly updatedAt: number;
-      readonly seq: number;
-    }
+  | LiveStoredItem
   | {
       readonly kind: "purged";
       readonly id: string;
@@ -244,17 +247,7 @@ export type StoredItem =
 
 const stringList = z.array(z.string());
 
-const storedItemOf = (raw: SqlRow): StoredItem => {
-  const row = parseRow(raw, itemRowSchema, "an item");
-  if (row.purged === 1) {
-    return {
-      deletedAt: row.deleted_at,
-      id: row.id,
-      kind: "purged",
-      seq: row.seq,
-      updatedAt: row.updated_at,
-    };
-  }
+const liveItemOf = (row: z.infer<typeof itemRowSchema>): LiveStoredItem => {
   const fields = libraryItemFieldsSchema.safeParse({
     aliases: parseJsonColumn(row.aliases ?? "", stringList, "an item's aliases"),
     author: row.author,
@@ -298,17 +291,30 @@ const storedItemOf = (raw: SqlRow): StoredItem => {
   };
 };
 
+const storedItemOf = (raw: SqlRow): StoredItem => {
+  const row = parseRow(raw, itemRowSchema, "an item");
+  return row.purged === 1
+    ? {
+        deletedAt: row.deleted_at,
+        id: row.id,
+        kind: "purged",
+        seq: row.seq,
+        updatedAt: row.updated_at,
+      }
+    : liveItemOf(row);
+};
+
 export const readItem = function* readItem(id: string): SqlPlan<StoredItem | null> {
   const [row] = yield all(`SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE id = ?`, [id]);
   return row === undefined ? null : storedItemOf(row);
 };
 
 // every item that is not purged, by id: what a replica's listing is built from at open
-export const readLiveItems = function* readLiveItems(): SqlPlan<StoredItem[]> {
+export const readLiveItems = function* readLiveItems(): SqlPlan<LiveStoredItem[]> {
   const rows = yield all(
     `SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE purged = 0 ORDER BY id`,
   );
-  return rows.map(storedItemOf);
+  return rows.map((raw) => liveItemOf(parseRow(raw, itemRowSchema, "an item")));
 };
 
 // ---- blocks ----

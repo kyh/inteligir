@@ -47,12 +47,10 @@ const runEach = function* runEach(statements: readonly SqlStatement[]): SqlPlan<
 
 // ---- where the pull stands ----
 
-// the library the rows came from, the cursor the last page ended at, and the newest head heard,
-// from a pull or the socket
+// the library the rows came from, and the cursor the last page ended at
 export interface SyncState {
   readonly epoch: string | null;
   readonly cursor: number;
-  readonly head: number;
 }
 
 const counterSchema = z.number().int().nonnegative();
@@ -66,7 +64,6 @@ export const readSyncState = function* readSyncState(): SqlPlan<SyncState> {
   return {
     cursor: counterOf(yield* readMeta("cursor")),
     epoch: epoch === null ? null : epochSchema.parse(epoch),
-    head: counterOf(yield* readMeta("head")),
   };
 };
 
@@ -75,7 +72,6 @@ export const writeSyncState = function* writeSyncState(state: SyncState): SqlPla
     yield* writeMeta("epoch", state.epoch);
   }
   yield* writeMeta("cursor", state.cursor);
-  yield* writeMeta("head", state.head);
 };
 
 // ---- what a page touched ----
@@ -102,14 +98,6 @@ const touch = (touched: Touched, kind: LibraryChange["kind"], id: string): void 
 };
 
 // ---- an item ----
-
-const ITEM_TABLES = [
-  "DELETE FROM blocks WHERE item_id = ?",
-  "DELETE FROM links WHERE source_id = ?",
-  "DELETE FROM item_tags WHERE item_id = ?",
-  "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM body_wants WHERE item_id = ?",
-] as const;
 
 const wantBody = function* wantBody(itemId: string, seq: number): SqlPlan<void> {
   yield run(
@@ -168,14 +156,6 @@ const layLiveRow = function* layLiveRow(row: LiveItemRow): SqlPlan<boolean> {
   return landed;
 };
 
-const forgetItem = function* forgetItem(itemId: string): SqlPlan<void> {
-  yield run("DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)", [itemId]);
-  for (const sql of ITEM_TABLES) {
-    yield run(sql, [itemId]);
-  }
-  yield run("DELETE FROM items WHERE id = ?", [itemId]);
-};
-
 const applyItem = function* applyItem(
   change: Extract<LibraryChange, { kind: "item" }>,
   touched: Touched,
@@ -185,9 +165,7 @@ const applyItem = function* applyItem(
     return;
   }
   const { row } = change;
-  if (row === null) {
-    yield* forgetItem(change.id);
-  } else if (row.kind === "purged") {
+  if (row.kind === "purged") {
     yield* storeTombstone({
       deletedAt: row.deletedAt ?? row.updatedAt,
       id: row.id,
@@ -208,15 +186,13 @@ const applyFolder = function* applyFolder(
   touched: Touched,
 ): SqlPlan<void> {
   const { row } = change;
-  yield row === null
-    ? run("DELETE FROM folders WHERE id = ? AND seq < ?", [change.id, change.seq])
-    : run(
-        `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, name = excluded.name,
-         sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq
-       WHERE excluded.seq > folders.seq`,
-        [row.id, row.parentId, row.name, row.sort, row.deletedAt, row.seq],
-      );
+  yield run(
+    `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, name = excluded.name,
+       sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq
+     WHERE excluded.seq > folders.seq`,
+    [row.id, row.parentId, row.name, row.sort, row.deletedAt, row.seq],
+  );
   touch(touched, "folder", change.id);
 };
 
@@ -347,7 +323,6 @@ const SYNCED_TABLES = [
   "search_fts",
   "threads",
   "thread_events",
-  "changes",
   "body_wants",
 ] as const;
 
@@ -355,8 +330,8 @@ export const wipeSynced = function* wipeSynced(epoch: string | null): SqlPlan<vo
   for (const table of SYNCED_TABLES) {
     yield run(`DELETE FROM ${table}`);
   }
-  yield run("DELETE FROM meta WHERE k IN ('epoch', 'cursor', 'head')");
-  yield* writeSyncState({ cursor: 0, epoch, head: 0 });
+  yield run("DELETE FROM meta WHERE k IN ('epoch', 'cursor')");
+  yield* writeSyncState({ cursor: 0, epoch });
 };
 
 // ---- this device's own landings ----
@@ -367,10 +342,10 @@ export const wipeSynced = function* wipeSynced(epoch: string | null): SqlPlan<vo
 export const landOwnRow = function* landOwnRow(
   row: LiveItemRow,
   blocks: { readonly written: readonly StoredBlock[]; readonly dropped: readonly string[] },
-): SqlPlan<boolean> {
+): SqlPlan<void> {
   const landed = yield* layLiveRow(row);
   if (!landed || (blocks.written.length === 0 && blocks.dropped.length === 0)) {
-    return landed;
+    return;
   }
   yield* dropBlocks(row.id, blocks.dropped);
   const state = yield* readItemState(row.id);
@@ -385,7 +360,6 @@ export const landOwnRow = function* landOwnRow(
   yield* storeBlocks(row.id, blockWritesOf(blocks.written, derived), row.seq);
   yield* storeDerived(row.id, derived);
   yield* storeSearchRow(row.id, derived.search);
-  return landed;
 };
 
 // items a delete landed for, until the pull brings their rows as the cell holds them
@@ -455,7 +429,16 @@ export const landOwnFolders = function* landOwnFolders(
         break;
       }
       case "delete": {
-        yield run("UPDATE folders SET deleted_at = ? WHERE id = ?", [at, op.id]);
+        yield run(
+          `WITH RECURSIVE gone (id) AS (
+             SELECT ?
+             UNION
+             SELECT folders.id FROM folders JOIN gone ON folders.parent_id = gone.id
+             WHERE folders.deleted_at IS NULL
+           )
+           UPDATE folders SET deleted_at = ? WHERE id IN (SELECT id FROM gone)`,
+          [op.id, at],
+        );
         break;
       }
       // no default
