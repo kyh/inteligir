@@ -167,7 +167,7 @@
     "katex": "^0.19.1",
     "lowlight": "^3.3.0",
     "lucide-react": "catalog:",
-    "mermaid": "^12.2.0",
+    "mermaid": "^12.3.0",
     "platejs": "^53.3.15",
     "react-day-picker": "^10.0.2",
     "zod": "catalog:",

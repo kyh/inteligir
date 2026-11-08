@@ -47,7 +47,7 @@ const rowOf = (text: string): HTMLElement => {
     (node) => node.querySelector('[data-slate-node="element"]')?.textContent === text,
   );
   if (!(row instanceof HTMLElement)) {
-    throw new Error(`no block row reads "${text}"`);
+    throw new TypeError(`no block row reads "${text}"`);
   }
   return row;
 };
