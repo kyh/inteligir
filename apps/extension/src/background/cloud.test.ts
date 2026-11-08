@@ -4,10 +4,14 @@ import { describe, expect, it } from "vitest";
 import { failureOf, FileRefusedError } from "./cloud";
 
 describe("what a failed call means for its save", () => {
-  it("is a connection ended for a revoked credential or a deleted account", () => {
+  it("is a sign-in ended for a session the cloud no longer holds", () => {
     expect(failureOf(new ORPCError("UNAUTHORIZED"))).toStrictEqual({ kind: "signed-out" });
-    expect(failureOf(new ORPCError("GONE"))).toStrictEqual({ kind: "signed-out" });
     expect(failureOf(new FileRefusedError(401))).toStrictEqual({ kind: "signed-out" });
+  });
+
+  it("is an account gone for one the cloud deleted, which no sign-in brings back", () => {
+    expect(failureOf(new ORPCError("GONE"))).toStrictEqual({ kind: "gone" });
+    expect(failureOf(new FileRefusedError(410))).toStrictEqual({ kind: "gone" });
   });
 
   it("is a refusal in the person's words where they can act on it", () => {

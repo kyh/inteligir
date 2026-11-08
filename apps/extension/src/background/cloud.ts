@@ -1,8 +1,8 @@
 // The extension's calls to its cloud, `/v1` as every app calls it: `/v1/rpc` through oRPC's link
-// and a file's bytes by their sha, each with the device credential as its bearer and this build in
-// a header, so the floor holds the extension as it holds every client. Every call has a deadline
-// under the 30 s a service worker waits on a fetch, so a cloud that never answers leaves a save
-// queued rather than a popup waiting.
+// and a file's bytes by their sha, each with the browser's session cookie as its bearer
+// (./sign-in) and this build in a header, so the floor holds the extension as it holds every
+// client. Every call has a deadline under the 30 s a service worker waits on a fetch, so a cloud
+// that never answers leaves a save queued rather than a popup waiting.
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -12,7 +12,7 @@ import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 
-import type { Connection } from "./connection";
+import type { Session } from "./sign-in";
 
 type Items = V1Client["library"]["items"];
 /** @internal */
@@ -27,14 +27,12 @@ export interface Saved {
   readonly item: { readonly fields: { readonly title: string } };
 }
 
-// what a save asks of the cloud: the library's two saves and a file's create, the bytes, and the
-// sign-out that lets this credential go
+// what a save asks of the cloud: the library's two saves and a file's create, and the bytes
 export interface Cloud {
   readonly save: (input: PageSave) => Promise<Saved>;
   readonly saveLink: (input: LinkSave) => Promise<Saved>;
   readonly createFile: (input: FileCreate) => Promise<Pick<Saved, "item">>;
   readonly putFile: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<string>;
-  readonly signOut: () => Promise<void>;
 }
 
 export const CALL_DEADLINE_MS = 25_000;
@@ -57,23 +55,22 @@ export class FileRefusedError extends Error {
   }
 }
 
-export const cloudOf = (connection: Connection, version: string): Cloud => {
-  const headers = { ...buildHeaders(version), authorization: `Bearer ${connection.credential}` };
-  const client = createORPCClient<V1Client>(
+export const cloudOf = (session: Session, version: string): Cloud => {
+  const headers = { ...buildHeaders(version), authorization: `Bearer ${session.bearer}` };
+  const { items } = createORPCClient<V1Client>(
     new RPCLink({
       fetch: async (url, init) =>
         await fetch(url, { ...init, signal: AbortSignal.timeout(CALL_DEADLINE_MS) }),
       headers,
-      origin: connection.origin,
+      origin: session.origin,
       url: V1_RPC_PATH,
     }),
-  );
-  const { items } = client.library;
+  ).library;
   return {
     createFile: async (input) => await items.createFile(input),
     putFile: async (bytes, mime) => {
       const sha = hexOf(await crypto.subtle.digest("SHA-256", bytes));
-      const response = await fetch(`${connection.origin}${V1_BLOBS_PATH}/${sha}`, {
+      const response = await fetch(`${session.origin}${V1_BLOBS_PATH}/${sha}`, {
         body: bytes,
         headers: { ...headers, "content-type": mime },
         method: "PUT",
@@ -87,16 +84,16 @@ export const cloudOf = (connection: Connection, version: string): Cloud => {
     },
     save: async (input) => await items.save(input),
     saveLink: async (input) => await items.saveLink(input),
-    signOut: async () => {
-      await client.account.signOut();
-    },
   };
 };
 
 // what a failed call means for the save that made it
 export type CallFailure =
-  // the credential is revoked or the account gone: the extension is no longer connected
+  // the session ended, signed out on the site, from another device or by its age: what was saved
+  // under it waits for that account to sign in again
   | { readonly kind: "signed-out" }
+  // the account was deleted: nothing saved under it can land
+  | { readonly kind: "gone" }
   // a refusal no resend passes, in the words it names
   | { readonly kind: "refused"; readonly reason: CallRefusal }
   // no answer, or one a later try may pass: the save waits to be sent again
@@ -118,7 +115,7 @@ const FAULT_STATUS = 500;
 // a file's statuses, as `/v1/blobs` answers them
 const FILE_REFUSALS = new Map<number, CallFailure>([
   [401, { kind: "signed-out" }],
-  [410, { kind: "signed-out" }],
+  [410, { kind: "gone" }],
   [413, { kind: "refused", reason: "too-large" }],
   [426, { kind: "refused", reason: "update-extension" }],
   [507, { kind: "refused", reason: "library-full" }],
@@ -132,8 +129,11 @@ export const failureOf = (cause: unknown): CallFailure => {
   if (!isOrpcError(cause)) {
     return { kind: "unanswered" };
   }
-  if (cause.code === "UNAUTHORIZED" || cause.code === "GONE") {
+  if (cause.code === "UNAUTHORIZED") {
     return { kind: "signed-out" };
+  }
+  if (cause.code === "GONE") {
+    return { kind: "gone" };
   }
   const reason = REFUSALS.get(cause.code);
   if (reason !== undefined) {

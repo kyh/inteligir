@@ -10,17 +10,15 @@ export const extensionRequestSchema = z.discriminatedUnion("type", [
   z.strictObject({ tabId: z.number().int(), type: z.literal("save") }),
   // whose library this browser saves to, and where it is
   z.strictObject({ type: z.literal("status") }),
-  // let this browser's connection go
-  z.strictObject({ type: z.literal("disconnect") }),
 ]);
 export type ExtensionRequest = z.infer<typeof extensionRequestSchema>;
 
 // why a save did not land, each said in outcome-copy.ts
 /** @internal */
 export const OUTCOME_REASONS = [
-  // no account connected in this browser yet
+  // no account signed in here yet, or the one that was is deleted
   "not-connected",
-  // the account's credential was revoked or the account deleted
+  // the account's session ended, for a picture, which waits in no queue
   "signed-out",
   "unsupported-page",
   "update-extension",
@@ -36,20 +34,17 @@ export type OutcomeReason = (typeof OUTCOME_REASONS)[number];
 const outcomeSchema = z.discriminatedUnion("kind", [
   // `created` is false for a page the library already held, which the save answered with
   z.object({ created: z.boolean(), kind: z.literal("saved"), title: z.string() }),
-  // the cloud did not answer: the save waits and goes once it does
-  z.object({ kind: z.literal("queued") }),
+  // the save waits and goes once the cloud answers, or once its account signs in again
+  z.object({ kind: z.literal("queued"), waitsFor: z.enum(["connection", "sign-in"]) }),
   z.object({ kind: z.literal("refused"), reason: z.enum(OUTCOME_REASONS) }),
 ]);
 export type Outcome = z.infer<typeof outcomeSchema>;
 
 const statusSchema = z.object({
-  // the site's page that connects this browser to an account
-  connectUrl: z.string(),
-  // the connection this browser holds, the account's email, the library's address and the page
-  // with Disconnect, or none
-  connection: z
-    .object({ email: z.string(), libraryUrl: z.string(), manageUrl: z.string() })
-    .nullable(),
+  // the account this browser is signed in as and the library's address, or none
+  account: z.object({ email: z.string(), libraryUrl: z.string() }).nullable(),
+  // the site's page that signs this browser in and comes back to tell the extension
+  signInUrl: z.string(),
 });
 export type Status = z.infer<typeof statusSchema>;
 
@@ -78,11 +73,9 @@ export interface WorkerAsks {
   readonly save: (tabId: number) => Promise<Outcome>;
   // null for an answer that is not a status
   readonly status: () => Promise<Status | null>;
-  readonly disconnect: () => Promise<Status | null>;
 }
 
 export const askWorker: WorkerAsks = {
-  disconnect: async () => await answerTo({ type: "disconnect" }, statusSchema, null),
   save: async (tabId) => await answerTo({ tabId, type: "save" }, outcomeSchema, SAVE_FAILED),
   status: async () => await answerTo({ type: "status" }, statusSchema, null),
 };

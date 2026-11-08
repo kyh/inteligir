@@ -1,7 +1,8 @@
 // the toolbar's badge says how a save went on the tab it was made from: "…" while it runs, "✓"
-// for two seconds once it lands or waits to be sent, or "!" with the reason as the button's title
-// until the next save. Each save cancels the clear an earlier one left on its tab, so a later "…",
-// "✓" or "!" is never wiped by it.
+// for two seconds once it lands or waits for the cloud, or "!" with the line as the button's title
+// until the next save, for a refusal or a save that waits for the person to sign in. Each save
+// cancels the clear an earlier one left on its tab, so a later "…", "✓" or "!" is never wiped by
+// it.
 
 import { browser } from "wxt/browser";
 
@@ -37,11 +38,12 @@ export const showSaving = async (tabId: number): Promise<void> => {
 
 export const showOutcome = async (tabId: number, outcome: Outcome): Promise<void> => {
   cancelClear(tabId);
-  if (outcome.kind === "refused") {
-    await setBadge(tabId, "!", outcomeLine(outcome).text);
+  const line = outcomeLine(outcome);
+  if (outcome.kind === "refused" || line.signIn) {
+    await setBadge(tabId, "!", line.text);
     return;
   }
-  await setBadge(tabId, SAVED, outcomeLine(outcome).text);
+  await setBadge(tabId, SAVED, line.text);
   pendingClears.set(
     tabId,
     setTimeout(() => {

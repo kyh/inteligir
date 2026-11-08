@@ -17,6 +17,7 @@
     "@repo/notes": "workspace:*",
     "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
+    "better-auth": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "zod": "catalog:"

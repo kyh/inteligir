@@ -11,7 +11,7 @@ import type { Server } from "node:http";
 import { z } from "zod";
 import { untilBodyHolds } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import {
   asLocalhost,
@@ -19,6 +19,7 @@ import {
   extensionLaunchFlags,
   extensionPage,
   saveFromWorker,
+  sessionBearerOf,
 } from "../harness/extension-fixture";
 import type { Scenario } from "../harness/scenario";
 import { v1Client } from "../harness/v1-wire";
@@ -86,12 +87,9 @@ export const extensionIntegrated: Scenario = {
   name: "extension-integrated",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
-    await signUp(worker.origin);
-    const device = await v1Client(worker, null).account.signIn({
-      ...OWNER,
-      deviceName: "E2E Oracle",
-    });
-    const { library } = v1Client(worker, device.credential);
+    const owner = await signUp(worker.origin);
+    // the account's own session, called through the extension's door
+    const { library } = v1Client(worker, sessionBearerOf(owner.cookie));
     const article = await startArticleServer();
     try {
       const browser = await ctx.browser("extension-integrated", {

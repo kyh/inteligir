@@ -1,46 +1,51 @@
-// The extension's own device credential and the cloud it was handed from, kept in
+// The cloud this browser saves to and the account last read signed in there, kept in
 // `storage.local`, which the worker opens to the extension's own pages and itself alone
-// (`TRUSTED_CONTEXTS`, set as it starts), never to the capture script it injects into a page. The
-// site's connect page hands it over (`answerConnectPage`), its sender checked and its message
-// parsed by the listener first; a credential it replaces or lets go is revoked by this device,
-// best-effort and never waited on, since an unreachable cloud must not hold a disconnect open.
+// (`TRUSTED_CONTEXTS`, set as it starts), never to the capture script it injects into a page. It
+// holds no credential: the session is the browser's own (./sign-in). The site's connect page names
+// the cloud (`answerConnectPage`), its sender checked and its message parsed by the listener first.
 
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
-import type {
-  ExtensionConnectAnswer,
-  ExtensionConnectRequest,
-} from "@repo/contract/cloud/extension/extension-connect";
-import { deviceLoginResponseSchema } from "@repo/contract/cloud/device/device-schema";
+import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
+import { DEV_CLOUD_ORIGIN } from "../manifest";
 import type { ExtensionFlavor } from "../manifest";
+import type { SignIn } from "./sign-in";
 
 const CONNECTION_KEY = "connection";
 
-// what a connect handed over, and the origin of the page that handed it, which is the cloud every
-// call goes to
+// the account a save made signed out waits for, and the cloud every call goes to
 const connectionSchema = z.strictObject({
-  ...deviceLoginResponseSchema.shape,
+  email: z.string().min(1),
   origin: z.string().min(1),
 });
 export type Connection = z.infer<typeof connectionSchema>;
 
-// a record that does not parse reads as no connection, never as a credential every call refuses
+// a record that does not parse reads as no connection
 export const readConnection = async (): Promise<Connection | null> => {
   const stored = await browser.storage.local.get(CONNECTION_KEY);
   const parsed = connectionSchema.safeParse(stored[CONNECTION_KEY]);
   return parsed.success ? parsed.data : null;
 };
 
-const keepConnection = async (connection: Connection): Promise<void> => {
+export const keepConnection = async (connection: Connection): Promise<void> => {
   await browser.storage.local.set({ [CONNECTION_KEY]: connection });
 };
 
 export const forgetConnection = async (): Promise<void> => {
   await browser.storage.local.remove(CONNECTION_KEY);
 };
+
+// the cloud this build saves to before a connect page names one: the production site, or for the
+// dev build the local Worker `pnpm dev:web` serves. The mode is a literal in the bundle, so a store
+// build carries no checkout's origin (the zip's check in wxt.config.ts)
+const FIRST_CLOUD_ORIGIN =
+  import.meta.env.MODE === "store" ? PRODUCTION_CLOUD_ORIGIN : DEV_CLOUD_ORIGIN;
+
+export const cloudOrigin = (connection: Connection | null): string =>
+  connection?.origin ?? FIRST_CLOUD_ORIGIN;
 
 // the fields of Chrome's MessageSender this reads
 export interface ConnectSender {
@@ -74,33 +79,18 @@ export const connectPageOrigin = (
 };
 
 export interface ConnectDeps {
-  // a credential this extension lets go, revoked at the cloud it came from
-  readonly revoke: (connection: Connection) => Promise<void>;
+  // the cloud at `origin` asked whose session the browser holds there, the account it names kept
+  // as this browser's; null when it did not answer
+  readonly signIn: (origin: string) => Promise<SignIn | null>;
 }
 
-// a revoke the cloud did not take leaves a device the devices page can revoke
-export const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise<void> => {
-  try {
-    await deps.revoke(connection);
-  } catch {
-    // nothing to say: this device has let it go either way
-  }
-};
-
-// the connect page's hello or its hand-over, from the page at `origin`: a hello connects no
-// account, and a hand-over answers the one the extension now saves to
+// a message from the connect page at `origin`, which the listener parsed: the account the browser
+// is signed in as there, which the extension now saves to, or none. The message itself carries
+// nothing the answer reads
 export const answerConnectPage = async (
-  request: ExtensionConnectRequest,
   origin: string,
   deps: ConnectDeps,
 ): Promise<ExtensionConnectAnswer> => {
-  if (request.type === "hello") {
-    return { email: null };
-  }
-  const held = await readConnection();
-  await keepConnection({ ...request.connection, origin });
-  if (held !== null && held.credential !== request.connection.credential) {
-    void revokeQuietly(deps, held);
-  }
-  return { email: request.connection.email };
+  const signIn = await deps.signIn(origin);
+  return { email: signIn?.kind === "signed-in" ? signIn.session.email : null };
 };

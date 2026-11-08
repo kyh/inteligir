@@ -1,7 +1,6 @@
 // the toolbar's popup: it saves the tab it opened over as soon as it opens and says how that went,
-// in outcome-copy.ts's sentences, never the cloud's own words; a browser not yet connected to an
-// account is pointed at the site's page that connects it, and a connected one at its library and
-// the page that lets the connection go.
+// in outcome-copy.ts's sentences, never the cloud's own words; a browser not signed in is pointed at
+// the site's page that signs it in, and a signed-in one says as whom and links its library.
 
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useRef, useState } from "react";
@@ -25,11 +24,11 @@ const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status
     );
   }
   const line = outcomeLine(outcome);
-  if (line.connect && status !== null) {
+  if (line.signIn && status !== null) {
     return (
       <a
         className="text-subtitle text-foreground underline"
-        href={status.connectUrl}
+        href={status.signInUrl}
         rel="noreferrer"
         target="_blank"
       >
@@ -94,28 +93,21 @@ export const Popup = ({ activeTabId, ask }: PopupProps) => {
     };
   }, [activeTabId, ask]);
 
-  const connection = opened?.status?.connection ?? null;
+  const account = opened?.status?.account ?? null;
 
   return (
     <main className="flex w-80 flex-col gap-3 bg-background p-4 text-foreground">
       <Headline outcome={opened?.answer ?? null} status={opened?.status ?? null} />
-      {connection === null ? null : (
+      {account === null ? null : (
         <>
+          <p className="truncate text-body text-muted-foreground">{`Signed in as ${account.email}`}</p>
           <a
             className="text-body text-muted-foreground underline"
-            href={connection.libraryUrl}
+            href={account.libraryUrl}
             rel="noreferrer"
             target="_blank"
           >
             Open your library
-          </a>
-          <a
-            className="text-body text-muted-foreground underline"
-            href={connection.manageUrl}
-            rel="noreferrer"
-            target="_blank"
-          >
-            Manage connection
           </a>
         </>
       )}

@@ -4,9 +4,8 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
 import type { ExtensionRequest, WorkerAnswer } from "../messages";
-import type { Connection } from "./connection";
 import { connectPageListener, ownPagesListener } from "./listeners";
-import { CONNECTION } from "./test-support/fake-cloud";
+import { SESSION, SIGNED_IN } from "./test-support/fake-cloud";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -25,11 +24,16 @@ const answersOf = <T>() => {
   return { answers, respond };
 };
 
+const SIGNED_OUT_STATUS = {
+  account: null,
+  signInUrl: "http://localhost:5174/connect/extension",
+} as const;
+
 describe("the extension's own pages", () => {
   const asked: ExtensionRequest[] = [];
   const listener = ownPagesListener(async (request) => {
     asked.push(request);
-    return { connectUrl: "http://localhost:5174/connect/extension", connection: null };
+    return SIGNED_OUT_STATUS;
   });
   const POPUP = { id: browser.runtime.id, url: browser.runtime.getURL("/popup.html") };
 
@@ -41,7 +45,7 @@ describe("the extension's own pages", () => {
     const { answers, respond } = answersOf<WorkerAnswer>();
     expect(listener({ type: "status" }, POPUP, respond)).toBe(true);
     await vi.waitFor(() => {
-      expect(answers).toMatchObject([{ connection: null }]);
+      expect(answers).toStrictEqual([SIGNED_OUT_STATUS]);
     });
     expect(asked).toStrictEqual([{ type: "status" }]);
   });
@@ -49,7 +53,7 @@ describe("the extension's own pages", () => {
   it("are answered a failure when the work behind the answer failed", async () => {
     const failing = ownPagesListener(async () => {
       await Promise.reject(new Error("storage is full"));
-      return { connectUrl: "", connection: null };
+      return SIGNED_OUT_STATUS;
     });
     const { answers, respond } = answersOf<WorkerAnswer>();
     expect(failing({ type: "status" }, POPUP, respond)).toBe(true);
@@ -61,22 +65,24 @@ describe("the extension's own pages", () => {
   it("are the only senders it answers, and only with a message it parses", () => {
     const refused = [
       // the capture script in a web page sends under the extension's id, with that page's url
-      [{ ...POPUP, url: "https://example.test/article" }, { type: "disconnect" }],
-      [{ id: browser.runtime.id }, { type: "disconnect" }],
+      [{ ...POPUP, url: "https://example.test/article" }, { type: "status" }],
+      [{ id: browser.runtime.id }, { type: "status" }],
       // another extension's page
       [
         { id: "another-extension", url: "chrome-extension://another-extension/popup.html" },
-        { type: "disconnect" },
+        { type: "status" },
       ],
-      [{ id: "another-extension", url: POPUP.url }, { type: "disconnect" }],
+      [{ id: "another-extension", url: POPUP.url }, { type: "status" }],
       // an id that only begins with this one's
       [
         { ...POPUP, url: `chrome-extension://${browser.runtime.id}x/popup.html` },
-        { type: "disconnect" },
+        { type: "status" },
       ],
       [POPUP, { type: "save" }],
-      [POPUP, { tabId: 1, type: "disconnect" }],
-      [POPUP, "disconnect"],
+      [POPUP, { tabId: 1, type: "status" }],
+      [POPUP, "status"],
+      // the extension has no sign-out of its own: the site's signs it out
+      [POPUP, { type: "disconnect" }],
     ] as const;
     const { answers, respond } = answersOf<WorkerAnswer>();
     for (const [sender, message] of refused) {
@@ -88,47 +94,50 @@ describe("the extension's own pages", () => {
 });
 
 describe("the connect page", () => {
-  const { origin: _origin, ...MINTED } = CONNECTION;
   const PAGE = { origin: "https://inteligir.com", url: "https://inteligir.com/connect/extension" };
-  const revoked: Connection[] = [];
+  const asked: string[] = [];
   let followed = 0;
+  let signIn = async (origin: string) => {
+    asked.push(origin);
+    return SIGNED_IN;
+  };
   const listener = connectPageListener("store", {
     answered: async () => {
       followed += 1;
     },
-    revoke: async (connection) => {
-      revoked.push(connection);
-    },
+    signIn: async (origin) => await signIn(origin),
   });
 
   beforeEach(() => {
-    revoked.length = 0;
+    asked.length = 0;
     followed = 0;
+    signIn = async (origin) => {
+      asked.push(origin);
+      return SIGNED_IN;
+    };
   });
 
-  it("hands over a credential the extension keeps, and what waited goes after it", async () => {
+  it("is answered the account the browser is signed in as on its site, and what waited goes after it", async () => {
     const { answers, respond } = answersOf<ExtensionConnectAnswer>();
-    expect(listener({ connection: MINTED, type: "connect" }, PAGE, respond)).toBe(true);
+    expect(listener({ type: "connect" }, PAGE, respond)).toBe(true);
     await vi.waitFor(() => {
       expect(followed).toBe(1);
     });
-    expect(answers).toStrictEqual([{ email: MINTED.email }]);
-    await expect(browser.storage.local.get(null)).resolves.toStrictEqual({
-      connection: { ...MINTED, origin: PAGE.origin },
-    });
+    expect(answers).toStrictEqual([{ email: SESSION.email }]);
+    expect(asked).toStrictEqual([PAGE.origin]);
   });
 
-  it("is answered as not connected when the credential could not be kept", async () => {
-    vi.spyOn(browser.storage.local, "set").mockRejectedValue(new Error("storage is full"));
+  it("is answered as not connected when the sign-in could not be read or kept", async () => {
+    signIn = async () => await Promise.reject(new Error("storage is full"));
     const { answers, respond } = answersOf<ExtensionConnectAnswer>();
-    expect(listener({ connection: MINTED, type: "connect" }, PAGE, respond)).toBe(true);
+    expect(listener({ type: "connect" }, PAGE, respond)).toBe(true);
     await vi.waitFor(() => {
       expect(answers).toStrictEqual([{ email: null }]);
     });
   });
 
-  it("is the only sender it hears, and only with a message it parses, and keeps nothing else", async () => {
-    const connect = { connection: MINTED, type: "connect" } as const;
+  it("is the only sender it hears, and only with a message it parses, and asks nothing else", async () => {
+    const connect = { type: "connect" } as const;
     const refused = [
       [{ origin: "https://evil.example", url: "https://evil.example/connect/extension" }, connect],
       [{ origin: PAGE.origin, url: "https://inteligir.com/library" }, connect],
@@ -140,7 +149,7 @@ describe("the connect page", () => {
         { origin: "http://localhost:5174", url: "http://localhost:5174/connect/extension" },
         connect,
       ],
-      [PAGE, { connection: { ...MINTED, credential: "not-a-credential" }, type: "connect" }],
+      [PAGE, { connection: "not-a-credential", type: "connect" }],
       [PAGE, { ...connect, extra: true }],
       [PAGE, { type: "disconnect" }],
       [PAGE, null],
@@ -151,7 +160,7 @@ describe("the connect page", () => {
     }
     expect(answers).toStrictEqual([]);
     await expect(browser.storage.local.get(null)).resolves.toStrictEqual({});
+    expect(asked).toStrictEqual([]);
     expect(followed).toBe(0);
-    expect(revoked).toStrictEqual([]);
   });
 });

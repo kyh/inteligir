@@ -1,10 +1,10 @@
 // The worker's two doors for a message, each refusing every sender but its own and every message
 // that does not parse before anything reaches storage or the cloud: the extension's own pages (the
-// popup, the welcome page), which ask for a save, a status or a disconnect, and the one connect
-// page the manifest names, which hands over a credential. A refused message is answered with
-// nothing (the listener returns false); an accepted one is answered once its work is done, so the
-// listener returns true to keep the channel open for it, and a work that failed (a storage fault)
-// is answered too, as a failure, so no page waits on an answer that never comes.
+// popup, the welcome page), which ask for a save or a status, and the one connect page the manifest
+// names, which asks the extension to save to the account signed in there. A refused message is
+// answered with nothing (the listener returns false); an accepted one is answered once its work is
+// done, so the listener returns true to keep the channel open for it, and a work that failed (a
+// storage fault) is answered too, as a failure, so no page waits on an answer that never comes.
 
 import { extensionConnectRequestSchema } from "@repo/contract/cloud/extension/extension-connect";
 import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
@@ -48,7 +48,7 @@ export const ownPagesListener = (answer: (request: ExtensionRequest) => Promise<
   }) satisfies MessageListener;
 
 export interface ConnectPageDeps extends ConnectDeps {
-  // what follows a connect page's answer: a save made before the connection waits no longer
+  // what follows a connect page's answer: a save made before the sign-in waits no longer
   readonly answered: () => Promise<void>;
 }
 
@@ -63,7 +63,7 @@ export const connectPageListener = (flavor: ExtensionFlavor, deps: ConnectPageDe
     void (async () => {
       let answer: ExtensionConnectAnswer;
       try {
-        answer = await answerConnectPage(parsed.data, origin, deps);
+        answer = await answerConnectPage(origin, deps);
       } catch {
         // the page reads this as not connected, and may ask again
         answer = { email: null };
