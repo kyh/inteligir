@@ -1,49 +1,46 @@
-// What the phone holds that has not reached the library, said above the list and the open item:
-// a change the library refused waits here for the person, who sends it again or lets it go, and
-// changes held while the cloud cannot be reached say they will go once it can. Nothing shows while
-// everything is up to date or on its way.
+// The shares this phone keeps that the library has not taken, said above the list and the open
+// item: how many wait to be sent once the cloud can be reached, and each one the library refused,
+// which waits for the person to send it again or let it go. Nothing shows while none waits.
 
 import { Alert, Text, View } from "react-native";
-import type { ParkedWrite, ReplicaStatus } from "@repo/library-replica/library-replica";
-import { useLibrary, useReplicaStatus } from "@/lib/library-hooks";
+import { useSyncExternalStore } from "react";
+import type { WaitingShare } from "@/items/share-outbox";
+import { useLibrary } from "@/lib/library-hooks";
 import { TextButton } from "@/ui/text-button";
 
 // a notice's card, the same for each kind
 const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";
 
-const changes = (count: number): string => (count === 1 ? "1 change" : `${String(count)} changes`);
+const savesWaiting = (count: number): string =>
+  count === 1 ? "1 save waiting" : `${String(count)} saves waiting`;
 
-// what waits on a connection, said only while the cloud cannot be reached
-const waitingLine = (status: ReplicaStatus): string | null => {
-  if (status.unsent === status.parked.length) {
-    return null;
-  }
-  return status.failure?.kind === "unreachable"
-    ? `${changes(status.unsent - status.parked.length)} on this iPhone will be saved to your library once it can be reached.`
-    : null;
-};
+const shareName = (share: WaitingShare): string =>
+  share.save.kind === "link" ? share.save.url : share.save.text;
 
 const confirmDiscard = (letGo: () => void): void => {
-  Alert.alert("Let this change go?", "It was kept only on this iPhone, and goes for good.", [
+  Alert.alert("Let this save go?", "It was kept only on this iPhone, and goes for good.", [
     { style: "cancel", text: "Cancel" },
     { onPress: letGo, style: "destructive", text: "Let it go" },
   ]);
 };
 
-const Parked = ({ write }: { write: ParkedWrite }) => {
-  const { replica } = useLibrary();
+const Refused = ({ share }: { share: WaitingShare }) => {
+  const { shares } = useLibrary();
   return (
     <View className={FRAME}>
       <Text className="text-14 font-semibold text-card-foreground">
-        A change was not saved to your library
+        A save didn&rsquo;t reach your library
       </Text>
-      <Text className="text-14 text-muted-foreground">{write.reason}</Text>
+      <Text className="text-14 text-card-foreground" numberOfLines={2}>
+        {shareName(share)}
+      </Text>
+      <Text className="text-14 text-muted-foreground">{share.refused}</Text>
       <View className="flex-row flex-wrap gap-4">
         <TextButton
           fontSize={14}
           label="Try again"
           onPress={() => {
-            void replica.retry(write.seq);
+            void shares.retry(share.opId);
           }}
         />
         <TextButton
@@ -51,7 +48,7 @@ const Parked = ({ write }: { write: ParkedWrite }) => {
           label="Let it go"
           onPress={() => {
             confirmDiscard(() => {
-              void replica.discard(write.seq);
+              void shares.discard(share.opId);
             });
           }}
         />
@@ -61,19 +58,24 @@ const Parked = ({ write }: { write: ParkedWrite }) => {
 };
 
 export const UnsentBanner = ({ className = "" }: { className?: string }) => {
-  const status = useReplicaStatus();
-  const waiting = waitingLine(status);
-  if (status.parked.length === 0 && waiting === null) {
+  const { shares } = useLibrary();
+  const waiting = useSyncExternalStore(shares.waiting.subscribe, shares.waiting.get);
+  if (waiting.length === 0) {
     return null;
   }
+  const refused = waiting.filter((share) => share.refused !== null);
+  const unsent = waiting.length - refused.length;
   return (
     <View className={`gap-2 pb-2 ${className}`}>
-      {status.parked.map((write) => (
-        <Parked key={write.seq} write={write} />
+      {refused.map((share) => (
+        <Refused key={share.opId} share={share} />
       ))}
-      {waiting === null ? null : (
+      {unsent === 0 ? null : (
         <View className={FRAME}>
-          <Text className="text-14 text-card-foreground">{waiting}</Text>
+          <Text className="text-14 font-semibold text-card-foreground">{savesWaiting(unsent)}</Text>
+          <Text className="text-14 text-muted-foreground">
+            They go to your library once it can be reached.
+          </Text>
         </View>
       )}
     </View>

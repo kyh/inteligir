@@ -1,6 +1,6 @@
 // One conversation with the built-in agent, drawn natively over the same logic the library's page
-// draws its panel with (`@repo/agent-panel`): the thread's stored events from the replica, so it
-// reads offline, the reply being written from the socket, the approval waiting with Approve and
+// draws its panel with (`@repo/agent-panel`): the thread's stored events as the phone last read
+// them, so it reads offline, the reply being written from the socket, the approval waiting with Approve and
 // Cancel, each turn's ending in the person's words, and the composer, whose message carries the
 // item it was asked from. A send, an answer and a stop go to the cell, so each waits for a
 // connection and says so; the day's allowance and an agent switched off are said as the page says
@@ -31,7 +31,13 @@ import {
   workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, WaitingApproval } from "@repo/agent-panel/thread-entries";
-import { useLibrary, usePreview, useThreadEvents, useThreads } from "@/lib/library-hooks";
+import {
+  useLibrary,
+  usePreview,
+  useThreadEvents,
+  useThreads,
+  useTitles,
+} from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
@@ -115,8 +121,8 @@ const Approval = ({
   approval: WaitingApproval;
   onAnswer: (result: "allow" | "deny") => void;
 }) => {
-  const { replica } = useLibrary();
-  const { detail, question } = approvalWords(approval, (id) => replica.row(id)?.title ?? null);
+  const titles = useTitles();
+  const { detail, question } = approvalWords(approval, (id) => titles.get(id) ?? null);
   return (
     <View className="gap-2 rounded-lg border border-border bg-card p-3">
       <Text className="text-15 text-card-foreground">{question}</Text>
@@ -148,7 +154,7 @@ const Approval = ({
 const Conversation = ({ threadId }: { threadId: string }) => {
   const { queries } = useLibrary();
   const rows = useThreadEvents(threadId) ?? [];
-  const thread = (useThreads() ?? []).find((row) => row.id === threadId);
+  const thread = useThreads().threads?.find((row) => row.id === threadId);
   const entries = threadEntries(rows);
   const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
@@ -265,7 +271,7 @@ const ConversationScreen = () => {
   const threadId = asked === null || asked === NEW_THREAD ? null : asked;
   const fromItem = firstParam(params.item);
   const title =
-    (useThreads() ?? []).find((row) => row.id === threadId)?.title ?? "New conversation";
+    useThreads().threads?.find((row) => row.id === threadId)?.title ?? "New conversation";
   return (
     <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }} edges={["left", "right"]}>
       <Stack.Screen options={{ title }} />

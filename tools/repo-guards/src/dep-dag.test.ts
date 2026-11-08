@@ -43,16 +43,14 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/editor-bridge edge is the
     // page's wire, so the scripted phone speaks the frames the page parses; the
-    // @repo/mobile-editor edge is the page's headless merge, which the phone's runtime merges a
-    // block with; the @repo/messages-fake edge is the scripted Claude each Worker it boots runs its built-in agent against; the
-    // @repo/notes edge is the block hashes and fields the scripted phone's replica answers an item
-    // page with.
+    // @repo/messages-fake edge is the scripted Claude each Worker it boots runs its built-in agent
+    // against; the @repo/notes edge is the block hashes and fields the scripted phone answers an
+    // item page with.
     "@repo/e2e": [
       "@repo/contract",
       "@repo/editor-bridge",
       "@repo/messages-fake",
       "@repo/mobile",
-      "@repo/mobile-editor",
       "@repo/notes",
     ],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
@@ -69,18 +67,17 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the @repo/notes edge the item fields a save fits, and the shared component kit draws its
     // pages; it reaches no server code.
     "@repo/extension": ["@repo/contract", "@repo/notes", "@repo/page-reader", "@repo/ui"],
-    // a `/v1` client over its own replica (@repo/library-replica), as the Mac is: the
-    // @repo/contract edge is the wire, the @repo/notes edge the library model its cards and
-    // listing read, the @repo/domain edge the library scopes its listing names, the
-    // @repo/agent-panel edge the built-in agent's conversation as every device reads it, and the
-    // @repo/editor-bridge edge the editor page's wire (EDITOR_PAGE_CLIENTS below), since the page
-    // itself ships built; it reaches no server code.
+    // a `/v1` client, its reads cached by TanStack Query: the @repo/contract edge is the wire, the
+    // @repo/notes edge the library model its cards and listing read, the @repo/domain edge the
+    // library scopes its listing names, the @repo/agent-panel edge the built-in agent's
+    // conversation as every device reads it, and the @repo/editor-bridge edge the editor page's
+    // wire (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it reaches no server
+    // code.
     "@repo/mobile": [
       "@repo/agent-panel",
       "@repo/contract",
       "@repo/domain",
       "@repo/editor-bridge",
-      "@repo/library-replica",
       "@repo/notes",
     ],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through

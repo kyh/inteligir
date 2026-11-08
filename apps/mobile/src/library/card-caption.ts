@@ -10,8 +10,7 @@ const PENDING_LINE = "Waiting to be read";
 const FAILED_LINE = "Page not read";
 
 export const cardCaption = (row: {
-  readonly fields: Pick<LibraryItemFields, "fetchState" | "site">;
-  readonly savedAt: number;
+  readonly fields: Pick<LibraryItemFields, "fetchState" | "savedAt" | "site">;
 }): string => {
   if (row.fields.fetchState === "pending") {
     return PENDING_LINE;
@@ -19,7 +18,7 @@ export const cardCaption = (row: {
   if (row.fields.fetchState === "failed") {
     return FAILED_LINE;
   }
-  return [row.fields.site, new Date(row.savedAt).toLocaleDateString()]
+  return [row.fields.site, new Date(row.fields.savedAt).toLocaleDateString()]
     .filter((part) => part !== null && part !== "")
     .join(" · ");
 };

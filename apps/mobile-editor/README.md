@@ -2,7 +2,7 @@
 
 The desktop's editor (`@repo/editor`), built as one page the phone opens in a
 WebView. `@repo/mobile` is React Native under Metro and TypeScript 6 and may
-reach the `/v1` wire, the replica engine, `@repo/domain`, `@repo/notes`,
+reach the `/v1` wire, `@repo/domain`, `@repo/notes`,
 `@repo/agent-panel` and the page's wire, `@repo/editor-bridge`; the editor is DOM React under Vite, the React Compiler and
 TypeScript 7. Expo DOM components were rejected: they compile the editor a
 second way (Metro and babel) and typecheck it under the phone's TypeScript. A
@@ -10,20 +10,15 @@ separate Vite page keeps the toolchain the editor's own tests run.
 
 The page shows ONE item for its whole life, by its id, under the touch
 profile (`EditorProfileProvider`, so the touch kit, its locked rich blocks and
-the keyboard toolbar), over the phone's replica on the other end of the bridge:
-the editor holds the item's blocks under their ids
+the keyboard toolbar), over the account's library on the other end of the
+bridge: the editor holds the item's blocks under their ids
 (`@repo/editor/item/item-editor`), and a pause writes what changed as ops, each
 under the hash or value it was computed from (`src/item/item-page.tsx`,
-`src/item/item-host.ts`). A link names its item by id, shows the name that item goes by now, and
-opens it through the native stack. The phone's replica, its outbox and its
-navigation stack stay native.
-
-The same page has a second mode, headless: an `init` in `headless` mode mounts
-no editor and merges each block the replica's outbox met changed elsewhere
-with the editor's own diff3 (`src/headless/headless-mode.ts`). The phone keeps
-one such page open, a WebView nothing shows
-(`apps/mobile/src/editor/headless-page.tsx`); it reaches no network either,
-since the page's policy refuses every connection.
+`src/item/item-host.ts`). A link names its item by id, shows the name that item
+goes by now, and opens it through the native stack. While the phone has no
+connection the editor is read-only and says "Needs a connection", and an edit
+the drop caught is written once it is back. The `/v1` calls, the file cache
+and the navigation stack stay native.
 
 ## The build
 
@@ -50,16 +45,17 @@ freely: no version field. Every frame is the JSON text of one, parsed by the
 end that receives it.
 
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
-  requests `{ id, nonce, kind, payload }` — `item` (the item as the replica
-  reads it, each block with its hash and place), `writeItem` (ops under their
-  bases, answered queued, unchanged, missing, changed with the item as it
-  reads now, invalid, or waiting on a body still to come), `linkTargets` (the
+  requests `{ id, nonce, kind, payload }` — `item` (the item as the library
+  holds it, or as the phone last read it while offline, each block with its
+  hash and place), `writeItem` (ops under their bases, answered queued,
+  unchanged, missing, changed with the item as it reads now, invalid, or
+  waiting on a body still to come), `linkTargets` (the
   items a link can name, by id and
   the title each goes by now, asked again whenever another item moves),
   `readFile` (a file a note names, by its sha, from the phone's file cache,
   which fetches it the first time, as the type it was kept or served as; none
   while the phone can reach no copy),
-  `keepFile` (a file pasted into the text, kept by the phone's replica and
+  `keepFile` (a file pasted into the text, sent up to the library and
   answered with its sha),
   `createNote` (a note of blocks an extract
   moved, or a link's new note, made in the open item's folder and answered
@@ -68,21 +64,16 @@ end that receives it.
   screen asks about before letting the item go), `openItem` (the page has
   written what it holds and asks the stack to open the item a link names),
   `flushed`.
-- Page to native, headless: `mergeAnswer { id, nonce, merged }`, a block both
-  devices changed, merged, with whether the phone's lines were kept over the
-  other's.
-- Native to page: `init { mode: "item", nonce, itemId, focus, fileMaxBytes }` or
-  `init { mode: "headless", nonce }`, `response { id, ok }`,
-  `itemChanged { ids, reset, overlapped }` (the replica moved; the page reads
-  its item again when it is among them, and says so when the replica merged
-  its write over another device's change to the same lines), `flush`
-  (answered by `flushed` with its id), and, headless,
-  `mergeJob { id, nonce, sides }`. The page follows the phone's appearance
-  through `prefers-color-scheme`, so no frame carries a theme.
+- Native to page: `init { nonce, itemId, focus, fileMaxBytes, online }`,
+  `response { id, ok }`, `itemChanged { ids, reset, overlapped }` (the library
+  moved; the page reads its item again when it is among them), `connection
+  { online }` (the phone's connection came or went), and `flush` (answered by
+  `flushed` with its id). The page follows the phone's appearance through
+  `prefers-color-scheme`, so no frame carries a theme.
 
 The native end is `apps/mobile/src/editor/editor-host.ts`, answering over the
-phone's replica through `item-ports.ts`, and `headless-page-host.ts` for the
-headless page. Native reaches the page ONLY by `injectJavaScript` of
+account's library through `item-ports.ts`. Native reaches the page ONLY by
+`injectJavaScript` of
 `nativeFrameScript(frame)`, which calls the door `connectPageBridge` installs
 on `window`, non-writable and non-configurable (`src/bridge/page-bridge.ts`):
 a message event is one a child frame's `parent.postMessage` could forge. The
@@ -106,10 +97,7 @@ index.html              the page, its CSP and a scale-1 viewport
 vite.config.ts          one IIFE, fonts inlined, the classic-page check
 vite/classic-page.ts    the entry rewrite and the build's refusal
 src/
-  main.tsx              connects the bridge, waits for init, mounts the item or
-                        serves headless
-  headless/headless-mode.ts  the headless page's merge, exported as
-                        ./headless-mode
+  main.tsx              connects the bridge, waits for init, mounts the item
   bridge/page-bridge.ts correlation, timeouts, the nonce, the window door
   item/item-page.tsx    one item's editor by its id, under the touch profile
   item/item-host.ts     its store over the bridge, its links by id, its flush
@@ -125,12 +113,12 @@ pnpm --filter @repo/mobile-editor test
 ```
 
 `src/test-support/fake-phone.ts` is the native end as the page sees it: a
-transport that records frames and answers from an in-memory replica of items
+transport that records frames and answers from an in-memory library of items
 under their block hashes. The suites cover correlation, timeouts and every
 dropped frame (`src/bridge/page-bridge.test.ts`), an item page whose pause
 reaches the phone as ops under their bases, settled again over a changed item,
-compiled like the shipped page (`src/item/item-page.test.tsx`), and the
-headless page's merge (`src/headless/headless-mode.test.ts`).
+and read-only with no connection, compiled like the shipped page
+(`src/item/item-page.test.tsx`).
 `vite/classic-page.test.ts` pins the build's verdicts. The page in a real
 browser from `file://`, with a scripted phone on its bridge, is
 `tools/e2e/src/scenarios/phone-editor-page.ts`.

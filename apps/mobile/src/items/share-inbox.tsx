@@ -2,14 +2,12 @@ import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { useShareIntentContext } from "expo-share-intent";
 import type { ShareIntent } from "expo-share-intent";
-import { newBlockId } from "@/lib/app-runtime";
 import type { PhoneLibrary } from "@/lib/compose-runtime";
 import { messageOf } from "@/lib/error-message";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
 import { sharedSaveOf } from "./share-payload";
 import { createShareQueue } from "./share-queue";
-import { saveShared } from "./share-save";
 
 // the page's meta tags as the extension read them, without the ones it found empty
 const metaOf = (meta: ShareIntent["meta"]): Record<string, string> | null => {
@@ -25,37 +23,50 @@ const metaOf = (meta: ShareIntent["meta"]): Record<string, string> | null => {
   return kept;
 };
 
-// the save, the item opened and every refusal told; it never throws, so the share is let go after,
-// unless its library left under it, when it waits for the next sign-in as a signed-out share does
+// the share sent, then its item opened or its refusal told; one that waits is the banner's
+const deliver = async (library: PhoneLibrary, opId: string): Promise<void> => {
+  const outcome = await library.shares.deliver(opId);
+  if (outcome.kind === "landed") {
+    openItem(outcome.itemId);
+  } else if (outcome.kind === "refused") {
+    Alert.alert("Couldn't save", outcome.message);
+    await library.shares.discard(opId);
+  }
+};
+
+// the share kept in the outbox, which is what lets the share context go; it never throws, and
+// answers "held" for a library that left under it, so the share waits for the next sign-in as a
+// signed-out share does
 const settleShare = async (
   library: PhoneLibrary,
   intent: ShareIntent,
 ): Promise<"settled" | "held"> => {
-  let saved: Awaited<ReturnType<typeof saveShared>>;
+  const save = sharedSaveOf({
+    meta: metaOf(intent.meta),
+    text: intent.text ?? null,
+    webUrl: intent.webUrl,
+  });
+  if (save.kind === "nothing") {
+    return "settled";
+  }
+  let kept: Awaited<ReturnType<PhoneLibrary["shares"]["keep"]>>;
   try {
-    saved = await saveShared(
-      { newBlockId, replica: library.replica },
-      sharedSaveOf({ meta: metaOf(intent.meta), text: intent.text ?? null, webUrl: intent.webUrl }),
-    );
+    kept = await library.shares.keep(save);
   } catch (error) {
     Alert.alert("Couldn't save", messageOf(error));
     return "settled";
   }
-  if (saved?.kind === "left") {
+  if (kept === null) {
     return "held";
   }
-  if (saved?.kind === "refused") {
-    Alert.alert("Couldn't save", saved.message);
-  } else if (saved !== null) {
-    openItem(saved.made.id);
-  }
+  void deliver(library, kept.opId);
   return "settled";
 };
 
 // A share from Safari, YouTube, Mail or any app is a save the app makes: the extension only hands
-// it over, and this saves it as its link, for the cloud to read once it lands, opens the item and
-// only then lets the share go, so one made while signed out (when this is not mounted) waits for
-// the sign-in.
+// it over, and this keeps it on the phone, as its link for the cloud to read once it lands, before
+// it is sent, and only then lets the share go, so one made offline waits in the outbox and one made
+// while signed out (when this is not mounted) waits for the sign-in.
 export const ShareInbox = () => {
   const library = useLibrary();
   const { hasShareIntent, resetShareIntent, shareIntent } = useShareIntentContext();

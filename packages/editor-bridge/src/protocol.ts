@@ -1,9 +1,7 @@
 // The wire between the phone editor page and the React Native screen that hosts it. Both ends ship
 // in one binary, so it breaks freely: no version field, no negotiation. Every frame crosses as a
-// JSON string and is parsed here by the end that receives it. The same page loads in one of two
-// modes, named by its `init`: an item's editor over its blocks by id, which reads and writes the
-// phone's replica in ops, or the headless page nothing shows, which merges a block two devices
-// changed, since the editor lives only in the page.
+// JSON string and is parsed here by the end that receives it. The page is an item's editor over its
+// blocks by id, which reads the item from the library and writes it back in ops through the phone.
 
 import { z } from "zod";
 
@@ -35,8 +33,8 @@ const itemIdSchema = z.string().min(1);
 
 const shaSchema = z.string().regex(SHA256_HEX_RE);
 
-// an item as the phone's replica reads it: its fields and its blocks in reading order, each with
-// the hash and the place a write's base names
+// an item as the library holds it: its fields and its blocks in reading order, each with the hash
+// and the place a write's base names
 const heldItemSchema = z.strictObject({
   blocks: z.array(
     z.strictObject({
@@ -51,9 +49,9 @@ const heldItemSchema = z.strictObject({
   fields: libraryItemFieldsSchema,
 });
 
-// what the phone's replica made of an item page's write: queued for the cell, already true, no
-// such item, a base that moved (with the item as it reads now), fields past the item's caps, or
-// a write that waits on a body still to come
+// what the library made of an item page's write: taken, already true, no such item, a base that
+// moved (with the item as it reads now), fields past the item's caps, or a write that waits on a
+// body still to come
 const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("queued") }),
   z.strictObject({ kind: z.literal("unchanged") }),
@@ -65,7 +63,7 @@ const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
 
 // One row per question an item page asks.
 const REQUEST_SCHEMAS = {
-  // the item an item page shows, as the phone's replica reads it now; null for one it holds none of
+  // the item an item page shows, as the library holds it now; null for one it holds none of
   item: {
     payload: z.strictObject({ itemId: itemIdSchema }),
     result: z.strictObject({ item: heldItemSchema.nullable() }),
@@ -75,8 +73,7 @@ const REQUEST_SCHEMAS = {
     payload: noPayload,
     result: z.strictObject({ targets: z.array(linkTargetSchema) }),
   },
-  // an item page's ops, each under the base it was computed from; the phone's replica queues them
-  // for the cell, staging every file a block names that it keeps unsent
+  // an item page's ops, each under the base it was computed from, written to the library
   writeItem: {
     payload: z.strictObject({ itemId: itemIdSchema, ops: z.array(libraryOpSchema) }),
     result: itemWriteOutcomeSchema,
@@ -87,14 +84,14 @@ const REQUEST_SCHEMAS = {
     payload: z.strictObject({ sha: shaSchema }),
     result: z.strictObject({ file: fileBytesSchema.nullable() }),
   },
-  // bytes a block is about to name (a picture pasted into the text), kept on the phone by their
-  // sha and sent up ahead of the write that names them
+  // bytes a block is about to name (a picture pasted into the text), sent up to the library by
+  // their sha ahead of the write that names them
   keepFile: {
     payload: fileBytesSchema,
     result: z.strictObject({ sha: shaSchema }),
   },
   // a note of blocks the editor moved out of the item it shows, or a link's new note, made in the
-  // folder that item is in and queued for the cell
+  // folder that item is in
   createNote: {
     payload: z.strictObject({
       besideId: itemIdSchema,
@@ -135,22 +132,6 @@ const requestFrame = <K extends RequestKind, P extends RequestSchemas[K]["payloa
     type: z.literal("request"),
   });
 
-// a block two devices changed: as the phone's write was computed from it, as the phone wrote it,
-// and as the cell holds it now
-const mergeSidesSchema = z.strictObject({
-  base: storableBlockSchema,
-  mine: storableBlockSchema,
-  theirs: storableBlockSchema,
-});
-export type MergeSides = z.infer<typeof mergeSidesSchema>;
-
-// the block merged, and whether the phone's lines were kept over the other device's change to them;
-// null when the page could not merge it
-const mergedSchema = z
-  .strictObject({ block: storableBlockSchema, overlapped: z.boolean() })
-  .nullable();
-export type MergeAnswer = z.infer<typeof mergedSchema>;
-
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     requestFrame("createNote", REQUEST_SCHEMAS.createNote.payload),
@@ -172,33 +153,23 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.strictObject({ itemId: itemIdSchema, nonce: nonceSchema, type: z.literal("openItem") }),
   // the answer to a `flush`: whether the open item's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
-  // the merge's answer to a `mergeJob` with the same id
-  z.strictObject({
-    id: idSchema,
-    merged: mergedSchema,
-    nonce: nonceSchema,
-    type: z.literal("mergeAnswer"),
-  }),
 ]);
 
 export type PageFrame = z.infer<typeof pageFrameSchema>;
 
 /** @internal */
 export const nativeFrameSchema = z.discriminatedUnion("type", [
-  z.discriminatedUnion("mode", [
-    // an item's editor over its blocks, by its id, and the most one file can be, past which the
-    // library takes none, so the page refuses a larger one before it reads a byte of it
-    z.strictObject({
-      fileMaxBytes: z.number().int().positive(),
-      focus: z.enum(["title", "body"]).nullable(),
-      itemId: itemIdSchema,
-      mode: z.literal("item"),
-      nonce: nonceSchema,
-      type: z.literal("init"),
-    }),
-    // the page nothing shows: no editor, only `mergeJob`s
-    z.strictObject({ mode: z.literal("headless"), nonce: nonceSchema, type: z.literal("init") }),
-  ]),
+  // an item's editor over its blocks, by its id; the most one file can be, past which the library
+  // takes none, so the page refuses a larger one before it reads a byte of it; and whether the
+  // phone has a connection, without which the library takes no edit
+  z.strictObject({
+    fileMaxBytes: z.number().int().positive(),
+    focus: z.enum(["title", "body"]).nullable(),
+    itemId: itemIdSchema,
+    nonce: nonceSchema,
+    online: z.boolean(),
+    type: z.literal("init"),
+  }),
   // a result is parsed by the request it answers, which knows its kind
   z.discriminatedUnion("ok", [
     z.strictObject({
@@ -216,9 +187,9 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       type: z.literal("response"),
     }),
   ]),
-  // the phone's replica moved: these items changed, or the whole library did; an item page reads
-  // its item again when it is among them, and says so when its own write was merged into it
-  // keeping its lines over another device's change to the same ones (`overlapped`)
+  // the library moved: these items changed, or the whole of it did; an item page reads its item
+  // again when it is among them, and says so when its own write was merged into it keeping its
+  // lines over another device's change to the same ones (`overlapped`)
   z.strictObject({
     ids: z.array(itemIdSchema),
     nonce: nonceSchema,
@@ -229,20 +200,14 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
   // write the open item's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
   z.strictObject({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }),
-  // merge this block; answered by a `mergeAnswer` with the same id
-  z.strictObject({
-    id: idSchema,
-    nonce: nonceSchema,
-    sides: mergeSidesSchema,
-    type: z.literal("mergeJob"),
-  }),
+  // the phone's connection came or went: without one the page takes no edit, and an edit the drop
+  // caught is written once it is back
+  z.strictObject({ nonce: nonceSchema, online: z.boolean(), type: z.literal("connection") }),
 ]);
 
 export type NativeFrame = z.infer<typeof nativeFrameSchema>;
 
-export type PageInit = Extract<NativeFrame, { type: "init" }>;
-
-export type ItemInit = Extract<PageInit, { mode: "item" }>;
+export type ItemInit = Extract<NativeFrame, { type: "init" }>;
 
 // a frame as its sender builds it, before the bridge stamps the load's nonce on it
 export type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;

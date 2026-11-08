@@ -28,7 +28,7 @@ import { noteLinksBrowser } from "./scenarios/note-links-browser";
 import { notePictureBrowser } from "./scenarios/note-picture-browser";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
-import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
+import { phoneOfflineShare } from "./scenarios/phone-offline-share";
 import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
 import { raindropImport } from "./scenarios/raindrop-import";
 import { settingsBrowser } from "./scenarios/settings-browser";
@@ -40,7 +40,7 @@ import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
   fileItems,
-  phoneOfflineEdit,
+  phoneOfflineShare,
   phoneFileOpsHosted,
   phoneEditorPage,
   phoneSaveHosted,

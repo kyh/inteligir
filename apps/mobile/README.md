@@ -1,13 +1,12 @@
 # @repo/mobile — the inteligir phone
 
-A full editor over the phone's own replica of the account's library, as the
-Mac is: every item, block and folder is in a SQLite file on the phone, so the Library lists, searches and opens offline, and every write
-queues with its base in the replica's outbox until the account's library cell
-takes it. The phone runs the same engine the Mac's window runs
-(`@repo/library-replica`), over expo-sqlite, reaches the Worker only through
-`/v1` (`@repo/contract`), edits an item in the editor page
-(`@repo/mobile-editor`, behind `@repo/editor-bridge`), and asks the account's
-built-in agent when online, drawing its conversations from
+The account's library on the phone, online first: the cloud holds it, and the
+phone reads it through `/v1` (`@repo/contract`) with TanStack Query, whose
+cache it keeps between launches, so what it last read shows offline. A save,
+an edit, a photo and the agent need a connection and say so; only a share from
+another app waits on the phone, in its outbox, until the library can be
+reached. It edits an item in the editor page (`@repo/mobile-editor`, behind
+`@repo/editor-bridge`), and draws the built-in agent's conversations from
 `@repo/agent-panel`.
 
 Expo + expo-router; the runtime the screens use is composed platform-free
@@ -18,29 +17,28 @@ Expo + expo-router; the runtime the screens use is composed platform-free
 ```
 src/
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
-                its binding to the device), the replica's SQL over expo-sqlite and over
-                node's sqlite, phone-db.ts's own tables, the /v1 transport, the screens'
-                hooks over the library, backup-exclusion.ts over the module of that
-                name, the native module this app carries, and
+                its binding to the device), the /v1 transport, the screens' queries
+                over the library (library-hooks.ts), backup-exclusion.ts over the
+                module of that name, the native module this app carries, and
                 palette.ts, the colors a prop takes as a value, with theme.ts's useTheme
                 over the system's scheme
   credential/   the device credential at rest, in the Keychain (expo-secure-store)
   login/        signing this phone in to an account
-  files/        the library's files by their hash: pinned in Documents or cached, with
-                their thumbnails (expo-file-folders.ts and expo-thumbnail.ts the native halves)
+  files/        the library's files by their hash, cached with their thumbnails
+                (expo-file-folder.ts and expo-thumbnail.ts the native halves)
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
-                an item's editor over the replica's ops, and the headless page that merges
-                a block two devices changed
+                an item's editor, its ops written to the library
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
-                the inbox that saves it, and an item's Info
-  library/      the Library's query by scope, kind and search, its cards, and what waits
-                to be sent
+                the outbox that keeps a share until it lands, the inbox that hands it
+                there, and an item's Info
+  library/      the Library's page of a listing by scope, kind and search, its cards, and
+                the saves waiting
   ui/           controls the screens share
   styles.css    the classes every screen writes: Tailwind's utilities over the palette,
                 compiled for React Native by nativewind (The look, below)
   app/          expo-router screens: index.tsx is the Library, item/ an item in the editor,
                 view/ a file full size, agent/ the agent's conversations; _layout.tsx holds
-                the splash, the share provider, the headless page and the route guard, and
+                the splash, the query cache, the share provider and the route guard, and
                 +native-intent.ts lands the share extension's handoff on the Library
 plugins/        with-editor-page.js: the built page into the app bundle
 metro.config.js withNativewind, and postcss.config.js Tailwind's PostCSS plugin: the
@@ -85,53 +83,54 @@ sheet is imported once, by `app/_layout.tsx`.
   makes only the classes a source spells (`ui/text-button.tsx` picks its size
   from a table of them).
 
-## The replica
+## The library and its cache
 
-`openExpoReplicaSql` (`src/lib/expo-replica-sql.ts`) is the engine's SQL port
-over one expo-sqlite file in Documents, opened in WAL: every transaction is an
-exclusive one (`withExclusiveTransactionAsync`, a connection of its own) behind
-one JS write lock, every value is bound and every prepared statement is
-finalized in a `finally`. The library's tables are the cell's own schema,
-versioned by its `meta.schema` row, and the phone's own (`phone_files`, the
-file cache's use and each file's type, and `phone_staged`, the type of each
-file waiting to be sent) are one step in `src/lib/phone-db.ts`. A sign-in wipes the
-file and starts it over, so a credential over an empty database pulls the
-library afresh.
+Every screen reads through TanStack Query over the contract's procedures
+(`src/lib/library-hooks.ts`): the Library a page of `library.listing.page` at a
+time, its search the same row's `words`, an item `library.items.get`, the
+folders `library.listing.scopes` and a link's names `library.listing.titles`.
+The cache is kept in expo-sqlite's key-value store between launches
+(`@tanstack/react-query-persist-client`), out of the device backup, and a
+build that changes starts it over; a file's address and a write are never
+kept. Its online state is the network's and its focus the app's
+(`src/lib/app-runtime.ts`), so a screen asks again when either comes back.
 
-A write is the replica's: an item page writes ops with their bases, a save, a
-new note, a photo and a move to Deleted go through the engine's verbs, and each lists at once and waits in the outbox until the cell takes it.
-A `CONFLICT` settles through the block merge, which runs in the headless page
-(`src/editor/headless-page-host.ts`), since the editor's diff3 lives only
-there. What waits shows under the Library (`src/library/unsent-banner.tsx`),
-and a sign-out with anything unsent asks first.
+A write goes at once and says "Needs a connection" when it cannot: an item
+page writes ops with their bases, and a base that moved answers the item as
+it is now, which the page merges with the editor's diff3. The editor page
+takes no edit while the phone is offline, and writes an edit the drop caught
+once it is back.
 
-The account's socket is the replica's, dialed by ticket, never by a header:
-the foreground holds it, the background suspends the replica and closes it,
-and a resume or a reconnect pulls and sends (`src/lib/app-runtime.ts`).
+The account's socket, dialed by ticket, never by a header, says what each
+write moved, and the queries reading it ask again; an open socket asks
+everything again, since a write may have landed while none was open. The
+foreground holds it, the background closes it.
 
 ## Files
 
 A file is kept by its hash (`src/files/file-cache.ts`), fetched once however
-many screens ask: a staged upload, and a file a live note of the person's
-embeds, are pinned in Documents, out of the device backup; every other file is
-in `Paths.cache`, stamped as used and dropped oldest first past the cap, and a
-file over 512 KB lists from a 320 px thumbnail made once. A picture past what a
-phone may decode shows the card's placeholder. A screen waiting on a file it
-could not reach gets it once the library answers again
-(`src/files/watch-file.ts`). An upload whose write landed is kept as a fetched
-file is. A screen draws a file as an item's own, its card's cover or its
-viewer's original, and the item page draws one a note
-names from the cache over its bridge (`readFile`), as the type it was kept or
-served as, and keeps one pasted into the text through the replica
-(`keepFile`). A sign-out moves the cache's generation,
-so a download begun before it lands nothing.
+many screens ask, in `Paths.cache`, which iOS keeps out of the backup and may
+purge; a file over 512 KB lists from a 320 px thumbnail made once. A picture
+past what a phone may decode shows the card's placeholder. A screen waiting on
+a file it could not reach asks again once the phone is back online. A file the
+phone sends up is kept as a fetched file is, so it never downloads what it
+sent. A screen draws a file as an item's own, its card's cover or its
+viewer's original, and the item page draws one a note names from the cache
+over its bridge (`readFile`), as the type it was kept or served as, and sends
+one pasted into the text up by its hash before the write naming it
+(`keepFile`). A sign-out moves the cache's generation, so a download begun
+before it lands nothing.
 
 ## Sharing to the phone
 
 The share extension hands a page, a link or text to the app, which reads it
-(`src/items/share-payload.ts`) and saves it (`src/items/share-save.ts`): a
-page or a link is saved as its link, which the cloud reads once it lands, and
-text alone as a thought. Words shared beside the link are a new item's note.
+(`src/items/share-payload.ts`) and keeps it in its outbox
+(`src/items/share-outbox.ts`) before the first call, then sends it: a page or
+a link is saved as its link, which the cloud reads once it lands, and text
+alone as a thought. Words shared beside the link are a new item's note. A
+share the cloud cannot be reached for waits, through a relaunch, and goes once
+the phone is back; the Library says how many saves are waiting
+(`src/library/unsent-banner.tsx`), and a sign-out with any asks first.
 
 ## The agent
 
@@ -153,15 +152,14 @@ write all land in the one store the screen reads, so each is shown rather
 than dropped; a credential the Keychain could not keep is signed out before
 the error shows.
 
-A sign-in is one library (`src/lib/compose-runtime.ts`): its replica, its
-`/v1` client and query helpers, its files and its previews, made together and
-closed together. An `unauthorized` a pass of the replica hears ends it for all
-of them and takes the rows, the files and the credential, which stays only
-when the copy would not go, so the next launch meets the same refusal; the
-sign-in screen says this device was signed out from the session's notice. A
-refusal on any other call, a file's or the agent's, waits for the replica's
-next pass. A `client-outdated` ends it as `outdated` and wipes nothing, so the
-next build resumes from what the phone holds. Which screens exist is the ROUTE
+A sign-in is one library (`src/lib/compose-runtime.ts`): its `/v1` client and
+query helpers, its saves, its shares and its previews, made together and
+closed together. An `unauthorized` any of its calls hears ends it for all of
+them and takes the cache, the files, the shares and the credential, which
+stays only when the copy would not go, so the next launch meets the same
+refusal; the sign-in screen says this device was signed out from the
+session's notice. A `client-outdated` ends it as `outdated` and clears
+nothing, so the next build resumes from what the phone holds. Which screens exist is the ROUTE
 GUARD's answer (`Stack.Protected` in `app/_layout.tsx`), never a per-screen
 branch, and a cold launch is `restoring` until the Keychain read ends, so the
 sign-in form never flashes over a device that is signed in.
@@ -170,15 +168,15 @@ sign-in form never flashes over a device that is signed in.
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the composition's restore, sign-in, sign-out,
-  revocation and outdated build over a fake cell, the phone's own tables over
-  `node:sqlite`, the credential and its Keychain accessibility (over a stand-in
-  Keychain), the sign-in store, the file cache (pinning, the cap, the
-  thumbnail, the generation), the editor page's native end (every frame kind
-  to its port, a foreign document's, another load's and a malformed frame
+  revocation and outdated build over a fake cell, what the socket's frames ask
+  again and what the cache keeps, the credential and its Keychain
+  accessibility (over a stand-in Keychain), the sign-in store, the file cache
+  (the thumbnail, the generation), the editor page's native end (every frame
+  kind to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item
-  page's ports, the headless page's host, the share
-  payload and the share's save, and the Library's query. Unit tests, no device.
-  `tools/e2e/src/scenarios/phone-offline-edit.ts`, `phone-save-hosted.ts` and
+  page's ports, the share payload and the shares' outbox, and the Library's
+  query. Unit tests, no device.
+  `tools/e2e/src/scenarios/phone-offline-share.ts`, `phone-save-hosted.ts` and
   `phone-file-ops-hosted.ts` run the same
   composition under node against a real Worker, beside a second device, and
   `phone-editor-page.ts` loads the built page from `file://`.
@@ -200,10 +198,10 @@ sign-in form never flashes over a device that is signed in.
   and the stylesheet into it, offline, on Linux and macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
   app actually booting, the held splash and the route guard's redirects, the
-  Keychain, expo-sqlite and its full-text search on the device, the backup
-  exclusion, the file cache and staged photos, the headless page's merge, the
-  resume and the reconnect, the socket's upgrade from the device and a Mac's
-  edit arriving on it, a share from another app, the agent, a live
+  Keychain, the kept cache and the shares waiting in expo-sqlite's key-value
+  store, the backup exclusion, the file cache and photos, the resume and the
+  reconnect, the socket's upgrade from the device and a Mac's edit arriving on
+  it, a share from another app, offline and online, the agent, a live
   sign-in, an EAS Update landing, the editor on a real WebKit, and how the
   screens look in light and dark. Each is a check with how to run it and what
   passing looks like in `docs/releasing.md` § 5, run on every release's
@@ -306,10 +304,10 @@ already holds items: the phone signs in, never signs up.
    lists them.
 4. Keep the address and the password in `.release/` (gitignored), and enter
    them as Test Information's Beta App Review sign-in, with these notes:
-   > Sign in with the account above; its items are already there. Everything
-   > reads and edits on the phone alone, offline included: a link saved
-   > offline shows "Waiting to be read" until the phone is back online, and
-   > the page is then read in the cloud. The agent needs a connection.
+   > Sign in with the account above; its items are already there. What the
+   > phone last read opens offline; saving, editing and the agent need a
+   > connection. A link shared from another app while offline waits on the
+   > phone until it is back online, and the page is then read in the cloud.
 5. Each review signs in as a new device, and an account holds 20: revoke the
    old review devices at `https://inteligir.com/app/devices` before the next
    submission.
@@ -334,9 +332,9 @@ published, 4 to 6 once the Mac app and the extension are out.
    PATH or MCP):
 
    > Sign in with your Inteligir account's email and password. Your library
-   > arrives and opens offline. Save a link from the share sheet, edit a note
-   > here and see it on your Mac, and add a photo. Take a screenshot to send us
-   > feedback.
+   > arrives, and what you last read opens offline. Save a link from the share
+   > sheet, edit a note here and see it on your Mac, and add a photo. Take a
+   > screenshot to send us feedback.
 
    Each version's first build for the group goes through Beta App Review
    before any tester sees it, usually within a day; later builds of that

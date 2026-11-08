@@ -66,8 +66,7 @@ one top-level `:::article` container after the note
 Not a heading's stretch of a note (its outline), and not a folder.
 
 **replica** — a device's copy of the synced tables, every item, block, folder,
-tag, link, thread and thread event, in SQLite on the device: in expo-sqlite on
-the phone (`apps/mobile/src/lib/expo-replica-sql.ts`), in memory in the
+tag, link, thread and thread event, in SQLite on the device: in memory in the
 library's page, a browser tab or the Mac app's window on it
 (`apps/workspace/src/app/cloud/page-library.ts`). It pulls the cell's change log by cursor, every
 screen reads it, and search runs on its own full-text index, online too, so

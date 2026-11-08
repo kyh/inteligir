@@ -4,12 +4,9 @@
   "private": true,
   "main": "expo-router/entry",
   "exports": {
-    "./editor/item-ports": "./src/editor/item-ports.ts",
-    "./items/phone-saves": "./src/items/phone-saves.ts",
-    "./items/share-save": "./src/items/share-save.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
-    "./lib/node-replica-sql": "./src/lib/node-replica-sql.ts",
-    "./test-support/memory-folders": "./src/test-support/memory-folders.ts"
+    "./test-support/memory-folder": "./src/test-support/memory-folder.ts",
+    "./test-support/memory-kv": "./src/test-support/memory-kv.ts"
   },
   "scripts": {
     "dev": "expo start",
@@ -30,10 +27,11 @@
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/editor-bridge": "workspace:*",
-    "@repo/library-replica": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-query-persist-client": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",
@@ -63,6 +61,7 @@
   "devDependencies": {
     "@expo/plist": "catalog:",
     "@kyh/tsconfig": "catalog:",
+    "@orpc/server": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

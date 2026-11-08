@@ -14,8 +14,7 @@ import type { FakeClock } from "@repo/contract/test-support/fake-clock";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 
 // UUIDv7s in order, each device's under a prefix of its own so two devices never mint one id
-/** @internal */
-export const idSource = (prefix: number): NewId => {
+const idSource = (prefix: number): NewId => {
   let count = 0;
   const head = prefix.toString(16).padStart(4, "0");
   return () => {

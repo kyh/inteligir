@@ -52,7 +52,7 @@ export interface StagedBlobs {
 
 // a block two writers changed, merged: `overlapped` where both changed the same lines and this
 // device's were kept over the other's, which the person is told of
-export interface MergedBlock {
+interface MergedBlock {
   readonly block: LibraryBlock;
   readonly overlapped: boolean;
 }

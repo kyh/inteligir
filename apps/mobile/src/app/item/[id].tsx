@@ -1,7 +1,8 @@
-// An item in the editor page, by its id, over the phone's replica: its blocks drawn and edited by
-// the desktop's editor through the touch kit, a pause's edits queued in the outbox, offline too.
-// The menu opens the page it was saved from, its Info, a conversation about it with the built-in
-// agent, and Delete, which moves it to Deleted on every device.
+// An item in the editor page, by its id, over the account's library: its blocks drawn and edited by
+// the desktop's editor through the touch kit, a pause's edits written to the cloud, and read-only
+// while there is no connection. The menu opens the page it was saved from, its Info, a
+// conversation about it with the built-in agent, and Delete, which moves it to Deleted on every
+// device.
 
 import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router";
@@ -11,11 +12,14 @@ import {
   usePreventRemove,
 } from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
+import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
+import { UNREACHABLE } from "@repo/contract/cloud/library/call-outcome";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { shownTitle } from "@repo/notes/items/item-name";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { EditorPageEvent, LoadVerdict } from "@/editor/editor-host";
@@ -67,8 +71,18 @@ const ItemScreen = () => {
   const route = useRoute();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const depth = useNavigationState((state) => depthOf(state.routes, route.key));
-  const { replica } = useLibrary();
-  const item = useItem(itemId);
+  const { newId, queries } = useLibrary();
+  const queryClient = useQueryClient();
+  const read = useItem(itemId);
+  const item = read.kind === "held" ? read.item : null;
+  const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.folders ?? [];
+  const remove = useMutation(
+    queries.library.items.delete.mutationOptions({
+      onSettled: async () => {
+        await queryClient.invalidateQueries({ queryKey: queries.library.key() });
+      },
+    }),
+  );
   // the page's own word on why its last write did not land
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
@@ -129,6 +143,13 @@ const ItemScreen = () => {
   }, [deep, host]);
 
   const moveToDeleted = (): void => {
+    if (!onlineManager.isOnline()) {
+      Alert.alert(
+        "Needs a connection",
+        "An item moves to Deleted once your library can be reached.",
+      );
+      return;
+    }
     Alert.alert(
       "Move to Deleted?",
       "It leaves your library on every device, and you can restore it from Deleted.",
@@ -138,9 +159,12 @@ const ItemScreen = () => {
           onPress: () => {
             void (async () => {
               await host.flush();
-              // the item this screen shows, which a fold may have moved off the id it opened under
-              await replica.deleteItems([item?.id ?? itemId]);
-              router.back();
+              try {
+                await remove.mutateAsync({ ids: [itemId], opId: newId() });
+                router.back();
+              } catch (error) {
+                Alert.alert("Couldn't move it to Deleted", refusalText(error, UNREACHABLE));
+              }
             })();
           },
           style: "destructive",
@@ -158,11 +182,15 @@ const ItemScreen = () => {
         This build has no editor to open items with.
       </Text>
     );
-  } else if (item === null) {
+  } else if (read.kind === "missing") {
     body = (
       <Text className="px-6 py-24 text-center text-16 text-muted-foreground">
-        This item is not in your library on this iPhone.
+        This item is not in your library.
       </Text>
+    );
+  } else if (read.kind === "unreachable") {
+    body = (
+      <Text className="px-6 py-24 text-center text-16 text-muted-foreground">{UNREACHABLE}</Text>
     );
   } else if (!released) {
     body = (
@@ -196,11 +224,15 @@ const ItemScreen = () => {
     <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
       <Stack.Screen
         options={{
-          title: item === null || item === undefined ? "" : shownTitle(item.card.title),
+          title: item === null ? "" : shownTitle(item.card.title),
         }}
       />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu accessibilityLabel="More" hidden={item === null} icon="ellipsis.circle">
+        <Stack.Toolbar.Menu
+          accessibilityLabel="More"
+          hidden={read.kind === "missing"}
+          icon="ellipsis.circle"
+        >
           <Stack.Toolbar.MenuAction
             hidden={url === null}
             onPress={() => {
@@ -243,7 +275,7 @@ const ItemScreen = () => {
       </KeyboardAvoidingView>
       <ItemInfoSheet
         fields={item?.fields ?? null}
-        folders={replica.folders()}
+        folders={folders}
         visible={showInfo}
         onClose={() => {
           setShowInfo(false);

@@ -1,12 +1,13 @@
-// The page's item mode: the store an item session reads and writes (`@repo/editor/item/item-session`)
-// is the phone's replica on the other end of the bridge, so the page holds no copy of the library.
-// A link names its item by id, which is the key the editor resolves and opens it by: the page writes
-// what it holds and asks the native stack to push that item. An embed draws the item's blocks as
-// the phone's replica reads them; a file a note names by its sha is drawn from the phone's file
-// cache, which fetches it from the cloud the first time, and one pasted into the text is kept by
-// the phone's replica, which sends it up ahead of the write that names it. A note the editor makes
-// (an extract, a link's Create) the phone makes in the item's folder. The page hands
-// no file on to the system: its WebView opens nothing but web links.
+// The page's host: the store an item session reads and writes (`@repo/editor/item/item-session`)
+// is the library, reached through the phone on the other end of the bridge, so the page holds no
+// copy of it. A link names its item by id, which is the key the editor resolves and opens it by:
+// the page writes what it holds and asks the native stack to push that item. An embed draws the
+// item's blocks as the library holds them; a file a note names by its sha is drawn from the
+// phone's file cache, which fetches it from the cloud the first time, and one pasted into the text
+// is sent up by the phone ahead of the write that names it. A note the editor makes (an extract, a
+// link's Create) the phone makes in the item's folder. The phone says when its connection comes
+// and goes, which the editor reads to take edits or not. The page hands no file on to the system:
+// its WebView opens nothing but web links.
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
@@ -78,9 +79,16 @@ const oneReadAtATime = (read: () => Promise<void>): (() => Promise<void>) => {
   return run;
 };
 
+// whether the phone has a connection now, as an external store the page's render reads
+export interface PageConnection {
+  readonly online: () => boolean;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
 export interface ItemPageHost {
   // the session the page's editor follows, once it mounts
   readonly attach: (session: ItemSession | null) => void;
+  readonly connection: PageConnection;
   readonly stop: () => void;
 }
 
@@ -88,6 +96,8 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   const { itemId } = init;
   const feed = createLinkResolverFeed();
   let session: ItemSession | null = null;
+  let { online } = init;
+  const connectionListeners = new Set<() => void>();
 
   // the items a link can name, by id and by title, and the names they go by now, read again as
   // the library moves; a link shows the title it was written with until the phone answers
@@ -161,6 +171,13 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   });
 
   const unsubscribe = bridge.onNative((event) => {
+    if (event.type === "connection") {
+      ({ online } = event);
+      for (const listener of connectionListeners) {
+        listener();
+      }
+      return;
+    }
     if (event.type === "itemChanged") {
       // another item moved, or every one: a link's target may be among them
       if (event.reset || event.ids.some((id) => id !== itemId)) {
@@ -180,6 +197,15 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   return {
     attach: (next) => {
       session = next;
+    },
+    connection: {
+      online: () => online,
+      subscribe: (listener) => {
+        connectionListeners.add(listener);
+        return () => {
+          connectionListeners.delete(listener);
+        };
+      },
     },
     stop: unsubscribe,
   };
