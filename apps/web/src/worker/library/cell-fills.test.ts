@@ -1,7 +1,7 @@
 // The cloud's reading as the cell lands it: only the article and the facts a fill owns, in a
-// change set of its own, over an item still waiting for it; a page whose redirects end at another
-// item's address folding onto that item; and the reading's ask kept as a job row, sent once the
-// write commits and sent again until the queue took it.
+// change set of its own, over an item still waiting for it, at the address it was saved at; and
+// the reading's ask kept as a job row, sent once the write commits and sent again until the queue
+// took it.
 
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
@@ -174,241 +174,34 @@ describe("a page's reading, landed", () => {
     });
   });
 
-  it("folds a page whose redirects end at another item's address onto that item", async () => {
+  it("reads a page whose redirects end at another item's address into the item that waited", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const library = libraryIn(state, accountId);
       const engine = openCellLibrary(state, env);
-      const holder = await library.items.saveLink({ url: "https://pages.example/final" });
-      engine.landReading(
-        read({ itemId: holder.item.id, url: "https://pages.example/final" }, [
-          paragraph("h", "Held."),
-        ]),
-      );
-      const stub = await library.items.saveLink({
-        note: "Saved from a short link.",
-        tags: ["later"],
-        url: "https://short.example/x",
-      });
+      const final = "https://pages.example/final";
+      const holder = await library.items.saveLink({ url: final });
+      engine.landReading(read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]));
+      const short = "https://short.example/x";
+      const stub = await library.items.saveLink({ tags: ["later"], url: short });
       const landed = engine.landReading(
-        read(
-          { itemId: stub.item.id, url: "https://short.example/x" },
-          [paragraph("f", "Folded.")],
-          {
-            finalUrl: "https://pages.example/final",
-          },
-        ),
+        read({ itemId: stub.item.id, url: short }, [paragraph("r", "Read.")], { finalUrl: final }),
       );
-      expect(landed).toMatchObject({ ok: true, value: { intoId: holder.item.id, kind: "folded" } });
-      expect(stateOf(state, stub.item.id)?.fields.deletedAt).not.toBeNull();
-      const held = stateOf(state, holder.item.id);
-      expect(held?.fields.tags).toStrictEqual(["later"]);
-      expect(JSON.stringify([...(held?.blocks.values() ?? [])])).toContain(
-        "Saved from a short link.",
-      );
-      expect(JSON.stringify([...(held?.blocks.values() ?? [])])).toContain("Folded.");
-    });
-  });
-
-  it("carries a stub's note onto the item its page folds onto, as that item's note", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const holder = await library.items.saveLink({ url: "https://pages.example/final" });
-      engine.landReading(
-        read({ itemId: holder.item.id, url: "https://pages.example/final" }, [
-          paragraph("h", "Held."),
-        ]),
-      );
-      const stub = await library.items.saveLink({
-        note: "Look at this",
-        url: "https://short.example/x",
-      });
-      engine.landReading(
-        read(
-          { itemId: stub.item.id, url: "https://short.example/x" },
-          [paragraph("f", "Folded.")],
-          {
-            finalUrl: "https://pages.example/final",
-          },
-        ),
-      );
-      const note = [...(stateOf(state, holder.item.id)?.blocks.values() ?? [])].filter(
-        (stored) => stored.section === "note",
-      );
-      expect(note).toHaveLength(1);
-      expect(JSON.stringify(note)).toContain("Look at this");
-      expect(stateOf(state, holder.item.id)?.fields.title).toBe("The page's own title");
-    });
-  });
-
-  it("files the item a link folds onto in the link's folder, only where it has none", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const unfiled = await library.items.saveLink({ url: "https://pages.example/unfiled" });
-      const filed = await library.items.saveLink({
-        folder: { path: "Archive" },
-        url: "https://pages.example/filed",
-      });
-      const foldFromReading = async (url: string, finalUrl: string) => {
-        const stub = await library.items.saveLink({ folder: { path: "Reading" }, url });
-        const landed = engine.landReading(
-          read({ itemId: stub.item.id, url }, [paragraph("f", "Folded.")], { finalUrl }),
-        );
-        expect(landed).toMatchObject({ ok: true, value: { kind: "folded" } });
-        return stub.item.fields.folderId;
-      };
-
-      const reading = await foldFromReading(
-        "https://short.example/a",
-        unfiled.item.fields.url ?? "",
-      );
-      await foldFromReading("https://short.example/b", filed.item.fields.url ?? "");
-
-      expect(reading).not.toBeNull();
-      expect(stateOf(state, unfiled.item.id)?.fields.folderId).toBe(reading);
-      expect(filed.item.fields.folderId).not.toBeNull();
-      expect(stateOf(state, filed.item.id)?.fields.folderId).toBe(filed.item.fields.folderId);
-    });
-  });
-
-  it("files the item a link folds onto only in a folder that stands", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const deleteFolder = async (id: string | null) => {
-        if (id === null) {
-          throw new Error("the link was filed in no folder");
-        }
-        await library.folders.write({ ops: [{ id, op: "delete" }] });
-      };
-      const fold = (itemId: string, url: string, finalUrl: string | null) => {
-        const landed = engine.landReading(
-          read({ itemId, url }, [paragraph("f", "Folded.")], { finalUrl: finalUrl ?? "" }),
-        );
-        expect(landed).toMatchObject({ ok: true, value: { kind: "folded" } });
-      };
-
-      const unfiled = await library.items.saveLink({ url: "https://pages.example/unfiled" });
-      const lost = await library.items.saveLink({
-        folder: { path: "Gone" },
-        url: "https://short.example/lost",
-      });
-      await deleteFolder(lost.item.fields.folderId);
-      fold(lost.item.id, "https://short.example/lost", unfiled.item.fields.url);
-      expect(stateOf(state, unfiled.item.id)?.fields.folderId).toBeNull();
-
-      const orphaned = await library.items.saveLink({
-        folder: { path: "Old" },
-        url: "https://pages.example/orphaned",
-      });
-      await deleteFolder(orphaned.item.fields.folderId);
-      const kept = await library.items.saveLink({
-        folder: { path: "Reading" },
-        url: "https://short.example/kept",
-      });
-      fold(kept.item.id, "https://short.example/kept", orphaned.item.fields.url);
-      expect(kept.item.fields.folderId).not.toBeNull();
-      expect(stateOf(state, orphaned.item.id)?.fields.folderId).toBe(kept.item.fields.folderId);
-    });
-  });
-
-  it("leaves a folded link read, so it stays where a person restores it", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const engine = openCellLibrary(state, env);
-      const library = libraryIn(state, accountId, engine);
-      const holder = await library.items.saveLink({ url: "https://pages.example/final" });
-      engine.landReading(
-        read({ itemId: holder.item.id, url: "https://pages.example/final" }, [
-          paragraph("h", "Held."),
-        ]),
-      );
-      const stub = await library.items.saveLink({ url: "https://short.example/x" });
-      await sendFills(state, env, engine);
-      engine.landReading(
-        read(
-          { itemId: stub.item.id, url: "https://short.example/x" },
-          [paragraph("f", "Folded.")],
-          { finalUrl: "https://pages.example/final" },
-        ),
-      );
-      await library.items.restore({ ids: [stub.item.id] });
+      expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
       expect(stateOf(state, stub.item.id)?.fields).toMatchObject({
         deletedAt: null,
         fetchState: "filled",
-      });
-      expect(fillJobs(state)).toStrictEqual([]);
-    });
-  });
-
-  it("folds by the reading's own rule: a fact only where the page gave one, a title only over the address", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const final = "https://pages.example/kept-facts";
-      const holder = await library.items.saveLink({ url: final });
-      engine.landReading(read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]));
-      const stub = await library.items.saveLink({ url: "https://short.example/facts" });
-      engine.landReading(
-        read({ itemId: stub.item.id, url: "https://short.example/facts" }, [paragraph("f", "F.")], {
-          facts: { author: null, description: null, lang: "fr", published: null, site: null },
-          finalUrl: final,
-          title: "Another title",
-        }),
-      );
-      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({
-        author: "A. Writer",
-        description: "What the page says.",
-        lang: "fr",
-        site: "Pages",
+        tags: ["later"],
         title: "The page's own title",
+        url: short,
       });
-    });
-  });
-
-  it("keeps the title a person gave an unread item a page folds onto", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const final = "https://pages.example/named";
-      const holder = await library.items.saveLink({ title: "My name for it", url: final });
-      const stub = await library.items.saveLink({ url: "https://short.example/named" });
-      engine.landReading(
-        read({ itemId: stub.item.id, url: "https://short.example/named" }, [paragraph("f", "F.")], {
-          finalUrl: final,
-        }),
+      expect(JSON.stringify([...(stateOf(state, stub.item.id)?.blocks.values() ?? [])])).toContain(
+        "Read.",
       );
-      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({
-        author: "A. Writer",
-        fetchState: "filled",
-        title: "My name for it",
-      });
-    });
-  });
-
-  it("names an unread item still called by its address after the page folded onto it", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const final = "https://pages.example/placeholder";
-      const holder = await library.items.saveLink({ url: final });
-      const stub = await library.items.saveLink({ url: "https://short.example/placeholder" });
-      engine.landReading(
-        read(
-          { itemId: stub.item.id, url: "https://short.example/placeholder" },
-          [paragraph("f", "F.")],
-          { finalUrl: final },
-        ),
-      );
-      expect(stateOf(state, holder.item.id)?.fields.title).toBe("The page's own title");
+      expect(stateOf(state, holder.item.id)?.fields.tags).toStrictEqual([]);
+      expect(
+        JSON.stringify([...(stateOf(state, holder.item.id)?.blocks.values() ?? [])]),
+      ).not.toContain("Read.");
     });
   });
 
@@ -706,62 +499,24 @@ describe("Undo of a saved link, once its page is read", () => {
     ["tags", { tags: ["later"] }],
   ];
 
-  // a link read, then `gap` later one whose redirects end at it, saved with `carried` and folded on
-  const foldedSave = async (
-    state: DurableObjectState,
-    accountId: string,
-    gap: number,
-    carried: Carried,
-  ) => {
-    const clock = clockAt();
-    const engine = engineIn(state, clock);
-    const library = libraryIn(state, accountId, engine);
-    const url = "https://pages.example/final";
-    const short = "https://short.example/y";
-    const holder = await library.items.saveLink({ url });
-    engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
-    clock.now += gap;
-    const stub = await library.items.saveLink({ ...carried, url: short });
-    engine.landReading(
-      read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
-    );
-    return { holderId: holder.item.id, library, stubId: stub.item.id };
-  };
-
-  it.each(CARRIED)("keeps a link a fold of a later save carried %s onto", async (_, carried) => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const { holderId, library } = await foldedSave(state, accountId, HOUR, carried);
-      await expect(undoSave(library, holderId)).resolves.toMatchObject({
-        kept: [holderId],
-        reverted: [],
-      });
-      expect(stateOf(state, holderId)?.fields.deletedAt).toBeNull();
-    });
-  });
-
-  it.each(CARRIED)("takes a link to Deleted when its own burst carried %s", async (_, carried) => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const { holderId, library } = await foldedSave(state, accountId, 0, carried);
-      await expect(undoSave(library, holderId)).resolves.toMatchObject({
-        kept: [],
-        reverted: [holderId],
-      });
-      expect(stateOf(state, holderId)?.fields.deletedAt).not.toBeNull();
-    });
-  });
-
   it.each(CARRIED)(
-    "takes a link to Deleted when the later save that carried %s goes back with it",
+    "takes a link to Deleted though a later save of its address carried %s, which changed nothing",
     async (_, carried) => {
       const accountId = newAccountId();
       await inCell(cellOf(accountId), async (state) => {
-        const { holderId, library, stubId } = await foldedSave(state, accountId, HOUR, carried);
-        const changeSetIds = [await madeSetOf(library, holderId), await madeSetOf(library, stubId)];
-        await expect(library.history.undo({ changeSetIds })).resolves.toMatchObject({
+        const clock = clockAt();
+        const engine = engineIn(state, clock);
+        const library = libraryIn(state, accountId, engine);
+        const url = "https://pages.example/final";
+        const holder = await library.items.saveLink({ url });
+        engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
+        clock.now += HOUR;
+        const again = await library.items.saveLink({ ...carried, url });
+        expect(again).toMatchObject({ created: false, item: { id: holder.item.id } });
+        expect(stateOf(state, holder.item.id)?.fields).toMatchObject({ folderId: null, tags: [] });
+        await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
           kept: [],
-          reverted: [holderId],
+          reverted: [holder.item.id],
         });
       });
     },
@@ -790,7 +545,7 @@ describe("a reading's ask", () => {
       expect(again).toHaveLength(1);
       engine.fillsSent(again);
       expect(fillJobs(state)).toStrictEqual([]);
-      // a refresh asks again; a folded save of a held address asks nothing
+      // a refresh asks again; a save of a held address asks nothing
       await library.items.refresh({ id: saved.item.id });
       await library.items.saveLink({ url: "https://pages.example/h" });
       expect(fillJobs(state)).toHaveLength(1);

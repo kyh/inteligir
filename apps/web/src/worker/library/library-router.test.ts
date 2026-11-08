@@ -122,31 +122,36 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("saves a page with its article, keeps a selection as a highlight, and folds a second save of the url", async () => {
+  it("saves a page with its article, keeps a selection as a highlight, and answers a second save of the url with that item as it stands", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const first = await library.items.save(
         pageSave("https://example.com/fox", { selection: "quick brown fox", tags: ["animals"] }),
       );
-      expect(first.folded).toBe(false);
+      expect(first.created).toBe(true);
       const { highlights } = await library.annotations.list({ itemId: first.item.id });
       expect(highlights).toStrictEqual([
         expect.objectContaining({ placed: true, quote: "quick brown fox", text: "" }),
       ]);
 
-      // the same url saved again, from another page: the one item gains the new tag
       const again = await library.items.save(
-        pageSave("https://example.com/fox#top", { tags: ["Animals", "dogs"] }),
+        pageSave("https://example.com/fox#top", {
+          article: [paragraph("p2", "Now: the quick brown fox naps.")],
+          selection: "lazy dog",
+          tags: ["Animals", "dogs"],
+        }),
       );
-      expect(again).toMatchObject({ folded: true, item: { id: first.item.id } });
+      expect(again).toMatchObject({ created: false, item: { id: first.item.id } });
       const read = await library.items.read({ id: first.item.id });
-      expect(read.fields.tags).toStrictEqual(["animals", "dogs"]);
-      expect(read.fields.fetchState).toBe("filled");
-      expect(read.view.markdown).toContain(":::article");
+      expect(read.fields.tags).toStrictEqual(["animals"]);
+      expect(read.view.markdown).toContain("over the lazy dog");
+      expect(read.view.markdown).not.toContain("naps");
+      const held = await library.annotations.list({ itemId: first.item.id });
+      expect(held.highlights).toHaveLength(1);
     });
   });
 
-  it("keeps the words a page was saved with as its note, a new item's and after a held item's own", async () => {
+  it("keeps the words a page was saved with as a new item's note, and leaves a held item's as it is", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/words";
@@ -154,7 +159,7 @@ describe("the library's procedures", () => {
         ...pageSave(url),
         note: "For ==Tuesday==, before the call.",
       });
-      expect(first.folded).toBe(false);
+      expect(first.created).toBe(true);
       const made = await library.items.read({ id: first.item.id });
       expect(made.view.markdown).toContain("For ");
       expect(made.view.markdown).toContain("Tuesday");
@@ -163,91 +168,92 @@ describe("the library's procedures", () => {
       expect(highlights).toStrictEqual([expect.objectContaining({ quote: "Tuesday" })]);
 
       const again = await library.items.save({ ...pageSave(url), note: "And for ==Friday==." });
-      expect(again).toMatchObject({ folded: true, item: { id: first.item.id } });
-      const folded = await library.items.read({ id: first.item.id });
-      expect(folded.view.markdown.indexOf("Tuesday")).toBeLessThan(
-        folded.view.markdown.indexOf("Friday"),
-      );
-      const held = await library.annotations.list({ itemId: first.item.id });
-      expect(new Set(held.highlights.map(({ quote }) => quote))).toStrictEqual(
-        new Set(["Tuesday", "Friday"]),
-      );
+      expect(again).toMatchObject({ created: false, item: { id: first.item.id } });
+      const held = await library.items.read({ id: first.item.id });
+      expect(held.view.markdown).not.toContain("Friday");
+      const after = await library.annotations.list({ itemId: first.item.id });
+      expect(after.highlights.map(({ quote }) => quote)).toStrictEqual(["Tuesday"]);
     });
   });
 
-  it("places an item's highlights again in the article a second save brings, and keeps the article a read without one", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const url = "https://example.com/fox";
-      const first = await library.items.save(pageSave(url, { selection: "quick brown fox" }));
-      const listed = await library.annotations.list({ itemId: first.item.id });
-      const [highlight] = listed.highlights;
-      const placedAgain = async (markdown: string) => {
-        const { highlights } = await library.annotations.list({ itemId: first.item.id });
-        expect(highlights).toStrictEqual([
-          expect.objectContaining({ id: highlight?.id, placed: true, quote: "quick brown fox" }),
-        ]);
-        const read = await library.items.read({ id: first.item.id });
-        expect(read.view.markdown).toContain(markdown);
-        return read;
-      };
-
-      // the page read again, its text changed around the passage
-      await library.items.save(
-        pageSave(url, { article: [paragraph("p2", "Now: the quick brown fox naps.")] }),
-      );
-      await placedAgain(`the %%i:${highlight?.id ?? ""}:start%%quick brown fox%%i:`);
-
-      // the same selection sent again keeps the one highlight, placed in the newest article
-      await library.items.save(
-        pageSave(url, {
-          article: [paragraph("p3", "Later: a quick brown fox, again.")],
-          selection: "quick brown fox",
-        }),
-      );
-      await placedAgain("Later: a %%i:");
-
-      // a read that found no article leaves the item's
-      const empty = { ...pageSave(url), article: [] };
-      await library.items.save(empty);
-      const read = await placedAgain("Later: a %%i:");
-      expect(read.fields.fetchState).toBe("filled");
-    });
-  });
-
-  it("folds a device's read by the reading's own rule, keeping a fact it left out and a title the person gave", async () => {
+  it("lands a device's read on a held link with no article yet, its waiting passage placed and the name the person gave kept", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/saved-later";
-      const stub = await library.items.saveLink({ title: "My name for it", url });
-      const facts = { author: null, description: null, lang: null, published: null, site: null };
-      await library.items.save({
-        ...pageSave(url),
-        facts: { ...facts, author: "A. Writer" },
+      const stub = await library.items.saveLink({
+        selection: "quick brown fox",
+        title: "My name for it",
+        url,
       });
-      await library.items.save({
-        ...pageSave(url),
-        facts: { ...facts, site: "Pages" },
-        title: "The page's own title",
+      const landed = await library.items.save({
+        ...pageSave(url, { tags: ["animals"] }),
+        facts: { ...FACTS, author: "A. Writer" },
+        note: "Words the read brought.",
       });
+      expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
       const read = await library.items.read({ id: stub.item.id });
       expect(read.fields).toMatchObject({
         author: "A. Writer",
         fetchState: "filled",
-        site: "Pages",
+        tags: [],
         title: "My name for it",
       });
+      expect(read.view.markdown).not.toContain("Words the read brought.");
+      const { highlights } = await library.annotations.list({ itemId: stub.item.id });
+      expect(highlights).toStrictEqual([
+        expect.objectContaining({ placed: true, quote: "quick brown fox" }),
+      ]);
+      expect(read.view.markdown).toContain(
+        `The %%i:${highlights[0]?.id ?? ""}:start%%quick brown fox%%i:`,
+      );
+
+      // read now, so a later device's read leaves it as it stands
+      await library.items.save(
+        pageSave(url, { article: [paragraph("p2", "Now: the quick brown fox naps.")] }),
+      );
+      const kept = await library.items.read({ id: stub.item.id });
+      expect(kept.view.markdown).not.toContain("naps");
     });
   });
 
-  it("keeps a link's selection as a highlight: waiting on a stub, placed in an item that holds its text", async () => {
+  it("lands a device's read on a held link whose reading failed, and leaves a waiting one to the cloud when the read found no article", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/refuses";
+      const { item: failed } = landedValue(
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+          blocks: [],
+          fields: noteFields({
+            fetchError: "The site refused the read.",
+            fetchState: "failed",
+            kind: "link",
+            title: "A refusing site",
+            url,
+          }),
+          id: newId(),
+        }),
+      );
+      const landed = await library.items.save(pageSave(url));
+      expect(landed).toMatchObject({ created: false, item: { id: failed.id } });
+      const read = await library.items.read({ id: failed.id });
+      expect(read.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
+      expect(read.view.markdown).toContain("quick brown fox");
+
+      const waiting = await library.items.saveLink({ url: "https://example.com/waits" });
+      await library.items.save({ ...pageSave("https://example.com/waits"), article: [] });
+      const still = await library.items.read({ id: waiting.item.id });
+      expect(still.fields.fetchState).toBe("pending");
+    });
+  });
+
+  it("keeps a link's selection as a highlight waiting on a new stub, and adds none to an item that holds its address", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const stub = await library.items.saveLink({
         selection: "a passage the page holds",
         url: "https://example.com/later/unread",
       });
-      expect(stub.folded).toBe(false);
+      expect(stub.created).toBe(true);
       const waiting = await library.annotations.list({ itemId: stub.item.id });
       expect(waiting.highlights).toStrictEqual([
         expect.objectContaining({ placed: false, quote: "a passage the page holds", text: "" }),
@@ -255,21 +261,10 @@ describe("the library's procedures", () => {
 
       const url = "https://example.com/fox";
       const page = await library.items.save(pageSave(url));
-      const folded = await library.items.saveLink({ selection: "brown fox jumps", url });
-      expect(folded).toMatchObject({ folded: true, item: { id: page.item.id } });
+      const held = await library.items.saveLink({ selection: "brown fox jumps", url });
+      expect(held).toMatchObject({ created: false, item: { id: page.item.id } });
       const { highlights } = await library.annotations.list({ itemId: page.item.id });
-      expect(highlights).toStrictEqual([
-        expect.objectContaining({ placed: true, quote: "brown fox jumps" }),
-      ]);
-      const read = await library.items.read({ id: page.item.id });
-      expect(read.view.markdown).toContain(
-        `quick %%i:${highlights[0]?.id ?? ""}:start%%brown fox jumps%%i:`,
-      );
-
-      // the same passage sent again keeps the one highlight
-      await library.items.saveLink({ selection: "brown fox jumps", url });
-      const again = await library.annotations.list({ itemId: page.item.id });
-      expect(again.highlights).toHaveLength(1);
+      expect(highlights).toStrictEqual([]);
     });
   });
 
@@ -277,19 +272,18 @@ describe("the library's procedures", () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const saved = await library.items.saveLink({ url: "https://example.com/later/a-long-read" });
-      expect(saved.folded).toBe(false);
+      expect(saved.created).toBe(true);
       const read = await library.items.read({ id: saved.item.id });
       expect(read.fields).toMatchObject({ fetchState: "pending", kind: "link" });
       expect(read.fields.title).not.toBe("");
 
-      const folded = await library.items.saveLink({
+      const held = await library.items.saveLink({
         note: "Read this one first.",
         url: "https://example.com/later/a-long-read",
       });
-      expect(folded).toMatchObject({ folded: true, item: { id: saved.item.id } });
-      await expect(library.items.read({ id: saved.item.id })).resolves.toMatchObject({
-        view: { markdown: expect.stringContaining("Read this one first.") },
-      });
+      expect(held).toMatchObject({ created: false, item: { id: saved.item.id } });
+      const after = await library.items.read({ id: saved.item.id });
+      expect(after.view.markdown).not.toContain("Read this one first.");
 
       const refreshed = await library.items.refresh({ id: saved.item.id });
       expect(refreshed.item.id).toBe(saved.item.id);

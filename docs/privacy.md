@@ -254,19 +254,13 @@ The apps also hold to these, plainly:
   file of its own. A save made while you are offline waits in the browser's
   storage for the extension as the page's address, title and the passage you
   selected, and is sent, for our cloud to read, once you are back online.
-- **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
-  that page once, from the phone, and save what it read, its address, title,
-  text and cover, into your library, like any other edit on the phone. A link
-  inside text you share is fetched and saved the same way, the words around it
-  its note, and other text is saved as you shared it. The request carries no
-  cookies, sign-in or referrer; the site sees your phone's IP address, a
-  Safari-compatible user agent naming inteligir and its version, and your
-  preferred language, as a browser visit would. It asks only web addresses, a
-  page on the internet only over https, and from a page on the internet it
-  never asks a picture or a redirect's next stop whose address names your own
-  network by how it is spelled, even when the address you shared does. A page
-  it cannot read then, offline included, or finds no text in, is saved as its
-  address, which our cloud reads once it arrives.
+- **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves
+  its address, with the title the sharing app gave it and the words you shared
+  beside it, into your library, like any other edit on the phone; the phone
+  fetches nothing from the site. Our cloud then fetches and reads the page as
+  it does any link your library holds unread (above), so a page only your own
+  network reaches is not read. A link inside text you share is saved the same
+  way, the words around it its note, and other text is saved as you shared it.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
   notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.
@@ -438,8 +432,8 @@ clear and never backs up. The phone's sign-in is kept in the iPhone's Keychain
 for that iPhone alone: a backup restored onto another phone does not carry it,
 so the new phone signs in again and becomes a device of its own.
 
-- **Signing out** on the phone erases all of it — items, files, what the phone
-  kept of pages it read and anything unsent, which it asks about first — and
+- **Signing out** on the phone erases all of it — items, files and anything
+  unsent, which it asks about first — and
   tells our cloud to remove the phone from your account. A phone that signs out
   offline forgets its sign-in all the same; revoke it from Settings › Account on
   a Mac.
@@ -1062,9 +1056,8 @@ Everything else the app reaches is someone else's:
 - **Expo's update service**, for the phone's update check described above.
 - **The sites you save**: from our cloud, for a link your library holds unread,
   with the cover files they name, the cover a Raindrop import recorded, and
-  the oEmbed addresses above; from your iPhone, for a page or a link you share
-  to it; and from the browser the extension runs in, for the cover picture of a
-  page it saves.
+  the oEmbed addresses above; and from the browser the extension runs in, for
+  the cover picture of a page it saves.
 
 ---
 

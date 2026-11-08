@@ -6,18 +6,11 @@ import { Image, Pressable, Text, View } from "react-native";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { shownTitle } from "@repo/notes/items/item-name";
 import { useFileUri } from "@/lib/library-hooks";
+import { cardCaption } from "./card-caption";
 
 const THUMB_SIZE = 64;
 
 const THUMB = { height: THUMB_SIZE, width: THUMB_SIZE } as const;
-
-// a link the cloud has not read yet: its title and cover come with that read
-const PENDING_LINE = "Waiting to be read";
-
-const savedLine = (row: ReplicaListingRow): string => {
-  const parts = [row.fields.site, new Date(row.savedAt).toLocaleDateString()];
-  return parts.filter((part) => part !== null && part !== "").join(" · ");
-};
 
 const Thumb = ({ cover }: { cover: string }) => {
   const uri = useFileUri(cover, true);
@@ -37,7 +30,7 @@ export const LibraryCardRow = ({
   onPress: () => void;
   onLongPress: () => void;
 }) => {
-  const caption = row.fields.fetchState === "pending" ? PENDING_LINE : savedLine(row);
+  const caption = cardCaption(row);
   return (
     <Pressable
       accessibilityRole="button"

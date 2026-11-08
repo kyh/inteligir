@@ -1,9 +1,7 @@
 // the reader over a committed corpus of synthetic pages: what a page says about itself in the
 // precedence page-meta.ts names, the article rules, the dialect escapes, and the body ladder's
 // promise that every article is already the editor's own fixpoint, over linkedom, the DOM the
-// Worker's fill, the extension's worker and the phone's runtime under node parse with. The phone's
-// page parses with its WebView's own DOMParser, which tools/e2e/src/scenarios/phone-editor-page.ts
-// drives in a real browser against this same reading (jsdom's DOM is no stand-in: defuddle picks
+// Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in: defuddle picks
 // the whole body).
 
 import { readFileSync, readdirSync } from "node:fs";

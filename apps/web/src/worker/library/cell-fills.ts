@@ -6,9 +6,8 @@
 // The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
 // change set of its own: only the article and the facts a fill owns, so the person's note and
 // fields are never touched, and only on an item still waiting for that reading at that address,
-// so a message met twice lands once. One url, one item: a page whose redirects end at an
-// address another live item holds folds onto that item, unless the stub keeps highlights of its
-// own, which its own text must hold.
+// so a message met twice lands once. A page whose redirects end at another address is read into
+// the item that waited for it, which keeps the address it was saved at.
 
 import type { LibraryOp, ItemState } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
@@ -21,22 +20,12 @@ import { z } from "zod";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
-import { readAnnotationRows } from "./cell-annotations";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
-import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import {
-  articleOps,
-  changes,
-  foldPage,
-  pageFieldOps,
-  quoteOps,
-  quotesOf,
-  readOps,
-} from "./cell-saves";
+import { changes, landRead, pageFieldOps, readOps } from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in History's words
@@ -211,62 +200,6 @@ const readFieldOps = (
   ];
 };
 
-// the page read into the item, its highlights placed again in the article by their quotes, since
-// the markers the old article held went with it; one the note holds stays where it is
-const landRead = (
-  scope: LandingScope,
-  codec: CellCodec,
-  item: { readonly id: string; readonly state: ItemState },
-  landing: Extract<FillLanding, { kind: "read" }>,
-): void => {
-  const ops = [
-    ...articleOps(item.state, landing),
-    ...readFieldOps(item.state.fields, landing, scope.now),
-  ];
-  const quotes =
-    landing.article.length === 0 ? [] : quotesOf(readAnnotationRows(scope.storage, item.id));
-  landWrite(scope, FILL_ACTOR, {
-    itemId: item.id,
-    ops: [...ops, ...quoteOps(item.state, codec, ops, quotes)],
-  });
-};
-
-// a stub whose page turned out to be another item's: the page lands on that item as a save of it
-// would, the stub's folder, tags and note go with it, and the stub goes to Deleted read, where it
-// can be restored and stays, since one still waiting would be asked again and fold again. The fold
-// is one change set of the fill's, both items in it
-const foldOnto = (
-  scope: LandingScope,
-  codec: CellCodec,
-  stub: { readonly id: string; readonly state: ItemState },
-  holderId: string,
-  landing: Extract<FillLanding, { kind: "read" }>,
-): void => {
-  const held = runPlan(scope.storage, readItemState(holderId));
-  if (held === null) {
-    return;
-  }
-  foldPage(
-    scope,
-    FILL_ACTOR,
-    codec,
-    { ...held, id: holderId },
-    readAnnotationRows(scope.storage, holderId),
-    { ...pageOf(landing), folderId: stub.state.fields.folderId, tags: stub.state.fields.tags },
-    null,
-    {
-      blocks: [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
-      highlights: [],
-    },
-  );
-  const { fields } = stub.state;
-  const ops: LibraryOp[] = [
-    { base: fields.deletedAt, field: "deletedAt", op: "set", value: scope.now },
-    ...readOps(fields, scope.now),
-  ];
-  landWrite(scope, FILL_ACTOR, { itemId: stub.id, ops: ops.filter(changes) });
-};
-
 // whether the item still waits for this reading: live, unread, at the address it was asked at
 const waiting = (state: ItemState | null, url: string): state is ItemState => {
   const held = state?.fields.url ?? null;
@@ -343,16 +276,7 @@ export const landFill = (
       return { kind: "filled" };
     }
     case "read": {
-      const finalKey = urlKey(landing.finalUrl);
-      const holder =
-        finalKey === null || finalKey === urlKey(landing.url)
-          ? null
-          : urlHolder(scope.storage, finalKey, item.id);
-      if (holder !== null && readAnnotationRows(scope.storage, item.id).size === 0) {
-        foldOnto(scope, codec, item, holder.id, landing);
-        return { intoId: holder.id, kind: "folded" };
-      }
-      landRead(scope, codec, item, landing);
+      landRead(scope, FILL_ACTOR, codec, item, landing, readFieldOps(fields, landing, scope.now));
       return { kind: "filled" };
     }
     // no default

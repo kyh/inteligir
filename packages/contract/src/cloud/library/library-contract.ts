@@ -76,8 +76,8 @@ const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
 
 // a write that makes an item answers with its row as it landed
 const landed = z.object({ item: liveItemRowSchema });
-// a save of a url the library holds folds onto that item, adding what it carries
-const saved = z.object({ folded: z.boolean(), item: liveItemRowSchema });
+// a save of a url the library holds answers that item as it stands, `created` false
+const saved = z.object({ created: z.boolean(), item: liveItemRowSchema });
 
 // a bulk change answers which ids it changed, and which named nothing it could change
 const changedIds = z.array(idSchema);
@@ -222,7 +222,8 @@ const itemsContract = {
     )
     .output(landed),
 
-  // a page the device read itself (the extension, the share sheet): its facts and its article
+  // a page the device read itself (the extension): its facts and its article; an item already at
+  // the url takes them only while it has no article, its reading waiting or failed
   save: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,
@@ -259,9 +260,9 @@ const itemsContract = {
     .output(saved),
 
   // a url to read later: it lands at once, unread, and the cloud reads the page, placing the
-  // passage the person had selected once it holds the page's text; an item already at the url moves
-  // only to a folder this names, so `folder` null takes nothing out of one; an `id` another item
-  // holds is a conflict naming it
+  // passage the person had selected once it holds the page's text; an item already at the url is
+  // answered as it stands, nothing of this landing on it; an `id` another item holds is a conflict
+  // naming it
   saveLink: signedBase
     .errors({
       [ConflictError.code]: ConflictError,

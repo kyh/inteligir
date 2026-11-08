@@ -1,8 +1,8 @@
 // a link saved to the library in the cloud, read by the Worker's own fill: the page served under
 // a public name of its own (`../harness/page-fixture.ts`) lands with its facts, its cover and its
-// article; a second save of the same link folds onto the item; and a page on this machine's own
-// loopback, a redirect to the cloud's metadata address and a page that is gone each keep their
-// item, saying why it was not read.
+// article; a second save of the same link answers the item it already is; and a page on this
+// machine's own loopback, a redirect to the cloud's metadata address and a page that is gone each
+// keep their item, saying why it was not read.
 
 import { once } from "node:events";
 import { createServer } from "node:http";
@@ -81,8 +81,8 @@ const articleFills = async (
   const { library } = v1Client(worker, credential);
   ctx.log("a saved page is read by the cloud: its facts, its cover, its article and its title");
   const url = pages.publicUrl("/essay");
-  const { folded, item } = await library.items.saveLink({ url });
-  expectEq(folded, false, "the first save makes an item");
+  const { created, item } = await library.items.saveLink({ url });
+  expectEq(created, true, "the first save makes an item");
   const read = await settled(library, item.id, "the article");
   expectEq(
     {
@@ -134,9 +134,9 @@ const articleFills = async (
     "the cover's bytes against the page's",
   );
 
-  ctx.log("a save of the same link folds onto the item it already is");
+  ctx.log("a save of the same link answers the item it already is");
   const again = await library.items.saveLink({ url: `${url}?utm_source=feed` });
-  expectEq([again.folded, again.item.id], [true, item.id], "the resave");
+  expectEq([again.created, again.item.id], [false, item.id], "the resave");
 };
 
 // a page server on this machine's own loopback, which the cloud's fill must never reach: an address
@@ -163,7 +163,7 @@ const loopbackRefused = async (ctx: ScenarioContext, library: Library) => {
 
 export const linkCapture: Scenario = {
   description:
-    "a link saved to the cloud library is read by the Worker's fill: a page under a public name lands with its kind, url, site, author, description, cover and article, titled by the page; a resave of the same link folds onto it; a loopback page, a redirect to the metadata address and a page that is gone each keep the item with why",
+    "a link saved to the cloud library is read by the Worker's fill: a page under a public name lands with its kind, url, site, author, description, cover and article, titled by the page; a resave of the same link answers the item it already is; a loopback page, a redirect to the metadata address and a page that is gone each keep the item with why",
   name: "link-capture",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

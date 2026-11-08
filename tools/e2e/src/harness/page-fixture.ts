@@ -1,6 +1,5 @@
 // a page server on loopback, for the pages a scenario saves, and nothing past this machine. The
-// phone's runtime reads it at its loopback address, since the phone's fetch has no address guard;
-// the Worker's fill reads it at `PAGE_HOST`, a public name the Worker host answers from this server
+// Worker's fill reads it at `PAGE_HOST`, a public name the Worker host answers from this server
 // (`./worker-host.ts`), so the fill's guard judges it as it judges any site's.
 
 import { once } from "node:events";
@@ -24,7 +23,6 @@ export interface PageRoute {
 export interface PageFixture {
   // the server's own loopback origin
   origin: string;
-  url: (path: string) => string;
   // the same path under `PAGE_HOST`, as the Worker's fill is asked to read it
   publicUrl: (path: string) => string;
   // `cloudWorker`'s `pages`, which routes `PAGE_HOST` here
@@ -79,6 +77,5 @@ export const startPageFixture = async (
     pages: { [PAGE_HOST]: origin },
     publicUrl: (path) => `http://${PAGE_HOST}${path}`,
     requests: () => seen,
-    url: (path) => `${origin}${path}`,
   };
 };

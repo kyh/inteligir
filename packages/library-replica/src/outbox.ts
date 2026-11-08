@@ -573,7 +573,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "closed" };
     }
     if (error === null) {
-      const elsewhere = "folded" in answer && answer.folded === true;
+      const elsewhere = "created" in answer && answer.created === false;
       const written = elsewhere ? [] : [...madeBy(op).blocks.values()];
       return await landMake(row, op.input.id, answer.item, written);
     }

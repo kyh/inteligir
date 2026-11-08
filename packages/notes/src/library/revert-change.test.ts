@@ -27,16 +27,10 @@ const changeOf = (
   after: ItemState,
   annotations: { before?: AnnotationStore; after?: AnnotationStore } = {},
   fills: readonly FillChange[] = [],
-  folds: readonly ItemState[] = [],
 ): ItemChange => {
   const made = snapshotOf({ annotations: annotations.after ?? {}, state: after });
   return before === null
-    ? {
-        after: made,
-        before: null,
-        fills,
-        folds: folds.map((state) => snapshotOf({ annotations: {}, state })),
-      }
+    ? { after: made, before: null, fills }
     : { after: made, before: snapshotOf({ annotations: annotations.before ?? {}, state: before }) };
 };
 
@@ -216,49 +210,6 @@ describe(revertItemChange, () => {
       const filled = landed(renamed, read);
       const change = changeOf(null, made, {}, [fillOf(renamed, filled)]);
       expect(revert(change, filled, versionsOf(made, filled))).toStrictEqual(EDITED);
-    });
-
-    it("stays when a fold carried a person's tags onto it", () => {
-      const folded = landed(made, [...read, { base: [], op: "tags", value: ["later"] }]);
-      const change = changeOf(null, made, {}, [fillOf(made, folded)]);
-      expect(revert(change, folded, versionsOf(made, folded))).toStrictEqual(EDITED);
-    });
-
-    it("stays when a fold carried a person's folder onto it", () => {
-      const folded = landed(made, [
-        ...read,
-        { base: null, field: "folderId", op: "set", value: "reading" },
-      ]);
-      const change = changeOf(null, made, {}, [fillOf(made, folded)]);
-      expect(revert(change, folded, versionsOf(made, folded))).toStrictEqual(EDITED);
-    });
-
-    describe("that a fold of a stub going back in the same undo landed on", () => {
-      const carried: readonly LibraryOp[] = [
-        ...read,
-        { base: null, field: "folderId", op: "set", value: "reading" },
-        { base: [], op: "tags", value: ["later"] },
-        { block: paragraph("n", "For Tuesday."), op: "insert", ord: "a0", section: "note" },
-      ];
-      const folded = landed(made, carried);
-      const fills = [fillOf(made, folded)];
-
-      it("still goes to Deleted, what the fold carried being the undo's own", () => {
-        const change = changeOf(null, made, {}, fills, [folded]);
-        expect(stateOf(revert(change, folded, versionsOf(made, folded))).fields.deletedAt).toBe(AT);
-      });
-
-      it("goes when the set wrote to it after the fold", () => {
-        const tagged = landed(folded, [{ base: ["later"], op: "tags", value: ["later", "mine"] }]);
-        const change = changeOf(null, tagged, {}, fills, [folded]);
-        expect(stateOf(revert(change, tagged, versionsOf(tagged))).fields.deletedAt).toBe(AT);
-      });
-
-      it("stays once a person changes what the fold left", () => {
-        const tagged = landed(folded, [{ base: ["later"], op: "tags", value: ["later", "mine"] }]);
-        const change = changeOf(null, made, {}, fills, [folded]);
-        expect(revert(change, tagged, versionsOf(made, folded))).toStrictEqual(EDITED);
-      });
     });
 
     it("goes when the set itself wrote a name the fill has since replaced", () => {

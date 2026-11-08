@@ -66,10 +66,6 @@ export const liveFolders = (sql: SqlStatements): FolderRow[] =>
 
 const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === null ? row : null);
 
-// the folder an id files an item in: a deleted one files nothing, as the listing reads it
-export const standingFolder = (sql: SqlStatements, folderId: string | null): string | null =>
-  folderId === null ? null : (live(readFolder(sql, folderId))?.id ?? null);
-
 const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): void => {
   const seq = scope.seq();
   scope.storage.run(

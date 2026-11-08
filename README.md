@@ -8,9 +8,9 @@ browser tab all show. It does the work of a bookmark manager like Raindrop and
 a notes app like Obsidian at once.
 
 Save from Chrome, Arc, Brave or Edge with the browser extension, by pasting or
-dropping onto the window, or from your iPhone's share sheet. The extension or
-the iPhone that saved a page reads it, and our cloud reads every other link
-you save; no model is asked. When you ask, the built-in agent files, tags,
+dropping onto the window, or from your iPhone's share sheet. The extension
+reads the page you save from it, and our cloud reads every other link you
+save; no model is asked. When you ask, the built-in agent files, tags,
 summarizes and edits your library with you on any of your devices, and every
 reply that changed something can be undone. Your own Claude or ChatGPT can
 reach the same library through the connector, once you connect it.
@@ -48,8 +48,8 @@ app ([`apps/desktop`](./apps/desktop/README.md)), the iPhone app
 tab each hold a replica of the library and send their writes through one
 `/v1` wire; the browser extension
 ([`apps/extension`](./apps/extension/README.md)) saves over the same wire. A
-saved page is read by the extension or the iPhone that saved it, on the
-device, and by the Worker's fill otherwise, off a Queue. The built-in agent is
+saved page is read by the extension that saved it, on the device, and by the
+Worker's fill otherwise, off a Queue. The built-in agent is
 the Worker's own loop over Claude through AI Gateway, one Durable Object a
 conversation, its tools the library's procedures.
 

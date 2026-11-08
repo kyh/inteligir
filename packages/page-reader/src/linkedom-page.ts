@@ -1,6 +1,6 @@
 // a page's html as a document with an <html>, a <head> and a <body> whatever it was handed, through
 // linkedom, the DOM a host with none of its own reads a page with (the Worker's fill, the
-// extension's worker, the phone's runtime under node); a WebView reads one with its own DOMParser.
+// extension's worker).
 // A fragment, a bare text body or a JSON answer served as html still reads as a page. The repair is
 // string-level or one element moved, never a re-serialization, so a page nested deeper than
 // linkedom's own recursion still parses.

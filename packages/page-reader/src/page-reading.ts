@@ -1,6 +1,5 @@
 // The reading as the library's blocks, in types that name no DOM, so a program typed without one
 // (the cloud's Worker, apps/web/src/worker/tsconfig.json) can name what `read-html.ts` answers.
-// Apart from `page-facts.ts`, whose answer a host carries without the editor's codec.
 
 import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 

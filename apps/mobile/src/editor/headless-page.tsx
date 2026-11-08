@@ -1,7 +1,6 @@
 // The phone page in its headless mode: a WebView nothing shows, mounted while the phone is signed
-// in, that reads the pages the share sheet hands over and merges a block two devices changed
-// (headless-page-host.ts). It loads the page the app bundle carries and nothing else: no other
-// address, no frame, no window.
+// in, that merges a block two devices changed (headless-page-host.ts). It loads the page the app
+// bundle carries and nothing else: no other address, no frame, no window.
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
 import { headlessPage } from "@/lib/app-runtime";

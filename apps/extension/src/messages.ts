@@ -34,7 +34,7 @@ export type OutcomeReason = (typeof OUTCOME_REASONS)[number];
 
 // how a save went
 const outcomeSchema = z.discriminatedUnion("kind", [
-  // `created` is false for a page the library already held, which the save folded onto
+  // `created` is false for a page the library already held, which the save answered with
   z.object({ created: z.boolean(), kind: z.literal("saved"), title: z.string() }),
   // the cloud did not answer: the save waits and goes once it does
   z.object({ kind: z.literal("queued") }),

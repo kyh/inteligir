@@ -1,8 +1,8 @@
 // What any device that reads a saved link judges by: how much of a page it reads, which of its
 // pictures is a cover, whether an answer is a page, a video or a sound at all, which of a page's
 // texts it reads for, and whether a reading is kept. The cloud's fill
-// (apps/web/src/worker/fill/read-page.ts), the extension and the phone's share each read by these,
-// so a link reads the same whichever device read it.
+// (apps/web/src/worker/fill/read-page.ts) and the extension each read by these, so a link reads the
+// same whichever read it.
 
 import { kindForUrl } from "./item-url";
 import { pixelSize, sniffMedia } from "./sniff-media";
@@ -36,8 +36,8 @@ export const decodable = ({ height, width }: PixelSize): boolean =>
   width * height <= FILL_LIMITS.coverMaxPixels;
 
 // a fetched cover candidate as a page's cover: the picture its bytes are, unless its header names
-// a pixel, an icon or more than a device may decode; the cloud's fill, the extension and the
-// phone's share, which keep a cover as the site served it, judge every candidate by this
+// a pixel, an icon or more than a device may decode; the cloud's fill and the extension, which keep
+// a cover as the site served it, judge every candidate by this
 export const coverPicture = (bytes: Uint8Array): { readonly mime: string } | null => {
   const sniffed = sniffMedia(bytes);
   if (sniffed?.kind !== "image") {

@@ -1,7 +1,7 @@
 // The shares the inbox settles (`./share-inbox`), one at a time, the latest last. The share
-// context holds one intent and replaces it when another share arrives, and a settle can run for
-// tens of seconds (the page's fetch alone may take 20), so a share made meanwhile is settled once
-// the one before it is done, and the context is let go only once the intent just settled is still
+// context holds one intent and replaces it when another share arrives, and a settle waits behind
+// the replica's writes queued before it, so a share made meanwhile is settled once the one before
+// it is done, and the context is let go only once the intent just settled is still
 // the one it holds: a reset after the first would clear the second unsaved. A share the library
 // left under is held in the context, for the sign-in after to settle, or at once by the screen a
 // sign-out that failed opened again meanwhile.

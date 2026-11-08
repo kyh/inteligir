@@ -1,5 +1,5 @@
-// What a page's fetch does on every host: the redirects followed, at most five, each hop put to the
-// host's own rule, and the final answer read, its bytes counted against a cap as they arrive, after
+// What a page's fetch does over its host's own: the redirects followed, at most five, each hop put
+// to the host's own rule, and the final answer read, its bytes counted against a cap as they arrive, after
 // the platform has decoded them, so a compressed bomb stops at the cap. A host keeps which hops it
 // asks, how it asks and the deadline, whose abort reaches here as a read that rejects.
 

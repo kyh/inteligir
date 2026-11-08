@@ -46,14 +46,13 @@ export interface FillChange {
 }
 
 // what a change set did to one item: `before` null when the set made it, with every fill of the
-// item since, and where each fold of a stub going back in the same undo left it
+// item since
 export type ItemChange =
   | { readonly before: ItemSnapshot; readonly after: ItemSnapshot }
   | {
       readonly before: null;
       readonly after: ItemSnapshot;
       readonly fills: readonly FillChange[];
-      readonly folds: readonly ItemSnapshot[];
     };
 
 type MadeItem = Extract<ItemChange, { before: null }>;
@@ -317,8 +316,8 @@ const sameAnnotations = (a: AnnotationStore, b: AnnotationStore): boolean => {
 
 // whether anyone but a fill changed the item since `left`: a field holds what `left` holds or what
 // a fill wrote there, read off the fill's own change, since one field can be either's (a fill names
-// an unread link, and a person renames it). A fill's folder and lists are a fold's, carrying a
-// person's filing and tags over, so those count, as the note section's blocks and the highlights do
+// an unread link, and a person renames it). A fill writes no folder, list, note or highlight, so a
+// change to any of them is a person's
 const personTouched = (left: ItemSnapshot, fills: readonly FillChange[], now: ItemNow): boolean => {
   const { fields } = now.state;
   const fillWrote = (field: ScalarField): boolean =>
@@ -337,13 +336,12 @@ const personTouched = (left: ItemSnapshot, fills: readonly FillChange[], now: It
 };
 
 // an item the set made goes to Deleted, unless a person has touched it since: a fill reading its
-// page since is not a reason to keep it, nor a fold carrying over a save that goes back with it,
-// which may have landed before or after the set's last write to the item
+// page since is not a reason to keep it
 const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemRevert => {
   if (now?.state.fields.deletedAt !== null) {
     return UNCHANGED;
   }
-  if ([change.after, ...change.folds].every((left) => personTouched(left, change.fills, now))) {
+  if (personTouched(change.after, change.fills, now)) {
     return EDITED_SINCE;
   }
   const ops = [setOp("deletedAt", null, at)];

@@ -47,8 +47,8 @@ or more items, and tag by topic, never by kind.
 
 - Save a web address with `save_link`, never by writing a note that holds it: the save mints the
   item, finds the one the library already holds for that address, and reads the page. A save of an
-  address the library holds keeps that item, adds the tags you passed to it and moves it only to a
-  folder you name; taking it out of a folder is `organize_items`.
+  address the library holds answers that item unchanged, with none of the tags, folder or note you
+  passed; tag or file it with `organize_items`, and add to its note with `edit_item`.
 - `search_library` finds items by what their titles, notes, articles and highlights say;
   `list_items` browses by folder, tag, kind or pin, newest first. Both answer a page at a time.
 - Write a new note with `create_note`, titled, tagged and filed in one call.

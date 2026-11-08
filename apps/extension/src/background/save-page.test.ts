@@ -135,7 +135,7 @@ describe("a tab saved", () => {
   });
 
   it("says a page the library holds is already in it", async () => {
-    const cloud = fakeCloud({ save: async () => savedAs("File over app", true) });
+    const cloud = fakeCloud({ save: async () => savedAs("File over app", false) });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toMatchObject({
       created: false,
     });

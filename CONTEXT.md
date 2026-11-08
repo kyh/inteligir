@@ -212,8 +212,8 @@ Worker's consumer reads the page with `@repo/page-reader` and lands only its
 one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
 in place of the address an unread item goes by; it calls no model and never
 writes `url` or `savedAt` (`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
-`pending`, `filled` or `failed`. A page the extension or the phone's share sheet
-read an article from is saved read and never filled; one it did not goes to the
+`pending`, `filled` or `failed`. A page the extension read an article from is
+saved read and never filled; one it did not goes to the
 fill as its link (`deviceKeepsReading` in `@repo/notes/items/link-fill`).
 
 **cover** — an item's picture: its `coverSha` field, the hash of a file the
@@ -223,8 +223,8 @@ part of its item, and is never a card of its own.
 
 **url key** — the one key two spellings of one link share: the scheme, `www.`,
 a default port, tracking parameters and a non-route fragment dropped, the host
-folded, the query sorted (`urlKey` in `@repo/notes/items/item-url`). A save
-folds onto the item holding its key. Not what an item's url holds: that is
+folded, the query sorted (`urlKey` in `@repo/notes/items/item-url`). A save of
+a url whose key a live item holds answers that item. Not what an item's url holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
 the key is a derived row, never a field.
 

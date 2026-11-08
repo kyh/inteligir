@@ -24,11 +24,11 @@ it with you.
   right-click menu.
 - **From the window.** Paste a link, or drag links and files onto the app. Any file up to 100 MB is
   kept as it is.
-- **From your iPhone.** Share a page or a link to ${name} from any app. Your iPhone reads the page as
-  you share it. Shared offline, it's saved as its link and read once it reaches your library.
+- **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once, offline
+  too, and our cloud reads the page once it reaches your library.
 
-Saving is instant and free, and calls no model. The extension or iPhone that saves a page reads its
-title, picture and text when it can, and our cloud reads every other link.
+Saving is instant and free, and calls no model. The extension reads the title, picture and text of
+the page you save from it when it can, and our cloud reads every other link.
 
 ## Read and highlight
 
@@ -90,7 +90,7 @@ collaborator would, in the open, with every change reversible. It is made for kn
 - **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
   and each Mac and iPhone you sign in on keeps a copy of every item's text and of each file you open,
   which work with no connection. Export writes all of it to a zip whenever you want it.
-- **Saving is instant and free.** The extension or iPhone that saves a page reads it when it can, our
+- **Saving is instant and free.** The extension reads the page you save from it when it can, our
   cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
   you ask.
 - **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
@@ -150,8 +150,8 @@ is kept in the account, in ${name}'s cloud. Each Mac and iPhone keeps a copy of 
 of each file opened on it, which reads and searches with no connection, and a browser tab at
 ${libraryUrl} shows it online. ${name} saves from Chrome,
 Arc, Brave and Edge through its browser extension, by pasting or dragging onto the window, and from
-the iPhone share sheet, and keeps any file up to 100 MB. The extension or iPhone that saves a page
-reads it when it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
+the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the page it saves when
+it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
 in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
 own Claude or ChatGPT can reach the same library through the connector at ${url}/connector. It imports
 Raindrop backups and zips of notes such as an Obsidian folder, and exports the whole library as a

@@ -21,8 +21,8 @@ src/
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the replica's SQL over expo-sqlite and over
                 node's sqlite, phone-db.ts's own tables, the /v1 transport, the screens'
-                hooks over the library, backup-exclusion.ts and http-cache.ts over the
-                modules of those names, the native modules this app carries, and
+                hooks over the library, backup-exclusion.ts over the module of that
+                name, the native module this app carries, and
                 palette.ts, the colors a prop takes as a value, with theme.ts's useTheme
                 over the system's scheme
   credential/   the device credential at rest, in the Keychain (expo-secure-store)
@@ -30,11 +30,11 @@ src/
   files/        the library's files by their hash: pinned in Documents or cached, with
                 their thumbnails (expo-file-folders.ts and expo-thumbnail.ts the native halves)
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
-                an item's editor over the replica's ops, and the headless page that reads a
-                shared page and merges a block two devices changed
+                an item's editor over the replica's ops, and the headless page that merges
+                a block two devices changed
   annotations/  an item's highlights, their notes and replies, in the sheet
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
-                the inbox that saves it (reading the page on the phone), and an item's Info
+                the inbox that saves it, and an item's Info
   library/      the Library's query by scope, kind and search, its cards, and what waits
                 to be sent
   ui/           controls the screens share
@@ -133,11 +133,8 @@ so a download begun before it lands nothing.
 
 The share extension hands a page, a link or text to the app, which reads it
 (`src/items/share-payload.ts`) and saves it (`src/items/share-save.ts`): a
-page is fetched by the phone, each redirect judged by its spelling
-(`src/items/page-fetch.ts`), read in the headless page by the library's own
-reader and saved read, with its cover; a page it cannot read now, offline
-among them, or read no text from, is saved as its link, which the cloud reads
-once it lands. Words shared beside the link are the item's note either way.
+page or a link is saved as its link, which the cloud reads once it lands, and
+text alone as a thought. Words shared beside the link are a new item's note.
 
 ## The agent
 
@@ -183,7 +180,7 @@ sign-in form never flashes over a device that is signed in.
   to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item
   page's ports, the headless page's host, the annotation edits, the share
-  payload and the share's read, and the Library's query. Unit tests, no device.
+  payload and the share's save, and the Library's query. Unit tests, no device.
   `tools/e2e/src/scenarios/phone-offline-edit.ts`, `phone-save-hosted.ts`,
   `phone-annotations-hosted.ts` and `phone-file-ops-hosted.ts` run the same
   composition under node against a real Worker, beside a second device, and
@@ -207,9 +204,9 @@ sign-in form never flashes over a device that is signed in.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
   app actually booting, the held splash and the route guard's redirects, the
   Keychain, expo-sqlite and its full-text search on the device, the backup
-  exclusion, the file cache and staged photos, the headless page's merge and
-  read, the resume and the reconnect, the socket's upgrade from the device and
-  a Mac's edit arriving on it, a share read on the phone, the agent, a live
+  exclusion, the file cache and staged photos, the headless page's merge, the
+  resume and the reconnect, the socket's upgrade from the device and a Mac's
+  edit arriving on it, a share from another app, the agent, a live
   sign-in, an EAS Update landing, the editor on a real WebKit, and how the
   screens look in light and dark. Each is a check with how to run it and what
   passing looks like in `docs/releasing.md` § 5, run on every release's

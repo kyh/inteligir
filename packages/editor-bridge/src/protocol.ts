@@ -2,9 +2,8 @@
 // in one binary, so it breaks freely: no version field, no negotiation. Every frame crosses as a
 // JSON string and is parsed here by the end that receives it. The same page loads in one of two
 // modes, named by its `init`: an item's editor over its blocks by id, which reads and writes the
-// phone's replica in ops, or the headless page nothing shows, which reads a page the phone shares
-// into an item and merges a block two devices changed, since the editor and the reader live only
-// in the page.
+// phone's replica in ops, or the headless page nothing shows, which merges a block two devices
+// changed, since the editor lives only in the page.
 
 import { z } from "zod";
 
@@ -13,7 +12,6 @@ import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops"
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
-import { pageFactsSchema } from "@repo/page-reader/page-facts";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.
@@ -161,29 +159,6 @@ const requestFrame = <K extends RequestKind, P extends RequestSchemas[K]["payloa
     type: z.literal("request"),
   });
 
-// what the reader made of a page: its facts and its article as the item's article blocks, in
-// order, or why it read nothing (a page that broke the extractor)
-const fillAnswerSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    article: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
-    facts: pageFactsSchema,
-    kind: z.literal("read"),
-  }),
-  z.strictObject({ kind: z.literal("failed"), reason: z.string() }),
-]);
-export type FillAnswer = z.infer<typeof fillAnswerSchema>;
-
-// a page the phone fetched, as its bytes (base64, since the bridge carries strings) and the charset
-// its answer declared: the reader decodes it as a browser would
-const fillJobSchema = z.strictObject({
-  base64: z.string(),
-  charset: z.string().nullable(),
-  // "description": a video's or a song's description is its article, when it has one
-  prefer: z.enum(["article", "description"]),
-  url: z.string(),
-});
-export type FillJob = z.infer<typeof fillJobSchema>;
-
 // a block two devices changed: as the phone's write was computed from it, as the phone wrote it,
 // and as the cell holds it now
 const mergeSidesSchema = z.strictObject({
@@ -230,13 +205,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.strictObject({ itemId: itemIdSchema, nonce: nonceSchema, type: z.literal("openItem") }),
   // the answer to a `flush`: whether the open item's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
-  // the reader's answer to a `fillJob` with the same id
-  z.strictObject({
-    answer: fillAnswerSchema,
-    id: idSchema,
-    nonce: nonceSchema,
-    type: z.literal("fillAnswer"),
-  }),
   // the merge's answer to a `mergeJob` with the same id
   z.strictObject({
     id: idSchema,
@@ -261,7 +229,7 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       nonce: nonceSchema,
       type: z.literal("init"),
     }),
-    // the page nothing shows: no editor, only `fillJob`s and `mergeJob`s
+    // the page nothing shows: no editor, only `mergeJob`s
     z.strictObject({ mode: z.literal("headless"), nonce: nonceSchema, type: z.literal("init") }),
   ]),
   // a result is parsed by the request it answers, which knows its kind
@@ -294,13 +262,6 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
   // write the open item's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
   z.strictObject({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }),
-  // read this page; answered by a `fillAnswer` with the same id
-  z.strictObject({
-    id: idSchema,
-    job: fillJobSchema,
-    nonce: nonceSchema,
-    type: z.literal("fillJob"),
-  }),
   // merge this block; answered by a `mergeAnswer` with the same id
   z.strictObject({
     id: idSchema,

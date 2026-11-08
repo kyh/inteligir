@@ -20,10 +20,10 @@ export type PageSave = Parameters<Items["save"]>[0];
 export type LinkSave = Parameters<Items["saveLink"]>[0];
 /** @internal */
 export type FileCreate = Parameters<Items["createFile"]>[0];
-// what the extension reads of a save's answer: the item's name as it landed, and whether it
-// folded onto one that held the address
+// what the extension reads of a save's answer: the item's name as it landed, and whether the save
+// made it or the library already held the address
 export interface Saved {
-  readonly folded: boolean;
+  readonly created: boolean;
   readonly item: { readonly fields: { readonly title: string } };
 }
 

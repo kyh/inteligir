@@ -20,15 +20,12 @@ import { editorPageSource } from "../editor/page-source";
 import type { PageSource } from "../editor/page-source";
 import { createExpoFileFolders } from "../files/expo-file-folders";
 import { shrinkToThumbnail } from "../files/expo-thumbnail";
-import { createPageFetch } from "../items/page-fetch";
-import type { PageFetch } from "../items/page-fetch";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
 import { openExpoReplicaSql } from "./expo-replica-sql";
-import { clearHttpCache } from "./http-cache";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
@@ -57,23 +54,6 @@ export const headlessPage = (): { host: HeadlessPageHost; source: PageSource } |
   return headless;
 };
 
-// a shared page is asked for as Safari on the phone would ask, naming the app after it
-const userAgent = (): string =>
-  `Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1 inteligir/${appVersion()}`;
-
-// the phone's own language first, its bare language after
-const acceptLanguage = (): string => {
-  const { locale } = Intl.DateTimeFormat().resolvedOptions();
-  const [language = "en"] = locale.split("-");
-  return locale === language ? locale : `${locale},${language};q=0.9`;
-};
-
-// a page the share sheet reads: fetched by the phone itself, its redirects judged hop by hop
-export const sharedPageFetch: PageFetch = createPageFetch(globalThis.fetch, {
-  acceptLanguage: acceptLanguage(),
-  userAgent: userAgent(),
-});
-
 const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   hexFromBytes(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
 
@@ -86,7 +66,6 @@ let runtime: AppRuntime | null = null;
 const build = (): AppRuntime => {
   const rt = composeRuntime({
     build: { platform: "mobile", version: appVersion() },
-    clearHttpCache,
     clock: {
       after: (ms, run) => {
         const timer = setTimeout(run, ms);

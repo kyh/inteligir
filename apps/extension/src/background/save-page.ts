@@ -53,7 +53,7 @@ const refused = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outco
 });
 
 const savedOutcome = (saved: Saved): Outcome => ({
-  created: !saved.folded,
+  created: saved.created,
   kind: "saved",
   title: saved.item.fields.title,
 });

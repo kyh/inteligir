@@ -88,7 +88,7 @@ const SaveField = ({ scope }: { scope: LibraryScope }) => {
         return;
       }
       setDraft("");
-      if (saved.made.folded) {
+      if (!saved.made.created) {
         Alert.alert("Already in your library", undefined, [
           { style: "cancel", text: "OK" },
           {

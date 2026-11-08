@@ -1,16 +1,15 @@
-// Saving a web address: one url, one item. A save of an address a live item holds folds onto that
-// item, adding what it brings, and only an address no live item holds makes one.
-// A page a device read itself (the extension, the share sheet) lands read, its article replacing
-// the item's and the item's highlights placed again in it by their quotes, since the markers the
-// old article held went with it; a read that found no article leaves the item's. One saved to
-// read later lands at once as an unread stub, `pending`, which the cloud reads afterwards. The
-// passage the person had selected is kept as a highlight on the page, and the words saved with it,
-// read or not, go in the item's note after its own.
+// Saving a web address: one url, one item. A save of an address a live item holds answers that
+// item as it stands and writes nothing, unless it is a page a device read itself (the extension)
+// and the item has no article yet, its reading still waiting or failed: then the read lands on it
+// as a reading does. Only an address no live item holds makes an item. A page a device read lands
+// read; one saved to read later lands at once as an unread stub, `pending`, which the cloud reads
+// afterwards. The passage the person had selected is kept as a highlight on the page, and the
+// words saved with it go in the new item's note.
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
-import { compareText, ordsBetween } from "@repo/notes/library/block-order";
+import { compareText } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { pageFields, stubFields } from "@repo/notes/library/item-makes";
@@ -23,42 +22,29 @@ import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import type { AnnotationRows } from "./cell-annotations";
 import type { CellCodec } from "./cell-codec";
-import { folderOfTarget, standingFolder } from "./cell-folders";
+import { folderOfTarget } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { bareHighlight, landNew, noteBlocksOf, placeQuotes, tagKey } from "./cell-items";
+import { bareHighlight, landNew, noteBlocksOf, placeQuotes } from "./cell-items";
 import type { MarkdownBlocks, PlacedBlock, PlacingQuote } from "./cell-items";
-import { refuse } from "./cell-refusal";
-import { landWrite } from "./cell-writes";
+import { landWrite, liveRowOf } from "./cell-writes";
 
 export interface SavedItem {
   readonly item: LiveItemRow;
-  readonly folded: boolean;
+  // false: the library already held the address, and this is that item
+  readonly created: boolean;
 }
 
-type HeldItem = ItemState & { readonly id: string };
-
 // the live item a url's key names, if one does
-const heldItem = (scope: LandingScope, url: string): HeldItem | null => {
+const heldItem = (scope: LandingScope, url: string): { readonly id: string } | null => {
   const key = urlKey(url);
-  const holder = key === null ? null : urlHolder(scope.storage, key, null);
-  const state = holder === null ? null : runPlan(scope.storage, readItemState(holder.id));
-  return holder === null || state === null ? null : { ...state, id: holder.id };
-};
-
-// the item's tags with the save's added, as a list op merges them
-const tagsOp = (fields: LibraryItemFields, tags: readonly string[]): LibraryOp[] => {
-  const held = new Set(fields.tags.map(tagKey));
-  const added = [...new Set(tags)].filter((tag) => !held.has(tagKey(tag)));
-  return added.length === 0
-    ? []
-    : [{ base: fields.tags, op: "tags", value: [...fields.tags, ...added] }];
+  return key === null ? null : urlHolder(scope.storage, key, null);
 };
 
 // the highlights of an item that keep a passage, oldest first
-export const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
+const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
   [...rows.values()]
     .toSorted((a, b) => a.createdAt - b.createdAt || compareText(a.id, b.id))
     .flatMap((row) =>
@@ -66,10 +52,6 @@ export const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
         ? [{ id: row.id, occurrence: row.occurrence ?? undefined, quote: row.quote }]
         : [],
     );
-
-// the passage a person had selected, unless a highlight of the item already keeps that quote
-const selectionToKeep = (rows: AnnotationRows, selection: string | null): string | null =>
-  selection !== null && quotesOf(rows).some((held) => held.quote === selection) ? null : selection;
 
 export interface SaveInput {
   readonly id: string;
@@ -85,18 +67,15 @@ export interface SaveInput {
   readonly selection: string | null;
 }
 
-// what a page brings to the item that holds its address, however it was read
-export type ReadPage = Pick<
-  SaveInput,
-  "article" | "coverSha" | "facts" | "folderId" | "tags" | "title"
->;
+// what a read page brings to an item, however it was read
+type ReadPage = Pick<SaveInput, "article" | "coverSha" | "facts" | "title">;
 
 const articleOf = (input: Pick<ReadPage, "article">): PlacedBlock[] =>
   input.article.map(({ block, ord }) => ({ block, ord, section: "article" }));
 
 // the ops that put a page's article in place of the item's; a page that held none leaves the
 // item's
-export const articleOps = (state: ItemState, page: Pick<ReadPage, "article">): LibraryOp[] =>
+const articleOps = (state: ItemState, page: Pick<ReadPage, "article">): LibraryOp[] =>
   page.article.length === 0
     ? []
     : [
@@ -119,7 +98,7 @@ const noteOf = (
   words === undefined || words.trim() === "" ? null : noteBlocksOf(scope, codec, words);
 
 // the ops that place `quotes` where the item's text holds them once `ops` land
-export const quoteOps = (
+const quoteOps = (
   state: ItemState,
   codec: CellCodec,
   ops: readonly LibraryOp[],
@@ -206,66 +185,34 @@ const newPage = (
   });
 };
 
-// the ops that put a note's blocks after the person's own, keyed past the last of them
-const appendedNote = (
-  held: HeldItem,
-  note: readonly { readonly block: LibraryBlock }[],
-): LibraryOp[] => {
-  const last =
-    [...held.blocks.values()]
-      .filter((stored) => stored.section === "note")
-      .map((stored) => stored.ord)
-      .toSorted(compareText)
-      .at(-1) ?? null;
-  const keys = ordsBetween(last, null, note.length);
-  return note.map((placed, index): LibraryOp => {
-    const ord = keys[index];
-    return ord === undefined
-      ? refuse({ kind: "too-large" })
-      : { block: placed.block, op: "insert", ord, section: "note" };
-  });
-};
-
-// a page onto the item holding its address: its article replaces the item's, unless the read
-// found none, and the item's highlights are placed again in it; its fields land as a reading's do,
-// a folder that stands only where the item is in none that does, its tags join the item's, and a
-// note it brings goes after the item's own
-export const foldPage = (
+// a page read into an item: its article in place of the item's and the fields `fieldOps` set, the
+// item's highlights placed again in the article by their quotes, since the markers the old article
+// held went with it; one the note holds stays where it is
+export const landRead = (
   scope: LandingScope,
   actor: CellActor,
   codec: CellCodec,
-  held: HeldItem,
-  rows: AnnotationRows,
-  input: ReadPage,
-  highlight: Highlight,
-  note: MarkdownBlocks | null,
+  item: { readonly id: string; readonly state: ItemState },
+  page: Pick<ReadPage, "article">,
+  fieldOps: readonly LibraryOp[],
 ): LiveItemRow => {
-  const folderId = standingFolder(scope.storage, input.folderId);
-  const ops: LibraryOp[] = [
-    ...articleOps(held, input),
-    ...pageFieldOps(held.fields, input, scope.now),
-    ...(folderId !== null && standingFolder(scope.storage, held.fields.folderId) === null
-      ? [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]
-      : []),
-    ...tagsOp(held.fields, input.tags),
-    ...(note === null ? [] : appendedNote(held, note.blocks)),
-  ];
-  // a highlight whose markers the note holds stays where it is (`placeQuotes`)
-  const quotes = [
-    ...(input.article.length > 0 ? quotesOf(rows) : []),
-    ...(highlight === null ? [] : [highlight]),
-  ];
+  const ops = [...articleOps(item.state, page), ...fieldOps];
+  const quotes =
+    page.article.length === 0 ? [] : quotesOf(readAnnotationRows(scope.storage, item.id));
   return landWrite(scope, actor, {
-    annotations: [
-      ...(note?.highlights ?? []),
-      ...(highlight === null ? [] : [bareHighlight(scope, highlight)]),
-    ],
-    itemId: held.id,
-    ops: [...ops, ...quoteOps(held, codec, ops, quotes)],
+    itemId: item.id,
+    ops: [...ops, ...quoteOps(item.state, codec, ops, quotes)],
   });
 };
 
-// a page the device read: onto the item that holds its address, or as a new read item
+// whether an item still has its page to be read: no article yet, its reading waiting or failed
+const awaitsRead = (state: ItemState): boolean =>
+  (state.fields.fetchState === "pending" || state.fields.fetchState === "failed") &&
+  ![...state.blocks.values()].some((stored) => stored.section === "article");
+
+// a page the device read: a new read item, or the item that holds its address as it stands, which
+// takes a read that found an article only while it has none of its own to lose; a read that found
+// none leaves a waiting item to the cloud's
 export const savePage = (
   scope: LandingScope,
   actor: CellActor,
@@ -274,14 +221,26 @@ export const savePage = (
   input: SaveInput,
 ): SavedItem => {
   const held = heldItem(scope, input.url);
-  const rows: AnnotationRows =
-    held === null ? new Map() : readAnnotationRows(scope.storage, held.id);
-  const selection = selectionToKeep(rows, input.selection);
-  const highlight = selection === null ? null : { id: ids.annotation(), quote: selection };
-  const note = noteOf(scope, codec, input.note);
-  return held === null
-    ? { folded: false, item: newPage(scope, actor, codec, input, highlight, note) }
-    : { folded: true, item: foldPage(scope, actor, codec, held, rows, input, highlight, note) };
+  if (held === null) {
+    const highlight =
+      input.selection === null ? null : { id: ids.annotation(), quote: input.selection };
+    const note = noteOf(scope, codec, input.note);
+    return { created: true, item: newPage(scope, actor, codec, input, highlight, note) };
+  }
+  const state = runPlan(scope.storage, readItemState(held.id));
+  return state !== null && input.article.length > 0 && awaitsRead(state)
+    ? {
+        created: false,
+        item: landRead(
+          scope,
+          actor,
+          codec,
+          { id: held.id, state },
+          input,
+          pageFieldOps(state.fields, input, scope.now),
+        ),
+      }
+    : { created: false, item: liveRowOf(scope, held.id) };
 };
 
 export interface SaveLinkInput {
@@ -324,34 +283,7 @@ const newStub = (
   });
 };
 
-interface HeldSelection {
-  readonly add: ReturnType<typeof bareHighlight>[];
-  readonly ops: readonly LibraryOp[];
-}
-
-// the passage the person had selected, as a highlight of the item that holds the address and the
-// ops placing it where the item's text (with `ops` applied) holds it; none for a passage a
-// highlight of the item already keeps
-const heldSelection = (
-  scope: LandingScope,
-  codec: CellCodec,
-  ids: CellIds,
-  held: HeldItem,
-  ops: readonly LibraryOp[],
-  given: string | undefined,
-): HeldSelection => {
-  const selection = selectionToKeep(readAnnotationRows(scope.storage, held.id), given ?? null);
-  if (selection === null) {
-    return { add: [], ops: [] };
-  }
-  const highlight = { id: ids.annotation(), quote: selection };
-  return { add: [bareHighlight(scope, highlight)], ops: quoteOps(held, codec, ops, [highlight]) };
-};
-
-// a url to read later: the item that holds it gains the tags, the note and the passage the person
-// had selected, placed in its text where it stands, and moves only to a folder the save names,
-// since no folder says where the screen stood and nothing of where the item belongs; else an
-// unread stub lands
+// a url to read later: the item that holds it as it stands, else an unread stub
 export const saveLink = (
   scope: LandingScope,
   actor: CellActor,
@@ -359,24 +291,11 @@ export const saveLink = (
   ids: CellIds,
   input: SaveLinkInput,
 ): SavedItem => {
+  const held = heldItem(scope, input.url);
+  if (held !== null) {
+    return { created: false, item: liveRowOf(scope, held.id) };
+  }
   const folderId = folderOfTarget(scope, input.folder, ids.item);
   const note = noteOf(scope, codec, input.note);
-  const held = heldItem(scope, input.url);
-  if (held === null) {
-    return { folded: false, item: newStub(scope, actor, ids, input, note, folderId ?? null) };
-  }
-  const ops: LibraryOp[] = [
-    ...tagsOp(held.fields, input.tags ?? []),
-    ...(folderId === undefined || folderId === null || folderId === held.fields.folderId
-      ? []
-      : [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]),
-    ...(note === null ? [] : appendedNote(held, note.blocks)),
-  ];
-  const selected = heldSelection(scope, codec, ids, held, ops, input.selection);
-  const item = landWrite(scope, actor, {
-    annotations: [...(note?.highlights ?? []), ...selected.add],
-    itemId: held.id,
-    ops: [...ops, ...selected.ops],
-  });
-  return { folded: true, item };
+  return { created: true, item: newStub(scope, actor, ids, input, note, folderId ?? null) };
 };

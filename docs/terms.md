@@ -95,11 +95,10 @@ encrypt Your Content end to end: what it holds is stored where we can read it,
 as our Privacy Policy describes. Keep your own copies of anything you cannot
 afford to lose (Section 6).
 
-2.8 **What You Save From the Web.** When you save a link, the device you save
-it on reads the page when it can: the browser extension reads the page you are
-looking at, and the iPhone app fetches a page you share to it. Any other link
-you save, and one the extension or the iPhone could not read, is fetched once
-by our cloud. Either way your library keeps its title, a picture and its
+2.8 **What You Save From the Web.** When you save a link from the browser
+extension, it reads the page you are looking at when it can. Any other link
+you save, and one the extension could not read, is fetched once by our
+cloud. Either way your library keeps its title, a picture and its
 readable text. What you save from someone else's site stays theirs: saving it gives you no rights in it beyond
 what its owner and the law allow, and how you use it is your responsibility. The
 Privacy Policy says exactly what these fetches send and to whom.

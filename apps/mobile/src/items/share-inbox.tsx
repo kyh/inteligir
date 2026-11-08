@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { useShareIntentContext } from "expo-share-intent";
 import type { ShareIntent } from "expo-share-intent";
-import { headlessPage, newBlockId, sharedPageFetch } from "@/lib/app-runtime";
+import { newBlockId } from "@/lib/app-runtime";
 import type { PhoneLibrary } from "@/lib/compose-runtime";
 import { messageOf } from "@/lib/error-message";
 import { useLibrary } from "@/lib/library-hooks";
@@ -31,23 +31,10 @@ const settleShare = async (
   library: PhoneLibrary,
   intent: ShareIntent,
 ): Promise<"settled" | "held"> => {
-  const page = headlessPage();
   let saved: Awaited<ReturnType<typeof saveShared>>;
   try {
     saved = await saveShared(
-      {
-        newBlockId,
-        ports: {
-          fetch: sharedPageFetch,
-          read: async (job) => {
-            if (page === null) {
-              throw new Error("This build has no page to read links with.");
-            }
-            return await page.host.read(job);
-          },
-        },
-        replica: library.replica,
-      },
+      { newBlockId, replica: library.replica },
       sharedSaveOf({ meta: metaOf(intent.meta), text: intent.text ?? null, webUrl: intent.webUrl }),
     );
   } catch (error) {
@@ -66,9 +53,9 @@ const settleShare = async (
 };
 
 // A share from Safari, YouTube, Mail or any app is a save the app makes: the extension only hands
-// it over, and this reads the page, saves it, opens the item and only then lets the share go, so
-// one made while signed out (when this is not mounted) waits for the sign-in, and one made offline
-// is saved as its link, for the cloud to read once it lands.
+// it over, and this saves it as its link, for the cloud to read once it lands, opens the item and
+// only then lets the share go, so one made while signed out (when this is not mounted) waits for
+// the sign-in.
 export const ShareInbox = () => {
   const library = useLibrary();
   const { hasShareIntent, resetShareIntent, shareIntent } = useShareIntentContext();
