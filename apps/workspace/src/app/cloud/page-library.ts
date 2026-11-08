@@ -76,6 +76,7 @@ const SIGN_IN_PATH = "/app/sign-in";
 export const signInHref = (here: Pick<Location, "pathname" | "search">): string =>
   `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;
 
+/** @internal */
 export const pageClock: ReplicaClock = {
   after: (ms, run) => {
     const timer = setTimeout(run, ms);
