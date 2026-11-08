@@ -4,7 +4,7 @@ ONE contract: `/v1`, the wire between every client and the Cloudflare Worker.
 `cloud/v1` is that wire as one oRPC contract on `/v1/rpc`, `account.*` answered
 by the Worker and `library.*` by the account's library cell, typed by every
 client as `V1Client`. Beside it are the plain-HTTP routes it names (a file's
-bytes, an export's zip, the account's socket), the build every request names,
+bytes, the account's socket), the build every request names,
 and `cloud/extension`, the browser extension's identity and the messages the
 site's connect page hands it a credential with.
 
@@ -40,7 +40,7 @@ src/
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors (account-schema.ts)
     device/            # the device credential, its sign-in and the account's devices
     library/           # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
-                       #   the agent's events, a file's and an export's routes, and the socket's frames
+                       #   the agent's events, a file's route, and the socket's frames
     client-build.ts    # the build every request names, and the floor it is held to
     cloud-origin.ts    # the production origin a client falls back to, and the Mac page's own
     library-page.ts    # where the Worker serves the library's page
@@ -90,7 +90,7 @@ src/
   `client.library.apply` would be `Function.prototype.apply` (hence
   `library.write`).
 - **Every request names its build, and the Worker refuses one below its
-  floor.** `x-inteligir-build` rides every call, a file's and an export's too
+  floor.** `x-inteligir-build` rides every call, a file's too
   (`client-build.ts`); `CLIENT_OUTDATED` ends a sign-in as outdated, not signed
   out: the credential stands, and only an update moves past it. A page the
   Worker served names none, and the socket opens on a ticket a call minted.

@@ -36,7 +36,6 @@ import {
   cursorSchema,
   epochSchema,
   eventIdSchema,
-  exportJobSchema,
   folderNameSchema,
   folderOpSchema,
   FOLDER_NAME_MAX,
@@ -465,7 +464,7 @@ const historyContract = {
 };
 
 // an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
-// zip of markdown, this app's export or an Obsidian vault included. The cell runs it as a
+// zip of markdown, an Obsidian vault included. The cell runs it as a
 // job, a page at a time, every item it adds in one change set History shows
 const importsContract = {
   start: signedBase
@@ -489,17 +488,6 @@ const importsContract = {
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema, opId }))
     .output(z.object({ job: importJobSchema })),
-};
-
-// the whole library as a zip of markdown, written by the cell and downloaded from
-// `/v1/exports/<id>` until it is let go, seven days on or once a newer one is ready
-const exportsContract = {
-  start: signedBase.input(z.strictObject({ opId })).output(z.object({ export: exportJobSchema })),
-
-  get: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
-    .input(z.strictObject({ id: idSchema }))
-    .output(z.object({ export: exportJobSchema })),
 };
 
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });
@@ -602,8 +590,6 @@ const agentContract = {
 export const libraryContract = {
   agent: agentContract,
   annotations: annotationsContract,
-
-  exports: exportsContract,
   folders: foldersContract,
   history: historyContract,
   imports: importsContract,

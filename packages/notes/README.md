@@ -2,8 +2,8 @@
 
 The pure, platform-neutral domain core: the library model (an item as fields
 and a body of Plate blocks, its ops, its undo and its one SQL schema), the
-dialect's markdown grammar the codec, the import and the export read and write
-by, and what an item, a highlight, a formula and a search are, which every
+dialect's markdown grammar the codec and the import read and write by, and
+what an item, a highlight, a formula and a search are, which every
 device and the cell share.
 
 ## Why it exists
@@ -43,8 +43,7 @@ src/
     uuid-v7.ts         # an id minted on a device that sorts by when
   knowledge/           # links, tags and search, over the library's rows
     link-resolve.ts    # a link's target: the `[[Title|uuid]]` id tier, then
-                       # five path and alias tiers, aliases last, and the keys
-                       # an export page's resolver is filed under
+                       # five path and alias tiers, aliases last
     rank-wiki-targets.ts  # the order of the `[[` picker's targets
     link-extract.ts    # what a markdown file says outside its blocks: an md
                        # url's target and the frontmatter's tags and aliases
@@ -57,8 +56,8 @@ src/
     text-matches.ts    # literal occurrences in a text, for the find bar and
                        # the cell's excerpts
     doc-file.ts, asset-name.ts, folder-path.ts  # what a markdown file is,
-                       # a file's free name, and the folder tree's path
-                       # helpers, which the import and the export read a zip by
+                       # the mark of this app's folder of files, and the folder
+                       # tree's path helpers, which an import reads a zip by
   markdown/            # the dialect's one grammar
     md-plugins.ts      # the EDITOR's plugin list, owned here so the codec,
                        # an import and the editor read one grammar

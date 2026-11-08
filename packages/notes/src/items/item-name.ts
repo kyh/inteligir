@@ -84,6 +84,7 @@ const deviceStemEnd = (name: string): number | null => {
 };
 
 // a page title as a note name, or null when nothing printable is left
+/** @internal */
 export const itemNameFromTitle = (title: string): string | null => {
   const clean = repairChars(title.normalize("NFC")).replaceAll(/ +/gu, " ").replaceAll(EDGES, "");
   if (clean === "") {

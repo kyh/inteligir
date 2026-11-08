@@ -18,11 +18,7 @@ import {
   PayloadTooLargeError,
   QuotaError,
 } from "@repo/contract/cloud/v1/errors";
-import {
-  exportJobSchema,
-  importJobSchema,
-  liveItemRowSchema,
-} from "@repo/contract/cloud/library/library-wire";
+import { importJobSchema, liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
 import { ORPCError, implement } from "@orpc/server";
 import { noteFields } from "@repo/notes/library/item-makes";
 import { z } from "zod";
@@ -39,7 +35,6 @@ import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
 import { askFill, askFillAfterTurn } from "./cell-fills";
-import { readExportJob, startExport } from "./cell-exports";
 import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
 import { cancelImport, startImport } from "./cell-imports";
@@ -167,7 +162,6 @@ const highlightedSchema = z.object({
 });
 const headSchema = z.object({ seq: z.number() });
 const importAnswer = z.object({ job: importJobSchema });
-const exportAnswer = z.object({ export: exportJobSchema });
 const rulesAnswer = z.object({ rules: z.string() });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
@@ -266,24 +260,6 @@ export const libraryRouter = os.router({
         ),
       ),
     ),
-  },
-  exports: {
-    get: os.exports.get.handler(({ context, input }) => {
-      const job = answer(context.library.read((sql) => readExportJob(sql, input.id)));
-      if (job === null) {
-        throw new NotFoundError();
-      }
-      return { export: job };
-    }),
-    start: os.exports.start.handler(async ({ context, input }) => {
-      const { library } = context;
-      return await committed(
-        context,
-        library.landApart({ answer: exportAnswer, opId: input.opId }, (scope) => ({
-          export: startExport(scope, library.ids),
-        })),
-      );
-    }),
   },
   folders: {
     write: os.folders.write.handler(

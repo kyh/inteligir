@@ -1,5 +1,5 @@
 // Settings, drawn over the workspace it leaves mounted (`routes/_workspace.tsx`): the account and
-// what reaches it, bringing a library in and taking it out, and how the editor reads. A section
+// what reaches it, bringing a library in, and how the editor reads. A section
 // the cloud answers waits for a connection and says so; the editor's are this page's own.
 
 import { Button } from "@repo/ui/components/button";
@@ -17,7 +17,7 @@ import {
 } from "../appearance-options";
 import { TitleBarDragStrip } from "../top-bar";
 import { AccountSection } from "./account-section";
-import { ImportExportSection } from "./import-export-section";
+import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
 import { UpdatesRow } from "./updates-row";
@@ -32,7 +32,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 // since the Mac's routes ride the hash and a fragment there is a route
 const NAV = [
   { id: "account", label: "Account" },
-  { id: "import", label: "Import and export" },
+  { id: "import", label: "Import" },
   { id: "editor", label: "Editor" },
   { id: "about", label: "About" },
 ] as const;
@@ -122,7 +122,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => (
       <h1 className="m-0 text-title font-medium">Settings</h1>
       <AccountSection />
       <Separator />
-      <ImportExportSection />
+      <ImportSection />
       <Separator />
       <EditorSection />
       <Separator />

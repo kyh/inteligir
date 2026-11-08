@@ -50,7 +50,6 @@ import {
   settleStored,
 } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
-import { runExports } from "./cell-exports";
 import { runImports } from "./cell-imports";
 import { openCellSchema } from "./cell-schema";
 import {
@@ -221,7 +220,7 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // the jobs due: the storage's own, then those that wait on R2 (strays, imports, exports), the
+  // the jobs due: the storage's own, then those that wait on R2 (strays, imports), the
   // readings to send, and the agent's turns to hand over or ask after; whatever moved the library
   // is told to the sockets once
   override async alarm(): Promise<void> {
@@ -230,7 +229,7 @@ export class LibraryDO extends DurableObject<Env> {
     try {
       library.runDueJobs(logJobFailure);
       await removeStrays(this.env, this.#accountId, library);
-      const host = {
+      await runImports({
         accountId: this.#accountId,
         durable: async () => {
           await this.ctx.storage.sync();
@@ -238,9 +237,7 @@ export class LibraryDO extends DurableObject<Env> {
         env: this.env,
         library,
         now: Date.now,
-      };
-      await runImports(host);
-      await runExports(host);
+      });
       await sendFills(this.ctx, this.env, library);
       await runAgentJobs(this.#agentCell(library));
       const moved = library.head();

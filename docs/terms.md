@@ -87,8 +87,7 @@ worldwide, royalty-free license to host, store, copy and transmit Your Content,
 to apply to it the changes you, the agent and the assistants you connect make,
 and to send it to Anthropic as the agent's requests (Section 2.9), solely to
 store it, serve it to your own devices and the assistants you connect, and run
-the agent for you, for as long as it is in our cloud. You can download all of
-it at any time with Export, in Settings › Import and export. You are responsible for Your Content, and you represent and
+the agent for you, for as long as it is in our cloud. You are responsible for Your Content, and you represent and
 warrant that you have the rights you need to store and sync it through the Site
 and that doing so violates no law and no one else's rights. Our cloud does not
 encrypt Your Content end to end: what it holds is stored where we can read it,
@@ -228,8 +227,7 @@ your access (including suspending access to or deleting your account) at any
 time and for any reason, including if we believe you have violated these Terms.
 We are not liable to you for any such termination. If your account is deleted,
 your library, its history and your conversations with the agent are deleted
-from our cloud and from each device's copy, as our Privacy Policy describes, so
-export your library first if you want to keep it. Upon
+from our cloud and from each device's copy, as our Privacy Policy describes. Upon
 termination, Sections 2.2 through 2.6 and Sections 3 through 11 will survive.
 
 ## 9. State-Specific Legal Notices

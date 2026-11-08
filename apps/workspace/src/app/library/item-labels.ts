@@ -42,20 +42,6 @@ const COUNT_FORMAT = new Intl.NumberFormat("en-US");
 // "8,512": every count a person reads
 export const formatCount = (count: number): string => COUNT_FORMAT.format(count);
 
-const KB = 1024;
-const MB = KB * 1024;
-
-// "2.4 MB", "640 KB", "12 bytes"
-export const formatBytes = (bytes: number): string => {
-  if (bytes >= MB) {
-    return `${(bytes / MB).toFixed(bytes >= 10 * MB ? 0 : 1)} MB`;
-  }
-  if (bytes >= KB) {
-    return `${String(Math.round(bytes / KB))} KB`;
-  }
-  return bytes === 1 ? "1 byte" : `${String(bytes)} bytes`;
-};
-
 // the file that stands for an item on its card and in Quick Look: its cover, else a picture's own
 export const coverOf = (row: ReplicaListingRow): string | null =>
   row.fields.coverSha ?? (row.kind === "image" ? row.fields.originalSha : null);

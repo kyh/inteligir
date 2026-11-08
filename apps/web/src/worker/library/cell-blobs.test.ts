@@ -19,7 +19,6 @@ import {
 import type { Clock } from "../test-support/library-cell";
 import { jobHostIn, uploadedFile, zipOf } from "../test-support/library-files";
 import { blobKey } from "./cell-blobs";
-import { EXPORT_LIMITS, runExports } from "./cell-exports";
 import { FILL_ACTOR } from "./cell-fills";
 import { runImports } from "./cell-imports";
 import { removeStrays } from "./cell-library";
@@ -265,29 +264,6 @@ describe("a file nothing names any more", () => {
       expect(fileRows(cell, sha)).toBe(1);
       await client.imports.cancel({ id: job.id });
       await runImports(jobHostIn(state, accountId, library, () => clock.now));
-      clock.now += DAY;
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(0);
-    });
-  });
-
-  it("waits for an export's end, whose zip may hold it", async () => {
-    await inLibrary(async (cell) => {
-      const { accountId, client, clock, library, state } = cell;
-      const sha = await uploadedFile(library, accountId, png(1200));
-      const itemId = await fileItem(cell, sha);
-      const { export: started } = await client.exports.start({});
-      const host = jobHostIn(state, accountId, library, () => clock.now);
-      await runExports(host, EXPORT_LIMITS);
-      await purge(cell, itemId);
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(1);
-      for (let runs = 0; runs < 10; runs += 1) {
-        clock.now += 60_000;
-        await runExports(host, EXPORT_LIMITS);
-      }
-      const { export: written } = await client.exports.get({ id: started.id });
-      expect(written.state).toBe("ready");
       clock.now += DAY;
       await runAlarm(cell);
       expect(fileRows(cell, sha)).toBe(0);

@@ -69,10 +69,6 @@ const router = os.router({
     add: os.annotations.add.handler(unimplemented),
     list: os.annotations.list.handler(unimplemented),
   },
-  exports: {
-    get: os.exports.get.handler(unimplemented),
-    start: os.exports.start.handler(unimplemented),
-  },
   folders: { write: os.folders.write.handler(unimplemented) },
   history: {
     list: os.history.list.handler(unimplemented),

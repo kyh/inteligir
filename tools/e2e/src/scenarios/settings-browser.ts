@@ -1,9 +1,9 @@
 // Settings in the tab, over the account's cell and the Worker: what only the cloud answers waits
 // for a connection and says so, then fills in once the tab is back online; a device signed out
 // from the list can no longer reach the library; the built-in agent's switch is the account's; a
-// Raindrop export imports and the library exports as a zip; Delete account… holds its button
-// until a password is typed and says the cloud's refusal; and Sign out leaves for the site's
-// sign-in, the library's page sending the tab back there after.
+// Raindrop export imports; Delete account… holds its button until a password is typed and says
+// the cloud's refusal; and Sign out leaves for the site's sign-in, the library's page sending the
+// tab back there after.
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -47,7 +47,7 @@ const DELETE_STATE = `(() => {
 
 export const settingsBrowser: Scenario = {
   description:
-    "Settings in the tab: opened offline, every row the cloud answers says it needs a connection and fills in once the tab is back online; a phone signed out from Devices is refused after; the built-in agent's switch turns it off for the account; a Raindrop export imports and the library exports as a zip to download; Delete account… holds its button until a password is typed and shows the cloud's refusal; Sign out leaves for the site's sign-in, and the library's page sends the tab there after",
+    "Settings in the tab: opened offline, every row the cloud answers says it needs a connection and fills in once the tab is back online; a phone signed out from Devices is refused after; the built-in agent's switch turns it off for the account; a Raindrop export imports; Delete account… holds its button until a password is typed and shows the cloud's refusal; Sign out leaves for the site's sign-in, and the library's page sends the tab there after",
   name: "settings-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -112,10 +112,6 @@ export const settingsBrowser: Scenario = {
       (listed) => listed.items.some((item) => item.title === PASTA),
       { deadlineMs: DEADLINE_MS, describe: () => `the cell never held "${PASTA}"` },
     );
-
-    ctx.log("the library exports as a zip to download");
-    await clickButtonIn(browser, "#import", "Export the library");
-    await browser(["wait", '[data-export-state="ready"] a[download]'], IMPORT_DEADLINE_MS);
 
     ctx.log("Delete account… holds its button until a password is typed, and says the refusal");
     await clickButtonIn(browser, "#account", "Delete account…");

@@ -40,7 +40,6 @@ import {
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
-import { exportsWriting } from "./cell-export-rows";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
@@ -138,8 +137,7 @@ const PAYLOADS = {
 const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
-// a file no item names is asked about again this long after, while an import or an export may
-// yet name it
+// a file no item names is asked about again this long after, while an import may yet name it
 const PLAN_AGAIN_MS = 10 * 60_000;
 
 // what a write took on its first landing: the library's next sequence number and its actor's set
@@ -451,7 +449,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       case "unnamed": {
         const { sha } = PAYLOADS.unnamed.parse(job.payload);
-        if (importsRunning(storage) || exportsWriting(storage)) {
+        if (importsRunning(storage)) {
           awaitNameAgain(storage, sha, now + PLAN_AGAIN_MS);
         } else {
           releaseUnnamed(storage, [sha], now);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { undoSentence } from "../panel/history-tab";
-import { importSentence } from "./import-export-section";
+import { importSentence } from "./import-section";
 
 const JOB = {
   added: 0,

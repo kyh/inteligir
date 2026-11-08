@@ -7,9 +7,8 @@
 // credentials in D1, which until then still verify only to meet the tombstone. The
 // tombstone outlives the deletion, so a request that verified before the credentials went meets it
 // too rather than founding a library nobody can reach, and an upload that took its room before the
-// tombstone and reaches R2 after the files went is taken out by its own settle (`settleStored`), as
-// an export's zip finished by then is by its last run (`./cell-exports`). A later step joins the
-// list where its order says.
+// tombstone and reaches R2 after the files went is taken out by its own settle (`settleStored`). A
+// later step joins the list where its order says.
 
 import { purgeThreadObjects } from "../agent/agent-turns";
 import { revokeEveryGrant } from "../connector/assistant-grants";

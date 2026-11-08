@@ -83,8 +83,8 @@ export const fileKindOfMime = (mime: string): FileKind => {
 // the type a file is kept as when nothing that handled it could tell: plain bytes
 export const UNKNOWN_FILE_TYPE = "application/octet-stream";
 
-// a media type and the extensions a file of it goes by, the first the one it is written under
-const MEDIA_EXTENSIONS: readonly (readonly [type: string, written: string, ...read: string[]])[] = [
+// a media type and the extensions a file of it goes by
+const MEDIA_EXTENSIONS: readonly (readonly [type: string, ...extensions: string[]])[] = [
   ["application/json", "json"],
   ["application/pdf", "pdf"],
   ["audio/aac", "aac"],
@@ -112,10 +112,6 @@ const MEDIA_EXTENSIONS: readonly (readonly [type: string, written: string, ...re
   ["video/x-m4v", "m4v"],
 ];
 
-const EXTENSION_OF_TYPE = new Map(
-  MEDIA_EXTENSIONS.map(([type, written]) => [type, written] as const),
-);
-
 const TYPE_OF_EXTENSION = new Map(
   MEDIA_EXTENSIONS.flatMap(([type, ...extensions]) =>
     extensions.map((extension) => [extension, type] as const),
@@ -126,10 +122,6 @@ const TYPE_OF_EXTENSION = new Map(
 export const mediaTypeOfName = (name: string): string | null =>
   TYPE_OF_EXTENSION.get(extnamePath(name).slice(1).toLowerCase()) ?? null;
 
-// the extension bytes of a media type are written under, its parameters aside
-export const extensionOfMediaType = (mediaType: string): string | null =>
-  EXTENSION_OF_TYPE.get(mediaType.split(";")[0]?.trim() ?? "") ?? null;
-
 // the type a file the person hands over is kept as: the one it came with, else plain bytes (a
 // browser gives "" for a file whose type it does not know, which the library takes for none)
 export const keptFileType = (handed: string): string =>
@@ -139,17 +131,8 @@ export const COVERS_DIR = "assets/covers";
 
 const CONTENT_ADDRESS_HEX_CHARS = 16;
 
-// a file kept by its bytes (a cover): named by the first hex of their SHA-256, so two devices
-// keeping the same bytes write one file
-export const contentAddressedName = (sha256Hex: string, extension: string): string =>
-  `${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}.${extension}`;
-
-// a file an export cannot write under its own name in `assets/`, because another file holds that
-// name or an import would read that path as a note or pass it over: a folder of its bytes, which
-// an import reads as the file it is, whatever its name says, an operating system's litter aside
-export const bytesFolderPath = (sha256Hex: string, name: string): string =>
-  `${DEFAULT_ATTACHMENTS_FOLDER}/${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}/${name}`;
-
+// a folder of a file's bytes in `assets/`, named by the first hex of their SHA-256, which an
+// import reads as the file it is, whatever its name says, an operating system's litter aside
 const BYTES_FOLDER_PATH = new RegExp(
   `^${DEFAULT_ATTACHMENTS_FOLDER}/[0-9a-f]{${String(CONTENT_ADDRESS_HEX_CHARS)}}/[^/]+$`,
   "u",

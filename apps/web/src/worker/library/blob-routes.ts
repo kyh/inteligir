@@ -124,18 +124,16 @@ const servedRange = (object: R2Object): { readonly start: number; readonly end: 
   return { end: start + length - 1, start };
 };
 
-// an object under `key` answered as a file is: its range, its preconditions and its sandbox;
-// `missing` says what a key R2 holds nothing under means (`./export-routes` reads an export so)
-export const readObject = async (
+// an object under `key` answered as a file is: its range, its preconditions and its sandbox
+const readObject = async (
   request: Request,
   bucket: R2Bucket,
   key: string,
   reader: AppPrincipal,
-  missing = "That file isn't in the library.",
 ): Promise<Response> => {
   const object = await bucket.get(key, { onlyIf: conditionsOf(request), range: request.headers });
   if (object === null) {
-    return plainText(404, missing);
+    return plainText(404, "That file isn't in the library.");
   }
   const headers = new Headers(READ_HEADERS);
   object.writeHttpMetadata(headers);

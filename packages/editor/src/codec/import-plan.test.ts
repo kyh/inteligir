@@ -1,25 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { deriveItem } from "@repo/notes/library/derive-item";
 import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
-import { mediaTypeOfName } from "@repo/notes/items/item-kind";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/folder-path";
-import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
 
-import {
-  beginExport,
-  exportDoc,
-  exportFolderPaths,
-  exportTarget,
-  planExportDoc,
-} from "./export-plan";
-import type { ExportFile, ExportFolder, ExportStore, PlannedExportDoc } from "./export-plan";
 import {
   importPathKind,
   importPlannedDoc,
@@ -29,7 +16,7 @@ import {
   unwrapExport,
 } from "./import-plan";
 import type { ImportEntry, PlanIds } from "./import-plan";
-import type { ExportItem, ImportedFields } from "./item-markdown";
+import type { ImportedFields, ImportedItem } from "./item-markdown";
 
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
@@ -121,10 +108,6 @@ const BINARIES = new Map(
   ].map((path) => [path, shaOf(path)]),
 );
 
-// each pretend file's media type, by the extension it was found under
-const mediaTypeOf = (sha: string): string | null =>
-  mediaTypeOfName([...BINARIES].find(([, held]) => held === sha)?.[0] ?? "");
-
 const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () => string } => {
   let next = 0;
   const mint = (prefix: string) => () => {
@@ -147,17 +130,23 @@ interface LibraryItem {
   readonly folderPath: string;
   readonly fields: ImportedFields;
   readonly blocks: readonly { block: LibraryBlock; ord: string; section: "note" | "article" }[];
-  readonly annotations: ExportItem["annotations"];
+  readonly annotations: ImportedItem["annotations"];
+}
+
+interface Folder {
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly name: string;
 }
 
 interface ReadLibrary {
   readonly items: LibraryItem[];
-  readonly folders: ExportFolder[];
+  readonly folders: Folder[];
   readonly skipped: string[];
 }
 
 // the folder each item sits in and every folder above it, as the cell makes them, each by its path
-const foldersOf = (items: readonly LibraryItem[]): ExportFolder[] => {
+const foldersOf = (items: readonly LibraryItem[]): Folder[] => {
   const paths = new Set<string>();
   for (const item of items) {
     for (let path = item.folderPath; path !== ""; path = dirnamePath(path)) {
@@ -412,85 +401,6 @@ describe("an Obsidian vault read into the library", () => {
   });
 });
 
-// the plan's steps as a writer with room for the whole library takes them, over a store in memory:
-// every item given its file first, each written with its links spelled from the files that share
-// their keys, the files the items hold last
-const exportInSteps = (
-  library: ReadLibrary,
-  items: readonly ExportItem[],
-  rules: string | null,
-): ExportFile[] => {
-  const taken = new Map<string, string>();
-  const searched = new Map<string, number>();
-  const placed = new Map<string, { readonly path: string; readonly sha: string }>();
-  const store: ExportStore = {
-    place: (key, file) => {
-      placed.set(key, file);
-    },
-    placed: (key) => placed.get(key)?.path ?? null,
-    search: (key, n) => {
-      searched.set(key, n);
-    },
-    searched: (key) => searched.get(key) ?? null,
-    take: (key, path) => {
-      taken.set(key, path);
-    },
-    taken: (key) => taken.has(key),
-  };
-  beginExport(store, rules);
-  const folders = exportFolderPaths(library.folders);
-  const planned = new Map<string, PlannedExportDoc & { readonly aliases: readonly string[] }>();
-  for (const item of items) {
-    const { aliases, folderId, title } = item.fields;
-    const dir = folderId === null ? "" : (folders.get(folderId) ?? "");
-    planned.set(item.id, { ...planExportDoc(title, dir, store), aliases });
-  }
-  const target = (itemId: string): string | null => {
-    const doc = planned.get(itemId);
-    if (doc === undefined) {
-      return null;
-    }
-    const keys = new Set(wikiTargetKeys(doc.path));
-    return exportTarget(
-      doc.path,
-      [...planned.values()].filter((other) =>
-        wikiFilingKeys(other.path, other.aliases).some((key) => keys.has(key)),
-      ),
-    );
-  };
-  const texts = items.flatMap((item) => {
-    const doc = planned.get(item.id);
-    return doc === undefined ? [] : exportDoc(item, doc, { mediaType: mediaTypeOf, store, target });
-  });
-  return [
-    ...texts,
-    ...[...placed.values()].map((file): ExportFile => ({ kind: "bytes", ...file })),
-  ];
-};
-
-const storedOf = (item: LibraryItem): [string, StoredBlock][] =>
-  item.blocks.map((placed) => [placed.block.id, { ...placed, hash: blockHash(placed.block) }]);
-
-const asFields = (item: LibraryItem): ExportItem["fields"] => ({
-  ...item.fields,
-  deletedAt: null,
-  folderId: item.folderPath === "" ? null : item.folderPath,
-});
-
-const exportOf = (library: ReadLibrary, rules: string | null = null): ExportFile[] => {
-  const items = library.items.map((item): ExportItem => ({
-    annotations: item.annotations,
-    blocks: new Map(storedOf(item)),
-    fields: asFields(item),
-    id: item.itemId,
-  }));
-  return exportInSteps(library, items, rules);
-};
-
-// where an export writes bytes no name came with: under their sha
-const byBytes = (dir: string, found: string, extension: string): string =>
-  `${dir}/${shaOf(found).slice(0, 16)}.${extension}`;
-
 // a library as content alone: ids aside, items by title
 const contentOf = (library: ReadLibrary) =>
   library.items
@@ -502,214 +412,62 @@ const contentOf = (library: ReadLibrary) =>
     }))
     .toSorted((a, b) => a.fields.title.localeCompare(b.fields.title));
 
-describe("export, then import, gives the library back", () => {
-  it("holds for the Obsidian vault, ids aside", () => {
-    const first = readFolder(OBSIDIAN_VAULT, BINARIES);
-    const files = exportOf(first);
-    const texts = Object.fromEntries(
-      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
-    );
-    const bytes = new Map(
-      files.flatMap((file): [string, string][] =>
-        file.kind === "bytes" ? [[file.path, file.sha]] : [],
-      ),
-    );
-    // every file under the name it was saved under, so a canvas still opens as one; a cover and
-    // an image a note embeds by its bytes alone, under their bytes' own names
-    expect([...bytes.keys()].toSorted()).toStrictEqual(
-      [
-        "assets/Q3 report.docx",
-        "assets/Untitled.base",
-        "assets/board.canvas",
-        "assets/orphan.pdf",
-        "assets/spec.pdf",
-        byBytes("assets/covers", "assets/covers/0123456789abcdef.jpg", "jpg"),
-        byBytes("assets", "assets/shot.png", "png"),
-      ].toSorted(),
-    );
-    const second = readFolder(texts, bytes);
-    expect(contentOf(second)).toStrictEqual(contentOf(first));
-  });
-
-  it.each(["Invoice #12.pdf", "a%20b.pdf", "100%.pdf"])(
-    "keeps %s one item with its bytes",
-    (name) => {
-      const sha = shaOf(name);
-      const files = exportOf(readFolder({}, new Map([[name, sha]])));
-      const texts = Object.fromEntries(
-        files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
-      );
-      const bytes = new Map(
-        files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
-      );
-      const { items } = readFolder(texts, bytes);
-      expect(items.map((item) => item.fields)).toMatchObject([
-        { kind: "pdf", originalName: name, originalSha: sha },
-      ]);
-    },
-  );
-
-  it("keeps a file a person saved under a name an operating system leaves behind", () => {
-    const sha = shaOf("Thumbs.db");
-    const saved = readFolder({}, new Map([["kept.bin", sha]]));
-    const files = exportOf({
-      ...saved,
-      items: saved.items.map((item) => ({
-        ...item,
-        fields: { ...item.fields, originalName: "Thumbs.db" },
-      })),
-    });
-    const texts = Object.fromEntries(
-      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
-    );
-    const bytes = new Map(
-      files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
-    );
-    expect([...bytes.keys()]).toStrictEqual(["assets/kept.bin"]);
-    expect(readFolder(texts, bytes).items.map((item) => item.fields)).toMatchObject([
-      { kind: "file", originalSha: sha },
-    ]);
-  });
-
-  it.each(["__MACOSX", "Thumbs.db", "desktop.ini", "DESKTOP.INI"])(
-    "keeps the items of a person's folder named %s",
-    (name) => {
-      const first = readFolder({ "Filed/Kept.md": "A note.\n" }, new Map());
-      const texts = Object.fromEntries(
-        exportOf({
-          ...first,
-          folders: first.folders.map((folder) => ({ ...folder, name })),
-        }).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
-      );
-      const back = readFolder(texts, new Map());
-      expect(back.skipped).toStrictEqual([]);
-      expect(back.items.map((item) => item.fields.title)).toStrictEqual(["Kept"]);
-      expect(back.folders.map((folder) => folder.name)).toStrictEqual([`${name} (folder)`]);
-    },
-  );
-
+describe("a path in a folder of bytes", () => {
   it.each([".env", ".gitignore", "notes.md", "Thumbs.db.bak"])(
     "reads %s as a file in a bytes folder",
     (name) => {
       expect(importPathKind(`assets/0123456789abcdef/${name}`)).toBe("file");
     },
   );
+});
 
-  describe("under the folder it was unpacked to", () => {
-    const TOP = "Library 2026-11-07";
-    const first = readFolder(OBSIDIAN_VAULT, BINARIES);
-    const files = exportOf(first, "File under Inbox.\n");
-    const texts = Object.fromEntries(
-      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+describe("a folder an export was unpacked to", () => {
+  const TOP = "Library 2026-11-07";
+  const under = <Value>(entries: Iterable<readonly [string, Value]>): [string, Value][] =>
+    [...entries].map(([path, value]) => [`${TOP}/${path}`, value]);
+  const litter = {
+    ".DS_Store": "left by Finder",
+    [`${TOP}/.DS_Store`]: "left by Finder",
+    [`__MACOSX/${TOP}/._Daily.md`]: "left by the Mac's zip",
+  };
+
+  it("reads as the folder itself, what a Mac's Compress adds passed over", () => {
+    const plain = readFolder(OBSIDIAN_VAULT, BINARIES);
+    const wrapped = readFolder(
+      { ...Object.fromEntries(under(Object.entries(OBSIDIAN_VAULT))), ...litter },
+      new Map(under(BINARIES)),
     );
-    const bytes = new Map(
-      files.flatMap((file): [string, string][] =>
-        file.kind === "bytes" ? [[file.path, file.sha]] : [],
-      ),
+    expect(contentOf(wrapped)).toStrictEqual(contentOf(plain));
+    expect(wrapped.skipped.toSorted()).toStrictEqual(
+      [...plain.skipped, ".DS_Store", ".DS_Store", `__MACOSX/${TOP}/._Daily.md`].toSorted(),
     );
-    const under = <Value>(entries: Iterable<readonly [string, Value]>): [string, Value][] =>
-      [...entries].map(([path, value]) => [`${TOP}/${path}`, value]);
-    const litter = {
-      ".DS_Store": "left by Finder",
-      [`${TOP}/.DS_Store`]: "left by Finder",
-      [`__MACOSX/${TOP}/._Daily.md`]: "left by the Mac's zip",
-    };
-
-    it("holds, what a Mac's Compress adds passed over", () => {
-      const wrapped = readFolder(
-        { ...Object.fromEntries(under(Object.entries(texts))), ...litter },
-        new Map(under(bytes)),
-      );
-      expect(contentOf(wrapped)).toStrictEqual(contentOf(readFolder(texts, bytes)));
-      expect(wrapped.skipped.toSorted()).toStrictEqual(
-        [".DS_Store", ".DS_Store", `__MACOSX/${TOP}/._Daily.md`].toSorted(),
-      );
-    });
-
-    it.each([
-      [".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json", "the highlights' store"],
-      ["assets/shot.png", "a kept file"],
-    ])("takes %s for the mark of an export: %s", (mark) => {
-      expect(
-        unwrapExport([{ path: `${TOP}/${mark}` }, { path: `${TOP}/Filed/Spec.md` }]),
-      ).toStrictEqual([{ path: mark }, { path: "Filed/Spec.md" }]);
-    });
-
-    it.each([
-      ["a folder with no mark of an export", ["MyVault/.obsidian/app.json", "MyVault/Daily.md"]],
-      ["a file beside the folder", [`${TOP}/assets/shot.png`, "Stray.md"]],
-      ["a second folder beside it", [`${TOP}/assets/shot.png`, "Other/Note.md"]],
-      ["an export at the root", ["assets/shot.png", "Daily.md"]],
-      ["an export whose only folder is its assets", ["assets/shot.png"]],
-      ["nothing but what a Mac left", ["__MACOSX/assets/._shot.png"]],
-      ["a mark that is a file", [`${TOP}/assets`, `${TOP}/Daily.md`]],
-    ])("keeps %s", (_zip, paths) => {
-      const entries = paths.map((path) => ({ path }));
-      expect(unwrapExport(entries)).toStrictEqual(entries);
-    });
-
-    it("keeps an Obsidian vault's folder as a folder", () => {
-      const { folders, items } = readFolder({ "MyVault/Notes/Daily.md": "A note.\n" }, new Map());
-      expect(items.map((item) => item.folderPath)).toStrictEqual(["MyVault/Notes"]);
-      expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["MyVault", "Notes"]);
-    });
   });
 
-  it("keeps two items with no title of their own, and a link to one", () => {
-    const first = readFolder(
-      {
-        "Links.md": "See [[a]].\n",
-        "a.md": "Groceries\n",
-        "b.md": "Call the dentist\n",
-      },
-      new Map(),
-    );
-    const files = exportOf({
-      ...first,
-      items: first.items.map((item) =>
-        item.fields.title === "Links" ? item : { ...item, fields: { ...item.fields, title: "" } },
-      ),
-    });
-    const texts = Object.fromEntries(
-      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
-    );
-    expect(Object.keys(texts).toSorted()).toStrictEqual([
-      "Links.md",
-      "Untitled 2.md",
-      "Untitled.md",
-    ]);
-
-    const back = readFolder(texts, new Map());
-    expect(back.items.map((item) => item.fields.title).toSorted()).toStrictEqual(["", "", "Links"]);
-    expect(back.items.map((item) => item.fields.properties)).toStrictEqual([{}, {}, {}]);
+  it.each([
+    [".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json", "the highlights' store"],
+    ["assets/shot.png", "a kept file"],
+  ])("takes %s for the mark of an export: %s", (mark) => {
     expect(
-      back.items
-        .map((item) => deriveItem(asFields(item), new Map(storedOf(item))).card.title)
-        .toSorted(),
-    ).toStrictEqual(["Call the dentist", "Groceries", "Links"]);
-    const link = nodesOf(byTitle(back, "Links")).find(
-      (node) => "type" in node && node.type === "wikiLink",
-    );
-    const reached = back.items.find((item) => textOf(item) === "Groceries");
-    expect(link).toMatchObject({ itemId: reached?.itemId, title: "" });
+      unwrapExport([{ path: `${TOP}/${mark}` }, { path: `${TOP}/Filed/Spec.md` }]),
+    ).toStrictEqual([{ path: mark }, { path: "Filed/Spec.md" }]);
   });
 
-  it("keeps the title of an item whose file took another spelling", () => {
-    const first = readFolder(
-      {
-        "a.md": "---\ntitle: Home\n---\nThe first.\n",
-        "b.md": "---\ntitle: Home\n---\nThe second.\n",
-        "c.md": "---\ntitle: AGENTS\n---\nNot the filing rules.\n",
-      },
-      new Map(),
-    );
-    const texts = Object.fromEntries(
-      exportOf(first, "File under Inbox.\n").flatMap((file) =>
-        file.kind === "text" ? [[file.path, file.text]] : [],
-      ),
-    );
-    expect(Object.keys(texts).toSorted()).toStrictEqual(["AGENTS 2.md", "Home 2.md", "Home.md"]);
-    const titles = readFolder(texts, new Map()).items.map((item) => item.fields.title);
-    expect(titles.toSorted()).toStrictEqual(["AGENTS", "Home", "Home"]);
+  it.each([
+    ["a folder with no mark of an export", ["MyVault/.obsidian/app.json", "MyVault/Daily.md"]],
+    ["a file beside the folder", [`${TOP}/assets/shot.png`, "Stray.md"]],
+    ["a second folder beside it", [`${TOP}/assets/shot.png`, "Other/Note.md"]],
+    ["an export at the root", ["assets/shot.png", "Daily.md"]],
+    ["an export whose only folder is its assets", ["assets/shot.png"]],
+    ["nothing but what a Mac left", ["__MACOSX/assets/._shot.png"]],
+    ["a mark that is a file", [`${TOP}/assets`, `${TOP}/Daily.md`]],
+  ])("keeps %s", (_zip, paths) => {
+    const entries = paths.map((path) => ({ path }));
+    expect(unwrapExport(entries)).toStrictEqual(entries);
+  });
+
+  it("keeps an Obsidian vault's folder as a folder", () => {
+    const { folders, items } = readFolder({ "MyVault/Notes/Daily.md": "A note.\n" }, new Map());
+    expect(items.map((item) => item.folderPath)).toStrictEqual(["MyVault/Notes"]);
+    expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["MyVault", "Notes"]);
   });
 });

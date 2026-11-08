@@ -167,7 +167,7 @@ as:
   in a hundred is traced in more detail. An address never holds a file's name
   or anything you wrote: the apps' calls carry those in the request's body, a
   file's address holds a fingerprint of its contents, which identifies that
-  exact file, and an export's holds its id. Our cloud's own error lines give
+  exact file. Our cloud's own error lines give
   that address, or the name of what failed, with the opening of the error's
   message, which can quote what it was given.
 
@@ -270,10 +270,6 @@ The apps also hold to these, plainly:
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
   notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.
-- **Exporting your library.** An export of your library is a zip our
-  cloud writes in your account's own storage, which your devices download; it
-  is deleted seven days after it was written, once a newer export is ready, or
-  with your account.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
@@ -465,7 +461,7 @@ and email delivery). Specifically:
   its name and what you let it do, and its tokens, kept only as hashes;
   your own Durable Objects hold your library, your devices' live connections
   and each conversation with the built-in agent; its R2 storage holds your
-  files and exports, under your account's own prefix; its Queues hold each
+  files, under your account's own prefix; its Queues hold each
   link your library asked our cloud to read, as your account's id, the item's,
   its address and the address of any cover the save knew of, until our cloud
   has read it or recorded that it could not; its AI Gateway passes each request
@@ -627,7 +623,7 @@ your personal information.
 Your library and your conversations with the built-in agent live in Durable
 Objects of your own. The rest of what our cloud keeps for your account is filed
 under your account in storage every account shares: rows in Cloudflare D1 that
-name your account, your files and exports under your account's own prefix in
+name your account, your files under your account's own prefix in
 R2, and each assistant's grant and tokens under your account in KV. A few things
 are not filed that way: the throttling rows, an unused reset link's row, what an
 assistant registered, a link waiting in the Queue for our cloud to read it,
@@ -1052,7 +1048,6 @@ sign-in, session and password-reset calls, which go to Better Auth under
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
 | `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                               | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
-| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                 | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
 | `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                             | The invite code; attempts are throttled per caller address.                                                                                     |
 | `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                 | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 

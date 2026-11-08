@@ -11,9 +11,6 @@ const isNoteIdKey = (id: string): boolean => NOTE_ID_KEY_RE.test(id);
 
 const STORE_FILE_SUFFIX = ".json";
 
-export const annotationsStorePath = (itemId: string): string =>
-  `${ANNOTATIONS_STORE_DIR}/${itemId}${STORE_FILE_SUFFIX}`;
-
 // the item id a store path is keyed by; null for any other path
 export const annotationsStoreItemId = (path: string): string | null => {
   const prefix = `${ANNOTATIONS_STORE_DIR}/`;

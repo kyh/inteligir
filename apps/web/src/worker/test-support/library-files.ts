@@ -5,6 +5,8 @@
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
+import { zipSync } from "fflate";
+import type { Zippable } from "fflate";
 
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import { blobKey } from "../library/cell-blobs";
@@ -13,8 +15,6 @@ import { runImports } from "../library/cell-imports";
 import { openCellLibrary, scheduleAlarm, sendFills, settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
-import { centralHeader, endRecords, writeZipEntry } from "../zip/zip-write";
-import type { ZipFile, ZipRecord } from "../zip/zip-write";
 import { cellOf, inCell } from "./library-cell";
 
 // what a put can meet that says nothing of its bytes, as the runtime throws it
@@ -70,38 +70,16 @@ export const runAlarmsUntil = async (
 
 const encoder = new TextEncoder();
 
-// files zipped in one go, as the export writes them over its runs: entry after entry, then the
-// directory from their records
-export const zipFiles = async (files: readonly ZipFile[]): Promise<Uint8Array> => {
-  const chunks: Uint8Array[] = [];
-  const records: ZipRecord[] = [];
-  let offset = 0;
-  const write = async (chunk: Uint8Array): Promise<void> => {
-    chunks.push(chunk);
-    offset += chunk.length;
-    await Promise.resolve();
-  };
-  for (const file of files) {
-    records.push(await writeZipEntry(file, offset, write));
+// a folder zipped as another app zips one, each file's bytes by its path: its text deflated, its
+// other files stored
+export const zipOf = async (files: Readonly<Record<string, Uint8Array>>): Promise<Uint8Array> => {
+  const zippable: Zippable = {};
+  for (const [path, bytes] of Object.entries(files)) {
+    const level = /\.(?:md|json|txt)$/u.test(path) ? 6 : 0;
+    zippable[path] = [bytes, { level, mtime: new Date(Date.UTC(2026, 9, 1)) }];
   }
-  const directoryAt = offset;
-  for (const record of records) {
-    await write(centralHeader(record));
-  }
-  chunks.push(endRecords(records.length, offset - directoryAt, directoryAt));
-  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+  return zipSync(zippable);
 };
-
-// a folder zipped, each file's bytes by its path; its text deflated, its other files stored
-export const zipOf = async (files: Readonly<Record<string, Uint8Array>>): Promise<Uint8Array> =>
-  await zipFiles(
-    Object.entries(files).map(([path, bytes]) => ({
-      deflate: /\.(?:md|json|txt)$/u.test(path),
-      modified: new Date(Date.UTC(2026, 9, 1)),
-      open: async () => await Promise.resolve(new Blob([bytes]).stream()),
-      path,
-    })),
-  );
 
 // an Obsidian vault in small: a note in a folder linking another and embedding a picture, a PDF
 // no note embeds, and Obsidian's settings
@@ -149,7 +127,7 @@ export const startImport = async (
     return { jobId: job.id, sha };
   });
 
-// what an import's or an export's run works with inside the cell, as the alarm hands it over
+// what an import's run works with inside the cell, as the alarm hands it over
 export const jobHostIn = (
   state: DurableObjectState,
   accountId: string,

@@ -9,13 +9,13 @@
 import { MAC_APP_ORIGIN } from "@repo/contract/cloud/origin";
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
-import { V1_BLOBS_PATH, V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 
-// each page's calls: the Mac page's file uploads and the export it saves, the extension's covers
-// and the pictures a right-click saves
+// each page's calls: the Mac page's file uploads, the extension's covers and the pictures a
+// right-click saves
 const CROSS_ORIGIN_ROUTES = new Map<string, readonly string[]>([
-  [MAC_APP_ORIGIN, [V1_RPC_PATH, V1_BLOBS_PATH, V1_EXPORTS_PATH]],
+  [MAC_APP_ORIGIN, [V1_RPC_PATH, V1_BLOBS_PATH]],
   [EXTENSION_ORIGIN, [V1_RPC_PATH, V1_BLOBS_PATH]],
 ]);
 
@@ -38,9 +38,6 @@ const allowOrigin = (headers: Headers, origin: string): void => {
   headers.append("vary", "Origin");
 };
 
-// what the page reads of an answer beyond its body: an export's own name for itself
-const EXPOSED_HEADERS = "content-disposition";
-
 // what the browser asks before the page's call: the methods and headers the page sends
 export const answerPreflight = (origin: string): Response => {
   const headers = new Headers({
@@ -57,7 +54,6 @@ export const answerPreflight = (origin: string): Response => {
 export const letPageRead = (response: Response, origin: string): Response => {
   const headers = new Headers(response.headers);
   allowOrigin(headers, origin);
-  headers.set("access-control-expose-headers", EXPOSED_HEADERS);
   return new Response(response.body, {
     headers,
     status: response.status,

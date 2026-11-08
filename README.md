@@ -33,7 +33,7 @@ and send what you change once they have one. The iPhone app comes by
 TestFlight invite.
 
 Coming from Raindrop or Obsidian? Import a Raindrop CSV backup, or a zip of
-your notes, from Settings › Import and export.
+your notes, from Settings › Import.
 
 What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 

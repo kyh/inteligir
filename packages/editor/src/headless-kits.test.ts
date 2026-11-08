@@ -102,7 +102,6 @@ describe("the headless kits", () => {
     // the codec runs where the library does, the Worker's cell included
     "codec/item-markdown.ts",
     "codec/import-plan.ts",
-    "codec/export-plan.ts",
     "codec/item-view.ts",
     "codec/item-edit.ts",
   ])("%s reaches no React half, stylesheet or node built-in", (entry) => {
