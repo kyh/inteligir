@@ -62,7 +62,6 @@ import { createSocketHint } from "@repo/contract/cloud/library/account-socket";
 import type { SocketHint } from "@repo/contract/cloud/library/account-socket";
 import { serialLock } from "./serial-lock";
 
-export type { ReplicaListingRow } from "./replica-listing";
 /** @internal */
 export { ReplicaClosedError } from "./outbox";
 
@@ -92,7 +91,7 @@ interface ParkedWrite {
   readonly reason: string;
 }
 
-export interface ReplicaStatus {
+interface ReplicaStatus {
   // a pass is under way: writes going, the log or the bodies coming
   readonly syncing: boolean;
   // what stopped the last pass, null once one ends clean; a session's end stops the replica
@@ -110,7 +109,7 @@ export interface ReplicaStatus {
 // or the whole library at once, and the items a write of this device was merged into keeping its
 // lines where another device changed the same ones, which a screen says. An item a make folded
 // onto is named by that make's id too, so a screen still open on it hears
-export interface ReplicaChange {
+interface ReplicaChange {
   readonly kinds: ReadonlySet<string>;
   readonly ids: ReadonlySet<string>;
   readonly reset: boolean;

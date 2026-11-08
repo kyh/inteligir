@@ -27,7 +27,6 @@ import { mergeBlocks } from "@repo/editor/stale-write";
 import { diffValue, readElement } from "./item-diff";
 import type { ElementReads } from "./item-diff";
 
-/** @internal */
 export interface HeldItem {
   readonly fields: LibraryItemFields;
   // in reading order: the note, then the article

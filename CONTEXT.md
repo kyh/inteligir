@@ -13,8 +13,8 @@ not belong here.
 
 ## The library in the cloud
 
-One library cell per account, a replica on every device, and the agents that
-reach it.
+One library cell per account, the devices that read it online, and the agents
+that reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
@@ -23,8 +23,8 @@ gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, threads, the change log,
 change sets and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
-accounts. Not a **replica**, which a device reads while it writes through the
-cell.
+accounts. Not a **replica**, which pulls the cell's change log and writes
+through the cell.
 
 **principal** — who a library call is by, as the Worker verified it: the
 account and the actor whose **change set** its writes join (a device, the
@@ -65,18 +65,16 @@ one top-level `:::article` container after the note
 (`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
 
-**replica** — a device's copy of the synced tables, every item, block, folder,
-tag, link, thread and thread event, in SQLite on the device: in memory in the
-library's page, a browser tab or the Mac app's window on it
-(`apps/workspace/src/app/cloud/page-library.ts`). It pulls the cell's change log by cursor, every
-screen reads it, and search runs on its own full-text index, online too, so
-there is one ranking. The socket's ping only says to pull; nothing correct
-rests on it. The engine is `@repo/library-replica`
+**replica** — a copy of the synced tables, every item, block, folder, tag,
+link, thread and thread event, in SQLite, pulled from the cell's change log by
+cursor. The engine is `@repo/library-replica`
 (`packages/library-replica/src/library-replica.ts`): its pull lays a row only
-over an older one (`replica-pull.ts`, `replica-rows.ts`), and a screen reads
-each item with the **outbox** laid over (`replica-listing.ts`). Not the
-**library cell**, the only writer, and not a cache: only file bytes are ever
-evicted.
+over an older one (`replica-pull.ts`, `replica-rows.ts`), and a read lays the
+**outbox** over each item (`replica-listing.ts`). No device holds one: the
+library's page and the phone read the cell online, and the Worker's suites run
+the engine against the real cell
+(`apps/web/src/worker/library/library-replica.test.ts`). Not the **library
+cell**, the only writer.
 
 **outbox** — a **replica**'s queued writes
 (`packages/library-replica/src/outbox.ts`). Each is written in the replica's
@@ -156,14 +154,15 @@ Not a write unit: a block is, guarded by its hash.
 
 **library** — everything a person saved and wrote, their account's: one
 library cell in the cloud (`LibraryDO`, `apps/web/src/worker/library/`), which
-every device they sign in on holds a replica of (`@repo/library-replica`).
+every device they sign in on reads online.
 
 **item** — one card the library lists: a row of fields and a body of Plate
 blocks (`@repo/notes/library/library-item`), whatever its kind; a link, a
 video, an image, a PDF and a note the person wrote are each one. A markdown
 file an import reads becomes one item, its frontmatter read into the item's
 fields by `readItemFacts` (`@repo/notes/items/item-frontmatter`). Listed in
-memory over a replica's rows by `@repo/notes/library/library-index`.
+memory by `@repo/notes/library/library-index`, which the cell builds over its
+rows for each `library.listing.page`.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
 or `file` (`ITEM_KINDS` in `@repo/notes/items/item-kind`), one of the item's
@@ -219,27 +218,23 @@ item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
 **Library** — the page's home: the account's LIBRARY CELL as the person sees
 it, every item one card in one grid
-(`apps/workspace/src/app/library/library-view.tsx`), read from this device's
-REPLICA. The browser tab opens it at `/library` once signed in.
+(`apps/workspace/src/app/library/library-view.tsx`), read from the LIBRARY
+CELL through `/v1`, a query per screen that the account's socket invalidates
+(`apps/workspace/src/app/cloud/library-queries.ts`). The browser tab opens it
+at `/library` once signed in.
 
 **Items** — the cards the library lists, one per item row, a note, a saved
 link, an image, a PDF or any other file alike
-(`@repo/library-replica/library-replica`'s listing). Not docs: a doc is a file
+(`library.listing.page`). Not docs: a doc is a file
 classification of the import.
 
 **Unsorted** — the rail's row: every item filed in no folder. A new save lands
 there when the screen shows no folder.
 
-**Sync** — the rail footer's state: the replica's outbox and pull against the
-account's cell, worded in one place
-(`apps/workspace/src/app/sidebar/sync-words.ts`): "Up to date", "Sending N
-changes…", "Waiting for a connection", and "N changes not saved" for a write
-the cell refused, which waits for the person (Try again, Let it go). Never a
-cursor, a head or an outbox.
-
 **Needs a connection** — what a screen says of something only the cloud
-answers (the agent and its Undo, import, the account) while the device
-is offline: the call waits rather than fails
+answers (the open item's typing, ⌘P's search, the agent and its Undo, import,
+the account) while the device is offline: the open item reads but takes no
+edit, and a call waits rather than fails
 (`apps/workspace/src/app/cloud/needs-connection.tsx`).
 
 **Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
