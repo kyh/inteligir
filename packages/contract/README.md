@@ -56,9 +56,11 @@ src/
 - **apps/web** SERVES every row, the account's on its own handler and the
   library's in each account's cell, and decorates the library's rows as the
   connector's tools, the one place MCP and OpenAPI meta are written.
-- **apps/workspace** (the browser tab, and the Mac app's window on it) and
-  **apps/mobile** reach the library through their replica
-  (`@repo/library-replica`) and the account through `cloud/v1`.
+- **apps/workspace** (the browser tab, and the Mac app's window on it) reaches
+  the library and the account through `cloud/v1`, each read a query under
+  oRPC's own key that the account's socket invalidates
+  (`cloud/library/library-socket`). **apps/mobile** reaches the library through
+  its replica (`@repo/library-replica`) and the account through `cloud/v1`.
 - **Every app's suites** drive the fake cell, sockets and clock in
   `test-support/`, the contract's rows answered in memory.
 - **apps/extension** reaches the library's saves and the account's sign-out

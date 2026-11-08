@@ -50,10 +50,10 @@ describe("the library's page", () => {
     await expect(response.text()).resolves.toBe("<svg/>");
   });
 
-  it("carries the page's own policy: its scripts and SQLite's wasm, calls to this origin alone", async () => {
+  it("carries the page's own policy: its scripts and no wasm, calls to this origin alone", async () => {
     const answered = await ask("/library");
     const policy = answered.headers.get("content-security-policy") ?? "";
-    expect(policy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    expect(policy).toContain("script-src 'self';");
     expect(policy).toContain("connect-src 'self' wss://inteligir.com");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(libraryPagePolicy(new URL("http://localhost:5174/library"))).toContain(

@@ -1,7 +1,7 @@
 // The library's page in a browser tab over a booted Worker: the account `signUp` makes, a device of
 // its own signed in for a scenario to seed and read the library through `/v1` as an app does, and a
 // browser signed in through the site's own sign-in, which comes back to the page. What the tab
-// shows is the replica it pulled; what the cell holds is read through the device's client.
+// shows it read from the cell; what the cell holds is read through the device's client.
 
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { pollUntil } from "./poll";
@@ -31,7 +31,7 @@ type UploadBytes = (file: {
 
 export interface LibraryTabOptions {
   readonly worker?: Pick<LaunchCloudWorkerArgs, "json" | "vars">;
-  // what the library holds before the tab opens, so its first pull carries it
+  // what the library holds before the tab opens, so its first read carries it
   readonly seed?: (library: Library, upload: UploadBytes) => Promise<void>;
   // under /library, its query included, read once the seed ran so it can name what the seed made
   readonly path?: () => string;

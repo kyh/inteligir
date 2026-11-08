@@ -1,6 +1,6 @@
-// CLAUDE.md § THE QUERY CLIENT IS THE ROUTER'S. The page's router, made with the one QueryClient
-// and the page's library as its context, so a loader seeds what a screen reads through the same
-// client the screen reads it from, and wraps every route in both providers.
+// CLAUDE.md § THE QUERY CLIENT IS THE ROUTER'S, AND ITS KEYS ARE oRPC'S. The page's router, made
+// with the one QueryClient and the page's library as its context, so a loader seeds what a screen
+// reads through the same client the screen reads it from, and wraps every route in both providers.
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import type { RouterHistory } from "@tanstack/react-router";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 
 import { PageLibraryProvider } from "./app/cloud/library-context";
-import type { PageLibrary } from "./app/cloud/page-library";
+import type { PageLibrary } from "./app/cloud/library-context";
 import { RenderCrash } from "./app/render-crash";
 import { routeTree } from "./routeTree.gen";
 

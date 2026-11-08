@@ -151,13 +151,13 @@ alone, and no walk narrows structurally.
   `packages/editor/src/mark-shortcuts.ts`,
   `apps/workspace/src/app/global-shortcuts.ts`.
 
-- **A PIN IS THE ITEM'S `pinnedAt` FIELD, AND ITS EDIT IS ONE FIELD OP.** It is
-  the item's, so every device and the agent agree, and a pinned item leads the
-  grid in every scope and sort; unpinning sets it null. The op names the value it
-  was computed over, so a pin another device moved first is read again and
-  written once more over what it reads now, never merged, as every item field is
-  (`pinItems` in `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a
-  Pinned heading (more height than it explains).
+- **A PIN IS THE ITEM'S `pinnedAt` FIELD, AND THE CELL SETS IT.** It is the
+  item's, so every device and the agent agree, and a pinned item leads the grid
+  in every scope and sort; unpinning sets it null. A press asks the cell to pin
+  or unpin (`items.organize`), which sets what was asked over whatever another
+  device left, so there is nothing to merge (`pin` in
+  `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a Pinned
+  heading (more height than it explains).
 
 - **AN EXTRACT IS ONE HISTORY BATCH, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
   extract asks the host for a note of the very blocks it moves, as the item

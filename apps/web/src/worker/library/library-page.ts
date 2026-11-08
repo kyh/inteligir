@@ -5,9 +5,9 @@
 // the page and its router draws it. Only the hashed files under its `assets/` skip the Worker. No
 // other path falls back to the page, so a mistyped site route still answers the site's own 404.
 //
-// The document's policy is the page's: its own scripts and SQLite's wasm, which the replica
-// compiles in the tab (`'wasm-unsafe-eval'`); calls and the socket to this origin alone; nothing
-// remote drawn in an item, so a saved page cannot beacon on open; no frame, no worker.
+// The document's policy is the page's: its own scripts and no wasm; calls and the socket to this
+// origin alone; nothing remote drawn in an item, so a saved page cannot beacon on open; no frame,
+// no worker.
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 
@@ -22,7 +22,7 @@ const socketOrigin = (url: URL): string =>
 export const libraryPagePolicy = (url: URL): string =>
   [
     "default-src 'self'",
-    "script-src 'self' 'wasm-unsafe-eval'",
+    "script-src 'self'",
     // React's style attributes and the editor's runtime <style> are not nonceable
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",

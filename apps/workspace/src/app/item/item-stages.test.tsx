@@ -5,7 +5,6 @@ import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PageLibrary } from "../cloud/page-library";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import { FileStage } from "./item-stages";
 
@@ -63,17 +62,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const drawn = (readFile: PageLibrary["readFile"]) => {
-  const { library } = fakePageLibrary({ answer: () => ({}) });
-  renderOnLibrary(<FileStage fields={fields({})} title="Minutes" />, { ...library, readFile });
+// the file's route as the page reaches it, answered by the suite
+const drawn = (answer: (request: Request) => Promise<Response>) => {
+  const { library } = fakePageLibrary({});
+  renderOnLibrary(<FileStage fields={fields({})} title="Minutes" />, {
+    ...library,
+    cloud: { ...library.cloud, fetch: answer },
+  });
 };
 
 describe("a file item's Download", () => {
-  it("saves what the host reads under the file's own name, through a blob of the page's origin", async () => {
+  it("saves what the file's route answers under the file's own name, through a blob of the page's origin", async () => {
     const asked: string[] = [];
-    drawn(async (sha) => {
-      asked.push(sha);
-      return await Promise.resolve(new Blob([BYTES]));
+    drawn(async (request) => {
+      asked.push(request.url);
+      return await Promise.resolve(new Response(BYTES));
     });
     const button = screen.getByRole("button", { name: "Download minutes.txt" });
     // never a link to the file: on the Mac its address is another origin, which WebKit follows
@@ -82,13 +85,12 @@ describe("a file item's Download", () => {
     await vi.waitFor(() => {
       expect(saved).toStrictEqual([{ download: "minutes.txt", href: BLOB_ADDRESS }]);
     });
-    expect(asked).toStrictEqual([SHA]);
+    expect(asked).toStrictEqual([`https://library.test/v1/blobs/${SHA}`]);
   });
 
   it("saves nothing, and says so, when the file is not there to read", async () => {
-    // the Mac's scheme, offline, for a file this Mac does not hold
     const said = vi.spyOn(toast, "error");
-    drawn(async () => await Promise.reject(new Error("the file answered 502")));
+    drawn(async () => await Promise.resolve(new Response(null, { status: 502 })));
     fireEvent.click(screen.getByRole("button", { name: "Download minutes.txt" }));
     await vi.waitFor(() => {
       expect(said).toHaveBeenCalledWith(

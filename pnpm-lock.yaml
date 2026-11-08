@@ -925,9 +925,6 @@ importers:
       '@repo/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@repo/library-replica':
-        specifier: workspace:*
-        version: link:../../packages/library-replica
       '@repo/notes':
         specifier: workspace:*
         version: link:../../packages/notes

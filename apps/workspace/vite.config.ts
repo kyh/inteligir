@@ -47,9 +47,6 @@ export default defineConfig({
     },
   },
   clearScreen: false,
-  // SQLite's wasm loads its own module beside it, which the dep optimizer would move away from it
-  // (https://www.npmjs.com/package/@sqlite.org/sqlite-wasm#usage-with-vite)
-  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
   plugins: [
     tanstackRouter({
       // one bundle (above): a route split off would be a lazy import inlined straight back

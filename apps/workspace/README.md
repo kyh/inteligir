@@ -1,21 +1,22 @@
 # @repo/workspace — the library's page
 
-The SPA the Worker serves at `/library`: the account's library over a replica
-the tab holds, every read from the replica engine (`@repo/library-replica`, on
-in-memory SQLite) and every write through its outbox, and what only the cloud
-answers (the agent and its Undo, import, the account) through `/v1`.
+The SPA the Worker serves at `/library`: the account's library read and written
+online through `/v1`, each read a TanStack query under oRPC's own key, which the
+account's socket invalidates as writes land, and each write a mutation laid over
+what the screens show until the cell answers. It keeps nothing on the device.
 Signed out, it sends the tab to the site's sign-in, which brings it back. It
 reaches neither the Worker's source nor the shell's: the Worker copies its build
 into its assets ([`apps/web`](../web/README.md)), and the Mac app's window loads
 it from the site ([`apps/desktop`](../desktop/README.md)).
 
 ```
-src/main.tsx        opens the session, then the replica, and mounts the router
+src/main.tsx        opens the session and the account's socket, and mounts the router
 src/router.tsx      the router and the QueryClient it carries as context
 src/routes/         TanStack Router file routes under the /library basepath:
                     the workspace, and Settings drawn over it
-src/app/cloud/      the /v1 client and its query utils, the replica's queries,
-                    the page's library context, "Needs a connection"
+src/app/cloud/      the /v1 client and its query utils, the library's queries,
+                    the account's socket, the page's library context,
+                    "Needs a connection"
 src/app/            the workspace: the rail, the grid, the open item, the panel
                     (Info, the agent), the palette, Settings
 src/shell/          what the page asks the Mac app's shell: its update, through

@@ -37,7 +37,7 @@ const FIND_LANDED = `JSON.stringify({
 
 export const librarySearchBrowser: Scenario = {
   description:
-    "the palette searches the replica the tab holds: every item that holds the words is a hit and no other, and a hit opens its item with the find bar on them",
+    "the palette searches the library in the cell: every item that holds the words is a hit and no other, and a hit opens its item with the find bar on them",
   name: "library-search-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

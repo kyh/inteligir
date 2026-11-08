@@ -1,10 +1,9 @@
 // CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. With nothing open the page is
-// the grid of the rail's scope, one card per item, read from the replica's listing; an empty scope
-// says why and offers a next step.
+// the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
+// an empty scope says why and offers a next step.
 
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import type { ItemKind } from "@repo/notes/items/item-kind";
-import type { ListingPage } from "@repo/notes/library/library-index";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";
 import {
@@ -20,6 +19,7 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
+import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { TopBar } from "../top-bar";
@@ -28,6 +28,19 @@ import type { LibraryGridActions } from "./item-menu";
 import { KindChips } from "./kind-chips";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
+import type { ListingView } from "./listing";
+
+// the scope's listing as the cell has answered it so far
+interface LibraryListing {
+  // undefined until its first page answers
+  readonly view: ListingView | undefined;
+  // its first page waits for a connection
+  readonly paused: boolean;
+  // why its first page failed, null while it has not
+  readonly failure: Error | null;
+  // the grid came near the end of what is read
+  readonly more: () => void;
+}
 
 // what the grid draws while the listing is first read
 const SKELETON_CARDS = ["a", "b", "c", "d", "e", "f"] as const;
@@ -51,8 +64,7 @@ interface LibraryAdd {
 export interface LibraryViewProps {
   readonly scope: LibraryScope;
   readonly title: string;
-  // undefined until the replica's listing has been read once
-  readonly page: ListingPage<ReplicaListingRow> | undefined;
+  readonly listing: LibraryListing;
   readonly kind: ItemKind | null;
   readonly onKindChange: (kind: ItemKind | null) => void;
   readonly sort: LibrarySort;
@@ -176,7 +188,7 @@ const SortMenu = ({
 export const LibraryView = ({
   scope,
   title,
-  page,
+  listing,
   kind,
   onKindChange,
   sort,
@@ -188,7 +200,20 @@ export const LibraryView = ({
   onTidy,
 }: LibraryViewProps) => {
   const empty = emptyWords(scope);
+  const { view: page, more } = listing;
   if (page === undefined) {
+    if (listing.paused || listing.failure !== null) {
+      return (
+        <p
+          className="m-0 p-4 text-body text-muted-foreground"
+          data-needs-connection={listing.paused ? "" : undefined}
+        >
+          {listing.paused
+            ? NEEDS_CONNECTION
+            : refusalText(listing.failure, "Your library couldn't be read.")}
+        </p>
+      );
+    }
     return (
       <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
         {SKELETON_CARDS.map((key) => (
@@ -232,7 +257,7 @@ export const LibraryView = ({
           <p className="m-0 text-body text-muted-foreground">{empty.body}</p>
         </div>
       ) : (
-        <LibraryGrid rows={page.items} selection={selection} actions={actions} />
+        <LibraryGrid rows={page.items} selection={selection} actions={actions} onNearEnd={more} />
       )}
     </div>
   );

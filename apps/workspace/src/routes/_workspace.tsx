@@ -2,10 +2,11 @@
 // The child draws in a full-window layer here rather than in its own component, so its crash
 // boundary lands in the layer too instead of below a workspace it left inert.
 
+import { onlineManager } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { replicaQueries } from "../app/cloud/replica-queries";
+import { libraryQueries } from "../app/cloud/library-queries";
 import { Workspace } from "../app/workspace";
 
 const workspaceSearchSchema = z.object({
@@ -39,12 +40,15 @@ const WorkspaceLayout = () => {
 
 export const Route = createFileRoute("/_workspace")({
   component: WorkspaceLayout,
-  // the library this page holds is read before the grid draws: the replica answers from memory
+  // the rail's scopes are read before the grid draws, once, the rail asking again itself after a
+  // failure; with no connection nothing is awaited, and the rail says it needs one
   loader: async ({ context }) => {
-    const queries = replicaQueries(context.library.replica);
-    await Promise.all([
-      context.queryClient.query({ ...queries.scopes(), staleTime: "static" }),
-      context.queryClient.query({ ...queries.folders(), staleTime: "static" }),
+    if (!onlineManager.isOnline()) {
+      return;
+    }
+    const { scopes } = libraryQueries(context.library.wire);
+    await Promise.allSettled([
+      context.queryClient.query({ ...scopes(), retry: 0, staleTime: "static" }),
     ]);
   },
   validateSearch: workspaceSearchSchema,

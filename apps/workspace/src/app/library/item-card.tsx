@@ -3,7 +3,6 @@
 // selection, the focus and the menu.
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { shownTitle } from "@repo/notes/items/item-name";
 import {
   MediaCard,
@@ -16,29 +15,23 @@ import {
 } from "@repo/ui/components/media-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { landedInside } from "@repo/ui/lib/landed-inside";
-import {
-  CloudUploadIcon,
-  FileTextIcon,
-  MusicIcon,
-  PinIcon,
-  PlayIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { FileTextIcon, MusicIcon, PinIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
-import { useFileUrl } from "../cloud/library-context";
+import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, fileExtensionLabel } from "./item-labels";
+import type { ListedItem } from "./listing";
 
 export interface ItemCardProps {
-  readonly row: ReplicaListingRow;
+  readonly row: ListedItem;
   readonly selected: boolean;
   // the one card Tab reaches; the grid's arrows move it
   readonly tabStop: boolean;
   readonly nowMs: number;
-  readonly onPress: (row: ReplicaListingRow, event: MouseEvent<HTMLDivElement>) => void;
-  readonly onOpen: (row: ReplicaListingRow) => void;
-  readonly onMenu: (row: ReplicaListingRow, anchor: HTMLElement) => void;
+  readonly onPress: (row: ListedItem, event: MouseEvent<HTMLDivElement>) => void;
+  readonly onOpen: (row: ListedItem) => void;
+  readonly onMenu: (row: ListedItem, anchor: HTMLElement) => void;
 }
 
 const hueOf = (text: string): number => {
@@ -66,18 +59,18 @@ const MonogramTile = ({ label }: { label: string }) => {
   );
 };
 
-const GlyphTile = ({ row }: { row: ReplicaListingRow }) => {
-  if (row.kind === "pdf") {
+const GlyphTile = ({ row }: { row: ListedItem }) => {
+  if (row.fields.kind === "pdf") {
     return (
       <div aria-hidden="true" className="flex size-full items-center justify-center">
         <FileTextIcon className="size-10 text-muted-foreground" strokeWidth={1.25} />
       </div>
     );
   }
-  if (row.kind === "video" || row.kind === "audio") {
+  if (row.fields.kind === "video" || row.fields.kind === "audio") {
     return (
       <div aria-hidden="true" className="flex size-full items-center justify-center">
-        {row.kind === "video" ? (
+        {row.fields.kind === "video" ? (
           <PlayIcon className="size-10 text-muted-foreground" strokeWidth={1.25} />
         ) : (
           <MusicIcon className="size-10 text-muted-foreground" strokeWidth={1.25} />
@@ -85,7 +78,7 @@ const GlyphTile = ({ row }: { row: ReplicaListingRow }) => {
       </div>
     );
   }
-  const name = row.fields.originalName ?? row.title;
+  const name = row.fields.originalName ?? row.card.title;
   const extension = fileExtensionLabel(name);
   return (
     <div aria-hidden="true" className="flex size-full flex-col items-center justify-center gap-1">
@@ -99,7 +92,6 @@ const GlyphTile = ({ row }: { row: ReplicaListingRow }) => {
 
 // the cover, or nothing once the library could not answer it
 const CoverImage = ({ sha }: { sha: string }) => {
-  const fileUrl = useFileUrl();
   const [failed, setFailed] = useState(false);
   if (failed) {
     return null;
@@ -118,7 +110,7 @@ const CoverImage = ({ sha }: { sha: string }) => {
   );
 };
 
-const CoverArea = ({ row }: { row: ReplicaListingRow }) => {
+const CoverArea = ({ row }: { row: ListedItem }) => {
   if (row.fields.fetchState === "pending") {
     return (
       <div className="flex size-full items-center justify-center bg-muted/60">
@@ -130,7 +122,7 @@ const CoverArea = ({ row }: { row: ReplicaListingRow }) => {
   if (cover !== null) {
     return <CoverImage key={cover} sha={cover} />;
   }
-  if (row.kind === "note") {
+  if (row.fields.kind === "note") {
     return row.card.preview === "" ? (
       <div aria-hidden="true" className="flex size-full items-center justify-center">
         <FileTextIcon className="size-8 text-muted-foreground/60" strokeWidth={1.25} />
@@ -141,8 +133,8 @@ const CoverArea = ({ row }: { row: ReplicaListingRow }) => {
       </p>
     );
   }
-  if (row.kind === "link") {
-    return <MonogramTile label={row.fields.site ?? row.title} />;
+  if (row.fields.kind === "link") {
+    return <MonogramTile label={row.fields.site ?? row.card.title} />;
   }
   return <GlyphTile row={row} />;
 };
@@ -156,8 +148,9 @@ export const ItemCard = ({
   onOpen,
   onMenu,
 }: ItemCardProps) => {
-  const playable = (row.kind === "video" || row.kind === "audio") && row.fields.coverSha !== null;
-  const title = shownTitle(row.title);
+  const playable =
+    (row.fields.kind === "video" || row.fields.kind === "audio") && row.fields.coverSha !== null;
+  const title = shownTitle(row.card.title);
   return (
     <MediaCard
       selected={selected}
@@ -195,16 +188,9 @@ export const ItemCard = ({
       <MediaCardCover>
         <CoverArea row={row} />
         {playable ? <MediaCardBadge icon={<PlayIcon />} position="top-right" /> : null}
-        {row.pinnedAt === null ? null : (
+        {row.fields.pinnedAt === null ? null : (
           <MediaCardBadge icon={<PinIcon />} position="top-left" aria-label="Pinned" />
         )}
-        {row.unsent ? (
-          <MediaCardBadge
-            icon={<CloudUploadIcon />}
-            position="top-right"
-            aria-label="Not sent yet"
-          />
-        ) : null}
         {row.fields.fetchError === null ? null : (
           // why the page went unread is something to read, so it opens on a hover or a tap, which a
           // tooltip, off on touch, would not

@@ -1,4 +1,4 @@
-// The library in the tab, over the replica it pulled: the grid of every item, an item opened and
+// The library in the tab, read from the cell: the grid of every item, an item opened and
 // left by the url's history, the rail's folder and tag scopes and the grid's kind chips, Quick
 // Look, a tag added from Info, a card's Delete with its Undo, a folder made from the rail and an
 // item moved into it, an open item following a rename made on another device, and a link pasted
@@ -135,7 +135,7 @@ const pickMenuItem = async (browser: AgentBrowser, itemId: string, name: string)
 
 export const libraryBrowser: Scenario = {
   description:
-    "the tab's grid draws every item the replica pulled; a double-click opens one and the url's Back and Forward leave and reopen it; a folder row, a tag row and a kind chip each narrow the grid; Space is Quick Look; a tag added from Info lands in the cell; a card's Delete goes to Deleted and its toast's Undo brings it back; a folder made from the rail takes an item moved into it; an open item follows a rename another device made; and a link pasted and a file dropped onto the grid are each saved as an item",
+    "the tab's grid draws every item the cell holds; a double-click opens one and the url's Back and Forward leave and reopen it; a folder row, a tag row and a kind chip each narrow the grid; Space is Quick Look; a tag added from Info lands in the cell; a card's Delete goes to Deleted and its toast's Undo brings it back; a folder made from the rail takes an item moved into it; an open item follows a rename another device made; and a link pasted and a file dropped onto the grid are each saved as an item",
   name: "library-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

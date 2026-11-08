@@ -128,15 +128,14 @@ src/
   that leaves one out fails to typecheck rather than drawing a button that does
   nothing. Each host installs it once, through `installEditorHost`, ahead of
   the first render (`apps/workspace/src/app/item/page-editor-host.ts`, over the
-  tab's or the Mac's replica and files, and the phone's over its WebView
-  bridge, `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver
+  account's cell in a tab and the Mac app's window, and the phone's over its
+  WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver
   store through `link-resolver-feed.ts`, and `host.ts` is React's door
   (`useLinkResolver`, `useLinkTargets`).
-- `stale-write.ts` — `mergeBlocks`, the replica's block merge: a block two
-  writers changed, diff3-merged over each side's markdown
-  (`codec/block-markdown.ts`), with whether it kept this device's lines over
-  the other's change to the same ones; `replicaMerge` is it as the engine's
-  port takes it.
+- `stale-write.ts` — `mergeBlocks`, the block merge: a block two writers
+  changed, diff3-merged over each side's markdown (`codec/block-markdown.ts`),
+  with whether it kept this device's lines over the other's change to the same
+  ones.
 - `item/item-session.ts` — an item open in the editor by its id, over its
   host's store (`ItemStore`): the value is the item's blocks, a pause writes the
   ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid

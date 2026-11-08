@@ -1,5 +1,5 @@
 // A verb over a selection runs as sequential chunks under one progress toast: a move or a tag
-// queues each chunk in the outbox, and a purge calls the cell once for each chunk its route takes.
+// and a purge each call the cell once for each chunk its route takes.
 // Stop ends after the chunk in flight; a chunk that fails stops the run at once and says how far it
 // got. Each chunk answers how many of it landed, and only those are counted in the closing
 // sentence, so a run where none landed says that, a failure among them, rather than a count of 0.

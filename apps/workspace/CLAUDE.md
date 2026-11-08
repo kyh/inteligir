@@ -1,51 +1,53 @@
 # Decisions: @repo/workspace
 
-The library's page: the account's library over a replica in the tab, the rail,
+The library's page: the account's library read and written online, the rail,
 the grid, the open item, the panel, the palette, Settings and the page's own
 preferences. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-`src/main.tsx` opens the account's library (the session, then the replica) and
-mounts the router; `src/router.tsx` makes the router and the QueryClient it
-carries. `app/cloud/` holds the `/v1` client and its query utils, the replica's
-queries and the page's library context; `app/workspace.tsx` owns the rail, the
-grid or the open item, the panel and the palette; `app/library/` the grid, its
-scope, selection, Quick Look, the verbs over items and what a paste or a drop
-saves; `app/item/` the open item, its stages and the editor's host;
-`app/panel/` Info; `app/agent/` the built-in agent's
-conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
-`app/settings/` the Settings layer. The Mac app's update, the one thing the
-page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
+`src/main.tsx` opens the account's library (the session, then the account's
+socket) and mounts the router; `src/router.tsx` makes the router and the
+QueryClient it carries. `app/cloud/` holds the `/v1` client and its query utils,
+the library's queries, the account's socket and the page's library context;
+`app/workspace.tsx` owns the rail, the grid or the open item, the panel and the
+palette; `app/library/` the grid, its scope, selection, Quick Look, the verbs
+over items and what a paste or a drop saves; `app/item/` the open item, its
+store over the cell, its stages and the editor's host; `app/panel/` Info;
+`app/agent/` the built-in agent's conversations and Tidy; `app/palette/` ⌘P;
+`app/sidebar/` the rail; `app/settings/` the Settings layer. The Mac app's
+update, the one thing the page asks its shell, is parsed in
+`src/shell/desktop-bridge.ts`.
 
 ## The page over the cell
 
-- **THE PAGE IS THE ACCOUNT'S LIBRARY OVER A REPLICA THE TAB HOLDS.** It opens
-  the session the site's sign-in left, then the replica engine
-  (`@repo/library-replica`) on in-memory SQLite, pulled whole on every load:
-  every screen reads the replica, every write goes through its outbox and is
-  laid over what the screens read until the cell takes it, a tab with no
+- **THE PAGE IS THE ACCOUNT'S LIBRARY, READ AND WRITTEN ONLINE.** It opens
+  the session the site's sign-in left, then the account's socket, and every
+  screen reads the cell through `/v1` over the session cookie, the Worker's own
+  origin: a listing a page at a time (`library.listing.page`), the rail's
+  counts, the titles a link resolves by and each item whole (`items.get`). The
+  page keeps nothing on the device, so a reload reads again. A tab with no
   session goes to the site's sign-in, which brings it back, and a tab that could
-  not find out says it didn't open and offers Try again. Its calls are the
-  apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
-  server on the device (a second writer beside the cell); the replica in OPFS
-  (one tab would hold it); a
-  fault of the site's read as signed out (a password asked of someone signed
-  in). `apps/workspace/src/app/cloud/page-library.ts`,
-  `apps/workspace/src/main.tsx`.
+  not find out says it didn't open and offers Try again. Rejected: a replica in
+  the tab (a second copy of the library to keep right, for a page that cannot
+  edit offline anyway); a server on the device (a second writer beside the
+  cell); a fault of the site's read as signed out (a password asked of someone
+  signed in). `apps/workspace/src/main.tsx`,
+  `apps/workspace/src/app/cloud/library-queries.ts`.
 
-- **THE QUERY CLIENT IS THE ROUTER'S.** One `QueryClient` is made with the
-  router and handed to it as context, its provider the router's `Wrap`, so a
-  loader and a component share one cache; a loader seeds what its screen reads
-  with `queryClient.query({ ..., staleTime: "static" })`, once, over the options
-  its screen reads with their own freshness, waiting for one answer and not the
-  retries the screen's query makes itself. A replica read is a query that runs
-  offline (`networkMode: "always"`, never stale), and the replica's change
-  invalidates only the families it moved; a cell call is oRPC's TanStack utils
-  over the same client. Rejected: a module-level client
-  (a test and a second router share it); `ensureQueryData`, `fetchQuery` and
-  `prefetchQuery` (deprecated for `query`). `apps/workspace/src/router.tsx`,
-  `apps/workspace/src/app/cloud/replica-queries.ts`.
+- **THE QUERY CLIENT IS THE ROUTER'S, AND ITS KEYS ARE oRPC'S.** One
+  `QueryClient` is made with the router and handed to it as context, its
+  provider the router's `Wrap`, so a loader and a component share one cache; a
+  loader seeds what its screen reads with
+  `queryClient.query({ ..., staleTime: "static" })`, once, over the options its
+  screen reads with their own freshness, waiting for one answer and not the
+  retries the screen's query makes itself. Every read is oRPC's TanStack utils
+  over the same client, under the key oRPC gives it, so the socket and a
+  mutation reach a family by its key alone. Rejected: a module-level client (a
+  test and a second router share it); keys of the page's own (a second spelling
+  of every procedure); `ensureQueryData`, `fetchQuery` and `prefetchQuery`
+  (deprecated for `query`). `apps/workspace/src/router.tsx`,
+  `apps/workspace/src/app/cloud/library-queries.ts`.
 
 - **A CELL CALL PAUSES OFFLINE AND SAYS SO.** A call only the cell answers is a
   TanStack query or mutation run online (`networkMode: "online"`), so with no
@@ -68,38 +70,52 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
   nodes (KaTeX, Mermaid, the calendar, the wiki chip) with the routes, so after
   the page loads nothing is fetched but calls and files: a chunk first asked for
-  by a tab that lost its connection fails, the crash screen offers a reload, and
-  a reload loses the replica held in memory. The tab resumes the replica the
-  moment the browser says it is online again, rather than at its next retry.
-  Rejected: route splitting alone (the lazy nodes still split); warming each
-  chunk at boot (a tab offline before they land still fails); a boundary per
-  lazy node (nothing is left to fail to load). `apps/workspace/vite.config.ts`,
-  `apps/workspace/src/main.tsx`.
+  by a tab that lost its connection fails, and the crash screen offers a reload.
+  The account's socket dials again the moment the browser says it is online,
+  rather than at its next wait, and every time it opens every query is read
+  again. Rejected: route splitting alone (the lazy nodes still split); warming
+  each chunk at boot (a tab offline before they land still fails); a boundary
+  per lazy node (nothing is left to fail to load).
+  `apps/workspace/vite.config.ts`,
+  `apps/workspace/src/app/cloud/use-library-socket.ts`.
 
-- **THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT.** A
-  change the tab made lives only in its memory until the cell takes it, so the
-  replica's socket, check-in and outbox keep running while the tab is out of
-  sight, a tab going out of sight writes the open item's edit at once, and while
-  the replica or the open item holds anything unsent the browser asks before the
-  tab closes, reloads or leaves, its listener there only then; a session that
-  ended asks nothing, since nothing can go. An open item that will not write
-  asks before the page leaves it, saying why
-  (`apps/workspace/src/app/item/leave-item.ts`). Rejected: suspending the replica
-  out of sight as the phone does (its outbox is on disk, the tab's is not); a
-  listener always armed (it bars the back-forward cache).
-  `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
+- **THE ACCOUNT'S SOCKET SAYS WHAT MOVED, AND THE PAGE READS THAT AGAIN.** A
+  moved frame invalidates the listings and the rail's counts for any item it
+  names, an item's own read only when the copy held is older than the sequence
+  it names, the scopes for a folder, and a thread's list and events for a turn;
+  a list the cell cut short (`"all"`) invalidates the family. The open item's
+  store hears the same frame and skips a move its own write made, so the editor
+  never merges its own typing back; a thread frame not a preview reads its
+  events again, and every frame goes on to the agent panel for the reply being
+  written. Residual: the open item's own read is asked again after each pause
+  its typing writes.
+  Rejected: state in the frames (a dropped frame would be a lost write);
+  partysocket (the contract's hint already redials, pings and backs off).
+  `apps/workspace/src/app/cloud/use-library-socket.ts`,
+  `apps/workspace/src/app/item/cell-item-store.ts`.
 
-- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
-  through a client of its own and stops at a session's end, so the page watches
-  its status beside the wire's interceptor and gives both one answer: it goes to
-  the site's sign-in. The floor spares a page the Worker served, so a tab it
-  refuses is a browser too old to mark its calls as that page's, and the tab
-  says so. Rejected: waiting for a wire call (an idle page makes none, and a
-  stopped replica reads as up to date); the refused tab sent to sign in (the
-  sign-in sends a signed-in tab straight back, for good).
-  `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/sidebar/sync-words.ts`, `apps/workspace/src/main.tsx`,
-  over `apps/web/src/worker/client-floor.ts`.
+- **THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT.** The one thing the tab
+  holds that the cell has not is the open item's edit before its pause writes
+  it, so a tab going out of sight or away (`pagehide`) writes it at once, and
+  while it holds one the browser asks before the tab closes, reloads or leaves,
+  its listener there only then; a session that ended asks nothing, since
+  nothing can go. An open item that will not write asks before the page leaves
+  it, saying why (`apps/workspace/src/app/item/leave-item.ts`). Residual: the
+  Mac app's ⌘Q right after typing can lose the pause, since a window's quit
+  runs no `pagehide` the page can wait on. Rejected: a listener always armed (it
+  bars the back-forward cache). `apps/workspace/src/app/cloud/leave-guard.ts`,
+  `apps/workspace/src/app/workspace.tsx`.
+
+- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** Every call goes
+  through the wire's interceptor, which gives a session's end one answer: the
+  page goes to the site's sign-in, and a keeper reads the session on a timer so
+  an idle page finds out too. The floor spares a page the Worker served, so a
+  tab it refuses is a browser too old to mark its calls as that page's, and the
+  tab says so. Rejected: waiting for a wire call alone (an idle page makes
+  none); the refused tab sent to sign in (the sign-in sends a signed-in tab
+  straight back, for good). `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/session-keeper.ts`,
+  `apps/workspace/src/main.tsx`, over `apps/web/src/worker/client-floor.ts`.
 
 ## Surfaces
 
@@ -108,16 +124,16 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   a host mounted by one route leaves another route's `confirm()` parked on a
   dialog that never opens.
 
-- **THE RAIL CHOOSES THE LIBRARY'S SCOPE, AMBIENT STATE LIVES IN ITS FOOTER.** A
-  header (Library, Search), then the groups Library (All items, Unsorted),
-  Folders, Tags (folding) and Deleted, each row a scope read from the replica
-  with its count; a footer says where the library stands (up to date, sending,
-  waiting for a connection, a pass that keeps failing, a sign-in that ended, an
-  update it needs, or a change the cell refused, with Try again and Let it go)
-  beside Settings. Each row sets the grid's scope (`libraryScope`)
-  and goes back to the library; a folder's other verbs are its right-click and
-  its More button. Rejected: a window-wide strip (a second bar under the rail).
-  `apps/workspace/src/app/sidebar/rail.tsx`, `sync-line.tsx`.
+- **THE RAIL CHOOSES THE LIBRARY'S SCOPE.** A header (Library, Search), then
+  the groups Library (All items, Unsorted), Folders, Tags (folding) and Deleted,
+  each row a scope with the count the cell answers for it
+  (`library.listing.scopes`), and Settings at its foot. The footer says nothing
+  of where the library stands: a call waiting for a connection is the root's
+  one notice. Each row sets the grid's scope (`libraryScope`) and goes back to
+  the library; a folder's other verbs are its right-click and its More button.
+  Rejected: a window-wide strip (a second bar under the rail); a sync line (an
+  online page has nothing queued to report).
+  `apps/workspace/src/app/sidebar/rail.tsx`.
 
 - **A FOLDER SCOPE EXISTS, BY THE FOLDER'S ID.** A folder row narrows the grid
   to the folder; nested folders indent under their parents, and a save from the
@@ -128,15 +144,17 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   `apps/workspace/src/app/sidebar/folder-paths.ts`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** One field searches the
-  replica's own full-text index (titles, notes and saved articles),
-  ranked as every device ranks it, beside the page's commands; a hit opens its
-  item with the find bar on the words, and a typed web address offers "Save
-  this link". The rows are groups of data the page hands `@repo/ui`'s palette,
-  Base UI's Autocomplete, which owns the field's keys, the light and the roles
-  (A PICKER IS BASE UI'S, in `packages/ui/CLAUDE.md`). ⌘F IS NOT ONE OF THEM:
-  it searches the open item, with its own chord and bar. Rejected: searching
-  through the cell (the replica holds the same index, offline); a search field
-  of the grid's own. `apps/workspace/src/app/palette/command-palette.tsx`.
+  cell's full-text index (titles, notes and saved articles) through
+  `library.listing.page` with `words`, ranked as the cell ranks it for every
+  device, beside the page's commands; the hits typed before stay up while the
+  next words are asked, and a hit opens its item with the find bar on the
+  words, and a typed web address offers "Save this link". The rows are groups
+  of data the page hands `@repo/ui`'s palette, Base UI's Autocomplete, which
+  owns the field's keys, the light and the roles (A PICKER IS BASE UI'S, in
+  `packages/ui/CLAUDE.md`). ⌘F IS NOT ONE OF THEM: it searches the open item,
+  with its own chord and bar. Residual: each word typed waits on a call.
+  Rejected: an index of the page's own (a second copy of the library); a search
+  field of the grid's own. `apps/workspace/src/app/palette/command-palette.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
@@ -149,8 +167,7 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
 - **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
   MOUNTED.** `?item=<id>` is the open item: every open is a history entry, so
   the browser's Back leaves the item and Forward reopens it, and a link or a
-  reload opens it, once the replica holds it (a card that folded answers only
-  for the run that made it, A FOLDED MAKE'S ID). Settings is a layer in the
+  reload opens it as the cell answers it. Settings is a layer in the
   pathless `_workspace` layout: the covered workspace is `inert`, its
   `GLOBAL_SHORTCUTS` listener detached, and the way in flushes the open item.
   Rejected: a back/forward stack of the page's own (the tab has the browser's);
@@ -180,8 +197,9 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
   Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`), a
   folder named by its id as the cell keeps it, read by the page's `PREFS` row
-  (`apps/workspace/src/app/prefs.ts`), the replica's listing and a view
-  context's `scope` (`agentViewContextSchema` in
+  (`apps/workspace/src/app/prefs.ts`), the grid's listing query
+  (`apps/workspace/src/app/library/listing.ts`) and a view context's `scope`
+  (`agentViewContextSchema` in
   `packages/contract/src/cloud/library/library-wire.ts`), which names any of
   them but Deleted. Rejected: a scope per surface or per wire, spellings that
   drift the first time a scope gains a kind; a folder by its path (a rename
@@ -194,9 +212,12 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   in its place and takes the keyboard unless something holds it, so Escape goes
   back (`apps/workspace/src/app/item/item-view.tsx`): a file's viewer over its
   bytes (`/v1/blobs/<sha>`), a saved page's source above its text, a link not
-  yet read saying so, and the item's blocks in the editor over the replica
-  (`apps/workspace/src/app/item/item-stages.tsx`). Rejected: a list beside an
-  always-open item (saved pages read as text files).
+  yet read saying so, and the item's blocks in the editor over the cell
+  (`apps/workspace/src/app/item/item-stages.tsx`), which turns read-only and
+  says "Needs a connection" while the browser is offline, an edit typed before
+  the drop written once it returns. A long scope reads its next page as the grid
+  scrolls near its end. Rejected: a list beside an always-open item (saved
+  pages read as text files).
 
 - **THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS.**
   Finder's grammar by item id: a click selects, ⌘-click toggles, ⇧-click
@@ -210,34 +231,38 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   selection. Rejected: click-to-open (the selection is the panel's subject and
   the agent's context).
 
-- **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move or a tag of
-  many items goes through the outbox fifty at a time and a purge through the
-  cell's own in its route's chunks, sequentially; a chunk that fails stops the
-  run and says how far it got, the closing sentence says only what landed, and
-  a run where none landed says that in place of a count
-  (`apps/workspace/src/app/library/bulk-actions.ts`). A delete of more than
-  fifty asks first; any delete toasts its Undo.
+- **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move, a tag or
+  a purge of many items calls the cell once per chunk its route takes,
+  sequentially; a chunk that fails stops the run and says how far it got, the
+  closing sentence says only what landed, and a run where none landed says that
+  in place of a count (`apps/workspace/src/app/library/bulk-actions.ts`). A
+  delete of more than fifty asks first; any delete toasts its Undo.
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
   lands where nothing takes text, a drop where no field or editor took it; a
   drop holding nothing to save keeps the browser's handling, and a drag started
   inside the page never saves (WebKit fires no paste off an editable target, so
-  ⌘V there pastes into an off-screen catcher). Each link and file goes through
-  the outbox where the grid's scope saves (its folder, else Unsorted, a tag's
-  tag), files over links, and a folder or a file past the store's 100 MB is
+  ⌘V there pastes into an off-screen catcher). Each link and file goes to the
+  cell where the grid's scope saves (its folder, else Unsorted, a tag's tag), a
+  file's bytes up first, files over links, and a folder or a file past the
+  store's 100 MB is
   refused before a byte is queued, the file picker held to the same cap.
   Rejected: a save field of the grid's own.
   `apps/workspace/src/app/library/capture/window-capture.ts`,
   `capture-payload.ts`.
 
-- **AN ITEM'S INFO IS ITS FIELDS.** Info reads the item's fields from the
-  replica and writes each as one field op on the value it read: the open item's
-  properties through its editor's session, so the pause carries them, any other
-  item's pin, move, tags and title through the outbox, read again and written
-  once more when another device moved the field first, never merged
+- **AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS.** Info
+  reads the item as the cell holds it (`items.get`): the open item's properties
+  are written through its editor's session, so the pause carries them, and any
+  item's pin, move, tags and title, like every verb over cards, are one
+  `items.organize` laid over the listings and the item's read the moment it is
+  asked, rolled back if the cell refuses it, and read again once it settles; a
+  delete, a restore and a purge are laid over the same way, all of them in one
+  queue so they land in the order asked
   (`apps/workspace/src/app/panel/info-tab.tsx`,
   `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a form over the
-  item's markdown (a second reader of what the replica already parsed).
+  item's markdown (a second reader of what the cell already parsed); waiting for
+  the cell before a card moves (a pin would lag the press by a round trip).
 
 - **UNDO IS ONE QUEUE OF THE AGENT'S CHANGE SETS.** Undo takes a whole change
   set back in a set of its own, after the open item's unsaved edit is written,
@@ -262,11 +287,12 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   `apps/workspace/src/app/agent/undo-answer.ts`,
   `apps/workspace/src/app/agent/agent-panel.tsx`.
 
-- **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the replica's
-  synced thread rows and events, the same on every device, drawn from the
-  contract's own union; the reply being written arrives on the socket and is
-  never stored. A send carries the screen it leaves from (the open item, or the
-  scope and the selection; none from Deleted); an approval's Approve or Cancel
+- **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the cell's
+  thread rows and stored events, read as queries the account's socket keeps
+  fresh, the same on every device, drawn from the contract's own union; the
+  reply being written arrives on the socket and is never stored. A send carries
+  the screen it leaves from (the open item, or the scope and the selection;
+  none from Deleted); an approval's Approve or Cancel
   answers `library.agent.respond` naming the event that asked; the day's
   allowance and an agent switched off are said in the person's words. A
   selection's Ask agent quotes the passage under what the composer holds, and
@@ -301,15 +327,15 @@ page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
   `apps/workspace/src/app/settings/filing-rules.ts`.
 
 - **A FILE IN A NOTE IS READ WHERE THE PAGE DRAWS ITS FILES, AND ONE PASTED
-  THERE WAITS IN THE OUTBOX.** The editor's host reads a note's picture or
-  file through the `PageLibrary`'s `readFile`: the tab its own unsent bytes,
-  then `/v1/blobs/<sha>`, which the browser keeps under the cloud's immutable
-  answer. A file pasted or dropped into a note is kept by the replica's
-  `keepFile`, so it draws at once and goes up ahead of the write naming it.
-  Rejected: a cache of the page's own (the browser's already holds the
-  answer); an `<img>` on `/v1/blobs` (a pasted file is not there until the
-  outbox sends it). `apps/workspace/src/app/item/page-editor-host.ts`,
-  `apps/workspace/src/app/cloud/page-library.ts`.
+  THERE GOES UP BEFORE ITS BLOCK.** The editor's host reads a note's picture or
+  file from `/v1/blobs/<sha>`, which the browser keeps under the cloud's
+  immutable answer, and an embed's blocks from `items.get`. A file pasted or
+  dropped into a note is sent up by its SHA-256 first, and only then does the
+  editor write the block naming it, so the cell never meets a sha it does not
+  hold. Rejected: a cache of the page's own (the browser's already holds the
+  answer); the bytes held for a later send (the page keeps nothing).
+  `apps/workspace/src/app/item/page-editor-host.ts`,
+  `apps/workspace/src/app/cloud/library-files.ts`.
 
 - **THE MAC APP'S WINDOW KEEPS THE SYSTEM'S TITLE BAR, SO THE PAGE DRAWS THE
   SAME IN EVERY HOST.** macOS draws the window's title bar above the page and

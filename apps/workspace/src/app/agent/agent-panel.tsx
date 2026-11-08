@@ -1,8 +1,9 @@
 // CLAUDE.md § THE AGENT PANEL IS THE ACCOUNT'S THREADS. The built-in agent's conversations, the
-// same on every device: the threads and their stored events come from the replica (so a past one
-// reads offline), the reply being written arrives on the socket as previews, and a send, an
-// answer to an approval, a stop and an undo go to the cell, so each waits for a connection. A
-// message carries the screen it was sent from (the open item, or the grid's scope and selection).
+// same on every device: the threads and their stored events come from the cell, read again as the
+// account's socket says they moved, the reply being written arrives on the socket as previews,
+// and a send, an answer to an approval, a stop and an undo go to the cell, so each waits for a
+// connection. A message carries the screen it was sent from (the open item, or the grid's scope and
+// selection).
 
 import { composerPlaceholder, quotePassage, sendInput } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
@@ -51,7 +52,7 @@ import {
   UNDO_SCOPE,
   useUndoWaits,
 } from "../cloud/change-set-pages";
-import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
+import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -167,7 +168,7 @@ const WorkBlock = ({
 );
 
 const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void }) => {
-  const threads = useQuery(useReplicaQueries().threads()).data ?? [];
+  const threads = useQuery(useLibraryQueries().threads()).data?.threads ?? [];
   const nowMs = useNow();
   if (threads.length === 0) {
     return <p className="m-0 px-3 py-2 text-body text-muted-foreground">{EMPTY_WORDS}</p>;
@@ -198,17 +199,17 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
 };
 
 const useLivePreview = (threadId: string | null): string | null => {
-  const replica = useReplica();
+  const socket = useSocket();
   const [preview, setPreview] = useState<{ threadId: string; text: string } | null>(null);
   useEffect(
     () =>
-      replica.onThreadFrame((frame) => {
+      socket.onThread((frame) => {
         const next = frame.threadId === threadId ? previewOf(frame) : null;
         if (next !== null) {
           setPreview(next.text === null ? null : { text: next.text, threadId: next.threadId });
         }
       }),
-    [replica, threadId],
+    [socket, threadId],
   );
   return preview?.threadId === threadId ? preview.text : null;
 };
@@ -226,11 +227,11 @@ const Conversation = ({
 }) => {
   const { client, orpc } = useWire();
   const queryClient = useQueryClient();
-  const replica = useReplica();
-  const queries = useReplicaQueries();
+  const queries = useLibraryQueries();
   const stored = useQuery(queries.threadEvents(threadId));
-  const rows = stored.data ?? [];
-  const thread = (useQuery(queries.threads()).data ?? []).find((row) => row.id === threadId);
+  const rows = stored.data?.events ?? [];
+  const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
+  const titles = useQuery(queries.titles()).data?.targets ?? [];
   const entries = threadEntries(rows);
   const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
@@ -347,7 +348,7 @@ const Conversation = ({
       {waiting.map((approval) => {
         const { detail, question } = approvalWords(
           approval,
-          (id) => replica.row(id)?.title ?? null,
+          (id) => titles.find((target) => target.id === id)?.title ?? null,
         );
         return (
           <div key={approval.eventId} data-approval={approval.eventId}>

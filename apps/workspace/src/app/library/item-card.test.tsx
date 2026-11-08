@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ItemCard } from "./item-card";
+import type { ListedItem } from "./listing";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -44,27 +44,19 @@ const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
   ...patch,
 });
 
-const linkRow = (patch: Partial<LibraryItemFields>): ReplicaListingRow => {
+const linkRow = (patch: Partial<LibraryItemFields>): ListedItem => {
   const itemFields = fields(patch);
   return {
     card: { outline: [], preview: "", title: itemFields.title, words: 0 },
-    deletedAt: null,
     fields: itemFields,
-    folderId: null,
     id: "0199a4c2-0000-7000-8000-0000000000a1",
-    kind: "link",
-    parked: false,
-    pinnedAt: null,
-    savedAt: SAVED,
-    tags: [],
-    title: itemFields.title,
-    unsent: false,
+    seq: 1,
+    tags: itemFields.tags,
     updatedAt: SAVED,
-    url: itemFields.url,
   };
 };
 
-const drawCard = (row: ReplicaListingRow) => {
+const drawCard = (row: ListedItem) => {
   const onPress = vi.fn<() => void>();
   const onOpen = vi.fn<() => void>();
   const onMenu = vi.fn<() => void>();

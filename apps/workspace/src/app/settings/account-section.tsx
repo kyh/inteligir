@@ -5,7 +5,6 @@
 
 import { FILING_RULES_MAX } from "@repo/contract/cloud/library/library-wire";
 import { Button } from "@repo/ui/components/button";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
@@ -14,7 +13,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useAccount, useLeft, useReplica, useWire } from "../cloud/library-context";
+import { useAccount, useLeft, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
@@ -32,8 +31,7 @@ export const accountReads = (orpc: CloudWire["orpc"]) => ({
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
 });
 
-// the page's own device has no Sign out here: it leaves through the account's, which asks before
-// dropping what it has not sent
+// the page's own device has no Sign out here: it leaves through the account's
 const DevicesRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
@@ -270,7 +268,6 @@ const FilingRulesRow = () => {
 
 const DeleteAccount = () => {
   const { client } = useWire();
-  const replica = useReplica();
   const left = useLeft();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -279,9 +276,8 @@ const DeleteAccount = () => {
     onError: (cause) => {
       toast.error(refusalText(cause, "The account couldn't be deleted."));
     },
-    onSuccess: async () => {
-      await replica.wipe();
-      await left("deleted");
+    onSuccess: () => {
+      left("deleted");
     },
   });
   return (
@@ -338,16 +334,14 @@ const DeleteAccount = () => {
 export const AccountSection = () => {
   const account = useAccount();
   const { client } = useWire();
-  const replica = useReplica();
   const left = useLeft();
   const signOut = useMutation({
     mutationFn: async () => await client.account.signOut(),
     onError: (cause) => {
       toast.error(refusalText(cause, "Signing out didn't work. Try again."));
     },
-    onSuccess: async () => {
-      await replica.wipe();
-      await left("signed-out");
+    onSuccess: () => {
+      left("signed-out");
     },
   });
   return (
@@ -371,21 +365,7 @@ export const AccountSection = () => {
               className="self-start"
               disabled={signOut.isPending}
               onClick={() => {
-                void (async () => {
-                  const status = replica.status();
-                  if (
-                    status.unsent > 0 &&
-                    !(await confirm({
-                      body: "Changes this page hasn't sent yet are lost if you sign out now.",
-                      confirmLabel: "Sign out",
-                      destructive: true,
-                      title: "Sign out before your changes are sent?",
-                    }))
-                  ) {
-                    return;
-                  }
-                  signOut.mutate();
-                })();
+                signOut.mutate();
               }}
             >
               Sign out

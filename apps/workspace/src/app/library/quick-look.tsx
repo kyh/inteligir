@@ -1,8 +1,7 @@
 // A look at a card without leaving the grid: its cover, where it came from, its first paragraph
-// and its outline, as the replica holds them. The arrows step through the grid's order, Space or
+// and its outline, as the cell lists them. The arrows step through the grid's order, Space or
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { shownTitle } from "@repo/notes/items/item-name";
 import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
@@ -10,21 +9,21 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { KeyboardEvent } from "react";
 
 import { useNow } from "../relative-time";
-import { useFileUrl } from "../cloud/library-context";
+import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, KIND_LABELS } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
+import type { ListedItem } from "./listing";
 
 export interface QuickLookProps {
-  readonly row: ReplicaListingRow | null;
+  readonly row: ListedItem | null;
   readonly onClose: () => void;
-  readonly onOpen: (row: ReplicaListingRow) => void;
+  readonly onOpen: (row: ListedItem) => void;
   // -1 or +1 along the grid's order
   readonly onStep: (by: -1 | 1) => void;
 }
 
-const Look = ({ row }: { row: ReplicaListingRow }) => {
+const Look = ({ row }: { row: ListedItem }) => {
   const nowMs = useNow();
-  const fileUrl = useFileUrl();
   const cover = coverOf(row);
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
@@ -32,7 +31,7 @@ const Look = ({ row }: { row: ReplicaListingRow }) => {
         <img alt="" src={fileUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
       )}
       <div className="flex items-center gap-2">
-        <Badge variant="outline">{KIND_LABELS[row.kind]}</Badge>
+        <Badge variant="outline">{KIND_LABELS[row.fields.kind]}</Badge>
         <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
       </div>
       {row.fields.fetchState === "pending" ? (
@@ -101,7 +100,7 @@ export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
       }}
     >
       <DialogContent className="max-w-xl" onKeyDown={onKeyDown}>
-        <DialogTitle>{row === null ? "" : shownTitle(row.title)}</DialogTitle>
+        <DialogTitle>{row === null ? "" : shownTitle(row.card.title)}</DialogTitle>
         {row === null ? null : <Look row={row} />}
       </DialogContent>
     </Dialog>

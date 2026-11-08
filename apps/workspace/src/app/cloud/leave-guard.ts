@@ -1,11 +1,8 @@
-// What the page does about the changes it holds when it is about to go (CLAUDE.md § THE TAB SENDS
-// WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT): what it changed lives only in its
-// memory until the cell takes it, so while any of it is held the browser asks before the tab
-// closes, reloads or goes elsewhere. The listener is there only while something is held, as MDN
-// advises, since it keeps the page from the back-forward cache
-// (https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
-
-import type { ReplicaStatus } from "@repo/library-replica/library-replica";
+// What the page does about an edit it holds when it is about to go (CLAUDE.md § THE TAB ASKS
+// BEFORE IT LOSES THE OPEN ITEM'S EDIT): an edit not yet written lives only in its memory, so while
+// one is held the browser asks before the tab closes, reloads or goes elsewhere. The listener is
+// there only while something is held, as MDN advises, since it keeps the page from the
+// back-forward cache (https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
 
 // something the page holds that the cell has not taken yet
 interface Held {
@@ -20,11 +17,6 @@ export interface LeaveGuard {
   // the page leaves on purpose, with nothing left it could send (a session that ended)
   readonly drop: () => void;
 }
-
-// the replica holds writes the cell has not taken, unless its session ended: those can no longer
-// be sent, and the page is on its way to the sign-in
-export const replicaHolds = (status: ReplicaStatus): boolean =>
-  status.unsent > 0 && status.failure?.kind !== "session";
 
 // preventDefault alone asks in every browser the page runs in (Chrome and Edge since 119)
 const ask = (event: Event): void => {

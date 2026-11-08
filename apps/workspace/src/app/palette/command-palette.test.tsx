@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 
-import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
+import { listedItem } from "../test-support/cell-rows";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
+import type { CellCall } from "../test-support/fake-page-library";
 import { CommandPalette } from "./command-palette";
 import type { PaletteActions } from "./command-palette";
 
@@ -42,20 +44,30 @@ const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => 
 };
 
 const HITS = new Map([
-  ["#todo", [{ itemId: PLANS, score: 1, snippet: "", title: "" }]],
-  ["spring", [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]],
+  ["#todo", [listedItem(PLANS)]],
+  ["spring", [{ ...listedItem(PLANS, { title: "Plans" }), snippet: "a trip in spring" }]],
 ]);
 
+const WORDS = z.object({ words: z.string() });
+
+// the cell's full-text search, which answers a listing's page for the words asked
 const drawPalette = () => {
-  const search = vi.fn<LibraryReplica["search"]>(
-    async (query: string) => await Promise.resolve(HITS.get(query) ?? []),
-  );
-  const { library } = fakePageLibrary({ answer: () => ({}), search });
+  const { calls, library } = fakePageLibrary({
+    answer: (call) => ({
+      items: HITS.get(WORDS.parse(call.input).words) ?? [],
+      kindCounts: {},
+      nextCursor: null,
+      total: 0,
+    }),
+  });
   const actions = spyActions();
   const onClose = vi.fn<() => void>();
   renderOnLibrary(<Opened actions={actions} onClose={onClose} />, library);
-  return { actions, onClose, search };
+  return { actions, calls, onClose };
 };
+
+const searches = (calls: readonly CellCall[]): unknown[] =>
+  calls.filter((call) => call.path === "library.listing.page").map((call) => call.input);
 
 // the field Base UI drives, and the option its active descendant names
 const field = (): HTMLElement => screen.getByRole("combobox", { name: "Search the library" });
@@ -67,8 +79,8 @@ const lit = (): string => {
 };
 
 describe("the palette", () => {
-  it("opens on its field, with the first command lit and named in the footer", async () => {
-    drawPalette();
+  it("opens on its field, with the first command lit and named in the footer, asking the cell nothing", async () => {
+    const { calls } = drawPalette();
     await waitFor(() => {
       expect(document.activeElement).toBe(field());
     });
@@ -87,6 +99,7 @@ describe("the palette", () => {
     ]);
     expect(lit()).toBe("New note");
     expect(screen.getByRole("group", { name: "Commands" })).toBeDefined();
+    expect(searches(calls)).toStrictEqual([]);
   });
 
   it("moves the light with the arrows while the field keeps focus, and runs the lit row on Enter", async () => {
@@ -107,11 +120,13 @@ describe("the palette", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("searches the replica as the field changes, and opens a hit on the words it was found by", async () => {
-    const { actions, search } = drawPalette();
+  it("searches the cell as the field changes, and opens a hit on the words it was found by", async () => {
+    const { actions, calls } = drawPalette();
     fireEvent.change(field(), { target: { value: "spring" } });
     const hit = await screen.findByRole("option", { name: /Plans/u });
-    expect(search).toHaveBeenCalledWith("spring", 20);
+    expect(searches(calls)).toStrictEqual([
+      { limit: 20, query: { deleted: false, sort: "relevance" }, words: "spring" },
+    ]);
     expect(hit.dataset.searchHit).toBe(PLANS);
     expect(within(hit).getByText("a trip in spring")).toBeDefined();
     // the hits come first, so the light lands on the first of them

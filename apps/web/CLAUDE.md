@@ -634,8 +634,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the page's router draws it; only the hashed `/library/assets/*` skip the
   Worker, and no other path falls back, so a mistyped site route still answers
   the site's 404. The document carries a policy of its own: its scripts and
-  SQLite's wasm (`'wasm-unsafe-eval'`), calls and the socket to this origin
-  alone, nothing remote drawn in an item, no frame and no worker. The page's
+  no wasm, calls and the socket to this origin alone, nothing remote drawn in
+  an item, no frame and no worker. The page's
   build is copied into the Worker's assets (`apps/web/vite.config.ts`), so it
   ships in the Worker's deploy and its calls meet no build floor. Rejected: a
   Start route (the site's bundle and policy on the page); the asset server's
