@@ -38,16 +38,16 @@ const drawn = async (path: string): Promise<string> => {
 };
 
 describe("signing in from a page that needs a session", () => {
-  it("sends a signed-out visit to /app/devices to sign-in, carrying the way back", async () => {
-    const { location } = await land("/app/devices");
+  it("sends a signed-out visit to /connect/extension to sign-in, carrying the way back", async () => {
+    const { location } = await land("/connect/extension");
     expect(location.pathname).toBe("/app/sign-in");
     // the router's search is an object of its own making; what the page reads is its entries
-    expect({ ...location.search }).toStrictEqual({ next: "/app/devices" });
-    expect(internalNextPath(location.search.next)).toBe("/app/devices");
+    expect({ ...location.search }).toStrictEqual({ next: "/connect/extension" });
+    expect(internalNextPath(location.search.next)).toBe("/connect/extension");
   });
 
   it("keeps the query and fragment of the page that was asked for", async () => {
-    const asked = "/app/devices?highlight=dev_1#row-3";
+    const asked = "/connect/extension?from=welcome#connect";
     const { location } = await land(asked);
     expect(location.pathname).toBe("/app/sign-in");
     expect(internalNextPath(location.search.next)).toBe(asked);

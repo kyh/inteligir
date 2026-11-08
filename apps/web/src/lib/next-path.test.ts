@@ -6,18 +6,20 @@ import { authPageSearchSchema, internalNextPath, resetLanding, signedInLanding }
 
 describe("the sign-in return path", () => {
   it("carries a same-document path's query through unchanged", () => {
-    const href = `/app/devices?highlight=${encodeURIComponent("dev_1")}&name=Work+laptop`;
+    const href = `/library?item=${encodeURIComponent("it_1")}&name=Work+laptop`;
 
     const returned = internalNextPath(href);
     expect(returned).toBe(href);
 
     const search = new URLSearchParams(new URL(returned ?? "", "http://x.test").search);
-    expect(search.get("highlight")).toBe("dev_1");
+    expect(search.get("item")).toBe("it_1");
     expect(search.get("name")).toBe("Work laptop");
   });
 
   it("keeps a fragment, which is part of where someone was", () => {
-    expect(internalNextPath("/app/devices?tab=all#row-3")).toBe("/app/devices?tab=all#row-3");
+    expect(internalNextPath("/library/settings?tab=all#account")).toBe(
+      "/library/settings?tab=all#account",
+    );
   });
 
   it("refuses everything that leaves this origin", () => {
@@ -34,7 +36,7 @@ describe("the sign-in return path", () => {
       "http:/evil.example",
       // oxlint-disable-next-line eslint/no-script-url -- the hostile href this asserts is rejected
       "javascript:alert(1)",
-      "app/devices",
+      "library/settings",
     ]) {
       expect(internalNextPath(value), String(value)).toBeNull();
     }

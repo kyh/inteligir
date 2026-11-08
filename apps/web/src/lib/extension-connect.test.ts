@@ -1,99 +1,57 @@
 import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity";
-import type { ExtensionConnectRequest } from "@repo/contract/cloud/extension/extension-connect";
+import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { describe, expect, it } from "vitest";
 
-import { askExtension, connectExtension } from "./extension-connect";
-import type { ConnectPorts } from "./extension-connect";
+import { connectExtension } from "./extension-connect";
 
-const MINTED = {
-  credential: `igd_${"a".repeat(64)}`,
-  deviceId: "device-1",
-  email: "reader@example.test",
-  userId: "user-1",
-};
+const EMAIL = "reader@example.test";
 
-// an extension that answers as the case scripts, and what the page asked of the cloud: the email
-// the message connected, null for none, or "absent" for no extension at all
-const portsWith = (answer: (request: ExtensionConnectRequest) => string | null) => {
-  const asked: ExtensionConnectRequest[] = [];
-  const revoked: string[] = [];
-  let minted = 0;
-  const ports: ConnectPorts = {
-    ask: async (request) => {
-      asked.push(request);
-      const email = answer(request);
-      return email === "absent" ? null : { email };
+// an extension that answers as the case scripts, and every message the page sent it
+const extensionAnswering = (answer: () => JsonValue) => {
+  const sent: unknown[][] = [];
+  return {
+    runtime: {
+      sendMessage: async (...args: unknown[]) => {
+        sent.push(args);
+        return await Promise.resolve(answer());
+      },
     },
-    mint: async () => {
-      minted += 1;
-      return MINTED;
-    },
-    revoke: async (credential) => {
-      revoked.push(credential);
-    },
+    sent,
   };
-  return { asked, minted: () => minted, ports, revoked };
 };
 
 describe("connecting the browser extension", () => {
-  it("hands the extension the credential minted for the account, and says whose library it saves to", async () => {
-    const run = portsWith((request) => (request.type === "connect" ? MINTED.email : null));
-    await expect(connectExtension(run.ports)).resolves.toStrictEqual({
-      email: MINTED.email,
+  it("names this page to the committed id alone, with no credential, and says whose library it saves to", async () => {
+    const extension = extensionAnswering(() => ({ email: EMAIL, extra: true }));
+    await expect(connectExtension(extension.runtime)).resolves.toStrictEqual({
+      email: EMAIL,
       kind: "connected",
     });
-    expect(run.asked).toStrictEqual([{ type: "hello" }, { connection: MINTED, type: "connect" }]);
-    expect(run.revoked).toStrictEqual([]);
+    expect(extension.sent).toStrictEqual([[EXTENSION_ID, { type: "connect" }]]);
   });
 
-  it("mints nothing when no extension is in this browser", async () => {
-    const run = portsWith(() => "absent");
-    await expect(connectExtension(run.ports)).resolves.toStrictEqual({ kind: "no-extension" });
-    expect(run.minted()).toBe(0);
+  it("says when the extension found this browser signed in to no account", async () => {
+    const extension = extensionAnswering(() => ({ email: null }));
+    await expect(connectExtension(extension.runtime)).resolves.toStrictEqual({
+      kind: "no-sign-in",
+    });
   });
 
-  it("revokes the credential an extension did not take, so no device is left that nothing holds", async () => {
-    const run = portsWith((request) => (request.type === "hello" ? null : "absent"));
-    await expect(connectExtension(run.ports)).resolves.toStrictEqual({ kind: "not-taken" });
-    expect(run.revoked).toStrictEqual([MINTED.credential]);
-  });
-});
-
-describe("a message to the extension", () => {
-  it("goes to the committed id alone, and reads only an answer that is one", async () => {
-    const sent: unknown[][] = [];
-    const answer = await askExtension(
-      {
-        sendMessage: async (...args) => {
-          sent.push(args);
-          return { email: null, extra: true };
-        },
-      },
-      { type: "hello" },
-    );
-    expect(answer).toStrictEqual({ email: null });
-    expect(sent).toStrictEqual([[EXTENSION_ID, { type: "hello" }]]);
-    await expect(
-      askExtension(
-        { sendMessage: async () => ({ email: MINTED.email }) },
-        { connection: MINTED, type: "connect" },
-      ),
-    ).resolves.toStrictEqual({ email: MINTED.email });
-    await expect(
-      askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
-    ).resolves.toBeNull();
-    await expect(
-      askExtension(
-        {
-          sendMessage: async () => {
-            throw new Error("Could not establish connection. Receiving end does not exist.");
-          },
-        },
-        { type: "hello" },
-      ),
-    ).resolves.toBeNull();
+  it("reads no extension where none answers, or an answer that is not one", async () => {
     // a browser holding no extension that names this page has no runtime to ask
     const noExtension: Window["chrome"] = {};
-    await expect(askExtension(noExtension.runtime, { type: "hello" })).resolves.toBeNull();
+    await expect(connectExtension(noExtension.runtime)).resolves.toStrictEqual({
+      kind: "no-extension",
+    });
+    const nonsense = extensionAnswering(() => "nonsense");
+    await expect(connectExtension(nonsense.runtime)).resolves.toStrictEqual({
+      kind: "no-extension",
+    });
+    const refused = extensionAnswering(() => {
+      throw new Error("Could not establish connection. Receiving end does not exist.");
+    });
+    await expect(connectExtension(refused.runtime)).resolves.toStrictEqual({
+      kind: "no-extension",
+    });
   });
 });

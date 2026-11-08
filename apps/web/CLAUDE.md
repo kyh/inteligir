@@ -669,17 +669,18 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   build's activeTab alone); a reflected origin (any page could read what a
   cookie opened). `apps/web/src/worker/cors.ts`, `apps/web/vite.config.ts`.
 
-- **THE EXTENSION'S CREDENTIAL IS MINTED FOR THE SITE'S SESSION, ON A CLICK OF
-  THE CONNECT PAGE.** `/connect/extension` is a site route that asks the person
-  to Connect, then `account.connectExtension` mints a device credential for the
-  account of the session the site's own page holds, never a device's, the
-  phone's or the extension's (a stolen bearer would mint credentials outliving
-  its own revocation), and leaves the session alone; the page hands it
-  to the committed id only and revokes one the extension did not take.
-  Rejected: connecting on load (any page linking there could fill the device
-  cap); the id from the link (a link could name another extension).
-  `apps/web/src/routes/connect/extension.tsx`,
-  `apps/web/src/worker/wire/account-router.ts`.
+- **THE CONNECT PAGE TELLS THE EXTENSION WHERE THE SITE IS, AND HANDS IT
+  NOTHING.** `/connect/extension` is a site route for the person signed in
+  there: a click of Connect sends the committed id alone `{ type: "connect" }`
+  through `externally_connectable`, whose sender Chrome names by the page's
+  origin, and the page says which account the extension answers it found this
+  browser signed in to. The extension reads the browser's own sign-in (EVERY
+  DEVICE SIGNS IN WITH BETTER AUTH'S OWN SESSION), so no credential crosses the
+  page, and none is minted or revoked there. Rejected: a credential minted for
+  the extension and handed over (a second secret per browser, which outlived
+  the browser's sign-out); the id from the link (a link could name another
+  extension). `apps/web/src/routes/connect/extension.tsx`,
+  `apps/web/src/lib/extension-connect.ts`.
 
 - **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON
   SEES THE WHOLE ADDRESS BEFORE IT GOES.** The cloud reads a saved page, so a
@@ -753,14 +754,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   site's router holds neither that page nor the consent page; sign-in, sign-up
   and the reset pages hand `next` on, the reset through its mail's link, each
   page's search parsed by the same guard so none holds an off-site one. One
-  link, in the site's header and on
-  Devices, serves someone signed in and someone not, since the page sends a
-  signed-out tab to sign in and back; its document answers `noindex`, as the
-  account pages do, since that link hands a crawler an empty shell. Rejected:
-  Devices as the landing (a person with only a browser never reached their
-  library); a sign-out passing its own `next` (the landing is already the
-  library); `Disallow` in robots.txt (a page it blocks can still be listed by
-  its link). `apps/web/src/lib/next-path.ts`,
+  link, in the site's header, serves someone signed in and someone not, since
+  the page sends a signed-out tab to sign in and back; its document answers
+  `noindex`, as the account pages do, since that link hands a crawler an empty
+  shell. Rejected: a sign-out passing its own `next` (the landing is already
+  the library); `Disallow` in robots.txt (a page it blocks can still be listed
+  by its link). `apps/web/src/lib/next-path.ts`,
   `apps/web/src/components/library-link.tsx`,
   `apps/web/src/worker/library/library-page.ts`.
 
