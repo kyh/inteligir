@@ -107,13 +107,16 @@ update, the one thing the page asks its shell, is parsed in
   `apps/workspace/src/app/workspace.tsx`.
 
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** Every call goes
-  through the wire's interceptor, which gives a session's end one answer: the
-  page goes to the site's sign-in, and a keeper reads the session on a timer so
-  an idle page finds out too. The floor spares a page the Worker served, so a
-  tab it refuses is a browser too old to mark its calls as that page's, and the
-  tab says so. Rejected: waiting for a wire call alone (an idle page makes
-  none); the refused tab sent to sign in (the sign-in sends a signed-in tab
+  through the wire's interceptor, and a file sent up reads its upload's 401,
+  410 and 426 the same way, so a session's end has one answer: the page goes to
+  the site's sign-in, and a keeper reads the session on a timer so an idle page
+  finds out too. The floor spares a page the Worker served, so a tab it refuses
+  is a browser too old to mark its calls as that page's, and the tab says so.
+  Rejected: waiting for a wire call alone (an idle page makes none); an upload's
+  end said as a failed file (the tab stayed on a library it could no longer
+  reach); the refused tab sent to sign in (the sign-in sends a signed-in tab
   straight back, for good). `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/library-files.ts`,
   `apps/workspace/src/app/cloud/session-keeper.ts`,
   `apps/workspace/src/main.tsx`, over `apps/web/src/worker/client-floor.ts`.
 

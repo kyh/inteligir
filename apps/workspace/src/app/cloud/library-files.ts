@@ -4,8 +4,14 @@
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { uploadBlob } from "@repo/contract/cloud/library/call-outcome";
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/cloud/library/call-outcome";
 import { fileSha } from "@repo/notes/library/file-sha";
+
+// `/v1` for the bytes the wire does not carry, and the page's answer to a session's end met there,
+// which the wire's own calls answer the same way (`./v1.ts`)
+export interface FileCloud extends V1Transport {
+  readonly onSessionEnd: (end: SessionEnd) => void;
+}
 
 export const fileUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
 
@@ -26,7 +32,7 @@ export class FileRefusedError extends Error {
 
 // the bytes in the library's files, answering the sha a block or an import names them by
 export const uploadFile = async (
-  cloud: V1Transport,
+  cloud: FileCloud,
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
 ): Promise<string> => {
@@ -40,6 +46,9 @@ export const uploadFile = async (
       throw new FileRefusedError(outcome.reason);
     }
     case "failed": {
+      if (outcome.failure.kind === "session") {
+        cloud.onSessionEnd(outcome.failure.end);
+      }
       throw new Error(`the file was not sent: ${outcome.failure.kind}`);
     }
     // no default

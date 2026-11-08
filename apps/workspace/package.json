@@ -36,6 +36,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "better-auth": "catalog:",
     "jsdom": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",

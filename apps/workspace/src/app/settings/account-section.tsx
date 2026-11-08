@@ -1,7 +1,8 @@
-// Settings › Account: who is signed in, the devices holding the account's credential, the
-// assistants let into the library through the connector, the built-in agent's switch and the
-// filing rules it follows, and signing out or deleting the account. Each is the account's, kept in the cloud, so each waits for a
-// connection; a revoke or a switch refetches only the list it changed, once it has landed.
+// Settings › Account: who is signed in, the devices signed in to the account, the assistants let
+// into the library through the connector, the built-in agent's switch and the filing rules it
+// follows, and signing out or deleting the account. Each is the account's, kept in the cloud, so
+// each waits for a connection; a revoke or a switch refetches only the list it changed, once it
+// has landed.
 
 import { FILING_RULES_MAX } from "@repo/contract/cloud/library/library-wire";
 import { Button } from "@repo/ui/components/button";
@@ -13,7 +14,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useAccount, useLeft, useWire } from "../cloud/library-context";
+import { useAccount, useLeft, usePageAuth, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
@@ -31,7 +32,8 @@ export const accountReads = (orpc: CloudWire["orpc"]) => ({
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
 });
 
-// the page's own device has no Sign out here: it leaves through the account's
+// this device's own row has no Sign out: it leaves through the account's, which clears its cookie
+// too
 const DevicesRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
@@ -50,38 +52,33 @@ const DevicesRow = () => {
   return (
     <Row label="Devices">
       <CellAnswer query={devices} failed="The devices couldn't be read.">
-        {(data) => {
-          const live = data.devices.filter((device) => device.revokedAt === null);
-          return live.length === 0 ? (
-            <span className="text-muted-foreground">No app is signed in yet.</span>
-          ) : (
-            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Devices">
-              {live.map((device) => (
-                <li key={device.id} className="flex items-center gap-2">
-                  <span className="truncate">{device.name}</span>
-                  <span className="text-caption text-muted-foreground">
-                    {device.lastSeenAt === null ? "" : relativeTimeLabel(device.lastSeenAt, nowMs)}
-                  </span>
-                  {device.current ? (
-                    <span className="ml-auto text-caption text-muted-foreground">This Mac</span>
-                  ) : (
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      className="ml-auto"
-                      aria-label={`Sign out ${device.name}`}
-                      onClick={() => {
-                        revoke.mutate({ deviceId: device.id });
-                      }}
-                    >
-                      Sign out
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          );
-        }}
+        {(data) => (
+          <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Devices">
+            {data.devices.map((device) => (
+              <li key={device.id} className="flex items-center gap-2">
+                <span className="truncate">{device.name}</span>
+                <span className="text-caption text-muted-foreground">
+                  {device.lastSeenAt === null ? "" : relativeTimeLabel(device.lastSeenAt, nowMs)}
+                </span>
+                {device.current ? (
+                  <span className="ml-auto text-caption text-muted-foreground">This device</span>
+                ) : (
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    className="ml-auto"
+                    aria-label={`Sign out ${device.name}`}
+                    onClick={() => {
+                      revoke.mutate({ id: device.id });
+                    }}
+                  >
+                    Sign out
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </CellAnswer>
     </Row>
   );
@@ -333,10 +330,10 @@ const DeleteAccount = () => {
 
 export const AccountSection = () => {
   const account = useAccount();
-  const { client } = useWire();
+  const auth = usePageAuth();
   const left = useLeft();
   const signOut = useMutation({
-    mutationFn: async () => await client.account.signOut(),
+    mutationFn: auth.signOut,
     onError: (cause) => {
       toast.error(refusalText(cause, "Signing out didn't work. Try again."));
     },

@@ -112,7 +112,8 @@ export const fakePageLibrary = ({
     calls,
     library: {
       account: { email: "person@example.com", name: "" },
-      cloud: { fetch: unread, origin: "https://library.test" },
+      auth: { signOut: unread },
+      cloud: { fetch: unread, onSessionEnd: unread, origin: "https://library.test" },
       leave: createLeaveGuard(new EventTarget()),
       left: unread,
       socket: {

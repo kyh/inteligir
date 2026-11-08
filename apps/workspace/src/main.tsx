@@ -3,14 +3,16 @@
 // browser to the site's sign-in, which brings it back here. Sign-in is the first run: there is
 // nothing to choose before it.
 
-import type { SessionEnd, V1Transport } from "@repo/contract/cloud/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/cloud/library/call-outcome";
 import { createBrowserHistory, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
 import { claimAccountStorage, forgetAccountStorage } from "./app/cloud/account-storage";
+import { createPageAuth } from "./app/cloud/auth-client";
 import { createLeaveGuard } from "./app/cloud/leave-guard";
+import type { FileCloud } from "./app/cloud/library-files";
 import { OpenFailedPage } from "./app/cloud/open-failed-page";
 import { pageClock } from "./app/cloud/page-clock";
 import { readSession, SIGN_IN_PATH, signInHref } from "./app/cloud/page-session";
@@ -80,7 +82,11 @@ const openInTab = async (target: Root): Promise<void> => {
     forgetAccountStorage();
     goSignIn();
   };
-  const cloud: V1Transport = { fetch: async (request) => await fetch(request), origin };
+  const cloud: FileCloud = {
+    fetch: async (request) => await fetch(request),
+    onSessionEnd: sessionEnded,
+    origin,
+  };
   const wire = createCloudWire(cloud, sessionEnded);
   const queryClient = createPageQueryClient();
   const socket = createLibrarySocket({
@@ -92,6 +98,7 @@ const openInTab = async (target: Root): Promise<void> => {
   });
   const library = {
     account,
+    auth: createPageAuth(cloud),
     cloud,
     leave,
     left: (reason: "signed-out" | "deleted") => {

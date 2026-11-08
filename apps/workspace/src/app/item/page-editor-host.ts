@@ -7,12 +7,12 @@
 
 import { safe } from "@orpc/client";
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, LinkTarget } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 
 import { readFile, uploadFile } from "../cloud/library-files";
+import type { FileCloud } from "../cloud/library-files";
 import type { LibrarySocket } from "../cloud/use-library-socket";
 import type { CloudWire } from "../cloud/v1";
 import { newId } from "../library/new-id";
@@ -26,7 +26,7 @@ export interface PageEditorHost {
 
 export interface PageEditorPorts {
   readonly wire: Pick<CloudWire, "client">;
-  readonly cloud: V1Transport;
+  readonly cloud: FileCloud;
   readonly socket: Pick<LibrarySocket, "onItems">;
   readonly openItem: (itemId: string) => void;
   readonly askAgent: (selection: string) => void;

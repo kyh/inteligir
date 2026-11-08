@@ -28,16 +28,17 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **THE ACCOUNT'S DEVICES ARE ITS SESSIONS, BESIDE ITS DEVICE CREDENTIALS, IN
   ONE LIST ANY OF THEM READS AND ENDS**, so Settings › Account, in the
   library's page, a browser tab or the Mac app's window, removes a lost phone
-  with no password asked, as a sign-out asks none; the web's devices page stays
-  as the fallback. A session is listed from Better Auth's own row, named at read
-  time from the user agent it signed in with, its token never selected; ending
-  one by its id goes through Better Auth's adapter, so its `session.delete.after`
-  closes its sockets, and an id the account does not hold is `NOT_FOUND`. The
-  list marks the session or credential asking, and that row offers no Revoke:
-  this device leaves through a sign-out, which asks before it drops what it has
-  not sent. Rejected: Better Auth's own list and revoke routes (each hands a
+  with no password asked, as a sign-out asks none. A session is listed from
+  Better Auth's own row, named at read time from the user agent it signed in
+  with, its token never selected; ending one by its id goes through Better
+  Auth's adapter, so its `session.delete.after` closes its sockets, and an id
+  the account does not hold is `NOT_FOUND`. The list marks the session or
+  credential asking as This device, and that row offers no Sign out: this
+  device leaves through a sign-out, which asks before it drops what it has not
+  sent. Rejected: Better Auth's own list and revoke routes (each hands a
   session's token to the page); a device-name column (a second spelling of what
-  the user agent already says). `apps/web/src/worker/wire/account-router.ts`,
+  the user agent already says); a devices page on the site beside Settings (a
+  second list of one account's devices). `apps/web/src/worker/wire/account-router.ts`,
   `apps/web/src/worker/auth/session-devices.ts`,
   `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
@@ -47,17 +48,19 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   sign-out takes its copy away first and only then revokes, unawaited, and a
   phone whose copy would not go opens it again, still the account's; a sign-in
   it could not keep or open lets that device go the same way. Settings › Account
-  in a tab, the Mac app's window among them, goes the other way, since a wire
-  stands there and a tab holds no credential to drop: it signs out
-  over that wire first, so it needs a connection, and wipes once the cloud has
-  answered; a wipe that fails meets the cloud's refusal at the next call, which
-  ends the session as any revocation does. Rejected: forgetting the credential
+  in a tab, the Mac app's window among them, goes the other way, since a tab
+  holds no credential to drop: it signs out through Better Auth's own
+  `/api/auth/sign-out` first, which ends the session and clears its cookie, so
+  it needs a connection, and wipes once the cloud has answered; a wipe that
+  fails meets the cloud's refusal at the next call, which ends the session as
+  any revocation does. Rejected: forgetting the credential
   alone (the row stays active against the twenty-device cap, so repeated
   sign-ins lock the account out); revoking before the wipe on a local drop (a
   failed wipe left a library on a dead credential, whose edits nothing could
   send). `apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
-  `apps/workspace/src/app/settings/account-section.tsx`.
+  `apps/workspace/src/app/settings/account-section.tsx`,
+  `apps/workspace/src/app/cloud/auth-client.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any

@@ -1,12 +1,19 @@
 // Settings in the tab, over the account's cell and the Worker: what only the cloud answers waits
-// for a connection and says so, then fills in once the tab is back online; a device signed out
-// from the list can no longer reach the library; the built-in agent's switch is the account's; a
-// Raindrop export imports; Delete account… holds its button until a password is typed and says
-// the cloud's refusal; and Sign out leaves for the site's sign-in, the library's page sending the
-// tab back there after.
+// for a connection and says so, then fills in once the tab is back online; the devices list marks
+// this tab's own session, and another session signed out from it can no longer reach the library;
+// the built-in agent's switch is the account's; a Raindrop export imports; Delete account… holds
+// its button until a password is typed and says the cloud's refusal; and Sign out ends this tab's
+// session alone and leaves for the site's sign-in, the library's page sending the tab back there
+// after.
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { z } from "zod";
 import {
   clickButtonIn,
@@ -16,16 +23,21 @@ import {
   untilBodyHolds,
 } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER } from "../harness/cloud-account";
+import { OWNER, PHONE_BUILD } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import type { CloudWorker } from "../harness/cloud-worker";
 import { openLibraryTab } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { TOAST_TEXT } from "../harness/selectors";
-import { v1Client } from "../harness/v1-wire";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
-const PHONE = "E2E Phone";
+// what the cloud names a session the phone's runtime signed in, from the system's networking stack
+// its native requests carry
+const PHONE = "iPhone";
+const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
+// Better Auth's session cookie on the local Worker's http origin, which takes no `__Secure-` prefix
+const SESSION_COOKIE = "better-auth.session_token";
 const DEADLINE_MS = 30_000;
 const IMPORT_DEADLINE_MS = 60_000;
 const NEEDS_CONNECTION = "[data-needs-connection]";
@@ -44,15 +56,56 @@ const DELETE_STATE = `(() => {
   if (!button) return "missing";
   return button.disabled ? "disabled" : "enabled";
 })()`;
+// for each row the devices list marks as this tab's own, whether it offers a Sign out
+const OWN_ROWS = `JSON.stringify([...document.querySelectorAll('ul[aria-label="Devices"] li')]
+  .filter((row) => row.textContent.includes("This device"))
+  .map((row) => row.querySelector("button") !== null))`;
+
+// the phone as its runtime signs in, on Better Auth's own route under its app scheme, and its
+// `/v1` calls on the cookie that answered
+const signInPhone = async (worker: CloudWorker): Promise<V1Client> => {
+  const response = await fetch(`${worker.origin}/api/auth/sign-in/email`, {
+    body: JSON.stringify(OWNER),
+    headers: {
+      "content-type": "application/json",
+      "expo-origin": PHONE_ORIGIN,
+      "user-agent": PHONE_USER_AGENT,
+    },
+    method: "POST",
+  });
+  await response.arrayBuffer();
+  expect(response.ok, `the phone's sign-in answered ${String(response.status)}`);
+  const cookie = response.headers
+    .getSetCookie()
+    .map((setCookie) => setCookie.split(";")[0] ?? "")
+    .join("; ");
+  return createORPCClient<V1Client>(
+    new RPCLink({
+      headers: { ...clientBuildHeaders(PHONE_BUILD), cookie, "expo-origin": PHONE_ORIGIN },
+      origin: worker.origin,
+      url: V1_RPC_PATH,
+    }),
+  );
+};
+
+// how a call answered: the code it was refused with, or that it answered
+const outcomeOf = async (call: () => Promise<object>): Promise<string> => {
+  try {
+    await call();
+    return "answered";
+  } catch (error) {
+    return isOrpcError(error) ? error.code : "failed";
+  }
+};
 
 export const settingsBrowser: Scenario = {
   description:
-    "Settings in the tab: opened offline, every row the cloud answers says it needs a connection and fills in once the tab is back online; a phone signed out from Devices is refused after; the built-in agent's switch turns it off for the account; a Raindrop export imports; Delete account… holds its button until a password is typed and shows the cloud's refusal; Sign out leaves for the site's sign-in, and the library's page sends the tab there after",
+    "Settings in the tab: opened offline, every row the cloud answers says it needs a connection and fills in once the tab is back online; the devices list marks this tab's own session with no Sign out, and a phone's session signed out from it is refused after; the built-in agent's switch turns it off for the account; a Raindrop export imports; Delete account… holds its button until a password is typed and shows the cloud's refusal; Sign out ends this tab's session alone and leaves for the site's sign-in, and the library's page sends the tab there after",
   name: "settings-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const { browser, library, worker } = await openLibraryTab(ctx, "settings");
-    const phone = await v1Client(worker, null).account.signIn({ ...OWNER, deviceName: PHONE });
+    const phone = await signInPhone(worker);
 
     ctx.log("Settings opened offline: each row the cloud answers waits, and says so");
     await browser(["set", "offline", "on"]);
@@ -72,18 +125,21 @@ export const settingsBrowser: Scenario = {
     await untilBodyHolds(browser, [PHONE, "None. Claude or ChatGPT", "turns left today"]);
     const waiting = await browser(["get", "count", NEEDS_CONNECTION]);
     expectEq(waiting.trim(), "0", "rows still waiting once online");
+    expectEq(
+      parseEval(await browser(["eval", OWN_ROWS]), z.array(z.boolean())),
+      [false],
+      "the tab's own rows and whether each offers a Sign out",
+    );
 
-    ctx.log("the phone signed out from the list is refused after");
+    ctx.log("the phone's session signed out from the list is refused after");
+    expectEq(
+      await outcomeOf(async () => await phone.library.agent.status()),
+      "answered",
+      "the phone before it was signed out",
+    );
     await browser(["click", `button[aria-label="Sign out ${PHONE}"]`]);
     await pollUntil(
-      async () => {
-        try {
-          await v1Client(worker, phone.credential).library.agent.status();
-          return "answered";
-        } catch (error) {
-          return isOrpcError(error) ? error.code : "failed";
-        }
-      },
+      async () => await outcomeOf(async () => await phone.library.agent.status()),
       (outcome) => outcome === "UNAUTHORIZED",
       { deadlineMs: DEADLINE_MS, describe: (outcome) => `the signed-out phone was ${outcome}` },
     );
@@ -141,7 +197,9 @@ export const settingsBrowser: Scenario = {
       `document.querySelector(${JSON.stringify(DELETE_DIALOG)}) === null`,
     ]);
 
-    ctx.log("Sign out leaves for the site's sign-in, and the page sends the tab there after");
+    ctx.log("Sign out ends this tab's session alone, its cookie with it, and leaves for sign-in");
+    const signedInJar = await browser(["cookies"]);
+    expect(signedInJar.includes(SESSION_COOKIE), "the tab held no session cookie to sign out");
     await browser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
     await pollUntil(
       async () => await browser(["get", "url"]),
@@ -150,6 +208,13 @@ export const settingsBrowser: Scenario = {
         deadlineMs: DEADLINE_MS,
         describe: (url) => `the signed-out tab stayed on ${url}`,
       },
+    );
+    const signedOutJar = await browser(["cookies"]);
+    expect(!signedOutJar.includes(SESSION_COOKIE), "the signed-out tab still holds its cookie");
+    expectEq(
+      await outcomeOf(async () => await library.agent.status()),
+      "answered",
+      "the account's other device after this tab signed out",
     );
     await browser(["open", `${worker.origin}/library`], 60_000);
     await pollUntil(
