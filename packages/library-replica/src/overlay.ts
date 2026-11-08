@@ -4,7 +4,6 @@
 // answers; a make shows the item before the cell holds it; a delete moves it to Deleted. A parked
 // row is laid over too, since its bytes are the person's until they discard them.
 
-import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { mergeListField } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, ScalarField, StoredBlock } from "@repo/notes/library/block-ops";
@@ -160,53 +159,4 @@ export const layRow = (
     }
     // no default
   }
-};
-
-type AnnotationOp = WriteOp["annotations"][number];
-
-// an item's highlights with a write's highlight ops laid over: an add shows at once, signed as
-// the person's, a note as written, a removal takes its replies with it
-export const layAnnotations = (
-  store: AnnotationStore,
-  ops: readonly AnnotationOp[],
-  nowSeconds: number,
-): AnnotationStore => {
-  const next = new Map(Object.entries(store));
-  for (const op of ops) {
-    switch (op.op) {
-      case "add": {
-        const entry: AnnotationEntry = {
-          createdAt: op.createdAt,
-          source: "user",
-          text: op.text,
-          updatedAt: nowSeconds,
-        };
-        if (op.parentId !== null) {
-          entry.parentId = op.parentId;
-        }
-        if (op.quote !== null) {
-          entry.quote = op.quote;
-        }
-        next.set(op.id, entry);
-        break;
-      }
-      case "note": {
-        const entry = next.get(op.id);
-        if (entry !== undefined) {
-          next.set(op.id, { ...entry, text: op.text, updatedAt: nowSeconds });
-        }
-        break;
-      }
-      case "remove": {
-        for (const [id, entry] of next) {
-          if (id === op.id || entry.parentId === op.id) {
-            next.delete(id);
-          }
-        }
-        break;
-      }
-      // no default
-    }
-  }
-  return Object.fromEntries(next);
 };

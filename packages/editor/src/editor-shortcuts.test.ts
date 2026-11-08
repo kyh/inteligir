@@ -12,7 +12,6 @@ import {
   handleEditorShortcut,
 } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut, ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
-import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 
@@ -120,7 +119,6 @@ describe("the shortcut tables", () => {
     const tables: readonly (readonly EditorShortcut<string>[])[] = [
       EDITOR_SHORTCUTS,
       FIND_BAR_SHORTCUTS,
-      ANNOTATION_SHORTCUTS,
     ];
     for (const rows of tables) {
       for (const row of rows) {

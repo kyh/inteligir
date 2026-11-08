@@ -26,7 +26,7 @@ Reuse the values the library already uses instead of inventing a parallel vocabu
 of yours changes them: a saved link keeps the address it was saved at, and reading its page again
 is the person's to ask for.
 
-An item's `id` is its identity. Links, highlights and formula references point at it. Never invent
+An item's `id` is its identity. Links and formula references point at it. Never invent
 one, never copy one between items, and pass only ids an answer gave you.
 
 `properties`, when an item has them, are the person's own and imported values. Leave them as they

@@ -3,9 +3,8 @@
 // the bases the page computed them from (a base that moved answers the item as it is, for the
 // page's own merge); the items a link can name; a file a note names, from the cache, which fetches
 // it the first time, and one the page keeps, in the outbox, which sends it up ahead of the write
-// naming it; the highlights a passage tints by; a highlight's bare entry and its note, beside the
-// markers the item's next write carries; and a note the editor makes, in the folder of the item it
-// was made from, as the library's page writes them all. Pure: the screen binds it to the open
+// naming it; and a note the editor makes, in the folder of the item it was made from, as the
+// library's page writes them all. Pure: the screen binds it to the open
 // item's replica, and the suite drives it over a real one.
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
@@ -44,32 +43,12 @@ const writeItem = async (
   }
 };
 
-const queued = (kind: string): boolean => kind === "queued" || kind === "unchanged";
-
 export const createItemPorts = (args: {
   readonly replica: LibraryReplica;
   readonly files: Pick<FileCache, "heldFile">;
-  readonly now: () => number;
 }): EditorRequestPorts => {
   const { files, replica } = args;
   return {
-    addHighlight: async ({ id, itemId, quote }) => {
-      const outcome = await replica.write(itemId, {
-        annotations: [
-          {
-            createdAt: Math.floor(args.now() / 1000),
-            id,
-            occurrence: null,
-            op: "add",
-            parentId: null,
-            quote,
-            text: "",
-          },
-        ],
-        ops: [],
-      });
-      return { queued: queued(outcome.kind) };
-    },
     createNote: async ({ besideId, blocks, title }) => {
       const beside = await replica.item(besideId);
       const made = await replica.createNote({
@@ -80,7 +59,6 @@ export const createItemPorts = (args: {
       });
       return { id: made.id };
     },
-    highlightIds: async ({ itemId }) => ({ ids: Object.keys(await replica.annotations(itemId)) }),
     item: async ({ itemId }) => {
       const item = await replica.item(itemId);
       return { item: item === null ? null : heldOf(item) };
@@ -95,18 +73,6 @@ export const createItemPorts = (args: {
         sort: "title",
       });
       return await Promise.resolve({ targets: page.items.map(({ id, title }) => ({ id, title })) });
-    },
-    noteHighlight: async ({ id, itemId, text }) => {
-      const store = await replica.annotations(itemId);
-      const held = store[id];
-      if (held === undefined) {
-        return { queued: false };
-      }
-      const outcome = await replica.write(itemId, {
-        annotations: [{ base: held.text, id, op: "note", text }],
-        ops: [],
-      });
-      return { queued: queued(outcome.kind) };
     },
     // drawn as the type it was kept or served as, so a recording plays as one
     readFile: async ({ sha }) => {

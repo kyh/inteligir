@@ -15,7 +15,7 @@ describe("what a change of the replica moves", () => {
       library: false,
       threads: true,
     });
-    expect(familiesMoved(change(["item", "annotation"]))).toStrictEqual({
+    expect(familiesMoved(change(["item"]))).toStrictEqual({
       library: true,
       threads: false,
     });

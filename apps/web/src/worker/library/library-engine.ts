@@ -22,7 +22,6 @@ import { z } from "zod";
 import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
-import { readAnnotationRows } from "./cell-annotations";
 import {
   awaitNameAgain,
   beginRemoval,
@@ -37,7 +36,6 @@ import {
   settleUpload,
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
-import { cellCodec } from "./cell-codec";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
@@ -60,7 +58,7 @@ import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 export interface LibraryEngineDeps {
   readonly storage: CellStorage;
   readonly now: () => number;
-  // every id the cell mints: items, blocks, highlights, change sets
+  // every id the cell mints: items, blocks, change sets
   readonly ids: CellIds;
   readonly bytesCap: number;
 }
@@ -227,12 +225,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const write = (actor: CellActor, input: WriteItemInput) =>
     land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-      item: landWrite(scope, actor, input),
+      item: landWrite(scope, input),
     }));
 
-  // emptying Deleted: the item keeps its id and sequence as a tombstone, its body, highlights and
-  // every change set's hold on it go, and the alarm lets go the files nothing else names; it joins no set, since nothing
-  // can take it back
+  // emptying Deleted: the item keeps its id and sequence as a tombstone, its body and every change
+  // set's hold on it go, and the alarm lets go the files nothing else names; it joins no set, since
+  // nothing can take it back
   const purgeItems = (input: PurgeItemsInput) =>
     transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
       const purged: string[] = [];
@@ -244,7 +242,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           continue;
         }
         const seq = scope.seq();
-        const highlights = [...readAnnotationRows(storage, id).keys()];
         runPlan(
           storage,
           storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
@@ -253,18 +250,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
         dropItemBlobs(storage, id, scope.now);
-        runPlan(
-          storage,
-          recordChanges([
-            { gone: false, id, kind: "item", seq },
-            ...highlights.map((annotation) => ({
-              gone: true,
-              id: annotation,
-              kind: "annotation" as const,
-              seq,
-            })),
-          ]),
-        );
+        runPlan(storage, recordChanges([{ gone: false, id, kind: "item", seq }]));
         purged.push(id);
       }
       return { missing, purged };
@@ -353,7 +339,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // take it, the alarm lets go at once what it kept that no item names
   const landReading = (landing: FillLanding) => {
     const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) =>
-      landFill(scope, cellCodec(storage, ids), landing),
+      landFill(scope, landing),
     );
     if (!landed.ok && landed.refusal.kind !== "gone") {
       storage.transaction(() => {

@@ -16,7 +16,7 @@ import {
   unwrapExport,
 } from "./import-plan";
 import type { ImportEntry, PlanIds } from "./import-plan";
-import type { ImportedFields, ImportedItem } from "./item-markdown";
+import type { ImportedFields } from "./item-markdown";
 
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
@@ -24,19 +24,6 @@ const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
 // an Obsidian vault beside a note this app wrote, the binaries named by a pretend sha
 const OBSIDIAN_VAULT = {
   ".obsidian/app.json": '{"theme":"moonstone"}',
-  ".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json": `${JSON.stringify(
-    {
-      h1: {
-        createdAt: 1_777_000_000,
-        quote: "a passage",
-        source: "user",
-        text: "",
-        updatedAt: 1_777_000_000,
-      },
-    },
-    null,
-    2,
-  )}\n`,
   "Notes/Daily.md": [
     "# Daily",
     "",
@@ -81,7 +68,7 @@ const OBSIDIAN_VAULT = {
     "",
     ":::article",
     "",
-    "The page says %%i:h1:start%%a passage%%i:h1:end%% here, with #hashtag text.",
+    "The page says a passage here, with #hashtag text.",
     "",
     ":::",
     "",
@@ -108,7 +95,7 @@ const BINARIES = new Map(
   ].map((path) => [path, shaOf(path)]),
 );
 
-const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () => string } => {
+const counters = (): PlanIds & { newBlockId: () => string } => {
   let next = 0;
   const mint = (prefix: string) => () => {
     next += 1;
@@ -116,7 +103,6 @@ const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () =
   };
   let uuid = 0;
   return {
-    newAnnotationId: mint("hl"),
     newBlockId: mint("b"),
     newItemId: () => {
       uuid += 1;
@@ -130,7 +116,6 @@ interface LibraryItem {
   readonly folderPath: string;
   readonly fields: ImportedFields;
   readonly blocks: readonly { block: LibraryBlock; ord: string; section: "note" | "article" }[];
-  readonly annotations: ImportedItem["annotations"];
 }
 
 interface Folder {
@@ -181,7 +166,7 @@ const readFolder = (
       } else {
         skipped.push(path);
       }
-    } else if (kind === "doc" || kind === "store") {
+    } else if (kind === "doc") {
       entries.push({ kind, path, text: entry.text });
       texts.set(path, entry.text);
     } else if (kind === "skipped") {
@@ -214,7 +199,6 @@ const readFolder = (
       originals.add(originalSha);
     }
     items.push({
-      annotations: read.read.item.annotations,
       blocks: read.read.item.blocks,
       fields: read.read.item.fields,
       folderPath: dirnamePath(doc.path),
@@ -222,7 +206,7 @@ const readFolder = (
     });
   }
   for (const item of planFileItems(plan, { attached, originals }, ids, CODEC_NOW)) {
-    items.push({ ...item, annotations: {}, blocks: [] });
+    items.push({ ...item, blocks: [] });
   }
   return { folders: foldersOf(items), items, skipped };
 };
@@ -261,7 +245,7 @@ describe("an Obsidian vault read into the library", () => {
   const daily = byTitle(library, "Daily");
   const project = byTitle(library, "Project X");
 
-  it("skips Obsidian's settings and reads the highlights' store as no item", () => {
+  it("skips Obsidian's settings", () => {
     expect(library.skipped).toStrictEqual([".obsidian/app.json"]);
     expect(library.items.map((item) => item.fields.title).toSorted()).toStrictEqual([
       "Daily",
@@ -322,19 +306,9 @@ describe("an Obsidian vault read into the library", () => {
     expect(JSON.stringify(project.blocks[0]?.block)).not.toContain("^goal");
   });
 
-  it("reads a highlight and a comment out of the person's writing, and keeps a tag its text", () => {
+  it("reads a comment out of the person's writing, and keeps a highlight and a tag their text", () => {
     const nodes = nodesOf(daily);
-    const marker = nodes.find((node) => "type" in node && node.type === "annotationMarker");
-    expect(marker).toMatchObject({ edge: "start" });
-    expect(Object.values(daily.annotations)).toStrictEqual([
-      {
-        createdAt: CODEC_NOW / 1000,
-        quote: "important",
-        source: "user",
-        text: "",
-        updatedAt: CODEC_NOW / 1000,
-      },
-    ]);
+    expect(textOf(daily)).toContain("An ==important== line ");
     expect(nodes.filter((node) => "type" in node && node.type === "opaque")).toStrictEqual([
       { children: [{ text: "" }], source: "%%not shown%%", type: "opaque" },
     ]);
@@ -395,9 +369,8 @@ describe("an Obsidian vault read into the library", () => {
       fetchState: "filled",
     });
     expect(page.blocks.map(({ section }) => section)).toStrictEqual(["article"]);
-    // the page's hashtags are the page's text, and its highlight kept from the store
+    // the page's hashtags are the page's text
     expect(textOf(page)).toContain("with #hashtag text.");
-    expect(Object.keys(page.annotations)).toStrictEqual(["h1"]);
   });
 });
 
@@ -405,7 +378,6 @@ describe("an Obsidian vault read into the library", () => {
 const contentOf = (library: ReadLibrary) =>
   library.items
     .map((item) => ({
-      annotations: item.annotations,
       blocks: item.blocks.map((placed) => ({ ...placed, block: withoutId(placed.block) })),
       fields: item.fields,
       folderPath: item.folderPath,
@@ -443,13 +415,10 @@ describe("a folder an export was unpacked to", () => {
     );
   });
 
-  it.each([
-    [".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json", "the highlights' store"],
-    ["assets/shot.png", "a kept file"],
-  ])("takes %s for the mark of an export: %s", (mark) => {
+  it("takes a kept file for the mark of an export", () => {
     expect(
-      unwrapExport([{ path: `${TOP}/${mark}` }, { path: `${TOP}/Filed/Spec.md` }]),
-    ).toStrictEqual([{ path: mark }, { path: "Filed/Spec.md" }]);
+      unwrapExport([{ path: `${TOP}/assets/shot.png` }, { path: `${TOP}/Filed/Spec.md` }]),
+    ).toStrictEqual([{ path: "assets/shot.png" }, { path: "Filed/Spec.md" }]);
   });
 
   it.each([

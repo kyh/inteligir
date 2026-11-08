@@ -37,7 +37,7 @@ export const AccountGoneError = error("GONE", { message: "This account was delet
 
 // ---- the library's ----
 
-// what a write's bases met instead: each block, place, field, highlight or folder as it is now,
+// what a write's bases met instead: each block, place, field or folder as it is now,
 // so the device merges against it and resends
 export const ConflictError = error("CONFLICT", {
   data: z.object({ current: z.array(conflictCurrentSchema).min(1) }),

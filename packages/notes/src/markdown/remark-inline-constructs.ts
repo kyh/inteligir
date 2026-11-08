@@ -13,7 +13,6 @@ import type {
 } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
-import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
 import { isMdastRoot } from "./mdast-nodes";
 import { escapedAt, textCutter } from "./text-escapes";
@@ -26,12 +25,6 @@ export interface FormulaPill extends Node {
   meta?: string;
 }
 
-export interface AnnotationMarker extends Node {
-  type: "annotationMarker";
-  ids: string;
-  edge: "start" | "end";
-}
-
 // `@2026-08-22`: the chip's own spelling, `value` a calendar date
 export interface DateChip extends Node {
   type: "date";
@@ -40,12 +33,10 @@ export interface DateChip extends Node {
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    annotationMarker: AnnotationMarker;
     date: DateChip;
     formulaPill: FormulaPill;
   }
   interface RootContentMap {
-    annotationMarker: AnnotationMarker;
     date: DateChip;
     formulaPill: FormulaPill;
   }
@@ -53,21 +44,15 @@ declare module "mdast" {
 
 // each construct after its first character, the one an escape keeps it text by
 const FORMULA_TAIL = String.raw`\{[^|{}\n]+(?:\|[^|{}\n]*)?(?:\|[^{}\n]*)?\}\}`;
-const MARKER_TAIL = `%i:(?<ids>${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTERN})*):(?<edge>start|end)%%`;
 // a chip reads back wherever the editor can put one, a word's edge included, so nothing bounds it
 // but a digit that would make its day a longer number
 const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
 
-// Shared and global, these three: hand one to replace, replaceAll, match or matchAll only, never to
-// test or exec, whose lastIndex would carry from one caller into the next.
-export const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
-export const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
+// Global, these two: hand one to replace, replaceAll, match or matchAll only, never to test or
+// exec, whose lastIndex would carry from one caller into the next.
+const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
 // a date chip as written, `value` its day
-export const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
-
-// A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the
-// one place the list is read.
-export const splitMarkerIds = (ids: string): string[] => ids.split(",").filter((id) => id !== "");
+const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
 
 export const parseFormulaRaw = (raw: string): Pick<FormulaPill, "source" | "display" | "meta"> => {
   const first = raw.indexOf("|");
@@ -113,20 +98,6 @@ const splitTextNode = (node: Text, inLink: boolean): PhrasingContent[] | null =>
       node: { raw, type: "formulaPill", ...parseFormulaRaw(raw) },
     });
   }
-  for (const match of node.value.matchAll(MARKER_RE)) {
-    const { groups } = match;
-    if (groups === undefined || escapedAt(node, match.index)) {
-      continue;
-    }
-    const { edge, ids } = groups;
-    if ((edge === "start" || edge === "end") && ids !== undefined) {
-      splices.push({
-        index: match.index,
-        length: match[0].length,
-        node: { edge, ids, type: "annotationMarker" },
-      });
-    }
-  }
   // inside a link a chip would part a url its text spells from the url it links to
   if (!inLink) {
     for (const match of node.value.matchAll(DATE_CHIP_RE)) {
@@ -148,7 +119,7 @@ const splitTextNode = (node: Text, inLink: boolean): PhrasingContent[] | null =>
   const out: PhrasingContent[] = [];
   let cursor = 0;
   for (const splice of splices) {
-    // overlapping match (formula inside marker text) — first wins
+    // overlapping match (a date inside a formula's text): the first wins
     if (splice.index < cursor) {
       continue;
     }
@@ -200,7 +171,6 @@ export const NOT_PROSE: ConstructName[] = [
 
 const UNSAFE: Unsafe[] = [
   { after: FORMULA_TAIL, character: "{", inConstruct: "phrasing", notInConstruct: NOT_PROSE },
-  { after: MARKER_TAIL, character: "%", inConstruct: "phrasing", notInConstruct: NOT_PROSE },
   {
     after: DATE_TAIL,
     character: "@",
@@ -211,9 +181,6 @@ const UNSAFE: Unsafe[] = [
 
 const inlineConstructsToMarkdown: ToMarkdownExtension = {
   handlers: {
-    annotationMarker: Object.assign((node: AnnotationMarker) => `%%i:${node.ids}:${node.edge}%%`, {
-      peek: () => "%",
-    }),
     date: Object.assign((node: DateChip) => `@${node.value}`, { peek: () => "@" }),
     // inside a gfm table cell the pill's pipes must leave as `\|` or the next parse reads them
     // as cell delimiters; gfm-table's fromMarkdown unescapes them before this transform sees text.

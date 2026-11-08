@@ -90,8 +90,7 @@ through the Service or otherwise includes:
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
 - **User-generated content and input data**, such as your notes, attachments,
-  saved links, their text and covers, and your highlights and their
-  notes, what you ask the agent and other content or
+  saved links, their text and covers, what you ask the agent and other content or
   information that you generate, transmit, or otherwise make available on the
   Service, as well as associated metadata. Metadata includes information on how,
   when, where and by whom a piece of content was collected and how that content
@@ -100,7 +99,7 @@ through the Service or otherwise includes:
   location information, and other similar data. Once you sign in, our cloud
   receives:
   - **Your library, in your account.** Every change a device of yours makes —
-    to items, files, highlights, folders and tags — goes to your account's
+    to items, files, folders and tags — goes to your account's
     library in our cloud, which keeps what each change replaced for seven days,
     so Undo can take it back, each change named for the device or the assistant
     that made it and the built-in agent's for the conversation that made them.
@@ -236,8 +235,7 @@ The apps also hold to these, plainly:
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
   the right-click menu. It reads the page as it is shown (its address, its
   title and its HTML without its scripts) in your browser, and sends what it
-  read, the page's text, the facts it gives about itself, its cover picture
-  and the passage you had selected, which your library keeps as a highlight,
+  read, the page's text, the facts it gives about itself and its cover picture,
   to your Inteligir library in our cloud, signed in with a key of its own that
   inteligir.com/connect/extension gave it, which you can revoke from your
   devices. It fetches the cover picture the page names, from your browser and
@@ -248,13 +246,12 @@ The apps also hold to these, plainly:
   link your library holds unread (above): a link or a picture you save
   from the right-click menu, and a page the extension cannot read in your
   browser (the Web Store, a PDF, a page too large to read there or to send, or
-  one it found no text in), which goes with its title and the passage you
-  selected. A page with no web address, such as the browser's own pages, is
+  one it found no text in), which goes with its title. A page with no web
+  address, such as the browser's own pages, is
   never saved: the extension says it can't save it and sends nothing. A picture
   a page drew itself, which has no address, is uploaded to your library as a
   file of its own. A save made while you are offline waits in the browser's
-  storage for the extension as the page's address, title and the passage you
-  selected, and is sent, for our cloud to read, once you are back online.
+  storage for the extension as the page's address and title, and is sent, for our cloud to read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves
   its address, with the title the sharing app gave it and the words you shared
   beside it, into your library, like any other edit on the phone; the phone
@@ -375,7 +372,7 @@ Specifically, in our cloud:
   it is finished, so Undo can take it back, and deletes it within about a day
   after that. An item stays until it is deleted for good or the account is
   deleted. Deleting an item moves it to Deleted; emptying Deleted, or Delete
-  forever, removes the item's text, highlights and what Undo kept of it at once,
+  forever, removes the item's text and what Undo kept of it at once,
   and each of its files once no other item and nothing Undo can still bring back
   names it.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
@@ -412,11 +409,11 @@ Specifically, in our cloud:
 **Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
 your library offline:
 
-- **Every item**, its text, highlights and folders, downloaded from your
+- **Every item**, its text and folders, downloaded from your
   library, a small picture for each card, and a picture, PDF or other
   file once you open it.
-- **Whatever it has not sent yet.** Edits, saves, new notes, deletions,
-  highlights and photos wait on the phone until your library takes them.
+- **Whatever it has not sent yet.** Edits, saves, new notes, deletions and
+  photos wait on the phone until your library takes them.
   A change the library refuses stays on the phone and says so. A page you
   share to Inteligir waits in the share sheet's own storage on the phone until
   the app saves it.
@@ -467,8 +464,8 @@ and email delivery). Specifically:
   password-reset emails; and it keeps the request log described above.
 - **Anthropic** answers the built-in agent's questions for us, on our account,
   not yours. What you ask it, what you were looking at, and everything it
-  reads of your library to answer you (items, their text, highlights, folders
-  and tags) go to Anthropic as each request it makes, through
+  reads of your library to answer you (items, their text, folders and tags) go
+  to Anthropic as each request it makes, through
   Cloudflare's AI Gateway, under Anthropic's terms with us. When a
   conversation grows long, Anthropic's API also writes a summary of its
   earlier part inside the request that reaches that length, and hands it back
@@ -493,7 +490,7 @@ It travels from our cloud:
 - **Your library, to an assistant you connect.** When you allow Claude,
   ChatGPT or another assistant on our consent page, our cloud answers its
   requests from your library: what it searches for and reads (items,
-  their text, highlights, folders and tags) goes to that assistant's provider
+  their text, folders and tags) goes to that assistant's provider
   under the provider's own terms, as part of your conversation there. What it
   writes lands in your library as a change named for it, which you can ask it
   to change back, and one you allowed only to read can change nothing. The page
@@ -579,8 +576,8 @@ account row itself goes:
 2. **Your conversations with the built-in agent are deleted**, one still
    running stopped first, while the store still names them: our cloud keeps
    their ids nowhere else.
-3. **Everything in that store is deleted**: every item, its text, highlights
-   and what Undo keeps. What stays is a marker saying when it was deleted and nothing
+3. **Everything in that store is deleted**: every item, its text and what Undo
+   keeps. What stays is a marker saying when it was deleted and nothing
    else, so a request already on its way still finds it closed.
 4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
@@ -1041,12 +1038,12 @@ is one of these routes, as is every call the account pages make but their
 sign-in, session and password-reset calls, which go to Better Auth under
 `/api/auth/`. Nothing else under `/v1/` exists.
 
-| Route          | What it carries                                                                                                                                                                                                                                                                                                                         | What authenticates it                                                                                                                           |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, the changes Undo takes back and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
-| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                                                   | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
-| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                                                 | The invite code; attempts are throttled per caller address.                                                                                     |
-| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                                     | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
+| Route          | What it carries                                                                                                                                                                                                                                                                                                             | What authenticates it                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, folders, tags, the changes Undo takes back and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
+| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                                       | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
+| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                                     | The invite code; attempts are throttled per caller address.                                                                                     |
+| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                         | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 
 Everything else the app reaches is someone else's:
 

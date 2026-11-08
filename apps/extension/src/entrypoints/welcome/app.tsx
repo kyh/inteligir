@@ -101,7 +101,7 @@ export const Welcome = ({ ask }: WelcomeProps) => {
       />
       <p className="text-body text-muted-foreground">
         Click the Inteligir button in the toolbar to save the page you&rsquo;re on, or right-click a
-        page, a link, an image or a selection. Everything you save lands in Unsorted.
+        page, a link or an image. Everything you save lands in Unsorted.
       </p>
     </main>
   );

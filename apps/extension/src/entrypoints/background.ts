@@ -129,9 +129,6 @@ const clicked = async (info: Browser.contextMenus.OnClickData, tab?: Browser.tab
       case "page": {
         return await saveTab(saveDeps, { tab: facts });
       }
-      case "selection": {
-        return await saveTab(saveDeps, { selectionText: action.text, tab: facts });
-      }
       case "address": {
         return await saveAddress(saveDeps, action.url);
       }
@@ -157,9 +154,6 @@ const contextType = (context: MenuContext): Browser.contextMenus.ContextType => 
     }
     case "image": {
       return browser.contextMenus.ContextType.IMAGE;
-    }
-    case "selection": {
-      return browser.contextMenus.ContextType.SELECTION;
     }
     // no default
   }

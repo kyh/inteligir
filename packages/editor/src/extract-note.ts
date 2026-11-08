@@ -13,7 +13,6 @@ import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 
-import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
@@ -69,11 +68,6 @@ const signatureOf = (elements: readonly TElement[]): string =>
     })
     .join(" ");
 
-// a highlight's entry is this item's row, so its markers would leave for an item that holds no
-// such entry
-const carriesAnnotationMarker = (block: TElement): boolean =>
-  [...NodeApi.elements(block)].some(([element]) => isAnnotationMarker(element));
-
 const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
   children: [
     { text: "" },
@@ -98,10 +92,6 @@ export const extractBlocksToNote = async (
   const elements = blocksAt(editor, sorted);
   const itemId = liveEditorItemId(editor);
   if (elements.length === 0 || itemId === null) {
-    return null;
-  }
-  if (elements.some(carriesAnnotationMarker)) {
-    toast.error("A highlight can't move to a new note, so nothing was extracted.");
     return null;
   }
   const blocks = storedBlocks(elements);

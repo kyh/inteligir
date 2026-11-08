@@ -9,11 +9,7 @@
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import type {
-  annotationOpSchema,
-  folderOpSchema,
-  placedBlockSchema,
-} from "@repo/contract/cloud/library/library-wire";
+import type { folderOpSchema, placedBlockSchema } from "@repo/contract/cloud/library/library-wire";
 import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { applyOps } from "@repo/notes/library/block-ops";
 import type { ApplyOutcome, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
@@ -30,7 +26,6 @@ import { heldAtAddress, readReplicaItem, rowsNaming } from "./replica-listing";
 import { serialLock } from "./serial-lock";
 import type { ReplicaItem } from "./replica-listing";
 
-type AnnotationOp = z.infer<typeof annotationOpSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type PlacedBlock = z.infer<typeof placedBlockSchema>;
 
@@ -68,7 +63,6 @@ type WriteOutcome =
 
 interface WriteInput {
   readonly ops: readonly LibraryOp[];
-  readonly annotations?: readonly AnnotationOp[];
 }
 
 interface NoteInput {
@@ -277,12 +271,10 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         if (outcome.kind === "invalid") {
           return { fields: outcome.fields, kind: "invalid" };
         }
-        const annotations = [...(input.annotations ?? [])];
-        if (touchesNothing(outcome) && annotations.length === 0) {
+        if (touchesNothing(outcome)) {
           return { kind: "unchanged" };
         }
         await enqueue({
-          annotations,
           bases: basesOf(input.ops, blocks),
           itemId,
           kind: "write",

@@ -27,22 +27,17 @@ const fixtures = (): { name: string; text: string }[] =>
 
 const library = pretendLibrary();
 
-const imported = (
-  text: string,
-  annotations: string | null = null,
-  name = "Fixture",
-): ImportedItem => {
-  const read = importItem({ annotations, name, text }, library.importPorts());
+const imported = (text: string, name = "Fixture"): ImportedItem => {
+  const read = importItem({ name, text }, library.importPorts());
   if (!read.ok) {
     throw new Error(`the import refused: ${read.reason}`);
   }
   return read.item;
 };
 
-const exported = (item: ImportedItem): { text: string; annotations: string | null } =>
+const exported = (item: ImportedItem): { text: string } =>
   exportItem(
     {
-      annotations: item.annotations,
       blocks: new Map(
         item.blocks.map((placed): [string, StoredBlock] => [
           placed.block.id,
@@ -58,14 +53,11 @@ const exported = (item: ImportedItem): { text: string; annotations: string | nul
   );
 
 // the export's file, read back under the name an export gives it
-const reimported = (item: ImportedItem): ImportedItem => {
-  const written = exported(item);
-  return imported(written.text, written.annotations, item.fields.title);
-};
+const reimported = (item: ImportedItem): ImportedItem =>
+  imported(exported(item).text, item.fields.title);
 
 // what an item is, ids aside
 const content = (item: ImportedItem) => ({
-  annotations: item.annotations,
   blocks: item.blocks.map((placed) => ({ ...placed, block: withoutId(placed.block) })),
   fields: item.fields,
   leftOut: item.leftOut,
@@ -96,7 +88,6 @@ const bodyOf = (text: string): string => text.replace(FRONTMATTER_RE, "");
 const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => {
   const ords = ordsBetween(null, null, blocks.length);
   return {
-    annotations: {},
     blocks: blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section })),
     fields: { ...imported("").fields, title: "Typed" },
     leftOut: 0,
@@ -189,7 +180,7 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
-  it.each([...LOOK_ALIKES, "@2026-08-22", "{{1+1}}", "%%i:abc:start%%"])(
+  it.each([...LOOK_ALIKES, "@2026-08-22", "{{1+1}}"])(
     "keeps %j, typed first in a to-do, as the text it is",
     (text) => {
       const todo = (checked: boolean, id: string): LibraryBlock => ({
@@ -205,23 +196,24 @@ describe("Obsidian's spellings, through a real export and import", () => {
     },
   );
 
-  it("reads a real highlight and ref in a to-do", () => {
+  it("reads a real ref in a to-do, and keeps a highlight its text", () => {
     const item = imported("- [ ] ==first== then ^ref\n");
-    expect(Object.values(item.annotations).map(({ quote }) => quote)).toStrictEqual(["first"]);
     expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual(["ref"]);
+    expect(JSON.stringify(item.blocks)).toContain('"text":"==first== then"');
   });
 
   it("answers a file nested past what its spellings are read through as too deep", () => {
     for (const depth of [3000, 6000, 12_000]) {
       const text = `${"> ".repeat(depth)}x\n`;
-      expect(
-        importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
-      ).toStrictEqual({ ok: false, reason: "too-deep" });
+      expect(importItem({ name: "Deep", text }, library.importPorts())).toStrictEqual({
+        ok: false,
+        reason: "too-deep",
+      });
     }
   });
 
   it("writes the escape that keeps typed text text, and none where nothing would read", () => {
-    expect(typedBody("x==1==y")).toBe("x\\==1==y\n");
+    expect(typedBody("x==1==y")).toBe("x==1==y\n");
     expect(typedBody("50%% and 60%%")).toBe("50\\%% and 60%%\n");
     expect(typedBody("area is r ^2")).toBe("area is r \\^2\n");
     expect(typedBody("^abc")).toBe("\\^abc\n");
@@ -229,7 +221,7 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(typedBody("x^2 and y^3 are powers")).toBe("x^2 and y^3 are powers\n");
   });
 
-  it("reads a real highlight, comment and ref, and writes each back as it stands", () => {
+  it("reads a real comment and ref, keeps a highlight its text, and writes each back as it stands", () => {
     const first = imported(
       [
         "An ==important== line %%not shown%% here. ^goal",
@@ -246,10 +238,6 @@ describe("Obsidian's spellings, through a real export and import", () => {
         "",
       ].join("\n"),
     );
-    expect(Object.values(first.annotations).map(({ quote }) => quote)).toStrictEqual([
-      "important",
-      "at the start",
-    ]);
     expect(first.blocks.map(({ block }) => block.ref)).toStrictEqual([
       "goal",
       undefined,
@@ -258,14 +246,13 @@ describe("Obsidian's spellings, through a real export and import", () => {
     ]);
     const stored = JSON.stringify(first.blocks);
     expect(stored).toContain('"source":"%%not shown%%"');
-    expect(stored).not.toContain("==");
+    expect(stored).toContain('"text":"An ==important== line "');
     expect(stored).not.toContain("^");
     expect(content(reimported(first))).toStrictEqual(content(first));
   });
 
   it("takes a backslash in a hand-written file as the person's text", () => {
     const item = imported("\\==kept== and a \\%%comment%% then a \\^ref\n\n\\^own\n");
-    expect(item.annotations).toStrictEqual({});
     expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual([undefined, undefined]);
     expect(item.blocks.map(({ block }) => block.children)).toStrictEqual([
       [{ text: "==kept== and a %%comment%% then a ^ref" }],
@@ -282,7 +269,6 @@ describe("Obsidian's spellings, through a real export and import", () => {
     ":::columns\n:::column\nfirst line\n\\==x== literal\n:::\n:::\n",
   ])("takes a backslash on a line beside a `:::` line in %j as the person's text", (text) => {
     const item = imported(text);
-    expect(item.annotations).toStrictEqual({});
     expect(JSON.stringify(item.blocks)).toContain("==x== literal");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
@@ -317,7 +303,6 @@ describe("Obsidian's spellings, through a real export and import", () => {
 
   it("reads none of them inside a link's words or a code span", () => {
     const item = imported("[==a== %%b%%](https://example.com) and `==c== %%d%%`\n");
-    expect(item.annotations).toStrictEqual({});
     expect(JSON.stringify(item.blocks)).not.toContain('"type":"opaque"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
@@ -508,18 +493,16 @@ describe("a list as deep as an item holds", () => {
 
   it.each(SPELLINGS)("is refused one level past it, as %s", (_name, text) => {
     expect(
-      importItem(
-        { annotations: null, name: "Deep", text: text(LIST_MAX_INDENT + 1) },
-        library.importPorts(),
-      ),
+      importItem({ name: "Deep", text: text(LIST_MAX_INDENT + 1) }, library.importPorts()),
     ).toStrictEqual({ ok: false, reason: "too-deep" });
   });
 
   it("refuses a block nested under an item at the last level", () => {
     const text = `${"- ".repeat(LIST_MAX_INDENT)}x\n\n${"  ".repeat(LIST_MAX_INDENT)}after\n`;
-    expect(
-      importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
-    ).toStrictEqual({ ok: false, reason: "too-deep" });
+    expect(importItem({ name: "Deep", text }, library.importPorts())).toStrictEqual({
+      ok: false,
+      reason: "too-deep",
+    });
   });
 });
 
@@ -731,7 +714,6 @@ describe("a tab's label", () => {
     [String.raw`\@2026-08-22`, "@2026-08-22"],
     [String.raw`Due \@2026-08-22`, "Due @2026-08-22"],
     [String.raw`\{{1+1}}`, "{{1+1}}"],
-    [String.raw`\%%i:abc:start%%`, "%%i:abc:start%%"],
     [String.raw`\*\*x\*\*`, "**x**"],
     [String.raw`\[\[Note]]`, "[[Note]]"],
     [String.raw`\`x\``, "`x`"],
@@ -1103,23 +1085,11 @@ describe("one file as its item", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("counts what it left out: a block no item can hold, a store it cannot read", () => {
+  it("counts what it left out: a block no item can hold", () => {
     const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
     const text = `Kept.\n\n${fence}`;
     const item = imported(text);
     expect(item.leftOut).toBe(1);
     expect(JSON.stringify(item.blocks)).toContain("Kept.");
-    expect(imported("Some text.\n", "{ not json").leftOut).toBe(1);
-  });
-
-  it("reads the highlights' markers and their store", () => {
-    const text = "Some %%i:h1:start%%marked words%%i:h1:end%% here.\n";
-    const store = JSON.stringify({
-      h1: { createdAt: 1, quote: "marked words", source: "user", text: "why", updatedAt: 1 },
-    });
-    const item = imported(text, store);
-    expect(Object.keys(item.annotations)).toStrictEqual(["h1"]);
-    expect(JSON.stringify(item.blocks)).toContain('"type":"annotationMarker"');
-    expect(imported(text, "{ not json").annotations).toStrictEqual({});
   });
 });

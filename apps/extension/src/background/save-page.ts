@@ -1,6 +1,6 @@
 // A save from this browser: the tab read here, over the page as the person sees it, and saved
-// through `items.save` with its facts, its article, its cover and the passage the person had
-// selected, so the library holds it read from the first moment; a web page the browser will not let
+// through `items.save` with its facts, its article and its cover, so the library holds it read
+// from the first moment; a web page the browser will not let
 // it script (the Web Store, the PDF viewer), one past the capture's cap, one it read no text from,
 // or one whose reading the cloud refuses as a call, is saved as its link, for the cloud's fill to
 // read, and a page with no web address is refused. Every save is queued before its first call
@@ -9,7 +9,6 @@
 // file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import { coverPicture, deviceKeepsReading, preferredText } from "@repo/notes/items/link-fill";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
@@ -138,7 +137,7 @@ const keepCover = async (
 const queuedFor = (
   deps: SaveDeps,
   connection: Connection,
-  save: Pick<QueuedSave, "selection" | "title" | "url">,
+  save: Pick<QueuedSave, "title" | "url">,
 ): QueuedSave => {
   const now = deps.now();
   return {
@@ -165,8 +164,6 @@ const sendKept = async (queued: QueuedSave, call: () => Promise<Saved>): Promise
 
 export interface TabSave {
   readonly tab: TabFacts;
-  // the browser's own reading of the selection a right-click named, for a page it will not script
-  readonly selectionText?: string | undefined;
 }
 
 // the tab's page, or null once the capture is past its deadline, so a tab that never answers is
@@ -197,11 +194,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   }
   const page = await captureInTime(deps, tab.id);
   const url = page !== null && isWebUrl(page.url) ? page.url : tab.url;
-  // a selection of only whitespace is none
-  const typed = args.selectionText?.trim().slice(0, ANNOTATION_QUOTE_MAX) ?? "";
-  const given = typed === "" ? null : typed;
   const queued = queuedFor(deps, connection, {
-    selection: page?.selection ?? given,
     title: fieldLine(page?.title ?? null) ?? fieldLine(tab.title ?? null) ?? "",
     url,
   });
@@ -221,7 +214,6 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
         id: queued.id,
         opId: queued.opId,
         savedAt: queued.savedAt,
-        selection: queued.selection,
         tags: [],
         title: fieldLine(read.facts.title) ?? queued.title,
         url: queued.url,
@@ -242,7 +234,7 @@ export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome>
   if (connection === null) {
     return refused("not-connected");
   }
-  const queued = queuedFor(deps, connection, { selection: null, title: "", url });
+  const queued = queuedFor(deps, connection, { title: "", url });
   const cloud = deps.cloud(connection);
   return await sendKept(queued, async () => await cloud.saveLink(linkOf(queued)));
 };

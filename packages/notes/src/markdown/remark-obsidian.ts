@@ -1,6 +1,6 @@
-// Obsidian's spellings in a person's own writing: `==highlight==`, `%%comment%%` and a block's
-// `^ref`. They are no part of the grammar, which a page and a paste parse through too and keep as
-// they came, so the codec reads them off a note's tree (`obsidianReader`), where an escape still
+// Obsidian's spellings in a person's own writing: `%%comment%%` and a block's `^ref`. They are no
+// part of the grammar, which a page and a paste parse through too and keep as they came, so the
+// codec reads them off a note's tree (`readObsidian`), where an escape still
 // shows: as with the grammar's constructs, one whose first character an escape wrote is text, and
 // the serializer writes that escape before typed text that would read as one. A ref leaves the
 // text there for a node of its own, which the serializer writes bare, so a ref and text that looks
@@ -20,7 +20,6 @@ import type {
 import type { Options as ToMarkdownExtension, Unsafe } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 
-import { clipQuote } from "../annotations/store-schema";
 import { blockIdSchema } from "../library/library-nodes";
 import { LINK_LIKE, NOT_PROSE } from "./remark-inline-constructs";
 import { escapedAt, textCutter } from "./text-escapes";
@@ -41,26 +40,14 @@ declare module "mdast" {
   }
 }
 
-// each spelling after its first character, the one an escape keeps it text by. A highlight has no
-// edge whitespace and no `=` inside, as Obsidian's own reader asks; what is left of an annotation
-// marker's `%%i:` once the grammar has read it is text
-const HIGHLIGHT_TAIL = String.raw`=(?<passage>[^=\s](?:[^=]*[^=\s])?)==`;
-const COMMENT_TAIL = String.raw`%(?!i:)[^%\n][^%]*%%`;
+// each spelling after its first character, the one an escape keeps it text by
+const COMMENT_TAIL = String.raw`%[^%\n][^%]*%%`;
 const REF_NAME = "(?<ref>[A-Za-z0-9-]+)";
 
 // global, so for matchAll alone: exec's lastIndex would carry from one caller into the next
-const HIGHLIGHT_RE = new RegExp(`=${HIGHLIGHT_TAIL}`, "gu");
 const COMMENT_RE = new RegExp(`%${COMMENT_TAIL}`, "gu");
 const OWN_REF_RE = new RegExp(String.raw`^\^${REF_NAME}$`, "u");
 const TRAILING_REF_RE = new RegExp(String.raw`[ \t]\^${REF_NAME}$`, "u");
-
-export interface ObsidianHighlight {
-  readonly id: string;
-  readonly quote: string;
-}
-
-// a passage's highlight made, and its id
-type Mark = (passage: string) => string;
 
 const textPiece = (between: Text): Text[] => (between.value === "" ? [] : [between]);
 
@@ -84,37 +71,16 @@ const cutAround = (
   return out;
 };
 
-const highlightsIn = (node: Text, mark: Mark): PhrasingContent[] =>
-  cutAround(
-    node,
-    HIGHLIGHT_RE,
-    (match) => {
-      const passage = match.groups?.passage ?? "";
-      const ids = mark(passage);
-      return [
-        { edge: "start", ids, type: "annotationMarker" },
-        { type: "text", value: passage },
-        { edge: "end", ids, type: "annotationMarker" },
-      ];
-    },
-    textPiece,
-  );
+const commentsIn = (node: Text): PhrasingContent[] =>
+  cutAround(node, COMMENT_RE, (match) => [{ type: "opaqueInline", value: match[0] }], textPiece);
 
-const spellingsIn = (node: Text, mark: Mark): PhrasingContent[] =>
-  cutAround(
-    node,
-    COMMENT_RE,
-    (match) => [{ type: "opaqueInline", value: match[0] }],
-    (between) => highlightsIn(between, mark),
-  );
-
-const walk = (parent: Parent, mark: Mark): void => {
+const walk = (parent: Parent): void => {
   parent.children = parent.children.flatMap((child): RootContent[] => {
     if (child.type === "text") {
-      return spellingsIn(child, mark);
+      return commentsIn(child);
     }
     if ("children" in child && !LINK_LIKE.has(child.type)) {
-      walk(child, mark);
+      walk(child);
     }
     return [child];
   });
@@ -170,36 +136,18 @@ const readLines = (flow: readonly RootContent[], item: boolean): void => {
   }
 };
 
-export interface ObsidianReader {
-  // what `read` has made of the `==x==` it met
-  readonly highlights: readonly ObsidianHighlight[];
-  // a note's flow with its spellings read out of it, the nodes handed in reused
-  readonly read: (flow: RootContent[]) => RootContent[];
-}
-
-export const obsidianReader = (newAnnotationId: () => string): ObsidianReader => {
-  const highlights: ObsidianHighlight[] = [];
-  const mark: Mark = (passage) => {
-    const id = newAnnotationId();
-    highlights.push({ id, quote: clipQuote(passage) });
-    return id;
-  };
-  return {
-    highlights,
-    read: (flow) => {
-      const root: Root = { children: flow, type: "root" };
-      walk(root, mark);
-      readLines(root.children, false);
-      return root.children;
-    },
-  };
+// a note's flow with its spellings read out of it, the nodes handed in reused
+export const readObsidian = (flow: RootContent[]): RootContent[] => {
+  const root: Root = { children: flow, type: "root" };
+  walk(root);
+  readLines(root.children, false);
+  return root.children;
 };
 
 // a link's words are read as written, so nothing in them needs the escape
 const NOT_READ = [...NOT_PROSE, "link" as const, "linkReference" as const];
 
 const UNSAFE: Unsafe[] = [
-  { after: HIGHLIGHT_TAIL, character: "=", inConstruct: "phrasing", notInConstruct: NOT_READ },
   { after: COMMENT_TAIL, character: "%", inConstruct: "phrasing", notInConstruct: NOT_READ },
   // the name ends the line's text, which the serializer closes with the line's own break
   {

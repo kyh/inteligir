@@ -30,8 +30,8 @@ export const wikiLinkPath = (path: string): string =>
 // the name a bare `[[name]]` answers to; `docStem` is the title, which hides every doc extension
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
-// What an import makes an item of is what the user wrote. A dot-entry (the annotation store's
-// `.inteligir/`, another app's `.obsidian/`) is nobody's to open here.
+// What an import makes an item of is what the user wrote. A dot-entry (an app's own, like
+// `.obsidian/`) is nobody's to open here.
 export const isDotEntryPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
 

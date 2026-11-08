@@ -1,8 +1,8 @@
 // an article's html as markdown under the dialect's rules, in three rungs from rich to plain. The
 // page is hostile input: every text node is escaped so nothing in it reads back as a construct the
-// dialect owns (a formula pill, a date chip, an annotation marker, a container line, math, inline
-// html, an entity, a strikethrough or a wiki link), and nothing but text, links, pictures, code,
-// lists, quotes and tables is ever written.
+// dialect owns (a formula pill, a date chip, a comment, a container line, math, inline html, an
+// entity, a strikethrough or a wiki link), and nothing but text, links, pictures, code, lists,
+// quotes and tables is ever written.
 
 import { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import TurndownService from "turndown";

@@ -117,29 +117,30 @@ describe("a request", () => {
     }).not.toThrow();
   });
 
-  // a highlight the phone is still landing reported failed would have the editor take its markers out
-  it("waits on a slow highlight past the deadline, since the phone lands it however long it takes", async () => {
+  // a file the phone is still keeping reported failed would have the editor drop a picture it holds
+  it("waits on a slow keep past the deadline, since the phone keeps the file however long it takes", async () => {
     vi.useFakeTimers();
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const marking = bridge.request("addHighlight", { id: "a1", itemId: ITEM, quote: "a passage" });
+    const keeping = bridge.request("keepFile", { base64: "AA==", mediaType: "image/png" });
     let settled = false;
-    void marking.finally(() => {
+    void keeping.finally(() => {
       settled = true;
     });
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 2);
     expect(settled).toBe(false);
 
-    const [frame] = phone.requests("addHighlight");
+    const [frame] = phone.requests("keepFile");
+    const sha = "a".repeat(64);
     phone.deliver({
       id: frame?.id ?? -1,
       nonce: PHONE_NONCE,
       ok: true,
-      result: { queued: true },
+      result: { sha },
       type: "response",
     });
-    await expect(marking).resolves.toStrictEqual({ queued: true });
+    await expect(keeping).resolves.toStrictEqual({ sha });
   });
 
   it("refuses a malformed ask before it reaches the phone", async () => {

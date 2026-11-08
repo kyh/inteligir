@@ -233,14 +233,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
   TRANSACTION.** Every op carries the base it was computed from (a block's
-  hash, a field's value, a highlight's note), and the cell lands the write in
-  one `transactionSync` only while each base holds, else answers `CONFLICT`
-  with each moved thing as it is, which the editor's diff3 settles. A
-  highlight's id is the library's, so one another item holds conflicts.
-  Rejected: a whole-item base (two devices in one note always conflict); last
-  write wins (an edit lost unseen); a merge in the cell (it cannot ask the
-  person). `apps/web/src/worker/library/library-engine.ts`, `cell-landing.ts`,
-  `cell-annotations.ts`.
+  hash, a field's value), and the cell lands the write in one
+  `transactionSync` only while each base holds, else answers `CONFLICT` with
+  each moved thing as it is, which the editor's diff3 settles. Rejected: a
+  whole-item base (two devices in one note always conflict); last write wins
+  (an edit lost unseen); a merge in the cell (it cannot ask the person).
+  `apps/web/src/worker/library/library-engine.ts`, `cell-landing.ts`,
+  `cell-writes.ts`.
 
 - **A CHANGE SET SEALS BY THE CELL'S ONE ALARM, AND UNDO REACHES BACK SEVEN
   DAYS** (owner decision). Each actor's set seals by its policy when its `jobs`
@@ -334,15 +333,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ANSWERS THAT ITEM AS IT STANDS.** One
   url, one item: a save whose `urlKey` a live item holds writes nothing and
-  answers that item with `created: false`, its tags, folder, note and selection
-  left behind, so tagging, filing or adding to it is organize's and the
+  answers that item with `created: false`, its tags, folder and note left
+  behind, so tagging, filing or adding to it is organize's and the
   editor's. The one write is a device's read of a page whose item has no
   article yet, its reading waiting or failed: the read lands on it as a reading
-  does, its article and the fields a fill owns, every highlight that keeps a
-  quote placed by it, and nothing else of the save. Rejected: merging the save
-  into the item (two writers of one item's tags, folder and note, and an
-  article a later read swaps out from under the person's highlights);
-  answering `exists` (a refusal for what is a success).
+  does, its article and the fields a fill owns, and nothing else of the save.
+  Rejected: merging the save into the item (two writers of one item's tags,
+  folder and note); answering `exists` (a refusal for what is a success).
   `apps/web/src/worker/library/cell-saves.ts`.
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
@@ -375,8 +372,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
   CHANGE SET, ON AN ITEM STILL WAITING FOR IT.** `landFill` replaces the
-  article and places the item's highlights again by their quotes, sets a fact
-  only where the page gave one, renames only an item still named by its
+  article, sets a fact only where the page gave one, renames only an item still named by its
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
   redirects end at another item's address is read into the item that waited
@@ -401,7 +397,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   item holds is counted, and one whose item sits in Deleted brings that item
   back as it stands. Rejected: one run per import (an alarm's 30 s of CPU);
   counting a run in its catch (the platform's kill skips it); a fresh item
-  beside one in Deleted (its highlights' ids are the library's).
+  beside one in Deleted (one id names one item, and its twin would stay in
+  Deleted).
   `apps/web/src/worker/library/cell-imports.ts`,
   `apps/web/src/worker/library/cell-import-markdown.ts`.
 

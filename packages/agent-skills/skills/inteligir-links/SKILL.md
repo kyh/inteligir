@@ -35,8 +35,6 @@ Rules worth the keystrokes:
   anchor.
 - A `#` anchor matches the heading loosely (case and spacing are forgiven). If two headings collide,
   link the section a different way rather than shipping an ambiguous anchor.
-- Wiki links do not render inside a highlight's note. In a note on a highlight, name the item in
-  prose.
 
 `read_item` also answers which items link to this one and which it links to, so you need not
 search the library's text for them.

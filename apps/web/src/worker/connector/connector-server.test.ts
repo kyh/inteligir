@@ -17,8 +17,6 @@ import {
 import { CONNECTOR_INSTRUCTIONS } from "./connector-server";
 
 const ALL_TOOLS = [
-  "list_highlights",
-  "add_highlight",
   "list_items",
   "read_item",
   "create_note",
@@ -30,13 +28,7 @@ const ALL_TOOLS = [
   "search_library",
 ];
 
-const READ_TOOLS = [
-  "list_highlights",
-  "list_items",
-  "read_item",
-  "list_tags_and_folders",
-  "search_library",
-];
+const READ_TOOLS = ["list_items", "read_item", "list_tags_and_folders", "search_library"];
 
 // a tool's answer, as structured content beside the same JSON as text
 const structured = async <TSchema extends z.ZodType>(

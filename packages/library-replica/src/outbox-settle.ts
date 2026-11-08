@@ -2,8 +2,8 @@
 // (`AGENTS.md` § Across workspaces): every op names its base, and each one the cell found moved
 // is computed again over the current: a block both sides changed goes through the injected merge
 // (the editor's diff3 over each side's markdown), a block another device dropped stands again
-// with this device's text, a drop of a block another device changed yields to that change, a
-// place, a field or a note is set over the value it met. An op whose result the cell already
+// with this device's text, a drop of a block another device changed yields to that change, and a
+// place or a field is set over the value it met. An op whose result the cell already
 // holds is satisfied and goes no more, so a resend after a lost answer that meets this device's
 // own write lands nothing twice.
 
@@ -16,19 +16,15 @@ import { libraryOpSchema } from "@repo/notes/library/block-ops";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import { sameJson } from "@repo/notes/library/canonical-json";
 import type { JsonValue } from "@repo/notes/library/canonical-json";
-import { storableBlockSchema } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { z } from "zod";
+import type { z } from "zod";
 
 import type { WriteOp } from "./outbox-ops";
-import type { BlockMerge, NewId } from "./replica-ports";
+import type { BlockMerge } from "./replica-ports";
 
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
-type AnnotationOp = WriteOp["annotations"][number];
 
 type BlockCurrent = Extract<ConflictCurrent, { kind: "block" }>;
-type AnnotationCurrent = Extract<ConflictCurrent, { kind: "annotation" }>;
 type FolderCurrent = Extract<ConflictCurrent, { kind: "folder" }>;
 
 export type Settled<T> =
@@ -59,12 +55,10 @@ interface Met {
     string,
     { readonly current: Extract<ConflictCurrent, { kind: "property" }>["current"] }
   >;
-  readonly annotations: Map<string, AnnotationCurrent>;
 }
 
 const metOf = (currents: readonly ConflictCurrent[]): Met => {
   const met: Met = {
-    annotations: new Map(),
     blocks: new Map(),
     fields: new Map(),
     orders: new Map(),
@@ -88,10 +82,6 @@ const metOf = (currents: readonly ConflictCurrent[]): Met => {
         met.properties.set(current.key, { current: current.current });
         break;
       }
-      case "annotation": {
-        met.annotations.set(current.id, current);
-        break;
-      }
       case "folder":
       case "item": {
         break;
@@ -104,47 +94,6 @@ const metOf = (currents: readonly ConflictCurrent[]): Met => {
 
 const sameOptional = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
-
-interface JsonMap {
-  readonly [key: string]: JsonValue | undefined;
-}
-
-const isJsonList = (value: JsonValue): value is readonly JsonValue[] => Array.isArray(value);
-
-const isJsonMap = (value: JsonValue): value is JsonMap =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
-
-const renamedIds = (ids: string, renames: ReadonlyMap<string, string>): string =>
-  ids
-    .split(",")
-    .map((id) => renames.get(id) ?? id)
-    .join(",");
-
-// a block's JSON with each highlight id its markers name renamed where a settle gave it a new one
-const renamedJson = (value: JsonValue, renames: ReadonlyMap<string, string>): JsonValue => {
-  if (isJsonList(value)) {
-    return value.map((child) => renamedJson(child, renames));
-  }
-  if (!isJsonMap(value)) {
-    return value;
-  }
-  const isMarker = value.type === "annotationMarker";
-  const renamed: Record<string, JsonValue> = {};
-  for (const [key, member] of Object.entries(value)) {
-    if (member === undefined) {
-      continue;
-    }
-    const markerIds = isMarker && key === "ids" ? z.string().safeParse(member) : null;
-    renamed[key] =
-      markerIds?.success === true
-        ? renamedIds(markerIds.data, renames)
-        : renamedJson(member, renames);
-  }
-  return renamed;
-};
-
-const renameMarkers = (block: LibraryBlock, renames: ReadonlyMap<string, string>): LibraryBlock =>
-  renames.size === 0 ? block : storableBlockSchema.parse(renamedJson(block, renames));
 
 interface BlockSettle {
   readonly ops: LibraryOp[];
@@ -286,55 +235,10 @@ const settleLibraryOp = async (
   }
 };
 
-// a highlight the cell met another row for: an add whose id another item holds goes again under a
-// new id, its markers renamed with it; an add the item already holds, a note of one gone, and a
-// removal of one changed since are satisfied
-const settleAnnotation = (
-  op: AnnotationOp,
-  met: Met,
-  write: WriteOp,
-  renames: Map<string, string>,
-  newId: NewId,
-): AnnotationOp | null => {
-  switch (op.op) {
-    case "add": {
-      const parentId = op.parentId === null ? null : (renames.get(op.parentId) ?? op.parentId);
-      if (op.parentId !== null && met.annotations.has(op.parentId)) {
-        return null;
-      }
-      const current = met.annotations.get(op.id);
-      if (current === undefined) {
-        return { ...op, parentId };
-      }
-      if (current.current !== null && current.current.itemId !== write.itemId) {
-        const id = newId();
-        renames.set(op.id, id);
-        return { ...op, id, parentId };
-      }
-      return null;
-    }
-    case "note": {
-      const current = met.annotations.get(op.id);
-      if (current === undefined) {
-        return op;
-      }
-      const row = current.current;
-      if (row?.deletedAt !== null || row.text === op.text) {
-        return null;
-      }
-      return { ...op, base: row.text };
-    }
-    case "remove": {
-      return met.annotations.has(op.id) ? null : op;
-    }
-    // no default
-  }
-};
-
 export const settleWrite = async (
   write: WriteOp,
   currents: readonly ConflictCurrent[],
-  ports: { readonly merge: BlockMerge; readonly newId: NewId },
+  ports: { readonly merge: BlockMerge },
 ): Promise<SettledWrite> => {
   const met = metOf(currents);
   const moves = new Map(
@@ -345,28 +249,16 @@ export const settleWrite = async (
   for (const op of write.ops) {
     await settleLibraryOp(op, met, write, { merge: ports.merge, moves }, out);
   }
-  const renames = new Map<string, string>();
-  const annotations = write.annotations.flatMap((op) => {
-    const settled = settleAnnotation(op, met, write, renames, ports.newId);
-    return settled === null ? [] : [settled];
-  });
-  if (out.ops.length === 0 && annotations.length === 0) {
+  if (out.ops.length === 0) {
     return { kind: "satisfied" };
   }
-  const ops = out.ops.map((op): LibraryOp => {
-    if (op.op === "insert" || op.op === "put") {
-      return { ...op, block: renameMarkers(op.block, renames) };
-    }
-    return op;
-  });
   return {
     kind: "resend",
     op: {
-      annotations,
       bases: out.bases,
       itemId: write.itemId,
       kind: "write",
-      ops,
+      ops: out.ops,
       staged: write.staged,
     },
     overlapped: out.overlapped,

@@ -40,11 +40,7 @@ import type {
 import type { BlockRef } from "@repo/notes/markdown/remark-obsidian";
 import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { formulaRawOf, parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
-import type {
-  AnnotationMarker,
-  DateChip,
-  FormulaPill,
-} from "@repo/notes/markdown/remark-inline-constructs";
+import type { DateChip, FormulaPill } from "@repo/notes/markdown/remark-inline-constructs";
 import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
 import type { Underline } from "@repo/notes/markdown/remark-inline-html";
 import {
@@ -58,7 +54,6 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
 import {
   CANVAS_BLOCK_KEY,
   CHART_BLOCK_KEY,
-  ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
   HTML_BLOCK_KEY,
   OPAQUE_KEY,
@@ -579,20 +574,6 @@ export const MD_RULES: MdRules = {
           : [],
       ),
       type: "columnGroup",
-    }),
-  },
-
-  [ANNOTATION_MARKER_KEY]: {
-    deserialize: (node: AnnotationMarker): TElement => ({
-      children: [{ text: "" }],
-      edge: node.edge,
-      ids: node.ids,
-      type: ANNOTATION_MARKER_KEY,
-    }),
-    serialize: (node: TElement): AnnotationMarker => ({
-      edge: node.edge === "end" ? "end" : "start",
-      ids: stringProp(node, "ids") ?? "",
-      type: "annotationMarker",
     }),
   },
 

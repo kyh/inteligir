@@ -72,7 +72,6 @@ const ELEMENT_PROPS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
 // the nodes that sit inside a line: text, the inline voids and a link
 export const INLINE_TYPES: ReadonlySet<string> = new Set([
   "a",
-  "annotationMarker",
   "date",
   "formulaPill",
   "inline_equation",

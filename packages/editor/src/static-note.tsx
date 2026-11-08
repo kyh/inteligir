@@ -15,7 +15,6 @@ import { cn } from "@repo/ui/lib/cn";
 import {
   CANVAS_BLOCK_KEY,
   CHART_BLOCK_KEY,
-  ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
   HTML_BLOCK_KEY,
   OPAQUE_KEY,
@@ -212,9 +211,6 @@ const HrStatic = (props: SlateElementProps) => (
   </SlateElement>
 );
 
-// renders no text, as live; inline, because the default <div> would break the line it sits in.
-const AnnotationMarkerStatic = (props: SlateElementProps) => <SlateElement {...props} as="span" />;
-
 // the default static renderer is a bare <div> per node, which flattens a table into stacked lines.
 const TableStatic = (props: SlateElementProps) => (
   <SlateElement {...props} as="table" className="my-1">
@@ -286,7 +282,6 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     ["img", ImageStatic],
     ["hr", HrStatic],
     [FORMULA_PILL_KEY, FormulaPillStatic],
-    [ANNOTATION_MARKER_KEY, AnnotationMarkerStatic],
     [CHART_BLOCK_KEY, richBlockStatic("chart")],
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],

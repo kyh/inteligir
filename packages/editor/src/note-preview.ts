@@ -5,12 +5,7 @@
 import { ElementApi, TextApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
-import {
-  ANNOTATION_MARKER_KEY,
-  FORMULA_PILL_KEY,
-  WIKI_EMBED_KEY,
-  WIKI_LINK_KEY,
-} from "@repo/editor/dialect-node-keys";
+import { FORMULA_PILL_KEY, WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 import { wikiFieldsOf, wikiLabelOf } from "@repo/editor/wiki/wiki-node";
 
@@ -36,9 +31,6 @@ const textOf = (node: Descendant): string => {
     }
     case FORMULA_PILL_KEY: {
       return stringProp(node, "display") ?? stringProp(node, "source") ?? "";
-    }
-    case ANNOTATION_MARKER_KEY: {
-      return "";
     }
     default: {
       return node.children.map(textOf).join("");

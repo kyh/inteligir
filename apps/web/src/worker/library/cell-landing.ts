@@ -2,8 +2,7 @@
 // cap, the caps of what its change set keeps, one live item per url, the files it names, the
 // quota), then its rows, stamped with the write's one sequence number. Only what changed is written:
 // the blocks the write touched, a dropped block's row gone and its content kept for Undo, the
-// derived rows and the index row when the body or the fields moved, the highlight rows the write
-// changed.
+// derived rows and the index row when the body or the fields moved.
 
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
@@ -23,8 +22,6 @@ import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { z } from "zod";
 
-import { annotationGrowth, annotationStoreOf, storeAnnotationRows } from "./cell-annotations";
-import type { AnnotationRows, AnnotationsLanded } from "./cell-annotations";
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import { encodeParts, keepSuperseded, partsFit } from "./cell-parts";
 import { holdRoomFor } from "./cell-quota";
@@ -49,9 +46,8 @@ export interface LiveItemRow {
 export interface Landing {
   readonly itemId: string;
   // null: the write makes the item
-  readonly before: { readonly state: ItemState; readonly rows: AnnotationRows } | null;
+  readonly before: ItemState | null;
   readonly after: ItemState;
-  readonly annotations: AnnotationsLanded;
 }
 
 // what a write lands under: its one sequence number and time, and its actor's set, each taken on
@@ -181,11 +177,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
     refuse({ kind: "too-large" });
   }
   const derived = deriveItem(after.fields, after.blocks);
-  const store = annotationStoreOf(landing.annotations.rows);
-  if (
-    derived.textBytes > ITEM_TEXT_MAX_BYTES ||
-    !partsFit(encodeParts({ annotations: store, state: after }))
-  ) {
+  if (derived.textBytes > ITEM_TEXT_MAX_BYTES || !partsFit(encodeParts({ state: after }))) {
     refuse({ kind: "too-large" });
   }
   if (derived.urlKey !== null && after.fields.deletedAt === null) {
@@ -195,7 +187,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
     }
   }
   const shas = itemFilesOf(after);
-  const priorShas = before === null ? [] : itemFilesOf(before.state);
+  const priorShas = before === null ? [] : itemFilesOf(before);
   const missing = missingBlobs(
     storage,
     shas.filter((sha) => !priorShas.includes(sha)),
@@ -203,14 +195,11 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
   }
-  const blocks = diffBlocks(before?.state.blocks ?? new Map(), after.blocks);
+  const blocks = diffBlocks(before?.blocks ?? new Map(), after.blocks);
   holdRoomFor(
     storage,
     scope.bytesCap,
-    blocks.growth +
-      fieldBytes(after.fields) -
-      (before === null ? 0 : fieldBytes(before.state.fields)) +
-      annotationGrowth(before?.rows ?? new Map(), landing.annotations),
+    blocks.growth + fieldBytes(after.fields) - (before === null ? 0 : fieldBytes(before.fields)),
   );
   return { blocks, derived, priorShas, shas };
 };
@@ -223,8 +212,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const seq = scope.seq();
   const set = scope.set();
   touchItem(storage, {
-    before:
-      before === null ? null : { annotations: annotationStoreOf(before.rows), state: before.state },
+    before: before === null ? null : { state: before },
     itemId,
     setId: set.id,
   });
@@ -246,7 +234,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   runPlan(storage, dropBlocks(itemId, blocks.dropped));
   runPlan(storage, storeBlocks(itemId, blockWritesOf(blocks.written, derived), seq));
   const fieldsChanged =
-    before === null || canonicalJson(before.state.fields) !== canonicalJson(after.fields);
+    before === null || canonicalJson(before.fields) !== canonicalJson(after.fields);
   if (blocks.written.length > 0 || blocks.dropped.length > 0 || fieldsChanged) {
     runPlan(storage, storeDerived(itemId, derived));
     // a person's typing reindexes when its set seals (`./change-sets`)
@@ -257,19 +245,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   if (before === null || !sameShas(priorShas, shas)) {
     storeItemBlobs(storage, itemId, shas, scope.now);
   }
-  storeAnnotationRows(storage, landing.annotations, seq);
-  runPlan(
-    storage,
-    recordChanges([
-      { gone: false, id: itemId, kind: "item", seq },
-      ...[...landing.annotations.changed].map((id) => ({
-        gone: false,
-        id,
-        kind: "annotation" as const,
-        seq,
-      })),
-    ]),
-  );
+  runPlan(storage, recordChanges([{ gone: false, id: itemId, kind: "item", seq }]));
   return {
     card: derived.card,
     fields: after.fields,

@@ -47,8 +47,8 @@ const collectGarbage = (sql: SqlStatements, itemId: string, now: number): void =
   const named = new Set<string>();
   const manifests = new Set<string>();
   for (const raw of sql.all(
-    `SELECT before_fields, before_manifest, before_annotations, after_fields, after_manifest,
-       after_annotations FROM change_set_items WHERE item_id = ?`,
+    `SELECT before_fields, before_manifest, after_fields, after_manifest FROM change_set_items
+     WHERE item_id = ?`,
     [itemId],
   )) {
     const row = refsRowSchema.parse(raw);

@@ -39,11 +39,10 @@ and cited.
   `replica-commands.ts`.
 
 - **THE SYNCED TABLES HOLD ONLY WHAT THE CELL SENT, AND THE OUTBOX IS LAID OVER
-  THEM AS A SCREEN READS.** An item, its listing row and its highlights are
-  read with every row naming it laid over, oldest first, a parked one too; a
-  landing writes the answered row and the blocks it wrote at the answer's
-  sequence, and a folder or highlight stands at sequence 0 until the pull
-  replaces it. A save of an address another item holds lists no card of its
+  THEM AS A SCREEN READS.** An item and its listing row are read with every
+  row naming it laid over, oldest first, a parked one too; a landing writes
+  the answered row and the blocks it wrote at the answer's sequence, and a
+  folder stands at sequence 0 until the pull replaces it. A save of an address another item holds lists no card of its
   own. A make shows by the field rules the cell lands it by, so a card reads
   alike on both sides of its landing. Residuals: search finds an unsent edit's
   words once it lands, and an unsent delete in Deleted's search once it lands; a
@@ -90,7 +89,7 @@ and cited.
   `outbox-ops.ts`.
 
 - **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR THE REST OF THE
-  RUN.** An item's read, its highlights, a write and the change feed take
+  RUN.** An item's read, a write and the change feed take
   the id a make was queued under to the item the cell folded it onto, so a screen
   open on the card stays open through the fold, its unsaved words going on to that
   item and a write past its check landing there. A write landing on that item

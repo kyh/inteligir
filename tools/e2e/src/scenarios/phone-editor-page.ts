@@ -125,8 +125,8 @@ const ITEM = heldOf([
 // The phone's end of the bridge, run in the page as react-native-webview would host it, standing
 // in for its replica and its file cache: it records every frame, answers the item it holds, the
 // items a link can name, the one picture it holds, each write with the outcome the drive queued
-// for it (else queued for the cell), and each highlight as queued, through the door the page
-// installed, as the native end's injection does.
+// for it (else queued for the cell), through the door the page installed, as the native end's
+// injection does.
 const PHONE_SCRIPT = `(() => {
   const nonce = ${JSON.stringify(NONCE)};
   const itemId = ${JSON.stringify(ITEM_ID)};
@@ -146,12 +146,6 @@ const PHONE_SCRIPT = `(() => {
     if (request.kind === "readFile") {
       const held = request.payload.sha === ${JSON.stringify(PICTURE_SHA)};
       return { ok: true, result: { file: held ? picture : null } };
-    }
-    if (request.kind === "addHighlight" || request.kind === "noteHighlight") {
-      return { ok: true, result: { queued: true } };
-    }
-    if (request.kind === "highlightIds") {
-      return { ok: true, result: { ids: [] } };
     }
     return { error: "the scripted phone does not answer " + request.kind, ok: false };
   };

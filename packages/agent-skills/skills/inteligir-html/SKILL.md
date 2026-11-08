@@ -6,7 +6,7 @@ show — a mock-up of a screen, a styled comparison, a layout worth seeing befor
 the team commits to it.
 
 **Do not rebuild what the editor already has.** Tables, tabs, toggles,
-columns, callouts, checklists, charts, and annotations are real blocks: they are
+columns, callouts, checklists and charts are real blocks: they are
 searchable, they round-trip, and they read as text in every other markdown
 tool. An HTML copy of one is a dead end.
 

@@ -15,7 +15,6 @@ import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type {
-  annotationOpSchema,
   conflictCurrentSchema,
   folderOpSchema,
   libraryChangeSchema,
@@ -49,9 +48,7 @@ import type { ReplicaTransport } from "../replica-ports";
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
-type AnnotationOp = z.infer<typeof annotationOpSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
-type AnnotationRow = Exclude<Extract<LibraryChange, { kind: "annotation" }>["row"], null>;
 type FolderRow = Extract<LibraryChange, { kind: "folder" }>["row"];
 type ChangeKind = LibraryChange["kind"];
 
@@ -60,14 +57,6 @@ interface CellItem {
   readonly blocks: ReadonlyMap<string, StoredBlock>;
   readonly seq: number;
   readonly updatedAt: number;
-}
-
-// a write's highlight ops: the conflicts they met, else how they land
-interface AnnotationSettle {
-  readonly conflicts: readonly ConflictCurrent[];
-  // whether any op changes a highlight
-  readonly lands: boolean;
-  readonly land: () => void;
 }
 
 interface Entry {
@@ -89,7 +78,6 @@ export interface FakeCell {
   readonly device: (name: string) => FakeDevice;
   readonly item: (id: string) => CellItem | null;
   readonly items: () => ReadonlyMap<string, CellItem>;
-  readonly annotation: (id: string) => AnnotationRow | null;
   readonly folder: (id: string) => FolderRow | null;
   readonly head: () => number;
   // the library under a new epoch, its rows kept, as a restore leaves it
@@ -211,7 +199,6 @@ export const createFakeCell = (): FakeCell => {
   let signedOut = false;
   let signIns = 0;
   const items = new Map<string, CellItem>();
-  const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
   const log = new Map<string, Entry>();
   // each file's bytes, and its type as its upload named it
@@ -275,75 +262,6 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // a write's highlight ops: the conflicts they meet, else what they leave
-  const settleAnnotations = (
-    itemId: string,
-    ops: readonly AnnotationOp[],
-    seq: number,
-  ): AnnotationSettle => {
-    const conflicts: ConflictCurrent[] = [];
-    const lands: (() => void)[] = [];
-    for (const op of ops) {
-      const held = annotations.get(op.id);
-      switch (op.op) {
-        case "add": {
-          if (held === undefined) {
-            lands.push(() => {
-              annotations.set(op.id, {
-                createdAt: op.createdAt,
-                deletedAt: null,
-                id: op.id,
-                itemId,
-                occurrence: op.occurrence,
-                parentId: op.parentId,
-                quote: op.quote,
-                seq,
-                source: "user",
-                text: op.text,
-                updatedAt: op.createdAt,
-              });
-              record("annotation", op.id, seq);
-            });
-          } else if (held.itemId !== itemId) {
-            conflicts.push({ current: held, id: op.id, itemId, kind: "annotation" });
-          }
-          break;
-        }
-        case "note":
-        case "remove": {
-          if (held === undefined || held.deletedAt !== null) {
-            if (op.op === "note") {
-              conflicts.push({ current: null, id: op.id, itemId, kind: "annotation" });
-            }
-          } else if (held.text === op.base) {
-            lands.push(() => {
-              annotations.set(
-                op.id,
-                op.op === "note"
-                  ? { ...held, seq, text: op.text }
-                  : { ...held, deletedAt: Math.floor(NOW / 1000), seq },
-              );
-              record("annotation", op.id, seq);
-            });
-          } else {
-            conflicts.push({ current: held, id: op.id, itemId, kind: "annotation" });
-          }
-          break;
-        }
-        // no default
-      }
-    }
-    return {
-      conflicts,
-      lands: lands.length > 0,
-      land: () => {
-        for (const step of lands) {
-          step();
-        }
-      },
-    };
-  };
-
   // the live item at an address, which a save folds onto
   const holderOf = (url: string): string | null => {
     const key = urlKey(url);
@@ -368,11 +286,7 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  const write = (input: {
-    readonly itemId: string;
-    readonly ops: readonly LibraryOp[];
-    readonly annotations?: readonly AnnotationOp[] | undefined;
-  }) => {
+  const write = (input: { readonly itemId: string; readonly ops: readonly LibraryOp[] }) => {
     const item = items.get(input.itemId);
     if (item === undefined) {
       throw new NotFoundError();
@@ -390,14 +304,11 @@ export const createFakeCell = (): FakeCell => {
     }
     needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyOps({ blocks: item.blocks, fields: item.fields }, input.ops);
-    const notes = settleAnnotations(input.itemId, input.annotations ?? [], head + 1);
-    const conflicts = [
-      ...(outcome.kind === "conflict"
+    throwConflicts(
+      outcome.kind === "conflict"
         ? outcome.conflicts.map((conflict) => currentOf(input.itemId, conflict))
-        : []),
-      ...notes.conflicts,
-    ];
-    throwConflicts(conflicts);
+        : [],
+    );
     if (outcome.kind === "invalid") {
       throw new PayloadTooLargeError();
     }
@@ -407,17 +318,10 @@ export const createFakeCell = (): FakeCell => {
     refuseHeldAddress(input.itemId, outcome.state.fields);
     const { touched } = outcome;
     // every op already true, a resend's after its answer was let go: the item as it stands
-    if (
-      touched.blocks.size === 0 &&
-      touched.dropped.size === 0 &&
-      !touched.fields &&
-      !notes.lands
-    ) {
+    if (touched.blocks.size === 0 && touched.dropped.size === 0 && !touched.fields) {
       return { item: liveRow(input.itemId, item) };
     }
-    const landed = land(input.itemId, outcome.state.fields, outcome.state.blocks);
-    notes.land();
-    return landed;
+    return land(input.itemId, outcome.state.fields, outcome.state.blocks);
   };
 
   const held = (id: string): CellItem => {
@@ -504,14 +408,6 @@ export const createFakeCell = (): FakeCell => {
           id: entry.id,
           kind: "item",
           row: liveRow(entry.id, held(entry.id)),
-          seq: entry.seq,
-        };
-      }
-      case "annotation": {
-        return {
-          id: entry.id,
-          kind: "annotation",
-          row: annotations.get(entry.id) ?? null,
           seq: entry.seq,
         };
       }
@@ -756,7 +652,6 @@ export const createFakeCell = (): FakeCell => {
   };
 
   return {
-    annotation: (id) => annotations.get(id) ?? null,
     calls,
     device: (name) => {
       let offline = false;

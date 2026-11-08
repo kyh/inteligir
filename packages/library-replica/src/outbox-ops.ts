@@ -5,7 +5,6 @@
 // offline typing is one write on the first base.
 
 import {
-  annotationOpSchema,
   folderOpSchema,
   idSchema,
   MARKDOWN_MAX,
@@ -13,7 +12,6 @@ import {
   placedBlockSchema,
   shaSchema,
 } from "@repo/contract/cloud/library/library-wire";
-import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
 import { blockHash } from "@repo/notes/library/block-hash";
 import {
   blockHashSchema,
@@ -48,7 +46,6 @@ const stagedSchema = z.strictObject({ mime: z.string().min(1).max(255), sha: sha
 export type StagedFile = z.infer<typeof stagedSchema>;
 
 const writeSchema = z.strictObject({
-  annotations: z.array(annotationOpSchema),
   // each `put`'s block as the write was computed from it, by block id
   bases: z.record(blockIdSchema, heldBlockSchema),
   itemId: idSchema,
@@ -100,7 +97,6 @@ const saveSchema = z.strictObject({
     id: newIdSchema,
     note: z.string().max(MARKDOWN_MAX).optional(),
     savedAt: FIELDS.savedAt,
-    selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).nullable(),
     tags: FIELDS.tags,
     title: FIELDS.title,
     url: FIELDS.url.unwrap(),
@@ -144,8 +140,6 @@ export const outboxOpSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("folders"), ops: z.array(folderOpSchema).min(1) }),
 ]);
 export type OutboxOp = z.infer<typeof outboxOpSchema>;
-
-type AnnotationOp = WriteOp["annotations"][number];
 
 // the items a row changes: the overlay lays it over each, and a parked one holds their later rows
 export const itemIdsOf = (op: OutboxOp): readonly string[] => {
@@ -490,65 +484,9 @@ export const compactOps = (ops: readonly LibraryOp[]): LibraryOp[] => {
   ];
 };
 
-type AnnotationAdd = Extract<AnnotationOp, { op: "add" }>;
-
-// one highlight's ops as one: an add carrying its last note, a note from the first base to the
-// last text, a removal on the first base; null for a run whose bases do not follow its texts
-const compactAnnotation = (ops: readonly AnnotationOp[]): readonly AnnotationOp[] | null => {
-  let added: AnnotationAdd | null = null;
-  let firstBase: string | null = null;
-  let text: string | null = null;
-  let removed = false;
-  for (const [index, op] of ops.entries()) {
-    if (removed) {
-      return null;
-    }
-    switch (op.op) {
-      case "add": {
-        if (index !== 0) {
-          return null;
-        }
-        added = op;
-        ({ text } = op);
-        break;
-      }
-      case "note":
-      case "remove": {
-        if (text !== null && op.base !== text) {
-          return null;
-        }
-        firstBase ??= op.base;
-        if (op.op === "note") {
-          ({ text } = op);
-        } else {
-          removed = true;
-        }
-        break;
-      }
-      // no default
-    }
-  }
-  if (added !== null) {
-    return removed ? [] : [{ ...added, text: text ?? added.text }];
-  }
-  if (firstBase === null) {
-    return [];
-  }
-  const id = ops[0]?.id ?? "";
-  if (removed) {
-    return [{ base: firstBase, id, op: "remove" }];
-  }
-  return text === null || text === firstBase ? [] : [{ base: firstBase, id, op: "note", text }];
-};
-
-/** @internal */
-export const compactAnnotations = (ops: readonly AnnotationOp[]): AnnotationOp[] =>
-  [...groupsOf(ops, (op) => op.id).values()].flatMap((group) => compactAnnotation(group) ?? group);
-
 // a later write to an item while the row before it still waits to go: one batch on the first
 // bases, keeping the first base block each put named
 export const coalesceWrites = (queued: WriteOp, next: WriteOp): WriteOp => ({
-  annotations: compactAnnotations([...queued.annotations, ...next.annotations]),
   bases: { ...next.bases, ...queued.bases },
   itemId: queued.itemId,
   kind: "write",
@@ -575,7 +513,7 @@ export const unmadeOp = (op: OutboxOp, gone: ReadonlySet<string>): OutboxOp | nu
             : libraryOp,
         ),
       );
-      return ops.length === 0 && op.annotations.length === 0 ? null : { ...op, ops };
+      return ops.length === 0 ? null : { ...op, ops };
     }
     case "create": {
       return { ...op, input: { ...op.input, folderId: standing(op.input.folderId) } };

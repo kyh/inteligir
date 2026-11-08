@@ -62,7 +62,14 @@ const BACKUP = csvOf([
     "",
   ],
 ]);
-const QUOTES = ["A third one.", "Apps are ephemeral.", "Files last."];
+// the bookmark's note, then each highlight quoted with its own note under it, the duplicate's last
+const QUOTED_NOTE = [
+  "For Tuesday.",
+  "> Files last.",
+  "The point.",
+  "> Apps are ephemeral.",
+  "> A third one.",
+].join("\n\n");
 
 // a backup imported into the account's library over the one wire: the cell runs the job, every
 // link lands unread in its collection's folder and the Worker's own fill consumer reads each,
@@ -87,7 +94,6 @@ const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWor
   expectEq(done.job.added, 3, "links the cloud import added");
   expectEq(done.job.alreadySaved, 1, "rows folded into another of the same link");
   expectEq(done.job.skipped, 1, "rows left out");
-  expectEq(done.job.highlights, 3, "highlights the cloud import kept");
 
   ctx.log("every link in its collection's folder, with its tags and its pin");
   const { folders, tags } = await library.organize.outline();
@@ -116,16 +122,10 @@ const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWor
     expect(listed.has(tag), `the library's tags hold #${tag}: ${[...listed].join(", ")}`);
   }
   expect(fileOverApp !== undefined, "File over app was imported");
-  const { highlights } = await library.annotations.list({ itemId: fileOverApp.id });
-  expectEq(
-    highlights.map((highlight) => highlight.quote ?? "").toSorted(),
-    QUOTES,
-    "the highlights' quotes, the duplicate's folded in",
-  );
-  expectEq(
-    highlights.find((highlight) => highlight.quote === "Files last.")?.text,
-    "The point.",
-    "a highlight's note",
+  const { view } = await library.items.read({ id: fileOverApp.id });
+  expect(
+    view.markdown.includes(QUOTED_NOTE),
+    `its highlights quoted in its note, the duplicate's folded in:\n${view.markdown}`,
   );
 
   ctx.log("the Worker's fill consumer reads each link and says why it could not");
@@ -174,7 +174,7 @@ const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWor
 
 export const raindropImport: Scenario = {
   description:
-    "a Raindrop backup imported into the cloud library over the one wire puts its links in their collections' folders with their tags, pins and highlights, a duplicate folded in and the bin left out; each lands unread and the Worker's fill consumer reads it, and a re-import adds nothing",
+    "a Raindrop backup imported into the cloud library over the one wire puts its links in their collections' folders with their tags, pins and highlights quoted in their notes, a duplicate folded in and the bin left out; each lands unread and the Worker's fill consumer reads it, and a re-import adds nothing",
   name: "raindrop-import",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

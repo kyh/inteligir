@@ -8,16 +8,11 @@ describe("the right-click Save", () => {
       ["page", "Save page"],
       ["link", "Save link"],
       ["image", "Save image"],
-      ["selection", "Save as a highlight"],
     ]);
   });
 
-  it("reads the tab for a page or a selection", () => {
+  it("reads the tab for a page", () => {
     expect(menuAction({ menuItemId: "save-page" })).toStrictEqual({ kind: "page" });
-    expect(menuAction({ menuItemId: "save-selection", selectionText: "a passage" })).toStrictEqual({
-      kind: "selection",
-      text: "a passage",
-    });
   });
 
   it("saves a link or a web picture by the address the click names, and nothing off the web", () => {

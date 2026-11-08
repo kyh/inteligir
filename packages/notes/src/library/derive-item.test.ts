@@ -14,10 +14,7 @@ const linked: LibraryBlock = {
     { children: leaf, itemId: null, title: "Not Yet", type: "wikiLink", heading: "Part" },
     { text: ", " },
     { children: [{ text: "the site" }], type: "a", url: "https://www.example.com/a?utm_source=x" },
-    { text: " #Work/plans " },
-    { children: leaf, edge: "start", ids: "h1,h2", type: "annotationMarker" },
-    { text: "marked" },
-    { children: leaf, edge: "end", ids: "h1,h2", type: "annotationMarker" },
+    { text: " #Work/plans marked" },
   ],
   id: "p2",
   type: "p",
@@ -105,10 +102,9 @@ describe(deriveItem, () => {
     ]);
   });
 
-  it("gives each block its text and the highlights it anchors", () => {
+  it("gives each block its text", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
     expect(derived.blocks.get("p2")).toStrictEqual({
-      annotationIds: ["h1", "h2"],
       text: "See Other and Not Yet, the site #Work/plans marked",
     });
   });

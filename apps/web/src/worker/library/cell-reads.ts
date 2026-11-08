@@ -2,11 +2,10 @@
 // search's filters through the same in-memory index a replica keeps (`@repo/notes/library/
 // library-index`), built over the cell's rows for the one call; an item as its markdown view,
 // paged by block position and cut to a page an agent's tool result can carry; the folder tree and
-// tags; highlights; and the change sets Undo takes back. Times an agent reads are ISO 8601.
+// tags; and the change sets Undo takes back. Times an agent reads are ISO 8601.
 
 import type {
   changeSetSchema,
-  highlightSchema,
   itemReadSchema,
   itemSummarySchema,
   searchHitSchema,
@@ -49,12 +48,11 @@ import { refuse } from "./cell-refusal";
 type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
 type ItemRead = z.infer<typeof itemReadSchema>;
-type Highlight = z.infer<typeof highlightSchema>;
 type ChangeSet = z.infer<typeof changeSetSchema>;
 
 export type ResponseFormat = "concise" | "detailed";
 
-export const isoOf = (ms: number): string => new Date(ms).toISOString();
+const isoOf = (ms: number): string => new Date(ms).toISOString();
 
 // ---- pages ----
 
@@ -391,11 +389,6 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
     ...(item.urlKey === null ? [] : runPlan(sql, linksToUrl(item.urlKey))),
   ]);
   into.delete(input.id);
-  const [counted] = sql.all(
-    `SELECT count(*) AS count FROM annotations
-     WHERE item_id = ? AND parent_id IS NULL AND deleted_at IS NULL`,
-    [input.id],
-  );
   const { fields } = item;
   const detailed = input.responseFormat === "detailed";
   return {
@@ -417,7 +410,6 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
       title: item.card.title,
       url: fields.url,
     },
-    highlights: countRowSchema.parse(counted).count,
     id: input.id,
     links: { in: linkedItems(sql, into), out: linkedItems(sql, out) },
     seq: item.seq,
@@ -451,97 +443,6 @@ export const outlineOf = (sql: SqlStatements) => {
         [],
       )
       .map((row) => tagCountSchema.parse(row)),
-  };
-};
-
-// ---- highlights ----
-
-const highlightRowSchema = z.object({
-  card: z.string(),
-  created_at: z.number(),
-  id: z.string(),
-  item_id: z.string(),
-  quote: z.string().nullable(),
-  text: z.string(),
-});
-const replyRowSchema = z.object({
-  created_at: z.number(),
-  id: z.string(),
-  parent_id: z.string(),
-  text: z.string(),
-});
-
-export interface HighlightsInput {
-  readonly cursor?: string | undefined;
-  readonly itemId?: string | undefined;
-  readonly limit: number;
-  // a date, from whose start on highlights are listed
-  readonly since?: string | undefined;
-}
-
-// whether the highlight's markers stand in its item's text: a block anchors it
-const isPlaced = (sql: SqlStatements, itemId: string, id: string): boolean =>
-  sql.all("SELECT 1 FROM blocks WHERE item_id = ? AND instr(annotation_ids, ?) > 0 LIMIT 1", [
-    itemId,
-    JSON.stringify(id),
-  ]).length > 0;
-
-// a highlight's times are unix seconds, as its row keeps them
-const isoOfSeconds = (seconds: number): string => isoOf(seconds * 1000);
-
-export const listHighlights = (sql: SqlStatements, input: HighlightsInput) => {
-  const offset = offsetOf(input.cursor);
-  const where = [
-    "a.parent_id IS NULL",
-    "a.deleted_at IS NULL",
-    "items.purged = 0",
-    "items.deleted_at IS NULL",
-    ...(input.itemId === undefined ? [] : ["a.item_id = ?"]),
-    ...(input.since === undefined ? [] : ["a.created_at >= ?"]),
-  ];
-  const params = [
-    ...(input.itemId === undefined ? [] : [input.itemId]),
-    ...(input.since === undefined ? [] : [Math.floor(Date.parse(input.since) / 1000)]),
-  ];
-  const rows = sql
-    .all(
-      `SELECT a.id AS id, a.item_id AS item_id, a.quote AS quote, a.text AS text,
-         a.created_at AS created_at, items.card AS card
-       FROM annotations a JOIN items ON items.id = a.item_id
-       WHERE ${where.join(" AND ")}
-       ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`,
-      [...params, input.limit + 1, offset],
-    )
-    .map((row) => highlightRowSchema.parse(row));
-  const shown = rows.slice(0, input.limit);
-  const replies = new Map<string, Highlight["replies"][number][]>();
-  for (const statement of chunkStatement({
-    each: "?",
-    head: `SELECT id, parent_id, text, created_at FROM annotations
-      WHERE deleted_at IS NULL AND parent_id IN (`,
-    rows: shown.map((row) => [row.id]),
-    separator: ", ",
-    tail: ") ORDER BY created_at, id",
-  })) {
-    for (const raw of sql.all(statement.sql, statement.params)) {
-      const reply = replyRowSchema.parse(raw);
-      const held = replies.get(reply.parent_id) ?? [];
-      held.push({ createdAt: isoOfSeconds(reply.created_at), id: reply.id, text: reply.text });
-      replies.set(reply.parent_id, held);
-    }
-  }
-  return {
-    cursor: rows.length > input.limit ? String(offset + input.limit) : null,
-    highlights: shown.map((row): Highlight => ({
-      createdAt: isoOfSeconds(row.created_at),
-      id: row.id,
-      itemId: row.item_id,
-      itemTitle: jsonTextSchema.pipe(itemCardSchema).parse(row.card).title,
-      placed: isPlaced(sql, row.item_id, row.id),
-      quote: row.quote,
-      replies: replies.get(row.id) ?? [],
-      text: row.text,
-    })),
   };
 };
 

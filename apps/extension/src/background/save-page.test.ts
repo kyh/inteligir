@@ -54,7 +54,6 @@ const TAB = { id: 7, title: "File over app — Steph Ango", url: URL_SAVED };
 
 const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
   html: ARTICLE_HTML,
-  selection: PASSAGE,
   title: "File over app",
   url: URL_SAVED,
   ...overrides,
@@ -90,7 +89,7 @@ const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } 
 };
 
 describe("a tab saved", () => {
-  it("is read here and saved read: its article, its facts, its cover and the passage selected", async () => {
+  it("is read here and saved read: its article, its facts and its cover", async () => {
     const cloud = fakeCloud({});
     const run = depsWith(cloud);
     await expect(saveTab(run.deps, { tab: TAB })).resolves.toStrictEqual({
@@ -103,7 +102,6 @@ describe("a tab saved", () => {
       coverSha: "c".repeat(64),
       facts: { author: "Steph Ango" },
       folderId: null,
-      selection: PASSAGE,
       tags: [],
       title: "File over app",
       url: URL_SAVED,
@@ -141,13 +139,13 @@ describe("a tab saved", () => {
     });
   });
 
-  it("is saved as its link, with the browser's own reading of the selection, when it cannot be scripted", async () => {
+  it("is saved as its link when it cannot be scripted", async () => {
     const cloud = fakeCloud({});
     const run = depsWith(cloud, { captured: null });
-    await saveTab(run.deps, { selectionText: `  ${PASSAGE} `, tab: TAB });
+    await saveTab(run.deps, { tab: TAB });
     expect(cloud.saves).toStrictEqual([]);
     expect(cloud.links).toStrictEqual([
-      expect.objectContaining({ selection: PASSAGE, title: TAB.title, url: URL_SAVED }),
+      expect.objectContaining({ title: TAB.title, url: URL_SAVED }),
     ]);
   });
 
@@ -172,9 +170,7 @@ describe("a tab saved", () => {
   it("is saved as its link, for the cloud to read, when its page is past the capture's cap", async () => {
     const cloud = fakeCloud({});
     await saveTab(depsWith(cloud, { captured: page({ html: null }) }).deps, { tab: TAB });
-    expect(cloud.links).toStrictEqual([
-      expect.objectContaining({ selection: PASSAGE, url: URL_SAVED }),
-    ]);
+    expect(cloud.links).toStrictEqual([expect.objectContaining({ url: URL_SAVED })]);
   });
 
   it("is saved as its link, for the cloud to read, when it held no text the reader could keep", async () => {
@@ -190,7 +186,7 @@ describe("a tab saved", () => {
     });
     expect(cloud.saves).toStrictEqual([]);
     expect(cloud.links).toStrictEqual([
-      expect.objectContaining({ selection: PASSAGE, title: "A shell", url: URL_SAVED }),
+      expect.objectContaining({ title: "A shell", url: URL_SAVED }),
     ]);
   });
 
@@ -210,7 +206,6 @@ describe("a tab saved", () => {
         expect.objectContaining({
           id: save?.id,
           opId: save?.opId,
-          selection: PASSAGE,
           url: URL_SAVED,
         }),
       ]);
@@ -246,7 +241,7 @@ describe("a tab saved", () => {
     }
   });
 
-  it("waits, as its address, title and passage alone, when the cloud does not answer", async () => {
+  it("waits, as its address and title alone, when the cloud does not answer", async () => {
     const cloud = fakeCloud({
       save: async () => {
         throw new TypeError("Failed to fetch");
@@ -258,7 +253,6 @@ describe("a tab saved", () => {
     const [queued] = await queuedSaves();
     expect(queued).toMatchObject({
       deviceId: MINTED.deviceId,
-      selection: PASSAGE,
       title: "File over app",
       url: URL_SAVED,
     });
@@ -268,7 +262,6 @@ describe("a tab saved", () => {
       "id",
       "opId",
       "savedAt",
-      "selection",
       "title",
       "url",
     ]);

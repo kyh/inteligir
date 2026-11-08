@@ -5,7 +5,6 @@ import { ElementApi, createSlateEditor } from "platejs";
 import type { Descendant, SlateEditor, TElement } from "platejs";
 
 import { DragKit } from "@repo/editor/block-draggable";
-import { AnnotationGutterKit } from "@repo/editor/annotations/annotation-gutter";
 import { FindBarKit } from "@repo/editor/find-bar";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { BlockMenuKit } from "@repo/editor/kits/block-menu-kit";
@@ -41,13 +40,7 @@ const kitKeys = {
   desktopChrome: keysOf(createSlateEditor({ plugins: DESKTOP_CHROME_KIT })),
   pointerChrome: keysOf(
     createSlateEditor({
-      plugins: [
-        ...AnnotationGutterKit,
-        ...FindBarKit,
-        ...DragKit,
-        ...BlockMenuKit,
-        ...FloatingToolbarKit,
-      ],
+      plugins: [...FindBarKit, ...DragKit, ...BlockMenuKit, ...FloatingToolbarKit],
     }),
   ),
   touch: keysOf(createSlateEditor({ plugins: TOUCH_EDITOR_KIT })),

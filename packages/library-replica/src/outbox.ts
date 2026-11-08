@@ -49,7 +49,6 @@ import type {
 } from "./replica-ports";
 import {
   bodyToCome,
-  landOwnAnnotations,
   landOwnFolders,
   landOwnRow,
   markDeleted,
@@ -491,7 +490,6 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   const sendWrite = async (row: OutboxRow, op: WriteOp): Promise<SendOutcome> => {
     const [error, answer] = await safe(
       client.library.write({
-        annotations: op.annotations,
         itemId: op.itemId,
         opId: row.opId,
         ops: op.ops,
@@ -501,18 +499,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "closed" };
     }
     if (error === null) {
-      const atSeconds = Math.floor(context.clock.now() / 1000);
-      const touched = touchedItems([op.itemId]);
-      if (op.annotations.length > 0) {
-        touched.kinds.add("annotation");
-      }
       return await land(
         row,
         function* landed() {
           yield* landOwnRow(answer.item, yield* blocksLanded(op, row.createdAt));
-          yield* landOwnAnnotations(op.itemId, op.annotations, atSeconds);
         },
-        touched,
+        touchedItems([op.itemId]),
       );
     }
     return await refused(row, error, async () => {
@@ -528,10 +520,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
             return null;
           }
           return await (async () => {
-            const outcome = await settleWrite(op, current, {
-              merge: context.merge,
-              newId: context.newId,
-            });
+            const outcome = await settleWrite(op, current, { merge: context.merge });
             const overlapped = outcome.kind === "resend" && outcome.overlapped;
             return await settled(row, outcome, (again) => again, overlapped ? [op.itemId] : []);
           })();
@@ -718,7 +707,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return;
     }
     const joined = coalesceWrites(last.op, op);
-    if (joined.ops.length === 0 && joined.annotations.length === 0) {
+    if (joined.ops.length === 0) {
       await sql.exclusive(async (tx) => {
         await runPlanAsync(tx, deleteRow(last.seq));
       });

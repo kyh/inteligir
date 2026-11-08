@@ -63,12 +63,10 @@ const extensionOutcomeSchema = z.discriminatedUnion("kind", [
 export type ExtensionOutcome = z.infer<typeof extensionOutcomeSchema>;
 
 // from an extension page, as the popup asks: the worker reads the tab at `pageUrl` (a loopback
-// page, which the dev build may script without a click) and saves it. `select` first selects the
-// element of that id in the tab, as a person would before saving
+// page, which the dev build may script without a click) and saves it
 export const saveFromWorker = async (
   browser: AgentBrowser,
   pageUrl: string,
-  select: string | null,
 ): Promise<ExtensionOutcome> =>
   parseEval(
     await browser(
@@ -77,17 +75,6 @@ export const saveFromWorker = async (
         `(async () => {
           const [tab] = await chrome.tabs.query({ url: ${JSON.stringify(pageUrl)} });
           if (tab === undefined) return JSON.stringify({ kind: "no-tab" });
-          const select = ${JSON.stringify(select)};
-          if (select !== null) {
-            await chrome.scripting.executeScript({
-              args: [select],
-              func: (id) => {
-                const node = document.getElementById(id);
-                if (node !== null) window.getSelection()?.selectAllChildren(node);
-              },
-              target: { tabId: tab.id },
-            });
-          }
           return JSON.stringify(await chrome.runtime.sendMessage({ tabId: tab.id, type: "save" }));
         })()`,
       ],
@@ -96,9 +83,7 @@ export const saveFromWorker = async (
     extensionOutcomeSchema,
   );
 
-const queuedSchema = z.array(
-  z.looseObject({ selection: z.string().nullable(), title: z.string(), url: z.string() }),
-);
+const queuedSchema = z.array(z.looseObject({ title: z.string(), url: z.string() }));
 
 // the saves the worker keeps waiting, as its storage holds them, from an extension page
 export const queuedSaves = async (browser: AgentBrowser) =>

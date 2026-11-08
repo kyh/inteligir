@@ -18,7 +18,7 @@ src/routes/         TanStack Router file routes under the /library basepath:
 src/app/cloud/      the /v1 client and its query utils, the replica's queries,
                     the page's library context, "Needs a connection"
 src/app/            the workspace: the rail, the grid, the open item, the panel
-                    (Info, Highlights, the agent), the palette, Settings
+                    (Info, the agent), the palette, Settings
 src/shell/          what the page says to the Tauri shell: one command per row of
                     ipc-contract.ts, and shell-commands.ts, the one door that
                     parses every answer

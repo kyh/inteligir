@@ -7,14 +7,7 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
 import { describe, expect, it } from "vitest";
 
-import {
-  coalesceWrites,
-  compactAnnotations,
-  compactOps,
-  repointedOp,
-  shasNamed,
-  unmadeOp,
-} from "./outbox-ops";
+import { coalesceWrites, compactOps, repointedOp, shasNamed, unmadeOp } from "./outbox-ops";
 import type { WriteOp } from "./outbox-ops";
 import { paragraph } from "./test-support/replica-harness";
 
@@ -190,27 +183,9 @@ describe("an outbox row's compaction", () => {
     }
   });
 
-  it("carries a highlight's last note into its add, and lets an add then a removal go", () => {
-    const add = {
-      createdAt: 1,
-      id: "h1",
-      occurrence: null,
-      op: "add" as const,
-      parentId: null,
-      quote: "a passage",
-      text: "",
-    };
-    const note = { base: "", id: "h1", op: "note" as const, text: "why it matters" };
-    expect(compactAnnotations([add, note])).toStrictEqual([{ ...add, text: "why it matters" }]);
-    expect(
-      compactAnnotations([add, note, { base: "why it matters", id: "h1", op: "remove" }]),
-    ).toStrictEqual([]);
-  });
-
   it("joins a later write to the queued one on the first bases, staging each file once", () => {
     const state = itemOf(held("p1", "a", "a0"));
     const first: WriteOp = {
-      annotations: [],
       bases: { p1: held("p1", "a", "a0") },
       itemId: "01900000-0000-7000-8000-000000000001",
       kind: "write",
@@ -246,7 +221,6 @@ const picture = (id: string, sha: string): LibraryBlock => ({
 describe(shasNamed, () => {
   it("names the files a write's puts and inserts embed, never a drop's", () => {
     const op: WriteOp = {
-      annotations: [],
       bases: {},
       itemId: "item-1",
       kind: "write",
@@ -281,8 +255,7 @@ describe(shasNamed, () => {
   });
 });
 
-const writeOf = (ops: LibraryOp[], annotations: WriteOp["annotations"] = []): WriteOp => ({
-  annotations,
+const writeOf = (ops: LibraryOp[]): WriteOp => ({
   bases: {},
   itemId: "item",
   kind: "write",
@@ -305,8 +278,6 @@ describe(unmadeOp, () => {
     expect(unmadeOp(writeOf([filed]), gone)).toBeNull();
     const titled: LibraryOp = { base: "Old", field: "title", op: "set", value: "New" };
     expect(unmadeOp(writeOf([filed, titled]), gone)).toStrictEqual(writeOf([titled]));
-    const noted: WriteOp["annotations"][number] = { base: "a", id: "h1", op: "note", text: "b" };
-    expect(unmadeOp(writeOf([filed], [noted]), gone)).toStrictEqual(writeOf([], [noted]));
   });
 
   it("leaves a link saved to another folder where it asked", () => {
@@ -349,7 +320,6 @@ describe(unmadeOp, () => {
 describe(repointedOp, () => {
   it("takes a write on the folded make to the item it landed on", () => {
     const write: WriteOp = {
-      annotations: [],
       bases: {},
       itemId: "card",
       kind: "write",

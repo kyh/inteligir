@@ -43,7 +43,6 @@ src/
                        # ops over the host's store, the block diff, its
                        # properties and the line a merge that kept this device's
                        # lines says
-  annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the panel of an item's typed properties
@@ -101,11 +100,11 @@ src/
   item editor (`generateLongNote`, `test-support/memory-item.tsx`) and fails
   on a whole-note pass no row names, on a keystroke, a caret move or the settle
   after typing. A pass a keystroke cannot afford caches by top-level block (the
-  outline, the gutter's ids), which an edit replaces while keeping every other
+  outline), which an edit replaces while keeping every other
   by identity.
 - **View state keys by the open item.** The item editor provides the id of the
   item it shows (`open-item.tsx`), and every module holding view state —
-  heading folds and a highlight's tint and pending note included — keys by
+  heading folds included — keys by
   that id: a module outlives the document it describes, so a late answer must
   not land on the item that replaced it.
 
@@ -124,7 +123,7 @@ src/
   `titleOf`, subscribed to rather than read, because it
   moves with the library while the actions never do). Its `EditorHostActions`
   are what the editor asks the shell for (Ask agent and a `#tag` chip's
-  `showTag`, an annotation's create, edit and open, and the note an extract or
+  `showTag`, and the note an extract or
   a link's Create makes, `items.createNote`), every one required, so a host
   that leaves one out fails to typecheck rather than drawing a button that does
   nothing. Each host installs it once, through `installEditorHost`, ahead of
@@ -154,8 +153,7 @@ src/
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the registry the shell reaches a mounted editor through
-  by the id of the item it holds (a find's jump, a highlight's quote in the
-  panel, an extract's check that its item is still the one open);
+  by the id of the item it holds (a find's jump, an extract's check that its item is still the one open);
   `liveEditorItemId` answers the id an editor holds, and `getLiveEditor`
   whether it still answers for it.
 

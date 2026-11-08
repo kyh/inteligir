@@ -18,14 +18,13 @@ export type ImportSource = (typeof IMPORT_SOURCES)[number];
 type ImportState = (typeof IMPORT_STATES)[number];
 type ImportPhase = (typeof IMPORT_PHASES)[number];
 
-const COUNTS = ["added", "alreadySaved", "skipped", "unreadable", "highlights"] as const;
+const COUNTS = ["added", "alreadySaved", "skipped", "unreadable"] as const;
 type Count = (typeof COUNTS)[number];
 type ImportCounts = Readonly<Partial<Record<Count, number>>>;
 
 const COUNT_COLUMNS: Readonly<Record<Count, string>> = {
   added: "added",
   alreadySaved: "already_saved",
-  highlights: "highlights",
   skipped: "skipped",
   unreadable: "unreadable",
 };
@@ -42,7 +41,6 @@ export interface ImportJob {
   readonly alreadySaved: number;
   readonly skipped: number;
   readonly unreadable: number;
-  readonly highlights: number;
   readonly changeSetId: string | null;
   readonly message: string | null;
   readonly startedAt: number;
@@ -57,7 +55,6 @@ const rowSchema = z.object({
   change_set_id: z.string().nullable(),
   cursor: count,
   finished_at: z.number().nullable(),
-  highlights: count,
   id: z.string(),
   message: z.string().nullable(),
   phase: z.enum(IMPORT_PHASES),
@@ -71,7 +68,7 @@ const rowSchema = z.object({
 });
 
 const COLUMNS = `id, source, sha, state, phase, cursor, total, added, already_saved, skipped,
-  unreadable, highlights, change_set_id, message, started_at, finished_at`;
+  unreadable, change_set_id, message, started_at, finished_at`;
 
 const jobOf = (raw: SqlRow): ImportJob => {
   const row = rowSchema.parse(raw);
@@ -81,7 +78,6 @@ const jobOf = (raw: SqlRow): ImportJob => {
     changeSetId: row.change_set_id,
     cursor: row.cursor,
     finishedAt: row.finished_at,
-    highlights: row.highlights,
     id: row.id,
     message: row.message,
     phase: row.phase,
@@ -101,7 +97,6 @@ export const importJobView = (job: ImportJob): z.input<typeof importJobSchema> =
   alreadySaved: job.alreadySaved,
   changeSetId: job.changeSetId,
   finishedAt: job.finishedAt,
-  highlights: job.highlights,
   id: job.id,
   message: job.message,
   skipped: job.skipped,
@@ -148,8 +143,8 @@ export const insertImportJob = (
 ): ImportJob => {
   sql.run(
     `INSERT INTO import_jobs (id, source, sha, state, phase, cursor, total, added, already_saved,
-       skipped, unreadable, highlights, change_set_id, message, started_at, finished_at)
-     VALUES (?, ?, ?, 'running', 'reading', 0, 0, 0, 0, 0, 0, 0, NULL, NULL, ?, NULL)`,
+       skipped, unreadable, change_set_id, message, started_at, finished_at)
+     VALUES (?, ?, ?, 'running', 'reading', 0, 0, 0, 0, 0, 0, NULL, NULL, ?, NULL)`,
     [job.id, job.source, job.sha, now],
   );
   runImportNext(sql, job.id, now);

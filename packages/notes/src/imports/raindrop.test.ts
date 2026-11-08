@@ -118,17 +118,25 @@ describe(planRaindropImport, () => {
       description:
         "If you want to create digital artifacts that last, they must be files you can control.",
       folder: "Reading",
-      note: "For Tuesday.",
       pinned: true,
       savedMs: Date.UTC(2023, 6, 1, 9, 12, 30),
       tags: ["philosophy", "files", "ideas", "c"],
       title: "File over app",
     });
-    expect(item?.highlights).toStrictEqual([
-      { quote: "Files last.", text: "The point." },
-      { quote: "Apps are ephemeral, but files are not.", text: "" },
-      { quote: "A third one.", text: "" },
-    ]);
+    expect(item?.note).toBe(
+      [
+        "For Tuesday.",
+        "> Files last.",
+        "The point.",
+        "> Apps are ephemeral,\n> but files are not.",
+        "> A third one.",
+      ].join("\n\n"),
+    );
+  });
+
+  it("writes the highlights of a bookmark with no note of its own as its note", () => {
+    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.note).toBe("> Use the zest.");
+    expect(byUrl.get("https://example.com/deep")?.note).toBe("");
   });
 
   it("nests folders, and files an empty folder and Raindrop's Unsorted in none", () => {
@@ -152,7 +160,6 @@ describe(planRaindropImport, () => {
     );
     const deep = byUrl.get("https://example.com/deep");
     expect(deep?.savedMs).toBe(NOW);
-    expect(deep?.savedSeconds).toBe(NOW / 1000);
   });
 
   it.each(["99999999999999999", "0000-01-01T00:00:00Z", "1969-12-31T23:59:59Z"])(
@@ -188,13 +195,11 @@ describe(planRaindropImport, () => {
     ]);
   });
 
-  it("clips a highlight's quote to the store's limit", () => {
-    const long = "word ".repeat(2000);
+  it("spells a highlight's words as text, never as markdown", () => {
     const [item] = planRaindropImport(
-      rowsOf(`url,highlights\nhttps://a.example/,"${long}"\n`),
+      rowsOf('url,highlights\nhttps://a.example/,"Highlight: *not* [a](link)\nNote: # a note"\n'),
       NOW,
     ).items;
-    expect(item?.highlights[0]?.quote.length).toBeLessThanOrEqual(4000);
-    expect(item?.highlights[0]?.quote.endsWith("…")).toBe(true);
+    expect(item?.note).toBe("> \\*not\\* \\[a]\\(link)\n\n\\# a note");
   });
 });

@@ -12,10 +12,7 @@ import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
 import { formulaNodeFromTyped, isFormulaPill } from "@repo/editor/formulas/formula-entry";
 
-import {
-  annotationMarkerBasePlugin,
-  formulaPillBasePlugin,
-} from "./headless/inline-constructs-base";
+import { formulaPillBasePlugin } from "./headless/inline-constructs-base";
 
 /* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
    the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
@@ -60,14 +57,6 @@ const FormulaPillElement = (props: PlateElementProps) => {
 };
 
 /* oxlint-enable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role */
-
-// Renders nothing: the anchor is plumbing for the annotation surface, not prose.
-const AnnotationMarkerElement = (props: PlateElementProps) => (
-  <PlateElement {...props} as="span" className="inline-block">
-    <span contentEditable={false} aria-hidden className="sr-only" />
-    {props.children}
-  </PlateElement>
-);
 
 const FORMULA_COMPLETION_RE = /\{\{(?<body>[^{}\n]+)\}$/u;
 
@@ -141,5 +130,4 @@ export const InlineConstructsKit = [
         },
       },
     })),
-  annotationMarkerBasePlugin.withComponent(AnnotationMarkerElement),
 ];

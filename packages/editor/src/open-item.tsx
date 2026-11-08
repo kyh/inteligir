@@ -1,5 +1,5 @@
-// The item an editor shows, by its id, for what is drawn inside it: a highlight's tint and note
-// keyed by the item's entries, a heading's fold, an embed of the item itself refused. The item
+// The item an editor shows, by its id, for what is drawn inside it: a heading's fold, an embed of
+// the item itself refused. The item
 // editor provides it around its surface; a node outside one reads null.
 
 import { createContext, useContext } from "react";

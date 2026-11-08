@@ -1,7 +1,7 @@
 // What an item's rows say that no writer writes: its title as the library shows it, its card, its
-// searchable text, the links and tags its blocks hold and the highlights each block anchors. One
-// walk over the fields and the blocks in reading order, in the same transaction as the write, on
-// the cell and on every replica alike, so nothing derived is stale. The card alone is synced, with
+// searchable text, the links and tags its blocks hold and each block's text. One walk over the
+// fields and the blocks in reading order, in the same transaction as the write, on the cell and on
+// every replica alike, so nothing derived is stale. The card alone is synced, with
 // its row, so a replica draws an item before its body arrives.
 
 import { z } from "zod";
@@ -69,7 +69,6 @@ export const itemCardSchema = z.object({
 
 interface DerivedBlock {
   readonly text: string;
-  readonly annotationIds: readonly string[];
 }
 
 // the four literal columns the ranked index reads (`@repo/notes/knowledge/search-query`)
@@ -99,7 +98,6 @@ const isText = (node: LibraryNode): node is Extract<LibraryNode, { text: string 
 
 const INLINE_TYPES = new Set<string>([
   "a",
-  "annotationMarker",
   "date",
   "formulaPill",
   "inline_equation",
@@ -110,10 +108,9 @@ const INLINE_TYPES = new Set<string>([
 
 const isInline = (node: LibraryNode): boolean => isText(node) || INLINE_TYPES.has(node.type);
 
-// the voids that read as nothing: an embed's text is its target's, a marker's and a rich block's
-// source is not prose, and media has none
+// the voids that read as nothing: an embed's text is its target's, a rich block's source is not
+// prose, and media has none
 const SILENT_TYPES = new Set<string>([
-  "annotationMarker",
   "canvas_block",
   "chart_block",
   "hr",
@@ -293,7 +290,6 @@ export const deriveItem = (
       textTags(block, false, inlineTags);
     }
     const text = nodeText(block);
-    const annotationIds: string[] = [];
     texts.push(text);
     words += text.match(WORD)?.length ?? 0;
     if (HEADING_TYPES.has(block.type)) {
@@ -322,16 +318,12 @@ export const deriveItem = (
           }
           break;
         }
-        case "annotationMarker": {
-          annotationIds.push(...node.ids.split(","));
-          break;
-        }
         default: {
           break;
         }
       }
     });
-    derivedBlocks.set(block.id, { annotationIds: [...new Set(annotationIds)], text });
+    derivedBlocks.set(block.id, { text });
   }
   const tags = [
     ...unique(

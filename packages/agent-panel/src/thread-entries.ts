@@ -92,11 +92,9 @@ export const waitingApprovals = (entries: readonly ThreadEntry[]): WaitingApprov
 
 // what a tool's name says to the person
 const TOOL_WORDS = new Map([
-  ["add_highlight", "Highlighted a passage"],
   ["create_note", "Wrote a note"],
   ["delete_items", "Moved items to Deleted"],
   ["edit_item", "Edited an item"],
-  ["list_highlights", "Read the highlights"],
   ["list_items", "Looked through the library"],
   ["list_tags_and_folders", "Read the folders and tags"],
   ["organize_items", "Filed items"],
@@ -290,12 +288,6 @@ export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => 
 };
 
 // the calls that only read the library, drawn with the read icon; every other one writes
-const READS = new Set([
-  "list_highlights",
-  "list_items",
-  "list_tags_and_folders",
-  "read_item",
-  "search_library",
-]);
+const READS = new Set(["list_items", "list_tags_and_folders", "read_item", "search_library"]);
 
 export const readsOnly = (name: string): boolean => READS.has(name);

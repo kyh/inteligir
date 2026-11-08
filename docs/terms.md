@@ -78,8 +78,7 @@ purpose, without attribution. Please do not submit any feedback that you
 consider proprietary or confidential.
 
 2.7 **Your Content.** Your library (the notes you write, the links, pages,
-pictures, PDFs and other files you save into it, and your highlights and their
-notes) and your conversations with the agent ("**Your Content**") belong to you,
+pictures, PDFs and other files you save into it) and your conversations with the agent ("**Your Content**") belong to you,
 as far as they are yours to begin with (Section 2.8). Your library is kept in
 your account in our cloud, and each device you sign in on keeps a copy of it
 until you sign that device out. You grant us a limited, non-exclusive,

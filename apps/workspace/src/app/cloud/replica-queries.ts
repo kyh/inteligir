@@ -12,7 +12,6 @@ const LIBRARY = ["replica", "library"] as const;
 const THREADS = ["replica", "threads"] as const;
 
 const replicaKeys = {
-  annotations: (itemId: string) => [...LIBRARY, "annotations", itemId] as const,
   folders: () => [...LIBRARY, "folders"] as const,
   item: (itemId: string) => [...LIBRARY, "item", itemId] as const,
   library: () => LIBRARY,
@@ -59,8 +58,6 @@ const tagCounts = (replica: LibraryReplica): TagCount[] => {
 };
 
 export const replicaQueries = (replica: LibraryReplica) => ({
-  annotations: (itemId: string) =>
-    replicaQuery(replicaKeys.annotations(itemId), async () => await replica.annotations(itemId)),
   folders: () => replicaQuery(replicaKeys.folders(), () => replica.folders()),
   item: (itemId: string) =>
     replicaQuery(replicaKeys.item(itemId), async () => await replica.item(itemId)),

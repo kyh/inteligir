@@ -51,7 +51,7 @@ const embedIn = async (sql: ReplicaSql, sha: string): Promise<void> => {
     [],
   );
   await sql.run(
-    "INSERT INTO blocks (item_id, block_id, ord, section, json, hash, text, annotation_ids, seq) VALUES ('n1', 'b1', 'a0', 'note', ?, 'h', '', '[]', 1)",
+    "INSERT INTO blocks (item_id, block_id, ord, section, json, hash, text, seq) VALUES ('n1', 'b1', 'a0', 'note', ?, 'h', '', 1)",
     [JSON.stringify({ sha, type: "img" })],
   );
 };

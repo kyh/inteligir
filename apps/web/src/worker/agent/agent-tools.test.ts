@@ -127,7 +127,6 @@ describe("the built-in agent's tools", () => {
           ["list_items", { limit: 5 }],
           ["read_item", { count: 500, id: longId, responseFormat: "detailed" }],
           ["read_item", { from: 200, id: longId }],
-          ["list_highlights", { limit: 50 }],
           ["list_tags_and_folders", {}],
           ["create_note", { markdown: words(2000, "note") }],
         ];

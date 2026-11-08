@@ -1,12 +1,9 @@
 // Takes one change set's change to an item back while keeping every change made since: the change
 // run backwards three ways, the set's after as the base, the item now as mine and the set's before
-// as theirs, block by block, field by field and highlight by highlight. A block the set changed
-// and someone changed again keeps the item whole and names it; Undo never takes an item half back.
+// as theirs, block by block and field by field. A block the set changed and someone changed again
+// keeps the item whole and names it; Undo never takes an item half back.
 // Snapshots in, ops out: the caller lands them through the same guarded apply every write takes.
 
-import { annotationEntriesOf, sameAnnotationEntry } from "../annotations/store-schema";
-import type { AnnotationStore } from "../annotations/store-schema";
-import { revertAnnotationEntries } from "../annotations/revert-entries";
 import { diff3 } from "../text/diff3";
 import {
   applyOps,
@@ -19,7 +16,6 @@ import {
 import type { ItemState, LibraryOp, ScalarField, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, placeInOrder } from "./block-order";
 import { sameJson } from "./canonical-json";
-import { deriveItem } from "./derive-item";
 import type { LibraryItemFields } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
@@ -36,7 +32,6 @@ export interface ManifestEntry {
 export interface ItemSnapshot {
   readonly fields: LibraryItemFields;
   readonly manifest: readonly ManifestEntry[];
-  readonly annotations: AnnotationStore;
 }
 
 // a fill's own change set for an item, which is the record of what it wrote there
@@ -60,12 +55,10 @@ type MadeItem = Extract<ItemChange, { before: null }>;
 // the item as it is now; null once it was purged
 export interface ItemNow {
   readonly state: ItemState;
-  readonly annotations: AnnotationStore;
 }
 
 /** @internal */
 export const snapshotOf = (now: ItemNow): ItemSnapshot => ({
-  annotations: now.annotations,
   fields: now.state.fields,
   manifest: orderedBlocks(now.state.blocks).map((stored) => ({
     blockId: stored.block.id,
@@ -85,10 +78,6 @@ export type ItemRevert =
       readonly ops: readonly LibraryOp[];
       // the item once the ops land
       readonly state: ItemState;
-      // the highlights to hold, or null when the revert leaves them as they are
-      readonly annotations: AnnotationStore | null;
-      // a highlight the set made or changed was answered, edited or anchored since, and stays
-      readonly keptAnnotations: boolean;
     }
   | { readonly kind: "keep"; readonly reason: ItemRevertKeepReason };
 
@@ -306,18 +295,10 @@ const sameNoteBlocks = (
   );
 };
 
-const sameAnnotations = (a: AnnotationStore, b: AnnotationStore): boolean => {
-  const left = annotationEntriesOf(a);
-  const right = annotationEntriesOf(b);
-  return [...new Set([...left.keys(), ...right.keys()])].every((id) =>
-    sameAnnotationEntry(left.get(id), right.get(id)),
-  );
-};
-
 // whether anyone but a fill changed the item since `left`: a field holds what `left` holds or what
 // a fill wrote there, read off the fill's own change, since one field can be either's (a fill names
-// an unread link, and a person renames it). A fill writes no folder, list, note or highlight, so a
-// change to any of them is a person's
+// an unread link, and a person renames it). A fill writes no folder, list or note, so a change to
+// any of them is a person's
 const personTouched = (left: ItemSnapshot, fills: readonly FillChange[], now: ItemNow): boolean => {
   const { fields } = now.state;
   const fillWrote = (field: ScalarField): boolean =>
@@ -330,8 +311,7 @@ const personTouched = (left: ItemSnapshot, fills: readonly FillChange[], now: It
     sameList(fields.tags, left.fields.tags) &&
     sameList(fields.aliases, left.fields.aliases) &&
     sameJson(fields.properties, left.fields.properties) &&
-    sameNoteBlocks(left.manifest, snapshotOf(now).manifest) &&
-    sameAnnotations(left.annotations, now.annotations)
+    sameNoteBlocks(left.manifest, snapshotOf(now).manifest)
   );
 };
 
@@ -346,19 +326,7 @@ const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemR
   }
   const ops = [setOp("deletedAt", null, at)];
   const landed = applyOps(now.state, ops);
-  return landed.kind === "applied"
-    ? { annotations: null, keptAnnotations: false, kind: "revert", ops, state: landed.state }
-    : EDITED_SINCE;
-};
-
-const anchoredIds = (state: ItemState): Set<string> => {
-  const ids = new Set<string>();
-  for (const derived of deriveItem(state.fields, state.blocks).blocks.values()) {
-    for (const id of derived.annotationIds) {
-      ids.add(id);
-    }
-  }
-  return ids;
+  return landed.kind === "applied" ? { kind: "revert", ops, state: landed.state } : EDITED_SINCE;
 };
 
 const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemNow): ItemRevert => {
@@ -376,24 +344,9 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
   if (landed.kind !== "applied") {
     return EDITED_SINCE;
   }
-  const highlights = revertAnnotationEntries({
-    after: after.annotations,
-    before: before.annotations,
-    current: now.annotations,
-    markerIds: anchoredIds(landed.state),
-  });
   const changed =
     landed.touched.blocks.size > 0 || landed.touched.dropped.size > 0 || landed.touched.fields;
-  if (!changed && highlights.kind === "unchanged") {
-    return highlights.kept ? EDITED_SINCE : UNCHANGED;
-  }
-  return {
-    annotations: highlights.kind === "reverted" ? highlights.store : null,
-    keptAnnotations: highlights.kept,
-    kind: "revert",
-    ops: changed ? ops : [],
-    state: landed.state,
-  };
+  return changed ? { kind: "revert", ops, state: landed.state } : UNCHANGED;
 };
 
 /** @internal */
@@ -426,7 +379,7 @@ export interface ChangeSetsRevertInput {
 interface ItemUndo {
   // every op the undo lands on the item, in order, against the item as it is now
   readonly ops: readonly LibraryOp[];
-  // the item once they land, its highlights included
+  // the item once they land
   readonly now: ItemNow;
 }
 
@@ -438,8 +391,7 @@ interface KeptChange {
 
 export interface ChangeSetsRevert {
   readonly items: ReadonlyMap<string, ItemUndo>;
-  // an item a set changed that someone changed since, or a highlight on it answered, edited or
-  // anchored since: left as it is, and named
+  // an item a set changed that someone changed since: left as it is, and named
   readonly kept: readonly KeptChange[];
   // the sets of which something was kept and nothing goes back
   readonly leftWhole: ReadonlySet<string>;
@@ -459,14 +411,8 @@ export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert
         kept.push({ itemId, reason: verdict.reason, setId: set.id });
       } else if (verdict.kind === "revert") {
         takenBack.add(set.id);
-        if (verdict.keptAnnotations) {
-          kept.push({ itemId, reason: "edited-since", setId: set.id });
-        }
         items.set(itemId, {
-          now: {
-            annotations: verdict.annotations ?? now?.annotations ?? {},
-            state: verdict.state,
-          },
+          now: { state: verdict.state },
           ops: [...(undone?.ops ?? []), ...verdict.ops],
         });
       }

@@ -7,7 +7,6 @@
 
 import { z } from "zod";
 
-import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
 import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
@@ -64,9 +63,6 @@ const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("waiting") }),
 ]);
 
-// whether the phone queued a highlight's write
-const queuedSchema = z.strictObject({ queued: z.boolean() });
-
 // One row per question an item page asks.
 const REQUEST_SCHEMAS = {
   // the item an item page shows, as the phone's replica reads it now; null for one it holds none of
@@ -97,21 +93,6 @@ const REQUEST_SCHEMAS = {
     payload: fileBytesSchema,
     result: z.strictObject({ sha: shaSchema }),
   },
-  // the highlights an item holds, queued ones among them, which its marked passages tint by
-  highlightIds: {
-    payload: z.strictObject({ itemId: itemIdSchema }),
-    result: z.strictObject({ ids: z.array(annotationIdSchema) }),
-  },
-  // a highlight the editor just marked on the passage it anchors: its bare entry, beside the
-  // markers the item's next write carries
-  addHighlight: {
-    payload: z.strictObject({
-      id: annotationIdSchema,
-      itemId: itemIdSchema,
-      quote: z.string().min(1),
-    }),
-    result: queuedSchema,
-  },
   // a note of blocks the editor moved out of the item it shows, or a link's new note, made in the
   // folder that item is in and queued for the cell
   createNote: {
@@ -121,11 +102,6 @@ const REQUEST_SCHEMAS = {
       title: z.string(),
     }),
     result: z.strictObject({ id: itemIdSchema }),
-  },
-  // the note on a highlight the item holds
-  noteHighlight: {
-    payload: z.strictObject({ id: annotationIdSchema, itemId: itemIdSchema, text: z.string() }),
-    result: queuedSchema,
   },
 };
 
@@ -177,13 +153,10 @@ export type MergeAnswer = z.infer<typeof mergedSchema>;
 
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
-    requestFrame("addHighlight", REQUEST_SCHEMAS.addHighlight.payload),
     requestFrame("createNote", REQUEST_SCHEMAS.createNote.payload),
-    requestFrame("highlightIds", REQUEST_SCHEMAS.highlightIds.payload),
     requestFrame("item", REQUEST_SCHEMAS.item.payload),
     requestFrame("keepFile", REQUEST_SCHEMAS.keepFile.payload),
     requestFrame("linkTargets", REQUEST_SCHEMAS.linkTargets.payload),
-    requestFrame("noteHighlight", REQUEST_SCHEMAS.noteHighlight.payload),
     requestFrame("readFile", REQUEST_SCHEMAS.readFile.payload),
     requestFrame("writeItem", REQUEST_SCHEMAS.writeItem.payload),
   ]),
@@ -194,12 +167,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
     // why the last write did not land, said in the person's words
     saveError: z.string().nullable(),
     type: z.literal("editorState"),
-  }),
-  // the highlights a tap on a marked passage names, which the phone's sheet shows
-  z.strictObject({
-    ids: z.array(z.string().min(1)).min(1),
-    nonce: nonceSchema,
-    type: z.literal("showAnnotations"),
   }),
   // an item page has written what it holds and asks the native stack to open the item a link names
   z.strictObject({ itemId: itemIdSchema, nonce: nonceSchema, type: z.literal("openItem") }),

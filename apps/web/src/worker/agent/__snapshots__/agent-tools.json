@@ -1,38 +1,5 @@
 [
   {
-    "description": "Highlights a passage of an item, found by its exact text, with an optional note. A passage the item's text does not hold is kept as an unplaced highlight.",
-    "input_schema": {
-      "additionalProperties": false,
-      "properties": {
-        "itemId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 20000
-        },
-        "occurrence": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        },
-        "quote": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 4000
-        }
-      },
-      "type": "object",
-      "required": [
-        "itemId",
-        "quote"
-      ]
-    },
-    "name": "add_highlight"
-  },
-  {
     "description": "Creates a note from markdown, optionally titled, tagged and filed in a folder. Links to other items are written [[Title]] or [[Title|id]].",
     "input_schema": {
       "additionalProperties": false,
@@ -123,7 +90,7 @@
     "name": "delete_items"
   },
   {
-    "description": "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages, their highlights included, are left as they are.",
+    "description": "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages are left as they are.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -168,36 +135,6 @@
       ]
     },
     "name": "edit_item"
-  },
-  {
-    "description": "Lists highlights and their notes, for one item or across the library since a date, newest first, with a cursor for the next page.",
-    "input_schema": {
-      "additionalProperties": false,
-      "properties": {
-        "cursor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "itemId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        },
-        "since": {
-          "type": "string",
-          "format": "date",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-        }
-      },
-      "type": "object"
-    },
-    "name": "list_highlights"
   },
   {
     "description": "Lists items by folder, tag, kind or pin, newest saved first unless sorted otherwise, 50 at most per page, with a cursor for the next.",
@@ -353,7 +290,7 @@
     "name": "organize_items"
   },
   {
-    "description": "Reads an item: its fields, a page of its text as markdown from a block position, the items it links to and from, and how many highlights it has. Links to other items are written [[Title|id]].",
+    "description": "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [[Title|id]].",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -444,11 +381,6 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
-        "selection": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 4000
-        },
         "tags": {
           "maxItems": 500,
           "type": "array",
@@ -474,7 +406,7 @@
     "name": "save_link"
   },
   {
-    "description": "Searches item titles, notes, saved articles and highlights, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
+    "description": "Searches item titles, notes and saved articles, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {

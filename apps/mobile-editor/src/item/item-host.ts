@@ -4,14 +4,10 @@
 // what it holds and asks the native stack to push that item. An embed draws the item's blocks as
 // the phone's replica reads them; a file a note names by its sha is drawn from the phone's file
 // cache, which fetches it from the cloud the first time, and one pasted into the text is kept by
-// the phone's replica, which sends it up ahead of the write that names it. A highlight the editor
-// marks is written to the item as its bare entry beside the markers the item's next write carries,
-// its note the same way, a marked passage tints by the entries the phone answers it holds, and a
-// tap on one opens the phone's sheet of its highlights, as the library's page does; a note the
-// editor makes (an extract, a link's Create) the phone makes in the item's folder. The page hands
+// the phone's replica, which sends it up ahead of the write that names it. A note the editor makes
+// (an extract, a link's Create) the phone makes in the item's folder. The page hands
 // no file on to the system: its WebView opens nothing but web links.
 
-import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import type { ItemSession, ItemStore } from "@repo/editor/item/item-session";
@@ -101,14 +97,6 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   });
   void readTargets();
 
-  // the highlights the item holds, read again as it moves. The touch page draws no gutter, so
-  // nothing reads which of them carry a note
-  const readHighlights = oneReadAtATime(async () => {
-    const { ids } = await bridge.request("highlightIds", { itemId });
-    setAnnotationMeta(itemId, { knownIds: new Set(ids), notedIds: new Set() });
-  });
-  void readHighlights();
-
   // the stack opens the linked item by its id, once what this page holds is written
   const open = (linked: string): void => {
     void (async () => {
@@ -158,22 +146,6 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   installEditorHost({
     actions: {
       agent: { askAboutSelection: nothingToDo, showTag: nothingToDo },
-      annotations: {
-        create: async (id, quote) => {
-          const { queued } = await bridge.request("addHighlight", { id, itemId, quote });
-          return queued;
-        },
-        edit: async (id, text) => {
-          const { queued } = await bridge.request("noteHighlight", { id, itemId, text });
-          return queued;
-        },
-        open: (ids) => {
-          const [first, ...rest] = ids;
-          if (first !== undefined) {
-            bridge.emit({ ids: [first, ...rest], type: "showAnnotations" });
-          }
-        },
-      },
       items: {
         createNote: async (note) => {
           const { id } = await bridge.request("createNote", {
@@ -193,9 +165,6 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
       // another item moved, or every one: a link's target may be among them
       if (event.reset || event.ids.some((id) => id !== itemId)) {
         void readTargets();
-      }
-      if (event.reset || event.ids.includes(itemId)) {
-        void readHighlights();
       }
       return;
     }

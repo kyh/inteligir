@@ -3,18 +3,12 @@
 // stripped rather than refused; requests are strict, since only the newest cell reads them. The
 // persisted vocabulary inside both (an item's fields, a block) is `@repo/notes/library`'s own.
 //
-// A row keeps its table's times, unix milliseconds (an annotation's, unix seconds, as its entry
-// keeps them); an answer an agent reads spells its times in ISO 8601, which a model reads as a
-// date.
+// A row keeps its table's times, unix milliseconds; an answer an agent reads spells its times in
+// ISO 8601, which a model reads as a date.
 
 import { z } from "zod";
 
 import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
-import {
-  ANNOTATION_QUOTE_MAX,
-  annotationIdSchema,
-  annotationSourceSchema,
-} from "@repo/notes/annotations/store-schema";
 import { ITEM_KINDS } from "@repo/notes/items/item-kind";
 import { blockHashSchema } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
@@ -46,15 +40,12 @@ export const newIdSchema = z.uuidv7();
 // the outbox's key for one write, kept by the cell so a resend after a lost answer lands once
 export const opIdSchema = z.uuid();
 export const shaSchema = z.string().regex(SHA256_HEX_RE);
-// a highlight's id is a marker's text too, so it is held to the marker alphabet and a row's length
-const annotationId = annotationIdSchema.max(64);
 // a thread event's id: `<threadId>:<push>:<index>` for what its conversation's object pushed, by
 // that push's sequence and the event's place in it, and `<threadId>:turn:<turn>` for the person's
 // message that opened a turn
 export const eventIdSchema = z.string().min(1).max(128);
 
 const instant = z.number().int().nonnegative();
-const seconds = z.number().int().nonnegative();
 export const seqSchema = z.number().int().nonnegative();
 const isoInstant = z.iso.datetime();
 export const isoDate = z.iso.date();
@@ -70,9 +61,10 @@ export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
 // the items one call for bodies names
 export const BODY_IDS_MAX = 1000;
-// a highlight's own note, and a note or link note an agent writes as markdown
-export const ANNOTATION_NOTE_MAX = 20_000;
+// a note or link note an agent writes as markdown
 export const MARKDOWN_MAX = 1_000_000;
+// the passage selected in the item a message to the built-in agent leaves from
+const AGENT_SELECTION_MAX = 4000;
 // a message to the built-in agent
 export const MESSAGE_MAX = 20_000;
 // the person's filing rules, which ride every conversation with the built-in agent as a system
@@ -133,23 +125,6 @@ const folderRowSchema = z.object({
   sort: ordSchema,
 });
 
-const annotationRowSchema = z.object({
-  createdAt: seconds,
-  deletedAt: seconds.nullable(),
-  id: annotationId,
-  itemId: idSchema,
-  // a root has none and a reply its root's
-  parentId: annotationId.nullable(),
-  // the passage's text when it was made; a reply has none
-  quote: z.string().nullable(),
-  occurrence: z.number().int().positive().nullable(),
-  seq: seqSchema,
-  source: annotationSourceSchema.nullable(),
-  // "" is a bare highlight
-  text: z.string(),
-  updatedAt: seconds,
-});
-
 // where a thread's built-in agent stands: nothing running, a send waiting for its thread's turn or
 // for one of the account's, a turn running, or a turn waiting on the person's approval. A turn the
 // allowance stopped leaves its thread idle, and the next send goes on with it
@@ -185,7 +160,6 @@ const changeOf = <K extends string, R extends z.ZodType>(kind: K, row: R) =>
 export const libraryChangeSchema = z.discriminatedUnion("kind", [
   changeOf("item", itemRowSchema),
   changeOf("folder", folderRowSchema),
-  changeOf("annotation", annotationRowSchema.nullable()),
   changeOf("thread", threadRowSchema.nullable()),
   changeOf("thread_event", threadEventRowSchema.nullable()),
 ]);
@@ -207,33 +181,6 @@ export const placedBlockSchema = z.strictObject({
 });
 
 // ---- writes beside the block ops ----
-
-const noteTextSchema = z.string().max(ANNOTATION_NOTE_MAX);
-
-// a highlight's writes, each guarded like a block: an add lands once, an edit or a removal only
-// over the note text it was computed from; who wrote it is the cell's to stamp
-export const annotationOpSchema = z.discriminatedUnion("op", [
-  z
-    .strictObject({
-      createdAt: seconds,
-      id: annotationId,
-      occurrence: z.number().int().positive().nullable(),
-      op: z.literal("add"),
-      parentId: annotationId.nullable(),
-      quote: z.string().min(1).max(ANNOTATION_QUOTE_MAX).nullable(),
-      text: noteTextSchema,
-    })
-    .refine((op) => (op.quote === null) !== (op.parentId === null), {
-      error: "a highlight has a quote and no parent, a reply a parent and no quote",
-    }),
-  z.strictObject({
-    base: noteTextSchema,
-    id: annotationId,
-    op: z.literal("note"),
-    text: noteTextSchema,
-  }),
-  z.strictObject({ base: noteTextSchema, id: annotationId, op: z.literal("remove") }),
-]);
 
 export const folderOpSchema = z.discriminatedUnion("op", [
   z.strictObject({
@@ -262,8 +209,8 @@ export const folderOpSchema = z.discriminatedUnion("op", [
 // ---- what a refusal carries ----
 
 // what a write's base met instead, one entry per guarded thing: a block (null when it is gone), a
-// block's place, a field's value, a property (absent when unset), a highlight, a folder, or an
-// item whose sequence moved past the one an edit was read at
+// block's place, a field's value, a property (absent when unset), a folder, or an item whose
+// sequence moved past the one an edit was read at
 export const conflictCurrentSchema = z.discriminatedUnion("kind", [
   z.object({
     blockId: blockIdSchema,
@@ -288,12 +235,6 @@ export const conflictCurrentSchema = z.discriminatedUnion("kind", [
     itemId: idSchema,
     key: propertyKeySchema,
     kind: z.literal("property"),
-  }),
-  z.object({
-    current: annotationRowSchema.nullable(),
-    id: annotationId,
-    itemId: idSchema,
-    kind: z.literal("annotation"),
   }),
   z.object({ current: folderRowSchema.nullable(), id: idSchema, kind: z.literal("folder") }),
   z.object({ itemId: idSchema, kind: z.literal("item"), seq: seqSchema }),
@@ -358,7 +299,6 @@ export const itemReadSchema = z.object({
     title: z.string(),
     url: z.string().nullable(),
   }),
-  highlights: z.number().int().nonnegative(),
   id: idSchema,
   links: z.object({ in: z.array(linkedItemSchema), out: z.array(linkedItemSchema) }),
   // the sequence an edit names as its base
@@ -371,18 +311,6 @@ export const itemReadSchema = z.object({
     to: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
   }),
-});
-
-export const highlightSchema = z.object({
-  createdAt: isoInstant,
-  id: annotationId,
-  itemId: idSchema,
-  itemTitle: z.string(),
-  // the passage is in the item's text; an unplaced one is listed under the item
-  placed: z.boolean(),
-  quote: z.string().nullable(),
-  replies: z.array(z.object({ createdAt: isoInstant, id: annotationId, text: z.string() })),
-  text: z.string(),
 });
 
 export const changeSetSchema = z.object({
@@ -416,7 +344,7 @@ export const changeSetSchema = z.object({
 export const agentViewContextSchema = z.discriminatedUnion("surface", [
   z.strictObject({
     itemId: idSchema,
-    selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).optional(),
+    selection: z.string().min(1).max(AGENT_SELECTION_MAX).optional(),
     surface: z.literal("item"),
   }),
   z.strictObject({
@@ -442,7 +370,6 @@ export const importJobSchema = z.object({
   alreadySaved: count,
   changeSetId: idSchema.nullable(),
   finishedAt: instant.nullable(),
-  highlights: count,
   id: idSchema,
   // why a job failed, in a sentence the person reads
   message: z.string().nullable(),

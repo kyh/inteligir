@@ -14,7 +14,6 @@ import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/sce
 import { accountHosted } from "./scenarios/account-hosted";
 import { agentCell } from "./scenarios/agent-cell";
 import { agentPanelBrowser } from "./scenarios/agent-panel-browser";
-import { annotationsBrowser } from "./scenarios/annotations-browser";
 import { browserExtension } from "./scenarios/browser-extension";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
@@ -30,7 +29,6 @@ import { librarySearchBrowser } from "./scenarios/library-search-browser";
 import { linkCapture } from "./scenarios/link-capture";
 import { noteLinksBrowser } from "./scenarios/note-links-browser";
 import { notePictureBrowser } from "./scenarios/note-picture-browser";
-import { phoneAnnotationsHosted } from "./scenarios/phone-annotations-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
 import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
@@ -47,7 +45,6 @@ const SCENARIOS: readonly Scenario[] = [
   fileItems,
   phoneOfflineEdit,
   phoneFileOpsHosted,
-  phoneAnnotationsHosted,
   phoneEditorPage,
   phoneSaveHosted,
   accountHosted,
@@ -69,7 +66,6 @@ const SCENARIOS: readonly Scenario[] = [
   librarySearchBrowser,
   syncConflictBrowser,
   libraryBrowser,
-  annotationsBrowser,
   noteLinksBrowser,
   notePictureBrowser,
   browserExtension,

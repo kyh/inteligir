@@ -13,7 +13,6 @@ import {
   linksToUrl,
   literalMatches,
   nextHead,
-  readAnnotations,
   readBlocks,
   readChanges,
   readItem,
@@ -313,25 +312,16 @@ describe("blocks", () => {
     );
   });
 
-  it("replaces a block in place with its text and anchored highlights", () => {
+  it("replaces a block in place with its text", () => {
     const port = library();
     const state = itemOf([paragraph("a", "one")]);
     put(port, "item", state);
-    const marked: LibraryBlock = {
-      children: [
-        { children: leaf, edge: "start", ids: "h1", type: "annotationMarker" },
-        { text: "marked" },
-        { children: leaf, edge: "end", ids: "h1", type: "annotationMarker" },
-      ],
-      id: "a",
-      type: "p",
-    };
-    const next = itemOf([marked]);
+    const next = itemOf([paragraph("a", "marked")]);
     const derived = deriveItem(next.fields, next.blocks);
     exec(port, storeBlocks("item", blockWritesOf(orderedBlocks(next.blocks), derived), 2));
-    expect(
-      port.all("SELECT text, annotation_ids, seq FROM blocks WHERE item_id = ?", ["item"]),
-    ).toStrictEqual([{ annotation_ids: '["h1"]', seq: 2, text: "marked" }]);
+    expect(port.all("SELECT text, seq FROM blocks WHERE item_id = ?", ["item"])).toStrictEqual([
+      { seq: 2, text: "marked" },
+    ]);
     const older = itemOf([paragraph("a", "older")]);
     exec(
       port,
@@ -462,37 +452,6 @@ describe("links", () => {
       { target_id: "target", target_key: null },
       { target_id: null, target_key: "example.com/t" },
     ]);
-  });
-});
-
-describe("highlights", () => {
-  it("reads an item's live highlights as an annotation store", () => {
-    const port = library();
-    port.run(
-      `INSERT INTO annotations (id, item_id, parent_id, text, quote, source, created_at, updated_at, deleted_at, seq)
-       VALUES ('h1', 'item', NULL, '', 'a passage', 'user', 1, 2, NULL, 1),
-              ('h2', 'item', 'h1', 'a reply', NULL, NULL, 3, 3, NULL, 1),
-              ('h3', 'item', NULL, 'gone', NULL, NULL, 4, 4, 9, 1)`,
-      [],
-    );
-    expect(exec(port, readAnnotations("item"))).toStrictEqual({
-      h1: {
-        createdAt: 1,
-        parentId: undefined,
-        quote: "a passage",
-        source: "user",
-        text: "",
-        updatedAt: 2,
-      },
-      h2: {
-        createdAt: 3,
-        parentId: "h1",
-        quote: undefined,
-        source: undefined,
-        text: "a reply",
-        updatedAt: 3,
-      },
-    });
   });
 });
 

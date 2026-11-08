@@ -6,7 +6,6 @@
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
 import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
-import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { shownTitle, UNTITLED } from "@repo/notes/items/item-name";
 import { Button } from "@repo/ui/components/button";
@@ -15,7 +14,7 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 import { useReplica, useReplicaQueries } from "../cloud/library-context";
@@ -89,24 +88,7 @@ export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }:
   const replica = useReplica();
   const queries = useReplicaQueries();
   const item = useQuery(queries.item(itemId));
-  const annotations = useQuery(queries.annotations(itemId)).data;
   const modifier = platformShortcutModifier();
-
-  // the editor tints a highlight its store holds, and marks the ones that carry a note
-  useEffect(() => {
-    if (annotations === undefined) {
-      return;
-    }
-    const entries = Object.entries(annotations);
-    setAnnotationMeta(itemId, {
-      knownIds: new Set(entries.map(([id]) => id)),
-      notedIds: new Set(
-        entries.flatMap(([id, entry]) =>
-          entry.text === "" && !entries.some(([, reply]) => reply.parentId === id) ? [] : [id],
-        ),
-      ),
-    });
-  }, [annotations, itemId]);
 
   // read once as the item opens: the editor holds them for its life
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -149,7 +131,7 @@ export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }:
         <Button
           variant="ghost"
           size="icon-compact"
-          aria-label="Info, highlights and the agent"
+          aria-label="Info and the agent"
           onClick={onTogglePanel}
         >
           <PanelRightIcon />

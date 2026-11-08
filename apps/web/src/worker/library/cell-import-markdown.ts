@@ -1,7 +1,7 @@
 // A zip of markdown read into the library: this app's export, an Obsidian vault, or any
 // folder of notes, by the codec's two-pass plan (`@repo/editor/codec/import-plan`). The first runs
-// walk the zip's directory, keeping each note's frontmatter and each highlights' store, and
-// putting every file in the library under its sha; then the plan is made once, every note's item
+// walk the zip's directory, keeping each note's frontmatter and putting every file in the library
+// under its sha; then the plan is made once, every note's item
 // and id minted and kept, an address or an id the library holds already standing for its item.
 // Later runs land a page of notes at a time, each read whole against the plan, and last every file
 // no item names becomes an item of its own. Every run reads the zip where it lies in R2, a range
@@ -65,7 +65,7 @@ import {
   putImportRows,
 } from "./cell-import-jobs";
 import type { ImportJob, ImportStep } from "./cell-import-jobs";
-import { landNew, setDeleted, storeAdds } from "./cell-items";
+import { landNew, setDeleted } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import type { CellStorage } from "./cell-storage";
@@ -105,7 +105,6 @@ const zipEntrySchema = z.object({
 // a path of the zip as the first runs read it; a note keeps its frontmatter alone
 const entrySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("doc"), path: z.string(), text: z.string(), zip: zipEntrySchema }),
-  z.object({ kind: z.literal("store"), path: z.string(), text: z.string() }),
   z.object({ kind: z.literal("file"), path: z.string(), sha: z.string() }),
 ]);
 type Entry = z.infer<typeof entrySchema>;
@@ -115,7 +114,6 @@ const plannedDocSchema = z.object({
   fileId: z.string().nullable(),
   itemId: z.string(),
   path: z.string(),
-  storeId: z.string().nullable(),
   title: z.string(),
   urlKey: z.string().nullable(),
 });
@@ -133,8 +131,6 @@ const fileRowSchema = z.object({
   sha: z.string(),
 });
 
-const storeRowSchema = z.object({ key: z.string(), text: z.string() });
-
 const fileItemRowSchema = z.object({
   fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
   folderPath: z.string(),
@@ -146,7 +142,6 @@ const ROWS = {
   entry: "entry",
   file: "file",
   fileItem: "file-item",
-  store: "store",
 } as const;
 
 const decoder = new TextDecoder();
@@ -236,13 +231,6 @@ const readEntry = async (
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
       return rowOf(entry, { kind, path: entry.path, text: front, zip: entry });
     }
-    case "store": {
-      return rowOf(entry, {
-        kind,
-        path: entry.path,
-        text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES),
-      });
-    }
     case "file": {
       return await keepEntryFile(host, source, entry);
     }
@@ -281,9 +269,9 @@ const importEntryOf = (entry: Entry): ImportEntry =>
     : { kind: entry.kind, path: entry.path, text: entry.text };
 
 // a note as the plan lands it: one whose id or address a live item holds is that item (`held`);
-// one whose id an item in Deleted holds is that item, come back as it stands (`deleted`), since
-// its highlights' ids are the library's and no copy could take them; and one whose id a purged item
-// kept takes a fresh id (`new`), since the library never reuses one
+// one whose id an item in Deleted holds is that item, come back as it stands (`deleted`), since one
+// id names one item and a fresh copy would leave its twin in Deleted; and one whose id a purged
+// item kept takes a fresh id (`new`), since the library never reuses one
 interface SettledDoc {
   readonly doc: PlannedDoc;
   readonly standing: DocRow["standing"];
@@ -327,12 +315,6 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
     job.id,
     ROWS.file,
     plan.files.map((value, idx) => ({ idx, value })),
-  );
-  putImportRows(
-    sql,
-    job.id,
-    ROWS.store,
-    plan.stores.map((value, idx) => ({ idx, value })),
   );
   dropImportRows(sql, job.id, ROWS.entry);
   advanceImport(sql, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });
@@ -413,12 +395,11 @@ const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
     plan: {
       docs: docs.map((row) => row.doc),
       files: importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
-      stores: importRows(sql, jobId, ROWS.store, ALL, storeRowSchema).map((row) => row.value),
     },
   };
 };
 
-const LANDED = z.object({ held: z.boolean(), highlights: z.number() });
+const LANDED = z.object({ held: z.boolean() });
 
 const CAME_BACK = z.object({ back: z.boolean() });
 
@@ -430,7 +411,7 @@ const restoreDoc = (
   itemId: string,
   idx: number,
 ): z.input<typeof CAME_BACK> => {
-  const restored = setDeleted(scope, importActor(job), { deleted: false, ids: [itemId] });
+  const restored = setDeleted(scope, { deleted: false, ids: [itemId] });
   for (const item of restored.landed) {
     askFill(scope, item);
   }
@@ -446,7 +427,6 @@ const restoreDoc = (
 const landDoc = (
   scope: LandingScope,
   host: ImportHost,
-  job: ImportJob,
   read: Extract<ReturnType<typeof importPlannedDoc>, { ok: true }>["read"],
 ): z.input<typeof LANDED> => {
   const { item, doc } = read;
@@ -455,11 +435,9 @@ const landDoc = (
     runPlan(scope.storage, readItem(doc.itemId))?.kind === "live" ||
     (key !== null && urlHolder(scope.storage, key, null) !== null)
   ) {
-    return { held: true, highlights: 0 };
+    return { held: true };
   }
-  const annotations = storeAdds(item.annotations);
-  const landed = landNew(scope, importActor(job), {
-    annotations,
+  const landed = landNew(scope, {
     blocks: item.blocks,
     fields: {
       ...item.fields,
@@ -469,7 +447,7 @@ const landDoc = (
     id: doc.itemId,
   });
   askFill(scope, landed);
-  return { held: false, highlights: annotations.filter((op) => op.parentId === null).length };
+  return { held: false };
 };
 
 const docOutcome = async (
@@ -515,7 +493,6 @@ const docOutcome = async (
     throw error;
   }
   const read = importPlannedDoc(context.reader, row.doc, text, {
-    newAnnotationId: library.ids.annotation,
     newBlockId: library.ids.block,
     now: host.now(),
   });
@@ -527,16 +504,12 @@ const docOutcome = async (
     job,
     idx,
     library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
-      const result = landDoc(scope, host, job, read.read);
+      const result = landDoc(scope, host, read.read);
       advanceImport(scope.storage, job.id, {
         changeSetId: result.held ? undefined : scope.set().id,
         counts: result.held
           ? { alreadySaved: 1 }
-          : {
-              added: 1,
-              highlights: result.highlights,
-              unreadable: read.read.item.leftOut,
-            },
+          : { added: 1, unreadable: read.read.item.leftOut },
         cursor: idx + 1,
       });
       return result;
@@ -656,7 +629,7 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
       (scope) => {
         const held = runPlan(scope.storage, readItem(value.itemId))?.kind === "live";
         if (!held) {
-          landNew(scope, importActor(job), {
+          landNew(scope, {
             blocks: [],
             fields: {
               ...value.fields,

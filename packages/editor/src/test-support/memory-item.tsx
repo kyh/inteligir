@@ -21,10 +21,7 @@ import { pretendLibrary } from "./codec-ports";
 const OPEN_TURNS = 50;
 
 const itemOfMarkdown = (markdown: string): ItemState => {
-  const read = importItem(
-    { annotations: null, name: "Item", text: markdown },
-    pretendLibrary().importPorts(),
-  );
+  const read = importItem({ name: "Item", text: markdown }, pretendLibrary().importPorts());
   if (!read.ok) {
     throw new Error("the item reads in");
   }

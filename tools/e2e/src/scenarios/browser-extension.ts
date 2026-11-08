@@ -1,7 +1,6 @@
 // the dev build of the extension in a real Chromium against a booted Worker, as a store build
-// saves to the cloud: connected by the site's own connect page, a save of a page with a passage
-// selected lands read with its highlight placed, a second save says the page is already in the
-// library, and a save made while the cloud cannot be reached waits in the extension and is sent by
+// saves to the cloud: connected by the site's own connect page, a save of a page lands read, a
+// second save says the page is already in the library, and a save made while the cloud cannot be reached waits in the extension and is sent by
 // its alarm once the cloud answers again. The Worker is reached through a relay the scenario cuts,
 // as a laptop loses its network; the page is a fixture served on loopback, which the dev build may
 // script without a click, as activeTab lets a person's click do on any page.
@@ -68,7 +67,7 @@ const startPages = async (): Promise<{ server: Server; origin: string }> => {
 
 export const browserExtension: Scenario = {
   description:
-    "the dev extension in a real Chromium, connected by the site's connect page, saves a page read with its selection's highlight, says a second save is already saved, and queues a save the cloud could not take and sends it once the cloud answers",
+    "the dev extension in a real Chromium, connected by the site's connect page, saves a page read, says a second save is already saved, and queues a save the cloud could not take and sends it once the cloud answers",
   name: "browser-extension",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
@@ -89,11 +88,11 @@ export const browserExtension: Scenario = {
       ctx.log("signed in on the site, the connect page hands the extension its credential");
       await connectExtension(browser, cloud);
 
-      ctx.log("a save of the page with its passage selected lands read, the highlight placed");
+      ctx.log("a save of the page lands read");
       const article = `${pages.origin}${ARTICLE_PATH}`;
       await browser(["open", article], DEADLINE_MS);
       await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
-      const first = await saveFromWorker(browser, article, "passage");
+      const first = await saveFromWorker(browser, article);
       expectEq(first, { created: true, kind: "saved", title: TITLE }, "the first save's answer");
       const { items } = await library.items.list({ kind: "link" });
       const saved = items.find((item) => item.url === article);
@@ -107,14 +106,9 @@ export const browserExtension: Scenario = {
         read.view.markdown.includes(PASSAGE),
         `the article holds the passage:\n${read.view.markdown}`,
       );
-      const { highlights } = await library.annotations.list({ itemId: saved.id });
-      expect(
-        highlights.some((highlight) => highlight.quote === PASSAGE && highlight.placed),
-        `the selection's highlight is placed: ${JSON.stringify(highlights)}`,
-      );
 
       ctx.log("a second save of the same page says it is already in the library");
-      const second = await saveFromWorker(browser, article, null);
+      const second = await saveFromWorker(browser, article);
       expectEq(second, { created: false, kind: "saved", title: TITLE }, "the second save's answer");
 
       ctx.log("with the cloud out of reach, a save waits in the extension as its address alone");
@@ -122,12 +116,12 @@ export const browserExtension: Scenario = {
       const laterPage = `${pages.origin}${LATER_PATH}`;
       await browser(["tab", "new", laterPage], DEADLINE_MS);
       await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
-      const offline = await saveFromWorker(browser, laterPage, "passage");
+      const offline = await saveFromWorker(browser, laterPage);
       expectEq(offline, { kind: "queued" }, "the offline save's answer");
       const waiting = await queuedSaves(browser);
       expectEq(
-        waiting.map((save) => [save.url, save.selection]),
-        [[laterPage, "A page saved while the cloud was out of reach."]],
+        waiting.map((save) => save.url),
+        [laterPage],
         "what waits in the extension",
       );
 
@@ -143,13 +137,9 @@ export const browserExtension: Scenario = {
         },
       );
       const after = await library.items.list({ kind: "link" });
-      const later = after.items.find((item) => item.url === laterPage);
-      expect(later !== undefined, `the waited save landed: ${JSON.stringify(after.items)}`);
-      const marked = await library.annotations.list({ itemId: later.id });
-      expectEq(
-        marked.highlights.map((highlight) => highlight.quote),
-        ["A page saved while the cloud was out of reach."],
-        "the waited save's passage, kept for the cloud's reading to place",
+      expect(
+        after.items.some((item) => item.url === laterPage),
+        `the waited save landed: ${JSON.stringify(after.items)}`,
       );
     } finally {
       pages.server.close();

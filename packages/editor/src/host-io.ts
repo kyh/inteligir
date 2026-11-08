@@ -59,14 +59,6 @@ export interface EditorHostIo {
   readonly savesFiles: boolean;
 }
 
-export interface AnnotationActions {
-  /** A highlight's entry around the markers just minted, `quote` its passage's text. False means refused; the caller strips the markers it minted. */
-  create: (id: string, quote: string) => Promise<boolean>;
-  /** The note on an annotation that exists. False means refused. */
-  edit: (id: string, text: string) => Promise<boolean>;
-  open: (ids: string[]) => void;
-}
-
 export interface AgentRequestActions {
   askAboutSelection: (selectionText: string) => void;
   /** The rail shows that tag's notes. */
@@ -92,7 +84,6 @@ export interface ItemActions {
 // host that leaves one out fails to typecheck rather than drawing a button that does nothing.
 export interface EditorHostActions {
   readonly agent: AgentRequestActions;
-  readonly annotations: AnnotationActions;
   readonly items: ItemActions;
 }
 

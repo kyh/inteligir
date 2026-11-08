@@ -39,7 +39,6 @@ import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
 import { cancelImport, startImport } from "./cell-imports";
 import {
-  addHighlight,
   createFile,
   createNote,
   editItem,
@@ -50,8 +49,6 @@ import {
 } from "./cell-items";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import {
-  isoOf,
-  listHighlights,
   listHistory,
   listItems,
   outlineOf,
@@ -147,18 +144,12 @@ const committed = async <T>(context: CellContext, result: CellResult<T>): Promis
 const PAGE_DEFAULT = 50;
 
 const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
-const editedSchema = z.object({ dropped: z.array(z.string()), seq: z.number() });
+const editedSchema = z.object({ seq: z.number() });
 const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
 const changedSchema = z.object({
   addressHeld: z.array(z.string()),
   changed: z.array(z.string()),
   missing: z.array(z.string()),
-});
-const highlightedSchema = z.object({
-  createdAt: z.number(),
-  id: z.string(),
-  item: liveItemRowSchema,
-  placed: z.boolean(),
 });
 const headSchema = z.object({ seq: z.number() });
 const importAnswer = z.object({ job: importJobSchema });
@@ -230,37 +221,6 @@ export const libraryRouter = os.router({
     // whether it is on, and what is left of the day's allowance
     status: os.agent.status.handler(({ context }) => answer(agentStatus(context.agent))),
   },
-  annotations: {
-    add: os.annotations.add.handler(async ({ context, input }) => {
-      const actor = context.actor();
-      const { library } = context;
-      const added = await committed(
-        context,
-        library.land(actor, { answer: highlightedSchema, opId: input.opId }, (scope) =>
-          addHighlight(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
-        ),
-      );
-      return {
-        highlight: {
-          createdAt: isoOf(added.createdAt * 1000),
-          id: added.id,
-          itemId: input.itemId,
-          itemTitle: added.item.card.title,
-          placed: added.placed,
-          quote: input.quote,
-          replies: [],
-          text: input.note ?? "",
-        },
-      };
-    }),
-    list: os.annotations.list.handler(({ context, input }) =>
-      answer(
-        context.library.read((sql) =>
-          listHighlights(sql, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
-        ),
-      ),
-    ),
-  },
   folders: {
     write: os.folders.write.handler(
       async ({ context, input }) =>
@@ -323,7 +283,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-          item: landNew(scope, actor, {
+          item: landNew(scope, {
             blocks: input.blocks,
             fields: noteFields(input),
             id: input.id,
@@ -336,7 +296,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-          item: createFile(scope, actor, input),
+          item: createFile(scope, input),
         })),
       );
     }),
@@ -346,7 +306,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-          item: createNote(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
+          item: createNote(scope, cellCodec(scope.storage, library.ids), library.ids, input),
         })),
       );
     }),
@@ -355,7 +315,7 @@ export const libraryRouter = os.router({
       const { changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) =>
-          setDeleted(scope, actor, { deleted: true, ids: input.ids }),
+          setDeleted(scope, { deleted: true, ids: input.ids }),
         ),
       );
       return { deleted: changed, missing };
@@ -366,7 +326,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: editedSchema, opId: input.opId }, (scope) =>
-          editItem(scope, actor, cellCodec(scope.storage, library.ids), input),
+          editItem(scope, cellCodec(scope.storage, library.ids), input),
         ),
       );
     }),
@@ -387,7 +347,7 @@ export const libraryRouter = os.router({
       const { items } = await committed(
         context,
         library.land(actor, { answer: organizedSchema, opId: input.opId }, (scope) => ({
-          items: organizeItems(scope, actor, library.ids, input),
+          items: organizeItems(scope, library.ids, input),
         })),
       );
       return { items: items.map(summaryOfRow) };
@@ -412,7 +372,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => {
-          const item = refreshItem(scope, actor, input.id);
+          const item = refreshItem(scope, input.id);
           askReading(scope, actor, item);
           return { item };
         }),
@@ -423,7 +383,7 @@ export const libraryRouter = os.router({
       const { addressHeld, changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) => {
-          const restored = setDeleted(scope, actor, { deleted: false, ids: input.ids });
+          const restored = setDeleted(scope, { deleted: false, ids: input.ids });
           for (const item of restored.landed) {
             askReading(scope, actor, item);
           }
@@ -438,7 +398,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) =>
-          savePage(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
+          savePage(scope, cellCodec(scope.storage, library.ids), input),
         ),
       );
     }),
@@ -449,13 +409,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) => {
-          const saved = saveLink(
-            scope,
-            actor,
-            cellCodec(scope.storage, library.ids),
-            library.ids,
-            input,
-          );
+          const saved = saveLink(scope, cellCodec(scope.storage, library.ids), library.ids, input);
           if (saved.created) {
             askReading(scope, actor, saved.item);
           }

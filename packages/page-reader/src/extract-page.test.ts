@@ -340,7 +340,6 @@ describe("the article as blocks", () => {
     );
     const stored = JSON.stringify(read.article.blocks);
     expect(stored).not.toContain('"tag"');
-    expect(stored).not.toContain('"annotationMarker"');
     expect(stored).not.toContain('"opaque"');
     expect(stored).toContain("#rust");
   });

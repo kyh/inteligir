@@ -134,17 +134,6 @@ how it ships.
   photo button is the library's, where no note is open; a paste into a note's
   text lands in that note).
 
-- **A PHONE HIGHLIGHT IS THE EDITOR'S, AND THE SHEET WRITES ITS ENTRIES** (owner
-  decision: the phone annotates and replies). The page's highlight and its note
-  reach the replica as the library's page sends them, and its passages tint by
-  the ids it asks the replica for as the item moves
-  (`apps/mobile/src/editor/item-ports.ts`); the sheet adds a bare highlight's
-  note, a reply and a delete as entries signed `user`
-  (`apps/mobile/src/annotations/annotation-edits.ts`), and a card shows the
-  root's stored quote above its note. Rejected: the live passage (the Mac's
-  passage projection, for a line the quote holds).
-  `tools/e2e/src/scenarios/phone-annotations-hosted.ts`.
-
 - **A SHARE IS A SAVE THE APP MAKES, AS ITS LINK; THE EXTENSION ONLY HANDS IT
   OVER.** The share extension (`expo-share-intent`'s "Save to Inteligir", for
   a page, a link or text, never a photo or a file) writes the share into the

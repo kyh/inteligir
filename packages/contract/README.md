@@ -84,7 +84,7 @@ src/
 - **Every library write takes an optional `opId`**, which the cell keeps, so
   an outbox resending after a lost answer lands once; the test names each read
   it exempts. A write names the base it was computed from (a block's hash, a
-  field's value, a highlight's note), and `CONFLICT` carries what it met.
+  field's value), and `CONFLICT` carries what it met.
 - **No row is named after a property every function has** (`apply`, `call`,
   `bind`): a client's path is read off a proxy over a function, so
   `client.library.apply` would be `Function.prototype.apply` (hence

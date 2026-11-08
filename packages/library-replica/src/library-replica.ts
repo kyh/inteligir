@@ -4,8 +4,8 @@
 // resumes, when a write is queued, when the socket says the library moved or opens, and on the
 // minute's check-in, so nothing it holds rests on the socket. A failure waits a doubling while
 // and goes again; a session's end stops the replica, which its host answers (a sign-out wipes it).
-// The screens read the listing from memory and an item and its highlights from SQL, each with
-// this device's unsent writes laid over; a search reads what landed, less what this device
+// The screens read the listing from memory and an item from SQL, each with this device's unsent
+// writes laid over; a search reads what landed, less what this device
 // deleted, and the threads as the cell sent them.
 
 import { createORPCClient, safe } from "@orpc/client";
@@ -17,7 +17,6 @@ import type {
 } from "@repo/contract/cloud/library/library-wire";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
-import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { LibraryIndex } from "@repo/notes/library/library-index";
 import type {
   ListingFolder,
@@ -43,7 +42,6 @@ import {
   layFolders,
   readAllListingRows,
   readListingRows,
-  readReplicaAnnotations,
   readReplicaItem,
   rowsNaming,
 } from "./replica-listing";
@@ -149,7 +147,6 @@ export interface LibraryReplica extends ReplicaCommands {
   // an item as a screen open on it reads it, and writes to it: a make that folded answers as the
   // item it landed on, under the id the screen was opened with
   readonly item: (itemId: string) => Promise<ReplicaItem | null>;
-  readonly annotations: (itemId: string) => Promise<AnnotationStore>;
   // the library's ranked search over what has landed, less what this device moved to the other
   // side of Deleted
   readonly search: (query: string, limit: number, side?: SearchSide) => Promise<LibrarySearchHit[]>;
@@ -307,7 +304,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
       if (reset || ids.length > REREAD_ALL_OVER) {
         await readAll(pending);
       } else {
-        if (touched.kinds.has("item") || touched.kinds.has("annotation")) {
+        if (touched.kinds.has("item")) {
           await readSome(ids, pending);
         }
         if (touched.kinds.has("folder")) {
@@ -541,18 +538,6 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
   const replica: LibraryReplica = {
     ...commands,
-
-    annotations: async (asked) => {
-      const itemId = folded.landedAs(asked);
-      return await runPlanAsync(
-        sql,
-        readReplicaAnnotations(
-          itemId,
-          rowsNaming(outbox.rows(), itemId),
-          Math.floor(clock.now() / 1000),
-        ),
-      );
-    },
 
     close,
 

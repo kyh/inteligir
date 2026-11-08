@@ -129,9 +129,6 @@ const markerFor = (line: string): Marker | null => {
   }
 };
 
-// a `:::` container line or a tab's `=== Label`: line grammar the transform lifts out of text
-export const isContainerLine = (line: string): boolean => markerFor(line) !== null;
-
 interface Line {
   nodes: PhrasingContent[];
   // what ended it: the terminator split off its text, or nothing after a hard break or at the end

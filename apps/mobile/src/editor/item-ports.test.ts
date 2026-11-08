@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import type { HeldFile } from "../files/file-cache";
 import { createItemPorts } from "./item-ports";
 
-const NOW = 1_700_000_300_000;
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 // the phone's file cache as the ports reach it: the files it holds by sha, with their types
@@ -25,7 +24,7 @@ const phoneWithNote = async () => {
     title: "Plans",
   });
   await phone.replica.sync();
-  const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+  const ports = createItemPorts({ files: heldFiles(), replica: phone.replica });
   return { cell, id: made.id, phone, ports };
 };
 
@@ -67,7 +66,7 @@ describe("an item page's questions, answered from the phone's replica", () => {
     cell.setBodiesPerAnswer(0);
     const phone = await openDevice(cell, "second phone");
     await phone.replica.sync();
-    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+    const ports = createItemPorts({ files: heldFiles(), replica: phone.replica });
 
     await expect(
       ports.writeItem({
@@ -98,7 +97,6 @@ describe("an item page's questions, answered from the phone's replica", () => {
           [recording, { bytes: MP4, mime: "video/mp4" }],
         ]),
       ),
-      now: () => NOW,
       replica: phone.replica,
     });
     await expect(ports.readFile({ sha: picture })).resolves.toStrictEqual({
@@ -134,33 +132,6 @@ describe("an item page's questions, answered from the phone's replica", () => {
     expect(phone.blobs.held()).toStrictEqual([]);
   });
 
-  it("writes a highlight's bare entry and then its note, as the library's page does", async () => {
-    const { cell, id, phone, ports } = await phoneWithNote();
-    await expect(
-      ports.addHighlight({ id: "h1", itemId: id, quote: "first" }),
-    ).resolves.toStrictEqual({
-      queued: true,
-    });
-    await expect(
-      ports.noteHighlight({ id: "h1", itemId: id, text: "why?" }),
-    ).resolves.toStrictEqual({
-      queued: true,
-    });
-    await expect(
-      ports.noteHighlight({ id: "h2", itemId: id, text: "none" }),
-    ).resolves.toStrictEqual({
-      queued: false,
-    });
-    await phone.replica.sync();
-    expect(cell.annotation("h1")).toMatchObject({ quote: "first", text: "why?" });
-  });
-
-  it("names the highlights an item holds, one still queued among them", async () => {
-    const { id, ports } = await phoneWithNote();
-    await ports.addHighlight({ id: "h1", itemId: id, quote: "first" });
-    await expect(ports.highlightIds({ itemId: id })).resolves.toStrictEqual({ ids: ["h1"] });
-  });
-
   it("makes a note of the page's blocks in the folder of the item it was made from", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
@@ -174,7 +145,7 @@ describe("an item page's questions, answered from the phone's replica", () => {
       tags: [],
       title: "Plans",
     });
-    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+    const ports = createItemPorts({ files: heldFiles(), replica: phone.replica });
 
     const { id } = await ports.createNote({
       besideId: source.id,
@@ -202,7 +173,7 @@ describe("an item page's questions, answered from the phone's replica", () => {
     const phone = await openDevice(cell, "phone");
     const card = await phone.replica.saveLink({ folderId: folders.named, tags: [], url });
     await phone.replica.sync();
-    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+    const ports = createItemPorts({ files: heldFiles(), replica: phone.replica });
 
     const { id } = await ports.createNote({
       besideId: card.id,

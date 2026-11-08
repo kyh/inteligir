@@ -84,8 +84,8 @@ const createNoteAnswer = (
 // a file the phone holds, as the bridge carries it
 type HeldFile = Extract<PageRequest, { kind: "keepFile" }>["payload"];
 
-// every item is a link target under its title, a kept file is held under the next free pretend
-// sha, and a highlight is queued for the phone's store, which a case reads off the request
+// every item is a link target under its title, and a kept file is held under the next free pretend
+// sha
 const answerFromLibrary =
   (items: Map<string, ItemState>, files: Map<string, HeldFile>): Answerer =>
   (request) => {
@@ -112,13 +112,6 @@ const answerFromLibrary =
       }
       case "readFile": {
         return ok({ file: files.get(request.payload.sha) ?? null });
-      }
-      case "highlightIds": {
-        return ok({ ids: [] });
-      }
-      case "addHighlight":
-      case "noteHighlight": {
-        return ok({ queued: items.has(request.payload.itemId) });
       }
       default: {
         const exhaustive: never = request;

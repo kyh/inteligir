@@ -7,7 +7,6 @@
 
 import { z } from "zod";
 
-import { ANNOTATION_SOURCES } from "../annotations/store-schema";
 import { ITEM_KINDS } from "../items/item-kind";
 import { FETCH_STATES } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
@@ -25,13 +24,7 @@ export const LIBRARY_SCHEMA_VERSION = 11;
 const LIBRARY_SQLITE_MIN_VERSION = "3.37.0";
 
 // what the change log names a row by
-export const LIBRARY_CHANGE_KINDS = [
-  "item",
-  "folder",
-  "annotation",
-  "thread",
-  "thread_event",
-] as const;
+export const LIBRARY_CHANGE_KINDS = ["item", "folder", "thread", "thread_event"] as const;
 export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 
 const TAG_ORIGINS = ["field", "inline"] as const;
@@ -117,7 +110,6 @@ const SYNCED_DDL = [
     json TEXT NOT NULL,
     hash TEXT NOT NULL,
     text TEXT NOT NULL,
-    annotation_ids TEXT NOT NULL,
     seq INTEGER NOT NULL,
     PRIMARY KEY (item_id, block_id)
   ) STRICT`,
@@ -144,20 +136,6 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS links_source ON links (source_id)`,
   `CREATE INDEX IF NOT EXISTS links_target ON links (target_id)`,
   `CREATE INDEX IF NOT EXISTS links_key ON links (target_key)`,
-  `CREATE TABLE IF NOT EXISTS annotations (
-    id TEXT PRIMARY KEY,
-    item_id TEXT NOT NULL,
-    parent_id TEXT,
-    text TEXT NOT NULL,
-    quote TEXT,
-    occurrence INTEGER,
-    source TEXT CHECK (source IN (${oneOf(ANNOTATION_SOURCES)})),
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    deleted_at INTEGER,
-    seq INTEGER NOT NULL
-  ) STRICT`,
-  `CREATE INDEX IF NOT EXISTS annotations_item ON annotations (item_id)`,
   SEARCH_DDL,
   `CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY,
@@ -183,9 +161,9 @@ const SYNCED_DDL = [
 // each, which no device reads, since a device asks for a file by the sha an item's row names;
 // change sets, the op ledger, the uploads it holds room for, the built-in agent, imports and
 // exports, and the jobs its alarm runs. A change set's item names its before and after by part: an
-// item's fields, its manifest (each block's id, hash, order key and section) and its highlights are
-// each kept once per item under their content hash (`snapshot_parts`), so a set that changed one
-// block stores one new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's
+// item's fields and its manifest (each block's id, hash, order key and section) are each kept once
+// per item under their content hash (`snapshot_parts`), so a set that changed one block stores one
+// new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's
 // after is null while the set is open and the item is as it left it; it is written when the set
 // seals, or when another set is about to change the item. A block a write replaces or drops keeps
 // its content in `block_versions`, which the prune job sweeps of what no part names.
@@ -231,16 +209,12 @@ const CELL_DDL = [
     created INTEGER NOT NULL CHECK (created IN (0, 1)),
     before_fields TEXT,
     before_manifest TEXT,
-    before_annotations TEXT,
     after_fields TEXT,
     after_manifest TEXT,
-    after_annotations TEXT,
     PRIMARY KEY (change_set_id, item_id),
     CHECK ((created = 1) = (before_fields IS NULL)),
-    CHECK ((before_fields IS NULL) = (before_manifest IS NULL)
-      AND (before_fields IS NULL) = (before_annotations IS NULL)),
-    CHECK ((after_fields IS NULL) = (after_manifest IS NULL)
-      AND (after_fields IS NULL) = (after_annotations IS NULL))
+    CHECK ((before_fields IS NULL) = (before_manifest IS NULL)),
+    CHECK ((after_fields IS NULL) = (after_manifest IS NULL))
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS change_set_items_item ON change_set_items (item_id)`,
   `CREATE TABLE IF NOT EXISTS snapshot_parts (
@@ -341,7 +315,6 @@ const CELL_DDL = [
     already_saved INTEGER NOT NULL,
     skipped INTEGER NOT NULL,
     unreadable INTEGER NOT NULL,
-    highlights INTEGER NOT NULL,
     change_set_id TEXT,
     message TEXT,
     started_at INTEGER NOT NULL,

@@ -1,7 +1,7 @@
 // An item in the editor page, by its id, over the phone's replica: its blocks drawn and edited by
 // the desktop's editor through the touch kit, a pause's edits queued in the outbox, offline too.
-// The menu opens the page it was saved from, its Info, its highlights, a conversation about it with
-// the built-in agent, and Delete, which moves it to Deleted on every device.
+// The menu opens the page it was saved from, its Info, a conversation about it with the built-in
+// agent, and Delete, which moves it to Deleted on every device.
 
 import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router";
@@ -11,15 +11,12 @@ import {
   usePreventRemove,
 } from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
-import * as Crypto from "expo-crypto";
 import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { shownTitle } from "@repo/notes/items/item-name";
-import { createAnnotationEdits } from "@/annotations/annotation-edits";
-import { AnnotationsSheet } from "@/annotations/annotations-sheet";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { EditorPageEvent, LoadVerdict } from "@/editor/editor-host";
 import { useItemEditor } from "@/editor/use-item-editor";
@@ -62,12 +59,6 @@ const followVerdict = (verdict: LoadVerdict): boolean => {
   return verdict.kind === "allow";
 };
 
-// the page's own word on what it holds, and the highlights a tap in it named
-interface PageState {
-  readonly saveError: string | null;
-  readonly sheet: readonly string[] | null;
-}
-
 const ItemScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
@@ -78,29 +69,15 @@ const ItemScreen = () => {
   const depth = useNavigationState((state) => depthOf(state.routes, route.key));
   const { replica } = useLibrary();
   const item = useItem(itemId);
-  const [page, setPage] = useState<PageState>({ saveError: null, sheet: null });
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // the page's own word on why its last write did not land
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [released, setReleased] = useState(false);
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [edits] = useState(() =>
-    createAnnotationEdits({
-      itemId,
-      now: () => Date.now(),
-      randomBytes: Crypto.getRandomBytes,
-      replica,
-    }),
-  );
 
   const onEvent = (event: EditorPageEvent): void => {
     switch (event.type) {
       case "editorState": {
-        setPage((held) => ({ ...held, saveError: event.saveError }));
-        return;
-      }
-      case "showAnnotations": {
-        setPage((held) => ({ ...held, sheet: event.ids }));
-        setSheetOpen(true);
+        setSaveError(event.saveError);
         return;
       }
       case "openItem": {
@@ -116,16 +93,16 @@ const ItemScreen = () => {
   );
   const { attach: attachView } = host;
 
-  usePreventRemove(page.saveError !== null, ({ data }) => {
+  usePreventRemove(saveError !== null, ({ data }) => {
     const leave = (): void => {
       navigation.dispatch(data.action);
     };
     void (async () => {
-      if (page.saveError === null || (await host.flush())) {
+      if (saveError === null || (await host.flush())) {
         leave();
         return;
       }
-      Alert.alert("Leave without saving?", page.saveError, [
+      Alert.alert("Leave without saving?", saveError, [
         { style: "cancel", text: "Stay" },
         { onPress: leave, style: "destructive", text: "Discard edits" },
       ]);
@@ -243,14 +220,6 @@ const ItemScreen = () => {
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             onPress={() => {
-              setPage((held) => ({ ...held, sheet: null }));
-              setSheetOpen(true);
-            }}
-          >
-            Highlights
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() => {
               void (async () => {
                 await host.flush();
                 openAgent(undefined, itemId);
@@ -272,15 +241,6 @@ const ItemScreen = () => {
       >
         {body}
       </KeyboardAvoidingView>
-      <AnnotationsSheet
-        edits={edits}
-        ids={page.sheet}
-        itemId={itemId}
-        visible={sheetOpen}
-        onClose={() => {
-          setSheetOpen(false);
-        }}
-      />
       <ItemInfoSheet
         fields={item?.fields ?? null}
         folders={replica.folders()}

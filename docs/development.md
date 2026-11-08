@@ -135,7 +135,7 @@ boots (`tools/e2e/src/harness/extension-fixture.ts`). The store builds
 | The extension's credential and the saves it waits on | the browser's extension storage (`storage.local`), kept from the pages it scripts |
 | Accounts, sessions, devices, invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                        |
 | The library's files                                  | R2, `BLOBS` (same `.wrangler` dir)                                                |
-| Library cells, their sockets and conversations       | Durable Objects (same `.wrangler` dir): items, highlights, filing rules, jobs     |
+| Library cells, their sockets and conversations       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                 |
 | Connected assistants' clients, grants and tokens     | KV, `OAUTH_KV` (same `.wrangler` dir)                                             |
 
 ## Quality gates

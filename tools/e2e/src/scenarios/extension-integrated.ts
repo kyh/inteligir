@@ -1,7 +1,6 @@
 // an extension save, end to end: the dev build in a real Chromium reads the page as the person sees
-// it, saves it read through `/v1` so the cloud never asks for it, and the selection saved with it
-// is placed in the article's own text. The page writes its passage with its own script after it
-// loads, so the passage is in the page the browser shows and in no markup the server ever sent: a
+// it and saves it read through `/v1`, so the cloud never asks for it. The page writes its passage
+// with its own script after it loads, so the passage is in the page the browser shows and in no markup the server ever sent: a
 // save that fetched the page could not hold it. The page is served on loopback, which the dev build
 // may script without a click; the cloud reads nothing from such an address, so its text can only
 // be the one the extension read.
@@ -52,11 +51,6 @@ const ARTICLE = [
   "</body></html>",
 ].join("\n");
 
-const MARKED = new RegExp(
-  String.raw`%%i:(?<id>[a-z0-9]+):start%%${PASSAGE.replaceAll(".", String.raw`\.`)}%%i:\k<id>:end%%`,
-  "u",
-);
-
 const boundAddressSchema = z.object({ port: z.number().int() });
 
 // counts what asks for the article, so the scenario can say who read it
@@ -88,7 +82,7 @@ const startArticleServer = async (): Promise<{
 
 export const extensionIntegrated: Scenario = {
   description:
-    "an extension save of a fixture page with a selection takes its text from the page the browser shows and anchors the highlight, and the cloud never asks for the page",
+    "an extension save of a fixture page takes its text from the page the browser shows, and the cloud never asks for the page",
   name: "extension-integrated",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
@@ -111,11 +105,11 @@ export const extensionIntegrated: Scenario = {
       expectEq(article.articleRequests(), 1, "requests for the article before the save");
       await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
 
-      ctx.log("the passage selected, a save makes the item and its highlight together");
-      const saved = await saveFromWorker(browser, article.url, "passage");
+      ctx.log("a save makes the item from the page the extension read");
+      const saved = await saveFromWorker(browser, article.url);
       expectEq(saved, { created: true, kind: "saved", title: TITLE }, "the save's answer");
 
-      ctx.log("the item holds the page as the browser showed it, its highlight in the article");
+      ctx.log("the item holds the page as the browser showed it, the passage in the article");
       const { items } = await library.items.list({ kind: "link" });
       const item = items.find((listed) => listed.url === article.url);
       expect(
@@ -126,18 +120,9 @@ export const extensionIntegrated: Scenario = {
       expectEq(read.fields.fetchState, "filled", "the item was read at the save");
       expectEq(read.fields.fetchError, null, "the reading's failure");
       const { markdown } = read.view;
-      for (const words of [SERVED, CLOSING]) {
+      for (const words of [SERVED, PASSAGE, CLOSING]) {
         expect(markdown.includes(words), `the article holds "${words}":\n${markdown}`);
       }
-      const { highlights } = await library.annotations.list({ itemId: item.id });
-      expectEq(highlights.length, 1, "the item's highlights");
-      const [highlight] = highlights;
-      expectEq(highlight?.quote, PASSAGE, "the highlight's quote");
-      expectEq(highlight?.placed, true, "the highlight is placed in the article");
-      expectEq(highlight?.text, "", "the highlight's note, which a selection leaves empty");
-      const marked = MARKED.exec(markdown);
-      expect(marked !== null, `the markers wrap the passage in the article:\n${markdown}`);
-      expectEq(marked.groups?.id, highlight?.id, "the markers' id against the highlight's");
       expectEq(
         article.articleRequests(),
         1,
