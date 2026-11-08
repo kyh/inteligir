@@ -6,8 +6,8 @@
 // while an item names it or any change set does (`history_blobs`), and once nothing does or will
 // it is let go: when the import that kept it ends, at the alarm's next run after the reading that
 // kept it lands nowhere or the last change set naming it went, and by the alarm a day after it
-// landed or an item stopped naming it otherwise, but never while an import runs or an export
-// writes, whose plans may name it.
+// landed or an item stopped naming it otherwise, but never while an import runs, whose plan may
+// name it.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
@@ -192,7 +192,7 @@ export const storeItemBlobs = (
 };
 
 // a purged item: the files it and its change sets named are asked about at the alarm's next run,
-// which an import or an export may put off
+// which an import may put off
 export const dropItemBlobs = (sql: SqlStatements, itemId: string, now: number): void => {
   const shas = deleteItemBlobs(sql, itemId);
   const history = sql

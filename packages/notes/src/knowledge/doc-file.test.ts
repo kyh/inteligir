@@ -8,7 +8,6 @@ import {
   wikiLinkName,
   wikiLinkPath,
 } from "./doc-file";
-import { pathCollisionKey } from "./folder-path";
 
 describe("what counts as a doc", () => {
   it("names every extension the index and the listing carry", () => {
@@ -111,16 +110,5 @@ describe("the name a wiki link spells", () => {
     expect(wikiLinkName("spec.markdown")).toBe("spec.markdown");
     expect(wikiLinkName("assets/logo.png")).toBe("logo.png");
     expect(wikiLinkPath("notes/todo.txt")).toBe("notes/todo.txt");
-  });
-});
-
-describe("a name the disk already holds", () => {
-  // é spelled both ways: a Mac's filesystem holds either as one file
-  const composed = "Café.md";
-  const decomposed = "Café.md";
-
-  it("is one key in either case and either normalization", () => {
-    expect(pathCollisionKey(decomposed)).toBe(pathCollisionKey(composed.toUpperCase()));
-    expect(pathCollisionKey("Cafe.md")).not.toBe(pathCollisionKey(composed));
   });
 });

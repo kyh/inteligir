@@ -150,7 +150,7 @@ runs (`src-tauri/src/window.rs`):
   URL among them goes to the browser.
 - **Every permission request is refused**: dictation is the operating
   system's, so the page needs no microphone, camera or location.
-- **A download** (a file item's Download, an export's zip) lands in the
+- **A download** (a file item's Download) lands in the
   Downloads folder under its own name.
 
 Origins are compared **by their parts**, and a URL that carries a login is

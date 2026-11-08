@@ -44,9 +44,8 @@ src/
                      (account-purge.ts), its sockets, the upgrade routes with
                      the ticket a browser's socket opens on, the files'
                      bytes in R2 (blob-routes.ts), the readings it sends to
-                     the fill queue (cell-fills.ts), its imports and exports
-                     (cell-imports.ts, cell-exports.ts) and an export's zip
-                     (export-routes.ts); beside the cell, the library's page,
+                     the fill queue (cell-fills.ts) and its imports
+                     (cell-imports.ts); beside the cell, the library's page,
                      answered from the assets (library-page.ts)
     connector/       The connector: its OAuth on @cloudflare/workers-oauth-provider
                      (connector-auth.ts), the consent page an assistant
@@ -70,7 +69,7 @@ src/
     fill/            The fill queue's consumer (fill-consumer.ts): a saved
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
-    zip/             The zip codec imports read and exports write
+    zip/             The zip reader imports read by
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The highlight.js stub that keeps the DOM lib out (below),
@@ -166,7 +165,6 @@ own (`.dev.vars.example`).
 | `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension    |
 | `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell              |
 | `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range              |
-| `GET /v1/exports/:id`       | device or tab   | An export's zip, by range, for seven days or until a newer one is ready       |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell           |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in              |
 | `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own      |
@@ -183,8 +181,8 @@ reaches: the socket upgrade to that user's own library cell, `LibraryDO`
 named `library:<userId>` (on the cell's own socket path, carrying the verified
 holder; a revoke and a deletion call the cell by RPC), and the account
 deletion reads D1 directly. `/v1/rpc` answers every refusal, an unhandled
-fault included, in its own protocol, and `/v1/blobs`, `/v1/exports` and the
-socket's upgrade in HTTP's statuses alone, with a sentence for a person.
+fault included, in its own protocol, and `/v1/blobs` and the socket's upgrade
+in HTTP's statuses alone, with a sentence for a person.
 
 A link the library holds unread (a `saveLink`, a `refresh`, an import's) is
 read by the Worker's own queue consumer: the cell writes the reading's ask as a

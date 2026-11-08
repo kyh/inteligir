@@ -4,7 +4,7 @@
 // file-relative, then root-relative, no alias tiers.
 
 import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
-import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
+import { IMPLIED_LINK_EXTENSION, wikiLinkName } from "./doc-file";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./folder-path";
 
 export interface TargetResolver {
@@ -215,46 +215,3 @@ export const buildResolver = (
   const { resolveMd, resolveWiki } = filed;
   return { resolveMd, resolveWiki };
 };
-
-// the shortest target that resolves back to `path`: its name, else its path, spelled without the
-// extension a link may leave off, else the whole path, which an extensionless file of the same
-// name would otherwise shadow. a path the resolver does not know yet gets the qualified spelling
-export const wikiTargetForPath = (
-  path: string,
-  resolveWiki: (target: string) => string | null,
-): string => {
-  const qualified = wikiLinkPath(path);
-  return (
-    [wikiLinkName(path), qualified, path].find((target) => resolveWiki(target) === path) ??
-    qualified
-  );
-};
-
-// The keys, folded as the resolver's case-blind tiers fold them, that let a writer with no room
-// for the whole library's resolver still spell `wikiTargetForPath` (the cloud's export, a page at
-// a time): every path that can answer one of the targets `wikiTargetForPath(path)` tries, by the
-// exact, the name or the alias tier, is filed under one of `wikiTargetKeys(path)`, so a resolver
-// over the paths filed under them answers each of those targets as one over every path does.
-
-const foldedKeys = (keys: readonly string[]): string[] => [
-  ...new Set(keys.map((key) => key.toLowerCase())),
-];
-
-// the keys a path with these aliases is filed under: its basename, its link name, each alias
-export const wikiFilingKeys = (path: string, aliases: readonly string[]): string[] =>
-  foldedKeys([
-    basenamePath(path),
-    wikiLinkName(path),
-    ...aliases.map((alias) => normalizePath(alias.trim())).filter((key) => key !== ""),
-  ]);
-
-// the keys whose paths can answer a target `wikiTargetForPath(path)` tries: each target's basename,
-// with and without the extension a link leaves off, and the target itself, an alias's key
-export const wikiTargetKeys = (path: string): string[] =>
-  foldedKeys(
-    [wikiLinkName(path), wikiLinkPath(path), path].flatMap((target) => {
-      const clean = normalizePath(target);
-      const base = basenamePath(clean);
-      return [base, `${base}${IMPLIED_LINK_EXTENSION}`, clean];
-    }),
-  );

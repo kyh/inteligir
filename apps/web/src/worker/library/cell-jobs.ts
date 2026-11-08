@@ -1,10 +1,9 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
 // quiet, the daily prune of change sets, an upload whose room was held too long, a file nothing may
 // name any more, a stray file to take out of R2, a page's reading to send to the fill queue, an
-// import's next page, an export to write and one to let go, and the built-in agent's turns: one to
-// hand to its conversation's object, and one whose object has gone quiet to ask after. A job is a
-// row, so it survives eviction and a missed alarm; the alarm is set to the earliest due one, and
-// only while any is waiting
+// import's next page, and the built-in agent's turns: one to hand to its conversation's object,
+// and one whose object has gone quiet to ask after. A job is a row, so it survives eviction and a
+// missed alarm; the alarm is set to the earliest due one, and only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
@@ -19,8 +18,6 @@ const JOB_KINDS = [
   "stray",
   "fill",
   "import",
-  "export",
-  "expire",
   "agent-deliver",
   "agent-watch",
 ] as const;

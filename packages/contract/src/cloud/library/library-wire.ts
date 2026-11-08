@@ -26,7 +26,6 @@ import {
 } from "@repo/notes/library/library-item";
 import {
   CHANGE_SET_ACTORS,
-  EXPORT_STATES,
   IMPORT_SOURCES,
   IMPORT_STATES,
 } from "@repo/notes/library/library-schema";
@@ -432,7 +431,7 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
   }),
 ]);
 
-// ---- imports and exports ----
+// ---- imports ----
 
 const count = z.number().int().nonnegative();
 
@@ -457,16 +456,4 @@ export const importJobSchema = z.object({
   // what could not be read into an item: a note nested past what the editor reads or past what an
   // item holds, a zip entry that would not open, an item the library refused
   unreadable: count,
-});
-
-// an export, the library as a zip of markdown, downloaded from `/v1/exports/<id>` while
-// it is ready
-export const exportJobSchema = z.object({
-  bytes: count.nullable(),
-  expiresAt: instant.nullable(),
-  finishedAt: instant.nullable(),
-  id: idSchema,
-  message: z.string().nullable(),
-  startedAt: instant,
-  state: z.enum(EXPORT_STATES),
 });

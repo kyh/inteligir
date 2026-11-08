@@ -1,8 +1,8 @@
 # @repo/editor
 
 The item editor: Plate (platejs) over an item's blocks, the markdown codec an
-import, an export and the agent read and write through, and everything that
-keeps a round-trip byte-stable.
+import and the agent read and write through, and everything that keeps a
+round-trip byte-stable.
 
 ## Why it exists
 
@@ -33,8 +33,8 @@ src/
                        # markdown→Slate conversion, the bounded fixpoint and
                        # `serializeNote`, the one way the codec writes markdown
   codec/               # an item as markdown, headless: import and export of
-                       # one file, a folder's or zip's import plan and the
-                       # export's, and the agent's view of an item and its edits
+                       # one file, a folder's or zip's import plan, and the
+                       # agent's view of an item and its edits
   kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock
@@ -92,7 +92,7 @@ src/
   prose. Only a nesting deeper than the conversion or the writer holds is
   refused, a list past `LIST_MAX_INDENT` among it (an import leaves
   the file out, an agent's edit is turned down, a paste lands as plain text),
-  so nothing is written over it and every item exports; a round trip that never
+  so nothing is written over it and every item writes; a round trip that never
   settles or would lose a letter is a rule or serializer bug, which the
   fixtures and `analyzeMarkdown` (`RoundTripFailure` in
   `markdown/markdown-doc.ts`) name.

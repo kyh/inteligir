@@ -184,7 +184,7 @@ const productionWorker = (mode: string | undefined) => ({
     ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
-    // the library's files and exports, under acct/<userId>/
+    // the library's files, under acct/<userId>/
     BLOBS: bindings.r2({ name: "inteligir-vault" }),
     FILLS: bindings.queue<FillJob>({ name: FILL_QUEUE }),
     // password-reset transport; needs email sending enabled + DNS onboarding once

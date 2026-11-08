@@ -3,7 +3,7 @@
 The SPA the Worker serves at `/library`: the account's library over a replica
 the tab holds, every read from the replica engine (`@repo/library-replica`, on
 in-memory SQLite) and every write through its outbox, and what only the cloud
-answers (the agent and its Undo, import and export, the account) through `/v1`.
+answers (the agent and its Undo, import, the account) through `/v1`.
 Signed out, it sends the tab to the site's sign-in, which brings it back. It
 reaches neither the Worker's source nor the shell's: the Worker copies its build
 into its assets ([`apps/web`](../web/README.md)), the desktop shell embeds the

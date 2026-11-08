@@ -877,6 +877,9 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.4
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       playwright-core:
         specifier: 1.63.0
         version: 1.63.0

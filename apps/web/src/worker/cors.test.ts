@@ -43,7 +43,6 @@ describe("the Mac page's cross-origin calls", () => {
     );
     expect(answered.status).toBe(400);
     expect(answered.headers.get("access-control-allow-origin")).toBe(MAC_APP_ORIGIN);
-    expect(answered.headers.get("access-control-expose-headers")).toBe("content-disposition");
   });
 
   it("lets the Mac page read a file's answer", async () => {
@@ -94,7 +93,6 @@ describe("the browser extension's cross-origin calls", () => {
     for (const [url, origin] of [
       [SIGN_IN, `${EXTENSION_ORIGIN}a`],
       [SIGN_IN, "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
-      [`${ORIGIN}/v1/exports/x`, EXTENSION_ORIGIN],
       [`${ORIGIN}/api/auth/get-session`, EXTENSION_ORIGIN],
     ] as const) {
       const answered = await preflight(url, origin);

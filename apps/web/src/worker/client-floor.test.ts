@@ -3,7 +3,7 @@
 // this Worker served, which ships in the same deploy, names none.
 
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
-import { V1_BLOBS_PATH, V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
@@ -87,17 +87,14 @@ describe("the client build floor", () => {
     ).resolves.toMatchObject(OUTDATED);
   });
 
-  it("refuses a file and an export as it refuses a call", async () => {
+  it("refuses a file as it refuses a call", async () => {
     const { credential } = await signedIn("floor-bytes@example.test");
-    for (const path of [
-      `${V1_BLOBS_PATH}/${"a".repeat(64)}`,
-      `${V1_EXPORTS_PATH}/${crypto.randomUUID()}`,
-    ]) {
-      const response = await drained(
-        exports.default.fetch(`${ORIGIN}${path}`, { headers: asBuild(credential, null) }),
-      );
-      expect(response.status, path).toBe(426);
-    }
+    const response = await drained(
+      exports.default.fetch(`${ORIGIN}${V1_BLOBS_PATH}/${"a".repeat(64)}`, {
+        headers: asBuild(credential, null),
+      }),
+    );
+    expect(response.status).toBe(426);
   });
 
   it("answers this Worker's own pages, which ship in the same deploy", async () => {

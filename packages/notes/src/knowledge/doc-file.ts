@@ -1,4 +1,4 @@
-import { basenamePath, extnamePath, joinPath } from "./folder-path";
+import { basenamePath, extnamePath } from "./folder-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 
@@ -23,6 +23,7 @@ const impliedLinkExtension = (path: string): string => {
   return ext.toLowerCase() === IMPLIED_LINK_EXTENSION ? ext : "";
 };
 
+/** @internal */
 export const wikiLinkPath = (path: string): string =>
   path.slice(0, path.length - impliedLinkExtension(path).length);
 
@@ -42,34 +43,3 @@ export const isOsLitterPath = (path: string): boolean =>
   path
     .split("/")
     .some((segment) => segment.startsWith("._") || OS_LITTER_NAMES.has(segment.toLowerCase()));
-
-// a free spelling of a name, and which of its spellings it is (1 for the name itself)
-export interface FreePath {
-  readonly path: string;
-  readonly n: number;
-}
-
-// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses,
-// counting from the `from`th, and the count it took, so a writer naming many files alike resumes
-// where its last search for that name stopped.
-export const freePathFrom = (
-  dir: string,
-  stem: string,
-  extension: string,
-  isTaken: (path: string) => boolean,
-  from: number,
-): FreePath => {
-  for (let n = Math.max(1, from); ; n += 1) {
-    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
-    if (!isTaken(path)) {
-      return { n, path };
-    }
-  }
-};
-
-export const freePath = (
-  dir: string,
-  stem: string,
-  extension: string,
-  isTaken: (path: string) => boolean,
-): string => freePathFrom(dir, stem, extension, isTaken, 1).path;

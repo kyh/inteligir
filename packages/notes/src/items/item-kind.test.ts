@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   COVERS_DIR,
-  extensionOfMediaType,
   FILE_KIND_EXTENSIONS,
   fileKindOf,
   isItemKind,
@@ -52,15 +51,12 @@ describe("item kinds", () => {
     expect(kinded.filter((ext) => mediaTypeOfName(`a${ext}`) === null)).toStrictEqual([]);
   });
 
-  it("reads a type from every extension it goes by, and writes it under the first", () => {
+  it("reads a type from every extension it goes by", () => {
     expect(["a.ogg", "b.OGA", "c.opus"].map(mediaTypeOfName)).toStrictEqual([
       "audio/ogg",
       "audio/ogg",
       "audio/ogg",
     ]);
-    expect(extensionOfMediaType("audio/ogg")).toBe("ogg");
-    expect(extensionOfMediaType("image/jpeg; q=1")).toBe("jpg");
-    expect(extensionOfMediaType("application/x-unknown")).toBeNull();
     expect(mediaTypeOfName("no-extension")).toBeNull();
   });
 

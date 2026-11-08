@@ -161,7 +161,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   refusal is an `error()` factory, oRPC's own code where it means the same, and
   the floor, credential and budget the Worker meets before any procedure are
   answered in the same protocol. Every library write takes an `opId` the cell
-  keeps; only a file's bytes, an export's zip and the socket stay plain HTTP
+  keeps; only a file's bytes and the socket stay plain HTTP
   under `/v1`, and the site's sign-up form posts beside Better Auth, under
   `/api`. Rejected: REST beside RPC (two serializers, two error vocabularies)
   and oRPC's default statuses (an unmapped code answers 400).
@@ -309,8 +309,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. A device's read answers `no-store`, a file and an export
-  alike, since it keeps what it reads where a sign-out empties it, and an HTTP
+  script-less sandbox. A device's read answers `no-store`, since it keeps what
+  it reads where a sign-out empties it, and an HTTP
   cache under it would hold those bytes and the bearer past that; a tab's
   answers immutable. A file's row is the cell's alone: a device asks for a
   file by the sha an item's row names, and takes its type from the answer.
@@ -405,22 +405,6 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/library/cell-imports.ts`,
   `apps/web/src/worker/library/cell-import-markdown.ts`.
 
-- **AN EXPORT IS A ZIP THE CELL WRITES INTO R2 OVER MANY ALARM RUNS, AND LETS
-  GO SEVEN DAYS ON.** Each run is counted before it starts and does one page (a
-  thousand items planned, 2 MiB of their markdown, 128 MiB of their files, or
-  ten seconds on R2), ending in one transaction that keeps the plan's rows, the
-  entries' records, the parts' etags and the bytes past its last 8 MiB part, so
-  a run the platform ends is written again from there. A link is spelled from
-  the items filed under the keys it tries, which a seeded property holds equal
-  to the whole plan's resolver. A zip counts toward no quota, so an account
-  keeps one: a newer zip ready lets the older go at the alarm's next run, and a
-  failed export leaves it. Rejected: one run per export (a large library's CPU
-  outruns the alarm's 30 s); an R2 lifecycle rule (by prefix only); answering
-  an unchanged library with its ready zip (one keystroke moves the head); fflate
-  (no ZIP64 writer) and zip.js (timers and a worker pool).
-  `apps/web/src/worker/library/cell-exports.ts`, `cell-export-rows.ts`,
-  `packages/notes/src/knowledge/link-resolve.test.ts`.
-
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
   picture of a cover's size whole, within `FILL_LIMITS.coverBytes` and
@@ -439,7 +423,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   change set naming it, hands it to the alarm's next run, since Delete forever
   frees room at once; an import that ends however it ended lets its files go, a
   reading that lands nowhere hands its cover to the alarm's next run, and none
-  goes while an import runs or an export writes, whose plans may name it.
+  goes while an import runs, whose plan may name it.
   Rejected: releasing by `refs` alone (a file only a change set holds would
   go); a sweep of rows with no refs (the same); searching the parts' JSON for
   the sha (a read of every part per file, whose CPU holds every write);
@@ -664,8 +648,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `tauri://localhost` (`MAC_APP_ORIGIN`) and the browser extension's worker
   calls from its own id's origin (`EXTENSION_ORIGIN`), so each call is
   cross-origin; the Worker answers the preflight and lets each exact origin read
-  the routes it calls (the Mac's `/v1/rpc`, `/v1/blobs` and `/v1/exports`, the
-  extension's first two), with no credentials, since both send a device
+  the routes it calls (`/v1/rpc` and `/v1/blobs`, for each), with no
+  credentials, since both send a device
   credential as a bearer and never a cookie. The socket opens on a ticket and
   asks no CORS, and every other origin meets none; `vite dev` answers no
   preflight of its own, so the Worker answers as deployed. Rejected: the
@@ -703,12 +687,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **FILING RULES ARE THE PERSON'S OWN WORDS, AND ONLY THE PERSON WRITES THEM.**
   They reach the agent as a system message, above anything a saved page or a
   note can say, so `library.agent.setRules` is their one writer: an import
-  reads an `AGENTS.md` as a note like any other, and an export writes the rules
-  under that name, no file for a blank page, so moving them is a paste. The one
-  file an import passes over is an `AGENTS.md` at the export's root, below any
-  folder `unwrapExport` takes off, that says exactly what the library's rules
-  say, which it counts as already saved, so an export reads back into its own
-  library as nothing new. An export of notes alone, zipped again under its
+  reads an `AGENTS.md` as a note like any other. The one file an import passes
+  over is an `AGENTS.md` at the zip's root, below any folder `unwrapExport`
+  takes off, that says exactly what the library's rules say, which it counts as
+  already saved. An export of notes alone, zipped again under its
   folder, carries no mark of one, so it stays that folder and its rules a note
   there. A
   running conversation hears of a change at its next reply, and of a clearing

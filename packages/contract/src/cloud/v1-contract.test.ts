@@ -58,7 +58,6 @@ const LIBRARY_READS = new Set([
   "agent.rules",
   "agent.status",
   "annotations.list",
-  "exports.get",
   "history.list",
   "imports.get",
   "imports.latest",

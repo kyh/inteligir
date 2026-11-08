@@ -1,8 +1,8 @@
 # Decisions: @repo/notes
 
 The library model (an item as fields and blocks, its ops, its undo and its
-SQL), the dialect's markdown grammar the codec, the import and the export read
-and write by, and the rules of search, links and tags.
+SQL), the dialect's markdown grammar the codec and the import read and write
+by, and the rules of search, links and tags.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
@@ -165,16 +165,13 @@ root.
   private `.md` rule in a reader (it leaves out every `.txt` note and disagrees
   on a name once it is not lowercase). What any other file is in the library
   is `fileKindOf` (`@repo/notes/items/item-kind`), and what a doc is as an item
-  is its `kind`: one answer each, for every reader. A kept file whose own name
-  would read as a doc or a dot-entry stands in `assets/<16 hex>/`, its bytes'
-  folder (`bytesFolderPath`), which an import reads as a file by that shape,
-  and an unclaimed one lands in the folder above it. What an operating system
-  leaves (`isOsLitterPath`) is passed over first, there too, since unpacking
-  and zipping an export again puts it in those folders; a file a person saved
-  under such a name is written under the item's title as its original and a
-  name of its bytes as a block's file, and a folder under that name and
-  ` (folder)`, so an export writes nothing it would pass over. Every mark of an
-  export is read from the zip's root, and a Mac's Compress of the unpacked folder
+  is its `kind`: one answer each, for every reader. A file in
+  `assets/<16 hex>/`, a folder named by its bytes (`isBytesFolderPath`), an
+  import reads as a file by that shape, whatever its name says, and an
+  unclaimed one lands in the folder above it. What an operating system leaves
+  (`isOsLitterPath`) is passed over first, there too, since unpacking and
+  zipping a folder again puts it in those folders. Every mark of an export is
+  read from the zip's root, and a Mac's Compress of the unpacked folder
   puts all of it under that folder, so an import first takes off a sole top
   folder that every path but what an operating system left shares, when it holds
   a highlights' store or `assets/` (`packages/editor/src/codec/import-plan.ts`).
@@ -211,7 +208,7 @@ root.
   (`@repo/notes/knowledge/link-extract`) and resolves it with `buildResolver`
   beside the file that wrote it, so a folder's relative links and pictures
   become links by id and files by sha, and a file's path written as a url, by
-  an export or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
+  the codec or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
   a `#` or `%` in a name reads back. Past the import nothing is a path: the
   editor reaches an item by `[[…]]` through the resolver its host feeds with
   the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
@@ -223,14 +220,12 @@ root.
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
   PARSER WRITES IT.** `.md` is the one extension a file's link leaves off
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and `buildResolver`,
-  which an import and an export read a zip's links by, keys that name, so a
+  which an import reads a zip's links by, keys that name, so a
   `.txt` note links as `[[todo.txt]]`. Past the zip there are no files: the cell
   and the editor reach an item by its id or by `titleKey`. Rejected: dropping
-  every doc extension (it loses Obsidian's reading and the pinned resolver). An
-  export spells a link by `wikiTargetForPath`
-  (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
-  the path), and the `[[` picker links an item by its id, with its title, so
-  no rename breaks it. Every writer's bytes come from `serializeWikiBody`
+  every doc extension (it loses Obsidian's reading and the pinned resolver).
+  The `[[` picker links an item by its id, with its title, so no rename breaks
+  it. Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.
   `packages/notes/src/knowledge/link-resolve.test.ts`.
 

@@ -43,7 +43,7 @@ alone, and no walk narrows structurally.
   regular expression, as a SyntaxError (`withinStack`). Rejected: a raw
   editor beside the rich one (markdown is not at rest), a paragraph rule's
   prune (a heading or list item saved `**a****b**`), Plate's `serializeMd` (no
-  pre-pass, a ZWSP beside every chip) and a catch per item around an export (a
+  pre-pass, a ZWSP beside every chip) and a catch per item around a write (a
   list a writer cannot hold would land, and read nowhere after).
   `packages/editor/src/markdown/markdown-doc.ts`, `packages/editor/README.md`
   § Invariants.
@@ -82,8 +82,8 @@ alone, and no walk narrows structurally.
   web url embeds (`![](path)` is a file the import resolves to its bytes; alt
   text or a title keeps a web image an image). Every spelling lives in
   `@repo/notes/markdown/fence-langs`, which
-  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. An export
-  is plain nested `.md`: no bundles, no meta.json.
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. The codec
+  writes plain `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
   TEXT.** Pills, dates, annotation markers and `:::` lines are read from
@@ -309,8 +309,8 @@ alone, and no walk narrows structurally.
 - **MARKDOWN IS A CODEC BESIDE THE LIBRARY, AND IT RUNS HEADLESS.**
   `@repo/editor/codec/*` reaches no React, so it runs wherever the library
   does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
-  item's fields and blocks over the rule table and writes one back as an
-  export's markdown, a file under the item's name, so
+  item's fields and blocks over the rule table and writes one back as
+  markdown, a file under the item's name, so
   `import(export(item))` is the item, ids aside, over every fixture, and a
   canonical file exports its own body but for the changes the test names
   (`packages/editor/src/codec/item-markdown.test.ts`); a value is settled
@@ -323,8 +323,8 @@ alone, and no walk narrows structurally.
   off its tree ahead of the settle, where an escape still shows, so text a
   person typed that looks like one comes back as text; a `ref` is a node of its
   own from there to the block, written bare where typed text is escaped.
-  Rejected: reading them from the settled value (an escape is gone there, so an
-  export's `x\==1==y` came back a highlight), and from text a page wrote (the
+  Rejected: reading them from the settled value (an escape is gone there, so a
+  written `x\==1==y` came back a highlight), and from text a page wrote (the
   page keeps its words). `packages/notes/src/markdown/remark-obsidian.ts`.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned

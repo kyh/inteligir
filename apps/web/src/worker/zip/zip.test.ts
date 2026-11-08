@@ -1,15 +1,14 @@
-// The zip codec over its own output and over another writer's: what the writer streams, entry by
-// entry and then the directory from their records, reads back file for file, ZIP64's end records
-// included once the files pass what a plain zip counts; a zip Python's zipfile wrote reads as it
-// was written; and what a stranger's zip may hold that a library must not take is refused or left
-// out.
+// The zip reader over other writers' zips: what fflate zips reads back file for file, and so does
+// one whose directory ends in ZIP64's records, as a zip of more files than a plain one counts ends;
+// a zip Python's zipfile wrote reads as it was written; and what a stranger's zip may hold that a
+// library must not take is refused or left out.
 
+import { zipSync } from "fflate";
+import type { ZippableFile } from "fflate";
 import { describe, expect, it } from "vitest";
 
-import { zipFiles } from "../test-support/library-files";
 import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "./zip-read";
 import type { ByteSource } from "./zip-read";
-import type { ZipFile } from "./zip-write";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -19,12 +18,16 @@ const sourceOf = (bytes: Uint8Array): ByteSource => ({
   size: bytes.length,
 });
 
-const textFile = (path: string, text: string, deflate = true): ZipFile => ({
-  deflate,
-  modified: new Date(Date.UTC(2026, 9, 1, 12, 30, 0)),
-  open: async () => await Promise.resolve(new Blob([encoder.encode(text)]).stream()),
-  path,
-});
+const MODIFIED = new Date(Date.UTC(2026, 9, 1, 12, 30, 0));
+
+const deflated = (text: string): ZippableFile => [
+  encoder.encode(text),
+  { level: 6, mtime: MODIFIED },
+];
+const stored = (text: string): ZippableFile => [
+  encoder.encode(text),
+  { level: 0, mtime: MODIFIED },
+];
 
 const contents = async (bytes: Uint8Array): Promise<Record<string, string>> => {
   const source = sourceOf(bytes);
@@ -56,7 +59,39 @@ const onlyEntry = async (source: ByteSource) => {
   return entry;
 };
 
+const U16_MAX = 0xff_ff;
 const U32_MAX = 0xff_ff_ff_ff;
+const END_LENGTH = 22;
+
+// the zip with its directory's end written as ZIP64's: the ZIP64 end record and its locator, then
+// a plain end whose count, size and offset each defer to them
+const asZip64 = (zip: Uint8Array): Uint8Array => {
+  const endAt = zip.length - END_LENGTH;
+  const end = new DataView(zip.buffer, zip.byteOffset + endAt, END_LENGTH);
+  const count = end.getUint16(10, true);
+  const size = end.getUint32(12, true);
+  const offset = end.getUint32(16, true);
+  const bytes = new Uint8Array(endAt + 56 + 20 + END_LENGTH);
+  bytes.set(zip.subarray(0, endAt));
+  const data = new DataView(bytes.buffer);
+  data.setUint32(endAt, 0x06_06_4b_50, true);
+  data.setBigUint64(endAt + 4, 44n, true);
+  data.setBigUint64(endAt + 24, BigInt(count), true);
+  data.setBigUint64(endAt + 32, BigInt(count), true);
+  data.setBigUint64(endAt + 40, BigInt(size), true);
+  data.setBigUint64(endAt + 48, BigInt(offset), true);
+  const locatorAt = endAt + 56;
+  data.setUint32(locatorAt, 0x07_06_4b_50, true);
+  data.setBigUint64(locatorAt + 8, BigInt(endAt), true);
+  data.setUint32(locatorAt + 16, 1, true);
+  const plainAt = locatorAt + 20;
+  data.setUint32(plainAt, 0x06_05_4b_50, true);
+  data.setUint16(plainAt + 8, U16_MAX, true);
+  data.setUint16(plainAt + 10, U16_MAX, true);
+  data.setUint32(plainAt + 12, U32_MAX, true);
+  data.setUint32(plainAt + 16, U32_MAX, true);
+  return bytes;
+};
 
 // a zip that is only a directory of one entry, by its name, its size and its extra field
 const directoryOf = (name: string, size: number, extra: Uint8Array): Uint8Array => {
@@ -77,13 +112,13 @@ const directoryOf = (name: string, size: number, extra: Uint8Array): Uint8Array 
   return bytes;
 };
 
-describe("a zip this writer streams", () => {
+describe("a zip fflate writes", () => {
   it("reads back file for file, deflated or stored, its UTF-8 names whole", async () => {
-    const bytes = await zipFiles([
-      textFile("Notes/Café.md", "# Café\n\nDeflated, and read back.\n".repeat(50)),
-      textFile("assets/raw.bin", "stored as it is", false),
-      textFile("empty.md", ""),
-    ]);
+    const bytes = zipSync({
+      "Notes/Café.md": deflated("# Café\n\nDeflated, and read back.\n".repeat(50)),
+      "assets/raw.bin": stored("stored as it is"),
+      "empty.md": deflated(""),
+    });
     await expect(contents(bytes)).resolves.toStrictEqual({
       "Notes/Café.md": "# Café\n\nDeflated, and read back.\n".repeat(50),
       "assets/raw.bin": "stored as it is",
@@ -91,18 +126,13 @@ describe("a zip this writer streams", () => {
     });
   });
 
-  it("writes ZIP64's end records once its files pass 65,534, and reads them back", async () => {
-    const files = Array.from({ length: 65_536 }, (_, index) =>
-      textFile(`f/${String(index)}.txt`, String(index), false),
-    );
-    const bytes = await zipFiles(files);
-    const entries = await readZipEntries(sourceOf(bytes));
-    expect(entries).toHaveLength(65_536);
-    expect(entries.at(-1)?.path).toBe("f/65535.txt");
-  }, 60_000);
+  it("reads a directory that ends in ZIP64's records", async () => {
+    const bytes = asZip64(zipSync({ "a.md": deflated("first"), "f/b.txt": stored("second") }));
+    await expect(contents(bytes)).resolves.toStrictEqual({ "a.md": "first", "f/b.txt": "second" });
+  });
 
   it("refuses an entry whose bytes do not match its CRC", async () => {
-    const bytes = await zipFiles([textFile("note.md", "the bytes as written", false)]);
+    const bytes = zipSync({ "note.md": stored("the bytes as written") });
     const source = sourceOf(bytes);
     const entry = await onlyEntry(source);
     // the stored bytes follow the 30-byte local header and the name
@@ -113,7 +143,7 @@ describe("a zip this writer streams", () => {
 
   it("refuses an entry whose deflated bytes are damaged, and reads the one after it", async () => {
     const words = "deflated words\n".repeat(20);
-    const bytes = await zipFiles([textFile("a.md", words), textFile("b.md", "the next one")]);
+    const bytes = zipSync({ "a.md": deflated(words), "b.md": deflated("the next one") });
     // a deflate block's first byte, set to a block type deflate does not have
     bytes[30 + "a.md".length] = 0xff;
     const source = sourceOf(bytes);
@@ -129,7 +159,7 @@ describe("a zip this writer streams", () => {
   });
 
   it("keeps a read that failed its own error, which says nothing of the entry", async () => {
-    const bytes = await zipFiles([textFile("a.md", "deflated words\n".repeat(20))]);
+    const bytes = zipSync({ "a.md": deflated("deflated words\n".repeat(20)) });
     const source = sourceOf(bytes);
     const entry = await onlyEntry(source);
     const down = new Error("the bucket is down");
@@ -147,7 +177,7 @@ describe("a zip this writer streams", () => {
   });
 
   it("refuses an entry its directory says is encrypted", async () => {
-    const bytes = await zipFiles([textFile("secret.md", "hidden")]);
+    const bytes = zipSync({ "secret.md": deflated("hidden") });
     const source = sourceOf(bytes);
     const plain = await onlyEntry(source);
     expect(plain.encrypted).toBe(false);
@@ -175,7 +205,7 @@ describe("a zip another writer made", () => {
   });
 
   it("refuses an entry whose local header the directory places past the end", async () => {
-    const bytes = await zipFiles([textFile("note.md", "the bytes as written", false)]);
+    const bytes = zipSync({ "note.md": stored("the bytes as written") });
     // the directory's one entry's local header offset, 42 bytes into its 46-byte record, set two
     // bytes short of the end, too few to hold even the header's signature
     const field = bytes.length - 22 - (46 + "note.md".length) + 42;

@@ -52,9 +52,8 @@ copy of every item's text and of each picture, PDF or file you open. That copy o
 searches with no connection, and what you change goes out when you're back online. In a browser,
 [your library](${libraryUrl}) opens whenever you're online.
 
-Export writes everything to a zip whenever you want it, your notes as markdown files beside every
-file you saved. Your Raindrop bookmarks come in from a backup with their collections, tags and
-highlights, and an Obsidian folder comes in as a zip.
+Your Raindrop bookmarks come in from a backup with their collections, tags and highlights, and an
+Obsidian folder comes in as a zip.
 
 ## The agent is built in
 
@@ -89,7 +88,7 @@ collaborator would, in the open, with every change it makes reversible. It is ma
 
 - **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
   and each Mac and iPhone you sign in on keeps a copy of every item's text and of each file you open,
-  which work with no connection. Export writes all of it to a zip whenever you want it.
+  which work with no connection.
 - **Saving is instant and free.** The extension reads the page you save from it when it can, our
   cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
   you ask.
@@ -151,8 +150,7 @@ the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
 in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
 own Claude or ChatGPT can reach the same library through the connector at ${url}/connector. It imports
-Raindrop backups and zips of notes such as an Obsidian folder, and exports the whole library as a
-zip of markdown notes and files. It is open source (MIT), and shared with a small invited group; the
+Raindrop backups and zips of notes such as an Obsidian folder. It is open source (MIT), and shared with a small invited group; the
 Mac app is for Apple silicon.
 
 ## When to use ${name}

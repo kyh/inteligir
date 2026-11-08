@@ -57,7 +57,3 @@ export const relativePath = (fromDir: string, toPath: string): string => {
   const parts = [...Array.from({ length: ups }, () => ".."), ...toParts.slice(common)];
   return parts.join("/");
 };
-
-// An export unzips onto a Mac, whose filesystem is case- and normalization-insensitive: two paths
-// with one key would be one file there, so the export steps past a taken name by it.
-export const pathCollisionKey = (path: string): string => path.normalize("NFC").toLowerCase();

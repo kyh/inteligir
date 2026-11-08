@@ -134,14 +134,14 @@ as rows (`agent-turns.ts`).
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides which file of an imported
-zip becomes a note. It is deliberately WIDER than what an export writes, every
+zip becomes a note. It is deliberately WIDER than what the codec writes, every
 note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 `.txt` note links as `[[todo.txt]]`.
 
 **note** — an item of kind `note`, the text a person writes. An imported doc
 whose `kind:` is missing or unknown is one, its filename its title, with no
 slug layer.
-The name an export files an item under follows one rule,
+The name the codec writes an item under follows one rule,
 `@repo/notes/items/item-name`, whatever its kind: a title is repaired into a
 name every disk takes, never refused, and its `[` and `]`, which would end a
 link to it, become `(` and `)`.
@@ -202,8 +202,7 @@ filed, whatever it is tagged.
 row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
 written only from Settings › Account, which every turn of the built-in agent
 carries after the person's message. Tidy my library files and tags by them. An
-export writes them as `AGENTS.md`, and an import reads an `AGENTS.md` as a note,
-never as filing rules, unless it says what the library's rules say, when it adds
+import reads an `AGENTS.md` as a note, never as filing rules, unless it says what the library's rules say, when it adds
 nothing. Not the repo's `AGENTS.md`.
 
 **fill** — the cloud's reading of a link the library holds unread (a
@@ -219,8 +218,8 @@ saved read and never filled; one it did not goes to the
 fill as its link (`deviceKeepsReading` in `@repo/notes/items/link-fill`).
 
 **cover** — an item's picture: its `coverSha` field, the hash of a file the
-library keeps in R2, which a fill sets from the page it read and an export
-writes under `assets/covers/` (`COVERS_DIR`). Not an image item: a cover is
+library keeps in R2, which a fill sets from the page it read and an import reads
+from `assets/covers/` (`COVERS_DIR`). Not an image item: a cover is
 part of its item, and is never a card of its own.
 
 **url key** — the one key two spellings of one link share: the scheme, `www.`,
@@ -247,7 +246,7 @@ REPLICA. The browser tab opens it at `/library` once signed in.
 **Items** — the cards the library lists, one per item row, a note, a saved
 link, an image, a PDF or any other file alike
 (`@repo/library-replica/library-replica`'s listing). Not docs: a doc is a file
-classification of the import and export.
+classification of the import.
 
 **Unsorted** — the rail's row: every item filed in no folder. A new save lands
 there when the screen shows no folder.
@@ -266,7 +265,7 @@ the cell refused, which waits for the person (Try again, Let it go). Never a
 cursor, a head or an outbox.
 
 **Needs a connection** — what a screen says of something only the cloud
-answers (the agent and its Undo, import and export, the account) while the device
+answers (the agent and its Undo, import, the account) while the device
 is offline: the call waits rather than fails
 (`apps/workspace/src/app/cloud/needs-connection.tsx`).
 

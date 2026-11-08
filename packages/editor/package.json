@@ -16,7 +16,6 @@
     "./block-menu": "./src/block-menu.tsx",
     "./block-selection": "./src/block-selection.tsx",
     "./block-transforms": "./src/block-transforms.ts",
-    "./codec/export-plan": "./src/codec/export-plan.ts",
     "./codec/import-plan": "./src/codec/import-plan.ts",
     "./codec/item-edit": "./src/codec/item-edit.ts",
     "./codec/item-markdown": "./src/codec/item-markdown.ts",

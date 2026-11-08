@@ -100,7 +100,7 @@ is parsed in `src/shell/shell-commands.ts`.
   the shell's SQLite and staged files, its calls going to the cloud's origin
   with the credential as the bearer and the build in a header. What differs by
   host is one `PageLibrary`: where a file is drawn and read from, the transport an
-  upload or an export rides, what the page does about what it holds before it
+  upload rides, what the page does about what it holds before it
   goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
   edit when the shell says it is quitting) and where a sign-out goes, each
   host's every way of leaving taking what the page's own storage remembers of

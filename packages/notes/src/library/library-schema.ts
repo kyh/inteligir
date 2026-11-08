@@ -52,10 +52,6 @@ export const CHANGE_SET_ACTORS = [
 export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
 export const IMPORT_STATES = ["running", "done", "failed", "cancelled"] as const;
 export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
-// an export is written, then ready to download until it is let go; one being written plans every
-// item's file, then writes the items, then the files they hold, then the zip's directory
-export const EXPORT_STATES = ["writing", "ready", "failed", "expired"] as const;
-export const EXPORT_PHASES = ["plan", "docs", "files", "directory"] as const;
 
 // a CHECK's list, spelled from the vocabulary it holds a column to
 const oneOf = (values: readonly string[]): string => values.map((value) => `'${value}'`).join(", ");
@@ -358,45 +354,6 @@ const CELL_DDL = [
     idx INTEGER NOT NULL,
     json TEXT NOT NULL,
     PRIMARY KEY (job_id, kind, idx)
-  ) STRICT`,
-  // an export, and while it is written where its writer stands: the phase and its cursor, the
-  // multipart upload and the length of its parts, and the zip's bytes, parts and entries so far
-  `CREATE TABLE IF NOT EXISTS export_jobs (
-    id TEXT PRIMARY KEY,
-    state TEXT NOT NULL CHECK (state IN (${oneOf(EXPORT_STATES)})),
-    phase TEXT NOT NULL CHECK (phase IN (${oneOf(EXPORT_PHASES)})),
-    cursor INTEGER NOT NULL,
-    upload_id TEXT,
-    part_bytes INTEGER,
-    written INTEGER NOT NULL,
-    parts INTEGER NOT NULL,
-    entries INTEGER NOT NULL,
-    bytes INTEGER,
-    started_at INTEGER NOT NULL,
-    finished_at INTEGER,
-    expires_at INTEGER,
-    message TEXT
-  ) STRICT`,
-  // an export's plan and the zip's records, a row per thing by its kind, so each run of the alarm
-  // reads only what it writes: the paths taken, the folders' and the items' files, the items filed
-  // under each key a link resolves by, the files the items hold, the directory's entries and the
-  // uploaded parts, each found by its key or read in its order
-  `CREATE TABLE IF NOT EXISTS export_rows (
-    export_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    key TEXT NOT NULL,
-    idx INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (export_id, kind, key, idx)
-  ) STRICT, WITHOUT ROWID`,
-  `CREATE INDEX IF NOT EXISTS export_rows_order ON export_rows (export_id, kind, idx)`,
-  // the zip's bytes past its last whole part, which the next run's first part begins with, in
-  // base64 chunks under a row's 2 MB, since the library's SQL binds no bytes
-  `CREATE TABLE IF NOT EXISTS export_tail (
-    export_id TEXT NOT NULL,
-    idx INTEGER NOT NULL,
-    base64 TEXT NOT NULL,
-    PRIMARY KEY (export_id, idx)
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,

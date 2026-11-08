@@ -16,7 +16,6 @@ import { consumeFills } from "./fill/fill-consumer";
 import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket } from "./library/socket-routes";
 import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
-import { handleExportRoute, isExportPath } from "./library/export-routes";
 import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
@@ -87,11 +86,6 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   // the library's files: the floor and the credential checked as the wire checks them
   if (isBlobPath(url.pathname)) {
     return await handleBlobRoute(request, env, ctx, url);
-  }
-
-  // an export's zip, behind the same floor and credential as a file
-  if (isExportPath(url.pathname)) {
-    return await handleExportRoute(request, env, ctx, url);
   }
 
   if (url.pathname.startsWith("/api/auth/")) {

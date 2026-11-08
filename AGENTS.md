@@ -40,8 +40,8 @@ disagree, these premises win, and the stage's issue says what changes.
   - Why: one shape lets search, the agent and every surface work on every item.
 - **Online-first.** The cloud is the truth. Devices cache what they read
   (TanStack Query), and only a save from the extension or the phone's share
-  sheet waits offline. Editing, the agent, import and export need a
-  connection, and say so. Why: offline copies on three platforms were most of
+  sheet waits offline. Editing, the agent and import need a connection,
+  and say so. Why: offline copies on three platforms were most of
   the code and little of the product.
 - **A note's body is live**, like Google Docs. You on every device and the
   agent edit one Yjs document at once: one `y-partyserver` Durable Object per
