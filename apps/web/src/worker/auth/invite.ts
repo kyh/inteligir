@@ -7,7 +7,7 @@ import {
 import { InviteRefusedError } from "@repo/contract/cloud/v1/errors";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { createSignUpAuth } from "./auth";
+import { createSignUpAuth, withoutAuthToken } from "./auth";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { inviteCode } from "../db/schema";
@@ -80,7 +80,7 @@ const forwardSignUp = async (
     headers,
     method: "POST",
   });
-  return await createSignUpAuth(env, ctx, origin).handler(forwarded);
+  return withoutAuthToken(await createSignUpAuth(env, ctx, origin).handler(forwarded));
 };
 
 export const handleInviteSignUp = async (

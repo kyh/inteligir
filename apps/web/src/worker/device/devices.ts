@@ -1,7 +1,7 @@
-// An account's devices, as `/v1/rpc`'s `account.devices.*` lists and revokes them, and a device's
-// own sign-out revokes it.
+// An account's device credentials, as `/v1/rpc`'s `account.devices.*` lists and revokes them
+// beside its sessions (`../auth/session-devices.ts`), and a device's own sign-out revokes it.
 
-import type { ListDevicesResponse } from "@repo/contract/cloud/device/device-schema";
+import type { Device } from "@repo/contract/cloud/device/device-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
@@ -13,7 +13,7 @@ export const listDevices = async (
   db: Db,
   userId: string,
   askingDeviceId: string | null,
-): Promise<ListDevicesResponse> => {
+): Promise<Device[]> => {
   const rows = await db
     .select()
     .from(device)
@@ -21,16 +21,14 @@ export const listDevices = async (
     // two sign-ins within one millisecond share a created_at; rowid is their arrival order
     .orderBy(device.createdAt, sql`rowid`)
     .all();
-  return {
-    devices: rows.map((row) => ({
-      createdAt: row.createdAt.getTime(),
-      current: row.id === askingDeviceId,
-      id: row.id,
-      lastSeenAt: row.lastSeenAt?.getTime() ?? null,
-      name: row.name,
-      revokedAt: row.revokedAt?.getTime() ?? null,
-    })),
-  };
+  return rows.map((row) => ({
+    createdAt: row.createdAt.getTime(),
+    current: row.id === askingDeviceId,
+    id: row.id,
+    lastSeenAt: row.lastSeenAt?.getTime() ?? null,
+    name: row.name,
+    revokedAt: row.revokedAt?.getTime() ?? null,
+  }));
 };
 
 // false when nothing matched: another account's device, or one already revoked

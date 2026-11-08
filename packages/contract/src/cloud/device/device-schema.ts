@@ -1,5 +1,6 @@
 // What `account.*` (`../account/account-contract.ts`) reads and answers about a device: the
-// sign-in that mints its credential, the credential's shape, and the account's devices.
+// sign-in that mints a device credential, the credential's shape, and the account's devices, its
+// signed-in sessions and its device credentials.
 
 import { z } from "zod";
 
@@ -40,13 +41,15 @@ export const deviceLoginResponseSchema = z.object({
 });
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
+// a session is named from the user agent it signed in with, never by its token
 const deviceSchema = z.object({
   createdAt: z.number().int(),
-  // this is the device asking; a browser's session is no device, so it finds none
+  // the session or credential asking
   current: z.boolean(),
   id: z.string().min(1),
   lastSeenAt: z.number().int().nullable(),
   name: z.string(),
+  // a device credential's revocation; a session ends by going, so its row is always null
   revokedAt: z.number().int().nullable(),
 });
 export type Device = z.infer<typeof deviceSchema>;
@@ -54,11 +57,13 @@ export type Device = z.infer<typeof deviceSchema>;
 export const listDevicesResponseSchema = z.object({
   devices: z.array(deviceSchema),
 });
-export type ListDevicesResponse = z.infer<typeof listDevicesResponseSchema>;
 
-export const revokeDeviceRequestSchema = z.strictObject({
-  deviceId: z.string().min(1),
-});
+// a session or a device credential by its id; `deviceId` is the spelling a device credential's
+// clients send
+export const revokeDeviceRequestSchema = z.union([
+  z.strictObject({ id: z.string().min(1) }),
+  z.strictObject({ deviceId: z.string().min(1) }),
+]);
 
 // also the sign-out's answer: that row is this revoke with the credential naming the device
 export const revokeDeviceResponseSchema = z.object({

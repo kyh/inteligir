@@ -21,6 +21,7 @@ const UNUSED_AUTH_ROUTES = [
   ["POST", "/delete-user"],
   ["GET", "/delete-user/callback"],
   ["GET", "/error"],
+  ["GET", "/expo-authorization-proxy"],
   ["POST", "/get-access-token"],
   ["POST", "/link-social"],
   ["GET", "/list-accounts"],
@@ -70,6 +71,7 @@ describe("invite-gated sign-up", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("set-auth-token")).toBeNull();
+    expect(response.headers.get("access-control-expose-headers")).toBeNull();
     expect(response.headers.getSetCookie().some((c) => c.includes("session_token="))).toBe(true);
 
     const row = await readCode("INVITE-OK");

@@ -396,7 +396,11 @@ describe("the account's rows", () => {
     });
     const onPhone = v1Link(deviceHeaders(phone.credential));
     const { devices } = await onPhone.account.devices.list();
-    expect(devices.map((row) => row.name).toSorted()).toStrictEqual(["Laptop", "Phone"]);
+    expect(devices.map((row) => row.name).toSorted()).toStrictEqual([
+      "Chrome on Mac",
+      "Laptop",
+      "Phone",
+    ]);
     const ticket = await onPhone.account.socketTicket();
     expect(ticket.ticket).not.toBe("");
     await expect(laptop.account.assistants.list()).resolves.toStrictEqual({ assistants: [] });
@@ -430,6 +434,7 @@ describe("the account's rows", () => {
     const { devices } = await laptop.account.devices.list();
     expect(devices.map((row) => row.name).toSorted()).toStrictEqual([
       "Browser extension",
+      "Chrome on Mac",
       "Laptop",
     ]);
     // the extension's credential reaches the library, and the tab's session stays

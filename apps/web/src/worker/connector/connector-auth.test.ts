@@ -21,6 +21,7 @@ import {
   drained,
   loginDevice,
   ORIGIN,
+  sessionTokenOf,
   signUpUser,
   userIdOf,
 } from "../test-support/cloud-helpers";
@@ -125,12 +126,14 @@ describe("the connector's sign-in", () => {
     expect(isConnectorPath(`${CONNECTOR_PATH}/anything`)).toBe(false);
   });
 
-  it("takes no device credential: the connector is an assistant's door alone", async () => {
+  it("takes no app's credential: the connector is an assistant's door alone", async () => {
     const { cookie } = await signUpUser("connector-device@example.test");
     const device = await loginDevice(cookie, "Laptop");
-    const refused = await drained(initialize({ authorization: `Bearer ${device.credential}` }));
-    expect(refused.status).toBe(401);
-    expect(refused.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    for (const credential of [device.credential, sessionTokenOf(cookie)]) {
+      const refused = await drained(initialize({ authorization: `Bearer ${credential}` }));
+      expect(refused.status).toBe(401);
+      expect(refused.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    }
   });
 
   it("sends a person who is not signed in to sign in, and back to the page", async () => {

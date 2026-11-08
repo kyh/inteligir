@@ -29,6 +29,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
     "@better-auth/drizzle-adapter": "catalog:",
+    "@better-auth/expo": "catalog:",
     "@cloudflare/workers-oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@orpc/client": "catalog:",

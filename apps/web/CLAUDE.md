@@ -1,6 +1,6 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, the device credential, `/v1`'s one wire, the connector with its OAuth
+Accounts, their sessions and the device credential, `/v1`'s one wire, the connector with its OAuth
 and its tools, the account's library cell and its sockets, and each
 conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
@@ -25,13 +25,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   sign-up page stays, and the phone stays sign-in only.
   `apps/web/src/worker/device/sign-up.ts`.
 
-- **A DEVICE CREDENTIAL, OR THE SITE'S SESSION, LISTS AND REVOKES ITS
-  ACCOUNT'S DEVICES**, so Settings › Account, in the library's page, a
-  browser tab or the Mac app's window, removes a lost phone with no password asked, as a sign-out asks
-  none; the web's devices page stays as the fallback. The list marks the device
-  asking, and that row offers no Revoke: this device leaves through a sign-out,
-  which asks before it drops what it has not sent.
-  `apps/web/src/worker/wire/account-router.ts`, `apps/web/src/worker/device/devices.ts`,
+- **THE ACCOUNT'S DEVICES ARE ITS SESSIONS, BESIDE ITS DEVICE CREDENTIALS, IN
+  ONE LIST ANY OF THEM READS AND ENDS**, so Settings › Account, in the
+  library's page, a browser tab or the Mac app's window, removes a lost phone
+  with no password asked, as a sign-out asks none; the web's devices page stays
+  as the fallback. A session is listed from Better Auth's own row, named at read
+  time from the user agent it signed in with, its token never selected; ending
+  one by its id goes through Better Auth's adapter, so its `session.delete.after`
+  closes its sockets, and an id the account does not hold is `NOT_FOUND`. The
+  list marks the session or credential asking, and that row offers no Revoke:
+  this device leaves through a sign-out, which asks before it drops what it has
+  not sent. Rejected: Better Auth's own list and revoke routes (each hands a
+  session's token to the page); a device-name column (a second spelling of what
+  the user agent already says). `apps/web/src/worker/wire/account-router.ts`,
+  `apps/web/src/worker/auth/session-devices.ts`,
+  `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS LOCALLY IS REVOKED BY THIS DEVICE,
@@ -53,18 +61,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
-  Mac). The password check mints the session `deleteUser` runs under, keeping
-  its `beforeDelete` order and tombstone the ONE purge path; Better Auth's
-  delete routes, which settle for a fresh session, are shut, and with no bearer
-  plugin a browser's session is its cookie. Success drops what this device
-  holds of the library and forgets the sign-in; after an unanswered deletion, a
-  retry meeting only the kept credential's refusal means the account is gone.
-  Rejected: a second purge path (it drifts); deleting by credential alone (a
-  stolen one ends the account). `apps/web/src/worker/device/account.ts`.
+  Mac). A session's call hands `deleteUser` the password in its body, which it
+  checks against the account in place of the session's freshness, under the
+  credential the call came with; a device credential's password check mints the
+  session `deleteUser` runs under. Either keeps its `beforeDelete` order and
+  tombstone the ONE purge path; Better Auth's delete routes, which settle for a
+  fresh session, are shut. Success drops what this device holds of the library
+  and forgets the sign-in; after an unanswered deletion, a retry meeting only
+  the kept credential's refusal means the account is gone. Rejected: a second
+  purge path (it drifts); deleting by credential alone (a stolen one ends the
+  account). `apps/web/src/worker/auth/delete-account.ts`,
+  `apps/web/src/worker/device/account.ts`.
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
-  device or browser session the Worker stamps on the upgrade, on one exact path
+  session or device credential the Worker stamps on the upgrade, on one exact path
   only `socket-routes.ts` forwards to; every other forwarded call has any holder
   header dropped, and a path the cell does not know is a 404, so no other
   credential reaches that door. A committed write sends every socket a `moved`
@@ -277,9 +288,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/library/cell-blobs.ts`, `cell-library.ts`.
 
 - **A LIBRARY CALL REACHES ITS CELL WITH THE PRINCIPAL THE WORKER VERIFIED,
-  AND NOTHING THE CALLER SENT IN ITS PLACE.** The Worker verifies a bearer in
-  D1, or the session cookie on a request the site's own page made, once a
-  request; a bearer that fails is refused, never retried as the cookie. It
+  AND NOTHING THE CALLER SENT IN ITS PLACE.** The Worker reads the session
+  once a request, by the door it came through (EVERY DEVICE SIGNS IN WITH
+  BETTER AUTH'S OWN SESSION), and a bearer no session signed meets the device
+  credential's verifier in D1; a bearer that fails is refused, never retried as
+  the cookie. It
   drops the request's `x-library-principal`, `authorization` and `cookie`,
   stamps the principal and forwards the request whole by `stub.fetch()`; the
   cell refuses one naming another account. Rejected: the cell verifying the
@@ -309,10 +322,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. A device's read answers `no-store`, since it keeps what
-  it reads where a sign-out empties it, and an HTTP
-  cache under it would hold those bytes and the bearer past that; a tab's
-  answers immutable. A file's row is the cell's alone: a device asks for a
+  script-less sandbox. An app's read, by any door but the site's own page,
+  answers `no-store`, since it keeps what it reads where a sign-out empties it,
+  and an HTTP cache under it would hold those bytes and the credential past
+  that; the site's page answers immutable. A file's row is the cell's alone: a device asks for a
   file by the sha an item's row names, and takes its type from the answer.
   Rejected: a byte-range parser of our own (R2 parses the header); a signed
   URL (a credential in a logged address); a file's row synced to every device
@@ -646,7 +659,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   own id's origin (`EXTENSION_ORIGIN`), so each call is cross-origin; the
   Worker answers the preflight and lets that exact origin read the routes it
   calls (`/v1/rpc` and `/v1/blobs`), with no credentials, since it sends a
-  device credential as a bearer and never a cookie. The Mac app's window shows
+  device credential as a bearer and never a cookie, and it lets no
+  `expo-origin` through, the header the phone's cookie is read under: CORS that
+  allowed it would hand any page that header's door. The Mac app's window shows
   the site's own page, so it calls on its own origin. The socket opens on a
   ticket and asks no CORS, and every other origin meets none; `vite dev`
   answers no preflight of its own, so the Worker answers as deployed. Rejected:
@@ -657,8 +672,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **THE EXTENSION'S CREDENTIAL IS MINTED FOR THE SITE'S SESSION, ON A CLICK OF
   THE CONNECT PAGE.** `/connect/extension` is a site route that asks the person
   to Connect, then `account.connectExtension` mints a device credential for the
-  session's account, never a device's (a stolen bearer would mint credentials
-  outliving its own revocation), and leaves the session alone; the page hands it
+  account of the session the site's own page holds, never a device's, the
+  phone's or the extension's (a stolen bearer would mint credentials outliving
+  its own revocation), and leaves the session alone; the page hands it
   to the committed id only and revokes one the extension did not take.
   Rejected: connecting on load (any page linking there could fill the device
   cap); the id from the link (a link could name another extension).
@@ -705,11 +721,31 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `/api/auth/get-session` answers the browser with that cookie, so a read of the
   Worker's own (`/v1`, the consent page) passes `disableRefresh`, and a tab left
   open reads its session hourly, its other calls renewing nothing. Rejected: a
-  slide on `/v1` (the row outlives the cookie, and an open tab is signed out at
-  seven days with its row standing); forwarding `Set-Cookie` on every `/v1`
+  slide on `/v1` (the row outlives the cookie, and an open tab is signed out
+  when its cookie lapses with its row standing); forwarding `Set-Cookie` on every `/v1`
   answer (each door, a file's immutable read among them, carrying a header none
   of them owns). `apps/web/src/worker/auth/auth.ts`,
   `apps/workspace/src/app/cloud/session-keeper.ts`.
+
+- **EVERY DEVICE SIGNS IN WITH BETTER AUTH'S OWN SESSION, AND `/v1` READS IT
+  BY THE DOOR THE REQUEST CAME THROUGH** (owner decision: the extension rides
+  the browser's sign-in). The site's page sends its cookie same-origin, the
+  phone its cookie under `expo-origin`, Better Auth's Expo plugin's header,
+  naming `PHONE_ORIGIN`, and the extension the browser's signed cookie value as
+  a bearer, which the bearer plugin takes only signed; a request through none
+  of those doors meets no cookie, and the session's door names its writes. A
+  sign-in lasts 60 days, slid a day at a time, and the twentieth live session
+  is the last: a sign-in past it ends the one used longest ago, in
+  `session.create.before`, so its sockets close. Better Auth's answers never
+  carry `set-auth-token`, since no client reads one, and a password reset signs
+  every session out. Rejected: the bearer plugin unsigned (a leaked row's token
+  would be a credential); `trustedOrigins` by pattern (a custom scheme matches
+  by its authority, so the two exact origins are spelled out); a cookie cache
+  (a revoked session would live on to its expiry); refusing the twenty-first
+  sign-in (a lost phone would lock its person out).
+  `apps/web/src/worker/auth/auth.ts`, `apps/web/src/worker/auth/session-devices.ts`,
+  `apps/web/src/worker/wire/v1-principal.ts`,
+  `apps/web/src/worker/library/library-principal.ts`.
 
 - **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
   THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the

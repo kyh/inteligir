@@ -139,9 +139,10 @@ const readObject = async (
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("last-modified", object.uploaded.toUTCString());
-  // a device keeps what it reads where a sign-out empties it; a copy in the HTTP cache under it,
-  // stored beside the bearer that read it, is one nothing empties
-  if (reader.actor.kind === "device") {
+  // an app keeps what it reads where a sign-out empties it; a copy in the HTTP cache under it,
+  // stored beside the credential that read it, is one nothing empties. The site's own page keeps
+  // nothing of its own, so the browser's cache is where its files are kept
+  if (reader.actor.kind === "device" || reader.actor.door !== "page") {
     headers.set("cache-control", "no-store");
   }
   serveUnder(headers, object.httpMetadata?.contentType);

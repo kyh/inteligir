@@ -18,6 +18,7 @@ const as = (credential: string) => v1Link(deviceHeaders(credential));
 const UNAUTHORIZED = { code: "UNAUTHORIZED", defined: true, status: 401 };
 
 describe("a device managing its account's devices", () => {
+  // the sign-up's session is listed beside the credentials, named for the browser it came from
   it("lists its own account's devices and no one else's", async () => {
     const { cookie } = await signUpUser("manage-list@example.test");
     const mac = await loginDevice(cookie, "Mac");
@@ -26,23 +27,24 @@ describe("a device managing its account's devices", () => {
     await loginDevice(stranger.cookie, "Stranger's Mac");
 
     const { devices } = await as(mac.credential).account.devices.list();
-    expect(devices.map((row) => row.name)).toStrictEqual(["Mac", "Phone"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Mac", "Phone"]);
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
   });
 
-  it("marks the device that asks, and none when the site's session asks", async () => {
+  it("marks the device or the session that asks", async () => {
     const { cookie } = await signUpUser("manage-current@example.test");
     const mac = await loginDevice(cookie, "Mac");
     await loginDevice(cookie, "Phone");
 
     const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.map(({ current, name }) => ({ current, name }))).toStrictEqual([
+      { current: false, name: "Chrome on Mac" },
       { current: true, name: "Mac" },
       { current: false, name: "Phone" },
     ]);
 
     const site = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(site.devices.map((row) => row.current)).toStrictEqual([false, false]);
+    expect(site.devices.map((row) => row.current)).toStrictEqual([true, false, false]);
   });
 
   // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit
@@ -50,9 +52,8 @@ describe("a device managing its account's devices", () => {
     const before = Date.now();
     const { cookie } = await signUpUser("manage-dates@example.test");
     const mac = await loginDevice(cookie, "Mac");
-    const {
-      devices: [row],
-    } = await as(mac.credential).account.devices.list();
+    const { devices } = await as(mac.credential).account.devices.list();
+    const row = devices.find(({ name }) => name === "Mac");
     const after = Date.now();
     for (const at of [row?.createdAt, row?.lastSeenAt]) {
       expect(at).toBeGreaterThanOrEqual(before);
@@ -123,7 +124,7 @@ describe("a device managing its account's devices", () => {
       link.refusalOf(link.account.devices.revoke({ deviceId: alicesMac.deviceId })),
     ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true, status: 404 });
     await expect(as(alicesMac.credential).account.devices.list()).resolves.toMatchObject({
-      devices: [{ name: "Alice's Mac", revokedAt: null }],
+      devices: [{ name: "Chrome on Mac" }, { name: "Alice's Mac", revokedAt: null }],
     });
   });
 
@@ -142,7 +143,7 @@ describe("a device managing its account's devices", () => {
       revoked.refusalOf(revoked.account.devices.revoke({ deviceId: mac.deviceId })),
     ).resolves.toMatchObject(UNAUTHORIZED);
     const { devices } = await as(mac.credential).account.devices.list();
-    expect(devices).toHaveLength(2);
+    expect(devices.map(({ name }) => name)).toStrictEqual(["Chrome on Mac", "Mac", "Phone"]);
   });
 
   it("refuses a credential no device was ever given", async () => {

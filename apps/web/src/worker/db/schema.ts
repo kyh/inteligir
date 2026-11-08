@@ -1,7 +1,7 @@
 import { defineRelationsPart } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-// Better Auth's tables and relations as `npx auth@1.7.14 generate` prints them for auth.ts's plugin
+// Better Auth's tables and relations as `npx auth@1.7.18 generate` prints them for auth.ts's plugin
 // set over the relations-v2 adapter, ported rather than pasted, since its `.unique()`, its SQL
 // column defaults and a new NOT NULL each plan a table recreate on D1 (apps/web/CLAUDE.md, Declare
 // D1 uniques as named unique indexes). The port departs from the generator in exactly three ways:

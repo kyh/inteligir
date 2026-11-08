@@ -70,7 +70,7 @@ describe("the client build floor", () => {
       asBuild(credential, `${versionAround(1, 0)}+android`),
     ]) {
       const { devices } = await v1Link(headers).account.devices.list();
-      expect(devices.map((row) => row.name)).toStrictEqual(["Laptop"]);
+      expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Laptop"]);
     }
   });
 
@@ -100,7 +100,7 @@ describe("the client build floor", () => {
   it("answers this Worker's own pages, which ship in the same deploy", async () => {
     const { cookie } = await signedIn("floor-page@example.test");
     const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(devices).toHaveLength(1);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Laptop"]);
     await expect(
       refusalOfList({ ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" }),
     ).resolves.toMatchObject(OUTDATED);
