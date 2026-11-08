@@ -4,7 +4,6 @@
   "private": true,
   "main": "expo-router/entry",
   "exports": {
-    "./annotations/annotation-edits": "./src/annotations/annotation-edits.ts",
     "./editor/item-ports": "./src/editor/item-ports.ts",
     "./items/phone-saves": "./src/items/phone-saves.ts",
     "./items/share-save": "./src/items/share-save.ts",

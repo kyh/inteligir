@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { AnnotationStore } from "../annotations/store-schema";
 import { revertEdit } from "../test-support/revert-edit";
 import type { RevertVerdict } from "../test-support/revert-edit";
 import { orderedBlocks } from "./block-ops";
@@ -25,13 +24,12 @@ const AT = 1_800_000_000_000;
 const changeOf = (
   before: ItemState | null,
   after: ItemState,
-  annotations: { before?: AnnotationStore; after?: AnnotationStore } = {},
   fills: readonly FillChange[] = [],
 ): ItemChange => {
-  const made = snapshotOf({ annotations: annotations.after ?? {}, state: after });
+  const made = snapshotOf({ state: after });
   return before === null
     ? { after: made, before: null, fills }
-    : { after: made, before: snapshotOf({ annotations: annotations.before ?? {}, state: before }) };
+    : { after: made, before: snapshotOf({ state: before }) };
 };
 
 const fillOf = (before: ItemState, after: ItemState): FillChange => ({
@@ -53,13 +51,12 @@ const revert = (
   change: ItemChange,
   now: ItemState | null,
   versions: (hash: string) => LibraryBlock | undefined,
-  annotations: AnnotationStore = {},
 ): ItemRevert =>
   revertItemChange({
     at: AT,
     blockAt: versions,
     change,
-    now: now === null ? null : { annotations, state: now },
+    now: now === null ? null : { state: now },
   });
 
 const stateOf = (verdict: ItemRevert): ItemState => {
@@ -192,7 +189,7 @@ describe(revertItemChange, () => {
 
     it("still goes to Deleted, whatever the fill wrote", () => {
       const filled = landed(made, named);
-      const change = changeOf(null, made, {}, [fillOf(made, filled)]);
+      const change = changeOf(null, made, [fillOf(made, filled)]);
       expect(stateOf(revert(change, filled, versionsOf(made, filled))).fields.deletedAt).toBe(AT);
     });
 
@@ -201,14 +198,14 @@ describe(revertItemChange, () => {
       const renamed = landed(filled, [
         { base: "The page", field: "title", op: "set", value: "Mine" },
       ]);
-      const change = changeOf(null, made, {}, [fillOf(made, filled)]);
+      const change = changeOf(null, made, [fillOf(made, filled)]);
       expect(revert(change, renamed, versionsOf(made, filled))).toStrictEqual(EDITED);
     });
 
     it("stays when a person's name came first and the fill only left it there", () => {
       const renamed = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
       const filled = landed(renamed, read);
-      const change = changeOf(null, made, {}, [fillOf(renamed, filled)]);
+      const change = changeOf(null, made, [fillOf(renamed, filled)]);
       expect(revert(change, filled, versionsOf(made, filled))).toStrictEqual(EDITED);
     });
 
@@ -217,7 +214,7 @@ describe(revertItemChange, () => {
       const renamed = landed(filled, [
         { base: "The page", field: "title", op: "set", value: "Mine" },
       ]);
-      const change = changeOf(null, renamed, {}, [fillOf(made, filled)]);
+      const change = changeOf(null, renamed, [fillOf(made, filled)]);
       expect(stateOf(revert(change, renamed, versionsOf(renamed))).fields.deletedAt).toBe(AT);
     });
   });
@@ -230,53 +227,6 @@ describe(revertItemChange, () => {
       kind: "keep",
       reason: "purged",
     });
-  });
-
-  it("takes a highlight back entry by entry, keeping one a marker anchors", () => {
-    const x = itemOf([paragraph("a", "one")]);
-    const marked: LibraryBlock = {
-      children: [
-        { children: [{ text: "" }], edge: "start", ids: "h1", type: "annotationMarker" },
-        { text: "one" },
-        { children: [{ text: "" }], edge: "end", ids: "h1", type: "annotationMarker" },
-      ],
-      id: "a",
-      type: "p",
-    };
-    const entry = { createdAt: 1, text: "", updatedAt: 1 };
-    const loose = revert(changeOf(x, x, { after: { h2: entry } }), x, versionsOf(x), { h2: entry });
-    expect(loose).toStrictEqual({
-      annotations: {},
-      keptAnnotations: false,
-      kind: "revert",
-      ops: [],
-      state: x,
-    });
-    const anchoredItem = landed(x, [{ baseHash: heldHash(x, "a"), block: marked, op: "put" }]);
-    const anchored = revert(
-      changeOf(anchoredItem, anchoredItem, { after: { h1: entry } }),
-      anchoredItem,
-      versionsOf(anchoredItem),
-      { h1: entry },
-    );
-    expect(anchored).toStrictEqual({ kind: "keep", reason: "edited-since" });
-  });
-
-  it("keeps an item whose only change was a highlight someone answered since", () => {
-    const x = itemOf([paragraph("a", "one")]);
-    const entry = { createdAt: 1, text: "", updatedAt: 1 };
-    const answered = { ...entry, text: "the answer", updatedAt: 2 };
-    const verdict = revert(changeOf(x, x, { after: { h1: entry } }), x, versionsOf(x), {
-      h1: answered,
-    });
-    expect(verdict).toStrictEqual({ kind: "keep", reason: "edited-since" });
-  });
-
-  it("has nothing to take back of a highlight someone deleted since", () => {
-    const x = itemOf([paragraph("a", "one")]);
-    const entry = { createdAt: 1, text: "", updatedAt: 1 };
-    const verdict = revert(changeOf(x, x, { after: { h1: entry } }), x, versionsOf(x));
-    expect(verdict).toStrictEqual({ kind: "unchanged" });
   });
 });
 
@@ -373,7 +323,7 @@ describe(revertChangeSets, () => {
       { id: "newer", items: new Map([["item", changeOf(older, newer)]]) },
       { id: "older", items: new Map([["item", changeOf(x, older)]]) },
     ];
-    const now = new Map([["item", { annotations: {}, state: newer }]]);
+    const now = new Map([["item", { state: newer }]]);
     const undone = revertChangeSets({ at: AT, blockAt: versions, now, sets });
     expect(undone.kept).toStrictEqual([]);
     const item = undone.items.get("item");
@@ -400,7 +350,7 @@ describe(revertChangeSets, () => {
       const undone = revertChangeSets({
         at: AT,
         blockAt,
-        now: new Map([["item", { annotations: {}, state: since }]]),
+        now: new Map([["item", { state: since }]]),
         sets: [{ id: "set", items: new Map([["item", change]]) }],
       });
       expect(undone.items.size).toBe(0);
@@ -412,8 +362,8 @@ describe(revertChangeSets, () => {
         at: AT,
         blockAt,
         now: new Map([
-          ["kept", { annotations: {}, state: since }],
-          ["back", { annotations: {}, state: made }],
+          ["kept", { state: since }],
+          ["back", { state: made }],
         ]),
         sets: [
           {
@@ -430,7 +380,7 @@ describe(revertChangeSets, () => {
       const alreadyBack = revertChangeSets({
         at: AT,
         blockAt,
-        now: new Map([["item", { annotations: {}, state: x }]]),
+        now: new Map([["item", { state: x }]]),
         sets: [{ id: "set", items: new Map([["item", change]]) }],
       });
       expect(alreadyBack.kept).toStrictEqual([]);
@@ -444,7 +394,7 @@ describe(revertChangeSets, () => {
       const undone = revertChangeSets({
         at: AT,
         blockAt: versionsOf(x, made, since, newest),
-        now: new Map([["item", { annotations: {}, state: newest }]]),
+        now: new Map([["item", { state: newest }]]),
         sets: [
           { id: "newer", items: new Map([["item", changeOf(since, newest)]]) },
           { id: "older", items: new Map([["item", change]]) },
@@ -457,27 +407,12 @@ describe(revertChangeSets, () => {
       expect([...undone.leftWhole]).toStrictEqual(["older"]);
     });
   });
-
-  it("names an item that went back but for a highlight someone answered since", () => {
-    const x = itemOf([paragraph("a", "one")]);
-    const y = landed(x, [{ baseHash: heldHash(x, "a"), block: paragraph("a", "two"), op: "put" }]);
-    const entry = { createdAt: 1, text: "", updatedAt: 1 };
-    const undone = revertChangeSets({
-      at: AT,
-      blockAt: versionsOf(x, y),
-      now: new Map([["item", { annotations: { h1: { ...entry, text: "the answer" } }, state: y }]]),
-      sets: [{ id: "set", items: new Map([["item", changeOf(x, y, { after: { h1: entry } })]]) }],
-    });
-    expect(undone.items.get("item")?.now.state).toStrictEqual(x);
-    expect(undone.kept).toStrictEqual([{ itemId: "item", reason: "edited-since", setId: "set" }]);
-    expect([...undone.leftWhole]).toStrictEqual([]);
-  });
 });
 
 describe(snapshotOf, () => {
   it("records each block's id, hash, key and section in reading order", () => {
     const x = itemOf([paragraph("a", "one"), paragraph("b", "two")]);
-    expect(snapshotOf({ annotations: {}, state: x }).manifest).toStrictEqual(
+    expect(snapshotOf({ state: x }).manifest).toStrictEqual(
       orderedBlocks(x.blocks).map((held) => ({
         blockId: held.block.id,
         hash: held.hash,

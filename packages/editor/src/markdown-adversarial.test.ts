@@ -164,7 +164,6 @@ const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n\n?/u;
 const trip = (item: ImportedItem): ExportedItem =>
   exportItem(
     {
-      annotations: item.annotations,
       blocks: new Map(
         item.blocks.map((placed): [string, StoredBlock] => [
           placed.block.id,
@@ -218,7 +217,7 @@ const docWords = (md: string): readonly string[] => {
 type Trips = { first: string; second: string | null } | null;
 
 const tripsOf = (md: string): Trips => {
-  const read = importItem({ annotations: null, name: "Doc", text: md }, library.importPorts());
+  const read = importItem({ name: "Doc", text: md }, library.importPorts());
   if (!read.ok || read.item.leftOut > 0) {
     return null;
   }

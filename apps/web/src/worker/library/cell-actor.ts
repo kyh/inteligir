@@ -3,7 +3,6 @@
 // page. `label` is the set's words for them, which the caller supplies, since the cell knows no
 // device name or assistant; an undo is a set of its own, by whoever asked.
 
-import type { AnnotationSource } from "@repo/notes/annotations/store-schema";
 import type { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
 
 export type CellActor =
@@ -44,22 +43,3 @@ export const SEAL_POLICIES = {
   person: { capMs: MINUTE_MS, kind: "quiet", quietMs: 15 * SECOND_MS },
   undo: { kind: "commit" },
 } as const satisfies Record<ChangeSetActor, SealPolicy>;
-
-// who a highlight is by, as its row keeps it: an agent's, whoever's agent it is, and an import's
-// or a page's as the outside writer's
-export const annotationSourceOf = (actor: CellActor): AnnotationSource => {
-  switch (actor.kind) {
-    case "person": {
-      return "user";
-    }
-    case "assistant":
-    case "agent": {
-      return "agent";
-    }
-    case "import":
-    case "fill": {
-      return "external";
-    }
-    // no default
-  }
-};

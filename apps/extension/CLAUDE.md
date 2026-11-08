@@ -27,10 +27,9 @@ Decisions says how a bullet is written and cited.
   a `<base>` at the page's own; past `CAPTURE_HTML_MAX_CHARS` (2 MB) it sends
   none. The worker reads the clone with `@repo/page-reader` over linkedom, the
   host with no DOM of its own, and calls `items.save` with the article, the
-  facts, a cover it could read, put by its sha, and the passage selected. A
-  page it cannot script, or read no text from, is saved as its link, the
-  passage with it, for the cloud's fill, since an item saved read is never
-  filled, and so is one whose reading the cloud refuses as a call, since the
+  facts and a cover it could read, put by its sha. A page it cannot script,
+  or read no text from, is saved as its link for the cloud's fill, since an
+  item saved read is never filled, and so is one whose reading the cloud refuses as a call, since the
   address may land where the reading could not. Rejected: an offscreen
   document for `DOMParser` (a second context and a permission, for the DOM
   linkedom already gives the cloud's fill); the reader injected into the page
@@ -38,8 +37,8 @@ Decisions says how a bullet is written and cited.
   `apps/extension/src/background/save-page.ts`,
   `apps/extension/src/capture/serialize-page.ts`.
 
-- **A SAVE IS QUEUED BEFORE ITS FIRST CALL, AS ITS ADDRESS, TITLE AND PASSAGE,
-  AND AN ALARM SENDS WHAT WAITS.** One `storage.local` key a save, so two at
+- **A SAVE IS QUEUED BEFORE ITS FIRST CALL, AS ITS ADDRESS AND TITLE, AND AN
+  ALARM SENDS WHAT WAITS.** One `storage.local` key a save, so two at
   once never write over each other; a save the cloud did not answer is sent
   again as `items.saveLink` under its own ids, every 30 s by an alarm made as
   the save is kept and again at every start, the browser's included, while one
@@ -123,8 +122,8 @@ Decisions says how a bullet is written and cited.
   `apps/extension/package.json`, `apps/extension/wxt.config.ts`.
 
 - **NO COPY OF THE PAGE: AN ITEM KEEPS WHAT THE EXTENSION READ, AND OPEN
-  ORIGINAL OPENS THE PAGE.** `items.save` carries the article, the facts, a
-  cover and the passage, never a copy. Rejected: Keep a copy on `items.save` (no
+  ORIGINAL OPENS THE PAGE.** `items.save` carries the article, the facts and
+  a cover, never a copy. Rejected: Keep a copy on `items.save` (no
   device opens a copy, so it would upload bytes nobody reads; a single-file
   copy needs every stylesheet, font and picture the page names, which an
   `activeTab` extension with no host cannot fetch across origins; the frozen

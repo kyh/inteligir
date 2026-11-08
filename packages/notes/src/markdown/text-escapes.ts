@@ -1,8 +1,7 @@
-// The dialect reads its pills, dates, annotation markers and `:::` lines out of finished text, where
-// micromark has already folded a backslash escape into the character it spells. So the parse
-// keeps, on each text node, which characters an escape wrote, and a construct whose first
-// character is one stays text: the escape the serializer writes before a text that would read
-// back as a construct.
+// The dialect reads its pills, dates and `:::` lines out of finished text, where micromark has
+// already folded a backslash escape into the character it spells. So the parse keeps, on each text
+// node, which characters an escape wrote, and a construct whose first character is one stays text:
+// the escape the serializer writes before a text that would read back as a construct.
 //
 // GFM finds a bare url micromark did not (one an escape broke, `www\.example.org`) in finished
 // text too, splitting its text node into new ones that carry no data

@@ -1,16 +1,14 @@
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { assert, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { WriteOp } from "./outbox-ops";
 import { settleFolders, settleWrite } from "./outbox-settle";
 import type { BlockMerge } from "./replica-ports";
-import { idSource, keepBoth, paragraph } from "./test-support/replica-harness";
+import { keepBoth, paragraph } from "./test-support/replica-harness";
 
 const ITEM = "01900000-0000-7000-8000-00000000000a";
-const OTHER_ITEM = "01900000-0000-7000-8000-00000000000b";
-const ports = { merge: keepBoth, newId: idSource(9) };
+const ports = { merge: keepBoth };
 
 // a merge that keeps this device's block whole over the other's, and says it overlapped
 const keepMine: BlockMerge = async ({ mine }) =>
@@ -23,7 +21,6 @@ const held = (text: string, ord = "a0"): StoredBlock => {
 
 // a write of one paragraph from `base` to `mine`
 const putWrite = (base: StoredBlock, mine: string): WriteOp => ({
-  annotations: [],
   bases: { p1: base },
   itemId: ITEM,
   kind: "write",
@@ -54,7 +51,7 @@ describe("a write the cell answered CONFLICT", () => {
     const settled = await settleWrite(
       putWrite(held("draft"), "my draft"),
       [{ blockId: "p1", current: held("their draft"), itemId: ITEM, kind: "block" }],
-      { merge: keepMine, newId: idSource(9) },
+      { merge: keepMine },
     );
     expect(settled).toMatchObject({ kind: "resend", overlapped: true });
   });
@@ -131,64 +128,6 @@ describe("a write the cell answered CONFLICT", () => {
       ports,
     );
     expect(settled).toStrictEqual({ kind: "satisfied" });
-  });
-
-  it("adds a highlight whose id another item holds under an id of its own, its markers renamed", async () => {
-    const marked: LibraryBlock = {
-      children: [
-        { children: [{ text: "" }], edge: "start", ids: "h1", type: "annotationMarker" },
-        { text: "a passage" },
-        { children: [{ text: "" }], edge: "end", ids: "h1", type: "annotationMarker" },
-      ],
-      id: "p1",
-      type: "p",
-    };
-    const write: WriteOp = {
-      annotations: [
-        {
-          createdAt: 1,
-          id: "h1",
-          occurrence: null,
-          op: "add",
-          parentId: null,
-          quote: "a passage",
-          text: "",
-        },
-      ],
-      bases: {},
-      itemId: ITEM,
-      kind: "write",
-      ops: [{ block: marked, op: "insert", ord: "a0", section: "note" }],
-      staged: [],
-    };
-    const settled = await settleWrite(
-      write,
-      [
-        {
-          current: {
-            createdAt: 1,
-            deletedAt: null,
-            id: "h1",
-            itemId: OTHER_ITEM,
-            occurrence: null,
-            parentId: null,
-            quote: "elsewhere",
-            seq: 3,
-            source: "user",
-            text: "",
-            updatedAt: 1,
-          },
-          id: "h1",
-          itemId: ITEM,
-          kind: "annotation",
-        },
-      ],
-      { merge: keepBoth, newId: () => "h2" },
-    );
-    assert(settled.kind === "resend", `the settle answered ${settled.kind}`);
-    expect(settled.op.annotations.map((op) => op.id)).toStrictEqual(["h2"]);
-    expect(JSON.stringify(settled.op.ops)).toContain('"ids":"h2"');
-    expect(JSON.stringify(settled.op.ops)).not.toContain('"ids":"h1"');
   });
 });
 

@@ -1,17 +1,20 @@
 // A Raindrop.io CSV export read into library items: the header by name in any order and case,
-// a row per bookmark, folded by url key, every cell treated as hostile text. Pure: the library
-// cell's import job does the writing (apps/web/src/worker/library/cell-import-raindrop.ts).
+// a row per bookmark, folded by url key, every cell treated as hostile text. A bookmark's highlights
+// land in its note, each passage quoted with its own note under it. Pure: the library cell's import
+// job does the writing (apps/web/src/worker/library/cell-import-raindrop.ts).
 //
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
+import type { Paragraph, RootContent } from "mdast";
+import { toMarkdown } from "mdast-util-to-markdown";
 import { z } from "zod";
 
-import { clipQuote } from "../annotations/store-schema";
 import { parseItemTime } from "../items/item-time";
 import { cleanUrl, isWebUrl, urlKey } from "../items/item-url";
 import { isTagName } from "../knowledge/tag-grammar";
 import { ITEM_FIELD_CAPS } from "../library/library-item";
+import { MD_PROCESSOR, MD_STRINGIFY } from "../markdown/md-plugins";
 import { parseCsv } from "./csv";
 
 /** @internal */
@@ -155,14 +158,11 @@ export const plannedItemSchema = z.object({
   description: z.string().nullable(),
   // its folder's path, null when Raindrop filed it in none
   folder: z.string().nullable(),
-  highlights: z.array(z.object({ quote: z.string(), text: z.string() })),
   key: z.string(),
-  // the item's body: the person's note on the bookmark
+  // the item's body as markdown: the person's note on the bookmark, then its highlights
   note: z.string(),
   pinned: z.boolean(),
-  // one instant, in unix milliseconds and in unix seconds for the highlights' dates
   savedMs: z.number(),
-  savedSeconds: z.number(),
   tags: z.array(z.string()),
   // the row's own title, null when it gave none
   title: z.string().nullable(),
@@ -224,8 +224,38 @@ const oneLine = (text: string): string | null => {
 
 const sameTag = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
+const paragraphOf = (value: string): Paragraph => ({
+  children: [{ type: "text", value }],
+  type: "paragraph",
+});
+
+// Raindrop's words are text, so the dialect's own writer spells them, escaping what would read as
+// markdown
+const HIGHLIGHT_MARKDOWN = {
+  ...MD_STRINGIFY,
+  extensions: MD_PROCESSOR.data("toMarkdownExtensions"),
+};
+
+// the note as the person wrote it, then each highlight as a quote with its own note under it
+const noteWithHighlights = (note: string, highlights: readonly RaindropHighlight[]): string => {
+  if (highlights.length === 0) {
+    return note;
+  }
+  const flow = highlights.flatMap((highlight): RootContent[] => [
+    { children: [paragraphOf(highlight.quote)], type: "blockquote" },
+    ...(highlight.note === "" ? [] : [paragraphOf(highlight.note)]),
+  ]);
+  const quoted = toMarkdown({ children: flow, type: "root" }, HIGHLIGHT_MARKDOWN).trimEnd();
+  return note === "" ? quoted : `${note}\n\n${quoted}`;
+};
+
+interface Planning {
+  readonly item: PlannedItem;
+  readonly highlights: RaindropHighlight[];
+}
+
 export const planRaindropImport = (rows: readonly RaindropRow[], now: number): ImportPlan => {
-  const byKey = new Map<string, PlannedItem>();
+  const byKey = new Map<string, Planning>();
   let duplicates = 0;
   for (const row of rows) {
     const key = urlKey(row.url);
@@ -240,43 +270,43 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
         tags.push(name);
       }
     }
-    const highlights = row.highlights.map((highlight) => ({
-      quote: clipQuote(highlight.quote),
-      text: highlight.note,
-    }));
     const earlier = byKey.get(key);
     if (earlier !== undefined) {
       duplicates += 1;
       for (const tag of tags) {
-        if (!earlier.tags.some((held) => sameTag(held, tag))) {
-          earlier.tags.push(tag);
+        if (!earlier.item.tags.some((held) => sameTag(held, tag))) {
+          earlier.item.tags.push(tag);
         }
       }
-      for (const highlight of highlights) {
+      for (const highlight of row.highlights) {
         if (!earlier.highlights.some((held) => held.quote === highlight.quote)) {
           earlier.highlights.push(highlight);
         }
       }
       continue;
     }
-    const savedMs = savedMsOf(row.created, now);
-    byKey.set(key, {
+    const item: PlannedItem = {
       cover:
         row.cover !== null && row.cover.length <= ITEM_FIELD_CAPS.url && isWebUrl(row.cover)
           ? row.cover
           : null,
       description: oneLine(row.excerpt),
       folder: folderOf(row.folder),
-      highlights,
       key,
       note: row.note.trim(),
       pinned: row.favorite,
-      savedMs,
-      savedSeconds: Math.floor(savedMs / MS_PER_SECOND),
+      savedMs: savedMsOf(row.created, now),
       tags,
       title: row.title.trim() === "" ? null : row.title.trim(),
       url,
-    });
+    };
+    byKey.set(key, { highlights: [...row.highlights], item });
   }
-  return { duplicates, items: [...byKey.values()] };
+  return {
+    duplicates,
+    items: [...byKey.values()].map(({ highlights, item }) => ({
+      ...item,
+      note: noteWithHighlights(item.note, highlights),
+    })),
+  };
 };

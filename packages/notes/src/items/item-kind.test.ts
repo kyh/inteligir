@@ -34,7 +34,7 @@ describe("item kinds", () => {
     ["Makefile", "file"],
     ["note.md", null],
     ["todo.txt", null],
-    [".inteligir/annotations/x.json", null],
+    [".obsidian/app.json", null],
     ["folder/.DS_Store", null],
   ])("%s is %s", (path, expected) => {
     expect(fileKindOf(path)).toBe(expected);

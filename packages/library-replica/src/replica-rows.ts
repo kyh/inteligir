@@ -4,7 +4,6 @@
 // transaction.
 
 import type {
-  annotationOpSchema,
   folderOpSchema,
   libraryChangeSchema,
   liveItemRowSchema,
@@ -76,8 +75,8 @@ export const writeSyncState = function* writeSyncState(state: SyncState): SqlPla
 
 // ---- what a page touched ----
 
-// the kinds of row a page or a landing moved, and the ids it moved: an item's (for its row, its
-// body or its highlights), a folder's, a thread's (for it or its events) or a file's sha
+// the kinds of row a page or a landing moved, and the ids it moved: an item's (for its row or its
+// body), a folder's, a thread's (for it or its events) or a file's sha
 export interface Touched {
   readonly kinds: Set<LibraryChange["kind"]>;
   readonly ids: Set<string>;
@@ -206,46 +205,6 @@ const applyFolder = function* applyFolder(
   touch(touched, "folder", change.id);
 };
 
-const heldItemOfSchema = z.object({ item_id: z.string() });
-
-const applyAnnotation = function* applyAnnotation(
-  change: Extract<LibraryChange, { kind: "annotation" }>,
-  touched: Touched,
-): SqlPlan<void> {
-  const { row } = change;
-  if (row === null) {
-    const [held] = yield all("SELECT item_id FROM annotations WHERE id = ?", [change.id]);
-    yield run("DELETE FROM annotations WHERE id = ? AND seq < ?", [change.id, change.seq]);
-    if (held !== undefined) {
-      touch(touched, "annotation", heldItemOfSchema.parse(held).item_id);
-    }
-    return;
-  }
-  yield run(
-    `INSERT INTO annotations (id, item_id, parent_id, text, quote, occurrence, source, created_at,
-       updated_at, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET item_id = excluded.item_id, parent_id = excluded.parent_id,
-       text = excluded.text, quote = excluded.quote, occurrence = excluded.occurrence,
-       source = excluded.source, created_at = excluded.created_at,
-       updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, seq = excluded.seq
-     WHERE excluded.seq > annotations.seq`,
-    [
-      row.id,
-      row.itemId,
-      row.parentId,
-      row.text,
-      row.quote,
-      row.occurrence,
-      row.source,
-      row.createdAt,
-      row.updatedAt,
-      row.deletedAt,
-      row.seq,
-    ],
-  );
-  touch(touched, "annotation", row.itemId);
-};
-
 const applyThread = function* applyThread(
   change: Extract<LibraryChange, { kind: "thread" }>,
   touched: Touched,
@@ -304,10 +263,6 @@ export const applyChange = function* applyChange(
       yield* applyFolder(change, touched);
       return;
     }
-    case "annotation": {
-      yield* applyAnnotation(change, touched);
-      return;
-    }
     case "thread": {
       yield* applyThread(change, touched);
       return;
@@ -329,7 +284,6 @@ const SYNCED_TABLES = [
   "folders",
   "item_tags",
   "links",
-  "annotations",
   "search_fts",
   "threads",
   "thread_events",
@@ -405,10 +359,9 @@ export const markRestored = function* markRestored(ids: readonly string[]): SqlP
 };
 
 type FolderOp = z.infer<typeof folderOpSchema>;
-type AnnotationOp = z.infer<typeof annotationOpSchema>;
 
 // A landing this device made shows at once in rows the cell's own change then replaces: a folder
-// or a highlight it made stands at sequence 0, below every row the cell stamps, and one it changed
+// it made stands at sequence 0, below every row the cell stamps, and one it changed
 // keeps the sequence it held, so the pull lays the cell's row over each whatever it holds
 
 // a folder write's ops as the cell landed them, until the pull brings their rows
@@ -448,45 +401,6 @@ export const landOwnFolders = function* landOwnFolders(
            )
            UPDATE folders SET deleted_at = ? WHERE id IN (SELECT id FROM gone)`,
           [op.id, at],
-        );
-        break;
-      }
-      // no default
-    }
-  }
-};
-
-// a write's highlight ops as the cell landed them, signed as the person's, until the pull brings
-// their rows; times are unix seconds, as a highlight's are
-export const landOwnAnnotations = function* landOwnAnnotations(
-  itemId: string,
-  ops: readonly AnnotationOp[],
-  atSeconds: number,
-): SqlPlan<void> {
-  for (const op of ops) {
-    switch (op.op) {
-      case "add": {
-        yield run(
-          `INSERT INTO annotations (id, item_id, parent_id, text, quote, occurrence, source,
-             created_at, updated_at, deleted_at, seq)
-           VALUES (?, ?, ?, ?, ?, ?, 'user', ?, ?, NULL, 0) ON CONFLICT (id) DO NOTHING`,
-          [op.id, itemId, op.parentId, op.text, op.quote, op.occurrence, op.createdAt, atSeconds],
-        );
-        break;
-      }
-      case "note": {
-        yield run("UPDATE annotations SET text = ?, updated_at = ? WHERE id = ?", [
-          op.text,
-          atSeconds,
-          op.id,
-        ]);
-        break;
-      }
-      case "remove": {
-        yield run(
-          `UPDATE annotations SET deleted_at = ?, updated_at = ?
-           WHERE (id = ? OR parent_id = ?) AND deleted_at IS NULL`,
-          [atSeconds, atSeconds, op.id, op.id],
         );
         break;
       }

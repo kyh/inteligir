@@ -14,7 +14,6 @@ import {
   ChevronDownIcon,
   CodeIcon,
   FileOutputIcon,
-  HighlighterIcon,
   ItalicIcon,
   Link2Icon,
   StrikethroughIcon,
@@ -24,7 +23,6 @@ import { KEYS, RangeApi } from "platejs";
 import {
   useEditorRef,
   useEditorSelection,
-  useEditorSelector,
   useEventEditorValue,
   useMarkToolbarButton,
   useMarkToolbarButtonState,
@@ -37,11 +35,6 @@ import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spell
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
 import { askAgentAboutSelection } from "@repo/editor/agent-request";
-import {
-  HIGHLIGHT_SHORTCUT,
-  beginHighlight,
-  selectionTakesHighlight,
-} from "@repo/editor/annotations/annotation-kit";
 import { CODE_MARK_SHORTCUT } from "@repo/editor/editor-shortcuts";
 import { markShortcut } from "@repo/editor/mark-shortcuts";
 import { Button } from "@repo/ui/components/button";
@@ -77,27 +70,6 @@ const keepSelection = (event: ReactMouseEvent<HTMLElement>): void => {
 
 const PRIMARY_TEXT_BUTTON = "rounded-md text-primary hover:text-primary";
 
-// the chord's own gesture (CLAUDE.md § AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND), so
-// the button and ⌘⇧H cannot make two kinds of highlight; a selection with no text offers none
-const HighlightButton = ({ editor }: { editor: PlateEditor }) => {
-  const highlightable = useEditorSelector(selectionTakesHighlight, []);
-  return (
-    <Button
-      variant="ghost"
-      size="compact"
-      leadingIcon={HighlighterIcon}
-      disabled={!highlightable}
-      title={`${HIGHLIGHT_SHORTCUT.label} ${spellHotkey(HIGHLIGHT_SHORTCUT.hotkey, platformShortcutModifier())}`}
-      onClick={() => {
-        beginHighlight(editor);
-      }}
-      className="rounded-md"
-    >
-      {HIGHLIGHT_SHORTCUT.label}
-    </Button>
-  );
-};
-
 const AskAgentButton = ({ editor }: { editor: PlateEditor }) => (
   <>
     <Button
@@ -111,7 +83,6 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => (
     >
       Ask agent
     </Button>
-    <HighlightButton editor={editor} />
     <Sep />
   </>
 );

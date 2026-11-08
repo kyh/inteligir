@@ -52,7 +52,7 @@ const VOID = [{ text: "" }];
 const paragraph = (children: Descendant[]): TElement => ({ children, type: "p" });
 
 describe(notePreviewHead, () => {
-  it("reads each block as a line, a link as its chip, and drops markers, pictures and rich blocks", () => {
+  it("reads each block as a line, a link as its chip, and drops pictures and rich blocks", () => {
     const blocks: TElement[] = [
       { children: [{ text: "Title" }], type: "h1" },
       paragraph([
@@ -60,11 +60,7 @@ describe(notePreviewHead, () => {
         { bold: true, text: "bold" },
         { text: " and a " },
         { alias: "alias", children: VOID, itemId: null, title: "target", type: "wikiLink" },
-        { text: " plus " },
-        { children: VOID, ids: "x", type: "annotationMarker" },
-        { text: "noted" },
-        { children: VOID, ids: "x", type: "annotationMarker" },
-        { text: " text." },
+        { text: " plus noted text." },
       ]),
       { children: VOID, sha: "a".repeat(64), type: "img" },
       { children: [paragraph([{ text: "quoted code" }])], type: "blockquote" },

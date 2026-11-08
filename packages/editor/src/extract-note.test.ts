@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import type { TElement, Value } from "platejs";
 
-import { insertAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import {
   extractBlocksToNote,
@@ -109,19 +108,6 @@ describe("the extract", () => {
     expect(editor.children).toHaveLength(2);
     editor.undo();
     expect(texts(editor)).toStrictEqual(["Plan", "one", "two"]);
-  });
-
-  it("refuses blocks that anchor a highlight, whose entry would stay behind", async () => {
-    const { calls } = installFakeEditorHost();
-    const editor = editorOver([h2("b1", "Plan"), p("b2", "marked text")]);
-    editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 6, path: [1, 0] } });
-    insertAnnotationMarkers(editor, "c1");
-    const before = JSON.stringify(editor.children);
-    selectAll(editor);
-
-    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBeNull();
-    expect(calls).toStrictEqual([]);
-    expect(JSON.stringify(editor.children)).toBe(before);
   });
 
   it("refuses a block no item can store yet", async () => {

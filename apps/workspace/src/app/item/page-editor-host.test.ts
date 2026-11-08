@@ -53,7 +53,6 @@ describe("the page's editor host", () => {
     const tab = await openDevice(cell, "tab", { network: held.device });
     installPageEditorHost({
       askAgent: nothing,
-      openAnnotations: nothing,
       openItem: nothing,
       readFile: async () => await Promise.reject(new Error("the suite draws no file")),
       replica: tab.replica,

@@ -17,20 +17,6 @@ const DEADLINE_MS = 60_000;
 // a client decides whether to ask the person by (apps/web/src/worker/connector/library-tools.ts).
 // Only a read says it is read-only; a write leaves the hint out, which MCP reads as false
 const TOOLS = [
-  {
-    destructive: null,
-    name: "list_highlights",
-    openWorld: false,
-    readOnly: true,
-    title: "List highlights",
-  },
-  {
-    destructive: false,
-    name: "add_highlight",
-    openWorld: false,
-    readOnly: null,
-    title: "Add a highlight",
-  },
   { destructive: null, name: "list_items", openWorld: false, readOnly: true, title: "List items" },
   { destructive: null, name: "read_item", openWorld: false, readOnly: true, title: "Read an item" },
   {

@@ -10,9 +10,8 @@ code, no scripts, no build; the package is markdown and an `exports` map.
 
 The agent reads and edits the library only through the library's own procedures, the tools the
 connector serves (`read_item` answers an item's text in this dialect, `edit_item` and
-`create_note` take it back), and the dialect — `[[Title|id]]` links, `{{formula}}` pills,
-`%%i:id%%` highlight markers, the `inteligir-*` fences, the `:::article` section — is not
-something a model guesses right. The agent has no shell and no files, so nothing here is read at
+`create_note` take it back), and the dialect — `[[Title|id]]` links, `{{formula}}` pills, the
+`inteligir-*` fences, the `:::article` section — is not something a model guesses right. The agent has no shell and no files, so nothing here is read at
 run time: every word is inlined into the system prompt, in a fixed order, the same bytes for every
 conversation of every account, so all of them read one cached prefix. Each conversation freezes the
 prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
@@ -37,8 +36,6 @@ skills/
                                   # embeds and the library's files
   inteligir-formulas/SKILL.md     # {{source|display|meta}} pills and named variables:
                                   # grammar, identity, references
-  inteligir-annotations/SKILL.md  # highlights: add_highlight, the %%i:id:start/end%%
-                                  # markers, notes, attribution
   inteligir-canvas/SKILL.md       # inteligir-canvas fences: when a sketch is the answer, and
                                   # the exact grid payload
   inteligir-html/SKILL.md         # inteligir-html fences: the shell, the sandbox contract,

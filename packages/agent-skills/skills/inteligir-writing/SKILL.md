@@ -17,15 +17,14 @@ Detail is not the enemy; front-loaded detail is. Move derivations down, do not d
 
 ## Match The Shape To The Information
 
-| The information is                                | Write it as                      |
-| ------------------------------------------------- | -------------------------------- |
-| One connected idea                                | A paragraph                      |
-| Related points or ordered steps                   | A list                           |
-| Attributes compared across items                  | A table                          |
-| Peer views read one at a time                     | Tabs                             |
-| Context, caution, or priority worth setting apart | A callout                        |
-| A numeric trend                                   | A chart                          |
-| A question that needs an answer                   | A highlight on the exact passage |
+| The information is                                | Write it as |
+| ------------------------------------------------- | ----------- |
+| One connected idea                                | A paragraph |
+| Related points or ordered steps                   | A list      |
+| Attributes compared across items                  | A table     |
+| Peer views read one at a time                     | Tabs        |
+| Context, caution, or priority worth setting apart | A callout   |
+| A numeric trend                                   | A chart     |
 
 Two rules that save the most rework: keep block content out of table cells (a cell holds inline
 content only), and give every fact exactly one home — a requirement restated in a table, a
@@ -41,13 +40,13 @@ checklist, and a callout will drift into three different requirements.
 - **Summary of saved items** — what they say together first, then each item by its `[[Title|id]]`
   link with the line that matters.
 
-## Highlight, Or Just Fix It
+## Ask, Or Just Fix It
 
-Highlight when a person has to decide something, approve something, or answer a question only they
-can answer — anchored to the exact evidence.
+Ask in your reply when a person has to decide something, approve something, or answer a question
+only they can answer — quoting the exact passage it turns on.
 
-Fix directly: wording, ordering, duplication, a heading that buries its section. A highlight saying
-"this is unclear" on text you could have clarified is work handed back to the reader.
+Fix directly: wording, ordering, duplication, a heading that buries its section. A question saying
+"this is unclear" about text you could have clarified is work handed back to the reader.
 
 ## Before You Finish
 

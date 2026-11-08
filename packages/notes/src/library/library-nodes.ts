@@ -7,7 +7,6 @@
 
 import { z } from "zod";
 
-import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import { SHA256_HEX_RE } from "./library-item";
@@ -62,11 +61,6 @@ const listRestart = listNumber;
 const listRestartPolite = listNumber;
 const listStyleType = z.enum(["disc", "decimal", "todo"]).optional();
 
-// a marker's ids, comma-joined, in the one alphabet the annotation store keys by
-const ANNOTATION_IDS_RE = new RegExp(
-  `^${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTERN})*$`,
-  "u",
-);
 const isoDate = z.string().regex(new RegExp(`^${ISO_DATE_PATTERN}$`, "u"));
 const sha256Hex = z.string().regex(SHA256_HEX_RE);
 
@@ -397,14 +391,6 @@ const opaque = z.strictObject({
   type: z.literal("opaque"),
 });
 
-// one edge of a highlight's passage; one marker can open or close several highlights at once
-const annotationMarker = z.strictObject({
-  children: voidChildren,
-  edge: z.enum(["start", "end"]),
-  ids: z.string().regex(ANNOTATION_IDS_RE),
-  type: z.literal("annotationMarker"),
-});
-
 const libraryElementSchema = z.discriminatedUnion("type", [
   paragraph,
   heading1,
@@ -441,7 +427,6 @@ const libraryElementSchema = z.discriminatedUnion("type", [
   formulaPill,
   inlineEquation,
   opaque,
-  annotationMarker,
 ]);
 export type LibraryElement = z.infer<typeof libraryElementSchema>;
 

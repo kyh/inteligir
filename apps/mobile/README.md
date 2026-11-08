@@ -1,8 +1,7 @@
 # @repo/mobile — the inteligir phone
 
 A full editor over the phone's own replica of the account's library, as the
-Mac is: every item, block, folder and highlight is in a SQLite file on the
-phone, so the Library lists, searches and opens offline, and every write
+Mac is: every item, block and folder is in a SQLite file on the phone, so the Library lists, searches and opens offline, and every write
 queues with its base in the replica's outbox until the account's library cell
 takes it. The phone runs the same engine the Mac's window runs
 (`@repo/library-replica`), over expo-sqlite, reaches the Worker only through
@@ -32,7 +31,6 @@ src/
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
                 an item's editor over the replica's ops, and the headless page that merges
                 a block two devices changed
-  annotations/  an item's highlights, their notes and replies, in the sheet
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
                 the inbox that saves it, and an item's Info
   library/      the Library's query by scope, kind and search, its cards, and what waits
@@ -101,8 +99,7 @@ file and starts it over, so a credential over an empty database pulls the
 library afresh.
 
 A write is the replica's: an item page writes ops with their bases, a save, a
-new note, a photo, a move to Deleted and a highlight go through the engine's
-verbs, and each lists at once and waits in the outbox until the cell takes it.
+new note, a photo and a move to Deleted go through the engine's verbs, and each lists at once and waits in the outbox until the cell takes it.
 A `CONFLICT` settles through the block merge, which runs in the headless page
 (`src/editor/headless-page-host.ts`), since the editor's diff3 lives only
 there. What waits shows under the Library (`src/library/unsent-banner.tsx`),
@@ -179,10 +176,10 @@ sign-in form never flashes over a device that is signed in.
   thumbnail, the generation), the editor page's native end (every frame kind
   to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item
-  page's ports, the headless page's host, the annotation edits, the share
+  page's ports, the headless page's host, the share
   payload and the share's save, and the Library's query. Unit tests, no device.
-  `tools/e2e/src/scenarios/phone-offline-edit.ts`, `phone-save-hosted.ts`,
-  `phone-annotations-hosted.ts` and `phone-file-ops-hosted.ts` run the same
+  `tools/e2e/src/scenarios/phone-offline-edit.ts`, `phone-save-hosted.ts` and
+  `phone-file-ops-hosted.ts` run the same
   composition under node against a real Worker, beside a second device, and
   `phone-editor-page.ts` loads the built page from `file://`.
 - **The store config** (`src/app-config.test.ts`): it asks Expo's

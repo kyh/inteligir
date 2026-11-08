@@ -217,21 +217,13 @@ export const generateDoc = (seed: number): string => {
 const TAGS = ["#field", "#todo", "#idea/draft", "#ref"];
 
 // the dialect's marks inside prose, which only a pass over the whole note would find
-const dialectParagraph = (rng: Rng, anchor: number): string => {
-  switch (int(rng, 3)) {
-    case 0: {
-      return `${inlineText(rng, 3, 8)} ${pick(rng, TAGS)} ${inlineText(rng, 2, 6)}`;
-    }
-    case 1: {
-      const a = 1 + int(rng, 9);
-      const b = 1 + int(rng, 9);
-      return `${inlineText(rng, 3, 8)} {{${String(a)}+${String(b)}|${String(a + b)}}} ${inlineText(rng, 2, 6)}`;
-    }
-    default: {
-      const id = `c${String(anchor)}`;
-      return `${inlineText(rng, 2, 5)} %%i:${id}:start%%${words(rng, 3)}%%i:${id}:end%% ${inlineText(rng, 2, 5)}`;
-    }
+const dialectParagraph = (rng: Rng): string => {
+  if (chance(rng, 0.5)) {
+    return `${inlineText(rng, 3, 8)} ${pick(rng, TAGS)} ${inlineText(rng, 2, 6)}`;
   }
+  const a = 1 + int(rng, 9);
+  const b = 1 + int(rng, 9);
+  return `${inlineText(rng, 3, 8)} {{${String(a)}+${String(b)}|${String(a + b)}}} ${inlineText(rng, 2, 6)}`;
 };
 
 const NOTE_BLOCKS: ((rng: Rng) => string)[] = [
@@ -256,7 +248,7 @@ const noteBlock = (rng: Rng, index: number): string => {
   if (index % SECTION_BLOCKS === 0) {
     return `## ${inlineText(rng, 2, 5)}`;
   }
-  return chance(rng, 0.25) ? dialectParagraph(rng, index) : pick(rng, NOTE_BLOCKS)(rng);
+  return chance(rng, 0.25) ? dialectParagraph(rng) : pick(rng, NOTE_BLOCKS)(rng);
 };
 
 const lineCount = (block: string): number => block.split("\n").length;

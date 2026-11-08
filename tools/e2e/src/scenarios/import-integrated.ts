@@ -1,9 +1,8 @@
 // a Raindrop import whose links are real pages, end to end in the cloud: the account's cell runs
-// the import, which makes each item an unread link with its highlights waiting and hands it to the
-// Worker's fill with the row's cover as a hint; the fill reads the page under its public name
-// (`../harness/page-fixture.ts`), and the highlights are placed by their quotes inside the article
-// in the fill's own write; a page that names no picture takes the CSV's. A link whose page is gone
-// says why and keeps its highlight, listed unplaced under the item.
+// the import, which makes each item an unread link, its highlights quoted in its note, and hands it
+// to the Worker's fill with the row's cover as a hint; the fill reads the page under its public
+// name (`../harness/page-fixture.ts`) into the article below the note, and a page that names no
+// picture takes the CSV's. A link whose page is gone says why and keeps its quoted note.
 
 import { expect, expectEq } from "../harness/assert";
 import { OWNER, signUp } from "../harness/cloud-account";
@@ -96,7 +95,7 @@ const backupOf = (url: (at: string) => string): string =>
 
 export const importIntegrated: Scenario = {
   description:
-    "a Raindrop CSV of pages imported into the cloud library fills through the Worker and anchors its highlights in the article, the export's note kept above it and the CSV's cover taken where the page names none; a dead link says why and keeps its highlight unplaced",
+    "a Raindrop CSV of pages imported into the cloud library fills through the Worker, the export's note and its quoted highlights kept above the article and the CSV's cover taken where the page names none; a dead link says why and keeps its quoted highlight",
   name: "import-integrated",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -115,7 +114,7 @@ export const importIntegrated: Scenario = {
       });
       expectEq(upload.status, 201, "the backup's upload");
 
-      ctx.log("the cloud imports two links into their folder, each with its highlights waiting");
+      ctx.log("the cloud imports two links into their folder, each with its highlights quoted");
       const started = await library.imports.start({ sha: upload.sha, source: "raindrop" });
       const done = await pollUntil(
         async () => await library.imports.get({ id: started.job.id }),
@@ -152,10 +151,12 @@ export const importIntegrated: Scenario = {
         "A format any program can open is a format nobody can take away from you.",
       );
       expect(articleAt !== -1, `the article's text is in the item:\n${markdown}`);
-      const noteAt = markdown.indexOf(LIVE_NOTE);
+      const noteAt = markdown.indexOf(
+        [LIVE_NOTE, `> ${FIRST_QUOTE}`, FIRST_NOTE, `> ${SECOND_QUOTE}`].join("\n\n"),
+      );
       expect(
         noteAt !== -1 && noteAt < articleAt,
-        `the export's note is kept, above the article:\n${markdown}`,
+        `the export's note and its quoted highlights are kept, above the article:\n${markdown}`,
       );
 
       ctx.log("the page names no picture, so the live link takes the CSV's cover");
@@ -169,36 +170,16 @@ export const importIntegrated: Scenario = {
         "the live link's cover is the CSV's",
       );
 
-      ctx.log("the live link's highlights are placed inside the article's own text");
-      const placed = await library.annotations.list({ itemId: live.id });
-      expectEq(
-        placed.highlights
-          .map((highlight) => [highlight.quote ?? "", String(highlight.placed)])
-          .toSorted(([a = ""], [b = ""]) => a.localeCompare(b)),
-        [
-          [SECOND_QUOTE, "true"],
-          [FIRST_QUOTE, "true"],
-        ],
-        "the live link's highlights after its fill",
-      );
-      expectEq(
-        placed.highlights.find((highlight) => highlight.quote === FIRST_QUOTE)?.text,
-        FIRST_NOTE,
-        "the export's note on its highlight",
-      );
-
-      ctx.log("the dead link says why and keeps its highlight");
+      ctx.log("the dead link says why and keeps its quoted highlight");
       const deadRead = await settled(dead.id, "the dead link");
       expectEq(
         [deadRead.fields.fetchState, deadRead.fields.fetchError],
         ["failed", "The site answered 404 (not found)."],
         "the dead link's reading",
       );
-      const kept = await library.annotations.list({ itemId: dead.id });
-      expectEq(
-        kept.highlights.map((highlight) => [highlight.quote, highlight.placed]),
-        [[DEAD_QUOTE, false]],
-        "the dead link's highlight, kept unplaced under the item",
+      expect(
+        deadRead.view.markdown.includes(`> ${DEAD_QUOTE}`),
+        `the dead link's highlight is quoted in its note:\n${deadRead.view.markdown}`,
       );
       const asked = pages.requests();
       expect(

@@ -18,7 +18,7 @@ const SECOND = "Second draft.";
 const KEPT = "Keep this paragraph.";
 const TYPED = " Typed since.";
 const DOC = `# ${TITLE}\n\n${FIRST}\n\n${KEPT}\n`;
-const PANEL_TOGGLE = 'button[aria-label="Info, highlights and the agent"]';
+const PANEL_TOGGLE = 'button[aria-label="Info and the agent"]';
 const PANEL = '[data-side="right"]';
 const DEADLINE_MS = 30_000;
 

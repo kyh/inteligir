@@ -21,7 +21,6 @@ import { z } from "zod";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
-import type { CellCodec } from "./cell-codec";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
@@ -231,11 +230,7 @@ export const readingFiles = (landing: FillLanding): string[] => {
   }
 };
 
-export const landFill = (
-  scope: LandingScope,
-  codec: CellCodec,
-  landing: FillLanding,
-): FillLanded => {
+export const landFill = (scope: LandingScope, landing: FillLanding): FillLanded => {
   const state = runPlan(scope.storage, readItemState(landing.itemId));
   if (!waiting(state, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
@@ -251,7 +246,7 @@ export const landFill = (
         { base: fields.fetchError, field: "fetchError", op: "set", value: landing.sentence },
         { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
       ];
-      landWrite(scope, FILL_ACTOR, { itemId: item.id, ops: ops.filter(changes) });
+      landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "failed" };
     }
     case "file": {
@@ -272,11 +267,11 @@ export const landFill = (
         },
         ...readOps(fields, scope.now),
       ];
-      landWrite(scope, FILL_ACTOR, { itemId: item.id, ops: ops.filter(changes) });
+      landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };
     }
     case "read": {
-      landRead(scope, FILL_ACTOR, codec, item, landing, readFieldOps(fields, landing, scope.now));
+      landRead(scope, item, landing, readFieldOps(fields, landing, scope.now));
       return { kind: "filled" };
     }
     // no default

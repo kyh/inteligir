@@ -1,17 +1,15 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
-// and every doc's frontmatter: each doc's item and id, every file's bytes, and every highlights'
-// store. Pass two reads one doc at a time against the whole plan, resolving its links
-// by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
-// `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
-// own, so a bare file is a card of its own. A zip's paths reach all this with the folder an
-// unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
+// and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
+// doc at a time against the whole plan, resolving its links by the resolver's tiers (path, name,
+// alias, then the `[[Title|uuid]]` id, `@repo/notes/knowledge/link-resolve`). Last, every file no
+// item names becomes an item of its own, so a bare file is a card of its own. A zip's paths reach
+// all this with the folder an unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
 // every other dot-folder and what an operating system left are skipped, and a `.canvas` or a
 // `.base` is always an item, never an attachment. An `AGENTS.md` is a note like any other, unless
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
 // person's own instructions, so only the person writes them, and a zip is anyone's text.
 
-import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
@@ -36,16 +34,13 @@ import type { FoundFile, ImportedFields, ImportedItem } from "./item-markdown";
 import type { Reached } from "./read-blocks";
 
 // what a path in the folder is to an import
-export type ImportPathKind = "doc" | "file" | "store" | "skipped";
+export type ImportPathKind = "doc" | "file" | "skipped";
 
 // Obsidian's whiteboard and its database view: files of their own, never shown inside a note
 const ITEM_ONLY_EXTENSIONS = new Set([".canvas", ".base"]);
 
 export const importPathKind = (raw: string): ImportPathKind => {
   const path = normalizePath(raw);
-  if (annotationsStoreItemId(path) !== null) {
-    return "store";
-  }
   if (isOsLitterPath(path)) {
     return "skipped";
   }
@@ -58,9 +53,8 @@ export const importPathKind = (raw: string): ImportPathKind => {
   return isDocPath(path) ? "doc" : "file";
 };
 
-// what marks a folder an export's rather than a person's: its highlights' stores or its kept files
-const isExportMark = (path: string): boolean =>
-  annotationsStoreItemId(path) !== null || path.startsWith(`${DEFAULT_ATTACHMENTS_FOLDER}/`);
+// what marks a folder an export's rather than a person's: its kept files
+const isExportMark = (path: string): boolean => path.startsWith(`${DEFAULT_ATTACHMENTS_FOLDER}/`);
 
 const exportWrapper = (entries: readonly { readonly path: string }[]): string | null => {
   const paths = entries.map((entry) => entry.path).filter((path) => !isOsLitterPath(path));
@@ -90,10 +84,9 @@ export const unwrapExport = <Entry extends { readonly path: string }>(
       );
 };
 
-// one path of the folder, as pass one reads it: a doc's or a store's text, a file's bytes by sha
+// one path of the folder, as pass one reads it: a doc's text, a file's bytes by sha
 export type ImportEntry =
   | { readonly kind: "doc"; readonly path: string; readonly text: string }
-  | { readonly kind: "store"; readonly path: string; readonly text: string }
   | { readonly kind: "file"; readonly path: string; readonly sha: string };
 
 export interface PlannedDoc {
@@ -102,9 +95,6 @@ export interface PlannedDoc {
   readonly title: string;
   // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
   readonly fileId: string | null;
-  // the id of the highlights' store it reads: a highlight's id is the library's, so of the docs
-  // that carry one `id:` only the first takes the store, and a copy keeps its text
-  readonly storeId: string | null;
   readonly aliases: readonly string[];
   // the url key its frontmatter names, by which the cell folds two saves of one page into one item
   readonly urlKey: string | null;
@@ -120,8 +110,6 @@ interface PlannedFile {
 export interface ImportPlan {
   readonly docs: readonly PlannedDoc[];
   readonly files: readonly PlannedFile[];
-  // the docs' highlight stores, each by the frontmatter id it is keyed by
-  readonly stores: readonly { readonly key: string; readonly text: string }[];
 }
 
 export interface PlanIds {
@@ -153,19 +141,10 @@ const docFront = (path: string, text: string): DocFront => {
 export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): ImportPlan => {
   const docs: PlannedDoc[] = [];
   const files: PlannedFile[] = [];
-  const stores: { key: string; text: string }[] = [];
   const usedIds = new Set<string>();
-  const storeIds = new Set<string>();
   for (const entry of entries) {
     const path = normalizePath(entry.path);
     switch (entry.kind) {
-      case "store": {
-        const key = annotationsStoreItemId(path);
-        if (key !== null) {
-          stores.push({ key, text: entry.text });
-        }
-        break;
-      }
       case "file": {
         // a name's leading dot hides it, and says nothing of what the file is
         const name = basenamePath(path).replace(/^\.+/u, "");
@@ -178,16 +157,11 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
           front.fileId !== null && UUID_RE.test(front.fileId) ? front.fileId.toLowerCase() : null;
         const itemId = own !== null && !usedIds.has(own) ? own : ids.newItemId();
         usedIds.add(itemId);
-        const storeId = front.fileId !== null && !storeIds.has(front.fileId) ? front.fileId : null;
-        if (storeId !== null) {
-          storeIds.add(storeId);
-        }
         docs.push({
           aliases: front.aliases,
           fileId: front.fileId,
           itemId,
           path,
-          storeId,
           title: front.title,
           urlKey: front.urlKey,
         });
@@ -196,7 +170,7 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
       // no default
     }
   }
-  return { docs, files, stores };
+  return { docs, files };
 };
 
 // a plan opened for pass two: its lookups and its resolver, built once for every doc it reads
@@ -204,7 +178,6 @@ export interface PlanReader {
   readonly resolver: TargetResolver;
   readonly docs: ReadonlyMap<string, PlannedDoc>;
   readonly files: ReadonlyMap<string, PlannedFile>;
-  readonly stores: ReadonlyMap<string, string>;
 }
 
 export const openPlan = (plan: ImportPlan): PlanReader => ({
@@ -217,12 +190,10 @@ export const openPlan = (plan: ImportPlan): PlanReader => ({
       doc.fileId === null ? [] : [[doc.fileId, doc.path]],
     ),
   ),
-  stores: new Map(plan.stores.map((store) => [store.key, store.text])),
 });
 
 export interface ReadPassPorts {
   readonly newBlockId: () => string;
-  readonly newAnnotationId: () => string;
   readonly now: number;
 }
 
@@ -275,18 +246,8 @@ export const importPlannedDoc = (
     return path === null ? null : fileAt(path);
   };
   const read = importItem(
-    {
-      annotations: doc.storeId === null ? null : (reader.stores.get(doc.storeId) ?? null),
-      name: docStem(doc.path),
-      text,
-    },
-    {
-      file,
-      newAnnotationId: ports.newAnnotationId,
-      newBlockId: ports.newBlockId,
-      now: ports.now,
-      wiki,
-    },
+    { name: docStem(doc.path), text },
+    { file, newBlockId: ports.newBlockId, now: ports.now, wiki },
   );
   return read.ok
     ? { ok: true, read: { doc, item: read.item } }

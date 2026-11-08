@@ -72,10 +72,7 @@ const articleOf = (blocks: readonly LibraryBlock[]) => {
 
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
-const pageSave = (
-  url: string,
-  overrides: { article?: LibraryBlock[]; selection?: string | null; tags?: string[] } = {},
-) => ({
+const pageSave = (url: string, overrides: { article?: LibraryBlock[]; tags?: string[] } = {}) => ({
   article: articleOf(
     overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
   ),
@@ -84,7 +81,6 @@ const pageSave = (
   folderId: null,
   id: newId(),
   savedAt: Date.UTC(2026, 9, 1),
-  selection: overrides.selection ?? null,
   tags: overrides.tags ?? [],
   title: "A page",
   url,
@@ -122,22 +118,17 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("saves a page with its article, keeps a selection as a highlight, and answers a second save of the url with that item as it stands", async () => {
+  it("saves a page with its article, and answers a second save of the url with that item as it stands", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const first = await library.items.save(
-        pageSave("https://example.com/fox", { selection: "quick brown fox", tags: ["animals"] }),
+        pageSave("https://example.com/fox", { tags: ["animals"] }),
       );
       expect(first.created).toBe(true);
-      const { highlights } = await library.annotations.list({ itemId: first.item.id });
-      expect(highlights).toStrictEqual([
-        expect.objectContaining({ placed: true, quote: "quick brown fox", text: "" }),
-      ]);
 
       const again = await library.items.save(
         pageSave("https://example.com/fox#top", {
           article: [paragraph("p2", "Now: the quick brown fox naps.")],
-          selection: "lazy dog",
           tags: ["Animals", "dogs"],
         }),
       );
@@ -146,8 +137,6 @@ describe("the library's procedures", () => {
       expect(read.fields.tags).toStrictEqual(["animals"]);
       expect(read.view.markdown).toContain("over the lazy dog");
       expect(read.view.markdown).not.toContain("naps");
-      const held = await library.annotations.list({ itemId: first.item.id });
-      expect(held.highlights).toHaveLength(1);
     });
   });
 
@@ -157,34 +146,25 @@ describe("the library's procedures", () => {
       const url = "https://example.com/words";
       const first = await library.items.save({
         ...pageSave(url),
-        note: "For ==Tuesday==, before the call.",
+        note: "For Tuesday, before the call.",
       });
       expect(first.created).toBe(true);
       const made = await library.items.read({ id: first.item.id });
-      expect(made.view.markdown).toContain("For ");
-      expect(made.view.markdown).toContain("Tuesday");
+      expect(made.view.markdown).toContain("For Tuesday, before the call.");
       expect(made.view.markdown).toContain(":::article");
-      const { highlights } = await library.annotations.list({ itemId: first.item.id });
-      expect(highlights).toStrictEqual([expect.objectContaining({ quote: "Tuesday" })]);
 
-      const again = await library.items.save({ ...pageSave(url), note: "And for ==Friday==." });
+      const again = await library.items.save({ ...pageSave(url), note: "And for Friday." });
       expect(again).toMatchObject({ created: false, item: { id: first.item.id } });
       const held = await library.items.read({ id: first.item.id });
       expect(held.view.markdown).not.toContain("Friday");
-      const after = await library.annotations.list({ itemId: first.item.id });
-      expect(after.highlights.map(({ quote }) => quote)).toStrictEqual(["Tuesday"]);
     });
   });
 
-  it("lands a device's read on a held link with no article yet, its waiting passage placed and the name the person gave kept", async () => {
+  it("lands a device's read on a held link with no article yet, the name the person gave kept", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/saved-later";
-      const stub = await library.items.saveLink({
-        selection: "quick brown fox",
-        title: "My name for it",
-        url,
-      });
+      const stub = await library.items.saveLink({ title: "My name for it", url });
       const landed = await library.items.save({
         ...pageSave(url, { tags: ["animals"] }),
         facts: { ...FACTS, author: "A. Writer" },
@@ -199,13 +179,7 @@ describe("the library's procedures", () => {
         title: "My name for it",
       });
       expect(read.view.markdown).not.toContain("Words the read brought.");
-      const { highlights } = await library.annotations.list({ itemId: stub.item.id });
-      expect(highlights).toStrictEqual([
-        expect.objectContaining({ placed: true, quote: "quick brown fox" }),
-      ]);
-      expect(read.view.markdown).toContain(
-        `The %%i:${highlights[0]?.id ?? ""}:start%%quick brown fox%%i:`,
-      );
+      expect(read.view.markdown).toContain("The quick brown fox jumps");
 
       // read now, so a later device's read leaves it as it stands
       await library.items.save(
@@ -243,28 +217,6 @@ describe("the library's procedures", () => {
       await library.items.save({ ...pageSave("https://example.com/waits"), article: [] });
       const still = await library.items.read({ id: waiting.item.id });
       expect(still.fields.fetchState).toBe("pending");
-    });
-  });
-
-  it("keeps a link's selection as a highlight waiting on a new stub, and adds none to an item that holds its address", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const stub = await library.items.saveLink({
-        selection: "a passage the page holds",
-        url: "https://example.com/later/unread",
-      });
-      expect(stub.created).toBe(true);
-      const waiting = await library.annotations.list({ itemId: stub.item.id });
-      expect(waiting.highlights).toStrictEqual([
-        expect.objectContaining({ placed: false, quote: "a passage the page holds", text: "" }),
-      ]);
-
-      const url = "https://example.com/fox";
-      const page = await library.items.save(pageSave(url));
-      const held = await library.items.saveLink({ selection: "brown fox jumps", url });
-      expect(held).toMatchObject({ created: false, item: { id: page.item.id } });
-      const { highlights } = await library.annotations.list({ itemId: page.item.id });
-      expect(highlights).toStrictEqual([]);
     });
   });
 
@@ -530,39 +482,6 @@ describe("the library's procedures", () => {
         missing: [],
         restored: [],
       });
-    });
-  });
-
-  it("adds a highlight by its passage, placed where the text holds it and kept unplaced where it does not", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const { item } = await library.items.createNote({
-        markdown: "A sentence worth keeping.",
-        title: "Quotes",
-      });
-      const placed = await library.annotations.add({
-        itemId: item.id,
-        note: "Why it matters.",
-        quote: "worth keeping",
-      });
-      expect(placed.highlight).toMatchObject({
-        itemTitle: "Quotes",
-        placed: true,
-        quote: "worth keeping",
-        text: "Why it matters.",
-      });
-      const unplaced = await library.annotations.add({ itemId: item.id, quote: "nowhere here" });
-      expect(unplaced.highlight.placed).toBe(false);
-      const listed = await library.annotations.list({ itemId: item.id });
-      expect(
-        listed.highlights
-          .map((highlight) => highlight.placed)
-          .toSorted((a, b) => Number(a) - Number(b)),
-      ).toStrictEqual([false, true]);
-      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({ highlights: 2 });
-      await expect(
-        refusalOf(library.annotations.add({ itemId: newId(), quote: "anything" })),
-      ).resolves.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 

@@ -146,7 +146,7 @@ export const OverlaysSection = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this item forever?</AlertDialogTitle>
               <AlertDialogDescription>
-                Its text, files and highlights are gone for good. This can&apos;t be undone.
+                Its text and files are gone for good. This can&apos;t be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

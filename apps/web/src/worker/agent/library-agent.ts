@@ -19,11 +19,9 @@ export const AGENT_MAX_TOKENS = 64_000;
 // a request. Every other change joins the turn's one undoable set, which the person's Undo this
 // turn takes back
 export const AGENT_TOOL_POLICIES = {
-  add_highlight: "run",
   create_note: "run",
   delete_items: "ask",
   edit_item: "run",
-  list_highlights: "run",
   list_items: "run",
   list_tags_and_folders: "run",
   organize_items: "run",

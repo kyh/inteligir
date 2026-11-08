@@ -11,7 +11,6 @@ type RichFenceBlockKey = NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]
 export const WIKI_LINK_KEY = "wikiLink";
 export const WIKI_EMBED_KEY = "wikiEmbed";
 export const FORMULA_PILL_KEY = "formulaPill";
-export const ANNOTATION_MARKER_KEY = "annotationMarker";
 export const TAB_GROUP_KEY = "tab_group";
 export const TAB_PANEL_KEY = "tab_panel";
 export const OPAQUE_KEY = "opaque";

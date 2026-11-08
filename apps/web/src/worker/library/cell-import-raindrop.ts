@@ -1,9 +1,9 @@
 // A Raindrop export read into the library (`@repo/notes/imports/raindrop`): the first run reads
 // the CSV into its plan, one row per bookmark, keyed once by its address; each later run lands a
-// page of them. A bookmark lands as an unread link, its tags and folder Raindrop's, its note the
-// item's note and its highlights waiting for the page's text, which the cloud reads after it
-// (`./cell-fills`), Raindrop's own picture tried after the page's; an address the library holds
-// already is counted, not saved twice.
+// page of them. A bookmark lands as an unread link, its tags and folder Raindrop's, its note and its
+// highlights the item's note, its page read by the cloud after it (`./cell-fills`), Raindrop's own
+// picture tried after the page's; an address the library holds already is counted, not saved
+// twice.
 
 import {
   parseRaindropCsv,
@@ -35,7 +35,6 @@ import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
 import { landNew, noteBlocksOf } from "./cell-items";
-import type { AddOp } from "./cell-items";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 
@@ -83,39 +82,19 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
   return written ? MORE : DONE;
 };
 
-interface Landed {
-  readonly kind: "added" | "held";
-  readonly highlights: number;
-}
+type Landed = "added" | "held";
 
 // one bookmark as an unread link, or counted as held when its address is the library's already
-const landBookmark = (
-  scope: LandingScope,
-  host: ImportHost,
-  job: ImportJob,
-  planned: PlannedItem,
-): Landed => {
+const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedItem): Landed => {
   if (urlHolder(scope.storage, planned.key, null) !== null) {
-    return { highlights: 0, kind: "held" };
+    return "held";
   }
   const { library } = host;
-  const actor = importActor(job);
-  const note =
-    planned.note === ""
-      ? null
-      : noteBlocksOf(scope, cellCodec(scope.storage, library.ids), planned.note);
-  const highlights = planned.highlights.map((highlight): AddOp => ({
-    createdAt: planned.savedSeconds,
-    id: library.ids.annotation(),
-    occurrence: null,
-    op: "add",
-    parentId: null,
-    quote: highlight.quote,
-    text: highlight.text,
-  }));
-  const item = landNew(scope, actor, {
-    annotations: [...(note?.highlights ?? []), ...highlights],
-    blocks: note?.blocks ?? [],
+  const item = landNew(scope, {
+    blocks:
+      planned.note === ""
+        ? []
+        : noteBlocksOf(scope, cellCodec(scope.storage, library.ids), planned.note),
     fields: {
       ...blankItemFields(scope.now),
       description: planned.description,
@@ -136,10 +115,10 @@ const landBookmark = (
     id: library.ids.item(),
   });
   askFill(scope, item, planned.cover);
-  return { highlights: highlights.length, kind: "added" };
+  return "added";
 };
 
-const LANDED = z.object({ highlights: z.number(), kind: z.enum(["added", "held"]) });
+const LANDED = z.enum(["added", "held"]);
 
 // a page of bookmarks, each in a transaction with the job's cursor, so a run cut off part way
 // lands none twice
@@ -156,13 +135,10 @@ const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutc
   }
   for (const { idx, value } of page.value) {
     const landed = library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
-      const result = landBookmark(scope, host, job, value);
+      const result = landBookmark(scope, host, value);
       advanceImport(scope.storage, job.id, {
-        changeSetId: result.kind === "added" ? scope.set().id : undefined,
-        counts:
-          result.kind === "added"
-            ? { added: 1, highlights: result.highlights }
-            : { alreadySaved: 1 },
+        changeSetId: result === "added" ? scope.set().id : undefined,
+        counts: result === "added" ? { added: 1 } : { alreadySaved: 1 },
         cursor: idx + 1,
       });
       return result;

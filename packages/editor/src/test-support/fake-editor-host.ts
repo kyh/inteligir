@@ -4,7 +4,6 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
   AgentRequestActions,
-  AnnotationActions,
   EditorHostIo,
   ItemActions,
   LinkTarget,
@@ -31,7 +30,6 @@ export interface FakeEditorHostOptions {
   // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
   // refuse it
   readonly createNote?: ItemActions["createNote"];
-  readonly annotations?: AnnotationActions;
   readonly agent?: AgentRequestActions;
 }
 
@@ -44,8 +42,8 @@ const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 // Installs the singleton the hooks read; the io half answers from the items and files it is
 // handed, keeps a file by its real sha and then draws it (refusing one with no type, as the hosts
-// do), the shell refuses every annotation and hears every other ask as nothing, and an open, a new
-// note and a kept file are recorded in `calls`. `changed` says items moved, as a host's change
+// do), the shell hears every other ask as nothing, and an open, a new note and a kept file are
+// recorded in `calls`. `changed` says items moved, as a host's change
 // feed does.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
@@ -105,11 +103,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   installEditorHost({
     actions: {
       agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
-      annotations: options.annotations ?? {
-        create: async () => await Promise.resolve(false),
-        edit: async () => await Promise.resolve(false),
-        open: ignore,
-      },
       items,
     },
     io,

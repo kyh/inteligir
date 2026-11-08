@@ -1,15 +1,13 @@
-// What a change set keeps of an item, in parts: its fields, its manifest and its highlights, each
-// kept once per item under its content hash, so a set that changed one block stores one manifest
-// and shares the rest, and a block a write replaced keeps its content beside them by its own hash.
-// Each part is capped well inside a Durable Object's 2 MB row, which is what bounds an item's
-// blocks and highlights: a write past either cap is refused as too large.
+// What a change set keeps of an item, in parts: its fields and its manifest, each kept once per
+// item under its content hash, so a set that changed one block stores one manifest and shares the
+// fields, and a block a write replaced keeps its content beside them by its own hash. A manifest
+// is capped well inside a Durable Object's 2 MB row, which is what bounds an item's blocks: a
+// write past the cap is refused as too large.
 
-import { annotationStoreSchema } from "@repo/notes/annotations/store-schema";
-import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { contentHash } from "@repo/notes/library/block-hash";
 import { blockHashSchema, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
-import { compareText, ordSchema } from "@repo/notes/library/block-order";
+import { ordSchema } from "@repo/notes/library/block-order";
 import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import {
@@ -26,15 +24,13 @@ import { z } from "zod";
 
 import { fieldFilesOf, keepHistoryFiles } from "./cell-blobs";
 
-// a manifest of about 15,000 blocks, and as many highlights as fit beside them
+// a manifest of about 15,000 blocks
 const MANIFEST_MAX_BYTES = 1_000_000;
-const HIGHLIGHTS_MAX_BYTES = 1_000_000;
 
 // what a change set names an item's state by
 export interface PartRefs {
   readonly fields: string;
   readonly manifest: string;
-  readonly annotations: string;
 }
 
 interface EncodedPart {
@@ -45,7 +41,6 @@ interface EncodedPart {
 export interface EncodedParts {
   readonly fields: EncodedPart;
   readonly manifest: EncodedPart;
-  readonly annotations: EncodedPart;
   // the files the fields name
   readonly files: readonly string[];
 }
@@ -65,29 +60,7 @@ const manifestOf = (state: ItemState): ManifestEntry[] =>
     section: stored.section,
   }));
 
-// a highlight store in one spelling, so two equal stores share a part: ids and each entry's fields
-// in order
-const storeJson = (store: AnnotationStore): string =>
-  JSON.stringify(
-    Object.fromEntries(
-      Object.entries(store)
-        .toSorted(([a], [b]) => compareText(a, b))
-        .map(([id, entry]) => [
-          id,
-          {
-            createdAt: entry.createdAt,
-            parentId: entry.parentId,
-            quote: entry.quote,
-            source: entry.source,
-            text: entry.text,
-            updatedAt: entry.updatedAt,
-          },
-        ]),
-    ),
-  );
-
 export const encodeParts = (now: ItemNow): EncodedParts => ({
-  annotations: encode(storeJson(now.annotations)),
   fields: encode(canonicalJson(now.state.fields)),
   files: fieldFilesOf(now.state.fields),
   manifest: encode(
@@ -97,22 +70,19 @@ export const encodeParts = (now: ItemNow): EncodedParts => ({
   ),
 });
 
-// whether a change set can keep an item in this state: its manifest and its highlights each fit
-// one row
+// whether a change set can keep an item in this state: its manifest fits one row
 export const partsFit = (parts: EncodedParts): boolean =>
-  utf8ByteLength(parts.manifest.json) <= MANIFEST_MAX_BYTES &&
-  utf8ByteLength(parts.annotations.json) <= HIGHLIGHTS_MAX_BYTES;
+  utf8ByteLength(parts.manifest.json) <= MANIFEST_MAX_BYTES;
 
 const INSERT_PART =
   "INSERT INTO snapshot_parts (item_id, hash, json) VALUES (?, ?, ?) ON CONFLICT DO NOTHING";
 
 export const storeParts = (sql: SqlStatements, itemId: string, parts: EncodedParts): PartRefs => {
-  for (const part of [parts.fields, parts.manifest, parts.annotations]) {
+  for (const part of [parts.fields, parts.manifest]) {
     sql.run(INSERT_PART, [itemId, part.hash, part.json]);
   }
   keepHistoryFiles(sql, itemId, parts.fields.hash, parts.files);
   return {
-    annotations: parts.annotations.hash,
     fields: parts.fields.hash,
     manifest: parts.manifest.hash,
   };
@@ -165,11 +135,7 @@ export const readManifest = (sql: SqlStatements, itemId: string, hash: string): 
 export const readFieldsPart = (sql: SqlStatements, itemId: string, hash: string) =>
   readPart(sql, itemId, hash, libraryItemFieldsSchema, "an item's fields");
 
-const readAnnotationsPart = (sql: SqlStatements, itemId: string, hash: string): AnnotationStore =>
-  readPart(sql, itemId, hash, annotationStoreSchema, "an item's highlights");
-
 export const readSnapshot = (sql: SqlStatements, itemId: string, refs: PartRefs): ItemSnapshot => ({
-  annotations: readAnnotationsPart(sql, itemId, refs.annotations),
   fields: readFieldsPart(sql, itemId, refs.fields),
   manifest: readManifest(sql, itemId, refs.manifest),
 });

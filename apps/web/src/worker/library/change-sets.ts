@@ -14,7 +14,6 @@ import { z } from "zod";
 
 import { SEAL_POLICIES } from "./cell-actor";
 import type { CellActor, ChangeSetActor, SealPolicy } from "./cell-actor";
-import { annotationStoreOf, readAnnotationRows } from "./cell-annotations";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import { encodeParts, storeParts } from "./cell-parts";
 import type { PartRefs } from "./cell-parts";
@@ -129,9 +128,7 @@ const insertSet = (
 
 export const readItemNow = (sql: SqlStatements, itemId: string): ItemNow | null => {
   const state = runPlan(sql, readItemState(itemId));
-  return state === null
-    ? null
-    : { annotations: annotationStoreOf(readAnnotationRows(sql, itemId)), state };
+  return state === null ? null : { state };
 };
 
 // the set's after for the item: the item as the set left it
@@ -141,9 +138,9 @@ const writeAfter = (
 ): void => {
   const { itemId, refs, setId } = change;
   sql.run(
-    `UPDATE change_set_items SET after_fields = ?, after_manifest = ?, after_annotations = ?
+    `UPDATE change_set_items SET after_fields = ?, after_manifest = ?
      WHERE change_set_id = ? AND item_id = ?`,
-    [refs.fields, refs.manifest, refs.annotations, setId, itemId],
+    [refs.fields, refs.manifest, setId, itemId],
   );
 };
 
@@ -265,22 +262,15 @@ export const touchItem = (
   if (held === undefined) {
     sql.run(
       `INSERT INTO change_set_items (change_set_id, item_id, created, before_fields,
-         before_manifest, before_annotations, after_fields, after_manifest, after_annotations)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
-      [
-        setId,
-        itemId,
-        before === null ? 1 : 0,
-        refs?.fields ?? null,
-        refs?.manifest ?? null,
-        refs?.annotations ?? null,
-      ],
+         before_manifest, after_fields, after_manifest)
+       VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
+      [setId, itemId, before === null ? 1 : 0, refs?.fields ?? null, refs?.manifest ?? null],
     );
   } else if (itemRowSchema.parse(held).after_fields !== null) {
     // written down when another set wrote; the item is this set's again
     sql.run(
-      `UPDATE change_set_items SET after_fields = NULL, after_manifest = NULL,
-         after_annotations = NULL WHERE change_set_id = ? AND item_id = ?`,
+      `UPDATE change_set_items SET after_fields = NULL, after_manifest = NULL
+       WHERE change_set_id = ? AND item_id = ?`,
       [setId, itemId],
     );
   }

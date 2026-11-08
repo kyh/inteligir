@@ -19,7 +19,7 @@ export type CellRefusal =
   | { readonly kind: "not-found" }
   // what each guarded thing holds now, so the writer merges and sends again
   | { readonly kind: "conflict"; readonly current: readonly ConflictCurrent[] }
-  // a block, an item's text, its manifest or its highlights past their cap
+  // a block, an item's text or its manifest past its cap
   | { readonly kind: "too-large" }
   | { readonly kind: "quota"; readonly bytesUsed: number; readonly bytesCap: number }
   // files the write names that were never uploaded

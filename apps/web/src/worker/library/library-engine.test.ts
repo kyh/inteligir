@@ -48,18 +48,6 @@ const setCount = (state: DurableObjectState): number =>
 // what R2 holds of an image upload
 const png = (bytes: number) => ({ bytes, mime: "image/png" });
 
-// a highlight added over the first line, under one id
-const highlightAdd = (text: string) =>
-  ({
-    createdAt: 1,
-    id: "hl1",
-    occurrence: null,
-    op: "add",
-    parentId: null,
-    quote: "first",
-    text,
-  }) as const;
-
 describe("a write to the library cell", () => {
   it("lands each block only over the hash it was read at, and answers a stale one with the block as it is", async () => {
     await inCell(cellOf(), (state) => {
@@ -401,85 +389,6 @@ describe("a write to the library cell", () => {
       expect(strays()).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
       expect(library.blobRemovals()).toBe(count);
       expect(library.beginStrayRemovals()).toStrictEqual([]);
-    });
-  });
-
-  it("guards a highlight's note by the text it was written over", async () => {
-    await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
-      const itemId = newItemId();
-      landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
-      );
-      const add = {
-        createdAt: 1,
-        id: "hl1",
-        occurrence: null,
-        op: "add",
-        parentId: null,
-        quote: "first",
-        text: "",
-      } as const;
-      landedValue(library.write(person(), { annotations: [add], itemId, ops: [] }));
-      landedValue(
-        library.write(person(), {
-          annotations: [{ base: "", id: "hl1", op: "note", text: "a thought" }],
-          itemId,
-          ops: [],
-        }),
-      );
-      const stale = library.write(person("phone"), {
-        annotations: [{ base: "", id: "hl1", op: "note", text: "another thought" }],
-        itemId,
-        ops: [],
-      });
-      expect(refusalOf(stale)).toMatchObject({
-        current: [
-          { current: { source: "user", text: "a thought" }, id: "hl1", kind: "annotation" },
-        ],
-        kind: "conflict",
-      });
-    });
-  });
-
-  it("refuses a highlight whose id another item holds, and leaves that item's row as it is", async () => {
-    await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
-      const first = newItemId();
-      const second = newItemId();
-      for (const id of [first, second]) {
-        landedValue(
-          createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id }),
-        );
-      }
-      landedValue(
-        library.write(person(), {
-          annotations: [highlightAdd("on the first")],
-          itemId: first,
-          ops: [],
-        }),
-      );
-      const head = library.head();
-      const taken = library.write(person("phone"), {
-        annotations: [highlightAdd("on the second")],
-        itemId: second,
-        ops: [],
-      });
-      expect(refusalOf(taken)).toMatchObject({
-        current: [
-          {
-            current: { itemId: first, text: "on the first" },
-            id: "hl1",
-            itemId: second,
-            kind: "annotation",
-          },
-        ],
-        kind: "conflict",
-      });
-      expect(library.head()).toBe(head);
-      expect(
-        state.storage.sql.exec("SELECT item_id, text FROM annotations WHERE id = 'hl1'").toArray(),
-      ).toStrictEqual([{ item_id: first, text: "on the first" }]);
     });
   });
 });
@@ -1029,52 +938,7 @@ describe("change sets and undo", () => {
     });
   });
 
-  it("takes back a highlight a set added, and restores one a set rewrote", async () => {
-    await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const library = engineIn(state, clock);
-      const itemId = newItemId();
-      landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
-      );
-      const setsOf = () =>
-        state.storage.sql
-          .exec("SELECT id FROM change_sets ORDER BY rowid")
-          .toArray()
-          .map((row) => z.string().parse(row.id));
-      const highlights = () =>
-        state.storage.sql
-          .exec("SELECT id, text FROM annotations WHERE item_id = ? AND deleted_at IS NULL", itemId)
-          .toArray();
-
-      clock.now += 60_000;
-      landedValue(
-        library.write(person(), { annotations: [highlightAdd("a thought")], itemId, ops: [] }),
-      );
-      clock.now += 60_000;
-      landedValue(
-        library.write(person(), {
-          annotations: [{ base: "a thought", id: "hl1", op: "note", text: "a second thought" }],
-          itemId,
-          ops: [],
-        }),
-      );
-      const [, added, rewrote] = setsOf();
-      clock.now += 60_000;
-      const restored = landedValue(
-        library.undo(person(), { changeSetIds: [z.string().parse(rewrote)] }),
-      );
-      expect(restored.kept).toStrictEqual([]);
-      expect(highlights()).toStrictEqual([{ id: "hl1", text: "a thought" }]);
-
-      clock.now += 60_000;
-      const gone = landedValue(library.undo(person(), { changeSetIds: [z.string().parse(added)] }));
-      expect(gone.kept).toStrictEqual([]);
-      expect(highlights()).toStrictEqual([]);
-    });
-  });
-
-  it("empties Deleted: the item stays a tombstone, its highlights and what its change sets kept go", async () => {
+  it("empties Deleted: the item stays a tombstone, and what its change sets kept goes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
       const library = engineIn(state, clock);
@@ -1084,17 +948,6 @@ describe("change sets and undo", () => {
       );
       landedValue(
         library.write(FILL_ACTOR, {
-          annotations: [
-            {
-              createdAt: 1,
-              id: "hl",
-              occurrence: null,
-              op: "add",
-              parentId: null,
-              quote: "first",
-              text: "",
-            },
-          ],
           itemId,
           ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
         }),
@@ -1105,7 +958,6 @@ describe("change sets and undo", () => {
       const pulled = landedValue(library.pull({ cursor: 0, epoch: null }));
       const changes = pulled.kind === "changes" ? pulled.changes : [];
       expect(changes.find((change) => change.id === itemId)?.row).toMatchObject({ kind: "purged" });
-      expect(changes.find((change) => change.id === "hl")?.row).toBeNull();
       for (const table of ["snapshot_parts", "block_versions", "change_set_items"]) {
         expect(
           state.storage.sql

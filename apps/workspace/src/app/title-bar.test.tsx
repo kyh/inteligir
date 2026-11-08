@@ -39,7 +39,6 @@ const emptyLibrary = () => {
     ...library,
     replica: {
       ...library.replica,
-      annotations: async () => await Promise.resolve({}),
       focus: () => {
         // this library never moves, so there is nothing to catch up on
       },

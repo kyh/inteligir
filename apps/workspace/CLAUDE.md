@@ -14,7 +14,7 @@ queries and the page's library context; `app/workspace.tsx` owns the rail, the
 grid or the open item, the panel and the palette; `app/library/` the grid, its
 scope, selection, Quick Look, the verbs over items and what a paste or a drop
 saves; `app/item/` the open item, its stages and the editor's host;
-`app/panel/` Info and Highlights; `app/agent/` the built-in agent's
+`app/panel/` Info; `app/agent/` the built-in agent's
 conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
 `app/settings/` the Settings layer. Every shell answer
 is parsed in `src/shell/shell-commands.ts`.
@@ -165,7 +165,7 @@ is parsed in `src/shell/shell-commands.ts`.
   `apps/workspace/src/app/sidebar/folder-paths.ts`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** One field searches the
-  replica's own full-text index (titles, notes, saved articles and highlights),
+  replica's own full-text index (titles, notes and saved articles),
   ranked as every device ranks it, beside the page's commands; a hit opens its
   item with the find bar on the words, and a typed web address offers "Save
   this link". The rows are groups of data the page hands `@repo/ui`'s palette,
@@ -177,9 +177,8 @@ is parsed in `src/shell/shell-commands.ts`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
-  on its tab, a click on a highlight on Highlights with that one ringed and in
-  view. The tabs are Info and Highlights, about the open item or else
-  the one card selected, and the Agent, about the whole library. The width
+  on its tab. The tabs are Info, about the open item or else the one card
+  selected, and the Agent, about the whole library. The width
   persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
   Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
   `apps/workspace/src/app/workspace.tsx`.
@@ -208,7 +207,7 @@ is parsed in `src/shell/shell-commands.ts`.
 
 - **THE PAGE'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body` is
   `user-select: none`, fields and the editor's editing hosts are `text`, and
-  what a person would copy (a conversation, a highlight's note, an error) opts
+  what a person would copy (a conversation, an error) opts
   in with `select-text`
   (`apps/workspace/src/styles/globals.css`). Rejected: selectable by default
   with `select-none` on the chrome (every new button, label and row would have

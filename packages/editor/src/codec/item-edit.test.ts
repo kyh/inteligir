@@ -11,9 +11,9 @@ import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/notes/library/library-no
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
-import { editItemView, placeItemQuotes } from "./item-edit";
+import { editItemView } from "./item-edit";
 import type { EditPorts } from "./item-edit";
-import { exportItem, importItem } from "./item-markdown";
+import { importItem } from "./item-markdown";
 import { itemView, viewPage } from "./item-view";
 
 const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
@@ -24,7 +24,7 @@ const titles = new Map([[OTHER_ID, "Other note"]]);
 const storedOf = (text: string): Map<string, StoredBlock> => {
   const ports = pretendLibrary().importPorts();
   const read = importItem(
-    { annotations: null, name: "Item", text },
+    { name: "Item", text },
     {
       ...ports,
       wiki: (link) => {
@@ -52,7 +52,6 @@ const portsWith = (): EditPorts => {
   return {
     fileKind: () => "image",
     itemByTitle: (title) => [...titles].find(([, held]) => held === title)?.[0] ?? null,
-    newAnnotationId: () => "new-highlight",
     newBlockId: () => {
       blocks += 1;
       return `n${String(blocks)}`;
@@ -112,7 +111,7 @@ const NOTE = [
   "",
   `First paragraph links [[Other note|${OTHER_ID}]] and stays.`,
   "",
-  "Second %%i:mark1:start%%highlighted words%%i:mark1:end%% here.",
+  "Second paragraph here.",
   "",
   "- one",
   "- two",
@@ -134,9 +133,6 @@ const editedTo = (
   }
   return landed(blocks, edited.ops);
 };
-
-const groupOf = (label: string): string =>
-  `:::tabs\n=== ${label}\nbody here now\n\n=== Second\nmore\n:::\n`;
 
 // a table's row, read back: how many cells it holds, and what each one reads as
 const cellsOf = (blocks: Map<string, StoredBlock>) => {
@@ -233,7 +229,6 @@ describe("an edit made on the view", () => {
       [{ newText: "Last line, edited.", oldText: "Last line." }],
       portsWith(),
     );
-    expect(outcome).toMatchObject({ dropped: [], kind: "changed" });
     if (outcome.kind !== "changed") {
       return;
     }
@@ -325,44 +320,6 @@ describe("an edit made on the view", () => {
     expect(JSON.stringify(outcome.ops[0])).toContain("TWO");
   });
 
-  it("keeps a highlight's markers through an edit beside them, and names one it took out", () => {
-    const blocks = storedOf(NOTE);
-    const kept = editItemView(blocks, [{ newText: "Second, ", oldText: "Second " }], portsWith());
-    expect(kept).toMatchObject({ dropped: [], kind: "changed" });
-    const lost = editItemView(
-      blocks,
-      [
-        {
-          newText: "Second plain words here.",
-          oldText: "Second %%i:mark1:start%%highlighted words%%i:mark1:end%% here.",
-        },
-      ],
-      portsWith(),
-    );
-    expect(lost).toMatchObject({ dropped: ["mark1"], kind: "changed" });
-  });
-
-  it("names a highlight it took one edge of, and none whose edge it only moved", () => {
-    const blocks = storedOf(NOTE);
-    for (const edge of ["start", "end"]) {
-      const half = editItemView(
-        blocks,
-        [{ newText: "", oldText: `%%i:mark1:${edge}%%` }],
-        portsWith(),
-      );
-      expect(half, edge).toMatchObject({ dropped: ["mark1"], kind: "changed" });
-    }
-    const moved = editItemView(
-      blocks,
-      [
-        { newText: "highlighted", oldText: "highlighted words%%i:mark1:end%%" },
-        { newText: "Last line.%%i:mark1:end%%", oldText: "Last line." },
-      ],
-      portsWith(),
-    );
-    expect(moved).toMatchObject({ dropped: [], kind: "changed" });
-  });
-
   it("refuses new text that nests deeper than the editor reads, losing no block", () => {
     const blocks = storedOf(NOTE);
     // past the conversion's reach, and past the parse's own
@@ -407,7 +364,7 @@ describe("an edit made on the view", () => {
       "Area is r \\^2 and x\\==1==y and 50\\%% or 60%%\n\nEnds on r \\^2\n\n\\^alone\n",
     );
     const view = textOf(blocks);
-    expect(view).toContain("Area is r ^2 and x\\==1==y and 50\\%% or 60%%");
+    expect(view).toContain("Area is r ^2 and x==1==y and 50\\%% or 60%%");
     expect(view).toContain("Ends on r \\^2");
     expect(view).toContain("\\^alone");
     const outcome = editItemView(
@@ -422,7 +379,6 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.highlights).toStrictEqual([]);
     expect(textBlocks(landed(blocks, outcome.ops))).toStrictEqual([
       { ref: undefined, text: "The area is r ^2 and x==1==y and 50%% or 60%%" },
       { ref: undefined, text: "Ending on r ^2" },
@@ -440,7 +396,6 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.highlights).toStrictEqual([]);
     expect(JSON.stringify(outcome.ops)).toContain("==x== literal");
   });
 
@@ -473,13 +428,11 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.highlights).toStrictEqual([{ id: "new-highlight", quote: "stays" }]);
     const [put] = outcome.ops;
     expect(put).toMatchObject({ block: { ref: "named" }, op: "put" });
     const written = JSON.stringify(put);
     expect(written).toContain('"source":"%%hidden%%"');
-    expect(written).toContain('"type":"annotationMarker"');
-    expect(written).not.toContain("==");
+    expect(written).toContain("and ==stays== twice ");
   });
 
   it("reads no spelling an edit writes in a page", () => {
@@ -492,7 +445,6 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.highlights).toStrictEqual([]);
     expect(textBlocks(landed(blocks, outcome.ops)).at(-1)).toStrictEqual({
       ref: undefined,
       text: "The ==page== %%says%% so. ^x",
@@ -652,15 +604,6 @@ describe("a link or an equation in a table cell", () => {
     );
   });
 
-  it("keeps the row through a quote placed in the next cell", () => {
-    const blocks = storedOf("| a | b |\n| - | - |\n| [[Other note]] | some words here |\n");
-    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "words" }], portsWith());
-    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-    const row = cellsOf(landed(blocks, placed.ops));
-    expect(row).toContain(OTHER_ID);
-    expect(row.match(/"type":"td"/gu)).toHaveLength(2);
-  });
-
   describe("a person's two lines in a cell", () => {
     const LINES = "| a | b |\n| - | - |\n| one<br/>two | some words here |\n";
     const LINE_CELL = '"children":[{"text":"one"}],"type":"p"},{"children":[{"text":"two"}]';
@@ -670,41 +613,6 @@ describe("a link or an equation in a table cell", () => {
       const after = cellsOf(editedTo(blocks, "words", "changed"));
       expect(after).toContain(LINE_CELL);
       expect(after).not.toContain('"source"');
-    });
-
-    it("stay two lines through a quote placed in the next cell", () => {
-      const blocks = storedOf(LINES);
-      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "words" }], portsWith());
-      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-      expect(cellsOf(landed(blocks, placed.ops))).toContain(LINE_CELL);
-    });
-
-    it("hold a quote across them, each marker on its own line's bytes", () => {
-      const blocks = storedOf(LINES);
-      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "one two" }], portsWith());
-      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-      const after = landed(blocks, placed.ops);
-      const row = "| %%i:q1:start%%one<br/>two%%i:q1:end%% | some words here |";
-      expect(textOf(after)).toContain(row);
-      const file = exportItem(
-        { annotations: {}, blocks: after, fields: FIELDS, id: OTHER_ID },
-        pretendLibrary().exportPorts(),
-        null,
-      );
-      expect(file.text).toContain(row);
-      const cell = withoutIds(cellsOf(after));
-      expect(cell).toContain('"type":"annotationMarker"},{"text":"one"}],"type":"p"}');
-      expect(cell).toContain('{"children":[{"text":"two"},{"children":[{"text":""}],"edge":"end"');
-      expect(withoutIds(cellsOf(storedOf(file.text)))).toBe(cell);
-    });
-
-    it("hold a quote across them where one mark spelled both", () => {
-      const blocks = storedOf("| a |\n| - |\n| **one<br/>two** |\n");
-      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "one two" }], portsWith());
-      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-      expect(textOf(landed(blocks, placed.ops))).toContain(
-        "| %%i:q1:start%%**one**<br/>**two**%%i:q1:end%% |",
-      );
     });
   });
 
@@ -734,15 +642,6 @@ describe("a link or an equation in a table cell", () => {
     expect(row).toContain('"text":"changed"');
   });
 
-  it("finds a quote by the pipes an equation in a cell shows", () => {
-    const blocks = storedOf(String.raw`| a |
-| - |
-| $$\|x\|$$ and words |
-`);
-    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "|x| and" }], portsWith());
-    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-  });
-
   it("keeps an equation's pipes in its cell through an edit of the next cell", () => {
     const blocks = storedOf(String.raw`| a | b |
 | - | - |
@@ -753,99 +652,5 @@ describe("a link or an equation in a table cell", () => {
     expect(withoutIds(cellsOf(editedTo(blocks, "word", "changed")))).toBe(
       withoutIds(before).replace("word", "changed"),
     );
-  });
-});
-
-describe("a highlight placed by its quote", () => {
-  it("lands its markers in the page first, putting only the block it wraps", () => {
-    const text = [
-      "---",
-      "kind: link",
-      "url: https://example.com/x",
-      "---",
-      "",
-      "My note says shared words too.",
-      "",
-      ":::article",
-      "The page has shared words in it.",
-      "",
-      "Another page paragraph.",
-      ":::",
-      "",
-    ].join("\n");
-    const blocks = storedOf(text);
-    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "shared words" }], portsWith());
-    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-    expect(placed.ops).toHaveLength(1);
-    const after = landed(blocks, placed.ops);
-    expect(textOf(after)).toContain("The page has %%i:q1:start%%shared words%%i:q1:end%% in it.");
-    expect([...after.values()].map((stored) => withoutId(stored.block))).toHaveLength(3);
-  });
-
-  it("leaves a quote whose markers the note holds where it stands", () => {
-    const text = [
-      "---",
-      "kind: link",
-      "url: https://example.com/x",
-      "---",
-      "",
-      "My note says %%i:q1:start%%shared words%%i:q1:end%% too.",
-      "",
-      ":::article",
-      "The page has shared words in it.",
-      ":::",
-      "",
-    ].join("\n");
-    const blocks = storedOf(text);
-    const placed = placeItemQuotes(
-      blocks,
-      [
-        { id: "q1", quote: "shared words" },
-        { id: "q2", quote: "page has" },
-      ],
-      portsWith(),
-    );
-    expect(placed).toMatchObject({ missing: [], placed: ["q1", "q2"] });
-    const after = textOf(landed(blocks, placed.ops));
-    expect(after).toContain("The %%i:q2:start%%page has%%i:q2:end%% shared words in it.");
-    expect(after.match(/%%i:q1:start%%/gu)).toHaveLength(1);
-  });
-
-  describe("a tab's label holding an address", () => {
-    it.each([
-      [String.raw`https\://x.cd docs`, "docs"],
-      [String.raw`https\://x.cd`, "https://x.cd"],
-      [String.raw`https\://x.cd`, "https://x.cd body"],
-      [String.raw`www\.x.cd site`, "site"],
-      [String.raw`a\@b.cd team`, "team"],
-    ])("finds no quote in `%s`, and leaves the group be", (label, quote) => {
-      const blocks = storedOf(groupOf(label));
-      expect(placeItemQuotes(blocks, [{ id: "q1", quote }], portsWith())).toMatchObject({
-        missing: ["q1"],
-        ops: [],
-        placed: [],
-      });
-    });
-
-    it("places a quote the label also spells in the body beneath it", () => {
-      const label = String.raw`see https\://a.bc/d now`;
-      const blocks = storedOf(groupOf(label));
-      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "now" }], portsWith());
-      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-      const after = landed(blocks, placed.ops);
-      expect([...after.values()].map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
-      expect(textOf(after)).toBe(
-        `:::tabs\n=== ${label}\nbody here %%i:q1:start%%now%%i:q1:end%%\n\n=== Second\nmore\n:::\n`,
-      );
-    });
-  });
-
-  it("names a quote no passage matches", () => {
-    const placed = placeItemQuotes(
-      storedOf(NOTE),
-      [{ id: "q2", quote: "nowhere to be read" }],
-      portsWith(),
-    );
-    expect(placed).toMatchObject({ missing: ["q2"], ops: [], placed: [] });
   });
 });

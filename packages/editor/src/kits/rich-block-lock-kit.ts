@@ -117,10 +117,6 @@ const aimsInsideLocked = (editor: SlateEditor): boolean => {
 const lockInstalled = (editor: SlateEditor): boolean =>
   Object.hasOwn(editor.plugins, RICH_BLOCK_LOCK_KEY);
 
-// an edge of the selection sits inside a block the lock holds, where nothing inserted lands
-export const selectionEdgeLocked = (editor: SlateEditor): boolean =>
-  editor.selection !== null && lockInstalled(editor) && edgeInsideLocked(editor, editor.selection);
-
 export const RichBlockLockKit = [
   createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(({ editor, tf: { apply } }) => {
     const locked = lockedBlockTypes(editor);

@@ -3,10 +3,8 @@
 // opening it opens that item; an embed draws the item's blocks as the replica holds them; a file
 // a note names by its sha is drawn from where the page draws its files (the cloud's own route in
 // the tab, the shell's scheme on the Mac), and one pasted or dropped into the text is kept in the
-// replica's outbox, which sends it up ahead of the write that names it; a highlight the chord
-// makes is written to the open item as its own entry, beside the markers the editor put around the
-// passage, which the item's next write carries; a note the editor makes (an extract, a link's
-// Create) is made in that item's folder.
+// replica's outbox, which sends it up ahead of the write that names it; a note the editor makes
+// (an extract, a link's Create) is made in the open item's folder.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { installEditorHost } from "@repo/editor/host-io";
@@ -15,7 +13,7 @@ import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 
 export interface PageEditorHost {
-  // the item the editor shows now, whose highlights the chord writes; null over the library
+  // the item the editor shows now, whose folder a note it makes lands in; null over the library
   readonly showing: (itemId: string | null) => void;
   // the library's items moved: the links' targets are read again
   readonly refreshTargets: () => void;
@@ -28,10 +26,7 @@ export interface PageEditorPorts {
   readonly openItem: (itemId: string) => void;
   readonly askAgent: (selection: string) => void;
   readonly showTag: (tag: string) => void;
-  readonly openAnnotations: (ids: string[]) => void;
 }
-
-const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost => {
   const { replica } = ports;
@@ -71,44 +66,6 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   installEditorHost({
     actions: {
       agent: { askAboutSelection: ports.askAgent, showTag: ports.showTag },
-      annotations: {
-        create: async (id, quote) => {
-          if (showing === null) {
-            return false;
-          }
-          const outcome = await replica.write(showing, {
-            annotations: [
-              {
-                createdAt: nowSeconds(),
-                id,
-                occurrence: null,
-                op: "add",
-                parentId: null,
-                quote,
-                text: "",
-              },
-            ],
-            ops: [],
-          });
-          return outcome.kind === "queued" || outcome.kind === "unchanged";
-        },
-        edit: async (id, text) => {
-          if (showing === null) {
-            return false;
-          }
-          const store = await replica.annotations(showing);
-          const held = store[id];
-          if (held === undefined) {
-            return false;
-          }
-          const outcome = await replica.write(showing, {
-            annotations: [{ base: held.text, id, op: "note", text }],
-            ops: [],
-          });
-          return outcome.kind === "queued" || outcome.kind === "unchanged";
-        },
-        open: ports.openAnnotations,
-      },
       items: {
         createNote: async (note) => {
           const beside = showing === null ? null : await replica.item(showing);

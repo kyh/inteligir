@@ -66,13 +66,8 @@ export const pretendLibrary = (): PretendLibrary => {
     }),
     importPorts: () => {
       let blocks = 0;
-      let highlights = 0;
       return {
         file: fileAt,
-        newAnnotationId: () => {
-          highlights += 1;
-          return `hl${String(highlights)}`;
-        },
         newBlockId: () => {
           blocks += 1;
           return `b${String(blocks)}`;

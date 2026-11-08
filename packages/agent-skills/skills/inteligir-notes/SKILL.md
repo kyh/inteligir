@@ -17,8 +17,8 @@ are listed at the end of this section.
 2. **Text round-trips.** Every construct below survives an edit unchanged. A construct spelled
    wrong does not error; it stays literal text, which is a silent failure. Follow the grammar
    exactly.
-3. **Preserve what you did not come to change.** Highlight markers, formula identities, link ids
-   and unfamiliar syntax all stay as found. `edit_item` changes only the passages you name, so
+3. **Preserve what you did not come to change.** Formula identities, link ids and unfamiliar
+   syntax all stay as found. `edit_item` changes only the passages you name, so
    name only what you mean to change.
 
 ## How An Item Reads
@@ -53,7 +53,6 @@ replaces it. Write in the note, never in the article, and never move or remove e
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
 | A styled layout no block can draw                 | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
-| A passage the person should look at               | Highlight with a note               | A `TODO:` line in the text                   |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 
 When two fit, take the one that reads faster.
@@ -202,8 +201,8 @@ table, which would otherwise read the marker as one of its own lines, and after 
 | Formula pill | `{{2+2\|4}}`                            |
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct, which is how you
-write an example of any syntax on this page. In prose, a backslash before a date, a pill, a
-highlight marker or a `:::` line keeps it plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
+write an example of any syntax on this page. In prose, a backslash before a date, a pill or a
+`:::` line keeps it plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>` belongs in an
 `inteligir-html` fence.
@@ -217,7 +216,6 @@ Each is a section of this prompt, after this one:
 - An item's fields: `inteligir-fields`
 - Links, embeds, files: `inteligir-links`
 - Formulas and variables: `inteligir-formulas`
-- Highlights and their notes: `inteligir-annotations`
 - Canvas: `inteligir-canvas`
 - HTML blocks: `inteligir-html`
 
@@ -225,6 +223,5 @@ Each is a section of this prompt, after this one:
 
 - A new note's text opens with one H1, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
-- Highlight markers, formula identities and link ids you did not come to change are exactly as
-  you read them.
+- Formula identities and link ids you did not come to change are exactly as you read them.
 - A saved link's article is as you read it, and you wrote only in its note.

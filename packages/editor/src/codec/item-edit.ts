@@ -1,26 +1,20 @@
 // An agent's edit to an item, made on its view (`item-view.ts`) and landed as block ops. Each
 // `old_text` must stand exactly once in the view as the edits before it left it; the blocks the
 // edited text touches (a list whole) are read again from the new text and no others, so every
-// other block keeps its id, its place and its highlights' markers. The blocks read again keep the
-// ids of the old ones they line up with (unchanged ones change nothing), a highlight one of whose
-// marker edges the new text no longer holds is named in the answer, and a link the agent kept or
-// wrote by title still names its item. Text that nests deeper than the editor reads, or that no
-// block can store, refuses the edit, so no block it spans is lost. A highlight placed away from the
-// editor (`placeQuotes`) lands the same way.
+// other block keeps its id and its place. The blocks read again keep the ids of the old ones they
+// line up with (unchanged ones change nothing), and a link the agent kept or wrote by title still
+// names its item. Text that nests deeper than the editor reads, or that no block can store, refuses
+// the edit, so no block it spans is lost.
 
 import type { TElement } from "platejs";
 
-import { placeQuotes } from "@repo/notes/annotations/place-quotes";
-import type { PendingQuote } from "@repo/notes/annotations/place-quotes";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { placeInOrder } from "@repo/notes/library/block-order";
 import { canonicalJson } from "@repo/notes/library/canonical-json";
 import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
 import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
-import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
-import { obsidianReader } from "@repo/notes/markdown/remark-obsidian";
-import type { ObsidianHighlight, ObsidianReader } from "@repo/notes/markdown/remark-obsidian";
+import { readObsidian } from "@repo/notes/markdown/remark-obsidian";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { diffLines } from "@repo/notes/text/line-diff";
@@ -46,7 +40,6 @@ export interface EditPorts extends ViewPorts {
   // what kind of file the library holds under a sha; null for bytes it does not hold
   readonly fileKind: (sha: string) => FileKind | null;
   readonly newBlockId: () => string;
-  readonly newAnnotationId: () => string;
 }
 
 // why an edit's text cannot be read again as blocks: it changed a line the article section opens
@@ -70,10 +63,6 @@ interface Unstorable {
 interface ViewChange {
   readonly kind: "changed";
   readonly ops: readonly LibraryOp[];
-  // highlights the edit took a marker edge of out of the text, by id
-  readonly dropped: readonly string[];
-  // bare highlights an `==x==` in the new text made, for the caller to store
-  readonly highlights: readonly ObsidianHighlight[];
 }
 
 export type EditOutcome = ViewChange | { readonly kind: "refused"; readonly refusal: EditRefusal };
@@ -94,8 +83,6 @@ interface Stretch {
 interface Edited {
   readonly edit: number;
   readonly value: TElement[];
-  // what read the value's Obsidian spellings: a note's, and none for a page's
-  readonly reader: ObsidianReader | null;
 }
 
 interface EditedStretch extends Stretch {
@@ -182,22 +169,20 @@ type Cut =
 
 const failed = (reason: CutFailure): Cut => ({ ok: false, reason });
 
+// a note's Obsidian spellings are read out of it; a page's text stays as the page wrote it
+const obsidianOf = (section: LibrarySection): typeof readObsidian | undefined =>
+  section === "note" ? readObsidian : undefined;
+
 // the value a stretch's edited text reads as in its section; null when it nests deeper than the
 // conversion reaches
-const editedAs = (
-  text: string,
-  section: LibrarySection,
-  edit: number,
-  ports: EditPorts,
-): Edited | null => {
-  const reader = section === "note" ? obsidianReader(ports.newAnnotationId) : null;
-  const converted = mdToSlate(headlessEditor(), text, reader?.read);
-  return converted.ok ? { edit, reader, value: elementsOf(converted.nodes) } : null;
+const editedAs = (text: string, section: LibrarySection, edit: number): Edited | null => {
+  const converted = mdToSlate(headlessEditor(), text, obsidianOf(section));
+  return converted.ok ? { edit, value: elementsOf(converted.nodes) } : null;
 };
 
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
 // between two lines one edited piece in its own section, read as it is cut
-const cutAtLines = (run: readonly Piece[], text: string, edit: number, ports: EditPorts): Cut => {
+const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
   const out: Piece[] = [];
   let cursor = 0;
   let blocks: ViewBlock[] = [];
@@ -210,7 +195,7 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number, ports: Ed
     if (at === null) {
       return "section";
     }
-    const edited = editedAs(part, at, edit, ports);
+    const edited = editedAs(part, at, edit);
     if (edited === null) {
       return "too-deep";
     }
@@ -248,7 +233,7 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number, ports: Ed
 
 // one range of the current text replaced: the pieces it touches, and a block on either side of
 // the lines it starts or ends in, read again as one
-const replaceRange = (pieces: readonly Piece[], range: Range, ports: EditPorts): Cut => {
+const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
   let at = 0;
   const spans = pieces.map((piece) => {
     const span = { end: at + piece.text.length, start: at };
@@ -275,7 +260,7 @@ const replaceRange = (pieces: readonly Piece[], range: Range, ports: EditPorts):
   const run = pieces.slice(first, last + 1);
   const whole = run.map((piece) => piece.text).join("");
   const text = whole.slice(0, range.start - from) + range.text + whole.slice(range.end - from);
-  const cut = cutAtLines(run, text, range.edit, ports);
+  const cut = cutAtLines(run, text, range.edit);
   return cut.ok
     ? { ok: true, pieces: [...pieces.slice(0, first), ...cut.pieces, ...pieces.slice(last + 1)] }
     : cut;
@@ -330,33 +315,6 @@ const readPortsFor = (replaced: readonly ViewBlock[], ports: EditPorts): ReadPor
   return { image, wiki };
 };
 
-interface MarkerEdge {
-  readonly id: string;
-  readonly edge: "start" | "end";
-}
-
-// every highlight edge the blocks hold, one per id a marker opens or closes
-const markerEdges = (blocks: readonly LibraryBlock[]): MarkerEdge[] => {
-  const edges: MarkerEdge[] = [];
-  const visit = (node: LibraryNode): void => {
-    if ("text" in node) {
-      return;
-    }
-    if (node.type === "annotationMarker") {
-      edges.push(...splitMarkerIds(node.ids).map((id) => ({ edge: node.edge, id })));
-    }
-    for (const child of node.children) {
-      visit(child);
-    }
-  };
-  for (const block of blocks) {
-    visit(block);
-  }
-  return edges;
-};
-
-const edgeKey = ({ edge, id }: MarkerEdge): string => `${edge}:${id}`;
-
 const contentKey = (block: LibraryBlock): string => {
   const { id: _id, ...content } = block;
   return canonicalJson(content);
@@ -365,7 +323,6 @@ const contentKey = (block: LibraryBlock): string => {
 interface PieceChange extends Lined {
   // the blocks the piece's text now reads as
   readonly blocks: readonly LibraryBlock[];
-  readonly highlights: readonly ObsidianHighlight[];
   readonly edit: number;
   // the blocks the text held that no store takes
   readonly refused: number;
@@ -374,12 +331,8 @@ interface PieceChange extends Lined {
 // an edited piece's value as the blocks it reads as, in its section
 const readPiece = (piece: EditedStretch, ports: EditPorts) => {
   const read = readPortsFor(piece.blocks, ports);
-  const { reader, value } = piece.edited;
-  const drafts = readBlocks(settled(elementsOf(embedFiles(value, read)), reader?.read), read);
-  return {
-    highlights: reader?.highlights ?? [],
-    named: nameDrafts(drafts, ports.newBlockId),
-  };
+  const value = elementsOf(embedFiles(piece.edited.value, read));
+  return nameDrafts(readBlocks(settled(value, obsidianOf(piece.section)), read), ports.newBlockId);
 };
 
 interface Lined {
@@ -434,12 +387,11 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
 
 // the blocks an edited piece's text reads as, lined up with the ones it replaced
 const changeOf = (piece: EditedStretch, ports: EditPorts): PieceChange => {
-  const { highlights, named } = readPiece(piece, ports);
+  const named = readPiece(piece, ports);
   return {
     ...lineUp(piece.blocks, named.blocks),
     blocks: named.blocks,
     edit: piece.edited.edit,
-    highlights,
     refused: named.refused,
   };
 };
@@ -478,9 +430,8 @@ const placementOf = (
   });
 };
 
-// every edited piece landed; a highlight is dropped when the edited text lost either edge of it,
-// wherever in the edited text the edge went, so a highlight left unpaired is named too. Text no
-// block can store lands nothing, since the old block would go with no new one in its place
+// every edited piece landed. Text no block can store lands nothing, since the old block would go
+// with no new one in its place
 const changesOf = (
   pieces: readonly Piece[],
   view: ItemView,
@@ -493,18 +444,12 @@ const changesOf = (
   if (refused !== undefined) {
     return { edit: refused.edit, kind: "unstorable" };
   }
-  const kept = new Set(changes.flatMap((change) => markerEdges(change.blocks)).map(edgeKey));
-  const lost = edited
-    .flatMap((piece) => markerEdges(piece.blocks.map((one) => one.block)))
-    .filter((edge) => !kept.has(edgeKey(edge)));
   const adding = new Set(
     edited
       .filter((piece) => (byPiece.get(piece)?.inserts.length ?? 0) > 0)
       .map((piece) => piece.section),
   );
   return {
-    dropped: [...new Set(lost.map((edge) => edge.id))].toSorted(),
-    highlights: changes.flatMap((change) => change.highlights),
     kind: "changed",
     ops: [
       ...changes.flatMap((change) => change.ops),
@@ -534,11 +479,12 @@ export const editItemView = (
     if (found.length > 1) {
       return { kind: "refused", refusal: { count: found.length, edit: index, kind: "ambiguous" } };
     }
-    const next = replaceRange(
-      pieces,
-      { edit: index, end: start + edit.oldText.length, start, text: edit.newText },
-      ports,
-    );
+    const next = replaceRange(pieces, {
+      edit: index,
+      end: start + edit.oldText.length,
+      start,
+      text: edit.newText,
+    });
     if (!next.ok) {
       return { kind: "refused", refusal: { edit: index, kind: next.reason } };
     }
@@ -546,81 +492,4 @@ export const editItemView = (
   }
   const change = changesOf(pieces, view, ports);
   return change.kind === "changed" ? change : { kind: "refused", refusal: change };
-};
-
-export interface PlacedQuotes extends ViewChange {
-  // the quotes whose markers now wrap their passage, those already wrapped included
-  readonly placed: readonly string[];
-  // the quotes no passage of the item matched
-  readonly missing: readonly string[];
-}
-
-// highlights made away from the editor placed in the item's text by their quotes (the page first,
-// then the person's note), their markers spliced in as `placeQuotes` splices them in a file; one
-// whose markers any block holds already is placed where it stands, never a second time in the
-// other section
-export const placeItemQuotes = (
-  blocks: ReadonlyMap<string, StoredBlock>,
-  quotes: readonly PendingQuote[],
-  ports: EditPorts,
-): PlacedQuotes => {
-  const view = itemView(blocks, ports);
-  let pieces = piecesOf(view);
-  const marked = new Set(
-    markerEdges([...blocks.values()].map((stored) => stored.block)).map(({ id }) => id),
-  );
-  const placed = quotes.filter((quote) => marked.has(quote.id)).map((quote) => quote.id);
-  let waiting = quotes.filter((quote) => !marked.has(quote.id));
-  for (const section of ["article", "note"] as const) {
-    const inSection = view.blocks.filter((one) => one.section === section);
-    const [head] = inSection;
-    const tail = inSection.at(-1);
-    if (head === undefined || tail === undefined || waiting.length === 0) {
-      continue;
-    }
-    // the article is placed first and stands after the note, so a section's text still starts
-    // where the view put it
-    const offset = head.start;
-    const before = view.markdown.slice(head.start, tail.end);
-    const placing = placeQuotes(before, waiting, { final: false });
-    placed.push(...placing.placed);
-    waiting = waiting.filter((quote) => placing.missing.includes(quote.id));
-    // the one stretch the markers changed, between the text's shared head and tail
-    let prefix = 0;
-    while (prefix < before.length && before[prefix] === placing.content[prefix]) {
-      prefix += 1;
-    }
-    let suffix = 0;
-    while (
-      suffix < before.length - prefix &&
-      before[before.length - 1 - suffix] === placing.content[placing.content.length - 1 - suffix]
-    ) {
-      suffix += 1;
-    }
-    if (placing.content !== before) {
-      const next = replaceRange(
-        pieces,
-        {
-          edit: 0,
-          end: offset + before.length - suffix,
-          start: offset + prefix,
-          text: placing.content.slice(prefix, placing.content.length - suffix),
-        },
-        ports,
-      );
-      if (!next.ok) {
-        // the markers go only in reading text, so they change no nesting and touch no line a
-        // section or a container stands on, and the text around them is the view of stored
-        // blocks, which nest no deeper than the vocabulary allows
-        throw new Error(`a section's own text did not read back once highlighted (${next.reason})`);
-      }
-      ({ pieces } = next);
-    }
-  }
-  const change = changesOf(pieces, view, ports);
-  if (change.kind !== "changed") {
-    // markers go only in reading text, which a block past its cap is cut along
-    throw new Error("a section's own text did not store once highlighted");
-  }
-  return { ...change, missing: waiting.map((quote) => quote.id), placed };
 };

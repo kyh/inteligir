@@ -34,7 +34,7 @@ const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
 const WATCHED_BLOCK =
-  "Last words: a #field tag, a [[Hub]] link, a {{1+1|2}} pill, %%i:watched:start%%a highlight%%i:watched:end%%, $$x$$ and @2026-09-24.";
+  "Last words: a #field tag, a [[Hub]] link, a {{1+1|2}} pill, $$x$$ and @2026-09-24.";
 // the note's end is where a range or a point lands without walking the note, so the watched block
 // is not the last one
 const CLOSING_BLOCK = "The end.";
@@ -44,9 +44,8 @@ const CLOSING_BLOCK = "The end.";
 // lines, and 0.013 of a 1,860ms parse of the note; the settle costs 470ms, a quarter of that parse,
 // and without patches/@platejs__core@53.3.15.patch three times it. A pass quadratic in the note is
 // 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
-// navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse, and the two
-// with an annotation pairing per block cost 0.2 of it. A memory-starved CI runner's garbage collection
-// pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
+// navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse. A
+// memory-starved CI runner's garbage collection pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
 // sit well under those atoms' cost; the two atoms read no block's content, so this suite's watched
 // block never names them, and per-block-subscriptions.test.tsx holds them off by name.
 const KEYSTROKE_GROWTH_CEILING = 5;
@@ -81,11 +80,6 @@ const FOLD_REACH: BudgetRow = {
   name: "derive",
   why: "a fold hides every block under its heading up to the next of its rank, which only the top level says, and useEditorSelector asks on every change",
 };
-const ROOT_DECORATIONS: BudgetRow = {
-  module: "slate-dom",
-  name: "splitDecorationsByChild",
-  why: "annotation tints are one root decoration, and slate-dom splits a root decoration over the blocks it covers on every render of the root",
-};
 const SELECTOR_SUBSCRIPTIONS: BudgetRow = {
   module: "slate-react",
   name: "current",
@@ -96,15 +90,9 @@ const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   ROOT_NORMALIZE,
   SORTABLE_IDS,
   FOLD_REACH,
-  ROOT_DECORATIONS,
   SELECTOR_SUBSCRIPTIONS,
 ];
-const CARET_BUDGET: readonly BudgetRow[] = [
-  SORTABLE_IDS,
-  FOLD_REACH,
-  ROOT_DECORATIONS,
-  SELECTOR_SUBSCRIPTIONS,
-];
+const CARET_BUDGET: readonly BudgetRow[] = [SORTABLE_IDS, FOLD_REACH, SELECTOR_SUBSCRIPTIONS];
 const SETTLE_BUDGET: readonly BudgetRow[] = [
   {
     module: "formulas/formula-recompute.ts",

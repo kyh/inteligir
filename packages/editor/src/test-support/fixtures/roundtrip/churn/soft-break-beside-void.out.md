@@ -19,9 +19,6 @@ text\
 ![[Diagram.png]]\
 caption
 
-see %%i:c1:start%%this%%i:c1:end%%\
-and the next line
-
 press <kbd>K</kbd>\
 to open it
 

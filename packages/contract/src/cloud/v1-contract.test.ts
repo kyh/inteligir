@@ -12,7 +12,6 @@ import { LIBRARY_CHANGE_KINDS } from "@repo/notes/library/library-schema";
 
 import {
   agentViewContextSchema,
-  annotationOpSchema,
   libraryChangeSchema,
   liveItemRowSchema,
   newIdSchema,
@@ -57,7 +56,6 @@ const LIBRARY_READS = new Set([
   "agent.list",
   "agent.rules",
   "agent.status",
-  "annotations.list",
   "history.list",
   "imports.get",
   "imports.latest",
@@ -391,21 +389,6 @@ describe("the library's wire", () => {
   it("holds an item a device creates to a uuid v7, so an offline id sorts by when it was made", () => {
     expect(newIdSchema.validate(UUID_V7)).toBe(true);
     expect(newIdSchema.validate(UUID_V4)).toBe(false);
-  });
-
-  it("refuses a highlight that is both a passage and a reply", () => {
-    const add = {
-      createdAt: 1,
-      id: "h1",
-      occurrence: null,
-      op: "add",
-      parentId: null,
-      quote: "a passage",
-      text: "",
-    };
-    expect(annotationOpSchema.validate(add)).toBe(true);
-    expect(annotationOpSchema.validate({ ...add, parentId: "h0" })).toBe(false);
-    expect(annotationOpSchema.validate({ ...add, quote: null })).toBe(false);
   });
 
   it("refuses a title for many items and a write that changes nothing", () => {

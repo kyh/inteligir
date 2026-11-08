@@ -32,7 +32,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     // the @repo/notes edge is the parser-free model the contract validates against (the library's
-    // rows, blocks and change kinds under library/, an item's kind, an annotation's stored shape);
+    // rows, blocks and change kinds under library/, and an item's kind);
     // widening it to a remark-carrying module drags remark into every client bundle, which "the
     // contract's @repo/notes edge" below walks for.
     "@repo/contract": ["@repo/domain", "@repo/notes"],

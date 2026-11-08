@@ -78,8 +78,7 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       void session.close();
     };
   }, [session]);
-  // the editor answers for its item by the item's id: a highlight the chord makes, and a writer
-  // outside the surface, find it there
+  // the editor answers for its item by the item's id, where a writer outside the surface finds it
   useEffect(() => registerLiveEditor(itemId, editor), [itemId, editor]);
   if (status.kind === "missing") {
     return (

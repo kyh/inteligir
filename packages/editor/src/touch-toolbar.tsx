@@ -1,23 +1,17 @@
 // A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
 // indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu, the annotation chord), so a
-// rename lands on both surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
+// twin reads (the mark chords, the editor's shortcuts, the slash menu), so a rename lands on both
+// surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
 // In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
 // keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
 // chrome speaks the type roles.
 
 import { useState } from "react";
-import type { InputHTMLAttributes, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { upsertLink } from "@platejs/link";
 import { KEYS } from "platejs";
-import type { RangeRef, TRange } from "platejs";
-import {
-  createPlatePlugin,
-  useEditorRef,
-  useEditorSelector,
-  useMarkToolbarButtonState,
-} from "platejs/react";
-import type { PlateEditor } from "platejs/react";
+import type { RangeRef } from "platejs";
+import { createPlatePlugin, useEditorRef, useMarkToolbarButtonState } from "platejs/react";
 import {
   BoldIcon,
   CodeIcon,
@@ -25,7 +19,6 @@ import {
   KeyboardOffIcon,
   Link2Icon,
   ListIndentDecreaseIcon,
-  HighlighterIcon,
   ListIndentIncreaseIcon,
   Redo2Icon,
   UnderlineIcon,
@@ -37,12 +30,6 @@ import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
-import {
-  HIGHLIGHT_SHORTCUT,
-  highlightSelection,
-  noteHighlight,
-  selectionTakesHighlight,
-} from "@repo/editor/annotations/annotation-kit";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
@@ -176,86 +163,17 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: a highlight the host writes. The phone asks the agent from
-// an item's own screen, so the desktop's Ask agent has no row here. The highlight's note field takes the row first, so its
-// markers go in once, as it is submitted, note or none.
-const SelectionButtons = ({ onAnnotate }: { onAnnotate: () => void }) => {
-  const highlightable = useEditorSelector(selectionTakesHighlight, []);
-  return (
-    <>
-      <ToolbarButton
-        label={HIGHLIGHT_SHORTCUT.label}
-        disabled={!highlightable}
-        onPress={onAnnotate}
-      >
-        <HighlighterIcon />
-      </ToolbarButton>
-      <Sep />
-    </>
-  );
-};
-
-// The desktop's one gesture on the range the field was opened over: the highlight, then its note
-// when one was typed. A refused highlight strips the markers it went in with, and the host says why.
-const highlightOn = (editor: PlateEditor, at: TRange, text: string): void => {
-  editor.tf.select(at);
-  const started = highlightSelection(editor);
-  if (started !== null) {
-    void noteHighlight(started.created, started.id, text);
-  }
-};
-
-// a field that takes the row: a link's address, or a highlight's optional note
-type PromptKind = "link" | "highlight";
-
-interface PromptField {
-  readonly icon: IconComponent;
-  readonly label: string;
-  readonly placeholder: string;
-  readonly submit: string;
-  readonly input: Pick<
-    InputHTMLAttributes<HTMLInputElement>,
-    "autoCapitalize" | "autoCorrect" | "enterKeyHint" | "inputMode" | "type"
-  >;
-}
-
-// the note is optional, so the submit names the highlight it makes either way
-const PROMPT_FIELDS = {
-  highlight: {
-    icon: HighlighterIcon,
-    input: { enterKeyHint: "done", type: "text" },
-    label: "Note",
-    placeholder: "Add a note (optional)",
-    submit: "Highlight",
-  },
-  link: {
-    icon: Link2Icon,
-    input: {
-      autoCapitalize: "none",
-      autoCorrect: "off",
-      enterKeyHint: "done",
-      inputMode: "url",
-      type: "url",
-    },
-    label: "Link address",
-    placeholder: "Paste or type a link…",
-    submit: "Apply",
-  },
-} satisfies Record<PromptKind, PromptField>;
-
-const ToolbarPrompt = ({
+// the link's address takes the row
+const LinkPrompt = ({
   initialValue,
-  kind,
   onCancel,
   onSubmit,
 }: {
   initialValue: string;
-  kind: PromptKind;
   onCancel: () => void;
   onSubmit: (value: string) => void;
 }) => {
   const [value, setValue] = useState(initialValue);
-  const { icon: Icon, input, label, placeholder, submit } = PROMPT_FIELDS[kind];
   return (
     <form
       className="flex min-w-0 flex-1 items-center gap-1 px-2"
@@ -264,12 +182,16 @@ const ToolbarPrompt = ({
         onSubmit(value.trim());
       }}
     >
-      <Icon className="size-5 shrink-0 text-muted-foreground" />
+      <Link2Icon className="size-5 shrink-0 text-muted-foreground" />
       <input
-        {...input}
+        autoCapitalize="none"
+        autoCorrect="off"
+        enterKeyHint="done"
+        inputMode="url"
+        type="url"
         autoFocus
-        aria-label={label}
-        placeholder={placeholder}
+        aria-label="Link address"
+        placeholder="Paste or type a link…"
         value={value}
         onChange={(event) => {
           setValue(event.target.value);
@@ -280,51 +202,41 @@ const ToolbarPrompt = ({
         Cancel
       </Button>
       <Button variant="ghost" size="compact" type="submit" className="h-11 text-primary">
-        {submit}
+        Apply
       </Button>
     </form>
   );
 };
 
-// A ref rather than the range: a sync can rebase or re-seed the note under the open field, and a
-// plain range would then land on whatever text took its place.
-interface OpenPrompt {
-  readonly kind: PromptKind;
-  readonly at: RangeRef;
-}
-
 const TouchToolbar = () => {
   const editor = useEditorRef();
-  // the field that has the row and where what it takes lands, held while the field has the focus;
-  // null is the row of buttons
-  const [prompt, setPrompt] = useState<OpenPrompt | null>(null);
-  // what a field held when its text went away under it, offered again when that field next opens
-  const [draft, setDraft] = useState<{ kind: PromptKind; value: string } | null>(null);
+  // where the link field's address lands, held while the field has the row; null is the row of
+  // buttons. A ref rather than the range: a sync can rebase or re-seed the note under the open
+  // field, and a plain range would then land on whatever text took its place.
+  const [prompt, setPrompt] = useState<RangeRef | null>(null);
+  // what the field held when its text went away under it, offered again when it next opens
+  const [draft, setDraft] = useState<string | null>(null);
 
-  const openPrompt = (kind: PromptKind): void => {
+  const openPrompt = (): void => {
     if (editor.selection !== null) {
-      setPrompt({ at: editor.api.rangeRef(editor.selection, { affinity: "inward" }), kind });
+      setPrompt(editor.api.rangeRef(editor.selection, { affinity: "inward" }));
     }
   };
 
-  // `value` null is a cancel; an empty highlight submit is a bare highlight, an empty link nothing
-  const closePrompt = ({ at, kind }: OpenPrompt, value: string | null): void => {
+  // `value` null is a cancel, and an empty address links nothing
+  const closePrompt = (at: RangeRef, value: string | null): void => {
     const range = at.unref();
     setPrompt(null);
     setDraft(null);
-    if (value === null || (value === "" && kind === "link")) {
+    if (value === null || value === "") {
       return;
     }
     if (range === null) {
-      if (value !== "") {
-        setDraft({ kind, value });
-      }
+      setDraft(value);
       toast.warning("The item changed — select the text again.");
-    } else if (kind === "link") {
+    } else {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
-    } else {
-      highlightOn(editor, range, value);
     }
   };
 
@@ -337,11 +249,6 @@ const TouchToolbar = () => {
       {prompt === null ? (
         <>
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
-            <SelectionButtons
-              onAnnotate={() => {
-                openPrompt("highlight");
-              }}
-            />
             {MARK_SHORTCUTS.map((row) => (
               <MarkButton key={row.action} row={row} />
             ))}
@@ -371,12 +278,7 @@ const TouchToolbar = () => {
               }}
             />
             <Sep />
-            <ActionButton
-              action="link"
-              onPress={() => {
-                openPrompt("link");
-              }}
-            />
+            <ActionButton action="link" onPress={openPrompt} />
             <Sep />
             <ActionButton
               action="undo"
@@ -399,9 +301,8 @@ const TouchToolbar = () => {
           />
         </>
       ) : (
-        <ToolbarPrompt
-          kind={prompt.kind}
-          initialValue={draft?.kind === prompt.kind ? draft.value : ""}
+        <LinkPrompt
+          initialValue={draft ?? ""}
           onCancel={() => {
             closePrompt(prompt, null);
             editor.tf.focus();

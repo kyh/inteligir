@@ -11,41 +11,18 @@ import { openapi } from "@orpc/openapi";
 
 import { libraryContract } from "@repo/contract/cloud/library/library-contract";
 
-const { annotations, items, organize, search } = libraryContract;
+const { items, organize, search } = libraryContract;
 
 // a read implies its read-only hint by its verb; it is closed-world
 const read = mcp.tool({ annotations: { openWorldHint: false } });
 
-// a write that only adds (a note, a highlight) destroys nothing; one that changes or removes what
-// is there does, and says so
+// a write that only adds (a note) destroys nothing; one that changes or removes what is there
+// does, and says so
 const adds = mcp.tool({ annotations: { destructiveHint: false, openWorldHint: false } });
 const changes = mcp.tool({ annotations: { destructiveHint: true, openWorldHint: false } });
 
 export const libraryTools = {
   ...libraryContract,
-  annotations: {
-    ...annotations,
-    add: annotations.add.meta(
-      openapi({
-        description:
-          "Highlights a passage of an item, found by its exact text, with an optional note. A passage the item's text does not hold is kept as an unplaced highlight.",
-        method: "POST",
-        operationId: "add_highlight",
-        summary: "Add a highlight",
-      }),
-      adds,
-    ),
-    list: annotations.list.meta(
-      openapi({
-        description:
-          "Lists highlights and their notes, for one item or across the library since a date, newest first, with a cursor for the next page.",
-        method: "GET",
-        operationId: "list_highlights",
-        summary: "List highlights",
-      }),
-      read,
-    ),
-  },
   items: {
     ...items,
     createNote: items.createNote.meta(
@@ -71,7 +48,7 @@ export const libraryTools = {
     edit: items.edit.meta(
       openapi({
         description:
-          "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages, their highlights included, are left as they are.",
+          "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages are left as they are.",
         method: "PATCH",
         operationId: "edit_item",
         summary: "Edit an item",
@@ -101,7 +78,7 @@ export const libraryTools = {
     read: items.read.meta(
       openapi({
         description:
-          "Reads an item: its fields, a page of its text as markdown from a block position, the items it links to and from, and how many highlights it has. Links to other items are written [[Title|id]].",
+          "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [[Title|id]].",
         method: "GET",
         operationId: "read_item",
         summary: "Read an item",
@@ -138,7 +115,7 @@ export const libraryTools = {
   search: search.meta(
     openapi({
       description:
-        "Searches item titles, notes, saved articles and highlights, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
+        "Searches item titles, notes and saved articles, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
       method: "GET",
       operationId: "search_library",
       summary: "Search the library",

@@ -7,8 +7,8 @@ import { SlashKit } from "@repo/editor/slash-menu";
 import { TouchToolbarKit } from "@repo/editor/touch-toolbar";
 
 // Composed, never subtracted from the desktop's: the pointer chrome (the drag handle, the block
-// menu, the selection toolbar, the find bar, the annotation gutter) is simply not named, so a pointer
-// surface added to the desktop stays off the phone until someone decides it belongs here.
+// menu, the selection toolbar, the find bar) is simply not named, so a pointer surface added to
+// the desktop stays off the phone until someone decides it belongs here.
 export const TOUCH_EDITOR_KIT = [
   ...CONTENT_KIT,
   ...RichBlockLockKit,

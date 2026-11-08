@@ -55,17 +55,11 @@ export interface ConnectedPage {
 /** @internal */
 export const REQUEST_TIMEOUT_MS = 10_000;
 
-// The native end answers every request, and a highlight timed out here still lands there, so these
-// wait rather than report a failure that did not happen; a file's bytes take as long as the
-// phone's download or their copy across the bridge does, so a picture waits for them rather than
-// say it is missing. A write keeps its deadline: it is guarded by its bases, so its retry finds
-// what landed.
-const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
-  "addHighlight",
-  "keepFile",
-  "noteHighlight",
-  "readFile",
-]);
+// The native end answers every request, and a file's bytes take as long as the phone's download
+// or their copy across the bridge does, so a file's read and its keep wait rather than report a
+// failure that did not happen, and a picture waits for its bytes rather than say it is missing. A
+// write keeps its deadline: it is guarded by its bases, so its retry finds what landed.
+const NO_DEADLINE: ReadonlySet<RequestKind> = new Set(["keepFile", "readFile"]);
 
 interface Pending {
   readonly answer: Deferred<unknown>;

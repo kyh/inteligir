@@ -49,7 +49,7 @@ or more items, and tag by topic, never by kind.
   item, finds the one the library already holds for that address, and reads the page. A save of an
   address the library holds answers that item unchanged, with none of the tags, folder or note you
   passed; tag or file it with `organize_items`, and add to its note with `edit_item`.
-- `search_library` finds items by what their titles, notes, articles and highlights say;
+- `search_library` finds items by what their titles, notes and articles say;
   `list_items` browses by folder, tag, kind or pin, newest first. Both answer a page at a time.
 - Write a new note with `create_note`, titled, tagged and filed in one call.
 - Tag, untag, file, pin and rename with `organize_items`, many items in one call when they share
@@ -57,8 +57,7 @@ or more items, and tag by topic, never by kind.
 
 ## What You Must Not Touch
 
-- Never rewrite a saved page's article to "clean it up": it is the page as it was read, and the
-  person's highlights are anchored in it.
+- Never rewrite a saved page's article to "clean it up": it is the page as it was read.
 - Never remove a file an item embeds (`assets/<sha>` in its text): the item would lose it.
 - Never move items to Deleted that the person did not ask you to remove; `delete_items` asks them
   first, and Deleted is where they restore from.

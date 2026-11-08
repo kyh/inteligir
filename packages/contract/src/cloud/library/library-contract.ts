@@ -8,7 +8,6 @@
 
 import { z } from "zod";
 
-import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
 import { libraryOpSchema } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
@@ -28,8 +27,6 @@ import {
 } from "../v1-errors";
 import {
   agentViewContextSchema,
-  ANNOTATION_NOTE_MAX,
-  annotationOpSchema,
   BODY_IDS_MAX,
   BULK_ITEMS_MAX,
   changeSetSchema,
@@ -40,7 +37,6 @@ import {
   folderOpSchema,
   FOLDER_NAME_MAX,
   folderPathNames,
-  highlightSchema,
   isoDate,
   idSchema,
   importJobSchema,
@@ -249,8 +245,6 @@ const itemsContract = {
         note: z.string().max(MARKDOWN_MAX).optional(),
         opId,
         savedAt: FIELDS.savedAt,
-        // the passage the person had selected, kept as a highlight
-        selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).nullable(),
         tags: FIELDS.tags,
         title: FIELDS.title,
         url: FIELDS.url.unwrap(),
@@ -258,10 +252,9 @@ const itemsContract = {
     )
     .output(saved),
 
-  // a url to read later: it lands at once, unread, and the cloud reads the page, placing the
-  // passage the person had selected once it holds the page's text; an item already at the url is
-  // answered as it stands, nothing of this landing on it; an `id` another item holds is a conflict
-  // naming it
+  // a url to read later: it lands at once, unread, and the cloud reads the page; an item already
+  // at the url is answered as it stands, nothing of this landing on it; an `id` another item holds
+  // is a conflict naming it
   saveLink: signedBase
     .errors({
       [ConflictError.code]: ConflictError,
@@ -276,8 +269,6 @@ const itemsContract = {
         note: z.string().max(MARKDOWN_MAX).optional(),
         opId,
         savedAt: FIELDS.savedAt.optional(),
-        // a passage of the page to keep as a highlight
-        selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).optional(),
         tags: FIELDS.tags.optional(),
         title: FIELDS.title.optional(),
         url: FIELDS.url.unwrap(),
@@ -305,13 +296,7 @@ const itemsContract = {
         opId,
       }),
     )
-    .output(
-      z.object({
-        // highlights the edit took a marker edge of out of the text, now unplaced
-        dropped: z.array(z.string()),
-        seq: seqSchema,
-      }),
-    ),
+    .output(z.object({ seq: seqSchema })),
 
   // tags, folder, pin and title for many items in one change
   organize: signedBase
@@ -348,7 +333,7 @@ const itemsContract = {
     .input(z.strictObject({ ids, opId }))
     .output(z.object({ addressHeld: changedIds, missing: changedIds, restored: changedIds })),
 
-  // emptying Deleted: an item's body and highlights go, and its id stays as a tombstone
+  // emptying Deleted: an item's body goes, and its id stays as a tombstone
   purge: signedBase
     .input(z.strictObject({ ids, opId }))
     .output(z.object({ missing: changedIds, purged: changedIds })),
@@ -358,37 +343,6 @@ const itemsContract = {
     .errors({ [NotFoundError.code]: NotFoundError, [QuotaError.code]: QuotaError })
     .input(z.strictObject({ id: idSchema, opId }))
     .output(landed),
-};
-
-const annotationsContract = {
-  list: signedBase
-    .input(
-      z.strictObject({
-        cursor,
-        itemId: idSchema.optional(),
-        limit,
-        since: isoDate.optional(),
-      }),
-    )
-    .output(z.object({ cursor: cursorSchema.nullable(), highlights: z.array(highlightSchema) })),
-
-  // by the passage's exact text; one the item's text does not hold is kept, listed as unplaced
-  add: signedBase
-    .errors({
-      [NotFoundError.code]: NotFoundError,
-      [PayloadTooLargeError.code]: PayloadTooLargeError,
-      [QuotaError.code]: QuotaError,
-    })
-    .input(
-      z.strictObject({
-        itemId: idSchema,
-        note: z.string().max(ANNOTATION_NOTE_MAX).optional(),
-        occurrence: z.number().int().positive().optional(),
-        opId,
-        quote: z.string().min(1).max(ANNOTATION_QUOTE_MAX),
-      }),
-    )
-    .output(z.object({ highlight: highlightSchema })),
 };
 
 const foldersContract = {
@@ -572,15 +526,14 @@ const agentContract = {
 
 export const libraryContract = {
   agent: agentContract,
-  annotations: annotationsContract,
   folders: foldersContract,
   history: historyContract,
   imports: importsContract,
   items: itemsContract,
   organize: organizeContract,
 
-  // full-text search over titles, notes, saved articles and highlights; the app searches its own
-  // replica, so this answers agents
+  // full-text search over titles, notes and saved articles; the app searches its own replica, so
+  // this answers agents
   search: signedBase
     .input(
       z.strictObject({
@@ -599,7 +552,7 @@ export const libraryContract = {
 
   sync: syncContract,
 
-  // one item's ops and highlight writes, guarded block by block and field by field: it lands
+  // one item's ops, guarded block by block and field by field: it lands
   // whole or answers every conflict. `write`, not `apply`: a client's path is a function's
   // property, and `apply` would be Function.prototype's
   write: signedBase
@@ -611,16 +564,11 @@ export const libraryContract = {
       [QuotaError.code]: QuotaError,
     })
     .input(
-      z
-        .strictObject({
-          annotations: z.array(annotationOpSchema).max(WRITE_OPS_MAX).optional(),
-          itemId: idSchema,
-          opId,
-          ops: z.array(libraryOpSchema).max(WRITE_OPS_MAX),
-        })
-        .refine((input) => input.ops.length > 0 || (input.annotations ?? []).length > 0, {
-          error: "a write changes something",
-        }),
+      z.strictObject({
+        itemId: idSchema,
+        opId,
+        ops: z.array(libraryOpSchema).min(1).max(WRITE_OPS_MAX),
+      }),
     )
     .output(landed),
 };

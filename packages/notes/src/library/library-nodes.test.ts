@@ -37,7 +37,6 @@ const EVERY_BLOCK = [
       },
       { children: leaf, texExpression: "x^2", type: "inline_equation" },
       { children: leaf, source: "<!-- kept -->", type: "opaque" },
-      { children: leaf, edge: "start", ids: "a,b", type: "annotationMarker" },
     ],
     id: "p1",
     indent: 1,

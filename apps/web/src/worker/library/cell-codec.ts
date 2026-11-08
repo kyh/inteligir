@@ -100,13 +100,11 @@ export const cellCodec = (sql: SqlStatements, ids: CellIds): CellCodec => {
     edit: {
       fileKind: (sha) => fileKindOf(sql, sha),
       itemByTitle,
-      newAnnotationId: ids.annotation,
       newBlockId: ids.block,
       title,
     },
     importing: (now) => ({
       file: fileAt,
-      newAnnotationId: ids.annotation,
       newBlockId: ids.block,
       now,
       wiki,

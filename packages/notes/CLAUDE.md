@@ -39,7 +39,7 @@ root.
   a new note follows its body on every device; the outline keeps the first h1
   to h3, as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
-  block's anchored highlights. The card alone rides its row, so a replica draws
+  block's text. The card alone rides its row, so a replica draws
   an item before its body arrives. Rejected: syncing the other derived rows
   (two derivations would drift), a frontmatter block (its keys are columns).
   `packages/notes/src/library/derive-item.ts`.
@@ -69,8 +69,8 @@ root.
 - **UNDO RUNS A CHANGE SET BACKWARDS AS A THREE-WAY MERGE, BLOCK FOR LINE.**
   `@repo/notes/library/revert-change`: the set's after is the base,
   the item now is mine, its before is theirs; the order merges by diff3 over
-  block ids, fields revert one by one, highlights entry by entry, and an
-  overlap keeps the item whole and named. An item the set made goes to Deleted
+  block ids, fields revert one by one, and an overlap keeps the item whole and
+  named. An item the set made goes to Deleted
   unless a person's part changed since (a fill is not a person), told by each
   fill's own change set: a field still holds what the set left or what a fill
   wrote there. Sets undo newest first. Unlike the line oracle the
@@ -130,22 +130,6 @@ root.
   the phone and the Mac would disagree); the key as a field (a rule change
   strands every item on the old one).
 
-## Annotations
-
-- **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
-  ID.** Markers, `%%i:<id>[,<id>…]:start%%…%%i:<ids>:end%%`, wrap the passage in
-  the item's blocks; entries are the item's rows in its library's
-  `annotations` table (`@repo/notes/library/library-schema`), keyed by entry id (`text`, `""` for a bare highlight; a root's `quote`;
-  `createdAt`/`updatedAt` in unix seconds; `source`; a reply's `parentId`). The
-  fold lists roots in marker order, then the unanchored by creation
-  (`foldAnnotations` in `@repo/notes/annotations/annotation-threads`). An
-  unanchored root is waiting on a link not yet read, whose fill places it by its
-  quote, and
-  missing elsewhere, derived on every answer, never stored (a stored claim
-  breaks whichever of text and store is written first). Rejected: resolve (a
-  reading mark is not a task) and the comments name (two spellings forever).
-  `@repo/notes/annotations/store-schema`.
-
 ## Knowledge: index, search and links
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Each of
@@ -174,7 +158,7 @@ root.
   read from the zip's root, and a Mac's Compress of the unpacked folder
   puts all of it under that folder, so an import first takes off a sole top
   folder that every path but what an operating system left shares, when it holds
-  a highlights' store or `assets/` (`packages/editor/src/codec/import-plan.ts`).
+  `assets/` (`packages/editor/src/codec/import-plan.ts`).
   Rejected: taking off any sole top folder (an Obsidian vault's is a folder the
   person named).
 
@@ -235,8 +219,7 @@ root.
   the next space and wants no word before it, so the writer's link handler asks
   gfm itself, over the literal and the bytes either side as they are about to be
   written, and every other link keeps `[text](url)`, which always reads back.
-  The passage projection puts the same question through `isBareLink`, with the
-  neighbours it can see, so a link the writer labels is a labelled link to it. A link touching a mark keeps its label, since the
+  A link touching a mark keeps its label, since the
   writer may spell the character beside a mark as a reference, and a literal with
   no space before the next link does too, as does a marked literal after a link,
   whose closer it would join. So does a link in a mark's own node, which only a

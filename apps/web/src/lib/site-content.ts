@@ -20,8 +20,7 @@ it with you.
 ## Save from anywhere
 
 - **From your browser.** [The ${name} extension](${EXTENSION_STORE_URL}) for Chrome, Arc, Brave and
-  Edge saves the page you're on with one click, or a link, an image or a selection from the
-  right-click menu.
+  Edge saves the page you're on with one click, or a link or an image from the right-click menu.
 - **From the window.** Paste a link, or drag links and files onto the app. Any file up to 100 MB is
   kept as it is.
 - **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once, offline
@@ -30,10 +29,9 @@ it with you.
 Saving is instant and free, and calls no model. The extension reads the title, picture and text of
 the page you save from it when it can, and our cloud reads every other link.
 
-## Read and highlight
+## Read what you saved
 
 A saved page opens as its readable article; a picture, a PDF or a video opens in its own viewer.
-Highlight a passage and add a note to it, wherever you saved the page from.
 
 ## Write notes
 
@@ -52,8 +50,8 @@ copy of every item's text and of each picture, PDF or file you open. That copy o
 searches with no connection, and what you change goes out when you're back online. In a browser,
 [your library](${libraryUrl}) opens whenever you're online.
 
-Your Raindrop bookmarks come in from a backup with their collections, tags and highlights, and an
-Obsidian folder comes in as a zip.
+Your Raindrop bookmarks come in from a backup with their collections and tags, each one's
+highlights quoted in its note, and an Obsidian folder comes in as a zip.
 
 ## The agent is built in
 

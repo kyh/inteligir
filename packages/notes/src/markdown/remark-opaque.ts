@@ -52,7 +52,6 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   code: false,
   column: false,
   columnGroup: false,
-  annotationMarker: false,
   date: false,
   // one no reference used (`./remark-references`)
   definition: true,

@@ -1,7 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
-import { useAnnotationSurface } from "@repo/editor/annotations/annotation-store";
 import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
 import {
   BLOCK_HELD_BACK,
@@ -226,36 +225,6 @@ describe("an item page over the phone's replica", () => {
     });
     await waitFor(() => {
       expect(phone.requests("linkTargets")).toHaveLength(2);
-    });
-  });
-
-  it("tints by the highlights the phone holds, read again as the item moves", async () => {
-    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
-    const library = phone.answer;
-    let held = ["h1"];
-    phone.answer = (request) =>
-      request.kind === "highlightIds" ? { ok: true, result: { ids: held } } : library(request);
-    const { bridge, init } = await connectItem(phone);
-    const container = document.createElement("div");
-    document.body.append(container);
-    act(() => {
-      mounted = mountItemPage({ bridge, container, init });
-    });
-    const known = () => [...(useAnnotationSurface.getState().meta.get(ITEM)?.knownIds ?? [])];
-    await waitFor(() => {
-      expect(known()).toStrictEqual(["h1"]);
-    });
-
-    held = ["h1", "h2"];
-    phone.deliver({
-      ids: [ITEM],
-      nonce: PHONE_NONCE,
-      overlapped: [],
-      reset: false,
-      type: "itemChanged",
-    });
-    await waitFor(() => {
-      expect(known()).toStrictEqual(["h1", "h2"]);
     });
   });
 

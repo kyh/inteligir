@@ -106,8 +106,8 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
   return { kind: "valid", properties };
 };
 
-// the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the annotation
-// store is keyed by. Text only: a number or a list is not a name.
+// the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves. Text only: a number
+// or a list is not a name.
 export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
   if (parsed?.kind !== "valid") {
     return null;

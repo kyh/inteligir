@@ -3,7 +3,7 @@
 The pure, platform-neutral domain core: the library model (an item as fields
 and a body of Plate blocks, its ops, its undo and its one SQL schema), the
 dialect's markdown grammar the codec and the import read and write by, and
-what an item, a highlight, a formula and a search are, which every
+what an item, a formula and a search are, which every
 device and the cell share.
 
 ## Why it exists
@@ -30,8 +30,8 @@ src/
                        # its base; the per-block guard, apply and rebase
     block-order.ts, block-hash.ts, canonical-json.ts  # fractional order
                        # keys, a block's hash, one spelling of a JSON value
-    derive-item.ts     # title, card, text, links, tags, the url's key and
-                       # anchored highlights, from the fields and the blocks
+    derive-item.ts     # title, card, text, links, tags and the url's key,
+                       # from the fields and the blocks
     revert-change.ts   # a change set taken back three ways, the set's after
                        # as the base, newest set first
     library-schema.ts  # the ONE DDL, versioned by `meta.schema`
@@ -75,15 +75,14 @@ src/
                        # nesting in every flow container; an opener whose
                        # container cannot be read whole stays prose
     text-escapes.ts    # which of a text's characters a backslash escape
-                       # wrote, so a pill, a date, an annotation marker or a
-                       # `:::` line spelled with one stays text, past GFM's
-                       # split of a bare url too
+                       # wrote, so a pill, a date or a `:::` line spelled
+                       # with one stays text, past GFM's split of a bare url
+                       # too
     remark-references.ts  # a reference read as the link or image it names,
                        # and the definition it used gone, and a footnote
                        # read as its text
     autolink-text.ts   # the link spelled bare where gfm reads it back in its
-                       # place, which the writer and the passage text agree
-                       # on
+                       # place
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts       # the rest of the dialect's own remark plugins
     flow-spans.ts      # where each block lands in the markdown a stringify
@@ -92,8 +91,8 @@ src/
                        # counts from past a leading BOM, so without it every
                        # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # narrows a transform's bare `Node` input to the root
-    alert-marker.ts    # GitHub's alert grammar, which the editor and quote
-                       # placement read a quote through
+    alert-marker.ts    # GitHub's alert grammar, which the editor reads a
+                       # quote through
     fence-langs.ts     # ONE spelling of every dialect fence — the rule table
                        # reads it, and the skills guard holds the skills to it
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
@@ -115,13 +114,10 @@ src/
                        # file's type by its bytes, and a page's embed
     page-fetch.ts      # a page's redirects and capped read, over each host's
                        # own hop rule, fetch and deadline
-  annotations/         # the %%i:id:start/end%% markers: highlights, notes
-                       # and replies, the store schema, the passage text a
-                       # person reads, where a quote's markers land, and the
-                       # entry-wise revert an undo takes (never a line merge)
   formulas/            # {{source|display|meta}} pills: collection, expression
                        # evaluation, the resolve graph and result formatting
-  imports/             # a Raindrop export read into saves, over a CSV reader
+  imports/             # a Raindrop export read into saves, its highlights
+                       # quoted in each one's note, over a CSV reader
   text/                # ONE Myers line diff under diff3 — the merge a
                        # CONFLICT settles through; bounded by an edit budget,
                        # past which the changed span is one hunk

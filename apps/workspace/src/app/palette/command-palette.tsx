@@ -1,6 +1,6 @@
 // CLAUDE.md § THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P. One field over the library and the page's
-// commands: what is typed is searched in the replica's own full-text index (titles, notes, saved
-// articles and highlights), ranked as every device ranks it; a hit opens its item with the find
+// commands: what is typed is searched in the replica's own full-text index (titles, notes and saved
+// articles), ranked as every device ranks it; a hit opens its item with the find
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs
 // that need no item: a new note, a link, the agent and Tidy my library, Settings.
 

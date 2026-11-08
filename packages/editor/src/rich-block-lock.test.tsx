@@ -6,11 +6,6 @@ import type { Operation, Path, Value } from "platejs";
 import { createPlateEditor, pipeHandler } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
-import {
-  anchorNewAnnotation,
-  selectionTakesHighlight,
-} from "@repo/editor/annotations/annotation-kit";
-import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
@@ -196,29 +191,6 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 
     expect(serializeNote(editor)).toBe(serializeNote(touchEditor(next)));
     expect(serializeNote(editor)).toContain("moved left");
-  });
-});
-
-const markersIn = (editor: PlateEditor): number =>
-  [...editor.api.nodes({ at: [], match: isAnnotationMarker })].length;
-
-describe("annotation markers and the lock", () => {
-  beforeEach(() => {
-    installFakeEditorHost();
-  });
-
-  it("a selection ending inside a locked tab panel anchors no annotation and leaves no marker", () => {
-    const editor = touchEditor();
-    const before = serializeNote(editor);
-    editor.tf.select({
-      anchor: { offset: 0, path: textPath(editor, "before") },
-      focus: { offset: "inside".length, path: textPath(editor, "inside the first tab") },
-    });
-
-    expect(selectionTakesHighlight(editor)).toBe(false);
-    expect(anchorNewAnnotation(editor)).toBeNull();
-    expect(markersIn(editor)).toBe(0);
-    expect(serializeNote(editor)).toBe(before);
   });
 });
 

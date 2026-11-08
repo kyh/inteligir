@@ -74,7 +74,7 @@ export const useItemEditor = (
       mintNonce: mintBridgeNonce,
       onEvent,
       pageUrl: source?.uri ?? "",
-      ports: createItemPorts({ files, now: () => Date.now(), replica }),
+      ports: createItemPorts({ files, replica }),
     });
     return { host, source };
   });

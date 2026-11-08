@@ -1,14 +1,11 @@
 // The library's item writes beyond a device's own ops, each landed inside one write's transaction
 // by the rules every write meets (`./cell-landing`): a note or a file made whole, an agent's edit
-// of an item's markdown, a highlight placed by its quote, a bulk organize, Deleted and back, and a
-// url item's page asked for again. The markdown an agent reads and writes goes through the codec
+// of an item's markdown, a bulk organize, Deleted and back, and a url item's page asked for again. The markdown an agent reads and writes goes through the codec
 // (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`).
 
-import type { annotationOpSchema } from "@repo/contract/cloud/library/library-wire";
 import type { EditOutcome } from "@repo/editor/codec/item-edit";
-import { editItemView, placeItemQuotes } from "@repo/editor/codec/item-edit";
+import { editItemView } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
-import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
 import { blankItemFields, fileFields } from "@repo/notes/library/item-makes";
@@ -16,11 +13,7 @@ import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { readItem, readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
-import type { z } from "zod";
 
-import { annotationSourceOf } from "./cell-actor";
-import type { CellActor } from "./cell-actor";
-import { applyAnnotationOps, readAnnotationRow } from "./cell-annotations";
 import { readBlobRow } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
@@ -30,9 +23,6 @@ import { landItem } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
-
-type AnnotationOp = z.infer<typeof annotationOpSchema>;
-export type AddOp = Extract<AnnotationOp, { op: "add" }>;
 
 export interface PlacedBlock {
   readonly block: LibraryBlock;
@@ -44,10 +34,7 @@ export interface NewItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
   readonly blocks: readonly PlacedBlock[];
-  readonly annotations?: readonly AnnotationOp[] | undefined;
 }
-
-const secondsOf = (scope: LandingScope): number => Math.floor(scope.now / 1000);
 
 const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]): ItemState => ({
   blocks: new Map(
@@ -59,99 +46,32 @@ const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]):
   fields,
 });
 
-// a bare highlight a passage's markers now wrap, as the write that made them adds its row
-export const bareHighlight = (
-  scope: LandingScope,
-  highlight: { readonly id: string; readonly quote: string },
-): AddOp => ({
-  createdAt: secondsOf(scope),
-  id: highlight.id,
-  occurrence: null,
-  op: "add",
-  parentId: null,
-  quote: highlight.quote,
-  text: "",
-});
-
-// a store an import read, as the adds that make its rows, every root ahead of the replies that
-// answer it, since a store is in id order and an add needs its parent held; a root that kept no
-// quote has no passage to anchor, so it is no highlight, and a reply to none has nothing to answer
-export const storeAdds = (store: AnnotationStore): AddOp[] => {
-  const entries = Object.entries(store);
-  const addOf = (
-    id: string,
-    entry: AnnotationEntry,
-    parent: Pick<AddOp, "parentId" | "quote">,
-  ): AddOp => ({
-    ...parent,
-    createdAt: entry.createdAt,
-    id,
-    occurrence: null,
-    op: "add",
-    text: entry.text,
-  });
-  const roots = entries.flatMap(([id, { parentId, quote, ...entry }]) =>
-    parentId === undefined && quote !== undefined
-      ? [addOf(id, entry, { parentId: null, quote })]
-      : [],
-  );
-  const held = new Set(roots.map((root) => root.id));
-  const replies = entries.flatMap(([id, entry]) =>
-    entry.parentId !== undefined && held.has(entry.parentId)
-      ? [addOf(id, entry, { parentId: entry.parentId, quote: null })]
-      : [],
-  );
-  return [...roots, ...replies];
-};
-
-// an item the write makes, with its blocks and highlights; an id the library holds already is a
-// conflict naming that item
-export const landNew = (scope: LandingScope, actor: CellActor, item: NewItem): LiveItemRow => {
-  const { storage } = scope;
-  const held = runPlan(storage, readItem(item.id));
+// an item the write makes, with its blocks; an id the library holds already is a conflict naming
+// that item
+export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
+  const held = runPlan(scope.storage, readItem(item.id));
   if (held !== null) {
     refuse({ current: [{ itemId: item.id, kind: "item", seq: held.seq }], kind: "conflict" });
   }
-  const highlights = applyAnnotationOps(new Map(), item.annotations ?? [], {
-    itemId: item.id,
-    nowSeconds: secondsOf(scope),
-    readRow: (id) => readAnnotationRow(storage, id),
-    source: annotationSourceOf(actor),
-  });
-  if (highlights.conflicts.length > 0) {
-    refuse({ current: highlights.conflicts, kind: "conflict" });
-  }
   return landItem(scope, {
     after: placedState(item.fields, item.blocks),
-    annotations: highlights.landed,
     before: null,
     itemId: item.id,
   });
 };
 
-export interface MarkdownBlocks {
-  readonly blocks: readonly PlacedBlock[];
-  readonly highlights: readonly AddOp[];
-}
-
-// a person's markdown as note blocks and the bare highlights its `==x==` made; its frontmatter,
-// if any, names nothing here, since the caller sets the item's own fields
+// a person's markdown as note blocks; its frontmatter, if any, names nothing here, since the
+// caller sets the item's own fields
 export const noteBlocksOf = (
   scope: LandingScope,
   codec: CellCodec,
   markdown: string,
-): MarkdownBlocks => {
-  const read = importItem(
-    { annotations: null, name: "", text: markdown },
-    codec.importing(scope.now),
-  );
+): readonly PlacedBlock[] => {
+  const read = importItem({ name: "", text: markdown }, codec.importing(scope.now));
   if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
   }
-  return {
-    blocks: read.item.blocks.filter((placed) => placed.section === "note"),
-    highlights: storeAdds(read.item.annotations),
-  };
+  return read.item.blocks.filter((placed) => placed.section === "note");
 };
 
 export interface CreateNoteInput {
@@ -165,14 +85,13 @@ export interface CreateNoteInput {
 // titled as asked or as the frontmatter names it, its tags the frontmatter's and the request's
 export const createNote = (
   scope: LandingScope,
-  actor: CellActor,
   codec: CellCodec,
   ids: CellIds,
   input: CreateNoteInput,
 ): LiveItemRow => {
   const folderId = folderOfTarget(scope, input.folder, ids.item) ?? null;
   const read = importItem(
-    { annotations: null, name: input.title ?? "", text: input.markdown },
+    { name: input.title ?? "", text: input.markdown },
     codec.importing(scope.now),
   );
   if (!read.ok || read.item.leftOut > 0) {
@@ -187,8 +106,7 @@ export const createNote = (
     title: input.title ?? imported.title,
     folderId,
   };
-  return landNew(scope, actor, {
-    annotations: storeAdds(read.item.annotations),
+  return landNew(scope, {
     blocks: read.item.blocks,
     fields,
     id: ids.item(),
@@ -206,16 +124,12 @@ export interface CreateFileInput {
 }
 
 // a file whose bytes the library holds
-export const createFile = (
-  scope: LandingScope,
-  actor: CellActor,
-  input: CreateFileInput,
-): LiveItemRow => {
+export const createFile = (scope: LandingScope, input: CreateFileInput): LiveItemRow => {
   const blob = readBlobRow(scope.storage, input.sha);
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
-  return landNew(scope, actor, {
+  return landNew(scope, {
     blocks: [],
     fields: fileFields({ ...input, mime: blob.mime }),
     id: input.id,
@@ -236,18 +150,12 @@ export interface EditInput {
 }
 
 export interface EditAnswer {
-  readonly dropped: readonly string[];
   readonly seq: number;
 }
 
 // an agent's exact passages replaced on the item's markdown as it read it at `baseSeq`: an item
 // changed since is a conflict naming its sequence, so the agent reads it again
-export const editItem = (
-  scope: LandingScope,
-  actor: CellActor,
-  codec: CellCodec,
-  input: EditInput,
-): EditAnswer => {
+export const editItem = (scope: LandingScope, codec: CellCodec, input: EditInput): EditAnswer => {
   const item = runPlan(scope.storage, readItem(input.id));
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
@@ -263,81 +171,8 @@ export const editItem = (
   if (outcome.kind === "refused") {
     return refuse({ kind: "edit-refused", refusal: editRefusalOf(outcome.refusal) });
   }
-  const row = landWrite(scope, actor, {
-    annotations: outcome.highlights.map((highlight) => bareHighlight(scope, highlight)),
-    itemId: input.id,
-    ops: outcome.ops,
-  });
-  return { dropped: outcome.dropped, seq: row.seq };
-};
-
-export interface QuotePlacement {
-  readonly ops: readonly LibraryOp[];
-  // the highlights whose markers now wrap their passage, those that wrapped one already included
-  readonly placed: readonly string[];
-}
-
-export interface PlacingQuote {
-  readonly id: string;
-  readonly quote: string;
-  readonly occurrence?: number | undefined;
-}
-
-// the ops that place highlights' markers by their quotes in an item as `state` holds it
-export const placeQuotes = (
-  state: ItemState,
-  codec: CellCodec,
-  quotes: readonly PlacingQuote[],
-): QuotePlacement => placeItemQuotes(state.blocks, quotes, codec.edit);
-
-export interface AddHighlightInput {
-  readonly itemId: string;
-  readonly quote: string;
-  readonly note?: string | undefined;
-  readonly occurrence?: number | undefined;
-}
-
-export interface AddedHighlight {
-  readonly id: string;
-  readonly item: LiveItemRow;
-  readonly placed: boolean;
-  readonly createdAt: number;
-}
-
-// a highlight by its passage's text, placed in the item's text where it stands; one the text does
-// not hold is kept, unplaced
-export const addHighlight = (
-  scope: LandingScope,
-  actor: CellActor,
-  codec: CellCodec,
-  ids: CellIds,
-  input: AddHighlightInput,
-): AddedHighlight => {
-  const state = runPlan(scope.storage, readItemState(input.itemId));
-  if (state === null) {
-    return refuse({ kind: "not-found" });
-  }
-  const id = ids.annotation();
-  const placement = placeQuotes(state, codec, [
-    { id, occurrence: input.occurrence, quote: input.quote },
-  ]);
-  const createdAt = secondsOf(scope);
-  const item = landWrite(scope, actor, {
-    annotations: [
-      {
-        createdAt,
-        id,
-        occurrence: input.occurrence ?? null,
-        op: "add",
-        parentId: null,
-        quote: input.quote,
-        text: input.note ?? "",
-      },
-    ],
-    itemId: input.itemId,
-    ops: placement.ops,
-  });
-  return { createdAt, id, item, placed: placement.placed.includes(id) };
+  const row = landWrite(scope, { itemId: input.id, ops: outcome.ops });
+  return { seq: row.seq };
 };
 
 export interface OrganizeInput {
@@ -355,7 +190,6 @@ const tagKey = (tag: string): string => tag.toLowerCase();
 // no live item refuses the whole change
 export const organizeItems = (
   scope: LandingScope,
-  actor: CellActor,
   ids: CellIds,
   input: OrganizeInput,
 ): LiveItemRow[] => {
@@ -388,7 +222,7 @@ export const organizeItems = (
     if (input.title !== undefined && input.title !== fields.title) {
       ops.push({ base: fields.title, field: "title", op: "set", value: input.title });
     }
-    return landWrite(scope, actor, { itemId, ops });
+    return landWrite(scope, { itemId, ops });
   });
 };
 
@@ -403,7 +237,6 @@ export interface BulkAnswer {
 // no live item as missing
 export const setDeleted = (
   scope: LandingScope,
-  actor: CellActor,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
 ): BulkAnswer & { readonly landed: readonly LiveItemRow[] } => {
   const changed: string[] = [];
@@ -423,7 +256,7 @@ export const setDeleted = (
     }
     try {
       landed.push(
-        landWrite(scope, actor, {
+        landWrite(scope, {
           itemId,
           ops: [{ base, field: "deletedAt", op: "set", value: input.deleted ? scope.now : null }],
         }),
@@ -442,7 +275,7 @@ export const setDeleted = (
 
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no
 // address has no page to read
-export const refreshItem = (scope: LandingScope, actor: CellActor, itemId: string): LiveItemRow => {
+export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow => {
   const state = runPlan(scope.storage, readItemState(itemId));
   if (state === null || state.fields.url === null) {
     return refuse({ kind: "not-found" });
@@ -452,5 +285,5 @@ export const refreshItem = (scope: LandingScope, actor: CellActor, itemId: strin
     { base: fields.fetchState, field: "fetchState", op: "set", value: "pending" },
     { base: fields.fetchError, field: "fetchError", op: "set", value: null },
   ];
-  return landWrite(scope, actor, { itemId, ops });
+  return landWrite(scope, { itemId, ops });
 };

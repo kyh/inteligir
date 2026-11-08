@@ -107,7 +107,7 @@ export const createItem = (
   input: NewItem & { readonly opId?: string },
 ) =>
   library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-    item: landNew(scope, actor, input),
+    item: landNew(scope, input),
   }));
 
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({

@@ -22,27 +22,12 @@ afterEach(() => {
 
 const ADDRESS = "The page's address";
 const NOTE = "Field notes";
-const HIGHLIGHT = "h1";
 
-// the whole page with a note open, over a replica holding it with one highlight on it
+// the whole page with a note open, over a replica holding it
 const pageOverANote = async () => {
   const { replica } = await openDevice(createFakeCell(), "tab");
   const { id } = await replica.createNote({ blocks: [], folderId: null, tags: [], title: NOTE });
   await replica.sync();
-  await replica.write(id, {
-    annotations: [
-      {
-        createdAt: 1,
-        id: HIGHLIGHT,
-        occurrence: null,
-        op: "add",
-        parentId: null,
-        quote: "the passage",
-        text: "",
-      },
-    ],
-    ops: [],
-  });
   const { library } = fakePageLibrary({ answer: () => ({}) });
   const entry = `/library?item=${id}`;
   const router = createAppRouter(createMemoryHistory({ initialEntries: [entry] }), {
@@ -264,31 +249,6 @@ describe("what the editor asks of the page", () => {
       expect(field).toHaveProperty("value", "> the passage\n\n");
     });
     expect(document.activeElement).toBe(field);
-    await replica.close();
-  });
-
-  it("opens Highlights on the highlight it names, and brings it back when named again", async () => {
-    const replica = await pageOverANote();
-    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
-    await screen.findByRole("textbox", { name: "Title" });
-
-    act(() => {
-      getEditorHostActions().annotations.open([HIGHLIGHT]);
-    });
-
-    const passage = await screen.findByRole("button", { name: "the passage" });
-    const row = passage.closest("li");
-    expect(row?.className).toContain("ring-highlight");
-    await vi.waitFor(() => {
-      expect(scrolled).toHaveBeenCalledOnce();
-    });
-
-    act(() => {
-      getEditorHostActions().annotations.open([HIGHLIGHT]);
-    });
-    await vi.waitFor(() => {
-      expect(scrolled).toHaveBeenCalledTimes(2);
-    });
     await replica.close();
   });
 });

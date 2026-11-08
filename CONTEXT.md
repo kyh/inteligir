@@ -20,7 +20,7 @@ reach it.
 `LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
 `library:<userId>` only from a verified credential, or from what the cell itself
 gave out: a fill message or a conversation's name. It holds the items,
-their **blocks**, folders, tags, links, highlights, threads, the change log,
+their **blocks**, folders, tags, links, threads, the change log,
 change sets and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
 accounts. Not a **replica**, which a device reads while it writes through the
@@ -66,7 +66,7 @@ one top-level `:::article` container after the note
 Not a heading's stretch of a note (its outline), and not a folder.
 
 **replica** — a device's copy of the synced tables, every item, block, folder,
-tag, link, highlight, thread and thread event, in SQLite on the device: in Rust
+tag, link, thread and thread event, in SQLite on the device: in Rust
 on the Mac (`apps/desktop/src-tauri/src/replica.rs`), in expo-sqlite on the
 phone (`apps/mobile/src/lib/expo-replica-sql.ts`), in memory in the browser tab
 (`apps/workspace/src/app/cloud/page-library.ts`). It pulls the cell's change log by cursor, every
@@ -87,7 +87,7 @@ write; a later write to an item joins its row while it waits
 (`outbox-ops.ts`). A `CONFLICT` settles through the block merge and goes
 again (`outbox-settle.ts`); a refusal no resend passes is **parked** for the
 person. Not the browser extension's
-retry queue, which holds a save's url, title and selection and writes nothing
+retry queue, which holds a save's url and title and writes nothing
 until the save lands.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
@@ -152,26 +152,6 @@ of "what a line is" anywhere else is a file-corruption bug waiting to happen;
 the line diff's LF-only split (`text/line-diff`) is the one deliberate
 exception, because diff3 joins its segments back into the text's own bytes.
 Not a write unit: a block is, guarded by its hash.
-
-**annotation** — a highlighted passage of an item and an optional note on it,
-with replies under it: markers `%%i:<ids>:start%%…%%i:<ids>:end%%` around the
-passage in the item's blocks, and one entry per id among the item's rows in its
-library's `annotations` table (`@repo/notes/annotations/store-schema`; folded
-against the markers by `@repo/notes/annotations/annotation-threads`). A root whose `text` is `""` is a
-bare highlight. Not an html or code comment, which the dialect keeps as the
-note's own bytes, and not a task: it has no resolved state, and stays until it
-is removed. A root whose quote the item's text does not hold is listed
-**unplaced** under its item, and a fill that brings the page's text places it
-again; the state is derived per answer, never stored
-(`highlightSchema` in `@repo/contract/cloud/library/library-wire`).
-
-**quote vs passage** — two texts of one highlight. The **quote** is what the
-root recorded when it was made, the plain text clipped by `clipQuote`
-(`@repo/notes/annotations/store-schema`), and it never changes: a card shows
-it, the phone shows it, and a waiting highlight is placed by it. The
-**passage** is the text between its markers in the item as it reads now
-(`@repo/notes/annotations/passage-text`), `null` while unplaced; an edit inside the highlight changes the passage and leaves the
-quote.
 
 ## Items
 
@@ -250,12 +230,6 @@ classification of the import.
 
 **Unsorted** — the rail's row: every item filed in no folder. A new save lands
 there when the screen shows no folder.
-
-**Highlights** — a selection marked with ⌘⇧H or Highlight in the toolbar, with
-an optional note; the panel's **Highlights** tab lists them with their notes
-and replies (`apps/workspace/src/app/panel/annotations-tab.tsx`). Each is an
-ANNOTATION, written through the outbox like any edit; a bare one has no note.
-"Remove highlight" deletes it. There is no resolve.
 
 **Sync** — the rail footer's state: the replica's outbox and pull against the
 account's cell, worded in one place

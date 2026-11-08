@@ -14,9 +14,7 @@ the keyboard toolbar), over the phone's replica on the other end of the bridge:
 the editor holds the item's blocks under their ids
 (`@repo/editor/item/item-editor`), and a pause writes what changed as ops, each
 under the hash or value it was computed from (`src/item/item-page.tsx`,
-`src/item/item-host.ts`). A highlight and its note go to the replica as
-requests, a tap on a marked passage opens the phone's sheet of its highlights,
-and a link names its item by id, shows the name that item goes by now, and
+`src/item/item-host.ts`). A link names its item by id, shows the name that item goes by now, and
 opens it through the native stack. The phone's replica, its outbox and its
 navigation stack stay native.
 
@@ -63,15 +61,11 @@ end that receives it.
   while the phone can reach no copy),
   `keepFile` (a file pasted into the text, kept by the phone's replica and
   answered with its sha),
-  `highlightIds` (the highlights the item holds, which its marked passages
-  tint by, asked again when the item moves), `addHighlight` and
-  `noteHighlight` (a highlight the editor marked and its note, each answered
-  as queued), `createNote` (a note of blocks an extract
+  `createNote` (a note of blocks an extract
   moved, or a link's new note, made in the open item's folder and answered
   with its id) — and events:
   `editorState` (why a write failed, sent only when that changes, which the
-  screen asks about before letting the item go), `showAnnotations`
-  (the highlights a tap on a marked passage names), `openItem` (the page has
+  screen asks about before letting the item go), `openItem` (the page has
   written what it holds and asks the stack to open the item a link names),
   `flushed`.
 - Page to native, headless: `mergeAnswer { id, nonce, merged }`, a block both
@@ -93,9 +87,8 @@ headless page. Native reaches the page ONLY by `injectJavaScript` of
 on `window`, non-writable and non-configurable (`src/bridge/page-bridge.ts`):
 a message event is one a child frame's `parent.postMessage` could forge. The
 first well-formed `init` sets the nonce; a frame without it, or with another
-load's, is dropped, as is anything malformed. A highlight and its note wait as
-long as the phone takes, since the phone still queues one it answers late, and
-so do a file's read and its keep, which take as long as the download or the
+load's, is dropped, as is anything malformed. A file's read and its keep wait
+as long as the phone takes, since they take as long as the download or the
 copy across the bridge; every other request times out after `REQUEST_TIMEOUT_MS` (a write names its
 bases, so its retry finds what landed). An answer is parsed by the kind it
 answers.
@@ -104,9 +97,7 @@ answers.
 store the session reads and writes, its link-resolver store fed by the
 targets, and the `EditorHostIo` and `EditorHostActions` it installs as one
 host when the page starts; a bound formula reads the items it names through
-the same store. A highlight is the touch toolbar's: its markers go
-in as it is submitted, and its entry and quote go to the phone as
-`addHighlight`, its note as `noteHighlight`.
+the same store.
 
 ## Layout
 

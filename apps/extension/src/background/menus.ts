@@ -1,16 +1,14 @@
 // the right-click Save: one item per thing a person can point at, and what a click on each saves.
-// A page or a selection is read from the tab; a link or a web picture is saved by the address the
-// click names, which the cloud reads, and a picture a page drew from its own bytes by those bytes.
+// A page is read from the tab; a link or a web picture is saved by the address the click names, which the cloud reads, and a picture a page drew from its own bytes by those bytes.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
 
-export type MenuContext = "page" | "link" | "image" | "selection";
+export type MenuContext = "page" | "link" | "image";
 
 export const MENU_ITEMS = [
   { context: "page", id: "save-page", title: "Save page" },
   { context: "link", id: "save-link", title: "Save link" },
   { context: "image", id: "save-image", title: "Save image" },
-  { context: "selection", id: "save-selection", title: "Save as a highlight" },
 ] as const satisfies readonly { context: MenuContext; id: string; title: string }[];
 
 // the fields of a click this reads, as the browser's OnClickData names them
@@ -18,15 +16,11 @@ export interface MenuClick {
   menuItemId: string | number;
   linkUrl?: string | undefined;
   srcUrl?: string | undefined;
-  selectionText?: string | undefined;
 }
 
 export type MenuAction =
-  // read the tab, its selection included
+  // read the tab
   | { kind: "page" }
-  // read the tab for its selection; `text` is the browser's own reading of it, for a page that
-  // cannot be scripted
-  | { kind: "selection"; text: string }
   | { kind: "address"; url: string }
   | { kind: "picture"; bytes: Uint8Array<ArrayBuffer> }
   | { kind: "unsupported" };
@@ -82,9 +76,6 @@ export const menuAction = (click: MenuClick): MenuAction => {
   switch (click.menuItemId) {
     case "save-page": {
       return { kind: "page" };
-    }
-    case "save-selection": {
-      return { kind: "selection", text: click.selectionText ?? "" };
     }
     case "save-link": {
       return click.linkUrl !== undefined && isWebUrl(click.linkUrl)

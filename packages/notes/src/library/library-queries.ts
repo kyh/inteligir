@@ -7,8 +7,6 @@
 
 import { z } from "zod";
 
-import { annotationEntrySchema, annotationSourceSchema } from "../annotations/store-schema";
-import type { AnnotationStore } from "../annotations/store-schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
@@ -151,7 +149,6 @@ const ITEM_TABLES_BY_ID = [
   "DELETE FROM blocks WHERE item_id = ?",
   "DELETE FROM links WHERE source_id = ?",
   "DELETE FROM item_tags WHERE item_id = ?",
-  "DELETE FROM annotations WHERE item_id = ?",
 ] as const;
 
 const DELETE_SEARCH_ROW =
@@ -322,18 +319,14 @@ export const readLiveItems = function* readLiveItems(): SqlPlan<LiveStoredItem[]
 export interface BlockWrite {
   readonly stored: StoredBlock;
   readonly text: string;
-  readonly annotationIds: readonly string[];
 }
 
-const BLOCK_COLUMNS = "item_id, block_id, ord, section, json, hash, text, annotation_ids, seq";
+const BLOCK_COLUMNS = "item_id, block_id, ord, section, json, hash, text, seq";
 
 // the blocks of one write, each replacing its own row; `derived` is the item's derivation after
-// the write, which gives each block its text and anchored highlights
+// the write, which gives each block its text
 export const blockWritesOf = (blocks: readonly StoredBlock[], derived: DerivedItem): BlockWrite[] =>
-  blocks.map((stored) => {
-    const own = derived.blocks.get(stored.block.id);
-    return { annotationIds: own?.annotationIds ?? [], stored, text: own?.text ?? "" };
-  });
+  blocks.map((stored) => ({ stored, text: derived.blocks.get(stored.block.id)?.text ?? "" }));
 
 // each block over its own row only when that row is older, so a pulled page never takes a block
 // back; a write stores each block once, at its own sequence number
@@ -344,9 +337,9 @@ export const storeBlocks = function* storeBlocks(
 ): SqlPlan<void> {
   yield* runEach(
     chunkStatement({
-      each: "(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      each: "(?, ?, ?, ?, ?, ?, ?, ?)",
       head: `INSERT INTO blocks (${BLOCK_COLUMNS}) VALUES `,
-      rows: blocks.map(({ annotationIds, stored, text }) => [
+      rows: blocks.map(({ stored, text }) => [
         itemId,
         stored.block.id,
         stored.ord,
@@ -354,13 +347,12 @@ export const storeBlocks = function* storeBlocks(
         canonicalJson(stored.block),
         stored.hash,
         text,
-        JSON.stringify(annotationIds),
         seq,
       ]),
       separator: ", ",
       tail: ` ON CONFLICT (item_id, block_id) DO UPDATE SET ord = excluded.ord,
         section = excluded.section, json = excluded.json, hash = excluded.hash,
-        text = excluded.text, annotation_ids = excluded.annotation_ids, seq = excluded.seq
+        text = excluded.text, seq = excluded.seq
         WHERE excluded.seq > blocks.seq`,
     }),
   );
@@ -724,43 +716,6 @@ export const linksTo = (targetId: string): SqlPlan<string[]> =>
 // the live items linking to an address, by its url key: a saved link's Linked from
 export const linksToUrl = (key: string): SqlPlan<string[]> =>
   liveSourcesWhere("links.target_key = ?", key);
-
-// ---- highlights ----
-
-const annotationRowSchema = z.object({
-  created_at: z.number(),
-  id: z.string(),
-  parent_id: z.string().nullable(),
-  quote: z.string().nullable(),
-  source: annotationSourceSchema.nullable(),
-  text: z.string(),
-  updated_at: z.number(),
-});
-
-// an item's live highlights, as the store the annotation modules fold and revert
-export const readAnnotations = function* readAnnotations(itemId: string): SqlPlan<AnnotationStore> {
-  const rows = yield all(
-    `SELECT id, parent_id, text, quote, source, created_at, updated_at FROM annotations
-     WHERE item_id = ? AND deleted_at IS NULL ORDER BY created_at, id`,
-    [itemId],
-  );
-  return Object.fromEntries(
-    rows.map((raw) => {
-      const row = parseRow(raw, annotationRowSchema, "a highlight");
-      return [
-        row.id,
-        annotationEntrySchema.parse({
-          createdAt: row.created_at,
-          parentId: row.parent_id ?? undefined,
-          quote: row.quote ?? undefined,
-          source: row.source ?? undefined,
-          text: row.text,
-          updatedAt: row.updated_at,
-        }),
-      ];
-    }),
-  );
-};
 
 // ---- the change log ----
 

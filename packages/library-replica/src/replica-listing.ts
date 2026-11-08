@@ -3,19 +3,13 @@
 // laid state, so its card, tags and place read as the person wrote them; one no row names reads
 // as it landed. A body still to come leaves the card the cell sent, retitled if a field moved.
 
-import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
 import { orderedBlocks } from "@repo/notes/library/block-ops";
 import { deriveItem } from "@repo/notes/library/derive-item";
 import type { ItemCard } from "@repo/notes/library/derive-item";
 import type { ListingFolder, ListingRow } from "@repo/notes/library/library-index";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import {
-  readAnnotations,
-  readItem,
-  readItemState,
-  readLiveItems,
-} from "@repo/notes/library/library-queries";
+import { readItem, readItemState, readLiveItems } from "@repo/notes/library/library-queries";
 import type { LiveStoredItem } from "@repo/notes/library/library-queries";
 import { all } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
@@ -25,7 +19,7 @@ import { z } from "zod";
 import { itemIdsOf } from "./outbox-ops";
 import type { OutboxOp } from "./outbox-ops";
 import type { OutboxRow } from "./outbox-rows";
-import { layAnnotations, layRow } from "./overlay";
+import { layRow } from "./overlay";
 import { bodyToCome, readTagsByItem } from "./replica-rows";
 
 // an item as a screen reads it
@@ -131,21 +125,6 @@ export const readReplicaItem = function* readReplicaItem(
   const state = found === null ? null : yield* readItemState(id);
   const toCome = yield* bodyToCome(id);
   return laidItem(id, { state, stored: found, toCome }, pending);
-};
-
-// an item's highlights with its unsent writes' highlight ops laid over
-export const readReplicaAnnotations = function* readReplicaAnnotations(
-  itemId: string,
-  pending: readonly OutboxRow[],
-  nowSeconds: number,
-): SqlPlan<AnnotationStore> {
-  let store = yield* readAnnotations(itemId);
-  for (const row of pending) {
-    if (row.op.kind === "write" && row.op.itemId === itemId) {
-      store = layAnnotations(store, row.op.annotations, nowSeconds);
-    }
-  }
-  return store;
 };
 
 const uniqueTags = (tags: readonly string[]): string[] => [...new Set(tags)];

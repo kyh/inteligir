@@ -17,7 +17,6 @@ import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
-import { annotationWireRow, readAnnotationRow } from "./cell-annotations";
 import { readFolder } from "./cell-folders";
 
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
@@ -153,10 +152,6 @@ const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
     }
     case "folder": {
       return { id, kind: "folder", row: folderRowOf(sql, id), seq };
-    }
-    case "annotation": {
-      const row = entry.gone ? null : readAnnotationRow(sql, id);
-      return { id, kind: "annotation", row: row === null ? null : annotationWireRow(row), seq };
     }
     case "thread": {
       return { id, kind: "thread", row: entry.gone ? null : threadRowOf(sql, id), seq };

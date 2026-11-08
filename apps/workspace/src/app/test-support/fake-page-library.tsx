@@ -75,7 +75,6 @@ export const fakePageLibrary = ({
     },
   });
   const replica: LibraryReplica = {
-    annotations: unread,
     close: unread,
     createFile: unread,
     createNote: unread,

@@ -13,10 +13,10 @@ session's ports and the `EditorHost` singleton
 one `installEditorHost` call per host. Its
 `EditorHostIo` reads the library by its own keys (THE EDITOR'S HOST SPEAKS THE
 LIBRARY) and carries the link resolver store, so no host writes its own; its
-`EditorHostActions` (Ask agent, `showTag`, a highlight's create, note and
-open, and a new note, all required) are how a deep node asks the shell. The
-item editor provides the id of the item it shows (`open-item.tsx`), which a
-highlight's tint, a heading's fold and an embed's cycle check are keyed by.
+`EditorHostActions` (Ask agent, `showTag` and a new note, all required) are
+how a deep node asks the shell. The item editor provides the id of the item it
+shows (`open-item.tsx`), which a heading's fold and an embed's cycle check are
+keyed by.
 `static-note.tsx` draws an item's blocks read-only, for an embed. `node-props.ts` is the
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
@@ -72,9 +72,8 @@ alone, and no walk narrows structurally.
   `[[#H]]` / `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe
   starts the alias, an anchor alone stays in its own item, a link by id may hold
   no title while its item has none, and a body that reaches nothing is kept as
-  its source), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%`
-  annotation markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub
-  alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
+  its source), `{{source|display|meta}}` formula pills, `@2026-08-22` date
+  chips, `<u>…</u>` underline, GitHub alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, the top-level `:::article` that holds the page a
   fill read, and `![](url)` embeds, all valid, round-tripping markdown, the
@@ -86,7 +85,7 @@ alone, and no walk narrows structurally.
   writes plain `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
-  TEXT.** Pills, dates, annotation markers and `:::` lines are read from
+  TEXT.** Pills, dates and `:::` lines are read from
   finished text, so a backslash before one's first character keeps it text
   (`\@2026-08-22`), and the serializer writes that escape before typed text the
   next parse would read as one, so what a person types stays text. A
@@ -140,7 +139,7 @@ alone, and no walk narrows structurally.
   `packages/editor/src/touch-toolbar.tsx`.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Six tables own every chord, each walked by its handler; the marks'
+  literal.** Five tables own every chord, each walked by its handler; the marks'
   table builds Plate's shortcut config, so Plate's defaults never run. Every
   label and key glyph (`KEY_CAPS`) derives from those rows
   (`@repo/ui/lib/hotkey-spelling`). A chord two tables share is refused (both
@@ -163,9 +162,8 @@ alone, and no walk narrows structurally.
 - **AN EXTRACT IS ONE HISTORY BATCH, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
   extract asks the host for a note of the very blocks it moves, as the item
   stores them, in the open item's folder (`items.createNote`, which a link's
-  Create asks too), before touching the item; it refuses blocks anchoring a
-  highlight (the entry is this item's row) and lands the removal and a link to
-  the note by its id in one change, so one undo restores both and the next
+  Create asks too), before touching the item, and lands the removal and a link
+  to the note by its id in one change, so one undo restores both and the next
   pause writes them. The note stays: its create and the item's write are two
   writes. Rejected: create-or-reuse by title (an item of that name counts as
   success and the blocks are lost); the blocks sent as markdown (their ids and
@@ -208,27 +206,6 @@ alone, and no walk narrows structurally.
   `analyzeMarkdown` names one that would a loss
   (`packages/editor/src/markdown-fixpoint.test.ts`).
   `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
-
-- **ANNOTATION MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
-  DECORATION.** Markers pair in document order over the whole note, since a
-  block annotation is a marker line above a fence and another below it. The
-  ranges are the root's alone, since a per-text decoration leaves an untouched
-  middle block's tint stale. An extent inside one top-level block is kept by
-  that block, relative to it, so a keystroke elsewhere re-pairs without
-  measuring it. Rejected: pairing per block (a two-paragraph annotation draws as
-  two orphans) and refusing a selection that crosses blocks.
-  `packages/editor/src/annotations/annotation-ranges.ts`.
-
-- **AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND.** ⌘⇧H and both
-  toolbars' Highlight are one gesture, `highlightSelection`: it writes the
-  markers and at once asks the host for the bare entry, its quote clipped by
-  `clipQuote` rather than refused; a refusal takes the markers out. A selection
-  with no text offers no Highlight. The optional note comes after, in the
-  desktop's popover or the touch field; an empty one keeps the bare highlight.
-  The tint is `--highlight`, an id the store lacks a dotted underline, and only
-  a note or reply earns a gutter dot (`notedIds`). Rejected: an entry written
-  only on Save (no bare highlight), and resolve (a reading mark is not a task).
-  `packages/editor/src/annotations/annotation-kit.tsx`.
 
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
@@ -319,13 +296,13 @@ alone, and no walk narrows structurally.
   codec only names what the dialect spells by words: a link's title to its
   item's id on the way in (`read-blocks.ts`), and on the way out an id to the
   name the caller spells it with and a sha to a path (`write-blocks.ts`).
-  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only,
-  off its tree ahead of the settle, where an escape still shows, so text a
-  person typed that looks like one comes back as text; a `ref` is a node of its
-  own from there to the block, written bare where typed text is escaped.
-  Rejected: reading them from the settled value (an escape is gone there, so a
-  written `x\==1==y` came back a highlight), and from text a page wrote (the
-  page keeps its words). `packages/notes/src/markdown/remark-obsidian.ts`.
+  Obsidian's `%%x%%` and `^ref` read in the note's section only, off its tree
+  ahead of the settle, where an escape still shows, so text a person typed that
+  looks like one comes back as text; a `ref` is a node of its own from there to
+  the block, written bare where typed text is escaped. Its `==mark==` is the
+  text it spells, since an item keeps no highlight. Rejected: reading them from
+  the settled value (an escape is gone there, so a written `50\%% or 60%%` came
+  back a comment), and from text a page wrote (the page keeps its words). `packages/notes/src/markdown/remark-obsidian.ts`.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
@@ -339,8 +316,7 @@ alone, and no walk narrows structurally.
   equation holds no fence meta and a person who opens `$$ E = mc^2` wrote it
   there. An agent's edit must match once, keep the article's own lines and nest
   no deeper than the editor reads; only the blocks it spans are read again,
-  matched by content so the rest keep their ids and markers, and a highlight it
-  took either edge of is named. Rejected: a second markdown grammar for import
+  matched by content so the rest keep their ids. Rejected: a second markdown grammar for import
   (two readings drift) and re-reading a whole item per edit (every block's id
   would turn over).
   `packages/editor/src/markdown/md-rules.ts`,
@@ -436,15 +412,12 @@ alone, and no walk narrows structurally.
   second line, so the read cuts a cell at it. An image is a block wherever it
   stands in a cell, so a tag beside one, a space between them or not, is the
   edge it already has. A cell settles on its first write, and its two lines
-  stay two through an edit or a highlight anywhere in the table. The text a
-  quote is matched in reads the tag as that same edge, so a quote across the
-  two lines places. Only the writer's spelling is the boundary: `<br>` stays
-  the tag it is. Rejected: holding the tag as source (a re-read of the table
+  stay two through an edit anywhere in the table. Only the writer's spelling is
+  the boundary: `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of the table
   would turn a person's second line into a tag), an inline image in a cell (a
   second image node for one place), and a writer that drops the tag beside an
   image (it would filter Plate's private output).
-  `packages/editor/src/markdown/md-rules.ts`,
-  `packages/notes/src/annotations/passage-text.ts`.
+  `packages/editor/src/markdown/md-rules.ts`.
 
 ## The open item's merge
 

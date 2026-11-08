@@ -81,16 +81,7 @@ const setBase = (clone: Element, baseUri: string): void => {
   }
 };
 
-const selectionOf = (selection: Selection | null, options: CaptureOptions): string | null => {
-  const text = (selection?.toString() ?? "").trim();
-  return text === "" ? null : text.slice(0, options.selectionMaxChars);
-};
-
-export const serializePage = (
-  source: Document,
-  selection: Selection | null,
-  options: CaptureOptions,
-): CapturedPage => {
+export const serializePage = (source: Document, options: CaptureOptions): CapturedPage => {
   const cloneNode = source.documentElement.cloneNode(true);
   const clone = cloneNode instanceof Element ? cloneNode : null;
   let html: string | null = null;
@@ -105,7 +96,6 @@ export const serializePage = (
   }
   return {
     html,
-    selection: selectionOf(selection, options),
     title: source.title.trim().slice(0, options.titleMaxChars),
     url: source.URL,
   };

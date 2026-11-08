@@ -9,7 +9,6 @@ import { fileSha, ReplicaClosedError } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
-import type { WriteOp } from "./outbox-ops";
 import type { LibraryReplica } from "./library-replica";
 import type { BlockMerge, ReplicaTransport } from "./replica-ports";
 import { deferred, nextTurn } from "./test-support/deferred";
@@ -921,36 +920,6 @@ describe("what the screens read", () => {
     expect(phone.replica.scopes().total).toBe(1);
   });
 
-  it("shows a highlight this device added before the cell holds it", async () => {
-    const cell = createFakeCell();
-    const phone = await openDevice(cell, "phone");
-    const id = await landedNote(cell, phone);
-    phone.network.setOffline(true);
-    await phone.replica.write(id, {
-      annotations: [
-        {
-          createdAt: 1_700_000_000,
-          id: "h1",
-          occurrence: null,
-          op: "add",
-          parentId: null,
-          quote: "first",
-          text: "worth keeping",
-        },
-      ],
-      ops: [],
-    });
-    await expect(phone.replica.annotations(id)).resolves.toMatchObject({
-      h1: { quote: "first", source: "user", text: "worth keeping" },
-    });
-    phone.network.setOffline(false);
-    await phone.replica.sync();
-    expect(cell.annotation("h1")?.text).toBe("worth keeping");
-    await expect(phone.replica.annotations(id)).resolves.toMatchObject({
-      h1: { text: "worth keeping" },
-    });
-  });
-
   it("forgets every row and unsent write on a wipe", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
@@ -1736,27 +1705,6 @@ describe("a save the cell folds onto another item", () => {
     await again.replica.sync();
     expect(again.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
     expect(cellText(cell, holder, "n1")).toBe("my note");
-  });
-
-  it("reads the highlights of the item a screen open on the card landed on", async () => {
-    const cell = createFakeCell();
-    const phone = await openDevice(cell, "phone");
-    const { card, holder } = await savedOnBoth(cell, phone);
-    phone.network.setOffline(false);
-    await phone.replica.sync();
-
-    const added: WriteOp["annotations"][number] = {
-      createdAt: 1,
-      id: "h1",
-      occurrence: null,
-      op: "add",
-      parentId: null,
-      quote: "a passage",
-      text: "",
-    };
-    await phone.replica.write(holder, { annotations: [added], ops: [] });
-
-    await expect(phone.replica.annotations(card)).resolves.toHaveProperty("h1");
   });
 
   it("says a merge on the item to a screen still open on the card", async () => {

@@ -39,25 +39,19 @@ const SHA = "a".repeat(64);
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
-  addHighlight: { queued: true },
   createNote: { id: ITEM },
-  highlightIds: { ids: ["c1"] },
   item: { item: null },
   keepFile: { sha: SHA },
   linkTargets: { targets: [{ id: ITEM, title: "Plans" }] },
-  noteHighlight: { queued: false },
   readFile: { file: { base64: "iVBORw==", mediaType: "image/png" } },
   writeItem: { kind: "missing" },
 } satisfies { [K in RequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
-  addHighlight: { id: "c1", itemId: ITEM, quote: "a passage" },
   createNote: { besideId: ITEM, blocks: [], title: "Moved" },
-  highlightIds: { itemId: ITEM },
   item: { itemId: ITEM },
   keepFile: { base64: "iVBORw==", mediaType: "image/png" },
   linkTargets: {},
-  noteHighlight: { id: "c1", itemId: ITEM, text: "why?" },
   readFile: { sha: SHA },
   writeItem: { itemId: ITEM, ops: [] },
 } satisfies { [K in RequestKind]: RequestPayload<K> };
@@ -66,12 +60,9 @@ const KINDS: readonly RequestKind[] = [
   "item",
   "writeItem",
   "linkTargets",
-  "addHighlight",
-  "noteHighlight",
   "createNote",
   "readFile",
   "keepFile",
-  "highlightIds",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
@@ -79,12 +70,9 @@ const requestFrames = (nonce: string): PageFrame[] => [
   { id: 0, kind: "item", nonce, payload: PAYLOADS.item, type: "request" },
   { id: 1, kind: "writeItem", nonce, payload: PAYLOADS.writeItem, type: "request" },
   { id: 2, kind: "linkTargets", nonce, payload: PAYLOADS.linkTargets, type: "request" },
-  { id: 3, kind: "addHighlight", nonce, payload: PAYLOADS.addHighlight, type: "request" },
-  { id: 4, kind: "noteHighlight", nonce, payload: PAYLOADS.noteHighlight, type: "request" },
-  { id: 5, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
-  { id: 6, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
-  { id: 7, kind: "keepFile", nonce, payload: PAYLOADS.keepFile, type: "request" },
-  { id: 8, kind: "highlightIds", nonce, payload: PAYLOADS.highlightIds, type: "request" },
+  { id: 3, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
+  { id: 4, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
+  { id: 5, kind: "keepFile", nonce, payload: PAYLOADS.keepFile, type: "request" },
 ];
 
 interface PortCall {
@@ -95,25 +83,13 @@ interface PortCall {
 const recordingPorts = () => {
   const calls: PortCall[] = [];
   const ports: EditorRequestPorts = {
-    addHighlight: async (payload) => {
-      calls.push({ kind: "addHighlight", payload });
-      return PORT_ANSWERS.addHighlight;
-    },
     createNote: async (payload) => {
       calls.push({ kind: "createNote", payload });
       return PORT_ANSWERS.createNote;
     },
-    highlightIds: async (payload) => {
-      calls.push({ kind: "highlightIds", payload });
-      return PORT_ANSWERS.highlightIds;
-    },
     item: async (payload) => {
       calls.push({ kind: "item", payload });
       return PORT_ANSWERS.item;
-    },
-    noteHighlight: async (payload) => {
-      calls.push({ kind: "noteHighlight", payload });
-      return PORT_ANSWERS.noteHighlight;
     },
     keepFile: async (payload) => {
       calls.push({ kind: "keepFile", payload });
@@ -308,11 +284,9 @@ describe("the native end of the editor page's bridge", () => {
     const nonce = load();
     fromPage({ itemId: OTHER, nonce, type: "openItem" });
     fromPage({ nonce, saveError: "the library is full", type: "editorState" });
-    fromPage({ ids: ["c1"], nonce, type: "showAnnotations" });
     expect(events).toStrictEqual([
       { itemId: OTHER, nonce, type: "openItem" },
       { nonce, saveError: "the library is full", type: "editorState" },
-      { ids: ["c1"], nonce, type: "showAnnotations" },
     ]);
 
     let answered: boolean | null = null;

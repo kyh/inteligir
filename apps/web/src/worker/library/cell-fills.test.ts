@@ -96,24 +96,6 @@ describe("a page's reading, landed", () => {
     });
   });
 
-  it("places the passage a link was saved with once the reading holds its text", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const url = "https://pages.example/selected";
-      const saved = await library.items.saveLink({ selection: "the passage itself", url });
-      openCellLibrary(state, env).landReading(
-        read({ itemId: saved.item.id, url }, [
-          paragraph("p1", "Before it, the passage itself, and after."),
-        ]),
-      );
-      const { highlights } = await library.annotations.list({ itemId: saved.item.id });
-      expect(highlights).toStrictEqual([
-        expect.objectContaining({ placed: true, quote: "the passage itself" }),
-      ]);
-    });
-  });
-
   it("never touches the person's note or a title they gave while it waited", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
@@ -151,7 +133,7 @@ describe("a page's reading, landed", () => {
     });
   });
 
-  it("replaces a refreshed page's article and places its highlights again by their quotes", async () => {
+  it("replaces a refreshed page's article", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const library = libraryIn(state, accountId);
@@ -160,8 +142,6 @@ describe("a page's reading, landed", () => {
       const { id } = saved.item;
       const engine = openCellLibrary(state, env);
       engine.landReading(read({ itemId: id, url }, [paragraph("old", "Alpha beta gamma.")]));
-      const added = await library.annotations.add({ itemId: id, quote: "beta" });
-      expect(added.highlight.placed).toBe(true);
       await library.items.refresh({ id });
       engine.landReading(
         read({ itemId: id, url }, [paragraph("new", "Alpha beta gamma, read again.")]),
@@ -170,7 +150,6 @@ describe("a page's reading, landed", () => {
         (b) => b.section === "article",
       );
       expect(article.map((stored) => stored.block.id)).toStrictEqual(["new"]);
-      expect(JSON.stringify(article)).toContain(added.highlight.id);
     });
   });
 

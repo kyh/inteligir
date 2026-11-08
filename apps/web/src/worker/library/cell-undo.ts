@@ -14,7 +14,6 @@ import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-import { readAnnotationRows, restoreAnnotationStore } from "./cell-annotations";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
@@ -39,10 +38,8 @@ const setRowSchema = z.object({
 });
 
 const setItemSchema = z.object({
-  after_annotations: z.string().nullable(),
   after_fields: z.string().nullable(),
   after_manifest: z.string().nullable(),
-  before_annotations: z.string().nullable(),
   before_fields: z.string().nullable(),
   before_manifest: z.string().nullable(),
   item_id: z.string(),
@@ -84,31 +81,25 @@ const fillsOf = (sql: SqlStatements, itemId: string): FillChange[] =>
 const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> => {
   const changes = new Map<string, ItemChange>();
   for (const raw of sql.all(
-    `SELECT item_id, before_fields, before_manifest, before_annotations, after_fields,
-       after_manifest, after_annotations FROM change_set_items WHERE change_set_id = ?`,
+    `SELECT item_id, before_fields, before_manifest, after_fields, after_manifest
+     FROM change_set_items WHERE change_set_id = ?`,
     [setId],
   )) {
     const row = setItemSchema.parse(raw);
-    if (
-      row.after_fields === null ||
-      row.after_manifest === null ||
-      row.after_annotations === null
-    ) {
+    if (row.after_fields === null || row.after_manifest === null) {
       continue;
     }
     const after = readSnapshot(sql, row.item_id, {
-      annotations: row.after_annotations,
       fields: row.after_fields,
       manifest: row.after_manifest,
     });
     changes.set(
       row.item_id,
-      row.before_fields === null || row.before_manifest === null || row.before_annotations === null
+      row.before_fields === null || row.before_manifest === null
         ? { after, before: null, fills: fillsOf(sql, row.item_id) }
         : {
             after,
             before: readSnapshot(sql, row.item_id, {
-              annotations: row.before_annotations,
               fields: row.before_fields,
               manifest: row.before_manifest,
             }),
@@ -177,15 +168,10 @@ export const undoChangeSets = (
       kept.add(itemId);
       continue;
     }
-    const rows = readAnnotationRows(storage, itemId);
     try {
       const landed = landItem(scope, {
         after: undo.now.state,
-        annotations: restoreAnnotationStore(rows, undo.now.annotations, {
-          itemId,
-          nowSeconds: Math.floor(now / 1000),
-        }),
-        before: { rows, state: current.state },
+        before: current.state,
         itemId,
       });
       // no turn to hold it for: the built-in agent has no undo

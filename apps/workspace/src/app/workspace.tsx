@@ -1,5 +1,5 @@
 // The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
-// the right panel (Info, Highlights, the agent), over the replica the page holds. Every
+// the right panel (Info, the agent), over the replica the page holds. Every
 // screen reads the replica and writes through its outbox; what only the cell answers goes as a
 // call that needs a connection. A link or a file pasted or dropped where no field takes it is
 // saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
@@ -150,7 +150,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [tidying, setTidying] = useState(false);
   // a passage the editor asked the agent about, until the composer takes it
   const [passage, setPassage] = useState<string | null>(null);
-  const [namedHighlights, setNamedHighlights] = useState<readonly string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -204,17 +203,12 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
 
-  // the editor's host, made once for the page: links open items, the chord's highlight lands on
-  // the item open now, "Ask the agent" quotes the passage in the panel's composer, and a click on
-  // a highlight opens Highlights on it
+  // the editor's host, made once for the page: links open items, a note the editor makes lands
+  // beside the item open now, and "Ask the agent" quotes the passage in the panel's composer
   const hostAsksAgent = useEffectEvent((asked: string) => {
     setTidying(false);
     revealPanel("agent");
     setPassage(asked);
-  });
-  const hostNamesHighlights = useEffectEvent((ids: readonly string[]) => {
-    revealPanel("annotations");
-    setNamedHighlights([...ids]);
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -226,7 +220,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   useEffect(() => {
     const host = installPageEditorHost({
       askAgent: hostAsksAgent,
-      openAnnotations: hostNamesHighlights,
       openItem: hostOpens,
       readFile,
       replica,
@@ -465,7 +458,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     void (async () => {
       if (
         !(await confirm({
-          body: "Their text, files and highlights are gone for good. This can't be undone.",
+          body: "Their text and files are gone for good. This can't be undone.",
           confirmLabel: "Delete forever",
           destructive: true,
           title: `Delete ${plural(rows.length, "item")} forever?`,
@@ -725,7 +718,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   onPassageTaken={() => {
                     setPassage(null);
                   }}
-                  namedHighlights={namedHighlights}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     await sessionRef.current?.flush();

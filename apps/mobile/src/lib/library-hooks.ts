@@ -1,5 +1,5 @@
 // The screens' reads of the library this phone holds, each kept current with the replica's change
-// feed: the listing from memory, an item, its highlights and the conversations from the replica's
+// feed: the listing from memory, an item and the conversations from the replica's
 // SQL (every one with this phone's unsent writes laid over, and every one offline), the reply the
 // agent is writing from the socket, and a file's address from the file cache. The signed-in library
 // comes down through one context the root provides, so no screen holds a runtime of its own.
@@ -13,7 +13,6 @@ import type {
   ReplicaListingRow,
   ReplicaStatus,
 } from "@repo/library-replica/library-replica";
-import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { watchFile } from "../files/watch-file";
 import type { PhoneLibrary } from "./compose-runtime";
 
@@ -44,7 +43,7 @@ const useChanges = (moved: (change: ReplicaChange) => boolean): number => {
 };
 
 const anyItem = (change: ReplicaChange): boolean =>
-  change.kinds.has("item") || change.kinds.has("folder") || change.kinds.has("annotation");
+  change.kinds.has("item") || change.kinds.has("folder");
 
 // the listing is the replica's memory, which moves under a render, so the change it is read after
 // is an argument: the React Compiler keys a call on its arguments, and drops a memo dependency the
@@ -95,15 +94,6 @@ export const useItem = (itemId: string): ReplicaItem | null | undefined => {
   return useReplicaRead(
     `item:${itemId}`,
     async () => await replica.item(itemId),
-    (change) => change.ids.has(itemId),
-  );
-};
-
-export const useAnnotations = (itemId: string): AnnotationStore | undefined => {
-  const { replica } = useLibrary();
-  return useReplicaRead(
-    `annotations:${itemId}`,
-    async () => await replica.annotations(itemId),
     (change) => change.ids.has(itemId),
   );
 };

@@ -9,8 +9,6 @@ import { isLibraryTool, libraryTools } from "./library-tools";
 // the tools exactly as a client lists them, in the contract's own order: name, title and the
 // hints it reads before calling
 const TOOLS = [
-  ["list_highlights", "List highlights", { openWorldHint: false, readOnlyHint: true }],
-  ["add_highlight", "Add a highlight", { destructiveHint: false, openWorldHint: false }],
   ["list_items", "List items", { openWorldHint: false, readOnlyHint: true }],
   ["read_item", "Read an item", { openWorldHint: false, readOnlyHint: true }],
   ["create_note", "Create a note", { destructiveHint: false, openWorldHint: false }],
@@ -62,10 +60,6 @@ const router = os.router({
     setEnabled: os.agent.setEnabled.handler(unimplemented),
     setRules: os.agent.setRules.handler(unimplemented),
     status: os.agent.status.handler(unimplemented),
-  },
-  annotations: {
-    add: os.annotations.add.handler(unimplemented),
-    list: os.annotations.list.handler(unimplemented),
   },
   folders: { write: os.folders.write.handler(unimplemented) },
   history: {

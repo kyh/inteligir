@@ -23,7 +23,6 @@ const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
   savedAt: NOW - 1000,
-  selection: "a passage",
   title: "File over app",
   url: "https://example.test/file-over-app",
   ...overrides,
@@ -35,7 +34,7 @@ const depsWith = (cloud: ReturnType<typeof fakeCloud>) => ({
 });
 
 describe("a save that waits", () => {
-  it("keeps the address, the title and the passage, and holds the alarm while it waits", async () => {
+  it("keeps the address and the title, and holds the alarm while it waits", async () => {
     await markWaiting(waiting({ firstTry: true }));
     await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
@@ -46,7 +45,7 @@ describe("a save that waits", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
-  it("is sent as its link, the passage with it, and goes, and the alarm with the last of them", async () => {
+  it("is sent as its link and goes, and the alarm with the last of them", async () => {
     await keepSave(waiting());
     const cloud = fakeCloud({});
     await sendQueued(depsWith(cloud));
@@ -55,7 +54,6 @@ describe("a save that waits", () => {
         id: waiting().id,
         opId: waiting().opId,
         savedAt: waiting().savedAt,
-        selection: "a passage",
         title: "File over app",
         url: "https://example.test/file-over-app",
       },

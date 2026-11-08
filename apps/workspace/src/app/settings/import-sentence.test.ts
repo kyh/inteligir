@@ -7,7 +7,6 @@ const JOB = {
   alreadySaved: 0,
   changeSetId: null,
   finishedAt: null,
-  highlights: 0,
   id: "0199a4c2-0000-7000-8000-0000000000aa",
   message: null,
   skipped: 0,

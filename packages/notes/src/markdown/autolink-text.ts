@@ -1,7 +1,7 @@
 // A link whose bytes are its own address needs no label, but only where those bytes read back as
 // that link in that place: gfm cuts a literal's trailing punctuation, runs it on to the next space,
 // and wants no word before it. So the answer is gfm's own, over the bytes the link would stand
-// among, and the writer and the passage projection both hear the same one.
+// among.
 
 import type { Delete, Emphasis, Link, Nodes, Parents, PhrasingContent, Strong } from "mdast";
 import type { Handle, Info, State } from "mdast-util-to-markdown";
@@ -74,6 +74,7 @@ interface LinkNode {
 }
 
 // a title has no bare spelling, so a link with one keeps its label whatever the label says
+/** @internal */
 export const isBareLink = (
   { children = [], title, url = "" }: LinkNode,
   beside: Beside,
