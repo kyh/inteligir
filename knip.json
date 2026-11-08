@@ -17,13 +17,8 @@
       "project": [".github/scripts/*.mjs"]
     },
     "apps/desktop": {
-      // the isolation app's hook, which Tauri inlines into the frame every message to the shell
-      // passes through (src-tauri/tauri.conf.json's `pattern`); scripts/ packages and releases it
-      "entry": ["scripts/*.ts", "isolation/index.js!"],
-      "project": ["scripts/*.ts"],
-      // a build output, never a module: src-tauri/tauri.conf.json embeds the page's build, and the
-      // edge orders that build before the shell's
-      "ignoreDependencies": ["@repo/workspace"]
+      "entry": ["scripts/*.ts"],
+      "project": ["scripts/*.ts"]
     },
     "apps/workspace": {
       "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"],

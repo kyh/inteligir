@@ -5,28 +5,24 @@
   "version": "../package.json",
   "identifier": "com.inteligir.desktop",
   "build": {
-    "frontendDist": "../../workspace/dist",
+    "devUrl": "http://localhost:5174/library",
+    "frontendDist": "https://inteligir.com/library",
     "removeUnusedCommands": true
   },
   "app": {
-    "windows": [],
-    "security": {
-      "pattern": { "use": "isolation", "options": { "dir": "../isolation" } },
-      "csp": {
-        "default-src": "'self'",
-        "script-src": "'self'",
-        "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: blob: inteligir-files:",
-        "media-src": "'self' blob: inteligir-files:",
-        "object-src": "inteligir-files:",
-        "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost inteligir-files: https://inteligir.com wss://inteligir.com",
-        "base-uri": "'self'",
-        "form-action": "'none'",
-        "frame-ancestors": "'none'",
-        "worker-src": "'none'"
+    "windows": [
+      {
+        "label": "main",
+        "title": "Inteligir",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "dragDropEnabled": false,
+        "zoomHotkeysEnabled": true,
+        "create": false
       }
-    }
+    ]
   },
   "bundle": {
     "active": true,

@@ -2,12 +2,11 @@
   "name": "@repo/desktop",
   "version": "0.6.0",
   "private": true,
-  "description": "The Inteligir Mac app: a Tauri window over the library's page the bundle carries, with the account's replica, its credential and its files in Rust.",
+  "description": "The Inteligir Mac app: a Tauri window on the library's page the site serves, with the stock updater.",
   "author": "kyh",
   "type": "module",
   "scripts": {
-    "build:shell": "tauri build --debug --no-bundle --config src-tauri/tauri.local.conf.json",
-    "dev": "tauri dev --no-dev-server --config src-tauri/tauri.local.conf.json",
+    "dev": "tauri dev --config src-tauri/tauri.local.conf.json",
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "package": "node scripts/package.ts",
@@ -18,7 +17,6 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@repo/workspace": "workspace:*",
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
     "typescript": "catalog:",

@@ -1,250 +1,272 @@
-//! Tauri's updater makes the moves; this owns the policy (`update_state.rs`). A check runs 15
-//! seconds after launch and every 4 minutes after; one that finds an update downloads it in the
-//! background, the plugin verifying its signature, and a verified download installs when the app
-//! quits, so the next launch is the new version, and nothing restarts the app under the person.
-//! Restart to Update, in the app menu and in Settings, installs it and relaunches at once. Either
-//! way out first has the page write the open item's last edit to the outbox on disk
-//! (`leaving.rs`), so a quit to install loses no edit the page held. The page holds no updater
-//! permission: it mirrors this state from the `update-state` event and asks through the shell's own
-//! commands.
+//! The update flow, behind three commands and one event the shell owns. The page is deployed apart
+//! from the installed shell, so it speaks this contract rather than the updater plugin's own API,
+//! and holds no plugin permission. Nothing moves without the person: the page checks when it
+//! loads, and the download and the restart each wait for a click.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, SystemTime};
 
-use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_dialog::MessageDialogKind;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_updater::{Update, UpdaterExt};
-use time::OffsetDateTime;
-use time::format_description::BorrowedFormatItem;
-use time::macros::format_description;
 
-use crate::dialogs;
-use crate::update_state::{UpdateState, UpdateStatus};
+/// The event the page listens for (`apps/workspace/src/shell/desktop-bridge.ts`).
+const UPDATE_STATE_EVENT: &str = "update-state";
 
-pub const UPDATE_STATE_EVENT: &str = "update-state";
-pub const STARTUP_DELAY: Duration = Duration::from_secs(15);
-pub const POLL_INTERVAL: Duration = Duration::from_secs(4 * 60);
-
-const STAMP: &[BorrowedFormatItem<'_>] =
-    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
-
-fn now() -> String {
-    OffsetDateTime::from(SystemTime::now())
-        .format(STAMP)
-        .unwrap_or_default()
+/// Mirrored by `updateStateSchema` in `apps/workspace/src/shell/desktop-bridge.ts`, which parses it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum UpdateState {
+    #[default]
+    Idle,
+    Checking,
+    NotAvailable,
+    Available {
+        version: String,
+    },
+    Downloading {
+        #[serde(rename = "downloadPercent")]
+        download_percent: u8,
+    },
+    Downloaded {
+        version: String,
+    },
+    Error {
+        message: String,
+    },
 }
 
-struct Inner {
+#[derive(Default)]
+struct Session {
     state: UpdateState,
-    /// The verified bytes of the ready update, with the update they install.
-    ready: Option<(Update, Vec<u8>)>,
+    /// The release a check found, until it is downloaded.
+    found: Option<Update>,
+    /// The release and its verified bytes, until they are installed.
+    downloaded: Option<(Update, Vec<u8>)>,
 }
 
 pub struct Updates {
-    inner: Mutex<Inner>,
-}
-
-/// Why a build never checks: a shell with no bundle to replace, and one with no feed configured.
-pub fn disabled_reason(configured: bool, bundled: bool) -> Option<&'static str> {
-    if !bundled {
-        Some("Automatic updates are only available in the packaged app.")
-    } else if !configured {
-        Some("This build carries no update feed.")
-    } else {
-        None
-    }
+    enabled: bool,
+    session: Mutex<Session>,
 }
 
 impl Updates {
-    pub fn new(current_version: &str, disabled: Option<&str>) -> Self {
+    /// Off under `tauri dev`, and until the updater is configured: there is no feed to read.
+    pub fn new(enabled: bool) -> Self {
         Self {
-            inner: Mutex::new(Inner {
-                state: UpdateState::initial(current_version, disabled),
-                ready: None,
-            }),
+            enabled,
+            session: Mutex::default(),
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, Inner> {
-        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+    pub fn enabled(&self) -> bool {
+        self.enabled
     }
 
-    pub fn state(&self) -> UpdateState {
-        self.lock().state.clone()
+    fn lock(&self) -> MutexGuard<'_, Session> {
+        self.session.lock().unwrap_or_else(PoisonError::into_inner)
     }
+}
 
-    /// Moves the state on and tells the page; the menu follows whether an update is ready.
-    fn transition(&self, app: &AppHandle, next: impl FnOnce(&mut Inner) -> UpdateState) {
-        let ready_moved = {
-            let mut inner = self.lock();
-            let next = next(&mut inner);
-            if inner.state == next {
-                return;
-            }
-            let was_ready = inner.state.installs_on_quit().is_some();
-            inner.state = next;
-            if let Err(error) = app.emit(UPDATE_STATE_EVENT, &inner.state) {
-                eprintln!("[updater] could not tell the page: {error}");
-            }
-            was_ready != inner.state.installs_on_quit().is_some()
-        };
-        if ready_moved {
-            crate::menu::rebuild(app);
+fn announce<R: Runtime>(app: &AppHandle<R>, state: &UpdateState) {
+    if let Err(error) = app.emit(UPDATE_STATE_EVENT, state) {
+        eprintln!("[desktop] could not send the update state: {error}");
+    }
+}
+
+/// Records the state and tells the page. Never called with the session locked.
+fn publish<R: Runtime>(app: &AppHandle<R>, state: UpdateState) -> UpdateState {
+    app.state::<Updates>().lock().state = state.clone();
+    announce(app, &state);
+    state
+}
+
+fn failed<R: Runtime>(app: &AppHandle<R>, error: &tauri_plugin_updater::Error) -> UpdateState {
+    publish(
+        app,
+        UpdateState::Error {
+            message: error.to_string(),
+        },
+    )
+}
+
+fn percent(received: u64, total: u64) -> u8 {
+    if total == 0 {
+        return 0;
+    }
+    u8::try_from(received.saturating_mul(100) / total).map_or(100, |value| value.min(100))
+}
+
+pub async fn check<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
+    let updates = app.state::<Updates>();
+    {
+        // tested and claimed under one lock, so a second check never starts beside the first
+        let mut session = updates.lock();
+        let busy = matches!(
+            session.state,
+            UpdateState::Checking
+                | UpdateState::Downloading { .. }
+                | UpdateState::Downloaded { .. }
+        );
+        if !updates.enabled || busy {
+            return session.state.clone();
         }
+        session.state = UpdateState::Checking;
     }
-}
+    announce(app, &UpdateState::Checking);
 
-fn updates(app: &AppHandle) -> tauri::State<'_, Updates> {
-    app.state::<Updates>()
-}
-
-/// Asks the feed; an update it names starts downloading in the background, and the state that
-/// says so is answered at once.
-pub async fn check(app: &AppHandle, reason: &str) -> UpdateState {
-    let updates = updates(app);
-    let mut started = false;
-    updates.transition(app, |inner| {
-        started = inner.state.may_check();
-        inner.state.check_started(&now())
-    });
-    if !started {
-        return updates.state();
-    }
-    println!("[updater] checking for updates ({reason})");
     let found = match app.updater() {
-        Ok(checker) => checker.check().await.map_err(|error| error.to_string()),
-        Err(error) => Err(error.to_string()),
+        Ok(feed) => feed.check().await,
+        Err(error) => Err(error),
     };
     match found {
         Ok(Some(update)) => {
-            println!(
-                "[updater] update available: {}; downloading",
-                update.version
-            );
-            updates.transition(app, |inner| inner.state.update_found(&update.version));
-            let downloading = app.clone();
-            tauri::async_runtime::spawn(async move { download(&downloading, update).await });
+            let version = update.version.clone();
+            updates.lock().found = Some(update);
+            publish(app, UpdateState::Available { version })
         }
-        Ok(None) => updates.transition(app, |inner| inner.state.no_update()),
-        Err(message) => updates.transition(app, |inner| inner.state.failure(&message)),
+        Ok(None) => publish(app, UpdateState::NotAvailable),
+        Err(error) => failed(app, &error),
     }
-    updates.state()
 }
 
-async fn download(app: &AppHandle, update: Update) {
-    let updates = updates(app);
+pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
+    let updates = app.state::<Updates>();
+    let starting = UpdateState::Downloading {
+        download_percent: 0,
+    };
+    let update = {
+        let mut session = updates.lock();
+        let available = matches!(session.state, UpdateState::Available { .. });
+        match session.found.take() {
+            Some(update) if available => {
+                session.state = starting.clone();
+                update
+            }
+            other => {
+                session.found = other;
+                return session.state.clone();
+            }
+        }
+    };
+    announce(app, &starting);
+
     let mut received: u64 = 0;
+    let mut shown: u8 = 0;
     let bytes = update
         .download(
             |chunk, total| {
-                received += chunk as u64;
-                let Some(total) = total.filter(|total| *total > 0) else {
-                    return;
-                };
-                let percent = u8::try_from(received.saturating_mul(100) / total).unwrap_or(100);
-                updates.transition(app, |inner| inner.state.download_progress(percent));
+                received = received.saturating_add(u64::try_from(chunk).unwrap_or(u64::MAX));
+                let Some(total) = total else { return };
+                let now = percent(received, total);
+                if now != shown {
+                    shown = now;
+                    publish(
+                        app,
+                        UpdateState::Downloading {
+                            download_percent: now,
+                        },
+                    );
+                }
             },
             || {},
         )
         .await;
-    updates.transition(app, |inner| match bytes {
+    match bytes {
         Ok(bytes) => {
-            println!(
-                "[updater] {} is ready: it installs when the app quits",
-                update.version
-            );
-            inner.ready = Some((update, bytes));
-            inner.state.download_complete()
+            let version = update.version.clone();
+            updates.lock().downloaded = Some((update, bytes));
+            publish(app, UpdateState::Downloaded { version })
         }
-        Err(error) => inner.state.failure(&error.to_string()),
-    });
-}
-
-/// Installs the ready update over the bundle, if there is one; the next launch runs it.
-fn install_ready(app: &AppHandle) -> Option<Result<(), String>> {
-    let updates = updates(app);
-    let (update, bytes) = updates.lock().ready.take()?;
-    println!("[updater] installing {}", update.version);
-    let installed = update.install(bytes).map_err(|error| error.to_string());
-    if let Err(message) = &installed {
-        updates.transition(app, |inner| inner.state.failure(message));
-    }
-    Some(installed)
-}
-
-/// The app is quitting: a ready update goes on now, so the next launch is the new version.
-pub fn install_on_quit(app: &AppHandle) {
-    if let Some(Err(message)) = install_ready(app) {
-        eprintln!("[updater] the update did not install: {message}");
+        Err(error) => failed(app, &error),
     }
 }
 
-/// Restart to Update, once the page wrote what it held (`leaving::restart_to_update`): installs the
-/// ready update and relaunches at once.
-pub fn restart_to_update(app: &AppHandle) -> UpdateState {
-    match install_ready(app) {
-        Some(Ok(())) => app.restart(),
-        Some(Err(message)) => dialogs::error(
-            app,
-            "The update did not install",
-            &format!("{message} Inteligir will try again after its next check."),
-        ),
-        None => {}
-    }
-    updates(app).state()
-}
-
-/// The first check shortly after launch, then every few minutes; a disabled updater runs neither.
-pub fn start(app: &AppHandle) {
-    if let UpdateStatus::Disabled { reason } = updates(app).state().status {
-        println!("[updater] updates disabled: {reason}");
-        return;
-    }
-    let polling = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(STARTUP_DELAY);
-        tauri::async_runtime::block_on(check(&polling, "startup"));
-        loop {
-            std::thread::sleep(POLL_INTERVAL);
-            tauri::async_runtime::block_on(check(&polling, "poll"));
+pub fn install<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+    let updates = app.state::<Updates>();
+    let (update, bytes, state) = {
+        let mut session = updates.lock();
+        let downloaded = matches!(session.state, UpdateState::Downloaded { .. });
+        match session.downloaded.take() {
+            Some((update, bytes)) if downloaded => (update, bytes, session.state.clone()),
+            other => {
+                session.downloaded = other;
+                return session.state.clone();
+            }
+        }
+    };
+    // off the command, so its answer reaches the page before the app restarts
+    tauri::async_runtime::spawn_blocking(move || match update.install(&bytes) {
+        Ok(()) => app.restart(),
+        Err(error) => {
+            failed(&app, &error);
         }
     });
+    state
 }
 
-/// Check for Updates… in the app menu: the page's button's check, its answer said in a dialog, so
-/// it runs on a thread of its own.
-pub fn check_from_menu(app: &AppHandle) {
-    let UpdateState {
-        current_version,
-        status,
-        ..
-    } = tauri::async_runtime::block_on(check(app, "menu"));
-    match status {
-        UpdateStatus::Idle | UpdateStatus::Checking | UpdateStatus::Ready { .. } => {}
-        UpdateStatus::UpToDate => dialogs::show(
-            app,
-            MessageDialogKind::Info,
-            "You're up to date",
-            &format!("Inteligir {current_version} is the newest version."),
-        ),
-        UpdateStatus::Downloading { version, .. } => dialogs::show(
-            app,
-            MessageDialogKind::Info,
-            "An update is on its way",
-            &format!(
-                "Inteligir {version} is downloading. It installs when you quit, or choose Restart to Update once it's ready."
-            ),
-        ),
-        UpdateStatus::Disabled { reason } => {
-            dialogs::show(app, MessageDialogKind::Warning, "Updates are off", &reason);
-        }
-        UpdateStatus::Error { message } => {
-            dialogs::show(
-                app,
-                MessageDialogKind::Warning,
-                "Update check failed",
-                &message,
-            );
-        }
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> UpdateState {
+    check(&app).await
+}
+
+#[tauri::command]
+pub async fn download_update(app: AppHandle) -> UpdateState {
+    download(&app).await
+}
+
+#[tauri::command]
+pub fn install_update(app: AppHandle) -> UpdateState {
+    install(app)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn wire(state: &UpdateState) -> serde_json::Value {
+        serde_json::to_value(state).unwrap_or_else(|error| panic!("{state:?}: {error}"))
+    }
+
+    #[test]
+    fn serializes_the_shape_the_page_parses() {
+        assert_eq!(wire(&UpdateState::Idle), json!({ "status": "idle" }));
+        assert_eq!(
+            wire(&UpdateState::NotAvailable),
+            json!({ "status": "not-available" })
+        );
+        assert_eq!(
+            wire(&UpdateState::Available {
+                version: "1.2.3".into()
+            }),
+            json!({ "status": "available", "version": "1.2.3" })
+        );
+        assert_eq!(
+            wire(&UpdateState::Downloading {
+                download_percent: 42
+            }),
+            json!({ "status": "downloading", "downloadPercent": 42 })
+        );
+        assert_eq!(
+            wire(&UpdateState::Downloaded {
+                version: "1.2.3".into()
+            }),
+            json!({ "status": "downloaded", "version": "1.2.3" })
+        );
+        assert_eq!(
+            wire(&UpdateState::Error {
+                message: "offline".into()
+            }),
+            json!({ "status": "error", "message": "offline" })
+        );
+    }
+
+    #[test]
+    fn percent_floors_and_stays_in_range() {
+        assert_eq!(percent(0, 0), 0);
+        assert_eq!(percent(1, 3), 33);
+        assert_eq!(percent(3, 3), 100);
+        assert_eq!(percent(5, 3), 100);
+        assert_eq!(percent(u64::MAX, 1), 100);
     }
 }
