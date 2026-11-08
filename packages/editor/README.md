@@ -137,16 +137,18 @@ src/
   (`codec/block-markdown.ts`), with whether it kept this device's lines over
   the other's change to the same ones; `replicaMerge` is it as the engine's
   port takes it.
-- `item/item-session.ts` — an item open in the editor by its id, over the
-  replica (`ItemStore`): the value is the item's blocks, a pause writes the
+- `item/item-session.ts` — an item open in the editor by its id, over its
+  host's store (`ItemStore`): the value is the item's blocks, a pause writes the
   ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid
   in with the editor's transforms; a merge that kept this device's lines over
   another's goes to the host's `notifyOverlap`. `item/item-editor.tsx` is its
   surface: an editor and a session of its own per item id, drawn once the
-  item's blocks are in (or a line saying the device lacks it), which a host
-  reads the status of and flushes, and `item/item-properties.ts` the panel's
-  rows over its fields. A link to an item by id shows the name the item goes by
-  now, the resolver's `titleOf`, read off the items the host feeds.
+  item's blocks are in (or a line saying the device lacks it), read-only while
+  the host says it is `offline`, which a host reads the status of and flushes,
+  and `item/item-properties.ts` the panel's rows over its fields. A link to an
+  item by id shows the name the item goes by now, the resolver's `titleOf`,
+  read off the items the host feeds. The suites open items over
+  `test-support/memory-item.tsx`, items held in memory as the cell holds them.
 - `open-item.tsx` — the id of the item the editor shows, which the item editor
   provides and `useOpenItemId` reads under it.
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around

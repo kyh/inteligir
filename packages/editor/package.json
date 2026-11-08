@@ -171,7 +171,6 @@
   "devDependencies": {
     "@babel/core": "catalog:",
     "@kyh/tsconfig": "catalog:",
-    "@repo/library-replica": "workspace:*",
     "@rolldown/plugin-babel": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",

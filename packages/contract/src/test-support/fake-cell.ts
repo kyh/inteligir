@@ -7,8 +7,6 @@
 // carries each row as it is now under one sequence a write. The real cell is held to the same
 // engine by `apps/web/src/worker/library/library-replica.test.ts`.
 
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex } from "@noble/hashes/utils.js";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { implement } from "@orpc/server";
@@ -38,6 +36,7 @@ import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { ordsBetween } from "@repo/notes/library/block-order";
 import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
+import { fileSha } from "@repo/notes/library/file-sha";
 import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
@@ -631,7 +630,7 @@ export const createFakeCell = (): FakeCell => {
 
   const upload = async (request: Request, sha: string): Promise<Response> => {
     const bytes = new Uint8Array(await request.arrayBuffer());
-    if (bytesToHex(sha256(bytes)) !== sha) {
+    if (fileSha(bytes) !== sha) {
       return new Response(null, { status: 400 });
     }
     uploads.push(sha);

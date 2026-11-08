@@ -42,7 +42,6 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@noble/hashes": "catalog:",
     "@orpc/server": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

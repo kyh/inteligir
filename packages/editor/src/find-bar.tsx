@@ -14,6 +14,7 @@ import {
   PlateLeaf,
   createPlatePlugin,
   createTPlatePlugin,
+  useEditorReadOnly,
   useEditorRef,
   useEditorSelector,
   usePluginOption,
@@ -314,7 +315,9 @@ const OpenFindBar = () => {
   const search = usePluginOption(FindBarPlugin, "search");
   const active = usePluginOption(FindBarPlugin, "active");
   const replace = usePluginOption(FindBarPlugin, "replace");
-  const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen");
+  // a replace is an edit, which a read-only note takes none of
+  const replaceOffered = !useEditorReadOnly();
+  const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen") && replaceOffered;
   const anchor = useStore(anchorStore);
   const inputRef = useRef<HTMLInputElement>(null);
   // an edit moves the count and the active match without touching the options
@@ -345,19 +348,23 @@ const OpenFindBar = () => {
   const body = (
     <>
       <div className="flex items-center gap-1.5">
-        <Tooltip content="Toggle replace">
-          <button
-            type="button"
-            aria-label="Toggle replace"
-            aria-expanded={replaceOpen}
-            onClick={() => {
-              setFindBar(editor, { replaceOpen: !replaceOpen });
-            }}
-            className={BAR_BUTTON_CLASS}
-          >
-            <ChevronRightIcon className={cn("transition-transform", replaceOpen && "rotate-90")} />
-          </button>
-        </Tooltip>
+        {replaceOffered ? (
+          <Tooltip content="Toggle replace">
+            <button
+              type="button"
+              aria-label="Toggle replace"
+              aria-expanded={replaceOpen}
+              onClick={() => {
+                setFindBar(editor, { replaceOpen: !replaceOpen });
+              }}
+              className={BAR_BUTTON_CLASS}
+            >
+              <ChevronRightIcon
+                className={cn("transition-transform", replaceOpen && "rotate-90")}
+              />
+            </button>
+          </Tooltip>
+        ) : null}
         <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           ref={inputRef}

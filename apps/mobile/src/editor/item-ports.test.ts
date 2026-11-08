@@ -1,7 +1,7 @@
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
-import { fileSha } from "@repo/library-replica/library-replica";
 import { blockHash } from "@repo/notes/library/block-hash";
+import { fileSha } from "@repo/notes/library/file-sha";
 import { describe, expect, it } from "vitest";
 import type { HeldFile } from "../files/file-cache";
 import { createItemPorts } from "./item-ports";

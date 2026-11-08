@@ -7,12 +7,11 @@
 // new note naming it stages too. A command's input is the wire's: one its schema refuses throws,
 // and nothing is queued.
 
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex } from "@noble/hashes/utils.js";
 import type { folderOpSchema, placedBlockSchema } from "@repo/contract/cloud/library/library-wire";
 import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { applyOps } from "@repo/notes/library/block-ops";
 import type { ApplyOutcome, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
+import { fileSha } from "@repo/notes/library/file-sha";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { z } from "zod";
@@ -34,9 +33,6 @@ interface NewFile {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly mime: string;
 }
-
-// the sha a block names a file by, which the host computes before it builds the block
-export const fileSha = (bytes: Uint8Array): string => bytesToHex(sha256(bytes));
 
 type WriteOutcome =
   // durable, and laid over what the screens read

@@ -11,7 +11,12 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { upsertLink } from "@platejs/link";
 import { KEYS } from "platejs";
 import type { RangeRef } from "platejs";
-import { createPlatePlugin, useEditorRef, useMarkToolbarButtonState } from "platejs/react";
+import {
+  createPlatePlugin,
+  useEditorReadOnly,
+  useEditorRef,
+  useMarkToolbarButtonState,
+} from "platejs/react";
 import {
   BoldIcon,
   CodeIcon,
@@ -210,6 +215,7 @@ const LinkPrompt = ({
 
 const TouchToolbar = () => {
   const editor = useEditorRef();
+  const readOnly = useEditorReadOnly();
   // where the link field's address lands, held while the field has the row; null is the row of
   // buttons. A ref rather than the range: a sync can rebase or re-seed the note under the open
   // field, and a plain range would then land on whatever text took its place.
@@ -240,6 +246,9 @@ const TouchToolbar = () => {
     }
   };
 
+  if (readOnly) {
+    return null;
+  }
   return (
     <div
       role="toolbar"
