@@ -1,19 +1,14 @@
 # AGENTS.md
 
-**inteligir** is a library of everything you save, with an agent that files
-and edits it with you: links, articles, images, PDFs and your own notes, one
-app in place of a bookmark manager like Raindrop and a notes app like
-Obsidian. It is a Mac and iPhone app for general knowledge workers, not
-developers, on Apple silicon, that nobody uses yet. Each account's library is
-one SQLite Durable Object, its library cell, on the one Cloudflare Worker we
-ship, which also carries the site, accounts, the library's bytes and the
-reading of saved pages; every device holds a replica of that library, reads
-it offline and queues what it writes. The built-in agent is our own loop over
-Claude, a Durable Object of its own for each conversation on the same Worker,
-woken by Cloudflare's Agents SDK and calling Claude through AI Gateway; it
-changes the library only through the account's cell, by the same procedures
-the connector serves the user's own Claude or ChatGPT. Everything we host is
-Cloudflare.
+**inteligir** is a second brain: a library of everything you save and write,
+with an agent that files and edits it with you. Notion is the north star.
+Every item is a page, and a bookmark is a page clipped from the web:
+bookmarks are how things come in, and notes are how you work on them. It is
+for general knowledge workers, not developers, on the web, a Mac, an iPhone
+and a Chromium extension, and nobody uses it yet. Everything we host is
+Cloudflare, built on the conventions of the owner's template,
+[kyh/init](https://github.com/kyh/init), with Cloudflare in place of its
+Vercel stack.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -23,115 +18,116 @@ owner's release runbook.
 
 ## Project Overview
 
-The premises every change builds from, each with its reason:
+The premises every change builds from, each with its reason.
 
-- **Each account's library is one SQLite Durable Object, its only writer, and
-  the source every replica pulls from**, because one writer per account needs
-  no merge between servers, one change log with one counter is all a device
-  follows to catch up, and the cell and every replica run the same SQLite and
-  the same full-text search.
-- **An account is required, and its first 1 GB is free.** The library lives in
-  the cloud and every device holds a replica, because the cell is the one
-  place the Mac, the phone, the browser tab, the extension and every agent
-  meet; R2 holds the bytes, D1 the accounts.
-- **Every item is one record: fields plus a body of Plate blocks.** A link is
-  an item whose fields hold its url, site and saved date and whose article
-  section holds the page's readable text; an image or PDF is an item whose
-  fields name its original file, kept in R2 by its hash; a note the user
-  writes is an item too.
-  Markdown is how a library comes in, how it goes out, and how an agent reads
-  and edits it. One shape is what lets search, History, sync, every device and
-  the agent's tools work on every item without a second store, and a row per
-  block is what lets two devices' edits to different blocks merge with no
-  round trip.
-- **The apps and every agent share one oRPC contract, and a tool is a
-  procedure of it tagged with `mcp.tool`.** The cell implements the library's
-  contract once and serves it at two doors, `/v1` for the apps and the
-  connector for assistants, and runs the tools itself for the built-in agent's
-  calls. The apps call only a few of the tools, since a replica writes by its
-  own rows, and every write lands through the cell's one engine, because an
-  agent should do what the app does, guarded the same way, and nothing the app
+**The code is in transit.** PR [#907](https://github.com/kyh/inteligir/pull/907)
+is moving the code to these premises in stages, issues
+[#926](https://github.com/kyh/inteligir/issues/926) to
+[#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
+PR's branch by the owner's decision. Until a stage lands, the code, § Map
+onward and the `CLAUDE.md` bullets of its area may describe the older design
+(offline replicas, a byte-exact codec, our own agent loop). Where they
+disagree, these premises win, and the stage's issue says what changes.
+
+- **Every item is a page: properties plus a body of Plate blocks**, as in
+  Notion.
+  - A link is a page whose properties hold its url and site, and whose body
+    holds the clipped article.
+  - An image or PDF is a page naming its file, kept in R2.
+  - A note is a page you write.
+  - The blocks are Notion's set plus formulas, charts, canvas, HTML, Mermaid,
+    tabs and columns.
+  - Why: one shape lets search, the agent and every surface work on every item.
+- **Online-first.** The cloud is the truth. Devices cache what they read
+  (TanStack Query), and only a save from the extension or the phone's share
+  sheet waits offline. Editing, the agent, import and export need a
+  connection, and say so. Why: offline copies on three platforms were most of
+  the code and little of the product.
+- **A note's body is live**, like Google Docs. You on every device and the
+  agent edit one Yjs document at once: one `y-partyserver` Durable Object per
+  note, `@platejs/yjs` in the editor, Yjs pinned to 13.x. There is no presence
+  and no page history. Why: a live document removes merge logic instead of
+  adding it.
+- **Each account's library is one SQLite Durable Object, its cell.**
+  - It holds properties, folders, tags, full-text search, links, change sets
+    and the account's quota.
+  - A note's object pushes its title, text and links to the cell on a
+    debounced save.
+  - R2 holds the bytes, and D1 the accounts.
+- **One oRPC contract, and a tool is a procedure tagged `mcp.tool`.** The apps,
+  the connector and the built-in agent call the same procedures, guarded the
+  same way. Why: the agent should do what the app does, and nothing the app
   cannot.
-- **The Mac and the phone read everything offline and queue writes; the
-  agent, import, export, History and the account need a connection**, because
-  every row and body is on the device while those run in the cell, and an
-  action that needs a connection says so rather than failing late.
-- **The phone is a full editor over its replica, queues writes offline, and
-  asks the built-in agent when online**, because the phone is where much is
-  saved and read, and the agent and its threads are the account's, the same on
-  every device.
-- **Saving calls no model. The device that saves reads the page when it can,
-  and the cloud reads it otherwise.** The extension and the phone's share sheet
-  read the page they are on; a paste, an import or an agent's save lands at
-  once as an unread item that the Worker's fill reads; the agent files, tags
-  and summarizes only when asked, because a save should be instant and free.
+- **Markdown is stock and lossy**, as Notion's is. It is how a library comes in
+  and goes out, and how the agent reads and edits it.
+  - Plate's markdown plugin, with one `remark-directive` rule per custom block.
+  - Page links are stock mentions.
+  - Unknown syntax lands as text.
+  - Why: byte-exact round trips cost more than they were worth.
+- **Saving calls no model.** The extension reads the page it is on, and every
+  other save lands at once as an unread item that the Worker's fill reads. The
+  agent files, tags and summarizes only when asked. Why: a save should be
+  instant and free.
 - **The built-in agent is ours, on our bill, and the user's own Claude or
-  ChatGPT reaches the same library through the connector**, because a
-  knowledge worker has no agent to install and no plan to bring, and an
-  assistant they already pay for should find the library where it already
-  looks. Each conversation runs the agent's loop in an object of its own, and
-  its tools are the library's procedures, which the account's cell runs as the
-  agent's, so it does what the app does, guarded the same way, and nothing the
-  app cannot. An assistant signs in to us with OAuth on our consent page, so
-  the app holds no model credential of the user's and never asks for a key.
-- **Model calls happen only in a conversation's object, through our AI
-  Gateway, each reserved against the turn's ceiling and the account's
-  allowance before it is sent and booked at its exact usage after**, because
-  every model call is one we pay for, and one no budget holds is an unbounded
-  bill. A save, a sync and a connected assistant's call make none.
-- **History and undo are revisions and change sets, and no product surface
-  says git, commit, remote, repo, terminal, CLI, PATH or MCP**, because none of
-  those words is the user's; the connector is what Claude itself calls an MCP
-  server.
+  ChatGPT reaches the same library through the connector.**
+  - The built-in agent: one Durable Object per conversation, on Sonnet 5.5,
+    through our AI Gateway, held to a daily allowance per account with the
+    gateway's spend limit behind it.
+  - Each turn is one undoable change set. Undo takes back only the agent's
+    changes and keeps yours.
+  - A connected assistant signs in with OAuth on our consent page and makes no
+    model call of ours.
+  - Why: a knowledge worker has no agent to install, and one they already pay
+    for should find the library where it already looks.
+- **Stock before custom.** TanStack Start serves every route. A contract
+  package (zod) feeds a service package (procedures, auth, Durable Objects),
+  over a db package (drizzle on D1 and on each object's SQLite), as in
+  kyh/init. Better Auth handles every sign-in, the phone's editor is an Expo
+  DOM component, and Playwright runs the end-to-end tests. Why: a custom piece
+  is code we own forever, so it needs a reason the stock one fails.
+- **No product surface says git, commit, remote, repo, terminal, CLI, PATH or
+  MCP**, because none of those words is the user's. The connector is what
+  Claude itself calls an MCP server.
 - **Dictation is the operating system's**, because the Mac's and the phone
-  keyboard's are already there and cost the app no speech model.
-- **Every feature is core, and a feature serves saving, reading or writing or
-  goes.** Nothing sits behind a tier or a flag; a feature that serves none of
-  the three is removed, never hidden, and the persona changes the words. The
-  built-in agent has one model for everyone, and a plan differs only in its
-  allowance.
+  keyboard's are already there.
+- **Every feature is core, and serves saving, reading or writing or goes.** No
+  tiers and no flags. For now access is invite-only and free: 1 GB of storage
+  and a daily agent allowance, with no payments.
 - **No users yet, so every format may change.** Nobody but the owner holds an
-  install, and a shim kept for nobody is code every later change steps
-  around. So change any wire, row or database format freely, and write no
-  migration, no reader for an older build's shape, no retired-path sweep and
-  no legacy-name warning: what an older build wrote is replaced, never read.
-  `/v1` may break, behind the client build floor the same change raises. Until
-  the premise ends, a decision bullet or a line of the declines register that
-  keeps a shape for an older install yields to it. The one exception is the
-  phone's database, which appends a step once EAS has built the app, since it
-  cannot yet replace a file it cannot read (THE PHONE RUNS THE REPLICA ENGINE
-  OVER EXPO-SQLITE, in `apps/mobile/CLAUDE.md`). The first outside tester ends the
-  premise: strike this bullet before their first build, and from then on a
-  format change migrates.
+  install, and a shim kept for nobody is code every later change steps around.
+  - Change any wire, row or database format freely.
+  - Write no migration, no reader for an older build's shape, no retired-path
+    sweep and no legacy-name warning.
+  - The wire may break, behind the client build floor the same change raises.
+  - A decision bullet or a declines-register line that keeps a shape for an
+    older install yields to this.
+  - The first outside tester ends the premise: strike this bullet before their
+    first build, and from then on a format change migrates.
 
-**Four programs over one Worker.** `apps/web` is the Worker: the site and
-accounts, `/v1` (the apps' one wire, `/v1/rpc`, beside the library's bytes
-and the socket that tells a device the library moved), the connector, the
-queue that reads saved pages, and every account's library cell. The built-in
-agent is ours too: one `AgentThreadDO` a conversation, its loop on the Agents
-SDK's Lifecycle over Claude through AI Gateway, its instructions built from
-`@repo/agent-skills`, and its tools the library's procedures, which the
-account's cell runs as the agent's. `apps/desktop` is the Mac app, installed
-as the signed dmg: a
-Tauri window showing the SPA `apps/workspace` builds, bundled into the .app,
-with the Mac's replica, the Keychain credential and the cache of the
-library's files in Rust, and no node; the same SPA is the browser tab the
-Worker serves at `/library`, online only. `apps/mobile` is the iPhone app:
-the same editor over the phone's own replica, offline. `apps/extension` is
-the browser's Save, with a device credential of its own, saving to `/v1`. The
-replica engine, the outbox and its sync, is one pure package the SPA and the
-phone both run. There is no local server and no command line: a coding agent
-drives the product the way a person or an assistant does, the tab in
-agent-browser, the Worker with curl, the library through the connector.
+**Four surfaces over one Worker** (the target):
 
-**The decision record is GitHub issues
-[#542](https://github.com/kyh/inteligir/issues/542),
+- `apps/web` is the Worker, a TanStack Start app. It serves the site, accounts,
+  the library's pages, oRPC, the connector and the queue that reads saved
+  pages. It runs each account's cell, each note's live document and each
+  conversation's agent.
+- `apps/desktop` is a Tauri shell loading the hosted site, with the stock
+  updater.
+- `apps/mobile` is the Expo iPhone app: native lists and the share sheet, with
+  the editor in an Expo DOM component.
+- `apps/extension` is WXT: Save from the browser.
+
+There is no local server and no command line. A coding agent drives the
+product the way a person or an assistant does: the site in a browser, the
+Worker with curl, the library through the connector.
+
+**The decision record** is the stage issues above, then GitHub issues
+[#889](https://github.com/kyh/inteligir/issues/889),
 [#611](https://github.com/kyh/inteligir/issues/611) and
-[#889](https://github.com/kyh/inteligir/issues/889)**: what was chosen, and
-what was rejected and why. Where two disagree the later wins. Where any of
-them assumes a local server, a folder of markdown files, git, an agent on the
-user's own plan, a developer at the keyboard, or a notes app whose window is
-always one open note, this guide and the decision bullets win.
+[#542](https://github.com/kyh/inteligir/issues/542), and the declines register
+[#912](https://github.com/kyh/inteligir/issues/912). The later wins where two
+disagree. Where any of them assumes a local server, markdown files on disk,
+git, offline replicas, a byte-exact codec or an agent on the user's own plan,
+this guide wins.
 
 ## Map
 
