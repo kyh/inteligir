@@ -179,8 +179,10 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 the owner's iPhone from the `Owner` group. Nothing reaches the `Cohort` group
 yet.
 
-§ 3's Worker comes before this build: the phone sends a share's note in
-`items.save`, and a Worker that doesn't know the field refuses the call.
+§ 3's Worker comes before this build: every save's answer carries `created`,
+which an older Worker doesn't send. This build drops the phone's local Expo
+module for the HTTP cache, a native change that moves the fingerprint, so it
+ships as a new EAS build, never an EAS Update (§ Hotfixes).
 
 ## 5. The owner's checks
 
@@ -301,9 +303,8 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   through the shell's scheme. Then drop a PDF and an `.m4a` from Finder onto
   the grid with the network off, and open each. Passing: the PDF opens in the
   viewer and the recording plays, before the upload and again once the network
-  is back. A file item's Download, and Settings › Import and export's Download
-  the zip, each land in Downloads under their own names, and the window stays
-  on the item.
+  is back. A file item's Download lands in Downloads under its own name, and the
+  window stays on the item.
 - **Quit keeps what was just typed.** Type a word in an item and press ⌘Q at
   once; then the same with the menu-bar icon's Quit. Passing: each time, the
   app reopens with the word in the item, and with the network on it reaches the
@@ -333,9 +334,6 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   - A link dragged from Safari, Chrome and Arc onto the window saves, and so
     does a file dragged from Finder onto the grid and onto a folder row.
   - A card dragged onto a folder in the sidebar moves, never saves.
-- **Highlights.** In an item, select a passage and press ⌘⇧H. Passing: it
-  highlights at once and the note box opens under it, in the app's window as
-  in a browser.
 - **VoiceOver** reads the grid: its cells, and which are selected. Escape from
   an open item returns to the library.
 - **Scale.** Sign in on a spare Mac user to an account of 20,000 to 50,000
@@ -383,10 +381,6 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   with the panel closed. Passing: the Agent tab opens, the field quotes the
   passage, and the cursor is in the field. The suites run the focus in jsdom
   alone.
-- **A highlighted passage opens Highlights.** Click a highlighted passage with
-  the panel closed. Passing: Highlights opens with that highlight ringed and in
-  view, and a second click brings it back into view. The suites only spy on
-  the scroll.
 - **A long address in an approval.** Ask the agent to save a link with a very
   long address. Passing: it wraps inside the approval card and pushes nothing
   off the panel. jsdom has no layout.
@@ -399,10 +393,11 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   racing the call, which waits 3 seconds at most. This holds while the Mac can
   read its sign-in. With the Keychain refused it has nothing to sign out with:
   it stays listed, and is removed from another device.
-- **An export zipped again in Finder.** Unpack an export, Compress its folder in
-  Finder and import that zip into a fresh account. Passing: highlights, covers
-  and originals come back on their items, and no stray assets folder or extra
-  cards appear. The suites build this zip shape by hand, not with Finder.
+- **A folder zipped in Finder.** Compress, in Finder, a folder of notes that
+  keeps its pictures in `assets/`, and import that zip into a fresh account.
+  Passing: its notes land at the top of the library with their pictures, and no
+  stray assets folder, `__MACOSX` or `._` cards appear. The suites build this
+  zip shape by hand, not with Finder.
 - **Signing in as someone else on this Mac.** Sign in, choose a tag in the rail,
   sign out in Settings, then sign in as a second account. Passing: the signed
   app opens on All items. Quit and relaunch signed in as that account. Passing:
@@ -427,11 +422,19 @@ from inteligir.com alone), with no dev build loaded.
 - **Save.** The toolbar button on an article. Passing: it lands in Unsorted,
   read, with its title, text and, where the site lets the extension read it,
   its cover, and a second click says it is already in your library.
-  Right-click a link, an image and a selection: each saves, the selection as a
-  highlight placed in the page's text.
+  Right-click a link and an image: each saves, and the right-click menu offers
+  no Save as a highlight.
+- **A link the cloud couldn't read.** Serve a page on your home network
+  (`python3 -m http.server` on the Mac, at its LAN address), save that address
+  with Add › Save a link…, and wait for "Page not read". Then click the
+  extension's toolbar button on that page. Passing: the popup says it is already
+  in your library, and the item opens read with the page's text, titled by the
+  page. Edit the page and click again. Passing: the text stays as first read.
+  Vitest proves the rule over the cell; only a browser reads a real page the
+  cloud can't reach.
 - **Offline.** Turn the network off and click the toolbar button on an article.
   Passing: the popup says Saved when you're back online; turn it on, and within
-  a minute the page is in the library, its selection kept as a highlight.
+  a minute the page is in the library.
 - **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
   its tooltip says Inteligir can't save this kind of page; after a save it
   shows "✓" for two seconds.
@@ -502,11 +505,10 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **Both devices at once.** With the phone offline, change one paragraph of a
   note on the phone and another on the Mac, then reconnect; then change the
   same lines of one paragraph on both. Passing: different paragraphs both
-  land; the same lines keep the phone's and say so on the phone, with nothing
-  lost from the Mac's in its History (the merge run in the headless page).
-- **Deleted.** Move an item with highlights to Deleted on the phone, then
-  restore it on the Mac. Passing: it leaves both libraries and comes back with
-  its highlights.
+  land; the same lines keep the phone's and say so on the phone (the merge run
+  in the headless page).
+- **Deleted.** Move an item to Deleted on the phone, then restore it on the Mac.
+  Passing: it leaves both libraries and comes back with its text.
 - **Photos.** Add one from the camera and one from the library. Passing: each
   is an image item of about 1 MB or less, draws on the Mac, and has no
   location: the Mac's Info shows no place, and the original opened in Preview
@@ -537,48 +539,39 @@ account whose library holds about 2,000 items gives the timing check its load.
   (the Keychain's credential is this device's only), and once signed in
   Settings › Account on the Mac lists it beside the first phone.
 - **Share a page.** Share a page from Safari to Save to Inteligir. Passing: it
-  opens read, titled by the page, with its site, cover and article, within a
-  few seconds and before any Mac or the cloud reads it. From YouTube and Mail:
-  the link is saved and read the same way, a video's text its description. From
-  X: a post saves as an unread link and fills in with its words once it reaches
-  the cloud, rather than staying blank under the title X. Shared offline: it saves as
-  its link at once, "Waiting to be read", and is read once it reaches the
-  cloud. Shared signed out: it waits for the sign-in. A photo does not offer
-  Inteligir. Share a second page while the first is still being read: both
-  are saved, and each opens in turn.
-- **A plain-http page and a redirect.** Share `http://neverssl.com` and a
-  shortened https link (a `bit.ly` one). Passing: the http page is saved as
-  its link for the cloud to read, never fetched by the phone; the short link
-  is read at the address it redirects to. Share a short link to a page the
-  library already holds. Passing: it joins that item, with no second card. From
-  Notes, share `Look at this https://bit.ly/…`. Passing: the page names the item
-  and "Look at this" is its note.
-- **A wall at a shared address.** With the Mac's extension, signed in, save a
-  story behind a sign-in, so its article lands. Let the iPhone pull it. From
-  Notes on the iPhone, share `Worth a second read <that address>`. Passing: the
-  item keeps its article, with no sign-in text in it, and "Worth a second read"
-  is its note. From Safari, share a signed-in page the library does not hold
-  whose address sends a phone with no cookies to its sign-in. Passing: the item
-  keeps the address Safari shared and Safari's title, not the sign-in page's.
-  Vitest proves the rule over a scripted redirect, but only a device meets a
-  real wall and Safari's real title.
+  opens at once as its link, "Waiting to be read", and fills in with its title,
+  site, cover and article once the cloud reads it. From YouTube and Mail: the
+  link is saved and read the same way, a video's text its description. From X: a
+  post fills in with its words once the cloud reads it, rather than staying
+  blank under the title X. Shared offline: it saves as its link at once and is
+  read once it reaches the cloud. Shared signed out: it waits for the sign-in. A
+  photo does not offer Inteligir. Share a second page while the first is still
+  saving: both are saved, and each opens in turn. Share a page the library
+  already holds: that item opens, with no second card and nothing on it changed.
+  Share a page only your home network reaches: its card says "Page not read".
+- **A short link.** Share a shortened https link (a `bit.ly` one). Passing: once
+  the cloud reads it, the item holds the page it leads to, under the short
+  address. Share a short link to a page the library already holds. Passing: it
+  stays an item of its own. From Notes, share `Look at this https://bit.ly/…`.
+  Passing: the page names the item once read, and "Look at this" is its note.
 - **A shared address to its last character.** Share
   `https://en.wikipedia.org/wiki/Oklahoma!` from Safari. Passing: the item's
   address keeps the `!` and it reads as the musical. Vitest reads
   expo-share-intent's search out of its build, but only a device runs the
   Swift handoff.
 - **A link inside shared text.** From Notes, share
-  `Read https://en.wikipedia.org/wiki/Mercury_(planet) tonight`. Passing: the
-  item reads the planet and "Read tonight" is its note, read or unread. Share
-  three lines with the link on the middle one. Passing: a read
-  page's note keeps the two other lines on their own lines. Share
+  `Read https://en.wikipedia.org/wiki/Mercury_(planet) tonight`. Passing: once
+  the cloud reads it, the item reads the planet, and "Read tonight" is its
+  note. Move it to Deleted, then share three lines with the link on the middle
+  one. Passing: its note keeps the two other lines on their own lines. Share
   `これ見て https://en.wikipedia.org/wiki/Oklahoma。次の文`. Passing: the item
   reads the state and its note is `これ見て 次の文`, which also proves the link's
-  pattern on the phone's own engine, since vitest runs V8. From Notes, share
+  pattern on the phone's own engine, since vitest runs V8. Moving each item to
+  Deleted before the next share of the same page (a share of an address the
+  library holds opens that item and adds no note), from Notes share
   `the post (https://en.wikipedia.org/wiki/Oklahoma) says it well`, then
-  `[the state](https://en.wikipedia.org/wiki/Oklahoma)`. Passing: online, each
-  opens read at once with no "Waiting to be read", its notes "the post says it
-  well" and "the state".
+  `[the state](https://en.wikipedia.org/wiki/Oklahoma)`. Passing: each saves
+  the state's address, its notes "the post says it well" and "the state".
 - **New note with no words.** New note, then go back without typing. Passing:
   the Library row, its long-press sheet and the item's screen title read
   Untitled. Type a line and go back. Passing: they read that line. Phone
@@ -588,10 +581,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   Passing: the item you went back to shows its text while the rest of the
   library is still arriving.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
-  offline launch shows placeholders for covers not yet seen; the picture and
-  PDF viewers open; and a bare highlight made on the phone shows on the Mac.
+  offline launch shows placeholders for covers not yet seen; and the picture
+  and PDF viewers open.
 - **The screens in light and dark.** With the system in Light, open the
-  library, an item and its Info and highlights sheets, a picture in the viewer,
+  library, an item and its Info sheet, a picture in the viewer,
   the agent and, signed out, the sign-in screen; switch to Dark in Control
   Center with the app open and look again. Passing: every screen has the
   colors, spacing, type sizes and corners the build before it had (nativewind's
@@ -627,11 +620,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   swipe back at once, on a slow file. Passing: the block is there on reopen.
   The native flush has its own timeout and the WebView can go first, so vitest
   can't prove it.
-- **A highlight takes its colour.** Highlight a selection, online and in
-  airplane mode. Passing: the passage takes the highlight colour within a
-  moment, not a dotted underline, and a highlight made on the Mac tints once the
-  phone has pulled it. Vitest proves the read over a fake phone, never the real
-  WebView.
 - **Approvals on the phone.** Have the agent ask to save a link, then to move
   twelve items to Deleted. Passing: the save's card shows the host and a
   selectable whole address, and the delete's shows the count and the titles the
@@ -668,26 +656,16 @@ account whose library holds about 2,000 items gives the timing check its load.
   same. Lock the phone during a pull-to-refresh and unlock it. Passing: still
   signed in, and the next pull works. This proves the Keychain's when-unlocked
   class, which only runs on a device.
-- **A share over the one page read.** Share an https short link that redirects
-  from Safari. Passing: the item lands read with its title, article and cover.
-  Share a page larger than the read's byte cap. Passing: it lands read from its
-  first bytes with no hang. These run the shared redirect walk and capped read
-  on Expo's own fetch stream, including its release-then-cancel when the cap is
-  passed, which the suites only run on node's streams.
 - **Stop beside a question.** Ask the agent to delete an item. While its
   question waits, Stop shows beside it. Press Stop. Passing: the question reads
   Declined, the answer ends Stopped, and nothing moves to Deleted. Press Cancel
   on a second ask. Passing: that call alone is turned down and the answer goes
   on. No suite draws this screen.
-- **What sign-out leaves behind.** On a build holding `modules/http-cache`, read
-  a library image and share a page, sign out, then inspect the app's
-  Library/Caches HTTP cache (`Cache.db`, `fsCachedData`). Passing: it holds no
-  library file, no shared page and no bearer. A suite proves the Worker's
-  no-store on device reads and that each leaving path calls the clear, while
-  `URLCache.shared.removeAllCachedResponses()` has only been typechecked.
-- **Sign out during a share.** Share a page and sign out while it is still being
-  read, then sign in again. Passing: the item saves and opens. A suite proves the
-  closed replica's refusal and the held share, not the extension's own hand-off.
+- **What sign-out leaves behind.** Read a library image and share a page, sign
+  out, then inspect the app's Library/Caches HTTP cache (`Cache.db`,
+  `fsCachedData`). Passing: it holds no library file and no bearer. A suite
+  proves the Worker's no-store on device reads; nothing on the phone clears the
+  system's HTTP cache, so only this check shows nothing lands there.
 - **An open item that folds.** Save a link offline at an address already in the
   library, leave the item open and type, then go online. Passing: the screen
   stays open through the fold and the typed words land on the older item. On
@@ -702,9 +680,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   Simulator › the item's page. Passing: the item is editable, and the console
   has no `Refused to` line; the static CSP is otherwise proven in Chromium
   alone.
-- **The headless page under WebKit.** In the same build, share a page, then
-  Safari › Develop › Simulator › the hidden page. Passing: its console has no
-  `Refused to` line and no error, and the item opens read.
+- **The headless page under WebKit.** In the same build, run Both devices at
+  once's same-paragraph edit, then Safari › Develop › Simulator › the hidden
+  page. Passing: its console has no `Refused to` line and no error, and the
+  merge lands as that check says.
 - **The share address.** In the simulator, share a link from Safari to the
   app, once with the app quit and once with it open. Passing: `+native-intent`
   lands on the Library both times, with no Unmatched-route screen flashing
@@ -750,14 +729,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   and text, or the PDF as its file; the queue dashboard shows `inteligir-fill`
   consumed and nothing in `inteligir-fill-failed`; and the Worker's logs show
   the consumer's invocations inside their CPU and memory, none exceeded.
-- **An import and an export in the cloud.** With a device's credential, upload
-  a Raindrop CSV and an Obsidian vault's zip to `/v1/blobs/<sha>` and start
-  each with `library.imports.start` (`apps/web/README.md` § Routes), then
-  `library.exports.start`. Passing: each import ends `done` with its counts,
-  its links filled as above; the export's zip downloads from
-  `/v1/exports/<id>` and opens in Finder as the library's folders and notes;
-  the Worker's logs show each alarm run that wrote it inside its CPU, none
-  exceeded; and seven days on the same address answers 404.
+- **An import in the cloud.** With a device's credential, upload a Raindrop CSV
+  and an Obsidian vault's zip to `/v1/blobs/<sha>` and start each with
+  `library.imports.start` (`apps/web/README.md` § Routes). Passing: each import
+  ends `done` with its counts, its links filled as above, and the Worker's logs
+  show each alarm run inside its CPU, none exceeded.
 - **The way into the library.** On a preview, signed out, choose Open your
   library at the top of `<preview>/`. Passing: it reaches the sign-in and comes
   back to `<preview>/library`; the same link is on `<preview>/about`,
@@ -824,7 +800,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   the imported pill reads 4 once the note opens.
 - **A list nested to the limit.** On a preview Worker, import a zip holding one
   note with a list nested 128 levels and one nested 129. Passing: the first
-  lands, exports, and the agent's view reads it; the second is left out and
+  lands and the agent's view reads it; the second is left out and
   counted under "couldn't be read". Only a Worker has a Worker's stack.
 - **An equation, a diagram and a date open offline.** Open the tab, turn the
   network off, then open, for the first time since the tab loaded, an item
@@ -875,19 +851,19 @@ that deployment.
   consent page, signing in first, which asks "Allow Claude to read and change
   your library?" under the account's email; Allow returns to claude.ai
   connected; a chat that asks for a note finds and reads it, one that asks to
-  fix a typo in it edits it, and History shows that edit as one change set
-  named after the assistant. Disconnect ends it: in Settings › Account ›
-  Connected assistants, press Disconnect on the assistant just connected.
+  fix a typo in it edits it, and the fix reaches the Mac with no reload.
+  Disconnect ends it: in Settings › Account › Connected assistants, press
+  Disconnect on the assistant just connected.
   Passing: it leaves the list, its next call is refused, and the next chat
   asks to connect again.
 - **Claude Code lets the library in.** `claude mcp add --transport http
   inteligir <connector>`, then `/mcp` and Authenticate. Passing: the consent
   page warns "This sends access to an app on this computer.", Allow ends at
-  Claude Code's own callback, `/mcp` lists the 13 tools, and a `read_item` of
+  Claude Code's own callback, `/mcp` lists the 9 tools, and a `read_item` of
   a long note answers in the conversation rather than as a file.
 - **ChatGPT lets the library in.** Developer mode, then a connector at the
   connector's address with OAuth. Passing: the consent page names ChatGPT;
-  with "Only let it read the library" ticked, ChatGPT lists the six reading
+  with "Only let it read the library" ticked, ChatGPT lists the four reading
   tools and no write; the connector's description in ChatGPT reads as the
   instructions' first paragraph (`apps/web/src/worker/connector/connector-server.ts`).
 
@@ -923,12 +899,12 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   `library.agent.send({ text: "Tag my newest link travel." })`. Passing: the
   answer is `running`, the account's socket carries `thread` frames with
   previews before the reply ends, the thread's events land once each
-  (`library.agent.events`), its one change set is in History under Agent and
-  Undo takes it back, and `library.agent.status` counts one turn less; the
-  gateway's log shows one request a step, the second and later with cache
-  reads; the Worker's log has no `agent-thinking-dropped` and no 400; the
-  reply's `input_transformations` is present and empty (the beta headers
-  reached Anthropic).
+  (`library.agent.events`), its one change set is labelled Agent in
+  `library.history.list` and Undo this turn takes it back, and
+  `library.agent.status` counts one turn less; the gateway's log shows one
+  request a step, the second and later with cache reads; the Worker's log has
+  no `agent-thinking-dropped` and no 400; the reply's `input_transformations`
+  is present and empty (the beta headers reached Anthropic).
 - **A deploy mid-turn costs one call.** Send "Write me a 2,000-word note about
   tea", and deploy the preview again while it streams. Passing: the turn ends
   `done` within about a minute of the deploy, one note lands, in one change

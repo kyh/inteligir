@@ -93,7 +93,7 @@ describe("the connector's tools", () => {
     await client.close();
   });
 
-  it("lists only the five reading tools to a grant kept to reading, and refuses it a write", async () => {
+  it("lists only the four reading tools to a grant kept to reading, and refuses it a write", async () => {
     const client = await assistantFor("tools-read@example.test", true);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toStrictEqual(READ_TOOLS);

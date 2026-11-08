@@ -170,7 +170,7 @@ const toolRows = async (client: Client) => {
 
 export const connectorTools: Scenario = {
   description:
-    "the connector against a Miniflare Worker: a call with no token, or with a device's credential, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 11 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the five reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
+    "the connector against a Miniflare Worker: a call with no token, or with a device's credential, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 9 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the four reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
   name: "connector-tools",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
