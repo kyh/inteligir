@@ -30,7 +30,7 @@ export const phoneFileOpsHosted: Scenario = {
     const worker = await ctx.cloudWorker();
     await signUp(worker.origin);
     const phone = await signedInPhone(worker.origin);
-    const mac = await signedInPhone(worker.origin, "E2E Mac");
+    const mac = await signedInPhone(worker.origin);
     const { client, newId, saves } = libraryOf(phone);
 
     ctx.log("the phone saves a thought, and makes a note it titles");

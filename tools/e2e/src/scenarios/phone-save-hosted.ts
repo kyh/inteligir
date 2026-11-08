@@ -73,7 +73,7 @@ export const phoneSaveHosted: Scenario = {
       const worker = await ctx.cloudWorker({ pages: site.pages });
       await signUp(worker.origin);
       const phone = await signedInPhone(worker.origin);
-      const mac = await signedInPhone(worker.origin, "E2E Mac");
+      const mac = await signedInPhone(worker.origin);
 
       ctx.log("a shared page is saved unread, and the cloud reads it");
       const shared = landedOf(

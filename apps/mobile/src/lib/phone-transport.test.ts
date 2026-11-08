@@ -1,6 +1,7 @@
 import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import { describe, expect, it } from "vitest";
-import { downloadBlob } from "./phone-transport";
+import { downloadBlob, phoneTransport } from "./phone-transport";
 
 const SHA = "a".repeat(64);
 const CLIP = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
@@ -47,5 +48,42 @@ describe("a file fetched from the cloud", () => {
     await expect(downloadBlob(changed.transport, hashing("b".repeat(64)), SHA)).rejects.toThrow(
       /changed on the way/u,
     );
+  });
+});
+
+// what the phone's fetch was handed for one request, sent while the phone keeps `cookie`
+const sentWith = async (cookie: string | null): Promise<Request> => {
+  const sent: Request[] = [];
+  const transport = phoneTransport({
+    build: { platform: "mobile", version: "1.2.3" },
+    cookie: async () => await Promise.resolve(cookie),
+    fetch: async (request) => {
+      sent.push(request);
+      return await Promise.resolve(new Response(null, { status: 204 }));
+    },
+    origin: "https://cloud.test",
+  });
+  await transport.fetch(new Request("https://cloud.test/v1/rpc/account/socketTicket"));
+  const [request] = sent;
+  if (request === undefined) {
+    throw new Error("the transport sent nothing");
+  }
+  return request;
+};
+
+describe("a request to the cloud", () => {
+  it("carries the build and the kept session, under the app's scheme, and no cookie of the system's", async () => {
+    const request = await sentWith("better-auth.session_token=signed");
+    expect(Object.fromEntries(request.headers)).toStrictEqual({
+      cookie: "better-auth.session_token=signed",
+      "expo-origin": PHONE_ORIGIN,
+      "x-inteligir-build": "1.2.3+mobile",
+    });
+    expect(request.credentials).toBe("omit");
+  });
+
+  it("carries no cookie while the phone keeps no session", async () => {
+    const request = await sentWith(null);
+    expect(request.headers.has("cookie")).toBe(false);
   });
 });

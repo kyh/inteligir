@@ -22,8 +22,9 @@ src/
                 module of that name, the native module this app carries, and
                 palette.ts, the colors a prop takes as a value, with theme.ts's useTheme
                 over the system's scheme
-  credential/   the device credential at rest, in the Keychain (expo-secure-store)
-  login/        signing this phone in to an account
+  auth/         the phone's sign-in: Better Auth's Expo client, its session cookie in the
+                Keychain (expo-secure-store)
+  login/        signing this phone in to an account, or making one with an invite code
   files/        the library's files by their hash, cached with their thumbnails
                 (expo-file-folder.ts and expo-thumbnail.ts the native halves)
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
@@ -142,23 +143,28 @@ rather than queue, since a turn runs in the cloud.
 
 ## The sign-in seam
 
-A phone joins an account the way the desktop does: the account's own email
-and password, sent once as `account.signIn`, answered with this
-phone's own `igd_…` device credential. The login store (`src/login/login-store.ts`) posts the row and keeps the
-answer in the Keychain adapter; the password is held nowhere on the phone: it
-crosses the wire once and only the device credential remains, revocable from
-the account's Devices page. A refusal on the wire and a Keychain that cannot
-write all land in the one store the screen reads, so each is shown rather
-than dropped; a credential the Keychain could not keep is signed out before
-the error shows.
+A phone joins an account with a Better Auth session, as the site does: the
+account's own email and password, or a new account with an invite code through
+the cloud's one sign-up door, sent once through Better Auth's Expo client
+(`src/auth/phone-auth.ts`, bound in `src/lib/app-runtime.ts`). The client keeps
+the session cookie in the Keychain, this device only, while unlocked
+(`src/auth/keychain-storage.ts`), and every `/v1` call carries it with the
+app's scheme as its origin and no shared cookie jar (`src/lib/phone-transport.ts`).
+The password is held nowhere on the phone: it crosses the wire once and only
+the session remains, which the account's Devices page lists as an iPhone and
+can end. Each launch and each return to the front asks Better Auth for the
+session, which keeps a phone in use signed in. A refusal on the wire and a
+Keychain that cannot write all land in the one store the screen reads
+(`src/login/login-store.ts`), so each is shown rather than dropped; a session
+the Keychain could not keep is signed out before the error shows.
 
 A sign-in is one library (`src/lib/compose-runtime.ts`): its `/v1` client and
 query helpers, its saves, its shares and its previews, made together and
-closed together. An `unauthorized` any of its calls hears ends it for all of
-them and takes the cache, the files, the shares and the credential, which
-stays only when the copy would not go, so the next launch meets the same
-refusal; the sign-in screen says this device was signed out from the
-session's notice. A `client-outdated` ends it as `outdated` and clears
+closed together. An `unauthorized` any of its calls hears, or a session Better
+Auth no longer holds, ends it for all of them and takes the cache, the files,
+the shares and the session, which stays only when the copy would not go, so
+the next launch meets the same refusal; the sign-in screen says this device
+was signed out from the session's notice. A `client-outdated` ends it as `outdated` and clears
 nothing, so the next build resumes from what the phone holds. Which screens exist is the ROUTE
 GUARD's answer (`Stack.Protected` in `app/_layout.tsx`), never a per-screen
 branch, and a cold launch is `restoring` until the Keychain read ends, so the
@@ -169,8 +175,9 @@ sign-in form never flashes over a device that is signed in.
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the composition's restore, sign-in, sign-out,
   revocation and outdated build over a fake cell, what the socket's frames ask
-  again and what the cache keeps, the credential and its Keychain
-  accessibility (over a stand-in Keychain), the sign-in store, the file cache
+  again and what the cache keeps, the session's Keychain accessibility (over a
+  stand-in Keychain), the sign-in over Better Auth's own client, what each
+  `/v1` request carries, the sign-in store, the file cache
   (the thumbnail, the generation), the editor page's native end (every frame
   kind to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item
@@ -178,7 +185,8 @@ sign-in form never flashes over a device that is signed in.
   query. Unit tests, no device.
   `tools/e2e/src/scenarios/phone-offline-share.ts`, `phone-save-hosted.ts` and
   `phone-file-ops-hosted.ts` run the same
-  composition under node against a real Worker, beside a second device, and
+  composition under node against a real Worker, beside a second device, its
+  sign-in a plain fetch on the Expo client's routes, and
   `phone-editor-page.ts` loads the built page from `file://`.
 - **The store config** (`src/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the

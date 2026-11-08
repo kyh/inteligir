@@ -1,85 +1,67 @@
-import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
+import { fakePhoneAuth } from "../test-support/fake-phone-auth";
+import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { createLoginStore } from "./login-store";
 
-const REQUEST = {
-  deviceName: "Ada's iPhone",
-  email: "ada@example.com",
-  password: "a long password",
-};
+const REQUEST = { email: "ada@example.com", password: "a long password" };
+const NEW_ACCOUNT = { ...REQUEST, inviteCode: "INVITE-1", name: "Ada" };
 
-// the sign-in over a fake cloud and a Keychain in memory; `opens` is whether the library opens
-const storeOver = (network: FakeDevice, opens = true) => {
-  const opened: string[] = [];
-  // the credential each client was made with, null for none
-  const clients: (string | null)[] = [];
-  // what the Keychain holds of the sign-in, null once it holds nothing
-  interface Keychain {
-    kept: string | null;
-  }
-  const keychain: Keychain = { kept: null };
+// the sign-in over the suite's auth; `opens` is whether the library opens
+const storeOver = (fake: FakePhoneAuth, opens = true) => {
+  let opened = 0;
   const store = createLoginStore({
-    client: (credential) => {
-      clients.push(credential);
-      return network.client;
-    },
-    forget: async () => {
-      keychain.kept = null;
-      await Promise.resolve();
-    },
-    keep: async (kept) => {
-      keychain.kept = kept;
-      await Promise.resolve();
-    },
-    signedIn: async (kept) => {
+    auth: fake.auth,
+    signedIn: async () => {
       if (!opens) {
         throw new Error("The library on this iPhone couldn't be opened.");
       }
-      opened.push(kept);
+      opened += 1;
       await Promise.resolve();
     },
   });
-  return { clients, keychain, opened, store };
+  return { opened: () => opened, store };
 };
 
 describe("the phone's sign-in", () => {
   it("is one sign-in however often it is tapped while it runs", async () => {
-    const cell = createFakeCell();
-    const { opened, store } = storeOver(cell.device("phone"));
+    const fake = fakePhoneAuth();
+    const { opened, store } = storeOver(fake);
     const first = store.login(REQUEST);
     expect(store.get()).toStrictEqual({ kind: "signing-in" });
     await store.login(REQUEST);
     await first;
 
-    expect(cell.calls.filter((call) => call.endsWith("account/signIn"))).toHaveLength(1);
-    expect(opened).toHaveLength(1);
+    expect(fake.calls).toStrictEqual(["signIn"]);
+    expect(opened()).toBe(1);
     expect(store.get()).toStrictEqual({ kind: "idle" });
   });
 
-  it("says a refusal in the cloud's own sentence, and an unreachable cloud in its own", async () => {
-    const cell = createFakeCell();
-    const network = cell.device("phone");
-    const { opened, store } = storeOver(network);
-
-    cell.signOut();
+  it.each([
+    [
+      { kind: "refused", message: "Invalid email or password", status: 401 } as const,
+      "Check your email and password.",
+    ],
+    [
+      { kind: "refused", message: "Too many requests.", status: 429 } as const,
+      "Too many requests.",
+    ],
+    [
+      { kind: "refused", message: "internal error", status: 500 } as const,
+      "That didn't work. Check your connection and try again.",
+    ],
+    [{ kind: "unreachable" } as const, "That didn't work. Check your connection and try again."],
+  ])("says %j as %s, and opens nothing", async (answer, said) => {
+    const fake = fakePhoneAuth();
+    const { opened, store } = storeOver(fake);
+    fake.answer(answer);
     await store.login(REQUEST);
-    const refused = store.get();
-    expect(refused.kind).toBe("failed");
-    expect(refused.kind === "failed" ? refused.message : "").not.toMatch(/fetch|network/iu);
-
-    network.setOffline(true);
-    await store.login(REQUEST);
-    expect(store.get()).toStrictEqual({
-      kind: "failed",
-      message: "That didn't work. Check your connection and try again.",
-    });
-    expect(opened).toStrictEqual([]);
+    expect(store.get()).toStrictEqual({ kind: "failed", message: said });
+    expect(opened()).toBe(0);
   });
 
   it("says a request the cloud would refuse in its own words, and sends nothing", async () => {
-    const cell = createFakeCell();
-    const { store } = storeOver(cell.device("phone"));
+    const fake = fakePhoneAuth();
+    const { store } = storeOver(fake);
     for (const request of [
       { ...REQUEST, password: "7 chars" },
       { ...REQUEST, email: "ada@" },
@@ -90,20 +72,54 @@ describe("the phone's sign-in", () => {
         message: "Check your email and password.",
       });
     }
-    expect(cell.calls).toStrictEqual([]);
+    expect(fake.calls).toStrictEqual([]);
   });
 
-  it("lets the device go, and forgets it, when the library does not open under it", async () => {
-    const cell = createFakeCell();
-    const { clients, keychain, store } = storeOver(cell.device("phone"), false);
+  it("signs out again when the Keychain kept no session, so none is held that cannot be used", async () => {
+    const fake = fakePhoneAuth();
+    fake.keepNothing();
+    const { opened, store } = storeOver(fake);
+    await store.login(REQUEST);
+    expect(store.get()).toStrictEqual({
+      kind: "failed",
+      message: "This iPhone couldn't keep your sign-in.",
+    });
+    expect(fake.calls).toStrictEqual(["signIn", "signOut"]);
+    expect(opened()).toBe(0);
+  });
+
+  it("signs out again when the library does not open under it", async () => {
+    const fake = fakePhoneAuth();
+    const { store } = storeOver(fake, false);
     await store.login(REQUEST);
     expect(store.get()).toStrictEqual({
       kind: "failed",
       message: "The library on this iPhone couldn't be opened.",
     });
-    expect(cell.calls.filter((call) => call.endsWith("account/signOut"))).toHaveLength(1);
-    // the sign-out went under the credential the sign-in answered
-    expect(clients.at(-1)).toMatch(/^igd_/u);
-    expect(keychain.kept).toBeNull();
+    expect(fake.calls).toStrictEqual(["signIn", "signOut"]);
+    expect(fake.held()).toBeNull();
+  });
+});
+
+describe("the phone's sign-up", () => {
+  it("makes the account through the invite gate and opens its library", async () => {
+    const fake = fakePhoneAuth();
+    const { opened, store } = storeOver(fake);
+    await store.signUp(NEW_ACCOUNT);
+    expect(fake.calls).toStrictEqual(["signUp"]);
+    expect(opened()).toBe(1);
+    expect(store.get()).toStrictEqual({ kind: "idle" });
+  });
+
+  it("says the gate's refusal in the gate's own sentence", async () => {
+    const fake = fakePhoneAuth();
+    const { opened, store } = storeOver(fake);
+    fake.answer({ kind: "refused", message: "That invite code doesn't work.", status: 403 });
+    await store.signUp(NEW_ACCOUNT);
+    expect(store.get()).toStrictEqual({
+      kind: "failed",
+      message: "That invite code doesn't work.",
+    });
+    expect(opened()).toBe(0);
   });
 });

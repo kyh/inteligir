@@ -1,6 +1,6 @@
-// The phone's runtime as the app composes it, over a key-value store and a folder in memory, a
-// Keychain the suite holds, and the contract's fake cell for the account: every move between
-// signed in and signed out, what each one keeps and clears, and what the socket's frames ask again.
+// The phone's runtime as the app composes it, over a key-value store and a folder in memory, an
+// auth the suite holds, and the contract's fake cell for the account: every move between signed in
+// and signed out, what each one keeps and clears, and what the socket's frames ask again.
 
 import { createHash } from "node:crypto";
 import { dehydrate } from "@tanstack/react-query";
@@ -15,49 +15,19 @@ import { describe, expect, it } from "vitest";
 import { withAppReads } from "../test-support/app-reads";
 import type { AppReadsDevice } from "../test-support/app-reads";
 import { deferred } from "../test-support/async";
+import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
+import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";
 import type { MemoryFolder } from "../test-support/memory-folder";
 import { memoryKv } from "../test-support/memory-kv";
 import type { MemoryKv } from "../test-support/memory-kv";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
-import type { AppRuntime, CredentialStore, PhoneLibrary } from "./compose-runtime";
+import type { AppRuntime, PhoneLibrary } from "./compose-runtime";
 
-const SIGN_IN = {
-  deviceName: "Ada's iPhone",
-  email: "ada@example.com",
-  password: "a long password",
-};
+const SIGN_IN = { email: "ada@example.com", password: "a long password" };
 
-const KEPT = `igd_${"9".repeat(64)}`;
 const PAGE = "https://example.com/later";
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
-
-// the Keychain as the suite holds it: what it keeps, and one that refuses every write
-const keychain = (kept: string | null = null) => {
-  let held = kept;
-  let refusing = false;
-  const store: CredentialStore = {
-    clear: async () => {
-      held = null;
-      await Promise.resolve();
-    },
-    read: async () => await Promise.resolve(held),
-    write: async (credential) => {
-      if (refusing) {
-        throw new Error("the Keychain is locked");
-      }
-      held = credential;
-      await Promise.resolve();
-    },
-  };
-  return {
-    held: () => held,
-    refuse: () => {
-      refusing = true;
-    },
-    store,
-  };
-};
 
 // a folder that refuses the next clear once told to, as a full disk refuses a wipe's
 const refusingOnce = (folder: MemoryFolder) => {
@@ -90,7 +60,7 @@ const idSource = () => {
 };
 
 interface PhoneOptions {
-  readonly keys: ReturnType<typeof keychain>;
+  readonly keys: FakePhoneAuth;
   readonly storage?: MemoryKv;
   readonly folder?: MemoryFolder;
   readonly sockets?: FakeSockets;
@@ -101,10 +71,10 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
   const network: AppReadsDevice = withAppReads(cell, cell.device("phone"));
   const storage = options.storage ?? memoryKv();
   const runtime = composeRuntime({
+    auth: options.keys.auth,
     build: { platform: "mobile", version: "1.0.0" },
     clock: fakeClock(),
     cloudUrl: "https://cell.test",
-    credentials: options.keys.store,
     dial: options.sockets?.dial ?? null,
     fetch: options.fetch ?? (async (request) => await network.transport.fetch(request)),
     folder: options.folder ?? memoryFolder(),
@@ -154,53 +124,52 @@ const shareWaiting = async (library: PhoneLibrary, network: AppReadsDevice): Pro
 
 describe("the phone's runtime", () => {
   it("is signed out with nothing kept, and says nothing about it", async () => {
-    const { runtime } = runtimeOver(createFakeCell(), { keys: keychain() });
+    const { runtime } = runtimeOver(createFakeCell(), { keys: fakePhoneAuth() });
     await runtime.start();
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
   });
 
-  it("keeps a sign-in's credential, then reads the account's library", async () => {
+  it("keeps a sign-in's session, then reads the account's library", async () => {
     const cell = createFakeCell();
     await noteOnTheMac(cell);
-    const keys = keychain();
+    const keys = fakePhoneAuth();
     const { runtime } = runtimeOver(cell, { keys });
     await runtime.start();
     await runtime.login.login(SIGN_IN);
 
     expect(runtime.login.get()).toStrictEqual({ kind: "idle" });
-    expect(keys.held()).toMatch(/^igd_/u);
+    expect(keys.held()).toBe(KEPT_SESSION);
     const { queries } = signedIn(runtime);
     await expect(
       runtime.queryClient.query(queries.library.listing.titles.queryOptions()),
     ).resolves.toStrictEqual({ targets: [{ id: NOTE, title: "Plans" }] });
   });
 
-  it("fails a sign-in whose credential the Keychain would not keep, and lets that device go", async () => {
-    const cell = createFakeCell();
-    const keys = keychain();
-    keys.refuse();
-    const { runtime } = runtimeOver(cell, { keys });
+  it("fails a sign-in whose session the Keychain would not keep, and signs out again", async () => {
+    const keys = fakePhoneAuth();
+    keys.keepNothing();
+    const { runtime } = runtimeOver(createFakeCell(), { keys });
     await runtime.start();
     await runtime.login.login(SIGN_IN);
 
     expect(runtime.login.get()).toStrictEqual({
       kind: "failed",
-      message: "This iPhone couldn't keep your sign-in: the Keychain is locked",
+      message: "This iPhone couldn't keep your sign-in.",
     });
     expect(runtime.session.get().kind).toBe("signed-out");
-    expect(cell.calls).toContain("phone account/signOut");
+    expect(keys.calls).toStrictEqual(["signIn", "signOut"]);
   });
 
   it("starts the cache, the files and the shares over at a sign-in, since they may be another account's", async () => {
     const cell = createFakeCell();
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const folder = memoryFolder();
     const first = runtimeOver(cell, { folder, keys });
     await first.runtime.start();
     await shareWaiting(signedIn(first.runtime), first.network);
     await folder.write("cached", new Uint8Array([1, 2, 3]));
     first.runtime.queryClient.setQueryData(["kept"], "the last account's");
-    await keys.store.clear();
+    await keys.auth.signOut();
 
     const second = runtimeOver(cell, { folder, keys, storage: first.storage });
     await second.runtime.start();
@@ -213,7 +182,7 @@ describe("the phone's runtime", () => {
 
   it("keeps a share waiting across a relaunch, and lands it once the cloud can be reached", async () => {
     const cell = createFakeCell();
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const first = runtimeOver(cell, { keys });
     await first.runtime.start();
     await shareWaiting(signedIn(first.runtime), first.network);
@@ -230,9 +199,9 @@ describe("the phone's runtime", () => {
     expect([...cell.items().values()].map((item) => item.fields.url)).toStrictEqual([PAGE]);
   });
 
-  it("leaves the account when the cloud no longer takes its credential, and says why", async () => {
+  it("leaves the account when the cloud no longer takes its session, and says why", async () => {
     const cell = createFakeCell();
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const { network, runtime, storage } = runtimeOver(cell, { keys });
     await runtime.start();
     await shareWaiting(signedIn(runtime), network);
@@ -247,9 +216,39 @@ describe("the phone's runtime", () => {
     expect(sharesKept(storage)).toStrictEqual([]);
   });
 
-  it("asks before a sign-out discards saves waiting, and lets the device go when told", async () => {
+  it("leaves the account a launch finds its session ended in, and says why", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    keys.checks("ended");
+    const { runtime, storage } = runtimeOver(createFakeCell(), { keys });
+    await storage.setItem("library-cache", "the last launch's");
+    await runtime.start();
+
+    await expect
+      .poll(() => runtime.session.get())
+      .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
+    expect(keys.held()).toBeNull();
+    expect([...storage.held.keys()]).toStrictEqual([]);
+  });
+
+  it("stays signed in when its session cannot be read, and asks again on each return to the front", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    keys.checks("unknown");
+    const { runtime } = runtimeOver(createFakeCell(), { keys });
+    await runtime.start();
+    await expect.poll(() => keys.calls).toStrictEqual(["check"]);
+    expect(runtime.session.get().kind).toBe("signed-in");
+
+    keys.checks("ended");
+    runtime.resume();
+    await expect
+      .poll(() => runtime.session.get())
+      .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
+    expect(keys.calls).toStrictEqual(["check", "check", "signOut"]);
+  });
+
+  it("asks before a sign-out discards saves waiting, and signs out when told", async () => {
     const cell = createFakeCell();
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const { network, runtime, storage } = runtimeOver(cell, { keys });
     await runtime.start();
     await shareWaiting(signedIn(runtime), network);
@@ -264,31 +263,25 @@ describe("the phone's runtime", () => {
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
     expect(keys.held()).toBeNull();
     expect(sharesKept(storage)).toStrictEqual([]);
-    await expect.poll(() => cell.calls).toContain("phone account/signOut");
+    expect(keys.calls).toContain("signOut");
   });
 
   it("signs out at once though the cloud never answers", async () => {
-    const cell = createFakeCell();
-    const reached = deferred();
-    const { runtime } = runtimeOver(cell, {
-      fetch: async () => {
-        reached.resolve();
-        // the cloud never answers
-        return await deferred<Response>().promise;
-      },
-      keys: keychain(KEPT),
+    const { runtime } = runtimeOver(createFakeCell(), {
+      // the cloud never answers
+      fetch: async () => await deferred<Response>().promise,
+      keys: fakePhoneAuth(KEPT_SESSION),
     });
     await runtime.start();
 
     await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
     expect(runtime.session.get().kind).toBe("signed-out");
-    await reached.promise;
   });
 
   it("stays signed in, working and the account's, when the phone cannot take its copy away", async () => {
     const cell = createFakeCell();
     await noteOnTheMac(cell);
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const folder = refusingOnce(memoryFolder());
     const { runtime } = runtimeOver(cell, { folder: folder.port, keys });
     await runtime.start();
@@ -299,9 +292,9 @@ describe("the phone's runtime", () => {
       kind: "failed",
       message: "database or disk is full",
     });
-    // the device is still the account's, and its library opened again over what the phone holds
-    expect(cell.calls).not.toContain("phone account/signOut");
-    expect(keys.held()).toStrictEqual(KEPT);
+    // the phone is still the account's, and its library opened again over what the phone holds
+    expect(keys.calls).not.toContain("signOut");
+    expect(keys.held()).toBe(KEPT_SESSION);
     const after = signedIn(runtime);
     expect(after).not.toBe(before);
     await expect(
@@ -319,7 +312,7 @@ describe("the phone's runtime", () => {
 
   it("is signed out of a sign-in the cloud ended though its copy would not go, and clears it at the next launch", async () => {
     const cell = createFakeCell();
-    const keys = keychain(KEPT);
+    const keys = fakePhoneAuth(KEPT_SESSION);
     const memory = memoryFolder();
     const folder = refusingOnce(memory);
     const sockets = fakeSockets();
@@ -336,7 +329,7 @@ describe("the phone's runtime", () => {
         kind: "signed-out",
         notice: `${SIGNED_OUT_ELSEWHERE} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: database or disk is full`,
       });
-    expect(keys.held()).toStrictEqual(KEPT);
+    expect(keys.held()).toBe(KEPT_SESSION);
     expect(memory.held()).toStrictEqual(["cached"]);
 
     // the socket's ticket is the next launch's first call, which hears the refusal
@@ -352,7 +345,7 @@ describe("the phone's runtime", () => {
   it("fails the launch when the phone's store will not read", async () => {
     const storage = memoryKv();
     const { runtime } = runtimeOver(createFakeCell(), {
-      keys: keychain(KEPT),
+      keys: fakePhoneAuth(KEPT_SESSION),
       storage: {
         ...storage,
         getAllKeys: async () => {
@@ -370,7 +363,7 @@ describe("the phone's runtime", () => {
 const socketPhone = async () => {
   const cell = createFakeCell();
   const sockets = fakeSockets();
-  const { runtime } = runtimeOver(cell, { keys: keychain(KEPT), sockets });
+  const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION), sockets });
   await runtime.start();
   await expect.poll(() => sockets.sockets.length).toBe(1);
   const [socket] = sockets.sockets;
@@ -439,7 +432,7 @@ describe("what the account's socket asks again", () => {
 
 describe("the cache the phone keeps between launches", () => {
   it("keeps what was read, but no file's address and no write", async () => {
-    const { runtime } = runtimeOver(createFakeCell(), { keys: keychain() });
+    const { runtime } = runtimeOver(createFakeCell(), { keys: fakePhoneAuth() });
     const { queryClient } = runtime;
     queryClient.setQueryData(["read"], "kept");
     await queryClient.query({
