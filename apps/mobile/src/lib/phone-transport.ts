@@ -1,12 +1,14 @@
 // `/v1` as this phone reaches it: the cloud's origin over the global fetch, the build on every
-// request, since the Worker meets every install at its build floor, and the device's credential
-// as the bearer once a sign-in kept one. Every call, upload and download goes through it. No Blob
-// or File crosses it: a file's bytes go as a Uint8Array.
+// request, since the Worker meets every install at its build floor, and the session cookie the
+// phone keeps, under its app scheme in `expo-origin`, the door the Worker reads a phone's cookie
+// by. Every call, upload and download goes through it. No Blob or File crosses it: a file's bytes
+// go as a Uint8Array.
 
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import { sharedFailure } from "@repo/contract/cloud/library/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/cloud/library/call-outcome";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
@@ -18,16 +20,21 @@ import type { HeldFile } from "../files/file-cache";
 export const phoneTransport = (args: {
   readonly origin: string;
   readonly build: ClientBuild;
-  readonly credential: string | null;
+  // read at each request: the Keychain's, as Better Auth's Expo client keeps it
+  readonly cookie: () => Promise<string | null>;
   readonly fetch: (request: Request) => Promise<Response>;
 }): V1Transport => ({
   fetch: async (request) => {
     const headers = new Headers(request.headers);
     headers.set(CLIENT_BUILD_HEADER, clientBuildValue(args.build));
-    if (args.credential !== null) {
-      headers.set("authorization", `Bearer ${args.credential}`);
+    headers.set("expo-origin", PHONE_ORIGIN);
+    const cookie = await args.cookie();
+    if (cookie !== null) {
+      headers.set("cookie", cookie);
     }
-    return await args.fetch(new Request(request, { headers }));
+    // the cookie is the one set here: the system's own cookie handling neither overrides it nor
+    // keeps what the cloud sets, which a socket's upgrade would then carry
+    return await args.fetch(new Request(request, { credentials: "omit", headers }));
   },
   origin: args.origin,
 });

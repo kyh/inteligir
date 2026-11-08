@@ -111,13 +111,26 @@ look, and how it ships.
   `expo-file-system/legacy` (its promise API is deprecated); a type read from
   the first bytes (no sniff names a recording, which WebKit then may not play).
 
-- **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, WHILE UNLOCKED.**
-  Nothing reads it behind a lock screen, since the app runs nothing in the
-  background and a share opens it in front. It never moves to another phone by
+- **THE PHONE SIGNS IN WITH A BETTER AUTH SESSION, KEPT BY ITS EXPO CLIENT IN
+  THE KEYCHAIN, THIS DEVICE ONLY, WHILE UNLOCKED.** `expoClient` keeps the
+  session cookie (`apps/mobile/src/auth/keychain-storage.ts`), and every
+  procedure and the socket's ticket send it with the app's scheme as
+  `expo-origin` and `credentials: "omit"`, so no shared cookie jar carries a
+  second one (`apps/mobile/src/lib/phone-transport.ts`). A new account goes
+  through the cloud's invite gate, and a sign-out tells the cloud without
+  waiting on it once the Keychain has let the session go
+  (`apps/mobile/src/auth/phone-auth.ts`). Each launch and each return to the
+  front asks Better Auth for the session, which slides it, and one it no longer
+  holds signs the phone out (`apps/mobile/src/lib/compose-runtime.ts`). Nothing
+  reads the Keychain behind a lock screen, since the app runs nothing in the
+  background and a share opens it in front; it never moves to another phone by
   a backup, and a Keychain that refuses the write fails the sign-in, whose
-  device is signed out again, rather than a sign-in that is gone on the next
-  launch (`apps/mobile/src/credential/secure-store-credential.ts`). Rejected:
-  after first unlock (a looser class for a read no path makes).
+  session is signed out again, rather than a sign-in that is gone on the next
+  launch. `tools/e2e/src/harness/phone-runtime.ts` calls the same routes with a
+  plain fetch, since the Expo client loads in no node process. Rejected: a
+  device credential of the phone's own (a second kind of sign-in the cloud
+  reads beside Better Auth's sessions, for no gain); after first unlock (a
+  looser class for a read no path makes).
 
 - **A PHONE SAVE IS ONE CREATE WHERE THE LIBRARY'S SCOPE SAVES.** A link is
   saved for the cloud's fill to read, and a save of an address the library

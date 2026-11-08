@@ -22,7 +22,7 @@ import { useTheme } from "@/lib/theme";
 // the app's classes: one sheet, read once at the root, so every screen's className resolves
 import "../styles.css";
 
-// held until the stored credential is read, so a cold launch never flashes the sign-in form.
+// held until the kept session is read, so a cold launch never flashes the sign-in form.
 void SplashScreen.preventAutoHideAsync();
 
 // a share waits through the background: one made while the app was asleep or signed out is saved

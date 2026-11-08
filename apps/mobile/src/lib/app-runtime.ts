@@ -1,10 +1,12 @@
-// The composition root's native half: composeRuntime bound to the Keychain, expo-sqlite's
-// key-value store, the file folder, the global fetch, React Native's socket and the OS's app state,
-// built once for the app's life. A screen reaches the library through the hooks in
+// The composition root's native half: composeRuntime bound to Better Auth's Expo client over the
+// Keychain, expo-sqlite's key-value store, the file folder, the global fetch, React Native's socket
+// and the OS's app state, built once for the app's life. A screen reaches the library through the hooks in
 // library-hooks.ts, over TanStack Query, whose online state is the network's and whose focus is
 // the app's.
 
+import { expoClient } from "@better-auth/expo/client";
 import { focusManager, onlineManager } from "@tanstack/react-query";
+import { createAuthClient } from "better-auth/client";
 import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import Constants from "expo-constants";
@@ -14,9 +16,13 @@ import * as SecureStore from "expo-secure-store";
 import { defaultDatabaseDirectory } from "expo-sqlite";
 import { SQLiteStorage } from "expo-sqlite/kv-store";
 import { z } from "zod";
+import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
-import { createKeychainCredentials } from "../credential/secure-store-credential";
+import { keychainStorage } from "../auth/keychain-storage";
+import { phoneAuthOver } from "../auth/phone-auth";
+import type { PhoneAuth } from "../auth/phone-auth";
 import { expoFileFolder } from "../files/expo-file-folder";
 import { shrinkToThumbnail } from "../files/expo-thumbnail";
 import type { KvStorage } from "../items/share-outbox";
@@ -61,10 +67,30 @@ const keptOutOfBackup = (store: SQLiteStorage): KvStorage => {
   };
 };
 
+// Better Auth's Expo client: it keeps the session cookie in the Keychain, under keys named
+// `inteligir_…`, and names the app's scheme in `expo-origin` on every call of its own, the origin
+// the cloud trusts for the phone's sign-in
+const phoneAuth = (cloudUrl: string): PhoneAuth =>
+  phoneAuthOver(
+    createAuthClient({
+      baseURL: cloudUrl,
+      plugins: [
+        expoClient({
+          scheme: PHONE_ORIGIN.replace(/:\/\/$/u, ""),
+          storage: keychainStorage(SecureStore),
+          storagePrefix: "inteligir",
+        }),
+      ],
+    }),
+    cloudUrl,
+  );
+
 let runtime: AppRuntime | null = null;
 
 const build = (): AppRuntime => {
+  const cloudUrl = getCloudUrl();
   const rt = composeRuntime({
+    auth: phoneAuth(cloudUrl),
     build: { platform: "mobile", version: appVersion() },
     clock: {
       after: (ms, run) => {
@@ -75,8 +101,7 @@ const build = (): AppRuntime => {
       },
       now: () => Date.now(),
     },
-    cloudUrl: getCloudUrl(),
-    credentials: createKeychainCredentials(SecureStore),
+    cloudUrl,
     // React Native's WebSocket: it opens with the ticket a `/v1` call minted, in the query string,
     // as every client does, never a header
     dial: (url) => new WebSocket(url),
@@ -131,6 +156,10 @@ export const logout = async (options?: { discardWaiting?: boolean }): Promise<Lo
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
+};
+
+export const signUp = async (request: SignUpRequest): Promise<void> => {
+  await getRuntime().login.signUp(request);
 };
 
 export const useSession = (): PhoneSession => {

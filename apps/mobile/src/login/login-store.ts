@@ -1,111 +1,92 @@
-// The phone's first run: a sign-in with the account's email and password, answering this phone's
-// own device credential (`account.signIn` on `/v1/rpc`); an account is made on the site or the
-// Mac, since the phone stays sign-in only (A DEVICE CAN ALSO CREATE THE ACCOUNT). The credential
-// is kept in the Keychain before the library opens; a Keychain that refuses it, or a library that
-// will not open under it, is a sign-in that failed, and the cloud is told to let that device go and
-// the Keychain to forget it, so no slot of the account is held by a phone that keeps nothing. A
-// request the contract would refuse (an address that is none, a password too short) is said here
-// and never sent; a refusal the contract declares says its own sentence.
+// The phone's first run: a sign-in with the account's email and password, or an account made with
+// an invite code, both Better Auth's own, through the phone's auth (`../auth/phone-auth.ts`), which
+// keeps the session in the Keychain before the library opens.
+// A Keychain that kept nothing, or a library that will not open, is a sign-in that failed, and the
+// phone signs out again, so it holds no session it cannot use. A sign-in the cloud would refuse (an
+// address that is none, a password too short) is said here and never sent; a sign-up's fields are
+// the invite gate's to judge, in its own sentences.
 
+import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import {
-  deviceLoginRequestSchema,
-  normalizeDeviceName,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { z } from "zod";
+import type { AuthAnswer, PhoneAuth } from "../auth/phone-auth";
 import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
 
 export type LoginState =
   | { readonly kind: "idle" }
   | { readonly kind: "signing-in" }
   | { readonly kind: "failed"; readonly message: string };
 
-export interface LoginRequest {
-  readonly email: string;
-  readonly password: string;
-  // what the account's device list calls this phone
-  readonly deviceName: string;
-}
+const loginRequestSchema = z.strictObject({
+  email: z.string().trim().pipe(z.email()),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+});
+export type LoginRequest = z.input<typeof loginRequestSchema>;
 
 export interface LoginStoreArgs {
-  // `/v1` with no credential yet, and with the one a sign-in just answered
-  readonly client: (credential: string | null) => V1Client;
-  // opens the library under the credential `keep` kept
-  readonly signedIn: (credential: string) => Promise<void>;
-  readonly keep: (credential: string) => Promise<void>;
-  // lets go of the credential `keep` kept
-  readonly forget: () => Promise<void>;
+  readonly auth: Pick<PhoneAuth, "cookie" | "signIn" | "signOut" | "signUp">;
+  // opens the library under the session the phone now keeps
+  readonly signedIn: () => Promise<void>;
 }
 
 export interface LoginStore extends ReadableStore<LoginState> {
   readonly login: (request: LoginRequest) => Promise<void>;
-  // a Keychain that refuses the boot read is shown here too
+  readonly signUp: (request: SignUpRequest) => Promise<void>;
+  // a Keychain that refuses the launch's read is shown here too
   readonly fail: (message: string) => void;
 }
 
 const DID_NOT_WORK = "That didn't work. Check your connection and try again.";
 const NOT_A_SIGN_IN = "Check your email and password.";
+const NOT_KEPT = "This iPhone couldn't keep your sign-in.";
+
+// a refusal in the cloud's own sentence, but a wrong password in ours, and a fault as no verdict
+const saidOf = (answer: Exclude<AuthAnswer, { kind: "signed-in" }>): string => {
+  if (answer.kind === "unreachable") {
+    return DID_NOT_WORK;
+  }
+  if (answer.status === 401) {
+    return NOT_A_SIGN_IN;
+  }
+  return answer.status >= 500 || answer.message === null ? DID_NOT_WORK : answer.message;
+};
 
 export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
   const state = createExternalStore<LoginState>({ kind: "idle" });
 
-  // the device the answer named, let go at the cloud; best-effort, since the device list shows a
-  // slot the cloud did not free
-  const letGo = async (credential: string): Promise<void> => {
-    try {
-      await args.client(credential).account.signOut();
-    } catch {
-      // the cloud did not take the sign-out either; the device list shows the slot to free
-    }
+  const failed = async (message: string): Promise<void> => {
+    await args.auth.signOut();
+    state.set({ kind: "failed", message });
   };
 
-  const login = async (request: LoginRequest): Promise<void> => {
-    // a second tap while the first is in flight is the same sign-in
-    if (state.get().kind === "signing-in") {
-      return;
-    }
-    const asked = deviceLoginRequestSchema.safeParse({
-      deviceName: normalizeDeviceName(request.deviceName),
-      email: request.email,
-      password: request.password,
-    });
-    if (!asked.success) {
-      state.set({ kind: "failed", message: NOT_A_SIGN_IN });
-      return;
-    }
+  const enter = async (ask: () => Promise<AuthAnswer>): Promise<void> => {
     state.set({ kind: "signing-in" });
-    let answer: DeviceLoginResponse;
+    const answer = await ask();
+    if (answer.kind !== "signed-in") {
+      state.set({ kind: "failed", message: saidOf(answer) });
+      return;
+    }
+    let kept: string | null;
     try {
-      answer = await args.client(null).account.signIn(asked.data);
+      kept = await args.auth.cookie();
     } catch (error) {
-      state.set({ kind: "failed", message: refusalText(error, DID_NOT_WORK) });
+      await failed(`${NOT_KEPT} ${messageOf(error)}`);
+      return;
+    }
+    if (kept === null) {
+      await failed(NOT_KEPT);
       return;
     }
     try {
-      await args.keep(answer.credential);
-    } catch (error) {
-      await letGo(answer.credential);
-      state.set({
-        kind: "failed",
-        message: `This iPhone couldn't keep your sign-in: ${messageOf(error)}`,
-      });
-      return;
-    }
-    try {
-      await args.signedIn(answer.credential);
+      await args.signedIn();
       state.set({ kind: "idle" });
     } catch (error) {
-      await letGo(answer.credential);
-      try {
-        await args.forget();
-      } catch {
-        // a Keychain that kept the credential and now refuses to forget it: the next launch reads a
-        // credential the cloud refuses, and signs out
-      }
-      state.set({ kind: "failed", message: messageOf(error) });
+      await failed(messageOf(error));
     }
   };
 
@@ -114,7 +95,24 @@ export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
       state.set({ kind: "failed", message });
     },
     get: state.get,
-    login,
+    async login(request) {
+      // a second tap while the first is in flight is the same sign-in
+      if (state.get().kind === "signing-in") {
+        return;
+      }
+      const asked = loginRequestSchema.safeParse(request);
+      if (!asked.success) {
+        state.set({ kind: "failed", message: NOT_A_SIGN_IN });
+        return;
+      }
+      await enter(async () => await args.auth.signIn(asked.data));
+    },
+    async signUp(request) {
+      if (state.get().kind === "signing-in") {
+        return;
+      }
+      await enter(async () => await args.auth.signUp(request));
+    },
     subscribe: state.subscribe,
   };
 };

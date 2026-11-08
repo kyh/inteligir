@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "exports": {
+    "./auth/phone-auth": "./src/auth/phone-auth.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./test-support/memory-folder": "./src/test-support/memory-folder.ts",
     "./test-support/memory-kv": "./src/test-support/memory-kv.ts"
@@ -20,6 +21,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/expo": "catalog:",
     "@expo/metro-runtime": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
@@ -32,6 +34,7 @@
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
+    "better-auth": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",

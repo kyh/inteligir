@@ -7,16 +7,11 @@ import { z } from "zod";
 // a bearer without the prefix is refused before its hash and the D1 read; the Authorization
 // header, not the prefix, is what says a request's credential is a device's
 export const DEVICE_CREDENTIAL_PREFIX = "igd_";
+/** @internal */
 export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/u;
 
 /** @internal */
 export const DEVICE_NAME_MAX_LENGTH = 64;
-
-// a raw hostname can be empty or over the cloud's ceiling, refused steps later as a shape error
-export const normalizeDeviceName = (raw: string): string => {
-  const name = raw.trim().slice(0, DEVICE_NAME_MAX_LENGTH);
-  return name.length === 0 ? "this device" : name;
-};
 
 // the Worker configures Better Auth with these, so a password refused here is one it would
 // refuse too; the ceiling is there because a longer one is hashing cost an unauthenticated
