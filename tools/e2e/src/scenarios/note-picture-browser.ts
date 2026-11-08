@@ -88,7 +88,7 @@ export const notePictureBrowser: Scenario = {
     );
     expect(landed.includes(PARAGRAPH), `the paragraph went with the paste:\n${landed}`);
 
-    ctx.log("a reload pulls the library again, and the picture draws from the cloud");
+    ctx.log("a reload reads the library again, and the picture draws from the cloud");
     await browser(["open", `${worker.origin}${LIBRARY_PAGE_PATH}?item=${noteId}`], 60_000);
     await browser(["wait", EDITOR], 90_000);
     await untilDrawn(browser, "after a reload");

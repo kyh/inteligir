@@ -26,7 +26,7 @@ const assertDocumentPolicy = async (origin: string): Promise<void> => {
     expect(response.ok, `GET ${path} answered ${String(response.status)}`);
     const policy = response.headers.get("content-security-policy") ?? "";
     expect(
-      policy.includes("script-src 'self' 'wasm-unsafe-eval'"),
+      policy.includes("script-src 'self';"),
       `${path}'s document does not carry the page's policy: ${policy}`,
     );
     const html = await response.text();
@@ -65,7 +65,7 @@ const assertPhoneWidth = async (browser: ScenarioBrowser, origin: string): Promi
 
 export const browserSmoke: Scenario = {
   description:
-    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the replica pulled into the tab, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
+    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the library read into the tab from the cell, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
   name: "browser-smoke",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -107,7 +107,7 @@ export const browserSmoke: Scenario = {
     await assertPhoneWidth(phone, worker.origin);
     await phone.close();
 
-    ctx.log("the signed-in tab pulled the library: the seeded item's card is in the grid");
+    ctx.log("the signed-in tab read the library: the seeded item's card is in the grid");
     await browser(["wait", libraryCard(welcomeId)], MOUNT_DEADLINE_MS);
     const title = await browser(["get", "title"]);
     expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
@@ -120,7 +120,7 @@ export const browserSmoke: Scenario = {
     await browser(["wait", EDITOR], MOUNT_DEADLINE_MS);
     await untilBodyHolds(browser, ["Start here."]);
 
-    ctx.log("typing lands in the cell through the outbox");
+    ctx.log("typing lands in the cell after the editor's pause");
     await browser(["click", `${EDITOR} p`]);
     await browser(["press", "End"]);
     await browser(["keyboard", "type", TYPED]);
