@@ -101,10 +101,11 @@ through the Service or otherwise includes:
   receives:
   - **Your library, in your account.** Every change a device of yours makes —
     to items, files, highlights, folders and tags — goes to your account's
-    library in our cloud, which keeps it with every earlier version, each change
-    named for the device or the assistant that made it and the built-in agent's
-    for the conversation that made them. Your library is reachable only with a
-    credential from your own account, and holds about 1 GB, history included. A
+    library in our cloud, which keeps what each change replaced for seven days,
+    so Undo can take it back, each change named for the device or the assistant
+    that made it and the built-in agent's for the conversation that made them.
+    Your library is reachable only with a credential from your own account, and
+    holds about 1 GB, what Undo keeps included. A
     full one still opens and downloads everywhere, but takes no new changes:
     the device that made one says so, and the change is not in your library
     until you send it again once there is room. A file over 100 MB is never
@@ -374,12 +375,13 @@ we may either delete it, anonymize it, or isolate it from further processing.
 
 Specifically, in our cloud:
 
-- Your library keeps each item's newest 100 versions, every version from the
-  last 30 days, and before that the last version of each day, until the item is
-  deleted for good or the account is deleted. Deleting an item moves it to
-  Deleted, not out of its history; emptying Deleted, or Delete forever, removes
-  the item's text, highlights and history at once, and each of its files once no
-  other item and no other item's history shows it.
+- Your library keeps each change, with what it replaced, for seven days after
+  it is finished, so Undo can take it back, and deletes it within about a day
+  after that. An item stays until it is deleted for good or the account is
+  deleted. Deleting an item moves it to Deleted; emptying Deleted, or Delete
+  forever, removes the item's text, highlights and what Undo kept of it at once,
+  and each of its files once no other item and nothing Undo can still bring back
+  names it.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
@@ -469,8 +471,8 @@ and email delivery). Specifically:
   password-reset emails; and it keeps the request log described above.
 - **Anthropic** answers the built-in agent's questions for us, on our account,
   not yours. What you ask it, what you were looking at, and everything it
-  reads of your library to answer you (items, their text, highlights, folders,
-  tags and history) go to Anthropic as each request it makes, through
+  reads of your library to answer you (items, their text, highlights, folders
+  and tags) go to Anthropic as each request it makes, through
   Cloudflare's AI Gateway, under Anthropic's terms with us. When a
   conversation grows long, Anthropic's API also writes a summary of its
   earlier part inside the request that reaches that length, and hands it back
@@ -495,10 +497,10 @@ It travels from our cloud:
 - **Your library, to an assistant you connect.** When you allow Claude,
   ChatGPT or another assistant on our consent page, our cloud answers its
   requests from your library: what it searches for and reads (items,
-  their text, highlights, folders, tags and history) goes to that assistant's
-  provider under the provider's own terms, as part of your conversation there.
-  What it writes lands in your library as a change named for it, which History
-  can undo, and one you allowed only to read can change nothing. The page
+  their text, highlights, folders and tags) goes to that assistant's provider
+  under the provider's own terms, as part of your conversation there. What it
+  writes lands in your library as a change named for it, which you can ask it
+  to change back, and one you allowed only to read can change nothing. The page
   names the assistant as it named itself and where its access is sent.
   Disconnecting it in Settings › Account › Connected assistants ends its access
   at once. Removing the connector in your assistant stops its requests, and its
@@ -559,8 +561,9 @@ required or mandatory, we may not be able to provide those services. The
 Service needs an account: your library is your account's.
 
 **Delete your content or close your account.** You can choose to delete certain
-content through your account: deleting an item removes it from your library, though
-not from its history (see [Security](#security)). Deleting a conversation with
+content through your account: deleting an item moves it to Deleted, and emptying
+Deleted or Delete forever removes it, with what Undo kept of it (see
+[Retention](#retention)). Deleting a conversation with
 the built-in agent deletes it from our cloud and every device, one still
 running stopped first. To delete everything our cloud holds for you, delete your
 account: Settings › Account › Delete account…, on any Mac or browser tab signed
@@ -581,7 +584,7 @@ account row itself goes:
    running stopped first, while the store still names them: our cloud keeps
    their ids nowhere else.
 3. **Everything in that store is deleted**: every item, its text, highlights
-   and history. What stays is a marker saying when it was deleted and nothing
+   and what Undo keeps. What stays is a marker saying when it was deleted and nothing
    else, so a request already on its way still finds it closed.
 4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
@@ -637,9 +640,9 @@ These are the edges of that protection, stated plainly:
 - **A lost phone holds a full copy of your library's text**, behind its
   passcode. Revoke it from Settings › Account on a Mac: it erases its
   copy the next time it goes online, but a phone that never does keeps it.
-- **Deleting an item does not delete its history**: its versions stay in your
-  library's history, as [Retention](#retention) says, until you delete the item
-  for good or delete the account.
+- **Deleting an item does not delete it at once**: it waits in Deleted, and
+  what Undo keeps of its changes stays seven days, as [Retention](#retention)
+  says, unless you delete the item for good or delete the account first.
 - **An image or file you paste, drop or save is kept as the file it was**, on
   every device and in the browser alike, with any location or camera details it
   carries, a picture pasted into a note's text on the phone included; only a
@@ -1042,13 +1045,13 @@ is one of these routes, as is every call the account pages make but their
 sign-in, session and password-reset calls, which go to Better Auth under
 `/api/auth/`. Nothing else under `/v1/` exists.
 
-| Route          | What it carries                                                                                                                                                                                                                                                                                                     | What authenticates it                                                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
-| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                               | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
-| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                 | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
-| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                             | The invite code; attempts are throttled per caller address.                                                                                     |
-| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                 | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
+| Route          | What it carries                                                                                                                                                                                                                                                                                                                         | What authenticates it                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, the changes Undo takes back and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
+| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                                                   | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
+| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                                     | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
+| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                                                 | The invite code; attempts are throttled per caller address.                                                                                     |
+| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                                     | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 
 Everything else the app reaches is someone else's:
 

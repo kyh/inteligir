@@ -1,5 +1,5 @@
 // The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
-// the right panel (Info, Highlights, History, the agent), over the replica the page holds. Every
+// the right panel (Info, Highlights, the agent), over the replica the page holds. Every
 // screen reads the replica and writes through its outbox; what only the cell answers goes as a
 // call that needs a connection. A link or a file pasted or dropped where no field takes it is
 // saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a

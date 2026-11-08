@@ -1,8 +1,9 @@
 // Landing one item's change inside a write's transaction: every rule a write meets (the item's text
-// cap, its history's caps, one live item per url, the files it names, the quota), then its rows,
-// stamped with the write's one sequence number. Only what changed is written: the blocks the write
-// touched, a dropped block's row gone and its content kept for history, the derived rows and the
-// index row when the body or the fields moved, the highlight rows the write changed.
+// cap, the caps of what its change set keeps, one live item per url, the files it names, the
+// quota), then its rows, stamped with the write's one sequence number. Only what changed is written:
+// the blocks the write touched, a dropped block's row gone and its content kept for Undo, the
+// derived rows and the index row when the body or the fields moved, the highlight rows the write
+// changed.
 
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
@@ -72,7 +73,7 @@ interface BlockDiff {
   // blocks new or moved or changed, which their rows take
   readonly written: StoredBlock[];
   readonly dropped: string[];
-  // the contents a write replaces or drops, which history keeps
+  // the contents a write replaces or drops, which Undo keeps
   readonly superseded: StoredBlock[];
   // the bytes of block content the write adds, less what it takes out
   readonly growth: number;
@@ -221,18 +222,12 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const { blocks, derived, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
   const set = scope.set();
-  touchItem(
-    storage,
-    {
-      before:
-        before === null
-          ? null
-          : { annotations: annotationStoreOf(before.rows), state: before.state },
-      itemId,
-      setId: set.id,
-    },
-    scope.now,
-  );
+  touchItem(storage, {
+    before:
+      before === null ? null : { annotations: annotationStoreOf(before.rows), state: before.state },
+    itemId,
+    setId: set.id,
+  });
   const landed = runPlan(
     storage,
     storeItemRow({

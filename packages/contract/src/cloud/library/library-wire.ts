@@ -397,8 +397,6 @@ export const changeSetSchema = z.object({
       created: z.boolean(),
       deleted: z.boolean(),
       id: idSchema,
-      // the item's revision when the set closed, which `history.revision` reads
-      rev: z.number().int().positive().nullable(),
       title: z.string(),
     }),
   ),
@@ -439,7 +437,7 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
 const count = z.number().int().nonnegative();
 
 // an import as it runs and once it ended: what it found, what it added, what the library already
-// held by its address, what it left out and why, and the change set History shows it as
+// held by its address, what it left out and why, and the change set it landed in
 export const importJobSchema = z.object({
   added: count,
   alreadySaved: count,

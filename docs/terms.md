@@ -109,16 +109,16 @@ and we never ask for an API key. Each account may use it within a free
 allowance we set, which we may change as described in Section 2.3; when the
 day's allowance is used, it answers again the next day. The agent reads and
 changes your library when you ask it to, asks you before it deletes anything,
-and every answer's changes can be undone from History, but what it produces may
-be inaccurate, incomplete or inappropriate, so review what it changes before
-you rely on it. You can also let an AI assistant of your own, such as Claude or
+and Undo under each answer takes its changes back for seven days, but what it
+produces may be inaccurate, incomplete or inappropriate, so review what it
+changes before you rely on it. You can also let an AI assistant of your own, such as Claude or
 ChatGPT, read and change your library through the connector, on the consent
 page we show you; what that assistant does with your library is governed by
 your own agreement with its provider, and the assistant is a Third-Party
 Service (Section 5.1).
 
 2.10 **Your Library's Room.** Your library is free and holds about 1 GB per
-account, counting its files and its history. It never takes a file over
+account, counting its files and what Undo keeps. It never takes a file over
 100 MB. When it is full it takes no new
 changes: the device that made one says so, and the change is not saved until
 you send it again once there is room. We may change these limits as described
@@ -226,8 +226,8 @@ These Terms remain in effect while you use the Site. We may suspend or terminate
 your access (including suspending access to or deleting your account) at any
 time and for any reason, including if we believe you have violated these Terms.
 We are not liable to you for any such termination. If your account is deleted,
-your library, its history and your conversations with the agent are deleted
-from our cloud and from each device's copy, as our Privacy Policy describes, so
+your library, what Undo keeps of it and your conversations with the agent are
+deleted from our cloud and from each device's copy, as our Privacy Policy describes, so
 export your library first if you want to keep it. Upon
 termination, Sections 2.2 through 2.6 and Sections 3 through 11 will survive.
 

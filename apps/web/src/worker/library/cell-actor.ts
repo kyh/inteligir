@@ -1,6 +1,6 @@
 // Who a write is by, and so which change set it joins: the person on one device, a connected
 // assistant under one grant, the built-in agent in one turn, one import, or the cloud reading one
-// page. `label` is History's words for them, which the caller supplies, since the cell knows no
+// page. `label` is the set's words for them, which the caller supplies, since the cell knows no
 // device name or assistant; an undo is a set of its own, by whoever asked.
 
 import type { AnnotationSource } from "@repo/notes/annotations/store-schema";
@@ -29,9 +29,8 @@ const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
 
 // When an actor's set closes. A person's typing is one set until 15 s of quiet or a minute in all,
-// so one burst of typing is one entry in History and one Undo; an assistant's calls under one
-// grant, until 10 idle minutes; a turn or an import is closed by what runs it; a fill or an undo is
-// a set of one write.
+// so one burst of typing is one change set; an assistant's calls under one grant, until 10 idle
+// minutes; a turn or an import is closed by what runs it; a fill or an undo is a set of one write.
 export type SealPolicy =
   | { readonly kind: "quiet"; readonly quietMs: number; readonly capMs: number | null }
   | { readonly kind: "explicit" }

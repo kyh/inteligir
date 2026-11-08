@@ -14,7 +14,7 @@ queries and the page's library context; `app/workspace.tsx` owns the rail, the
 grid or the open item, the panel and the palette; `app/library/` the grid, its
 scope, selection, Quick Look, the verbs over items and what a paste or a drop
 saves; `app/item/` the open item, its stages and the editor's host;
-`app/panel/` Info, Highlights and History; `app/agent/` the built-in agent's
+`app/panel/` Info and Highlights; `app/agent/` the built-in agent's
 conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
 `app/settings/` the Settings layer. Every shell answer
 is parsed in `src/shell/shell-commands.ts`.
@@ -178,7 +178,7 @@ is parsed in `src/shell/shell-commands.ts`.
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
   on its tab, a click on a highlight on Highlights with that one ringed and in
-  view. The tabs are Info, Highlights and History, about the open item or else
+  view. The tabs are Info and Highlights, about the open item or else
   the one card selected, and the Agent, about the whole library. The width
   persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
   Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
@@ -208,8 +208,8 @@ is parsed in `src/shell/shell-commands.ts`.
 
 - **THE PAGE'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body` is
   `user-select: none`, fields and the editor's editing hosts are `text`, and
-  what a person would copy (a conversation, a highlight's note, an old version,
-  an error) opts in with `select-text`
+  what a person would copy (a conversation, a highlight's note, an error) opts
+  in with `select-text`
   (`apps/workspace/src/styles/globals.css`). Rejected: selectable by default
   with `select-none` on the chrome (every new button, label and row would have
   to remember it).
@@ -278,30 +278,28 @@ is parsed in `src/shell/shell-commands.ts`.
   `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a form over the
   item's markdown (a second reader of what the replica already parsed).
 
-- **HISTORY IS CHANGE SETS, AND UNDO IS ONE.** History lists the cell's change
-  sets that touched the item, newest first, by who and when, a page at a time
-  and the older on "Show older", so every set the cell keeps is in reach;
-  "Show this version" reads the item as a set left it, and Undo takes a whole
-  set back in a change set of its own, after the open item's unsaved edit is
-  written, so the undo meets the item as the person sees it and a line changed
-  since is kept; a set a rule held back, and one of which only kept items
-  remain, stays undoable and says so, in one sentence the History tab and the
-  agent's panel both say. An undo reads the list again however it ended, since
-  an open list hears nothing of what another device took back and a refusal can
-  be the first it learns of it. History is the cell's, so it waits for a
-  connection. Every undo waits in one queue, joined at the press with the open
-  item's write inside it, so the queue is the order of the presses, and while
-  anything waits in it every Undo stays down, History's and the agent panel's
-  two, whichever surface pressed it and through leaving and coming back, since
-  a set goes back once and the cell refuses a whole undo that names one already
-  undone. Rejected: holding each button by its own undo (a press from another
-  surface, or before leaving, left it live to a refusal); leaving Undo this
-  conversation live to read behind what waits (a long conversation's undos join
-  a batch at a time, so its read ran ahead of the next batch and named it);
-  writing the open item before joining the queue (a file still being kept let a
-  later press overtake it).
-  `apps/workspace/src/app/panel/history-tab.tsx`,
-  `apps/workspace/src/app/cloud/history-pages.ts`.
+- **UNDO IS ONE QUEUE OF THE AGENT'S CHANGE SETS.** Undo takes a whole change
+  set back in a set of its own, after the open item's unsaved edit is written,
+  so the undo meets the item as the person sees it and a line changed since is
+  kept; a set a rule held back, and one of which only kept items remain, stays
+  undoable and says so, in one sentence both of the agent panel's Undo buttons
+  say. An undo reads the conversation's sets again however it ended, since an
+  open list hears nothing of what another device took back and a refusal can be
+  the first it learns of it. Undo is the cell's, so it waits for a connection.
+  Every undo waits in one queue, joined at the press with the open item's write
+  inside it, so the queue is the order of the presses, and while anything waits
+  in it both Undo buttons stay down, through leaving and coming back, since a
+  set goes back once and the cell refuses a whole undo that names one already
+  undone. Rejected: a History tab listing an item's sets and its versions (the
+  spec keeps no page history, and ⌘Z and Deleted already take back the
+  person's own); holding each button by its own undo (a press before leaving
+  left it live to a refusal); leaving Undo this conversation live to read
+  behind what waits (a long conversation's undos join a batch at a time, so its
+  read ran ahead of the next batch and named it); writing the open item before
+  joining the queue (a file still being kept let a later press overtake it).
+  `apps/workspace/src/app/cloud/change-set-pages.ts`,
+  `apps/workspace/src/app/agent/undo-answer.ts`,
+  `apps/workspace/src/app/agent/agent-panel.tsx`.
 
 - **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the replica's
   synced thread rows and events, the same on every device, drawn from the

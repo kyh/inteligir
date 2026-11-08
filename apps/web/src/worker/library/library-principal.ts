@@ -144,7 +144,7 @@ export const principalFromHeader = (value: string | null): NamedPrincipal | null
   return principal.success ? principal.data : null;
 };
 
-// the actor a principal's writes are by, in History's words for it
+// the actor a principal's writes are by, in its change set's words for it
 export const cellActorOf = (principal: NamedPrincipal): CellActor => {
   const { actor } = principal;
   switch (actor.kind) {

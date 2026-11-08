@@ -1,7 +1,7 @@
 // What an import's run works with inside the account's cell: the engine every write lands
 // through, the bucket the library's files live in, and the steps its runs share. An item lands as
-// a write of the import's own actor, so every item one import adds is one change set History
-// shows and Undo takes back; the job's rows move in the same transaction.
+// a write of the import's own actor, so every item one import adds is one change set Undo takes
+// back; the job's rows move in the same transaction.
 
 import { z } from "zod";
 

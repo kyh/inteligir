@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { NEEDS_CONNECTION, PausedWrites } from "../cloud/needs-connection";
-import { HistoryTab } from "../panel/history-tab";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";
@@ -733,40 +732,6 @@ describe("the agent panel's conversation", () => {
         expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
       });
       expect(cell.landed.map((batch) => batch.length)).toStrictEqual([BULK_ITEMS_MAX, 1]);
-      expect(refused).not.toHaveBeenCalled();
-    });
-
-    it("holds History's Undo too, which could name the same set", async () => {
-      const refused = vi.spyOn(toast, "error");
-      const cell = takesBackOnce([set("s2", 2), set("s1", 1)]);
-      const { library } = fakePageLibrary({
-        answer: cell.answer,
-        events: twoFinishedTurns,
-        threads: [thread],
-      });
-      renderOnLibrary(
-        <>
-          <HistoryTab
-            itemId={THREAD}
-            flushOpen={async () => {
-              await Promise.resolve();
-            }}
-          />
-          {panel()}
-        </>,
-        library,
-      );
-      const { whole } = await twoTurnsDrawn();
-      const [history] = await screen.findAllByRole("button", { name: "Undo" });
-      setOnline(false);
-      fireEvent.click(whole);
-      await waitFor(() => {
-        expect(heldDown(history)).toBe(true);
-      });
-      fireEvent.click(history ?? document.body);
-      setOnline(true);
-      await gone();
-      expect(cell.landed).toStrictEqual([["s2", "s1"]]);
       expect(refused).not.toHaveBeenCalled();
     });
   });

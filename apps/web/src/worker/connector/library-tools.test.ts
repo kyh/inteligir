@@ -11,8 +11,6 @@ import { isLibraryTool, libraryTools } from "./library-tools";
 const TOOLS = [
   ["list_highlights", "List highlights", { openWorldHint: false, readOnlyHint: true }],
   ["add_highlight", "Add a highlight", { destructiveHint: false, openWorldHint: false }],
-  ["item_history", "Show history", { openWorldHint: false, readOnlyHint: true }],
-  ["undo_change", "Undo a change", { destructiveHint: true, openWorldHint: false }],
   ["list_items", "List items", { openWorldHint: false, readOnlyHint: true }],
   ["read_item", "Read an item", { openWorldHint: false, readOnlyHint: true }],
   ["create_note", "Create a note", { destructiveHint: false, openWorldHint: false }],
@@ -76,7 +74,6 @@ const router = os.router({
   folders: { write: os.folders.write.handler(unimplemented) },
   history: {
     list: os.history.list.handler(unimplemented),
-    revision: os.history.revision.handler(unimplemented),
     undo: os.history.undo.handler(unimplemented),
   },
   imports: {
@@ -116,7 +113,7 @@ const registered = async () => {
 };
 
 describe("the library's tools", () => {
-  it("are the thirteen tagged rows, in the router's order, titled and hinted", async () => {
+  it("are the eleven tagged rows, in the router's order, titled and hinted", async () => {
     const tools = await registered();
     expect(
       Object.entries(tools).map(([name, tool]) => [name, tool.title, tool.annotations]),

@@ -7,7 +7,7 @@ import type { Client } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { signUpUser } from "../test-support/cloud-helpers";
+import { sessionHeaders, signUpUser, v1Link } from "../test-support/cloud-helpers";
 import {
   CONNECTOR_URL,
   connectAssistant,
@@ -19,8 +19,6 @@ import { CONNECTOR_INSTRUCTIONS } from "./connector-server";
 const ALL_TOOLS = [
   "list_highlights",
   "add_highlight",
-  "item_history",
-  "undo_change",
   "list_items",
   "read_item",
   "create_note",
@@ -34,7 +32,6 @@ const ALL_TOOLS = [
 
 const READ_TOOLS = [
   "list_highlights",
-  "item_history",
   "list_items",
   "read_item",
   "list_tags_and_folders",
@@ -104,7 +101,7 @@ describe("the connector's tools", () => {
     await client.close();
   });
 
-  it("lists only the six reading tools to a grant kept to reading, and refuses it a write", async () => {
+  it("lists only the five reading tools to a grant kept to reading, and refuses it a write", async () => {
     const client = await assistantFor("tools-read@example.test", true);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toStrictEqual(READ_TOOLS);
@@ -117,7 +114,9 @@ describe("the connector's tools", () => {
   });
 
   it("searches, reads and edits an item, every write by the assistant one change set it named", async () => {
-    const client = await assistantFor("tools-edit@example.test");
+    const { cookie } = await signUpUser("tools-edit@example.test");
+    const grant = await connectAssistant(cookie);
+    const client = await connectorClient(grant.access_token);
     const { item } = await structured(client, noteSchema, {
       arguments: { markdown: "The quick brown fox.\n\nIt jumped.", title: "Fox notes" },
       name: "create_note",
@@ -148,15 +147,7 @@ describe("the connector's tools", () => {
     });
     expect(after.view.markdown).toContain("It jumped over the dog.");
 
-    const history = await structured(
-      client,
-      z.object({
-        changeSets: z.array(
-          z.object({ actor: z.string(), itemCount: z.number(), label: z.string() }),
-        ),
-      }),
-      { arguments: { itemId: item.id }, name: "item_history" },
-    );
+    const history = await v1Link(sessionHeaders(cookie)).library.history.list({});
     expect(history.changeSets).toStrictEqual([
       expect.objectContaining({ actor: "assistant", itemCount: 1, label: "Claude" }),
     ]);

@@ -1,5 +1,5 @@
 // "Undo this turn" and "Undo this conversation": the change sets the built-in agent's turns made in
-// one thread, as History lists them (newest first), less those already undone or still open. A
+// one thread, as the cell lists them (newest first), less those already undone or still open. A
 // turn's writes are one set, so its undo is that set; a conversation's is every one of them,
 // newest first, in one undo of its own, or in as few as the cell takes when the conversation made
 // more sets than one undo names.
@@ -10,7 +10,7 @@ import type { z } from "zod";
 
 export type ChangeSet = z.infer<typeof changeSetSchema>;
 
-// the sets of every page of History asked so far, each once: the pages are counted from the
+// the sets of every page asked so far, each once: the pages are counted from the
 // newest, so a set made after an older page was asked moves the next page's first set onto it
 // again
 export const changeSetsOf = (

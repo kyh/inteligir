@@ -3,7 +3,7 @@
 The SPA the Worker serves at `/library`: the account's library over a replica
 the tab holds, every read from the replica engine (`@repo/library-replica`, on
 in-memory SQLite) and every write through its outbox, and what only the cloud
-answers (History, the agent, import and export, the account) through `/v1`.
+answers (the agent and its Undo, import and export, the account) through `/v1`.
 Signed out, it sends the tab to the site's sign-in, which brings it back. It
 reaches neither the Worker's source nor the shell's: the Worker copies its build
 into its assets ([`apps/web`](../web/README.md)), the desktop shell embeds the
@@ -18,7 +18,7 @@ src/routes/         TanStack Router file routes under the /library basepath:
 src/app/cloud/      the /v1 client and its query utils, the replica's queries,
                     the page's library context, "Needs a connection"
 src/app/            the workspace: the rail, the grid, the open item, the panel
-                    (Info, Highlights, History, the agent), the palette, Settings
+                    (Info, Highlights, the agent), the palette, Settings
 src/shell/          what the page says to the Tauri shell: one command per row of
                     ipc-contract.ts, and shell-commands.ts, the one door that
                     parses every answer

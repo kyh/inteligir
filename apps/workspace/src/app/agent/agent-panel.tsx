@@ -45,12 +45,17 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { everyChangeSet, historyPages, UNDO_SCOPE, useUndoWaits } from "../cloud/history-pages";
+import {
+  changeSetPages,
+  everyChangeSet,
+  UNDO_SCOPE,
+  useUndoWaits,
+} from "../cloud/change-set-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
-import { announceUndo } from "../panel/history-tab";
 import { relativeTimeLabel, useNow } from "../relative-time";
+import { announceUndo } from "./undo-answer";
 
 export interface AgentPanelProps {
   readonly threadId: string | null;
@@ -232,7 +237,7 @@ const Conversation = ({
   const preview = useLivePreview(threadId);
   // the conversation's sets, every page of them: each finished turn's Undo and the whole
   // conversation's need them all
-  const setPages = historyPages(orpc, { threadId });
+  const setPages = changeSetPages(orpc, { threadId });
   const sets = useInfiniteQuery(setPages);
   // asked again after every answer, since a refetch that meets a page still being asked starts the
   // pages over and lands as the same data

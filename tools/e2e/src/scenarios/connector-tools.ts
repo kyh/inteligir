@@ -31,20 +31,6 @@ const TOOLS = [
     readOnly: null,
     title: "Add a highlight",
   },
-  {
-    destructive: null,
-    name: "item_history",
-    openWorld: false,
-    readOnly: true,
-    title: "Show history",
-  },
-  {
-    destructive: true,
-    name: "undo_change",
-    openWorld: false,
-    readOnly: null,
-    title: "Undo a change",
-  },
   { destructive: null, name: "list_items", openWorld: false, readOnly: true, title: "List items" },
   { destructive: null, name: "read_item", openWorld: false, readOnly: true, title: "Read an item" },
   {
@@ -124,9 +110,6 @@ const noteSchema = z.object({ item: z.object({ id: z.string() }) });
 const readSchema = z.object({ seq: z.number(), view: z.object({ markdown: z.string() }) });
 const editSchema = z.object({ seq: z.number() });
 const hitsSchema = z.object({ hits: z.array(z.object({ id: z.string() })) });
-const historySchema = z.object({
-  changeSets: z.array(z.object({ actor: z.string(), itemCount: z.number(), label: z.string() })),
-});
 const refusalSchema = z.array(z.object({ text: z.string(), type: z.literal("text") }));
 
 // a tool's answer, as the structured content beside its text; a failure is a result, `isError`
@@ -201,7 +184,7 @@ const toolRows = async (client: Client) => {
 
 export const connectorTools: Scenario = {
   description:
-    "the connector against a Miniflare Worker: a call with no token, or with a device's credential, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 13 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the six reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
+    "the connector against a Miniflare Worker: a call with no token, or with a device's credential, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 11 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the five reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
   name: "connector-tools",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -291,14 +274,11 @@ export const connectorTools: Scenario = {
         "The quick brown fox.\n\nIt jumped over the dog.\n",
         "the note as the phone reads it",
       );
-      const history = await answered(full, historySchema, {
-        arguments: { itemId: item.id },
-        name: "item_history",
-      });
+      const history = await library.history.list({});
       expectEq(
         history.changeSets.map(({ actor, itemCount, label }) => ({ actor, itemCount, label })),
         [{ actor: "assistant", itemCount: 1, label: "Claude" }],
-        "the note's history",
+        "the library's change sets",
       );
 
       ctx.log("an edit on the base Claude read before its own edit answers CONFLICT, a result");

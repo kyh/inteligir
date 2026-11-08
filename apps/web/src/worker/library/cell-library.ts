@@ -21,7 +21,7 @@ import type { LibraryEngine, UploadSettlement } from "./library-engine";
 
 const STORAGE_CAP = /^[1-9]\d*$/u;
 
-// what one account's library may hold, its history included: 1 GiB
+// what one account's library may hold, its change sets included: 1 GiB
 const libraryStorageCap = (env: Env): number => {
   const cap = env.LIBRARY_STORAGE_CAP_BYTES;
   if (!STORAGE_CAP.test(cap)) {

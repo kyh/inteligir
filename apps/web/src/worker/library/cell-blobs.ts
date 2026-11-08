@@ -3,9 +3,9 @@
 // asks for room before it uploads, the cell holds it against the quota, and once the upload is in
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
 // go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file stays
-// while an item names it or any item's history does (`history_blobs`), and once nothing does or
-// will it is let go: when the import that kept it ends, at the alarm's next run after the reading
-// that kept it lands nowhere or the last history naming it went, and by the alarm a day after it
+// while an item names it or any change set does (`history_blobs`), and once nothing does or will
+// it is let go: when the import that kept it ends, at the alarm's next run after the reading that
+// kept it lands nowhere or the last change set naming it went, and by the alarm a day after it
 // landed or an item stopped naming it otherwise, but never while an import runs or an export
 // writes, whose plans may name it.
 
@@ -78,7 +78,7 @@ const recountRefs = (sql: SqlStatements, shas: readonly string[]): void => {
   }
 };
 
-// ---- files history names ----
+// ---- files change sets name ----
 
 // what a fields part or a block version of the item names, kept with it
 export const keepHistoryFiles = (
@@ -119,8 +119,8 @@ export const awaitNameAgain = (sql: SqlStatements, sha: string, at: number): voi
   scheduleJob(sql, unnamedJob(sha), at);
 };
 
-// parts and block versions of the item history let go: the alarm's next run asks about what they
-// named
+// parts and block versions of the item no change set names any more: the alarm's next run asks
+// about what they named
 export const dropHistoryFiles = (
   sql: SqlStatements,
   itemId: string,
@@ -191,8 +191,8 @@ export const storeItemBlobs = (
   }
 };
 
-// a purged item: the files it and its history named are asked about at the alarm's next run, which
-// an import or an export may put off
+// a purged item: the files it and its change sets named are asked about at the alarm's next run,
+// which an import or an export may put off
 export const dropItemBlobs = (sql: SqlStatements, itemId: string, now: number): void => {
   const shas = deleteItemBlobs(sql, itemId);
   const history = sql
@@ -323,7 +323,7 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
 const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
 
 // a file nothing names, let go: its row leaves the library, its bytes leave the quota, and what R2
-// holds of it is a stray the alarm takes out; a file an item or any item's history names stays
+// holds of it is a stray the alarm takes out; a file an item or any change set names stays
 export const releaseUnnamed = (
   storage: CellStorage,
   shas: readonly string[],

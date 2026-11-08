@@ -16,7 +16,8 @@ rows, words and sends. It names no platform and no UI.
 - `src/thread-previews.ts` — the reply the agent is writing, folded from the
   socket's frames by thread, and let go at the thread's next stored event.
 - `src/thread-undo.ts` — the change sets a turn and a conversation made, from
-  every page History answered, and the undos that take them back.
+  every page of the conversation's sets the cell answered, and the undos that
+  take them back.
 - `src/agent-send.ts` — what a send asks the cell: the person's words, the
   thread, and the screen they left from (`viewContextOf`).
 - `src/tidy-library.ts` — Tidy my library's request, sent from Unsorted.

@@ -69,7 +69,7 @@ describe("the one wire's door", () => {
     const { item } = await laptop.library.items.createNote({ markdown: "From the laptop." });
     const read = await laptop.library.items.read({ id: item.id });
     expect(read.view.markdown).toBe("From the laptop.\n");
-    const history = await laptop.library.history.list({ itemId: item.id });
+    const history = await laptop.library.history.list({});
     expect(history.changeSets[0]?.label).toBe("You on Laptop");
   });
 
@@ -96,8 +96,11 @@ describe("the one wire's door", () => {
     const { cookie } = await signedUp("rpc-cookie@example.test");
     const tab = v1Link(sessionHeaders(cookie));
     const { item } = await tab.library.items.createNote({ markdown: "From the tab." });
-    const history = await tab.library.history.list({ itemId: item.id });
-    expect(history.changeSets[0]?.label).toBe("You in the browser");
+    const history = await tab.library.history.list({});
+    expect(history.changeSets[0]).toMatchObject({
+      items: [expect.objectContaining({ id: item.id })],
+      label: "You in the browser",
+    });
 
     // another site's page riding the same cookie: a build header gets it past the floor, and the
     // cookie still counts for nothing
@@ -145,7 +148,7 @@ describe("the one wire's door", () => {
 
     const listed = await mine.laptop.library.items.list({});
     expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
-    const history = await mine.laptop.library.history.list({ itemId: item.id });
+    const history = await mine.laptop.library.history.list({});
     expect(history.changeSets[0]?.label).toBe("You on Laptop");
     const elsewhere = await theirs.laptop.library.items.list({});
     expect(elsewhere.items).toStrictEqual([]);
@@ -189,7 +192,7 @@ describe("every refusal's status", () => {
       edits: [{ newText: "Two, edited.", oldText: "Two." }],
       id: item.id,
     });
-    const { changeSets } = await laptop.library.history.list({ itemId: item.id });
+    const { changeSets } = await laptop.library.history.list({});
     const setIds = changeSets.map((set) => set.id);
     await laptop.library.history.undo({ changeSetIds: setIds });
     const { seq: now } = await laptop.library.items.read({ id: item.id });

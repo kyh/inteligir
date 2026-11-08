@@ -60,7 +60,6 @@ const LIBRARY_READS = new Set([
   "annotations.list",
   "exports.get",
   "history.list",
-  "history.revision",
   "imports.get",
   "imports.latest",
   "items.list",

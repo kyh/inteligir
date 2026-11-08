@@ -187,8 +187,8 @@ how it ships.
   a send asked about an item carries it as the view's context. A send and an
   approval wait for a connection and say "Needs a connection" rather than
   queue, since a turn runs in the cloud. Residual: no Undo of a turn on the
-  phone; the Mac's History undoes it. Rejected: a read-only list of the Mac's
-  threads.
+  phone; the agent panel on the Mac or in a browser tab undoes it. Rejected: a
+  read-only list of the Mac's threads.
 
 ## The screens' look
 

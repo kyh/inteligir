@@ -1,8 +1,8 @@
-// An item's history in parts: its fields, its manifest and its highlights, each kept once per item
-// under its content hash, so a revision that changed one block stores one manifest and shares the
-// rest, and a block a write replaced keeps its content beside them by its own hash. Each part is
-// capped well inside a Durable Object's 2 MB row, which is what bounds an item's blocks and
-// highlights: a write past either cap is refused as too large.
+// What a change set keeps of an item, in parts: its fields, its manifest and its highlights, each
+// kept once per item under its content hash, so a set that changed one block stores one manifest
+// and shares the rest, and a block a write replaced keeps its content beside them by its own hash.
+// Each part is capped well inside a Durable Object's 2 MB row, which is what bounds an item's
+// blocks and highlights: a write past either cap is refused as too large.
 
 import { annotationStoreSchema } from "@repo/notes/annotations/store-schema";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
@@ -97,7 +97,7 @@ export const encodeParts = (now: ItemNow): EncodedParts => ({
   ),
 });
 
-// whether an item in this state can keep its history: its manifest and its highlights each fit
+// whether a change set can keep an item in this state: its manifest and its highlights each fit
 // one row
 export const partsFit = (parts: EncodedParts): boolean =>
   utf8ByteLength(parts.manifest.json) <= MANIFEST_MAX_BYTES &&
@@ -174,8 +174,8 @@ export const readSnapshot = (sql: SqlStatements, itemId: string, refs: PartRefs)
   manifest: readManifest(sql, itemId, refs.manifest),
 });
 
-// a block's content a write is about to replace or drop, kept for the revisions and undos that
-// name it; the prune job sweeps what none does
+// a block's content a write is about to replace or drop, kept for the change sets that name it; the
+// prune job sweeps what none does
 export const keepSuperseded = (
   sql: SqlStatements,
   itemId: string,

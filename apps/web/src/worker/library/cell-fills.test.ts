@@ -235,8 +235,10 @@ describe("a page's reading, landed", () => {
       await library.items.delete({ ids: [saved.item.id] });
       clock.now += 120_000;
       engine.runDueJobs(() => {});
-      const { changeSets } = await library.history.list({ itemId: saved.item.id });
-      const [deleted] = changeSets;
+      const { changeSets } = await library.history.list({});
+      const deleted = changeSets.find((set) =>
+        set.items.some((item) => item.id === saved.item.id && item.deleted),
+      );
       await library.history.undo({ changeSetIds: [deleted?.id ?? ""] });
       expect(stateOf(state, saved.item.id)?.fields.deletedAt).toBeNull();
       expect(fillJobs(state)).toStrictEqual([
@@ -385,8 +387,10 @@ describe("a page's reading, landed", () => {
 });
 
 const madeSetOf = async (library: ReturnType<typeof libraryIn>, itemId: string) => {
-  const { changeSets } = await library.history.list({ itemId });
-  const made = changeSets.find((set) => set.items.some((item) => item.created));
+  const { changeSets } = await library.history.list({});
+  const made = changeSets.find((set) =>
+    set.items.some((item) => item.id === itemId && item.created),
+  );
   if (made === undefined) {
     throw new Error("no change set made the item");
   }

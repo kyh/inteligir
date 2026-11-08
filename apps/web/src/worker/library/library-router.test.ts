@@ -617,12 +617,12 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("lists the change sets under the device's name, reads a revision and undoes a set once", async () => {
+  it("lists the change sets under the device's name and undoes a set once", async () => {
     await inCell(cellOf(), async (state) => {
       const clock = clockAt();
       const library = clientIn(state, clock);
       const { item } = await library.items.createNote({ markdown: "Before." });
-      const { changeSets } = await library.history.list({ itemId: item.id });
+      const { changeSets } = await library.history.list({});
       expect(changeSets).toStrictEqual([
         expect.objectContaining({
           actor: "person",
@@ -644,18 +644,6 @@ describe("the library's procedures", () => {
         data: { changeSetId: made.id, undoneBy: undone.changeSetId },
         defined: true,
       });
-      const listed = await library.history.list({ itemId: item.id });
-      const rev = listed.changeSets.find((set) => set.id === made.id)?.items[0]?.rev;
-      if (rev === null || rev === undefined) {
-        throw new Error("the sealed set names no revision");
-      }
-      const revision = await library.history.revision({ itemId: item.id, rev });
-      expect(revision.blocks.map((stored) => stored.block)).toStrictEqual([
-        expect.objectContaining({ children: [{ text: "Before." }] }),
-      ]);
-      await expect(
-        refusalOf(library.history.revision({ itemId: item.id, rev: rev + 100 })),
-      ).resolves.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 
@@ -765,7 +753,7 @@ describe("the library's procedures", () => {
         edits: [{ newText: "Cut.", oldText: passage }],
         id: item.id,
       });
-      const { changeSets } = await library.history.list({ itemId: item.id });
+      const { changeSets } = await library.history.list({});
       addFileBytes(cellStorageOf(state.storage), GiB);
       await expect(
         refusalOf(library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] })),
@@ -782,7 +770,7 @@ describe("the library's procedures", () => {
       clock.now += 120_000;
       await library.items.delete({ ids: [item.id] });
       clock.now += 120_000;
-      const { changeSets } = await library.history.list({ itemId: item.id });
+      const { changeSets } = await library.history.list({});
       const holder = await library.items.saveLink({ url });
       await expect(
         library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] }),

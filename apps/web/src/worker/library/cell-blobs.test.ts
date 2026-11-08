@@ -1,6 +1,6 @@
 // A file past the item that named it, driven through the verbs a device calls and the alarm's jobs:
-// it stays while an item or any item's history names it, and once nothing does it leaves the
-// library, the quota and R2.
+// it stays while an item or any change set names it, and once nothing does it leaves the library,
+// the quota and R2.
 
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { env } from "cloudflare:workers";
@@ -132,7 +132,7 @@ describe("a file nothing names any more", () => {
     });
   });
 
-  it("stays while another item's history names it, and goes with that history", async () => {
+  it("stays while another item's change set names it, and goes with that item", async () => {
     await inLibrary(async (cell) => {
       const [old, fresh] = [
         await uploadedFile(cell.library, cell.accountId, png(1200)),
@@ -141,7 +141,7 @@ describe("a file nothing names any more", () => {
       const fileHolder = await fileItem(cell, old);
       const note = await noteItem(cell);
       await setCover(cell, note, null, old);
-      // sealed, so a revision keeps the cover the next write replaces
+      // sealed, so the next write's set keeps the cover it replaces
       cell.clock.now += 120_000;
       cell.library.runDueJobs(() => {});
       await setCover(cell, note, old, fresh);
@@ -149,7 +149,7 @@ describe("a file nothing names any more", () => {
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);
       await expect(inR2(cell, old)).resolves.toBe(true);
-      // the note names the old cover in its history alone, and that goes with the note
+      // the note's change set alone names the old cover, and that goes with the note
       await purge(cell, note);
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(0);
@@ -158,7 +158,7 @@ describe("a file nothing names any more", () => {
     });
   });
 
-  it("holds a file an embedded block's kept version names as history does", async () => {
+  it("holds a file an embedded block's kept version names as a change set does", async () => {
     await inLibrary(async (cell) => {
       const sha = await uploadedFile(cell.library, cell.accountId, png(1200));
       const fileHolder = await fileItem(cell, sha);
@@ -188,7 +188,7 @@ describe("a file nothing names any more", () => {
     });
   });
 
-  it("waits out a day once a write replaced it within one change, which no history kept", async () => {
+  it("waits out a day once a write replaced it within one change, which no change set kept", async () => {
     await inLibrary(async (cell) => {
       const [first, second] = [
         await uploadedFile(cell.library, cell.accountId, png(1200)),
@@ -206,41 +206,23 @@ describe("a file nothing names any more", () => {
     });
   });
 
-  it("goes once the prune drops the last history naming it", async () => {
+  it("goes once the prune drops the last change set naming it", async () => {
     await inLibrary(async (cell) => {
       const { clock, library } = cell;
       const [old, fresh] = [
         await uploadedFile(library, cell.accountId, png(1200)),
         await uploadedFile(library, cell.accountId, png(1300)),
       ];
-      const today = clock.now;
-      clock.now = today - 60 * DAY;
       const note = await noteItem(cell);
       const write = (ops: Parameters<LibraryEngine["write"]>[1]["ops"]) =>
         landedValue(library.write(FILL_ACTOR, { itemId: note, ops }));
-      const rename = (from: number, to: number) => {
-        write([
-          {
-            base: `A note ${String(from)}`,
-            field: "title",
-            op: "set",
-            value: `A note ${String(to)}`,
-          },
-        ]);
-      };
-      write([{ base: "A note", field: "title", op: "set", value: "A note 0" }]);
+      // a reading's writes, each a set of its own: the second's before names the old cover
       write([{ base: null, field: "coverSha", op: "set", value: old }]);
       write([{ base: old, field: "coverSha", op: "set", value: fresh }]);
-      // the day's last revision, which the prune keeps, names the new cover alone
-      rename(0, 1);
-      clock.now += DAY;
+      clock.now += 6 * DAY;
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);
-      for (let index = 1; index < 120; index += 1) {
-        clock.now = today - (120 - index) * 60_000;
-        rename(index, index + 1);
-      }
-      clock.now = today;
+      clock.now += 2 * DAY;
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);
       await runAlarm(cell);

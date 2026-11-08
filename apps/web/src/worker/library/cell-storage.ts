@@ -9,7 +9,7 @@ import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlPort, SqlRow } from "@repo/notes/library/library-sql";
 
 export interface CellStorage extends SqlPort {
-  // what the cell's SQLite holds, its history included: one half of what the quota counts
+  // what the cell's SQLite holds, its change sets included: one half of what the quota counts
   readonly databaseSize: () => number;
 }
 

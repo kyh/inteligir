@@ -1,7 +1,8 @@
-// What an account's library may hold: 1 GiB of its files' bytes and its SQLite together, history
-// included (owner decision: revisions count toward it). The files' bytes, uploads still held open among them, are `meta.bytes_used`; the SQLite is what the
-// Durable Object reports. A write that adds words past the cap, in a block, a highlight or a field,
-// is refused, and one that frees or keeps them never is, so a full library can still be tidied.
+// What an account's library may hold: 1 GiB of its files' bytes and its SQLite together, change
+// sets included (owner decision: what Undo keeps counts toward it). The files' bytes, uploads
+// still held open among them, are `meta.bytes_used`; the SQLite is what the Durable Object reports.
+// A write that adds words past the cap, in a block, a highlight or a field, is refused, and one
+// that frees or keeps them never is, so a full library can still be tidied.
 
 import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";

@@ -101,7 +101,7 @@ and cited.
   item: `row` answers no row, and a delete asked by that id goes nowhere, so a
   screen acts on what it shows through its item read, by the id that answered and
   the fields it holds. Residuals: a call only the cell answers that no item read
-  names, History or the agent's view of the open item, names the old id until the
+  names, the agent's view of the open item, names the old id until the
   item opens again; a reload on a url naming a card that folded says the item
   isn't on this device, though it stands at its holder's id in the grid.
   Rejected: the session following the id alone (the item view, the phone's screen

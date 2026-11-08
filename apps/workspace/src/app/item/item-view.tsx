@@ -149,7 +149,7 @@ export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }:
         <Button
           variant="ghost"
           size="icon-compact"
-          aria-label="Info, highlights, History and the agent"
+          aria-label="Info, highlights and the agent"
           onClick={onTogglePanel}
         >
           <PanelRightIcon />

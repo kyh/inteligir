@@ -11,7 +11,7 @@ import { openapi } from "@orpc/openapi";
 
 import { libraryContract } from "@repo/contract/cloud/library/library-contract";
 
-const { annotations, history, items, organize, search } = libraryContract;
+const { annotations, items, organize, search } = libraryContract;
 
 // a read implies its read-only hint by its verb; it is closed-world
 const read = mcp.tool({ annotations: { openWorldHint: false } });
@@ -44,29 +44,6 @@ export const libraryTools = {
         summary: "List highlights",
       }),
       read,
-    ),
-  },
-  history: {
-    ...history,
-    list: history.list.meta(
-      openapi({
-        description:
-          "Lists the change sets that touched one item, those one conversation with the built-in agent made (each set names its conversation), or the library's most recent ones: who made each, when, and what it changed. It narrows to one item or one conversation, never both at once.",
-        method: "GET",
-        operationId: "item_history",
-        summary: "Show history",
-      }),
-      read,
-    ),
-    undo: history.undo.meta(
-      openapi({
-        description:
-          "Undoes change sets, newest first, in a change set of its own. An item edited since in the same places is kept as it is, and the answer names it; a set of which only kept items remain can be undone again, and when no item went back and no set was undone the answer names no change set. An item a rule holds back, such as a full library, is named under refused, and its set can be undone again.",
-        method: "POST",
-        operationId: "undo_change",
-        summary: "Undo a change",
-      }),
-      changes,
     ),
   },
   items: {

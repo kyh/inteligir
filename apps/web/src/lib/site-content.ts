@@ -60,14 +60,14 @@ highlights, and an Obsidian folder comes in as a zip.
 
 The agent runs in our cloud on Anthropic's Claude, on our account, so you need no plan and we never
 ask for an API key. Each account gets a free daily allowance. What the agent reads to answer you goes
-to Anthropic. It asks before it deletes anything, and you can undo every answer's changes from
-History.
+to Anthropic. It asks before it deletes anything, and Undo under each answer takes its changes back
+for seven days.
 
 Your own Claude or ChatGPT can reach the same library through the connector, once you allow it.
 
 ## An account is required
 
-Your first 1 GB is free, history included. Creating an account takes an invite code while ${name} is
+Your first 1 GB is free. Creating an account takes an invite code while ${name} is
 shared with a small invited group. The Mac app runs on Macs with Apple silicon.
 
 - [Download for Mac](${downloadUrl})
@@ -82,7 +82,7 @@ export const aboutMarkdown = `# About ${name}
 
 ${name} is one library for everything you save and write, built around one idea: what you keep
 should be on every device you use, and an AI agent should work in it the way a thoughtful
-collaborator would, in the open, with every change reversible. It is made for knowledge workers
+collaborator would, in the open, with every change it makes reversible. It is made for knowledge workers
 (writers, researchers, analysts, operators), not for developers.
 
 ## What makes it different
@@ -96,10 +96,7 @@ collaborator would, in the open, with every change reversible. It is made for kn
 - **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
   and we never ask for an API key. What it reads to answer you goes to Anthropic. Your own Claude or
   ChatGPT can reach the same library through the connector.
-- **History by default.** Every change, yours or the agent's, is recorded, so you can see what
-  changed and take any of it back.
-- **An account is required, and its first 1 GB is free.** History counts toward it, and a single
-  file can be up to 100 MB.
+- **An account is required, and its first 1 GB is free.** A single file can be up to 100 MB.
 
 ## Who makes it
 

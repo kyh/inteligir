@@ -6,8 +6,6 @@
 // for 30 days, so an outbox resending after a lost answer is told what landed.
 
 import { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import {
   nextHead,
   readItem,
@@ -48,7 +46,6 @@ import { importsRunning } from "./cell-import-jobs";
 import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
-import { blockContents, readFieldsPart, readManifest } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -59,7 +56,7 @@ import { landWrite } from "./cell-writes";
 import type { ItemWrite } from "./cell-writes";
 import { joinChangeSet, openUndoSet, PRUNE_JOB, sealChangeSet } from "./change-sets";
 import type { OpenSet } from "./change-sets";
-import { PRUNE_EVERY_MS, pruneHistory } from "./history-prune";
+import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
   readonly storage: CellStorage;
@@ -96,12 +93,6 @@ export interface UndoInput {
   readonly opId?: string | undefined;
 }
 
-export interface RevisionAnswer {
-  readonly blocks: StoredBlock[];
-  readonly fields: LibraryItemFields;
-  readonly rev: number;
-}
-
 export interface UploadSettlement {
   readonly settled: boolean;
 }
@@ -123,10 +114,8 @@ const undoSchema = z.object({
 
 const answerRowSchema = z.object({ answer: z.string() });
 const deletedAtSchema = z.number().int().nonnegative();
-const revisionRowSchema = z.object({ fields: z.string(), manifest: z.string() });
 
 const PAYLOADS = {
-  prune: jsonTextSchema.pipe(z.object({ after: z.string().nullable() })),
   seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
   stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
   unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
@@ -244,7 +233,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }));
 
   // emptying Deleted: the item keeps its id and sequence as a tombstone, its body, highlights and
-  // history go, and the alarm lets go the files nothing else names; it joins no set, since nothing
+  // every change set's hold on it go, and the alarm lets go the files nothing else names; it joins no set, since nothing
   // can take it back
   const purgeItems = (input: PurgeItemsInput) =>
     transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
@@ -262,12 +251,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           storage,
           storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
         );
-        for (const table of [
-          "revisions",
-          "snapshot_parts",
-          "block_versions",
-          "change_set_items",
-        ] as const) {
+        for (const table of ["snapshot_parts", "block_versions", "change_set_items"] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
         dropItemBlobs(storage, id, scope.now);
@@ -416,29 +400,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const bodies = (itemIds: readonly string[]) =>
     reading((): BodiesAnswer => readBodies(storage, itemIds));
 
-  // an item as one revision left it: History shows it, and a restore patches it back
-  const revision = (itemId: string, rev: number): CellResult<RevisionAnswer | null> =>
-    reading((): RevisionAnswer | null => {
-      const [raw] = storage.all(
-        "SELECT fields, manifest FROM revisions WHERE item_id = ? AND rev = ?",
-        [itemId, rev],
-      );
-      if (raw === undefined) {
-        return null;
-      }
-      const row = revisionRowSchema.parse(raw);
-      const manifest = readManifest(storage, itemId, row.manifest);
-      const contents = blockContents(storage, itemId, new Set(manifest.map((entry) => entry.hash)));
-      const blocks = manifest.map((entry): StoredBlock => {
-        const block = contents.get(entry.hash);
-        if (block === undefined) {
-          throw new LibraryRowError(`the block version ${entry.hash} a revision names is not kept`);
-        }
-        return { block, hash: entry.hash, ord: entry.ord, section: entry.section };
-      });
-      return { blocks, fields: readFieldsPart(storage, itemId, row.fields), rev };
-    });
-
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
@@ -459,12 +420,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "prune": {
-        const next = pruneHistory(storage, now, PAYLOADS.prune.parse(job.payload).after);
-        scheduleJob(
-          storage,
-          { ...PRUNE_JOB, payload: JSON.stringify({ after: next }) },
-          next === null ? now + PRUNE_EVERY_MS : now + PRUNE_AGAIN_MS,
-        );
+        const more = pruneChangeSets(storage, now);
+        scheduleJob(storage, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
         break;
       }
       // no default
@@ -521,7 +478,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     purgeItems,
     read,
     reserve,
-    revision,
     runDueJobs,
     settle,
     tombstone,
