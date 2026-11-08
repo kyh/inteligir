@@ -2,7 +2,7 @@
   "name": "@repo/workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "The library's page: the SPA the Worker serves at /library, over the account's library cell, with the library itself in a replica the page holds.",
+  "description": "The library's page: the SPA the Worker serves at /library, over the account's library cell.",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -20,7 +20,6 @@
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/editor": "workspace:*",
-    "@repo/library-replica": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
     "@rolldown/plugin-babel": "catalog:",

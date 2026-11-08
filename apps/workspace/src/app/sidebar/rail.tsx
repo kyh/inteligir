@@ -1,7 +1,6 @@
-// CLAUDE.md § THE RAIL CHOOSES THE LIBRARY'S SCOPE, AMBIENT STATE LIVES IN ITS FOOTER. Stacked
-// groups over the one grid (the library, its folders, its tags, Deleted), each row a scope read
-// from the replica, and a footer saying where the library stands: up to date, sending, or waiting
-// for a connection.
+// CLAUDE.md § THE RAIL CHOOSES THE LIBRARY'S SCOPE. Stacked groups over the one grid (the library,
+// its folders, its tags, Deleted), each row a scope with the count the cell answers for it, and
+// Settings at its foot.
 
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { Button } from "@repo/ui/components/button";
@@ -42,11 +41,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { useReplicaQueries } from "../cloud/library-context";
+import { useLibraryQueries } from "../cloud/library-context";
 import { formatCount } from "../library/item-labels";
 import { PREFS, usePref } from "../prefs";
 import { folderPaths } from "./folder-paths";
-import { SyncLine } from "./sync-line";
 
 interface FolderActions {
   readonly create: (parentId: string | null) => void;
@@ -100,11 +98,9 @@ const FolderRows = ({
   onScope: (scope: LibraryScope) => void;
   actions: FolderActions;
 }) => {
-  const queries = useReplicaQueries();
-  const folders = useQuery(queries.folders()).data ?? [];
-  const counts = useQuery(queries.scopes()).data?.folders ?? [];
+  const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
   const [menu, setMenu] = useState<FolderMenu | null>(null);
-  const countOf = (id: string): number => counts.find((folder) => folder.id === id)?.items ?? 0;
+  const countOf = (id: string): number => folders.find((folder) => folder.id === id)?.items ?? 0;
   return (
     <>
       <SidebarMenu aria-label="Folders">
@@ -193,7 +189,7 @@ const TagRows = ({
   itemOpen: boolean;
   onScope: (scope: LibraryScope) => void;
 }) => {
-  const tags = useQuery(useReplicaQueries().tags()).data ?? [];
+  const tags = useQuery(useLibraryQueries().scopes()).data?.tags ?? [];
   if (tags.length === 0) {
     return <p className="m-0 px-3 py-1 text-caption text-muted-foreground">No tags yet</p>;
   }
@@ -228,7 +224,7 @@ export const Rail = ({
   onOpenSearch,
   onOpenSettings,
 }: RailProps) => {
-  const scopes = useQuery(useReplicaQueries().scopes()).data;
+  const scopes = useQuery(useLibraryQueries().scopes()).data;
   const [tagsOpen, setTagsOpen] = usePref(PREFS.railTagsOpen);
   const all: LibraryScope = { kind: "all" };
   const unsorted: LibraryScope = { kind: "unsorted" };
@@ -328,8 +324,7 @@ export const Rail = ({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center gap-1 pr-1.5">
-          <SyncLine />
+        <div className="flex items-center justify-end gap-1 pr-1.5">
           <Button
             variant="ghost"
             size="icon-compact"

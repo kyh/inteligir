@@ -1,6 +1,6 @@
 // CLAUDE.md § THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P. One field over the library and the page's
-// commands: what is typed is searched in the replica's own full-text index (titles, notes and saved
-// articles), ranked as every device ranks it; a hit opens its item with the find
+// commands: what is typed is searched by the cell's full-text index (titles, notes and saved
+// articles), ranked as the cell ranks it for every device; a hit opens its item with the find
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs
 // that need no item: a new note, a link, the agent and Tidy my library, Settings.
 
@@ -17,15 +17,13 @@ import {
 } from "@repo/ui/components/command";
 import type { CommandRow, CommandRowGroup } from "@repo/ui/components/command";
 import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
-import { useReplicaQueries } from "../cloud/library-context";
+import { useLibraryQueries } from "../cloud/library-context";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
-
-const SEARCH_LIMIT = 20;
 
 export interface PaletteActions {
   // a search's hit, opened on the words it was found by
@@ -83,9 +81,7 @@ export const CommandPalette = ({
 }) => {
   const [query, setQuery] = useState("");
   const typed = query.trim();
-  const search = useReplicaQueries().search(typed, SEARCH_LIMIT);
-  const hits =
-    useQuery({ ...search, queryFn: typed === "" ? skipToken : search.queryFn }).data ?? [];
+  const hits = useQuery(useLibraryQueries().search(typed)).data?.items ?? [];
   const close = (): void => {
     onOpenChange(false);
     setQuery("");
@@ -108,12 +104,12 @@ export const CommandPalette = ({
             heading: "Items",
             items: hits.map((hit): PaletteRow => ({
               action: "Open",
-              hit: { itemId: hit.itemId, snippet: hit.snippet },
-              label: shownTitle(hit.title),
+              hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
+              label: shownTitle(hit.card.title),
               onSelect: run(() => {
-                actions.openHit(hit.itemId, typed);
+                actions.openHit(hit.id, typed);
               }),
-              value: `hit:${hit.itemId}`,
+              value: `hit:${hit.id}`,
             })),
           },
         ]),

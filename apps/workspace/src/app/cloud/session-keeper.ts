@@ -3,13 +3,13 @@
 // would lose its cookie seven days after its sign-in, however much it was used (`apps/web/CLAUDE.md`
 // § ONLY BETTER AUTH'S OWN READ SLIDES A SESSION).
 
-import type { ReplicaClock } from "@repo/library-replica/replica-ports";
+import type { Clock } from "@repo/contract/cloud/library/account-socket";
 
 // well inside the day a session waits before it slides
 /** @internal */
 export const SESSION_READ_MS = 3_600_000;
 
-export const keepSession = (clock: ReplicaClock, read: () => Promise<void>): void => {
+export const keepSession = (clock: Clock, read: () => Promise<void>): void => {
   const readOnce = async (): Promise<void> => {
     try {
       await read();

@@ -1,15 +1,33 @@
-// The page's library, handed to every screen through one context: the replica the screens read and
-// write, and the wire to the cell for what only the cell answers. Mounted once, above the router's
-// routes, so Settings and back keeps the one replica, its socket and its outbox.
+// The page's library, handed to every screen through one context: the wire to the account's cell,
+// the account's socket that says what moved, and what the host decides (where `/v1` is reached for
+// bytes, where a sign-out goes). Mounted once, above the router's routes, so Settings and back
+// keeps the one socket.
 
-import type { LibraryReplica, ReplicaStatus } from "@repo/library-replica/library-replica";
-import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
+import { createContext, useContext } from "react";
 
 import type { LeaveGuard } from "./leave-guard";
-import type { PageLibrary, SignedIn } from "./page-library";
-import { followReplica, replicaQueries } from "./replica-queries";
+import { libraryQueries } from "./library-queries";
+import type { LibraryQueries } from "./library-queries";
+import type { SignedIn } from "./page-session";
+import { useLibrarySocket } from "./use-library-socket";
+import type { LibrarySocket } from "./use-library-socket";
 import type { CloudWire } from "./v1";
+
+// why this device leaves its account: a sign-out, or the account deleted
+type LeaveReason = "signed-out" | "deleted";
+
+export interface PageLibrary {
+  readonly account: SignedIn;
+  readonly wire: CloudWire;
+  // `/v1` for the bytes the wire does not carry: a file a note names, an import's file
+  readonly cloud: V1Transport;
+  readonly socket: LibrarySocket;
+  // what asks before the page leaves while the open item holds an edit not yet written
+  readonly leave: LeaveGuard;
+  // this device has left its account: the host's next screen
+  readonly left: (reason: LeaveReason) => void;
+}
 
 const PageLibraryContext = createContext<PageLibrary | null>(null);
 
@@ -21,34 +39,19 @@ const usePageLibrary = (): PageLibrary => {
   return library;
 };
 
-export const useReplica = (): LibraryReplica => usePageLibrary().replica;
-
 export const useWire = (): CloudWire => usePageLibrary().wire;
+
+export const useLibraryQueries = (): LibraryQueries => libraryQueries(useWire());
 
 export const useAccount = (): SignedIn => usePageLibrary().account;
 
 export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
 
-// where a file of the library is drawn from, as the page's host serves it
-export const useFileUrl = (): PageLibrary["fileUrl"] => usePageLibrary().fileUrl;
+export const useCloud = (): V1Transport => usePageLibrary().cloud;
 
-// a file's bytes from there, as the editor draws one a note names and a Download saves one
-export const useReadFile = (): PageLibrary["readFile"] => usePageLibrary().readFile;
+export const useSocket = (): LibrarySocket => usePageLibrary().socket;
 
-// `/v1` for the bytes the wire does not carry
-export const useCloud = (): PageLibrary["cloud"] => usePageLibrary().cloud;
-
-// where the page goes once this device left its account
 export const useLeft = (): PageLibrary["left"] => usePageLibrary().left;
-
-export const useReplicaQueries = () => replicaQueries(useReplica());
-
-// where the replica stands: syncing, what stopped it, the writes it holds; the replica keeps one
-// status object until it moves, so the snapshot is cached
-export const useReplicaStatus = (): ReplicaStatus => {
-  const replica = useReplica();
-  return useSyncExternalStore(replica.onStatus, replica.status);
-};
 
 export const PageLibraryProvider = ({
   library,
@@ -57,7 +60,6 @@ export const PageLibraryProvider = ({
   library: PageLibrary;
   children: React.ReactNode;
 }) => {
-  const queryClient = useQueryClient();
-  useEffect(() => followReplica(library.replica, queryClient), [library, queryClient]);
+  useLibrarySocket(library.socket);
   return <PageLibraryContext value={library}>{children}</PageLibraryContext>;
 };

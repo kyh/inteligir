@@ -1,4 +1,4 @@
-import type { ReplicaClock } from "@repo/library-replica/replica-ports";
+import type { Clock } from "@repo/contract/cloud/library/account-socket";
 import { describe, expect, it, vi } from "vitest";
 
 import { keepSession, SESSION_READ_MS } from "./session-keeper";
@@ -6,7 +6,7 @@ import { keepSession, SESSION_READ_MS } from "./session-keeper";
 // a clock the test runs by hand: `tick` fires whatever is waiting, as that much time passing would
 const handClock = () => {
   let waiting: { readonly ms: number; readonly run: () => void }[] = [];
-  const clock: ReplicaClock = {
+  const clock: Clock = {
     after: (ms, run) => {
       waiting.push({ ms, run });
       return () => {};

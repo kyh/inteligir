@@ -1,6 +1,5 @@
-// CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
-// item is written before it goes, and an edit no write will take is given up only on the person's
-// word.
+// CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: the open item is written before
+// it goes, and an edit no write will take is given up only on the person's word.
 
 import type { ItemSession } from "@repo/editor/item/item-session";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";

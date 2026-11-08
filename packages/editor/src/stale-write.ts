@@ -24,10 +24,10 @@ interface MergedBlock {
 }
 
 // a block both sides changed, merged as the editor lays a change from elsewhere in, and as the
-// replica settles a CONFLICT (`replicaMerge`): the lines each side changed both land and an
-// overlap keeps mine; a side whose markdown does not read back as itself, or a merge that reads
-// back as no one block, keeps mine whole over theirs, an overlap too. The answer keeps theirs' id,
-// and the `ref` whichever side moved it.
+// replica settles a CONFLICT: the lines each side changed both land and an overlap keeps mine; a
+// side whose markdown does not read back as itself, or a merge that reads back as no one block,
+// keeps mine whole over theirs, an overlap too. The answer keeps theirs' id, and the `ref`
+// whichever side moved it.
 export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => {
   const ref = mine.ref === base.ref ? theirs.ref : mine.ref;
   const kept = (block: LibraryBlock, overlapped: boolean): MergedBlock => ({
@@ -51,8 +51,3 @@ export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => 
   const read = blockFromMarkdown(merged, theirs.id, files);
   return read === null ? kept(mine, true) : kept(read, conflicted);
 };
-
-// the block merge a host hands its library's engine, which resolves, since a host whose editor
-// runs apart from that engine answers across a bridge (the phone's page)
-export const replicaMerge = async (sides: BlockSides): Promise<MergedBlock> =>
-  await Promise.resolve(mergeBlocks(sides));

@@ -1,20 +1,17 @@
 // The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
-// the right panel (Info, the agent), over the replica the page holds. Every
-// screen reads the replica and writes through its outbox; what only the cell answers goes as a
-// call that needs a connection. A link or a file pasted or dropped where no field takes it is
-// saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
-// link all open it, but for a card that folded, whose id answers only for the run that made it.
+// the right panel (Info, the agent), over the account's library cell. Every screen reads the cell
+// through the page's queries and writes through its mutations, so each needs a connection and says
+// so without one. A link or a file pasted or dropped where no field takes it is saved where the
+// grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
+// open it.
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
-import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { isWebUrl } from "@repo/notes/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -24,16 +21,16 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import {
+  useCloud,
   useLeaveGuard,
-  useReadFile,
-  useReplica,
-  useReplicaQueries,
+  useLibraryQueries,
+  useSocket,
   useWire,
 } from "./cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
@@ -42,7 +39,6 @@ import { ItemView } from "./item/item-view";
 import { leaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import type { PageEditorHost } from "./item/page-editor-host";
-import { runBulk } from "./library/bulk-actions";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
@@ -50,16 +46,9 @@ import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
 import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
-import {
-  createFolder,
-  deleteFolder,
-  moveItems,
-  pinItems,
-  renameFolder,
-  tagItems,
-} from "./library/library-verbs";
+import { useLibraryVerbs } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
+import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
@@ -75,33 +64,17 @@ export interface WorkspaceProps {
 
 // a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
 const DELETE_ASKS_OVER = 50;
-// how many items one bulk write chunk takes before the toast moves on
-const BULK_CHUNK = 50;
-
-const uploadPicked = async (
-  replica: ReturnType<typeof useReplica>,
-  files: readonly File[],
-  folderId: string | null,
-  tags: string[],
-): Promise<number> => {
-  let made = 0;
-  for (const file of files) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await replica.createFile({
-      file: { bytes, mime: keptFileType(file.type) },
-      folderId,
-      name: file.name,
-      tags,
-    });
-    made += 1;
-  }
-  return made;
-};
 
 // a search's words, which the item it opened lands its find bar on once it has read its blocks
 interface PendingFind {
   readonly itemId: string;
   readonly query: string;
+}
+
+// what a tag's verb acts on: each item and the tags its own field holds, which it can take off
+interface TagSubject {
+  readonly id: string;
+  readonly tags: readonly string[];
 }
 
 // the open item holds an edit its pause has not written yet
@@ -134,10 +107,11 @@ const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): voi
 };
 
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
-  const replica = useReplica();
-  const readFile = useReadFile();
   const wire = useWire();
-  const queries = useReplicaQueries();
+  const cloud = useCloud();
+  const socket = useSocket();
+  const queries = useLibraryQueries();
+  const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
   const [storedScope, storeScope] = usePref(PREFS.libraryScope);
@@ -168,11 +142,13 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
-  const folders = useQuery(queries.folders()).data ?? [];
   const counts = useQuery(queries.scopes()).data;
-  const scope = listedScope(storedScope, folders);
-  const page = useQuery(queries.listing(listingQuery({ kind, scope, sort }))).data;
-  const listingRows = page?.items ?? [];
+  const folders = counts?.folders ?? [];
+  // a remembered folder is judged once the rail's folders have answered
+  const scope = counts === undefined ? storedScope : listedScope(storedScope, folders);
+  const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
+  const view = listingView(listing.data?.pages ?? []);
+  const titles = useQuery(queries.titles()).data;
 
   const open = (itemId: string | null): void => {
     void (async () => {
@@ -218,26 +194,27 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     open(null);
   });
   useEffect(() => {
-    const host = installPageEditorHost({
+    hostRef.current = installPageEditorHost({
       askAgent: hostAsksAgent,
+      cloud,
       openItem: hostOpens,
-      readFile,
-      replica,
       showTag: hostShowsTag,
-    });
-    hostRef.current = host;
-    const unsubscribe = replica.onChange(() => {
-      host.refreshTargets();
+      socket,
+      wire,
     });
     return () => {
-      unsubscribe();
       hostRef.current = null;
     };
-  }, [readFile, replica]);
+  }, [cloud, socket, wire]);
+  useEffect(() => {
+    if (titles !== undefined) {
+      hostRef.current?.setTargets(titles.targets);
+    }
+  }, [titles]);
 
-  // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
-  // item's edit counts as held until its pause writes it, and a tab going out of sight writes it at
-  // once, since it may never come back into sight to finish the pause
+  // CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: the open item's edit counts as
+  // held until its pause writes it, and a tab going out of sight or away writes it at once, since
+  // it may never come back to finish the pause
   const leave = useLeaveGuard();
   useEffect(
     () =>
@@ -255,25 +232,33 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         void sessionRef.current?.flush();
       }
     };
+    const writeAsItGoes = (): void => {
+      void sessionRef.current?.flush();
+    };
     document.addEventListener("visibilitychange", writeWhenHidden);
+    window.addEventListener("pagehide", writeAsItGoes);
     return () => {
       document.removeEventListener("visibilitychange", writeWhenHidden);
+      window.removeEventListener("pagehide", writeAsItGoes);
     };
   }, []);
 
   useEffect(() => {
     hostRef.current?.showing(openItem);
-    replica.focus(openItem);
-  }, [openItem, replica]);
+  }, [openItem]);
 
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
+  const listed = view?.items;
   useEffect(() => {
-    const listed = new Set((page?.items ?? []).map((row) => row.id));
-    const gone = [...selection.store.getState().selected].filter((id) => !listed.has(id));
+    if (listed === undefined) {
+      return;
+    }
+    const ids = new Set(listed.map((row) => row.id));
+    const gone = [...selection.store.getState().selected].filter((id) => !ids.has(id));
     if (gone.length > 0) {
       selection.apply({ gone: new Set(gone), kind: "prune" });
     }
-  }, [page, selection]);
+  }, [listed, selection]);
 
   const chooseScope = (next: LibraryScope): void => {
     storeScope(next);
@@ -315,33 +300,30 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     }
   });
 
+  const into = () => ({ folderId: saveFolderOf(scope), tags: saveTagsOf(scope) });
+
   const newNote = (): void => {
     void (async () => {
-      const made = await replica.createNote({
-        blocks: [],
-        folderId: saveFolderOf(scope),
-        tags: saveTagsOf(scope),
-        title: "",
-      });
-      open(made.id);
+      try {
+        open(await verbs.createNote(into()));
+      } catch (error) {
+        toast.error(refusalText(error, "The note couldn't be made."));
+      }
     })();
   };
 
   const saveLinks = (links: readonly CapturedLink[]): void => {
     void (async () => {
       const made = [];
-      try {
-        for (const link of links) {
-          const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
-          made.push(
-            await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
-          );
+      const unsaved =
+        links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.";
+      for (const link of links) {
+        try {
+          made.push(await verbs.saveLink(link.url, link.title, into()));
+        } catch (error) {
+          toast.error(refusalText(error, unsaved));
+          return;
         }
-      } catch {
-        toast.error(
-          links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.",
-        );
-        return;
       }
       const [only, ...more] = made;
       if (only === undefined) {
@@ -377,13 +359,19 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     }
     if (payload.files.length > 0) {
       void (async () => {
-        const made = await uploadPicked(
-          replica,
-          payload.files,
-          saveFolderOf(scope),
-          saveTagsOf(scope),
-        );
-        toast.success(`Added ${plural(made, "file")}.`);
+        let made = 0;
+        for (const file of payload.files) {
+          try {
+            await verbs.addFile(file, into());
+          } catch (error) {
+            toast.error(refusalText(error, "Not every file could be added."));
+            break;
+          }
+          made += 1;
+        }
+        if (made > 0) {
+          toast.success(`Added ${plural(made, "file")}.`);
+        }
       })();
     }
   };
@@ -407,40 +395,40 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     });
   };
 
-  const removeItems = (rows: readonly ReplicaListingRow[]): void => {
+  const removeItems = (ids: readonly string[]): void => {
     void (async () => {
       if (
-        rows.length > DELETE_ASKS_OVER &&
+        ids.length > DELETE_ASKS_OVER &&
         !(await confirm({
           body: "They wait in Deleted, where you can restore them.",
           confirmLabel: "Delete",
           destructive: true,
-          title: `Delete ${plural(rows.length, "item")}?`,
+          title: `Delete ${plural(ids.length, "item")}?`,
         }))
       ) {
         return;
       }
-      const ids = rows.map((row) => row.id);
-      await replica.deleteItems(ids);
       if (openItem !== null && ids.includes(openItem)) {
         onOpenItem(null);
       }
-      toast.success(`Moved ${plural(ids.length, "item")} to Deleted.`, {
+      let deleted: number;
+      try {
+        deleted = await verbs.remove(ids);
+      } catch (error) {
+        toast.error(refusalText(error, "That couldn't be deleted."));
+        return;
+      }
+      toast.success(`Moved ${plural(deleted, "item")} to Deleted.`, {
         action: {
           label: "Undo",
           onClick: () => {
-            void replica.restoreItems(ids);
+            verbs.restore(ids);
           },
         },
       });
     })();
   };
 
-  // calls only the cell answers, so each waits for a connection (CLAUDE.md § A CELL CALL PAUSES
-  // OFFLINE AND SAYS SO)
-  const purgeCall = useMutation(
-    wire.orpc.library.items.purge.mutationOptions({ scope: { id: "purge" } }),
-  );
   const refreshCall = useMutation(
     wire.orpc.library.items.refresh.mutationOptions({
       onError: (cause) => {
@@ -452,29 +440,34 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     }),
   );
 
-  const purge = (rows: readonly ReplicaListingRow[]): void => {
+  const purge = (ids: readonly string[]): void => {
     void (async () => {
       if (
         !(await confirm({
           body: "Their text and files are gone for good. This can't be undone.",
           confirmLabel: "Delete forever",
           destructive: true,
-          title: `Delete ${plural(rows.length, "item")} forever?`,
+          title: `Delete ${plural(ids.length, "item")} forever?`,
         }))
       ) {
         return;
       }
-      await runBulk({
-        chunk: BULK_ITEMS_MAX,
-        done: (count) => `Deleted ${plural(count, "item")} forever.`,
-        items: rows.map((row) => row.id),
-        past: "deleted",
-        run: async (ids) => {
-          const { purged } = await purgeCall.mutateAsync({ ids: [...ids] });
-          return purged.length;
-        },
-        verb: "Deleting",
-      });
+      await verbs.purge(ids);
+    })();
+  };
+
+  const emptyDeleted = (): void => {
+    void (async () => {
+      let ids: string[];
+      try {
+        ids = await verbs.deletedIds();
+      } catch (error) {
+        toast.error(refusalText(error, "Deleted couldn't be read."));
+        return;
+      }
+      if (ids.length > 0) {
+        purge(ids);
+      }
     })();
   };
 
@@ -482,46 +475,26 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     setMoveRequest({
       count: ids.length,
       onMove: (folderId) => {
-        void runBulk({
-          chunk: BULK_CHUNK,
-          done: (count) => `Moved ${plural(count, "item")}.`,
-          items: ids,
-          past: "moved",
-          run: async (chunk) => await moveItems(replica, chunk, folderId),
-          verb: "Moving",
-        });
+        void verbs.move(ids, folderId);
       },
     });
   };
 
-  const askTag = (rows: readonly ReplicaListingRow[]): void => {
+  const askTag = (subjects: readonly TagSubject[]): void => {
     // the tags every subject carries, which the dialog offers to take off
-    let held: string[] = [...(rows[0]?.tags ?? [])];
-    for (const row of rows.slice(1)) {
-      held = held.filter((tag) => row.tags.includes(tag));
+    let held: string[] = [...(subjects[0]?.tags ?? [])];
+    for (const subject of subjects.slice(1)) {
+      held = held.filter((tag) => subject.tags.includes(tag));
     }
-    const ids = rows.map((row) => row.id);
+    const ids = subjects.map((subject) => subject.id);
     setTagRequest({
-      count: rows.length,
+      count: subjects.length,
       held,
       onChange: (change) => {
-        void runBulk({
-          chunk: BULK_CHUNK,
-          done: (count) => `Tagged ${plural(count, "item")}.`,
-          items: ids,
-          past: "tagged",
-          run: async (chunk) => await tagItems(replica, chunk, change),
-          verb: "Tagging",
-        });
+        void verbs.tag(ids, change);
       },
     });
   };
-
-  const rowsOf = (ids: readonly string[]): ReplicaListingRow[] =>
-    ids.flatMap((id) => {
-      const row = replica.row(id);
-      return row === null ? [] : [row];
-    });
 
   const actions: LibraryGridActions = {
     askAgent: (rows) => {
@@ -535,21 +508,26 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       open(row.id);
     },
     pin: (rows, pinned) => {
-      void pinItems(
-        replica,
+      verbs.pin(
         rows.map((row) => row.id),
         pinned,
       );
     },
-    purge,
+    purge: (rows) => {
+      purge(rows.map((row) => row.id));
+    },
     refresh: (row) => {
       refreshCall.mutate({ id: row.id });
     },
-    remove: removeItems,
-    restore: (rows) => {
-      void replica.restoreItems(rows.map((row) => row.id));
+    remove: (rows) => {
+      removeItems(rows.map((row) => row.id));
     },
-    tag: askTag,
+    restore: (rows) => {
+      verbs.restore(rows.map((row) => row.id));
+    },
+    tag: (rows) => {
+      askTag(rows.map((row) => ({ id: row.id, tags: row.fields.tags })));
+    },
   };
 
   // what the agent is told about the screen a message leaves from
@@ -590,7 +568,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     initial: "",
                     label: "Folder name",
                     onSubmit: (name) => {
-                      void createFolder(replica, name, parentId);
+                      verbs.createFolder(name, parentId);
                     },
                     title: "New folder",
                   });
@@ -605,7 +583,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                         title: `Delete the folder “${name}”?`,
                       })
                     ) {
-                      await deleteFolder(replica, folderId);
+                      verbs.deleteFolder(folderId);
                     }
                   })();
                 },
@@ -615,7 +593,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     initial: name,
                     label: "Folder name",
                     onSubmit: (next) => {
-                      void renameFolder(replica, folderId, next);
+                      verbs.renameFolder(folderId, next);
                     },
                     title: "Rename folder",
                   });
@@ -639,7 +617,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   <LibraryView
                     scope={scope}
                     title={scopeTitle(scope, folders)}
-                    page={page}
+                    listing={{
+                      failure: listing.error,
+                      more: () => {
+                        if (listing.hasNextPage && !listing.isFetchingNextPage) {
+                          void listing.fetchNextPage();
+                        }
+                      },
+                      paused: listing.fetchStatus === "paused",
+                      view,
+                    }}
                     kind={kind}
                     onKindChange={setKind}
                     sort={sort}
@@ -656,7 +643,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                           initial: "",
                           label: "Folder name",
                           onSubmit: (name) => {
-                            void createFolder(replica, name, saveFolderOf(scope));
+                            verbs.createFolder(name, saveFolderOf(scope));
                           },
                           title: "New folder",
                         });
@@ -664,9 +651,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                       newNote,
                       saveLink: askSaveLink,
                     }}
-                    onEmptyDeleted={() => {
-                      purge(listingRows);
-                    }}
+                    onEmptyDeleted={emptyDeleted}
                     onTidy={tidyOffered ? startTidy : null}
                   />
                 ) : (
@@ -722,8 +707,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     move: (itemId) => {
                       askMove([itemId]);
                     },
-                    tag: (itemId) => {
-                      askTag(rowsOf([itemId]));
+                    tag: (itemId, tags) => {
+                      askTag([{ id: itemId, tags }]);
                     },
                   }}
                 />

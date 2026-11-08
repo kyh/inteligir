@@ -8,32 +8,32 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@repo/ui/components/dropdown-menu";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { plural } from "@repo/ui/lib/plural";
 
 import { copyText } from "../copy-text";
+import type { ListedItem } from "./listing";
 
 export interface LibraryItemActions {
-  readonly open: (row: ReplicaListingRow) => void;
-  readonly quickLook: (row: ReplicaListingRow) => void;
-  readonly pin: (rows: readonly ReplicaListingRow[], pinned: boolean) => void;
-  readonly move: (rows: readonly ReplicaListingRow[]) => void;
-  readonly tag: (rows: readonly ReplicaListingRow[]) => void;
-  readonly askAgent: (rows: readonly ReplicaListingRow[]) => void;
-  readonly refresh: (row: ReplicaListingRow) => void;
-  readonly remove: (rows: readonly ReplicaListingRow[]) => void;
-  readonly restore: (rows: readonly ReplicaListingRow[]) => void;
-  readonly purge: (rows: readonly ReplicaListingRow[]) => void;
+  readonly open: (row: ListedItem) => void;
+  readonly quickLook: (row: ListedItem) => void;
+  readonly pin: (rows: readonly ListedItem[], pinned: boolean) => void;
+  readonly move: (rows: readonly ListedItem[]) => void;
+  readonly tag: (rows: readonly ListedItem[]) => void;
+  readonly askAgent: (rows: readonly ListedItem[]) => void;
+  readonly refresh: (row: ListedItem) => void;
+  readonly remove: (rows: readonly ListedItem[]) => void;
+  readonly restore: (rows: readonly ListedItem[]) => void;
+  readonly purge: (rows: readonly ListedItem[]) => void;
 }
 
 // what the grid's owner answers: the grid draws its own Quick Look
 export type LibraryGridActions = Omit<LibraryItemActions, "quickLook">;
 
 export interface ItemMenuState {
-  readonly row: ReplicaListingRow;
+  readonly row: ListedItem;
   readonly anchor: HTMLElement;
   // what the verbs act on: the row alone, or the selection it is part of
-  readonly subjects: readonly ReplicaListingRow[];
+  readonly subjects: readonly ListedItem[];
 }
 
 const DeletedVerbs = ({
@@ -41,7 +41,7 @@ const DeletedVerbs = ({
   actions,
   run,
 }: {
-  subjects: readonly ReplicaListingRow[];
+  subjects: readonly ListedItem[];
   actions: LibraryItemActions;
   run: (verb: () => void) => () => void;
 }) => {
@@ -79,8 +79,8 @@ const LibraryVerbs = ({
 }) => {
   const { row, subjects } = menu;
   const many = subjects.length > 1;
-  const pinned = subjects.every((subject) => subject.pinnedAt !== null);
-  const { url } = row;
+  const pinned = subjects.every((subject) => subject.fields.pinnedAt !== null);
+  const { url } = row.fields;
   return (
     <>
       {many ? null : (
@@ -186,7 +186,7 @@ export const ItemMenu = ({
     >
       {menu === null ? null : (
         <DropdownMenuContent anchor={menu.anchor} side="bottom" align="start">
-          {menu.row.deletedAt === null ? (
+          {menu.row.fields.deletedAt === null ? (
             <LibraryVerbs menu={menu} actions={actions} run={run} />
           ) : (
             <DeletedVerbs subjects={menu.subjects} actions={actions} run={run} />

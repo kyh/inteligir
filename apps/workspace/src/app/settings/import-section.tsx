@@ -4,11 +4,8 @@
 // page it is on, keeping what it added. It waits for a connection, and reaches `/v1` under the
 // page's session cookie.
 
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
 import { keptFileType } from "@repo/notes/items/item-kind";
-import { fileSha } from "@repo/notes/library/file-sha";
-import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +13,7 @@ import { useRef, useState } from "react";
 import type { z } from "zod";
 
 import { useCloud, useWire } from "../cloud/library-context";
+import { FileRefusedError, uploadFile } from "../cloud/library-files";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { formatCount } from "../library/item-labels";
@@ -56,32 +54,6 @@ export const importSentence = (job: ImportJob): string => {
   }
 };
 
-// the store's refusal of a file, in the person's words
-class UploadRefusedError extends Error {
-  override name = "UploadRefusedError";
-}
-
-// the file's bytes in the library's files, by their SHA-256, which the import then names
-const uploadFile = async (cloud: ReplicaTransport, file: File): Promise<string> => {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const sha = fileSha(bytes);
-  const response = await cloud.fetch(
-    new Request(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
-      body: bytes,
-      headers: { "content-type": keptFileType(file.type) },
-      method: "PUT",
-    }),
-  );
-  if (!response.ok) {
-    throw new UploadRefusedError(
-      response.status === 413
-        ? "This file is larger than the library takes."
-        : "The file couldn't be sent. Try again.",
-    );
-  }
-  return sha;
-};
-
 const SOURCES: readonly { source: ImportSource; label: string; accept: string }[] = [
   { accept: ".csv,text/csv", label: "Import from Raindrop…", source: "raindrop" },
   { accept: ".zip,application/zip", label: "Import a zip of notes…", source: "markdown" },
@@ -99,12 +71,13 @@ const ImportRow = () => {
   });
   const start = useMutation({
     mutationFn: async ({ file, from }: { file: File; from: ImportSource }) => {
-      const sha = await uploadFile(cloud, file);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const sha = await uploadFile(cloud, bytes, keptFileType(file.type));
       return await client.library.imports.start({ sha, source: from });
     },
     onError: (cause) => {
       toast.error(
-        cause instanceof UploadRefusedError
+        cause instanceof FileRefusedError
           ? cause.message
           : refusalText(cause, "The import couldn't start."),
       );

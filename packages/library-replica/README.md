@@ -37,8 +37,6 @@ sign-out wipes it). The socket is a hint and never the state.
   writes join, and how a `CONFLICT` settles.
 - `src/folded-makes.ts` — the makes the cell folded this run, by the id a screen
   open on one still holds.
-- `src/call-outcome.ts` — the contract's call outcome under the path the page
-  imports it by, until that page goes.
 - `src/memory-sql.ts` — SQLite's own wasm build in memory: the browser tab's
   replica and the suites'.
 

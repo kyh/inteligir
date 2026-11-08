@@ -1,6 +1,6 @@
 // CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An item opens full size in the
 // grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
-// editor (`@repo/editor/item/item-editor`) over the replica, which writes what changed after a
+// editor (`@repo/editor/item/item-editor`) over the cell, which writes what changed after a
 // pause and lays in what changed elsewhere. Escape outside the editor goes back to the library.
 
 import { ItemEditor } from "@repo/editor/item/item-editor";
@@ -17,10 +17,12 @@ import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
-import { useReplica, useReplicaQueries } from "../cloud/library-context";
+import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
+import { useOnline } from "../cloud/needs-connection";
 import { isTextEntryTarget } from "../global-shortcuts";
 import { libraryShortcutFor } from "../library/library-keys";
-import { retitleItem } from "../library/library-verbs";
+import { useLibraryVerbs } from "../library/library-verbs";
+import { createCellItemStore } from "./cell-item-store";
 import { TopBar } from "../top-bar";
 import { FileStage, PendingNotice, SourceHeader } from "./item-stages";
 
@@ -39,13 +41,13 @@ export interface ItemViewProps {
 }
 
 const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
-  const replica = useReplica();
+  const verbs = useLibraryVerbs();
   const [draft, setDraft] = useState<string | null>(null);
   const commit = (): void => {
     const next = (draft ?? title).trim();
     setDraft(null);
     if (next !== "" && next !== title) {
-      void retitleItem(replica, itemId, next);
+      verbs.retitle(itemId, next);
     }
   };
   return (
@@ -84,9 +86,10 @@ const EditorScroller = ({ children }: { children: ReactNode }) => (
 );
 
 export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
-  const replica = useReplica();
-  const queries = useReplicaQueries();
-  const item = useQuery(queries.item(itemId));
+  const wire = useWire();
+  const socket = useSocket();
+  const item = useQuery(useLibraryQueries().item(itemId));
+  const online = useOnline();
   const modifier = platformShortcutModifier();
 
   // read once as the item opens: the editor holds them for its life
@@ -96,7 +99,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
     notifyOverlap: (title) => {
       toast.warning(mergeConflictLine(title));
     },
-    store: replica,
+    store: createCellItemStore(wire, socket),
   }));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
@@ -147,7 +150,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
             <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
           </>
         )}
-        <ItemEditor itemId={itemId} ports={ports} onSession={onSession} />
+        <ItemEditor itemId={itemId} ports={ports} onSession={onSession} offline={!online} />
       </EditorScroller>
     </div>
   );

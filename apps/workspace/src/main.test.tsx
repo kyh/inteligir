@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // main.tsx is the whole page and its top-level await, loaded once a test
 const LOADS_THE_PAGE_MS = 60_000;
-// the library draws before its replica's first pass answers
+// the refusal answers the first read of the library
 const DRAWS_MS = 30_000;
 
 beforeEach(() => {
@@ -38,8 +38,8 @@ describe("a tab the build floor refuses", () => {
   const os = implement(v1Contract);
   const floor = new RPCHandler({
     library: {
-      sync: {
-        pull: os.library.sync.pull.handler(({ errors }) => {
+      listing: {
+        scopes: os.library.listing.scopes.handler(({ errors }) => {
           throw errors.CLIENT_OUTDATED();
         }),
       },

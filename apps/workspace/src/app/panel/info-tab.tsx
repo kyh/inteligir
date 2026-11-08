@@ -1,27 +1,29 @@
-// CLAUDE.md § AN ITEM'S INFO IS ITS FIELDS. Info reads the item as the replica holds it (its
-// fields, its card's counts) and writes a field as one patch through the outbox, over the value it
-// read, so a pin, a move or a tag reads as done at once. Reading a saved page again is the cloud's
-// to do, so it waits for a connection.
+// CLAUDE.md § AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS. Info reads the item
+// as the cell holds it (its fields, its card's counts) and writes a field as one change the cell
+// makes, laid over what the page shows at once, so a pin, a move or a tag reads as done before it
+// lands. Every part of it is the cell's, so it waits for a connection.
 
+import { isDefinedError } from "@orpc/client";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { itemProperties } from "@repo/editor/item/item-properties";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { PropertyValue } from "@repo/notes/library/library-item";
-import { z } from "zod";
-import type { ListingFolder } from "@repo/notes/library/library-index";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 
-import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { useLibraryQueries, useWire } from "../cloud/library-context";
+import { CellAnswer } from "../cloud/needs-connection";
 import { formatCount, KIND_LABELS, isUrlItem } from "../library/item-labels";
-import { pinItems } from "../library/library-verbs";
+import { useLibraryVerbs } from "../library/library-verbs";
 
 export interface InfoActions {
   readonly move: (itemId: string) => void;
-  readonly tag: (itemId: string) => void;
+  // the tags its own field holds, which the dialog offers to take off
+  readonly tag: (itemId: string, tags: readonly string[]) => void;
 }
 
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -33,7 +35,10 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-const folderName = (folders: readonly ListingFolder[], folderId: string | null): string =>
+const folderName = (
+  folders: readonly { readonly id: string; readonly name: string }[],
+  folderId: string | null,
+): string =>
   folderId === null
     ? "Unsorted"
     : (folders.find((folder) => folder.id === folderId)?.name ?? "A folder not here yet");
@@ -53,11 +58,11 @@ export const InfoTab = ({
   session: ItemSession | null;
   actions: InfoActions;
 }) => {
-  const replica = useReplica();
-  const queries = useReplicaQueries();
+  const queries = useLibraryQueries();
+  const verbs = useLibraryVerbs();
   const { orpc } = useWire();
-  const item = useQuery(queries.item(itemId)).data ?? null;
-  const folders = useQuery(queries.folders()).data ?? [];
+  const item = useQuery(queries.item(itemId));
+  const folders = useQuery(queries.scopes()).data?.folders ?? [];
   const refresh = useMutation(
     orpc.library.items.refresh.mutationOptions({
       onError: (cause) => {
@@ -68,90 +73,97 @@ export const InfoTab = ({
       },
     }),
   );
-  if (item === null) {
+  if (item.data === undefined && isDefinedError(item.error) && item.error.code === "NOT_FOUND") {
     return <p className="m-0 p-3 text-body text-muted-foreground">This item isn’t here.</p>;
   }
-  // the item this reads, which a fold may have moved off the id it opened under
-  const { id, fields, card } = item;
   return (
-    <div className="flex flex-col gap-3 p-3" data-info-item={itemId}>
-      <dl className="m-0">
-        <Row label="Kind">{KIND_LABELS[fields.kind]}</Row>
-        {fields.url === null ? null : (
-          <Row label="Address">
-            <a href={fields.url} target="_blank" rel="noopener noreferrer" className="underline">
-              {fields.site ?? fields.url}
-            </a>
-          </Row>
-        )}
-        {fields.author === null ? null : <Row label="By">{fields.author}</Row>}
-        <Row label="Saved">{DATE_TIME.format(fields.savedAt)}</Row>
-        <Row label="Words">{formatCount(card.words)}</Row>
-        <Row label="Folder">
-          <span className="flex items-center gap-2">
-            {folderName(folders, fields.folderId)}
-            <Button
-              size="compact"
-              variant="ghost"
-              onClick={() => {
-                actions.move(id);
-              }}
-            >
-              Move…
-            </Button>
-          </span>
-        </Row>
-        <Row label="Tags">
-          <span className="flex flex-wrap items-center gap-1.5">
-            {fields.tags.map((tag) => (
-              <span key={tag} className="rounded bg-muted px-1.5 text-caption">
-                #{tag}
-              </span>
-            ))}
-            <Button
-              size="compact"
-              variant="ghost"
-              onClick={() => {
-                actions.tag(id);
-              }}
-            >
-              Tag…
-            </Button>
-          </span>
-        </Row>
-        {session === null
-          ? Object.entries(fields.properties).map(([key, value]) => (
-              <Row key={key} label={key}>
-                {value === undefined ? "" : propertyText(value)}
+    <CellAnswer query={item} failed="This item couldn't be read.">
+      {({ id, fields, card }) => (
+        <div className="flex flex-col gap-3 p-3" data-info-item={itemId}>
+          <dl className="m-0">
+            <Row label="Kind">{KIND_LABELS[fields.kind]}</Row>
+            {fields.url === null ? null : (
+              <Row label="Address">
+                <a
+                  href={fields.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  {fields.site ?? fields.url}
+                </a>
               </Row>
-            ))
-          : null}
-      </dl>
-      {session === null ? null : <PropertiesPanel source={itemProperties(session)} />}
-      <Switch
-        label="Pinned"
-        checked={fields.pinnedAt !== null}
-        onCheckedChange={(pinned) => {
-          void pinItems(replica, [id], pinned);
-        }}
-      />
-      {isUrlItem(fields) ? (
-        <div className="flex flex-col gap-1.5">
-          {fields.fetchState === "failed" && fields.fetchError !== null ? (
-            <p className="m-0 text-body text-muted-foreground">{fields.fetchError}</p>
-          ) : null}
-          <Button
-            variant="secondary"
-            size="compact"
-            disabled={refresh.isPending}
-            onClick={() => {
-              refresh.mutate({ id });
+            )}
+            {fields.author === null ? null : <Row label="By">{fields.author}</Row>}
+            <Row label="Saved">{DATE_TIME.format(fields.savedAt)}</Row>
+            <Row label="Words">{formatCount(card.words)}</Row>
+            <Row label="Folder">
+              <span className="flex items-center gap-2">
+                {folderName(folders, fields.folderId)}
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  onClick={() => {
+                    actions.move(id);
+                  }}
+                >
+                  Move…
+                </Button>
+              </span>
+            </Row>
+            <Row label="Tags">
+              <span className="flex flex-wrap items-center gap-1.5">
+                {fields.tags.map((tag) => (
+                  <span key={tag} className="rounded bg-muted px-1.5 text-caption">
+                    #{tag}
+                  </span>
+                ))}
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  onClick={() => {
+                    actions.tag(id, fields.tags);
+                  }}
+                >
+                  Tag…
+                </Button>
+              </span>
+            </Row>
+            {session === null
+              ? Object.entries(fields.properties).map(([key, value]) => (
+                  <Row key={key} label={key}>
+                    {value === undefined ? "" : propertyText(value)}
+                  </Row>
+                ))
+              : null}
+          </dl>
+          {session === null ? null : <PropertiesPanel source={itemProperties(session)} />}
+          <Switch
+            label="Pinned"
+            checked={fields.pinnedAt !== null}
+            onCheckedChange={(pinned) => {
+              verbs.pin([id], pinned);
             }}
-          >
-            Read the page again
-          </Button>
+          />
+          {isUrlItem(fields) ? (
+            <div className="flex flex-col gap-1.5">
+              {fields.fetchState === "failed" && fields.fetchError !== null ? (
+                <p className="m-0 text-body text-muted-foreground">{fields.fetchError}</p>
+              ) : null}
+              <Button
+                variant="secondary"
+                size="compact"
+                disabled={refresh.isPending}
+                onClick={() => {
+                  refresh.mutate({ id });
+                }}
+              >
+                Read the page again
+              </Button>
+            </div>
+          ) : null}
         </div>
-      ) : null}
-    </div>
+      )}
+    </CellAnswer>
   );
 };

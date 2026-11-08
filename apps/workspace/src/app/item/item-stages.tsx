@@ -8,19 +8,18 @@ import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
-import { useFileUrl, useReadFile } from "../cloud/library-context";
+import { useCloud } from "../cloud/library-context";
+import { fileUrl, readFile } from "../cloud/library-files";
 import { saveBlob } from "@repo/ui/lib/save-blob";
 
-// The file's bytes read where the page draws them, a file not sent up yet among them, then saved
-// under its own name (`@repo/ui/lib/save-blob`).
+// The file's bytes read where the page draws them, then saved under its own name
+// (`@repo/ui/lib/save-blob`).
 const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
-  const readFile = useReadFile();
+  const cloud = useCloud();
   const save = useMutation({
     mutationFn: async () => {
-      saveBlob(await readFile(sha), name);
+      saveBlob(await readFile(cloud, sha), name);
     },
-    // a file the device holds saves offline; one it would fetch fails at once and says so
-    networkMode: "always",
     onError: () => {
       toast.error("The file couldn't be saved. Check your connection and try again.");
     },
@@ -40,7 +39,6 @@ const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: stri
 };
 
 export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
-  const fileUrl = useFileUrl();
   const sha = fields.originalSha;
   if (sha === null) {
     return null;

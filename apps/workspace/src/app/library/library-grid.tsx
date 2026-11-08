@@ -1,9 +1,9 @@
 // CLAUDE.md § THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS. The
-// listing as cards: the whole listing is in memory, and only the cards in view are drawn. The grid
+// listing as cards: the pages the cell answered so far, only the cards in view drawn, and the next
+// page asked for as the view nears the end of what is read. The grid
 // owns the gestures (the selection, the focus, the keys of LIBRARY_SHORTCUTS' grid rows and the
 // menu); what a verb does is the caller's.
 
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import type { CardGridHandle } from "@repo/ui/components/card-grid";
 import { mediaCardHeight } from "@repo/ui/components/media-card";
@@ -20,6 +20,7 @@ import { libraryShortcutFor } from "./library-keys";
 import type { LibraryAction } from "./library-keys";
 import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
 import { QuickLook } from "./quick-look";
+import type { ListedItem } from "./listing";
 
 const MIN_CELL_WIDTH = 200;
 
@@ -36,13 +37,18 @@ const MOVES: Partial<Record<LibraryAction, { delta: MoveDelta; extend: boolean }
   "move-up": { delta: "up", extend: false },
 };
 
+// how many rows short of the end of what is read the next page is asked for
+const NEAR_END_ROWS = 60;
+
 export interface LibraryGridProps {
-  readonly rows: readonly ReplicaListingRow[];
+  readonly rows: readonly ListedItem[];
   readonly selection: LibrarySelectionStore;
   readonly actions: LibraryGridActions;
+  // the view came near the end of the rows read so far
+  readonly onNearEnd: () => void;
 }
 
-export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
+export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGridProps) => {
   const [columns, setColumns] = useState(1);
   const [menu, setMenu] = useState<ItemMenuState | null>(null);
   const [look, setLook] = useState<string | null>(null);
@@ -53,9 +59,9 @@ export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
   const focusIndex = state.focus === null ? -1 : order.indexOf(state.focus);
   const modifier = platformShortcutModifier();
 
-  const selectedRows = (): ReplicaListingRow[] => rows.filter((row) => state.selected.has(row.id));
+  const selectedRows = (): ListedItem[] => rows.filter((row) => state.selected.has(row.id));
 
-  const press = (row: ReplicaListingRow, event: MouseEvent<HTMLDivElement>): void => {
+  const press = (row: ListedItem, event: MouseEvent<HTMLDivElement>): void => {
     const toggling = modifier === "meta" ? event.metaKey : event.ctrlKey;
     if (event.shiftKey) {
       selection.apply({ id: row.id, kind: "range", order });
@@ -66,7 +72,7 @@ export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
     }
   };
 
-  const openMenu = (row: ReplicaListingRow, anchor: HTMLElement): void => {
+  const openMenu = (row: ListedItem, anchor: HTMLElement): void => {
     const inSelection = state.selected.has(row.id);
     if (!inSelection) {
       selection.apply({ id: row.id, kind: "click" });
@@ -130,7 +136,7 @@ export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
         const subjects = selectedRows();
         if (subjects.length > 0) {
           event.preventDefault();
-          if (subjects.every((row) => row.deletedAt === null)) {
+          if (subjects.every((row) => row.fields.deletedAt === null)) {
             actions.remove(subjects);
           }
         }
@@ -157,6 +163,11 @@ export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
         keepMountedIndex={focusIndex === -1 ? null : focusIndex}
         onColumnsChange={setColumns}
         onKeyDown={onKeyDown}
+        onRangeChange={({ last }) => {
+          if (last >= rows.length - NEAR_END_ROWS) {
+            onNearEnd();
+          }
+        }}
         renderCell={(index) => {
           const row = rows[index];
           if (row === undefined) {
