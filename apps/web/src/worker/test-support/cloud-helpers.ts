@@ -26,7 +26,7 @@ export const PASSWORD = "test-password-1234";
 
 // what every install's request carries: a build at the floor, which the Worker admits
 const floorBuild = (): ClientBuild => ({
-  platform: "desktop",
+  platform: "mobile",
   version: env.MIN_CLIENT_BUILD,
 });
 
