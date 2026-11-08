@@ -1,12 +1,13 @@
 // The page's library, handed to every screen through one context: the wire to the account's cell,
 // the account's socket that says what moved, and what the host decides (where `/v1` is reached for
-// bytes, where a sign-out goes). Mounted once, above the router's routes, so Settings and back
-// keeps the one socket.
+// bytes, how the session ends and where a sign-out goes). Mounted once, above the router's routes,
+// so Settings and back keeps the one socket.
 
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
 import { createContext, useContext } from "react";
 
+import type { PageAuth } from "./auth-client";
 import type { LeaveGuard } from "./leave-guard";
+import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
 import type { SignedIn } from "./page-session";
@@ -21,7 +22,9 @@ export interface PageLibrary {
   readonly account: SignedIn;
   readonly wire: CloudWire;
   // `/v1` for the bytes the wire does not carry: a file a note names, an import's file
-  readonly cloud: V1Transport;
+  readonly cloud: FileCloud;
+  // Better Auth's own client, whose sign-out ends this device's session
+  readonly auth: PageAuth;
   readonly socket: LibrarySocket;
   // what asks before the page leaves while the open item holds an edit not yet written
   readonly leave: LeaveGuard;
@@ -47,7 +50,9 @@ export const useAccount = (): SignedIn => usePageLibrary().account;
 
 export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
 
-export const useCloud = (): V1Transport => usePageLibrary().cloud;
+export const useCloud = (): FileCloud => usePageLibrary().cloud;
+
+export const usePageAuth = (): PageAuth => usePageLibrary().auth;
 
 export const useSocket = (): LibrarySocket => usePageLibrary().socket;
 

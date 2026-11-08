@@ -43,7 +43,7 @@ const install = (upload: (request: Request) => Promise<Response>) => {
   const listeners: ((moved: ItemsMoved) => void)[] = [];
   installPageEditorHost({
     askAgent: nothing,
-    cloud: { fetch: upload, origin: ORIGIN },
+    cloud: { fetch: upload, onSessionEnd: nothing, origin: ORIGIN },
     openItem: nothing,
     showTag: nothing,
     socket: {

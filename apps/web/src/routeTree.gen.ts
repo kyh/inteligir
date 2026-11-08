@@ -20,7 +20,6 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AppIndexRouteImport } from './routes/app/index'
-import { Route as AppDevicesRouteImport } from './routes/app/devices'
 import { Route as AppForgotPasswordRouteImport } from './routes/app/forgot-password'
 import { Route as AppResetPasswordRouteImport } from './routes/app/reset-password'
 import { Route as AppSignInRouteImport } from './routes/app/sign-in'
@@ -82,11 +81,6 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDevicesRoute = AppDevicesRouteImport.update({
-  id: '/devices',
-  path: '/devices',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppForgotPasswordRoute = AppForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -124,7 +118,6 @@ export interface FileRoutesByFullPath {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
@@ -142,7 +135,6 @@ export interface FileRoutesByTo {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
@@ -162,7 +154,6 @@ export interface FileRoutesById {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
@@ -183,7 +174,6 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
-    | '/app/devices'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
@@ -201,7 +191,6 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
-    | '/app/devices'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
@@ -220,7 +209,6 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
-    | '/app/devices'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
@@ -322,13 +310,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/devices': {
-      id: '/app/devices'
-      path: '/devices'
-      fullPath: '/app/devices'
-      preLoaderRoute: typeof AppDevicesRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/forgot-password': {
       id: '/app/forgot-password'
       path: '/forgot-password'
@@ -368,7 +349,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
-  AppDevicesRoute: typeof AppDevicesRoute
   AppForgotPasswordRoute: typeof AppForgotPasswordRoute
   AppResetPasswordRoute: typeof AppResetPasswordRoute
   AppSignInRoute: typeof AppSignInRoute
@@ -377,7 +357,6 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppDevicesRoute: AppDevicesRoute,
   AppForgotPasswordRoute: AppForgotPasswordRoute,
   AppResetPasswordRoute: AppResetPasswordRoute,
   AppSignInRoute: AppSignInRoute,

@@ -49,6 +49,7 @@ export const fieldValue = (form: FormData, name: string): string => {
   return value === null || value instanceof File ? "" : value;
 };
 
+/** @internal */
 export const CONNECTION_FAILED = "Couldn't reach inteligir — check your connection.";
 
 // a submit answers the message to show, or null once it has gone where it was going

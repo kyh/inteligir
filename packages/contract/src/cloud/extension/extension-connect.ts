@@ -1,22 +1,17 @@
 // The site's /connect/extension page and the browser extension, over `externally_connectable`:
-// the page asks whether the extension is in this browser, then hands it the credential
-// `account.connectExtension` minted for the signed-in account. Chrome lets only the pages the
-// manifest's `externally_connectable.matches` names send these, and the extension checks each
-// sender's origin before it reads one; both ends parse, since a message crosses as an untyped
-// value.
+// the page tells the extension in this browser where the site is, and the extension answers the
+// account this browser is signed in to there, which it saves to. No credential crosses: the
+// extension reads the browser's own sign-in. Chrome lets only the pages the manifest's
+// `externally_connectable.matches` names send these, and the extension checks each sender's
+// origin before it reads one; both ends parse, since a message crosses as an untyped value.
 
 import { z } from "zod";
 
-import { deviceLoginResponseSchema } from "../device/device-schema";
-
-export const extensionConnectRequestSchema = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("hello") }),
-  z.strictObject({ connection: deviceLoginResponseSchema, type: z.literal("connect") }),
-]);
+export const extensionConnectRequestSchema = z.strictObject({ type: z.literal("connect") });
 export type ExtensionConnectRequest = z.infer<typeof extensionConnectRequestSchema>;
 
-// the account this message connected the extension to, or none: a hello connects none, and any
-// answer to it says the extension is in this browser
+// the account the extension found this browser signed in to at the page's origin, or none; any
+// answer says the extension is in this browser
 export const extensionConnectAnswerSchema = z.object({ email: z.string().min(1).nullable() });
 export type ExtensionConnectAnswer = z.infer<typeof extensionConnectAnswerSchema>;
 

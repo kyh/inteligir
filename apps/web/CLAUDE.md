@@ -28,16 +28,17 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **THE ACCOUNT'S DEVICES ARE ITS SESSIONS, BESIDE ITS DEVICE CREDENTIALS, IN
   ONE LIST ANY OF THEM READS AND ENDS**, so Settings › Account, in the
   library's page, a browser tab or the Mac app's window, removes a lost phone
-  with no password asked, as a sign-out asks none; the web's devices page stays
-  as the fallback. A session is listed from Better Auth's own row, named at read
-  time from the user agent it signed in with, its token never selected; ending
-  one by its id goes through Better Auth's adapter, so its `session.delete.after`
-  closes its sockets, and an id the account does not hold is `NOT_FOUND`. The
-  list marks the session or credential asking, and that row offers no Revoke:
-  this device leaves through a sign-out, which asks before it drops what it has
-  not sent. Rejected: Better Auth's own list and revoke routes (each hands a
+  with no password asked, as a sign-out asks none. A session is listed from
+  Better Auth's own row, named at read time from the user agent it signed in
+  with, its token never selected; ending one by its id goes through Better
+  Auth's adapter, so its `session.delete.after` closes its sockets, and an id
+  the account does not hold is `NOT_FOUND`. The list marks the session or
+  credential asking as This device, and that row offers no Sign out: this
+  device leaves through a sign-out, which asks before it drops what it has not
+  sent. Rejected: Better Auth's own list and revoke routes (each hands a
   session's token to the page); a device-name column (a second spelling of what
-  the user agent already says). `apps/web/src/worker/wire/account-router.ts`,
+  the user agent already says); a devices page on the site beside Settings (a
+  second list of one account's devices). `apps/web/src/worker/wire/account-router.ts`,
   `apps/web/src/worker/auth/session-devices.ts`,
   `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
@@ -47,17 +48,19 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   sign-out takes its copy away first and only then revokes, unawaited, and a
   phone whose copy would not go opens it again, still the account's; a sign-in
   it could not keep or open lets that device go the same way. Settings › Account
-  in a tab, the Mac app's window among them, goes the other way, since a wire
-  stands there and a tab holds no credential to drop: it signs out
-  over that wire first, so it needs a connection, and wipes once the cloud has
-  answered; a wipe that fails meets the cloud's refusal at the next call, which
-  ends the session as any revocation does. Rejected: forgetting the credential
+  in a tab, the Mac app's window among them, goes the other way, since a tab
+  holds no credential to drop: it signs out through Better Auth's own
+  `/api/auth/sign-out` first, which ends the session and clears its cookie, so
+  it needs a connection, and wipes once the cloud has answered; a wipe that
+  fails meets the cloud's refusal at the next call, which ends the session as
+  any revocation does. Rejected: forgetting the credential
   alone (the row stays active against the twenty-device cap, so repeated
   sign-ins lock the account out); revoking before the wipe on a local drop (a
   failed wipe left a library on a dead credential, whose edits nothing could
   send). `apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
-  `apps/workspace/src/app/settings/account-section.tsx`.
+  `apps/workspace/src/app/settings/account-section.tsx`,
+  `apps/workspace/src/app/cloud/auth-client.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
@@ -669,17 +672,18 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   build's activeTab alone); a reflected origin (any page could read what a
   cookie opened). `apps/web/src/worker/cors.ts`, `apps/web/vite.config.ts`.
 
-- **THE EXTENSION'S CREDENTIAL IS MINTED FOR THE SITE'S SESSION, ON A CLICK OF
-  THE CONNECT PAGE.** `/connect/extension` is a site route that asks the person
-  to Connect, then `account.connectExtension` mints a device credential for the
-  account of the session the site's own page holds, never a device's, the
-  phone's or the extension's (a stolen bearer would mint credentials outliving
-  its own revocation), and leaves the session alone; the page hands it
-  to the committed id only and revokes one the extension did not take.
-  Rejected: connecting on load (any page linking there could fill the device
-  cap); the id from the link (a link could name another extension).
-  `apps/web/src/routes/connect/extension.tsx`,
-  `apps/web/src/worker/wire/account-router.ts`.
+- **THE CONNECT PAGE TELLS THE EXTENSION WHERE THE SITE IS, AND HANDS IT
+  NOTHING.** `/connect/extension` is a site route for the person signed in
+  there: a click of Connect sends the committed id alone `{ type: "connect" }`
+  through `externally_connectable`, whose sender Chrome names by the page's
+  origin, and the page says which account the extension answers it found this
+  browser signed in to. The extension reads the browser's own sign-in (EVERY
+  DEVICE SIGNS IN WITH BETTER AUTH'S OWN SESSION), so no credential crosses the
+  page, and none is minted or revoked there. Rejected: a credential minted for
+  the extension and handed over (a second secret per browser, which outlived
+  the browser's sign-out); the id from the link (a link could name another
+  extension). `apps/web/src/routes/connect/extension.tsx`,
+  `apps/web/src/lib/extension-connect.ts`.
 
 - **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON
   SEES THE WHOLE ADDRESS BEFORE IT GOES.** The cloud reads a saved page, so a
@@ -753,14 +757,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   site's router holds neither that page nor the consent page; sign-in, sign-up
   and the reset pages hand `next` on, the reset through its mail's link, each
   page's search parsed by the same guard so none holds an off-site one. One
-  link, in the site's header and on
-  Devices, serves someone signed in and someone not, since the page sends a
-  signed-out tab to sign in and back; its document answers `noindex`, as the
-  account pages do, since that link hands a crawler an empty shell. Rejected:
-  Devices as the landing (a person with only a browser never reached their
-  library); a sign-out passing its own `next` (the landing is already the
-  library); `Disallow` in robots.txt (a page it blocks can still be listed by
-  its link). `apps/web/src/lib/next-path.ts`,
+  link, in the site's header, serves someone signed in and someone not, since
+  the page sends a signed-out tab to sign in and back; its document answers
+  `noindex`, as the account pages do, since that link hands a crawler an empty
+  shell. Rejected: a sign-out passing its own `next` (the landing is already
+  the library); `Disallow` in robots.txt (a page it blocks can still be listed
+  by its link). `apps/web/src/lib/next-path.ts`,
   `apps/web/src/components/library-link.tsx`,
   `apps/web/src/worker/library/library-page.ts`.
 
