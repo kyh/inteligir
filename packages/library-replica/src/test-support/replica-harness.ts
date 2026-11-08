@@ -9,9 +9,9 @@ import type { LibraryReplica } from "../library-replica";
 import { openMemorySql } from "../memory-sql";
 import type { MemorySql } from "../memory-sql";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { fakeClock } from "./fake-clock";
-import type { FakeClock } from "./fake-clock";
-import type { FakeCell, FakeDevice } from "./fake-cell";
+import { fakeClock } from "@repo/contract/test-support/fake-clock";
+import type { FakeClock } from "@repo/contract/test-support/fake-clock";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 
 // UUIDv7s in order, each device's under a prefix of its own so two devices never mint one id
 /** @internal */

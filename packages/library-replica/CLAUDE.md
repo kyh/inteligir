@@ -117,8 +117,8 @@ and cited.
   stored event, on every write and every minute; the socket pings, drops a
   silent connection and dials again on a doubling wait, its ticket minted by
   `account.socketTicket`. Rejected: state in the frames (a dropped frame would
-  be a lost write). `packages/library-replica/src/replica-socket.ts`,
-  `library-replica.ts`.
+  be a lost write). `packages/contract/src/cloud/library/account-socket.ts`,
+  `packages/library-replica/src/library-replica.ts`.
 
 - **THE BROWSER TAB'S REPLICA AND THE SUITES' ARE SQLITE'S OWN WASM, IN
   MEMORY.** `@sqlite.org/sqlite-wasm` with FTS5, one connection serving every

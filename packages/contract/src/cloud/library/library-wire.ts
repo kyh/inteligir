@@ -72,6 +72,8 @@ export const MESSAGE_MAX = 20_000;
 export const FILING_RULES_MAX = 65_536;
 // what an agent or a list reads at once
 export const PAGE_MAX = 50;
+// what one page of the apps' listing carries
+export const LISTING_PAGE_MAX = 1000;
 
 // ---- the synced rows ----
 
@@ -116,7 +118,7 @@ export const folderPathNames = (path: string): string[] =>
     .map((segment) => segment.trim())
     .filter((name) => name !== "");
 
-const folderRowSchema = z.object({
+export const folderRowSchema = z.object({
   deletedAt: instant.nullable(),
   id: idSchema,
   name: z.string(),
@@ -247,6 +249,36 @@ export const editRefusalSchema = z.object({
   count: z.number().int().positive().optional(),
   edit: z.number().int().nonnegative(),
   reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep", "unstorable"]),
+});
+
+// ---- what the apps list ----
+
+// which items a listing shows, as `@repo/notes/library/library-index` answers it: the library or
+// Deleted, narrowed by kind, tag (and every tag under it), folder (or none, for Unsorted), site and
+// saved time
+export const listingQuerySchema = z.strictObject({
+  beforeMs: instant.optional(),
+  deleted: z.boolean(),
+  folderId: idSchema.nullable().optional(),
+  kinds: z.array(z.enum(ITEM_KINDS)).optional(),
+  sinceMs: instant.optional(),
+  site: z.string().trim().min(1).max(253).optional(),
+  sort: z.enum(["saved", "modified", "title", "relevance"]),
+  subfolders: z.boolean().optional(),
+  tag: libraryItemFieldsSchema.shape.tags.element.optional(),
+  untagged: z.boolean().optional(),
+});
+
+// an item as a listing draws it: its row, every tag it carries (its field's and its body's), and
+// under a search the passage that matched
+export const listedItemSchema = z.object({
+  card: itemCardSchema,
+  fields: itemFieldsRowSchema,
+  id: idSchema,
+  seq: seqSchema,
+  snippet: z.string().optional(),
+  tags: z.array(z.string()),
+  updatedAt: instant,
 });
 
 // ---- what an agent reads ----

@@ -12,8 +12,8 @@ import { readItem, storeItemBody } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 
-import { sharedFailure, UNREACHABLE } from "./call-outcome";
-import type { CallFailure } from "./call-outcome";
+import { sharedFailure, UNREACHABLE } from "@repo/contract/cloud/library/call-outcome";
+import type { CallFailure } from "@repo/contract/cloud/library/call-outcome";
 import type { ReplicaSql } from "./replica-ports";
 import {
   applyChange,

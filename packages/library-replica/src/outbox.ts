@@ -18,8 +18,12 @@ import type { SqlPlan } from "@repo/notes/library/library-sql";
 import type { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
 import type { z } from "zod";
 
-import { CHANGE_REFUSED, sharedFailure, uploadBlob } from "./call-outcome";
-import type { CallFailure } from "./call-outcome";
+import {
+  CHANGE_REFUSED,
+  sharedFailure,
+  uploadBlob,
+} from "@repo/contract/cloud/library/call-outcome";
+import type { CallFailure } from "@repo/contract/cloud/library/call-outcome";
 import type { FoldedMakes } from "./folded-makes";
 import {
   coalesceWrites,

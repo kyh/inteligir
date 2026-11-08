@@ -4,6 +4,7 @@
 // write did so far rolls back; it is caught at the transaction's edge and never leaves the cell as
 // an exception.
 
+import type { MovedFrame } from "@repo/contract/cloud/library/library-socket";
 import type {
   conflictCurrentSchema,
   editRefusalSchema,
@@ -38,9 +39,14 @@ export type CellRefusal =
   | { readonly kind: "agent-budget"; readonly resetsAt: number };
 
 // `head` is the sequence number the write moved the library to, which the cell's socket ping
-// carries, or null when it changed nothing
+// carries, or null when it changed nothing; `moved` is what it moved, the sockets' other frame
 export type CellResult<T> =
-  | { readonly ok: true; readonly value: T; readonly head: number | null }
+  | {
+      readonly ok: true;
+      readonly value: T;
+      readonly head: number | null;
+      readonly moved: MovedFrame | null;
+    }
   | { readonly ok: false; readonly refusal: CellRefusal };
 
 export class RefusedWriteError extends Error {

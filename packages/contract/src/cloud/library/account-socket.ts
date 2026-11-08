@@ -1,9 +1,11 @@
-// The account's socket, a hint and never the state: a frame that says the library moved past the
-// replica's cursor asks it to sync, and so does every time the socket opens, since a deploy or a
-// drop may have hidden a write meanwhile. It opens with a short-lived ticket an authenticated call
-// mints, as a browser's socket carries no header, keeps itself alive with the cell's auto-answered
-// ping, and dials again on a doubling wait while it is wanted. Nothing the replica holds rests on
-// it: the minute's check-in and every write sync without it.
+// The account's socket, a hint and never the state: a frame says what in the library moved, so a
+// client refetches what it shows of it, and so does every time the socket opens, since a deploy or
+// a drop may have hidden a write meanwhile. It opens with a short-lived ticket an authenticated
+// call mints, as a browser's socket carries no header, keeps itself alive with the cell's
+// auto-answered ping, and dials again on a doubling wait while it is wanted. The host hands it the
+// platform's socket and timers.
+
+import { z } from "zod";
 
 import {
   librarySocketFrameSchema,
@@ -11,11 +13,26 @@ import {
   SOCKET_KEEPALIVE_PONG,
   SOCKET_TICKET_PARAM,
   V1_SOCKET_PATH,
-} from "@repo/contract/cloud/library/library-socket";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { z } from "zod";
+} from "./library-socket";
+import type { LibrarySocketFrame } from "./library-socket";
 
-import type { ReplicaClock, ReplicaSocket, SocketDial } from "./replica-ports";
+export interface Clock {
+  readonly now: () => number;
+  // runs `run` once, `ms` from now; the answer cancels it
+  readonly after: (ms: number, run: () => void) => () => void;
+}
+
+// the account's socket, as every platform's WebSocket is
+export interface AccountSocket {
+  readonly addEventListener: {
+    (type: "open" | "close", listener: () => void): void;
+    (type: "message", listener: (event: { readonly data?: unknown }) => void): void;
+  };
+  readonly send: (data: string) => void;
+  readonly close: () => void;
+}
+
+export type SocketDial = (url: string) => AccountSocket;
 
 // answered by the cell's auto-response table without waking it
 const KEEPALIVE_MS = 45_000;
@@ -27,10 +44,10 @@ const RECONNECT_MAX_MS = 60_000;
 
 export interface SocketHintArgs {
   readonly dial: SocketDial;
-  readonly clock: ReplicaClock;
+  readonly clock: Clock;
   readonly origin: string;
   // a ticket the account mints for its socket; null when none came (no answer, or a refusal the
-  // replica's next sync hears for itself)
+  // client's next call hears for itself)
   readonly ticket: () => Promise<string | null>;
   readonly onOpen: () => void;
   readonly onFrame: (frame: LibrarySocketFrame) => void;
@@ -66,7 +83,7 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
   // every dial and every timer belongs to one generation; a close moves it on, so nothing a
   // closed socket started acts after it
   let generation = 0;
-  let socket: ReplicaSocket | null = null;
+  let socket: AccountSocket | null = null;
   let dialling = false;
   let attempt = 0;
   let cancelReconnect: (() => void) | null = null;
@@ -78,7 +95,7 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
     cancelKeepalive = null;
   };
 
-  const keepAlive = (owner: number, live: ReplicaSocket): void => {
+  const keepAlive = (owner: number, live: AccountSocket): void => {
     cancelKeepalive = clock.after(KEEPALIVE_MS, () => {
       if (owner !== generation || socket !== live) {
         return;
@@ -106,7 +123,7 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
     });
   };
 
-  const listen = (owner: number, live: ReplicaSocket, redial: () => void): void => {
+  const listen = (owner: number, live: AccountSocket, redial: () => void): void => {
     live.addEventListener("open", () => {
       if (owner !== generation) {
         return;

@@ -23,6 +23,20 @@ export const SOCKET_REVOKED_CLOSE_CODE = 1008;
 // the library committed a write: a replica behind `head` pulls
 const libraryMovedFrameSchema = z.object({ head: seqSchema, type: z.literal("library") });
 
+// the most ids a moved frame names in one list; past it the list says "all"
+export const MOVED_IDS_MAX = 200;
+
+// what one landed write moved, so a client refetches only what it shows of that: each item at the
+// sequence it now holds, whether any folder moved, and which threads did; "all" when the write
+// moved more than a frame names. No client bounds the lists, so a cell may raise the cap
+const movedFrameSchema = z.object({
+  folders: z.boolean(),
+  items: z.union([z.literal("all"), z.array(z.object({ id: idSchema, seq: seqSchema }))]),
+  threads: z.union([z.literal("all"), z.array(idSchema)]),
+  type: z.literal("moved"),
+});
+export type MovedFrame = z.infer<typeof movedFrameSchema>;
+
 // the built-in agent's turn moved: an event the cell stored, which the thread's next pull carries
 // too, or a preview of the agent's message as it is written (`agent.preview`), which no pull ever
 // carries. The event is one of `./agent-events`' union, read as JSON, so one this build cannot
@@ -36,6 +50,7 @@ const threadFrameSchema = z.object({
 
 export const librarySocketFrameSchema = z.discriminatedUnion("type", [
   libraryMovedFrameSchema,
+  movedFrameSchema,
   threadFrameSchema,
 ]);
 export type LibrarySocketFrame = z.infer<typeof librarySocketFrameSchema>;

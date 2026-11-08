@@ -51,6 +51,7 @@ import {
 } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
+import { EVERYTHING_MOVED } from "./cell-moved";
 import { openCellSchema } from "./cell-schema";
 import {
   acceptSocket,
@@ -222,7 +223,8 @@ export class LibraryDO extends DurableObject<Env> {
 
   // the jobs due: the storage's own, then those that wait on R2 (strays, imports), the
   // readings to send, and the agent's turns to hand over or ask after; whatever moved the library
-  // is told to the sockets once
+  // is told to the sockets once. The agent's writes tell what they moved as each settles, and
+  // anything else that moved it, an import's pages above all, says everything moved
   override async alarm(): Promise<void> {
     const library = openCellLibrary(this.ctx, this.env);
     const head = library.head();
@@ -239,6 +241,9 @@ export class LibraryDO extends DurableObject<Env> {
         now: Date.now,
       });
       await sendFills(this.ctx, this.env, library);
+      if (library.head() !== head) {
+        tellSockets(this.ctx, EVERYTHING_MOVED);
+      }
       await runAgentJobs(this.#agentCell(library));
       const moved = library.head();
       if (moved !== head) {
@@ -312,7 +317,7 @@ export class LibraryDO extends DurableObject<Env> {
     const parsed = fillLandingSchema.safeParse(landing);
     if (!parsed.success) {
       console.error({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
-      return { head: null, ok: true, value: { kind: "stale" } };
+      return { head: null, moved: null, ok: true, value: { kind: "stale" } };
     }
     const library = openCellLibrary(this.ctx, this.env);
     return await settleCommit(this.ctx, this.env, library, library.landReading(parsed.data));

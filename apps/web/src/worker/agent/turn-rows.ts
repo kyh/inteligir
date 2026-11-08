@@ -62,6 +62,7 @@ export const createThread = (scope: LandingScope, threadId: string, text: string
     [threadId, titleOf(text), scope.now, scope.now, seq],
   );
   runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
+  scope.moved.thread(threadId);
 };
 
 // a thread's status moved, and with it its sequence, so every replica reads the new one
@@ -82,6 +83,7 @@ export const setThreadStatus = (
     threadId,
   ]);
   runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
+  scope.moved.thread(threadId);
 };
 
 const idSchema = z.object({ id: z.string() });

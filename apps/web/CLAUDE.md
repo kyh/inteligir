@@ -70,8 +70,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   device or browser session the Worker stamps on the upgrade, on one exact path
   only `socket-routes.ts` forwards to; every other forwarded call has any holder
   header dropped, and a path the cell does not know is a 404, so no other
-  credential reaches that door. A committed write sends every socket the head.
-  Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
+  credential reaches that door. A committed write sends every socket the head,
+  and a `moved` frame naming what it moved: each item at its sequence, whether
+  the folders moved, each thread, a list past `MOVED_IDS_MAX` ids saying `all`,
+  and an alarm's import run saying `all` of each; a client refetches what it
+  shows of those, and everything on a reconnect, since a frame missed while away
+  is gone. Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
   `/v1` call minted, since a browser's sends no header, its holder checked in D1
   again; that check is the upgrade's alone, read before the cell accepts and
   once more after, since a sever closes only sockets already accepted, so a
@@ -81,9 +85,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Rejected: a socket object beside the cell (every ping crossing to it); the
   bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
   for the clients that can send one (a second door to keep); the upgrade as the
-  cell's default answer (any path it did not match became a socket).
-  `apps/web/src/worker/library/cell-sockets.ts`, `socket-ticket.ts`,
-  `socket-routes.ts`.
+  cell's default answer (any path it did not match became a socket); the rows
+  themselves in a frame (a dropped frame would be a lost write); a frame per
+  landed row (an import's run would send thousands).
+  `apps/web/src/worker/library/cell-sockets.ts`, `cell-moved.ts`,
+  `socket-ticket.ts`, `socket-routes.ts`.
 
 - **Better Auth's `baseURL` is derived per-request from the request origin, and
   sign-up is invite-gated by a Worker route in front of it.** Every hostname
@@ -127,7 +133,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   changes what a row MEANS reaches only clients declaring it. Rejected: a wire
   final at birth behind strict readers (every addition a new row); per-row
   versions (every old shape kept). `packages/contract/src/cloud/v1-errors.ts`,
-  `packages/library-replica/src/call-outcome.ts`.
+  `packages/contract/src/cloud/library/call-outcome.ts`.
 
 - **EVERY INSTALL'S REQUEST NAMES ITS BUILD, AND THE WORKER REFUSES ONE BELOW
   THE FLOOR** (owner decision). The tolerant reader is forward negotiation only,
@@ -728,3 +734,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   its link). `apps/web/src/lib/next-path.ts`,
   `apps/web/src/components/library-link.tsx`,
   `apps/web/src/worker/library/library-page.ts`.
+
+- **THE APPS READ WHAT THEY SHOW FROM THE CELL, THROUGH ROWS NO TOOL CARRIES.**
+  `library.items.get` answers an item whole, its fields and every block, one in
+  Deleted included; `library.listing.page` a page of a screen's listing,
+  `scopes` the rail's counts and `titles` every live item a note's links resolve
+  against, each over the listing a replica keeps
+  (`@repo/notes/library/library-index`), built over the cell's rows for the one
+  read. A listing's words search the query's side, the library or Deleted,
+  through the agent's own search: the ranked index, then the live items holding
+  the exact text it misses, a person's typing its set has not sealed into the
+  index among them. A folder write answers each folder it changed, as it left
+  it. Rejected: tool meta on these rows (an assistant reads through
+  `items.list`, `items.read` and `search`, and a page of cards would only fill
+  its context); SQL
+  listing queries (a tag family and a folder tree read from memory without a
+  join a page); a search of the apps' own beside the agent's (two rankings of
+  one library).
+  `apps/web/src/worker/library/cell-listing.ts`, `library-router.ts`.

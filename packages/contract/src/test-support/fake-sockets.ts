@@ -1,14 +1,14 @@
 // The account's socket as the suites dial it: every socket a dial made, which a suite opens,
 // writes frames into or drops by hand, and the pings the engine sent on each.
 
-import type { ReplicaSocket, SocketDial } from "../replica-ports";
+import type { AccountSocket, SocketDial } from "../cloud/library/account-socket";
 
 // what any of a socket's events carries
 interface SocketEvent {
   readonly data?: unknown;
 }
 
-interface FakeSocket extends ReplicaSocket {
+interface FakeSocket extends AccountSocket {
   readonly url: string;
   readonly sent: string[];
   closed: boolean;
@@ -18,15 +18,17 @@ interface FakeSocket extends ReplicaSocket {
   readonly drop: () => void;
 }
 
+/** @internal */
 export interface FakeSockets {
   readonly dial: SocketDial;
   // every socket dialled, oldest first
   readonly sockets: FakeSocket[];
 }
 
+/** @internal */
 export const fakeSockets = (): FakeSockets => {
   const sockets: FakeSocket[] = [];
-  const dial = (url: string): ReplicaSocket => {
+  const dial = (url: string): AccountSocket => {
     const listeners = new Map<string, ((event: SocketEvent) => void)[]>();
     const on = (type: string, listener: (event: SocketEvent) => void): void => {
       listeners.set(type, [...(listeners.get(type) ?? []), listener]);

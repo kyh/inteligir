@@ -45,6 +45,10 @@ import {
   libraryChangeSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
+  folderRowSchema,
+  listedItemSchema,
+  LISTING_PAGE_MAX,
+  listingQuerySchema,
   MARKDOWN_MAX,
   MESSAGE_MAX,
   newIdSchema,
@@ -155,6 +159,12 @@ const itemsContract = {
       }),
     )
     .output(itemReadSchema),
+
+  // an item whole, its row and every block in reading order, for the apps; Deleted's items too
+  get: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema }))
+    .output(liveItemRowSchema.extend({ blocks: z.array(storedBlockSchema) })),
 
   // a note a device made, with its blocks
   create: signedBase
@@ -349,7 +359,62 @@ const foldersContract = {
   write: signedBase
     .errors({ [ConflictError.code]: ConflictError, [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ opId, ops: z.array(folderOpSchema).min(1).max(WRITE_OPS_MAX) }))
-    .output(z.object({ seq: seqSchema })),
+    // every folder the write left changed, those a deleted one took with it included
+    .output(z.object({ folders: z.array(folderRowSchema), seq: seqSchema })),
+};
+
+const count = z.number().int().nonnegative();
+
+// what the apps' screens list, each answered from the cell's rows as they stand
+const listingContract = {
+  // a page of the items a query names, from `cursor`, the position the last page ended at; with
+  // `words`, only the items a search on the query's side (the library, or Deleted) finds, each with
+  // the passage that matched, ranked under the query's `relevance` sort. `kindCounts` counts the
+  // query's items by kind, its own kinds aside
+  page: signedBase
+    .input(
+      z.strictObject({
+        cursor: count.optional(),
+        limit: z.number().int().min(1).max(LISTING_PAGE_MAX),
+        query: listingQuerySchema,
+        words: z.string().trim().min(1).max(500).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        items: z.array(listedItemSchema),
+        kindCounts: z.record(FIELDS.kind, count),
+        nextCursor: count.nullable(),
+        total: count,
+      }),
+    ),
+
+  // what the rail counts: the library, Unsorted, untagged and Deleted; every live folder in rail
+  // order (a parent before its children, siblings by their order key) with the items in it and
+  // under it; every tag with the items carrying it, its first spelling, the most held first
+  scopes: signedBase.output(
+    z.object({
+      deleted: count,
+      folders: z.array(
+        z.object({
+          id: idSchema,
+          items: count,
+          name: z.string(),
+          parentId: idSchema.nullable(),
+          sort: z.string(),
+        }),
+      ),
+      tags: z.array(z.object({ items: count, tag: z.string() })),
+      total: count,
+      unsorted: count,
+      untagged: count,
+    }),
+  ),
+
+  // every item in the library by title, which a note's links and the openers resolve against
+  titles: signedBase.output(
+    z.object({ targets: z.array(z.object({ id: idSchema, title: z.string() })) }),
+  ),
 };
 
 const organizeContract = {
@@ -530,6 +595,7 @@ export const libraryContract = {
   history: historyContract,
   imports: importsContract,
   items: itemsContract,
+  listing: listingContract,
   organize: organizeContract,
 
   // full-text search over titles, notes and saved articles; the app searches its own replica, so

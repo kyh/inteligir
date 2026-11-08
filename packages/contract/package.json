@@ -13,7 +13,9 @@
     "./cloud/extension/extension-connect": "./src/cloud/extension/extension-connect.ts",
     "./cloud/extension/extension-identity": "./src/cloud/extension/extension-identity.ts",
     "./cloud/library-page": "./src/cloud/library-page.ts",
+    "./cloud/library/account-socket": "./src/cloud/library/account-socket.ts",
     "./cloud/library/agent-events": "./src/cloud/library/agent-events.ts",
+    "./cloud/library/call-outcome": "./src/cloud/library/call-outcome.ts",
     "./cloud/library/library-blobs": "./src/cloud/library/library-blobs.ts",
     "./cloud/library/library-contract": "./src/cloud/library/library-contract.ts",
     "./cloud/library/library-socket": "./src/cloud/library/library-socket.ts",
@@ -21,7 +23,11 @@
     "./cloud/origin": "./src/cloud/cloud-origin.ts",
     "./cloud/refusal-text": "./src/cloud/refusal-text.ts",
     "./cloud/v1": "./src/cloud/v1-contract.ts",
-    "./cloud/v1/errors": "./src/cloud/v1-errors.ts"
+    "./cloud/v1/errors": "./src/cloud/v1-errors.ts",
+    "./test-support/deferred": "./src/test-support/deferred.ts",
+    "./test-support/fake-cell": "./src/test-support/fake-cell.ts",
+    "./test-support/fake-clock": "./src/test-support/fake-clock.ts",
+    "./test-support/fake-sockets": "./src/test-support/fake-sockets.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -36,6 +42,7 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
+    "@noble/hashes": "catalog:",
     "@orpc/server": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

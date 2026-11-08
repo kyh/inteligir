@@ -1,6 +1,6 @@
 // The cell's engine as the Durable Object runs it: over its own storage, the platform's clock and
-// ids, and the account's cap; what follows a committed write, the socket ping (held by the output
-// gate until the write is durable, never sent unconfirmed), the readings it asked for sent to the
+// ids, and the account's cap; what follows a committed write, the socket's frames (held by the
+// output gate until the write is durable, never sent unconfirmed), the readings it asked for sent to the
 // fill queue and the alarm set to the earliest job; and the jobs that wait on a binding, a stray
 // file's removal from R2 and a reading's send. The router the cell serves and a test running
 // inside the cell open it the same way.
@@ -13,7 +13,7 @@ import type { ClaimedFill } from "./cell-fills";
 import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
 import type { CellResult } from "./cell-refusal";
-import { pingLibraryMoved } from "./cell-sockets";
+import { pingLibraryMoved, tellSockets } from "./cell-sockets";
 import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
@@ -93,6 +93,9 @@ export const settleCommit = async <T>(
 ): Promise<CellResult<T>> => {
   if (result.ok && result.head !== null) {
     pingLibraryMoved(ctx, result.head);
+    if (result.moved !== null) {
+      tellSockets(ctx, result.moved);
+    }
     await sendFills(ctx, env, library);
   }
   await scheduleAlarm(ctx, library);

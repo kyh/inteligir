@@ -6,6 +6,8 @@ import {
   V1_SOCKET_PATH,
 } from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
+import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
@@ -21,7 +23,14 @@ import {
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
-import { CONNECTOR_URL, connectAssistant, workerFetch } from "../test-support/connector-session";
+import { asLaptop, cellRows, script, settled } from "../test-support/agent-turns";
+import {
+  CONNECTOR_URL,
+  connectAssistant,
+  connectorClient,
+  workerFetch,
+} from "../test-support/connector-session";
+import { ended, runAlarmsUntil, startImport } from "../test-support/library-files";
 import { issueToken } from "../test-support/password-reset";
 import {
   cellOf,
@@ -110,18 +119,26 @@ const signedInTab = async (email: string) => {
   return { cookie, opened: await openWithTicket(ticket) };
 };
 
-// a write through the cell's engine, followed by what follows every committed write
-const writeInCell = async (accountId: string): Promise<number> =>
+// a write through the cell's engine, followed by what follows every committed write: the head it
+// moved the library to, and the item it made
+const writeInCell = async (accountId: string): Promise<{ head: number; id: string }> =>
   await inCell(cellOf(accountId), async (state) => {
     const library = openCellLibrary(state, env);
+    const id = crypto.randomUUID();
     const result = createItem(library, person(), {
       blocks: placed([paragraph("a", "a new note")]),
       fields: noteFields(),
-      id: crypto.randomUUID(),
+      id,
     });
     await settleCommit(state, env, library, result);
-    return result.ok && result.head !== null ? result.head : 0;
+    return { head: result.ok && result.head !== null ? result.head : 0, id };
   });
+
+// the frames a write that made one item sends
+const itemWritten = ({ head, id }: { head: number; id: string }): LibrarySocketFrame[] => [
+  { head, type: "library" },
+  { folders: false, items: [{ id, seq: head }], threads: [], type: "moved" },
+];
 
 // "open" once `ms` pass with the socket still open, else the code it closed with
 const closedWithin = async (opened: OpenSocket, ms: number): Promise<number | "open"> => {
@@ -144,10 +161,10 @@ describe("the account's socket", () => {
     const { accountId, ticket } = await signedInDevice("socket-ticket@example.test");
     const first = await openWithTicket(ticket);
     const second = await openWithTicket(ticket);
-    const head = await writeInCell(accountId);
-    await until(() => first.frames.length > 0 && second.frames.length > 0);
-    expect(first.frames).toStrictEqual([{ head, type: "library" }]);
-    expect(second.frames).toStrictEqual([{ head, type: "library" }]);
+    const written = await writeInCell(accountId);
+    await until(() => first.frames.length > 1 && second.frames.length > 1);
+    expect(first.frames).toStrictEqual(itemWritten(written));
+    expect(second.frames).toStrictEqual(itemWritten(written));
     first.socket.send(SOCKET_KEEPALIVE_PING);
     await until(() => first.texts.includes(SOCKET_KEEPALIVE_PONG));
   });
@@ -157,12 +174,12 @@ describe("the account's socket", () => {
     const theirs = await signedInDevice("socket-theirs@example.test");
     const mineSocket = await openWithTicket(mine.ticket);
     const theirSocket = await openWithTicket(theirs.ticket);
-    await writeInCell(mine.accountId);
-    await until(() => mineSocket.frames.length > 0);
-    await writeInCell(theirs.accountId);
-    await until(() => theirSocket.frames.length > 0);
-    expect(mineSocket.frames).toHaveLength(1);
-    expect(theirSocket.frames).toHaveLength(1);
+    const mineWritten = await writeInCell(mine.accountId);
+    await until(() => mineSocket.frames.length > 1);
+    const theirsWritten = await writeInCell(theirs.accountId);
+    await until(() => theirSocket.frames.length > 1);
+    expect(mineSocket.frames).toStrictEqual(itemWritten(mineWritten));
+    expect(theirSocket.frames).toStrictEqual(itemWritten(theirsWritten));
   });
 
   it("refuses a forged, expired or revoked ticket before naming any cell", async () => {
@@ -362,8 +379,139 @@ describe("the account's socket", () => {
     const { accountId, ticket } = await signedInDevice("socket-evicted@example.test");
     const opened = await openWithTicket(ticket);
     await evictDurableObject(cellOf(accountId), { webSockets: "hibernate" });
-    const head = await writeInCell(accountId);
-    await until(() => opened.frames.length > 0);
-    expect(opened.frames).toStrictEqual([{ head, type: "library" }]);
+    const written = await writeInCell(accountId);
+    await until(() => opened.frames.length > 1);
+    expect(opened.frames).toStrictEqual(itemWritten(written));
+  });
+});
+
+const movedOf = (opened: OpenSocket) => opened.frames.filter((frame) => frame.type === "moved");
+
+const itemRowSchema = z.object({ id: z.string(), seq: z.number() });
+
+describe("the moved frame", () => {
+  it("names what a person's write moved, once a write, and nothing for an answer given again", async () => {
+    const { login, ticket } = await signedInDevice("moved-person@example.test");
+    const opened = await openWithTicket(ticket);
+    const { library } = v1Link(deviceHeaders(login.credential));
+    const opId = crypto.randomUUID();
+    const { item } = await library.items.createNote({ markdown: "Paris.", opId });
+    await until(() => movedOf(opened).length === 1);
+    expect(movedOf(opened)).toStrictEqual([
+      { folders: false, items: [{ id: item.id, seq: item.seq }], threads: [], type: "moved" },
+    ]);
+    // the resend is answered from its op's record, and moved nothing
+    await library.items.createNote({ markdown: "Paris.", opId });
+    const folderId = uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
+    await library.folders.write({
+      ops: [{ id: folderId, name: "Trips", op: "create", parentId: null, sort: "a0" }],
+    });
+    await until(() => movedOf(opened).length === 2);
+    expect(movedOf(opened)[1]).toStrictEqual({
+      folders: true,
+      items: [],
+      threads: [],
+      type: "moved",
+    });
+  });
+
+  it("names what an assistant's tool moved", async () => {
+    const { cookie } = await signUpUser("moved-connector@example.test");
+    const accountId = await userIdOf(cookie);
+    const login = await loginDevice(cookie, "Laptop");
+    const { ticket } = await v1Link(deviceHeaders(login.credential)).account.socketTicket();
+    const opened = await openWithTicket(ticket);
+    const assistant = await connectAssistant(cookie);
+    const client = await connectorClient(assistant.access_token);
+    await client.callTool({ arguments: { markdown: "Rome." }, name: "create_note" });
+    await client.close();
+    await until(() => movedOf(opened).length === 1);
+    const [row] = await inCell(cellOf(accountId), (state) =>
+      state.storage.sql.exec("SELECT id, seq FROM items").toArray(),
+    );
+    expect(movedOf(opened)).toStrictEqual([
+      { folders: false, items: [itemRowSchema.parse(row)], threads: [], type: "moved" },
+    ]);
+  });
+
+  it(
+    "names the thread a turn of the built-in agent moved, and the items its tools wrote",
+    { timeout: 30_000 },
+    async () => {
+      const { accountId, ticket } = await signedInDevice("moved-agent@example.test");
+      const opened = await openWithTicket(ticket);
+      const account = { accountId, cell: cellOf(accountId) };
+      const sent = await asLaptop(
+        account,
+        async (client) =>
+          await client.agent.send({ text: script('call create_note {"markdown":"Oslo."}') }),
+      );
+      await settled(account, sent.threadId);
+      const [note] = await cellRows(account, "SELECT id, seq FROM items");
+      const { id } = itemRowSchema.parse(note);
+      await until(() =>
+        movedOf(opened).some(
+          (frame) => frame.items !== "all" && frame.items.some((moved) => moved.id === id),
+        ),
+      );
+      const moved = movedOf(opened);
+      expect(moved.every((frame) => frame.threads !== "all")).toBe(true);
+      expect(
+        moved.some((frame) => frame.threads !== "all" && frame.threads.includes(sent.threadId)),
+      ).toBe(true);
+    },
+  );
+
+  it("names the item a reading of its page landed on", async () => {
+    const { accountId, login, ticket } = await signedInDevice("moved-fill@example.test");
+    const opened = await openWithTicket(ticket);
+    const url = "https://pages.example/moved";
+    const saved = await v1Link(deviceHeaders(login.credential)).library.items.saveLink({ url });
+    await until(() => movedOf(opened).length === 1);
+    const landed = await cellOf(accountId).landFill({
+      itemId: saved.item.id,
+      kind: "failed",
+      sentence: "The page took too long to answer.",
+      url,
+    });
+    await until(() => movedOf(opened).length === 2);
+    expect(movedOf(opened)[1]).toStrictEqual({
+      folders: false,
+      items: [{ id: saved.item.id, seq: landed.ok ? landed.head : null }],
+      threads: [],
+      type: "moved",
+    });
+  });
+
+  it("names what an undo took back", async () => {
+    const { login, ticket } = await signedInDevice("moved-undo@example.test");
+    const opened = await openWithTicket(ticket);
+    const { library } = v1Link(deviceHeaders(login.credential));
+    const { item } = await library.items.createNote({ markdown: "Before." });
+    const { changeSets } = await library.history.list({});
+    await library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
+    await until(() => movedOf(opened).length === 2);
+    const [, undone] = movedOf(opened);
+    expect(undone).toMatchObject({ folders: false, threads: [], type: "moved" });
+    expect(undone?.items).toStrictEqual([{ id: item.id, seq: expect.any(Number) }]);
+  });
+
+  it("says everything moved once the alarm's import landed its pages", async () => {
+    const { accountId, ticket } = await signedInDevice("moved-import@example.test");
+    const opened = await openWithTicket(ticket);
+    const started = await startImport(
+      accountId,
+      { bytes: new TextEncoder().encode(RAINDROP_EXPORT), mime: "text/csv" },
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await until(() => movedOf(opened).length > 0);
+    expect(movedOf(opened)).toContainEqual({
+      folders: true,
+      items: "all",
+      threads: "all",
+      type: "moved",
+    });
   });
 });

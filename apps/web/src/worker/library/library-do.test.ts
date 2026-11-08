@@ -233,11 +233,13 @@ describe("the library cell", () => {
     const request = { bytes: 5, mime: "image/png", sha: SHA };
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
       head: null,
+      moved: null,
       ok: true,
       value: { held: false },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
       head: null,
+      moved: null,
       ok: true,
       value: { settled: false },
     });
@@ -247,11 +249,13 @@ describe("the library cell", () => {
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
       head: null,
+      moved: null,
       ok: true,
       value: { settled: true },
     });
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
       head: null,
+      moved: null,
       ok: true,
       value: { held: true },
     });
@@ -415,7 +419,7 @@ describe("deleting the account from its cell", () => {
     const key = blobKey(accountId, SHA);
     await expect(
       stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA }),
-    ).resolves.toStrictEqual({ head: null, ok: true, value: { held: false } });
+    ).resolves.toStrictEqual({ head: null, moved: null, ok: true, value: { held: false } });
     await stub.purge("purge-race@example.test");
     // the upload's bytes reach R2 after the files step listed the account's prefix
     await env.BLOBS.put(key, "bytes", { httpMetadata: { contentType: "image/png" } });

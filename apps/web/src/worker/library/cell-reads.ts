@@ -1,6 +1,5 @@
 // What the cell answers an agent's reads with, inside one read transaction: the listing and a
-// search's filters through the same in-memory index a replica keeps (`@repo/notes/library/
-// library-index`), built over the cell's rows for the one call; an item as its markdown view,
+// search's filters through the cell's listing (`./cell-listing`); an item as its markdown view,
 // paged by block position and cut to a page an agent's tool result can carry; the folder tree and
 // tags; and the change sets Undo takes back. Times an agent reads are ISO 8601.
 
@@ -12,29 +11,13 @@ import type {
 } from "@repo/contract/cloud/library/library-wire";
 import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
-import {
-  excerptAround,
-  findTextOffsets,
-  isPrintableAscii,
-} from "@repo/notes/knowledge/text-matches";
-import { ITEM_KINDS } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { compareText } from "@repo/notes/library/block-order";
 import { itemCardSchema } from "@repo/notes/library/derive-item";
 import type { ItemCard } from "@repo/notes/library/derive-item";
-import { LibraryIndex } from "@repo/notes/library/library-index";
-import type { ListingRow } from "@repo/notes/library/library-index";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
-import {
-  linksTo,
-  linksToUrl,
-  literalMatches,
-  readBlocks,
-  readItem,
-  searchLibrary,
-} from "@repo/notes/library/library-queries";
-import type { LiteralMatch } from "@repo/notes/library/library-queries";
+import { linksTo, linksToUrl, readBlocks, readItem } from "@repo/notes/library/library-queries";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { jsonTextSchema } from "@repo/notes/library/sql-value";
@@ -42,6 +25,8 @@ import { z } from "zod";
 
 import type { CellCodec } from "./cell-codec";
 import { liveFolders } from "./cell-folders";
+import { listingOf, searchHits } from "./cell-listing";
+import type { ItemListing } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
 
@@ -70,68 +55,6 @@ const nextCursor = (offset: number, shown: number, total: number): string | null
   offset + shown < total ? String(offset + shown) : null;
 
 // ---- the listing ----
-
-interface ItemListing extends ListingRow {
-  readonly card: ItemCard;
-  readonly site: string | null;
-  // the tags its field holds, which an answer names; `tags` holds its body's too
-  readonly fieldTags: readonly string[];
-}
-
-const listingRowSchema = z.object({
-  card: z.string(),
-  deleted_at: z.number().nullable(),
-  folder_id: z.string().nullable(),
-  id: z.string(),
-  kind: z.enum(ITEM_KINDS),
-  pinned_at: z.number().nullable(),
-  saved_at: z.number(),
-  site: z.string().nullable(),
-  tags: z.string(),
-  updated_at: z.number(),
-  url: z.string().nullable(),
-});
-const tagRowSchema = z.object({ item_id: z.string(), tag: z.string() });
-const namesSchema = z.array(z.string());
-
-// every item the library holds (none purged), with the folders a listing files them under
-const listingOf = (sql: SqlStatements): LibraryIndex<ItemListing> => {
-  const tags = new Map<string, string[]>();
-  for (const raw of sql.all("SELECT item_id, tag FROM item_tags ORDER BY item_id, tag", [])) {
-    const row = tagRowSchema.parse(raw);
-    const held = tags.get(row.item_id) ?? [];
-    if (!held.includes(row.tag)) {
-      held.push(row.tag);
-    }
-    tags.set(row.item_id, held);
-  }
-  const index = new LibraryIndex<ItemListing>();
-  for (const raw of sql.all(
-    `SELECT id, kind, card, folder_id, tags, url, site, saved_at, updated_at, pinned_at, deleted_at
-     FROM items WHERE purged = 0`,
-    [],
-  )) {
-    const row = listingRowSchema.parse(raw);
-    const card = jsonTextSchema.pipe(itemCardSchema).parse(row.card);
-    index.upsert({
-      card,
-      deletedAt: row.deleted_at,
-      fieldTags: jsonTextSchema.pipe(namesSchema).parse(row.tags),
-      folderId: row.folder_id,
-      id: row.id,
-      kind: row.kind,
-      pinnedAt: row.pinned_at,
-      savedAt: row.saved_at,
-      site: row.site,
-      tags: tags.get(row.id) ?? [],
-      title: card.title,
-      updatedAt: row.updated_at,
-      url: row.url,
-    });
-  }
-  index.setFolders(liveFolders(sql));
-  return index;
-};
 
 // an item as a list names it: ids and names, and in detail what a person reads on its card
 export const summaryOf = (
@@ -170,8 +93,8 @@ const summaryOfListing = (row: ItemListing, format: ResponseFormat): ItemSummary
         kind: row.kind,
         pinnedAt: row.pinnedAt,
         savedAt: row.savedAt,
-        site: row.site,
-        tags: row.fieldTags,
+        site: row.fields.site,
+        tags: row.fields.tags,
         url: row.url,
       },
       id: row.id,
@@ -218,10 +141,7 @@ export const listItems = (sql: SqlStatements, input: ListInput) => {
 
 // ---- search ----
 
-// how many hits a search ranks before its filters, how many items holding its exact text a read
-// of the blocks names at once, and how much of a hit's text a concise answer keeps
-const SEARCH_CANDIDATES = 200;
-const LITERAL_PAGE = 50;
+// how much of a hit's text a concise answer keeps
 const CONCISE_SNIPPET_CHARS = 160;
 
 export interface SearchInput {
@@ -238,54 +158,9 @@ export interface SearchInput {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// the line of a block's text that holds the query, as an excerpt around its first match
-const lineExcerpt = (text: string, query: string): string | null => {
-  for (const line of text.split("\n")) {
-    const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
-    if (match !== undefined) {
-      const excerpt = excerptAround(line, match);
-      return `${excerpt.before}${excerpt.text}${excerpt.after}`;
-    }
-  }
-  return null;
-};
-
-// the ranked index first, then the items holding the query's exact text the index's words miss
-// (a part of a word, punctuation), a page of them at a time until the candidates are full, so a
-// common needle reads no more of the library's text than those pages' blocks; only an ascii query
-// on one line has such a scan, since SQLite folds ascii case alone and a match lives in one line
-const searchHits = (sql: SqlStatements, query: string): Map<string, string> => {
-  const hits = new Map<string, string>();
-  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES))) {
-    hits.set(hit.itemId, hit.snippet);
-  }
-  if (!isPrintableAscii(query)) {
-    return hits;
-  }
-  let after: string | null = null;
-  while (hits.size < SEARCH_CANDIDATES) {
-    const page: LiteralMatch[] = runPlan(
-      sql,
-      literalMatches(query, { after, limit: LITERAL_PAGE }),
-    );
-    for (const match of page) {
-      const excerpt = hits.has(match.itemId) ? null : lineExcerpt(match.text, query);
-      if (excerpt !== null && hits.size < SEARCH_CANDIDATES) {
-        hits.set(match.itemId, excerpt);
-      }
-    }
-    const last: LiteralMatch | undefined = page.at(-1);
-    if (last === undefined || page.length < LITERAL_PAGE) {
-      break;
-    }
-    after = last.itemId;
-  }
-  return hits;
-};
-
 export const searchItems = (sql: SqlStatements, input: SearchInput) => {
   const offset = offsetOf(input.cursor);
-  const hits = searchHits(sql, input.query);
+  const hits = searchHits(sql, input.query, "live");
   const page = listingOf(sql).items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,

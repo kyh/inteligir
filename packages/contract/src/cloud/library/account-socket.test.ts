@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createSocketHint, socketUrl } from "./replica-socket";
-import { deferred } from "./test-support/deferred";
-import { fakeClock } from "./test-support/fake-clock";
-import { fakeSockets } from "./test-support/fake-sockets";
+import { deferred } from "../../test-support/deferred";
+import { fakeClock } from "../../test-support/fake-clock";
+import { fakeSockets } from "../../test-support/fake-sockets";
+import { createSocketHint, socketUrl } from "./account-socket";
+
+const ITEM = "01890a5d-ac96-774b-bcce-b302099a8057";
 
 // the ticket's await, and the dial after it
 const settled = async (): Promise<void> => {
@@ -42,11 +44,22 @@ describe("the account's socket, a hint", () => {
     const [socket] = sockets;
     socket?.open();
     socket?.message(JSON.stringify({ head: 7, type: "library" }));
+    socket?.message(
+      JSON.stringify({
+        folders: true,
+        items: [{ id: ITEM, seq: 7 }],
+        threads: "all",
+        type: "moved",
+      }),
+    );
     socket?.message("pong");
     socket?.message("{not json");
     socket?.message(JSON.stringify({ type: "from a newer cell" }));
     expect(opened).toBe(1);
-    expect(frames).toStrictEqual([{ head: 7, type: "library" }]);
+    expect(frames).toStrictEqual([
+      { head: 7, type: "library" },
+      { folders: true, items: [{ id: ITEM, seq: 7 }], threads: "all", type: "moved" },
+    ]);
     hint.close();
   });
 

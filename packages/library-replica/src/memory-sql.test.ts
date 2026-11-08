@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { openMemorySql } from "./memory-sql";
-import { deferred } from "./test-support/deferred";
+import { deferred } from "@repo/contract/test-support/deferred";
 
 describe("the replica's database in memory", () => {
   it("commits a transaction that resolves and rolls back one that throws", async () => {

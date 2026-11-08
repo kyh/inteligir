@@ -3,8 +3,12 @@
 // SQL, its clock, its ids, its transport, its socket, the bytes it uploads and the block merge are
 // all these ports.
 
+import type { SocketDial } from "@repo/contract/cloud/library/account-socket";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import type { SqlRow, SqlValue } from "@repo/notes/library/library-sql";
+
+// the account's socket is the contract's, which every client dials
+export type { SocketDial } from "@repo/contract/cloud/library/account-socket";
 
 export interface ReplicaStatements {
   readonly all: (sql: string, params: readonly SqlValue[]) => Promise<readonly SqlRow[]>;
@@ -33,18 +37,6 @@ export interface ReplicaTransport {
   readonly origin: string;
   readonly fetch: (request: Request) => Promise<Response>;
 }
-
-// the account's socket, as every platform's WebSocket is
-export interface ReplicaSocket {
-  readonly addEventListener: {
-    (type: "open" | "close", listener: () => void): void;
-    (type: "message", listener: (event: { readonly data?: unknown }) => void): void;
-  };
-  readonly send: (data: string) => void;
-  readonly close: () => void;
-}
-
-export type SocketDial = (url: string) => ReplicaSocket;
 
 // a file waiting to be uploaded, by its SHA-256: the bytes stay on the device until the write that
 // names them lands, and outlive a relaunch. Its type comes with them, for a host that serves the
