@@ -135,6 +135,48 @@ describe("`<` that opens no tag reads as what else reads it", () => {
   });
 });
 
+describe("a footnote reads as the text the file spells", () => {
+  it.each([
+    ["beside its definition", "One[^a] two.\n\n[^a]: said\n"],
+    ["with its definition out of view", "One[^a] two.\n"],
+  ])("a call %s is one text with the words around it", (_name, md) => {
+    expect(inline(parseMdast(md).root)).toStrictEqual([["text", "One[^a] two."]]);
+  });
+
+  it("a definition's blocks stand where it stood, its label leading the first", () => {
+    const { root } = parseMdast("One[^a].\n\n[^a]: First.\n\n    - second\n\nAfter.\n");
+    expect(root.children.map(({ type }) => type)).toStrictEqual([
+      "paragraph",
+      "paragraph",
+      "list",
+      "paragraph",
+    ]);
+    expect(inline({ ...root, children: root.children.slice(1) })).toStrictEqual([
+      ["text", "[^a]: First."],
+    ]);
+  });
+
+  it("a definition that opens with no paragraph is led by its label alone", () => {
+    const { root } = parseMdast("[^a]:\n    ```\n    code\n    ```\n");
+    expect(root.children.map(({ type }) => type)).toStrictEqual(["paragraph", "code"]);
+    expect(inline(root)).toStrictEqual([["text", "[^a]:"]]);
+  });
+
+  it("names the bytes each text is read from", () => {
+    const md = "One[^a] two.\n\n[^a]: said\n";
+    const spelled = parseBare(md).children.flatMap((block) =>
+      "children" in block
+        ? block.children.flatMap((child) =>
+            child.type === "text"
+              ? [md.slice(child.position?.start.offset, child.position?.end.offset)]
+              : [],
+          )
+        : [],
+    );
+    expect(spelled).toStrictEqual(["One[^a] two.", "[^a]: said"]);
+  });
+});
+
 const PIECES = [
   "<",
   ">",
@@ -177,6 +219,8 @@ const PIECES = [
   "{{1|2}}",
   "[[x]]",
   "`",
+  "[^a]",
+  "[^a]: ",
 ];
 
 // Park-Miller over a fixed seed, so a failure names the same document on every run

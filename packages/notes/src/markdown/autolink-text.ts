@@ -1,7 +1,7 @@
 // A link whose bytes are its own address needs no label, but only where those bytes read back as
 // that link in that place: gfm cuts a literal's trailing punctuation, runs it on to the next space,
 // and wants no word before it. So the answer is gfm's own, over the bytes the link would stand
-// among, and the writer, the footnote hold and the passage projection all hear the same one.
+// among, and the writer and the passage projection both hear the same one.
 
 import type { Delete, Emphasis, Link, Nodes, Parents, PhrasingContent, Strong } from "mdast";
 import type { Handle, Info, State } from "mdast-util-to-markdown";
@@ -102,6 +102,7 @@ const sideOf = (node: Nodes | undefined, standIn: string): string => {
 };
 
 // syntax after a literal runs into it, so it stands as a word; syntax before one leaves it a literal
+/** @internal */
 export const besideChild = (siblings: readonly Nodes[], index: number): Beside => ({
   after: sideOf(siblings[index + 1], "x"),
   before: sideOf(siblings[index - 1], ",").slice(-1),
@@ -131,12 +132,9 @@ const markedLiteral = (
   return inner === null ? null : { ...node, children: [inner] };
 };
 
+// a tag's text is read for the source it keeps, not into the library's blocks
 const isTag = (parent: Parents | undefined): boolean =>
   parent?.type === "htmlElement" || parent?.type === "underline";
-
-// a tag's text and a footnote are read for the source they keep, not into the library's blocks
-const isHeld = (parent: Parents | undefined, state: State): boolean =>
-  isTag(parent) || state.stack.includes("footnoteDefinition");
 
 // only the library reads a mark around a literal back onto the link's text; a held source would
 // read a link in a mark's own node, which keeps its label (`phrasingOf`)
@@ -150,7 +148,7 @@ const literalOf = (
     return null;
   }
   const literal = markedLiteral(only, link.url, state);
-  return literal?.type === "html" || !isHeld(parent, state) ? literal : null;
+  return literal?.type === "html" || !isTag(parent) ? literal : null;
 };
 
 // the siblings of a link the writer sees every byte around. A literal runs on through a mark's

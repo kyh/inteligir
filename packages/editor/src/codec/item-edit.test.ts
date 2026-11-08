@@ -613,86 +613,16 @@ describe("an edit made on the view", () => {
   });
 });
 
-describe("a footnote's call, its definition in another block", () => {
-  const FOOTNOTED = "One[^a] word and more.\n\nTwo.\n\n[^a]: secret\n";
-
-  it("stays a call through an edit of its line", () => {
-    const blocks = storedOf(FOOTNOTED);
-    const after = editedTo(blocks, "word", "sentence");
-    expect(JSON.stringify([...after.values()].map(({ block }) => block))).toContain(
-      '{"children":[{"text":""}],"source":"[^a]","type":"opaque"}',
-    );
-    expect(textOf(after)).toBe("One[^a] sentence and more.\n\nTwo.\n\n[^a]: secret\n");
-  });
-
-  it.each([
-    ["word and", "One[^a] %%i:q1:start%%word and%%i:q1:end%% more."],
-    ["One word", "%%i:q1:start%%One[^a] word%%i:q1:end%% and more."],
-  ])("stays a call through the quote `%s` placed on its line", (quote, line) => {
-    for (const text of [FOOTNOTED, "One[^a] word and more.\n\nTwo.\n"]) {
-      const blocks = storedOf(text);
-      const placed = placeItemQuotes(blocks, [{ id: "q1", quote }], portsWith());
-      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-      expect(textOf(landed(blocks, placed.ops))).toContain(line);
-    }
-  });
-
-  it("reads the same in an edit of its line as in the whole item", () => {
-    const blocks = storedOf("One[^a] word.\n\nTwo.\n");
+describe("a footnote, its definition in another block", () => {
+  it("reads as its text, the same in an edit of its call's line as in the whole item", () => {
+    const blocks = storedOf("One[^a] word.\n\nTwo.\n\n[^a]: secret\n");
     const whole = JSON.stringify([...blocks.values()].map(({ block }) => withoutId(block)));
+    expect(whole).not.toContain('"opaque"');
     const after = editedTo(blocks, "word.", "word!");
     expect(JSON.stringify([...after.values()].map(({ block }) => withoutId(block)))).toBe(
       whole.replace("word.", "word!"),
     );
-  });
-
-  it.each([
-    [String.raw`One \[^a] word.`],
-    [String.raw`One [\^a] word.`],
-    [String.raw`One [^a\] word.`],
-    ["One `[^a]` word."],
-  ])("leaves what a person typed, `%s`, as text through an edit", (line) => {
-    const blocks = storedOf(`${line}\n\nTwo.\n`);
-    expect(JSON.stringify([...blocks.values()])).not.toContain('"opaque"');
-    const after = editedTo(blocks, "word", "sentence");
-    expect(JSON.stringify([...after.values()])).not.toContain('"opaque"');
-    expect(textOf(after)).toContain("sentence.");
-  });
-});
-
-describe("a bare link whose address spells a call", () => {
-  const ADDRESS = "https://x.y/?q=[^a-z]+b";
-  const paragraph: LibraryBlock = {
-    children: [
-      { text: "see " },
-      { children: [{ text: ADDRESS }], type: "a", url: ADDRESS },
-      { text: " now and then" },
-    ],
-    id: "p",
-    type: "p",
-  };
-  const stored = (): Map<string, StoredBlock> =>
-    new Map([["p", { block: paragraph, hash: blockHash(paragraph), ord: "a0", section: "note" }]]);
-  const untouched = JSON.stringify({ children: [{ text: ADDRESS }], type: "a", url: ADDRESS });
-
-  it("stands untouched through an edit elsewhere in its paragraph", () => {
-    const after = editedTo(stored(), "then", "later");
-    expect(JSON.stringify([...after.values()])).toContain(untouched);
-    expect(textOf(after)).toBe(`see ${ADDRESS} now and later\n`);
-  });
-
-  it("stands untouched through a quote placed elsewhere in its paragraph", () => {
-    const blocks = stored();
-    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "then" }], portsWith());
-    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
-    const after = landed(blocks, placed.ops);
-    expect(JSON.stringify([...after.values()])).toContain(untouched);
-    expect(textOf(after)).toBe(`see ${ADDRESS} now and %%i:q1:start%%then%%i:q1:end%%\n`);
-  });
-
-  it("places a quote of its own text", () => {
-    const placed = placeItemQuotes(stored(), [{ id: "q1", quote: ADDRESS }], portsWith());
-    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+    expect(textOf(after)).toBe("One\\[^a] word!\n\nTwo.\n\n\\[^a]: secret\n");
   });
 });
 
@@ -850,19 +780,6 @@ describe("a highlight placed by its quote", () => {
     const after = landed(blocks, placed.ops);
     expect(textOf(after)).toContain("The page has %%i:q1:start%%shared words%%i:q1:end%% in it.");
     expect([...after.values()].map((stored) => withoutId(stored.block))).toHaveLength(3);
-  });
-
-  it("finds no quote in a footnote's definition, whose source holds no marker", () => {
-    const blocks = storedOf("One[^a].\n\nTwo.\n\n[^a]: the source words\n\n    and more body\n");
-    const placed = placeItemQuotes(
-      blocks,
-      [
-        { id: "q1", quote: "source words" },
-        { id: "q2", quote: "more body" },
-      ],
-      portsWith(),
-    );
-    expect(placed).toMatchObject({ missing: ["q1", "q2"], ops: [], placed: [] });
   });
 
   it("leaves a quote whose markers the note holds where it stands", () => {

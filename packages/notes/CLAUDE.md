@@ -194,20 +194,18 @@ root.
   it wrote even where GFM splits that text for a bare url
   (`@repo/notes/markdown/text-escapes`). A reference reads as the link or image
   it names and a definition one used goes, so every reader after the parse
-  meets a link; a definition nothing used stays its line, and a footnote's call
-  and definition stay theirs, as source, so one takes no paragraph with it
+  meets a link; a definition nothing used stays its line, as source
   (`@repo/notes/markdown/remark-references`,
-  `@repo/notes/markdown/remark-opaque`). A call reads the same with its
-  definition out of view, as it is in an edit of its own line, since typed text
-  that spells one has its `[` escaped and a bare link is the address it spells,
-  with no label for a call to stand in
-  (`packages/notes/src/markdown/autolink-text.ts`).
+  `@repo/notes/markdown/remark-opaque`). A footnote reads as its text by the
+  time the parse ends: its call the `[^label]` it spells, and its definition
+  its own blocks where it stood, led by `[^label]: `, so its words are searched
+  like any others and an edit of a call's line alone reads it the same.
   Rejected: a second, plain-markdown grammar for an import (it needed a bridge
   to say where the two disagreed), a node for a reference in the library (a
-  second spelling of every link), handing an edit the item's definitions to
-  parse beside (every reader of a stretch would need them, and a paste holds
-  none), and holding a call in a bare link's text (an edit beside the link
-  would respell it).
+  second spelling of every link), holding a footnote as its source (its words
+  would go unsearched, and an edit would read a call apart from its
+  definition), and switching GFM's footnote constructs off (CommonMark would
+  read `[^a]: word` as a link definition, and the call as a link to its words).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An
@@ -244,9 +242,8 @@ root.
   the next space and wants no word before it, so the writer's link handler asks
   gfm itself, over the literal and the bytes either side as they are about to be
   written, and every other link keeps `[text](url)`, which always reads back.
-  The footnote hold and the passage projection put the same question through
-  `isBareLink`, each with the neighbours it can see, so a link the writer labels
-  is a labelled link to them. A link touching a mark keeps its label, since the
+  The passage projection puts the same question through `isBareLink`, with the
+  neighbours it can see, so a link the writer labels is a labelled link to it. A link touching a mark keeps its label, since the
   writer may spell the character beside a mark as a reference, and a literal with
   no space before the next link does too, as does a marked literal after a link,
   whose closer it would join. So does a link in a mark's own node, which only a
@@ -259,7 +256,7 @@ root.
   trails, and a copy of either drifts), deciding in the rule table (a rule sees
   no neighbour), a pass over the tree ahead of the write (only the write knows
   what it will escape), labelling every link in a held source (a url written
-  by hand in a footnote or a tag would not stay as typed) and every link
+  by hand in a tag would not stay as typed) and every link
   writing all it looks past in full (each tag deep multiplied the writes).
   `packages/notes/src/markdown/autolink-text.ts`,
   `packages/editor/src/markdown-bare-links.test.ts`.
