@@ -34,8 +34,7 @@ import type { ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 const CHUNK_BLOCKS = 100;
 
 /** @internal */
-export const MISSING_ITEM =
-  "This item isn't on this device. It was deleted, or hasn't reached it yet.";
+export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
 
 /** @internal */
 export const NEEDS_CONNECTION = "Needs a connection";
