@@ -85,8 +85,8 @@ describe("the site's markdown", () => {
     const text = flowing(markdown);
     expect(text).toMatch(/\baccount is required\b/iu);
     expect(text).toMatch(/\bfirst 1 GB is free\b/iu);
-    expect(text).toMatch(/\bkeeps? a copy\b/iu);
-    expect(text).toMatch(/\bfile (?:you open|opened on it)\b/iu);
+    expect(text).toMatch(/\bkeeps what (?:you last opened|it last read)\b/iu);
+    expect(text).toMatch(/\bwith no connection\b/iu);
     expect(text).toMatch(/\bagent is built in\b|\bbuilt-in (?:AI )?agent\b/iu);
     expect(text).toMatch(/\b100 MB\b/u);
     expect(text).toMatch(/\bcloud reads\b/iu);

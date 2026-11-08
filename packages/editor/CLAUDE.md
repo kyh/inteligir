@@ -389,7 +389,7 @@ alone, and no walk narrows structurally.
   hash of its rank, text and ordinal, since that storage is out of the phone's
   wipe and in its device backup. The Mac and the tab drop it on leaving the
   account (`apps/workspace/src/app/cloud/account-storage.ts`). Rejected: a fold
-  in the replica (it is one device's view, and every fold a write); the heading's
+  in the cell (it is one device's view, and every fold a write); the heading's
   text as the key (it stayed on the phone after a sign-out). Residual: the
   phone's page keeps the ids and hashes, which name nothing, past a sign-out.
   `packages/editor/src/heading-collapse.tsx`.
@@ -438,7 +438,7 @@ alone, and no walk narrows structurally.
   side's markdown, and past its budget the line diff answers one hunk, which
   diff3 reads as one changed region, since an unbounded trace cost gigabytes.
   Rejected: conflicting on every over-budget merge (it warns when nothing was
-  lost). The merge answers its overlap, which the replica's change feed carries
-  from a CONFLICT's settle and the session's own landing hands its host's
-  `notifyOverlap`, said in the item's words. `@repo/notes/text/line-diff`,
+  lost). The merge answers its overlap, which the session's landing of a
+  CONFLICT's settle hands its host's `notifyOverlap`, said in the item's
+  words. `@repo/notes/text/line-diff`,
   `packages/editor/src/stale-write.ts`.

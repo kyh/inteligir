@@ -218,7 +218,7 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // the live item at an address, which a save folds onto
+  // the live item at an address, which a save of it answers
   const holderOf = (url: string): string | null => {
     const key = urlKey(url);
     for (const [id, item] of items) {
