@@ -22,8 +22,8 @@ export const handOver = async (connection: typeof MINTED): Promise<void> => {
   await answerConnectPage({ connection, type: "connect" }, SITE, { revoke: async () => {} });
 };
 
-export const savedAs = (title: string, folded = false): Saved => ({
-  folded,
+export const savedAs = (title: string, created = true): Saved => ({
+  created,
   item: { fields: { title } },
 });
 

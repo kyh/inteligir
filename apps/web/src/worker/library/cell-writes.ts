@@ -2,7 +2,7 @@
 // block and field by field (`@repo/notes/library/block-ops`), the highlights by the note text they
 // were computed from (`./cell-annotations`), every conflict answered together, and the item laid
 // only when something changed. Every write the cell's procedures make of an existing item by ops
-// comes through here: a device's own ops, an agent's edit, a fold of a save, an organize. An undo
+// comes through here: a device's own ops, an agent's edit, a reading, an organize. An undo
 // (`./cell-undo`) lands a state it merged, and a purge (`./library-engine`) a tombstone.
 
 import type { annotationOpSchema } from "@repo/contract/cloud/library/library-wire";
@@ -60,8 +60,9 @@ const conflictCurrentOf = (itemId: string, conflict: OpConflict): ConflictCurren
   }
 };
 
-// the item's row as it stands, for a write every op of which was already true
-const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
+// the item's row as it stands, for a write every op of which was already true, or a save of an
+// address the item holds
+export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
   const item = runPlan(scope.storage, readItem(itemId));
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });

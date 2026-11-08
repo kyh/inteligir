@@ -349,7 +349,7 @@ export interface OrganizeInput {
   readonly title?: string | undefined;
 }
 
-export const tagKey = (tag: string): string => tag.toLowerCase();
+const tagKey = (tag: string): string => tag.toLowerCase();
 
 // tags, folder, pin and title for each item, in the one set the write joins; an id that names
 // no live item refuses the whole change

@@ -323,20 +323,17 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/types/highlight-js.d.ts`,
   `packages/page-reader/src/read-html-api.ts`.
 
-- **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
-  REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
-  item: a device's read lands its article in place of the item's, leaves
-  the person's note alone, sets the item's fields as a reading does and adds
-  its tags, and in the same write places every highlight that keeps a quote by that quote,
-  since the markers went with the old article; one the note holds stays where
-  it is, a selection the item keeps adds nothing, and a read with no article
-  leaves the item's. A page files the item only where it has no folder, a
-  deleted one being none, as the listing reads it, and a link moves it only to a
-  folder it names, so a save from no folder (All, a tag, the share sheet) leaves
-  it where it is, and taking it out of a folder is organize's. Rejected: keeping
-  the first article (a resave never shows the page as it reads now); answering
-  `exists` (the popup's highlight did nothing); a link's null folder unfiling
-  the item (a re-save from All moved it to Unsorted and said nothing).
+- **A SAVE OF A URL THE LIBRARY HOLDS ANSWERS THAT ITEM AS IT STANDS.** One
+  url, one item: a save whose `urlKey` a live item holds writes nothing and
+  answers that item with `created: false`, its tags, folder, note and selection
+  left behind, so tagging, filing or adding to it is organize's and the
+  editor's. The one write is a device's read of a page whose item has no
+  article yet, its reading waiting or failed: the read lands on it as a reading
+  does, its article and the fields a fill owns, every highlight that keeps a
+  quote placed by it, and nothing else of the save. Rejected: merging the save
+  into the item (two writers of one item's tags, folder and note, and an
+  article a later read swaps out from under the person's highlights);
+  answering `exists` (a refusal for what is a success).
   `apps/web/src/worker/library/cell-saves.ts`.
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
@@ -361,13 +358,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   parser gives it; a public address is asked like a name. It judges the saved
   address and every redirect alike, follows at most five, counts bytes as they
   arrive and gives the read 20 s; `global_fetch_strictly_public` sends even
-  this zone through its front door. The redirects and the capped read are the
-  phone's share's too (`packages/notes/src/items/page-fetch.ts`), so a host
-  keeps only which hops it asks, how it asks and its deadline. Rejected: a
-  lookup first (the platform dials by name anyway); refusing every address
-  written out (a public page's refusal said a private network it was not on);
-  leaving it to the platform (a refusal said at once beats three vague retries);
-  a copy of the read per host (two status gates to hold equal).
+  this zone through its front door. Rejected: a lookup first (the platform
+  dials by name anyway); refusing every address written out (a public page's
+  refusal said a private network it was not on); leaving it to the platform (a
+  refusal said at once beats three vague retries).
   `apps/web/src/worker/fill/page-fetch.ts`, `address-space.ts`.
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
@@ -376,15 +370,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   only where the page gave one, renames only an item still named by its
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
-  redirects end at another live item's address folds onto it, the stub's
-  folder, tags and note with it, and a fold sets the fields and files the item
-  by a device save's own rules, in the one function that save calls too, so a
-  filed item stays where it is. The stub goes to Deleted read, so restoring it
-  asks no reading that would only fold it again. Rejected: bases the consumer
-  read (a reading nobody edited around would conflict with every save
-  meanwhile); a link's own rule moving a filed item to the stub's folder (a
-  reading long after the save would refile the item and say nothing).
-  `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
+  redirects end at another item's address is read into the item that waited
+  for it, which keeps the address it was saved at. Rejected: bases the
+  consumer read (a reading nobody edited around would conflict with every save
+  meanwhile); folding it onto the item at the final address (a merge with an
+  undo of its own); readdressing it to the final address (a page that
+  redirects to its sign-in would be kept at the sign-in's address).
+  `apps/web/src/worker/library/cell-fills.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
   `library.imports.start` names a file the device uploaded, and each alarm run

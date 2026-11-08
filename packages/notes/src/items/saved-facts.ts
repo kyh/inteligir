@@ -1,6 +1,6 @@
 // what a page says of itself, fitted to the item fields that keep it: the one fitting every
-// device that saves a page it read makes (the extension, the phone's share sheet, the cloud's
-// fill), so one page saved from any of them is the same item.
+// reader of a page makes (the extension, the cloud's fill), so one page saved from either is the
+// same item.
 
 import { ITEM_FIELD_CAPS } from "../library/library-item";
 

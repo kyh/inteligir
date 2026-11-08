@@ -33,7 +33,6 @@ import type { ReplicaItem } from "./replica-listing";
 type AnnotationOp = z.infer<typeof annotationOpSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type PlacedBlock = z.infer<typeof placedBlockSchema>;
-type SaveInput = Extract<OutboxOp, { kind: "save" }>["input"];
 
 // a file's bytes as a screen hands them over, and the type they are sent as
 interface NewFile {
@@ -88,12 +87,6 @@ export interface LinkInput {
   readonly tags: readonly string[];
 }
 
-// a page this device read itself, with its cover when it kept one
-export interface PageInput extends Omit<SaveInput, "coverSha" | "id" | "savedAt" | "tags"> {
-  readonly tags: readonly string[];
-  readonly cover: NewFile | null;
-}
-
 interface FileInput {
   readonly name: string;
   readonly title?: string;
@@ -103,10 +96,10 @@ interface FileInput {
 }
 
 // what a make answers: the item a screen opens, which is the item the library already holds at a
-// saved page's address when the cell will fold the save onto it
+// saved link's address, `created` false, when the cell will answer the save with it
 export interface Made {
   readonly id: string;
-  readonly folded: boolean;
+  readonly created: boolean;
 }
 
 export interface CommandContext {
@@ -123,7 +116,6 @@ export interface ReplicaCommands {
   readonly write: (itemId: string, input: WriteInput) => Promise<WriteOutcome>;
   readonly createNote: (input: NoteInput) => Promise<Made>;
   readonly saveLink: (input: LinkInput) => Promise<Made>;
-  readonly savePage: (input: PageInput) => Promise<Made>;
   readonly createFile: (input: FileInput) => Promise<Made & { readonly sha: string }>;
   // a file for a block still to be written (a picture pasted into a note): kept on the device and
   // sent up at once, its sha what the block names it by
@@ -197,7 +189,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
           made.title = input.title;
         }
         await enqueue({ input: made, kind: "createFile", staged }, bytes);
-        return { folded: false, id, sha };
+        return { created: true, id, sha };
       }),
 
     createNote: async (input) =>
@@ -215,7 +207,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
           kind: "create",
           staged: [],
         });
-        return { folded: false, id };
+        return { created: true, id };
       }),
 
     deleteItems: async (ids) => {
@@ -259,30 +251,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
           link.note = input.note;
         }
         await enqueue({ input: link, kind: "saveLink" });
-        return holder === null ? { folded: false, id } : { folded: true, id: holder };
-      }),
-
-    savePage: async (input) =>
-      await serial(async () => {
-        const id = newId();
-        const holder = await runPlanAsync(sql, heldAtAddress(input.url));
-        const { cover, tags, ...page } = input;
-        const file = cover === null ? null : staging(cover);
-        await enqueue(
-          {
-            input: {
-              ...page,
-              coverSha: file?.sha ?? null,
-              id,
-              savedAt: clock.now(),
-              tags: tagsOf(tags),
-            },
-            kind: "save",
-            staged: file?.staged ?? [],
-          },
-          file?.bytes ?? [],
-        );
-        return holder === null ? { folded: false, id } : { folded: true, id: holder };
+        return holder === null ? { created: true, id } : { created: false, id: holder };
       }),
 
     write: async (asked, input) =>

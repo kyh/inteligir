@@ -1,8 +1,8 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // ES2023, a ceiling: the phone's page runs this in the system WebKit, where Vite lowers syntax
-    // but never stdlib. The DOM is the host's (linkedom on node, the WebView's own on the phone).
+    // ES2023, the ceiling of the programs that bundle this (the Worker's, the extension's), where a
+    // bundler lowers syntax but never stdlib. The DOM is the host's (linkedom wherever it runs).
     "lib": ["ES2023", "dom", "dom.iterable"],
     // node: the corpus is read off disk by the suite
     "types": ["node"]

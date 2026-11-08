@@ -228,7 +228,7 @@ export default defineConfig({
     platformPurity(
       "packages/page-reader",
       NODE_OR_REACT,
-      "@repo/page-reader reads a page over the DOM its host hands it, in the Worker's fill, the extension's worker and the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
+      "@repo/page-reader reads a page over the DOM its host hands it, in the Worker's fill and the extension's worker, so it imports no node module (no socket a page could reach) and no React",
     ),
     platformPurity(
       "packages/library-replica",

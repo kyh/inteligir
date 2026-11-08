@@ -912,12 +912,12 @@ describe("what the screens read", () => {
       tags: ["later"],
       url: "https://www.example.com/post?utm_source=feed",
     });
-    expect(again).toStrictEqual({ folded: true, id: first.id });
+    expect(again).toStrictEqual({ created: false, id: first.id });
     expect(phone.replica.scopes().total).toBe(1);
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(cell.items().size).toBe(1);
-    expect(phone.replica.row(first.id)?.tags).toStrictEqual(["later"]);
+    expect(phone.replica.row(first.id)?.tags).toStrictEqual([]);
     expect(phone.replica.scopes().total).toBe(1);
   });
 
@@ -975,15 +975,11 @@ describe("a write after the replica closed", () => {
     const phone = await openDevice(cell, "phone");
     await phone.replica.wipe();
 
-    const saved = phone.replica.savePage({
-      article: [],
-      cover: { bytes: PNG, mime: "image/png" },
-      facts: { author: null, description: null, lang: null, published: null, site: null },
+    const saved = phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
       folderId: null,
-      selection: null,
+      name: "Shared before the sign-out.png",
       tags: [],
-      title: "Shared before the sign-out",
-      url: "https://example.com/shared",
     });
 
     await expect(saved).rejects.toBeInstanceOf(ReplicaClosedError);
@@ -996,7 +992,7 @@ describe("a write after the replica closed", () => {
     });
     expect(next.replica.status().unsent).toBe(0);
     await next.replica.sync();
-    expect(cell.calls).not.toContain("phone library/items/save");
+    expect(cell.calls).not.toContain("phone library/items/createFile");
   });
 
   it("goes on through a write already under way, which the wipe then takes", async () => {
@@ -1703,7 +1699,7 @@ describe("a save the cell folds onto another item", () => {
     const mac = await openDevice(cell, "mac");
     const holder = await mac.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
     await mac.replica.sync();
-    expect(card.folded).toBe(false);
+    expect(card.created).toBe(true);
     return { card: card.id, holder: holder.id };
   };
 
@@ -1720,38 +1716,6 @@ describe("a save the cell folds onto another item", () => {
     expect(cellText(cell, holder, "n1")).toBe("my note");
     expect(phone.replica.row(card)).toBeNull();
     await expect(replicaText(phone.replica, holder, "n1")).resolves.toBe("my note");
-  });
-
-  it("puts the words each save brought after the note of the item holding the address", async () => {
-    const cell = createFakeCell();
-    const phone = await openDevice(cell, "phone");
-    phone.network.setOffline(true);
-    const mac = await openDevice(cell, "mac");
-    const holder = await mac.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
-    await write(mac.replica, holder.id, [noted("n1", "my note")]);
-    await mac.replica.sync();
-
-    await phone.replica.saveLink({ folderId: null, note: "saved", tags: [], url: ADDRESS });
-    await phone.replica.savePage({
-      article: [],
-      cover: null,
-      facts: { author: null, description: null, lang: null, published: null, site: null },
-      folderId: null,
-      note: "read",
-      selection: null,
-      tags: [],
-      title: "An article",
-      url: ADDRESS,
-    });
-    phone.network.setOffline(false);
-    await phone.replica.sync();
-
-    const item = await phone.replica.item(holder.id);
-    expect(item?.blocks.map(({ block }) => textOf(block))).toStrictEqual([
-      "my note",
-      "saved",
-      "read",
-    ]);
   });
 
   it("keeps the rows on the item that holds the address across a relaunch", async () => {
@@ -1881,27 +1845,6 @@ describe("a save the cell folds onto another item", () => {
     expect(cell.items().size).toBe(1);
     expect(cellText(cell, first.id, "n1")).toBe("on the first");
     expect(cellText(cell, first.id, "n2")).toBe("on the second");
-  });
-
-  it("stands an edit of a saved page's text on the item holding the address", async () => {
-    const cell = createFakeCell();
-    const phone = await openDevice(cell, "phone");
-    const { holder } = await savedOnBoth(cell, phone);
-    const page = await phone.replica.savePage({
-      article: [{ block: paragraph("a1", "read here"), ord: "a0" }],
-      cover: null,
-      facts: { author: null, description: null, lang: null, published: null, site: null },
-      folderId: null,
-      selection: null,
-      tags: [],
-      title: "An article",
-      url: ADDRESS,
-    });
-    await write(phone.replica, page.id, [await putText(phone.replica, page.id, "a1", "edited")]);
-    phone.network.setOffline(false);
-    await phone.replica.sync();
-    expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
-    expect(cellText(cell, holder, "a1")).toBe("edited");
   });
 
   it("carries the rows when this copy refuses the landing", async () => {

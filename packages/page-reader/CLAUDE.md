@@ -9,8 +9,7 @@ A saved page read into an item: its facts and its article.
   the html and the host's parse (`ParsePage`): linkedom on node
   (`linkedom-page.ts`), a browser's own `DOMParser` elsewhere; it imports no
   node module and no React (`oxlint.config.ts`) and dials nothing, since every
-  byte it reads its host fetched. The schema of its facts (`page-facts.ts`) is
-  the one the phone's bridge carries. Rejected: a reader per host, two spellings
+  byte it reads its host fetched. Rejected: a reader per host, two spellings
   of one item; and jsdom as a browser's stand-in in the suite, whose DOM makes
   defuddle keep a page's chrome where linkedom and a real browser do not.
   `packages/page-reader/src/extract-page.ts`.
@@ -50,10 +49,10 @@ A saved page read into an item: its facts and its article.
   KEEPS A PAGE THAT NAMED ITSELF.** Every host reads an address for the text
   `preferredText` names, which goes by the address the item's kind goes by, and
   judges its reading by who reads after it. An item saved read is never filled,
-  so the extension and the phone hand a page they kept no article of to the
-  fill, which can find what a device did not (a post an app shell hides, in its
-  host's oEmbed); nothing reads after the fill, so it
-  fails a page only when none of its text settled and it named itself nowhere.
+  so the extension hands a page it kept no article of to the fill, which can
+  find what a device did not (a post an app shell hides, in its host's oEmbed);
+  nothing reads after the fill, so it fails a page only when none of its text
+  settled and it named itself nowhere.
   Rejected: the fill's rule on a device (a titled shell lands blank and is never
   read again); a device's rule in the fill (it would fail a page it can name);
   a copy of either per host (two readings of one address).

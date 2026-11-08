@@ -360,7 +360,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         toast.success(`Saved ${plural(made.length, "link")}.`);
         return;
       }
-      toast.success(only.folded ? "Your library already holds that link." : "Saved.", {
+      toast.success(only.created ? "Saved." : "Your library already holds that link.", {
         action: {
           label: "Open",
           onClick: () => {

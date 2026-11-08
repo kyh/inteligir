@@ -1,7 +1,7 @@
 // The phone's editor page, built as the app carries it and loaded from `file://` with a scripted
 // phone on its bridge: an item's editor over the blocks the phone's replica holds, written back in
-// ops, and the headless page that reads a shared page and merges a block two devices changed, each
-// answered as its own code answers under node.
+// ops, and the headless page that merges a block two devices changed, answered as its own code
+// answers under node.
 
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -10,18 +10,15 @@ import { z } from "zod";
 
 import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type {
-  FillAnswer,
-  FillJob,
   MergeSides,
   NativeFrame,
   PageFrame,
   RequestResult,
 } from "@repo/editor-bridge/protocol";
-import { mergeSides, readPage } from "@repo/mobile-editor/headless-mode";
+import { mergeSides } from "@repo/mobile-editor/headless-mode";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { noteFields } from "@repo/notes/test-support/library-items";
-import { parsePage } from "@repo/page-reader/linkedom-page";
 
 import { parseEval } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";
@@ -184,45 +181,12 @@ const HEADLESS_SCRIPT = `(() => {
 
 const HEADLESS_NONCE = "e2e-headless-nonce-0123456789";
 
-// a page the phone fetched for a link it shared, as the reader is handed it
-const SHARED_PAGE = [
-  "<!doctype html>",
-  '<html lang="en"><head><meta charset="utf-8">',
-  "<title>File over app</title>",
-  '<meta property="og:site_name" content="Steph Ango">',
-  '<meta name="description" content="Files you can control.">',
-  '<meta property="og:image" content="https://stephango.com/cover.png">',
-  '</head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><article>',
-  "<h1>File over app</h1>",
-  "<p>If you want to create digital artifacts that last, they must be <em>files</em> you can control.</p>",
-  '<p>Apps are ephemeral; <a href="https://example.com/files">the files</a> outlast them.</p>',
-  "<ul><li>Plain text</li><li>Open formats</li></ul>",
-  "<pre><code>const file = read();</code></pre>",
-  "</article><footer>© Steph Ango</footer></body></html>",
-].join("\n");
-
-const FILL_JOB: FillJob = {
-  base64: Buffer.from(SHARED_PAGE, "utf-8").toString("base64"),
-  charset: "utf-8",
-  prefer: "article",
-  url: "https://stephango.com/file-over-app",
-};
-
 // a paragraph the phone rewrote at its start while another device rewrote its end
 const MERGE_SIDES: MergeSides = {
   base: paragraphBlock("q1", "One line.\nTwo lines.\nThree lines."),
   mine: paragraphBlock("q1", "One line, from the phone.\nTwo lines.\nThree lines."),
   theirs: paragraphBlock("q1", "One line.\nTwo lines.\nThree lines, from the Mac."),
 };
-
-// the reading with its block ids left out, since each reader mints its own
-const withoutIds = (answer: FillAnswer | undefined) =>
-  answer?.kind === "read"
-    ? {
-        ...answer,
-        article: answer.article.map(({ block, ord }) => ({ block: { ...block, id: "" }, ord })),
-      }
-    : answer;
 
 // the DOM caret the browser would leave after a tap, at the end of the text node holding `text`
 // (or across `text` itself when `select` is set)
@@ -512,23 +476,18 @@ const driveItem = async (
   );
 };
 
-// the headless page: a shared page read as linkedom reads it under node, and a block two devices
-// changed merged as the editor's merge does, with nothing drawn
+// the headless page: a block two devices changed merged as the editor's merge does
 const driveHeadless = async (
   browser: ScenarioBrowser,
   page: string,
   log: (line: string) => void,
 ): Promise<void> => {
-  log("loaded again headless, the page reads a shared page as linkedom does");
+  log("loaded again headless, the page merges a block both devices changed as the editor does");
   await openPage(browser, page);
   await browser(["eval", HEADLESS_SCRIPT]);
   await browser([
     "eval",
     nativeFrameScript({ mode: "headless", nonce: HEADLESS_NONCE, type: "init" }),
-  ]);
-  await browser([
-    "eval",
-    nativeFrameScript({ id: 7, job: FILL_JOB, nonce: HEADLESS_NONCE, type: "fillJob" }),
   ]);
   await browser([
     "eval",
@@ -540,36 +499,16 @@ const driveHeadless = async (
         await browser(["eval", "JSON.stringify(window.__headless.sent)"]),
         z.array(pageFrameSchema),
       ),
-    (frames) =>
-      frames.some((frame) => frame.type === "fillAnswer") &&
-      frames.some((frame) => frame.type === "mergeAnswer"),
+    (frames) => frames.some((frame) => frame.type === "mergeAnswer"),
     {
       deadlineMs: 15_000,
       describe: (frames) =>
-        `the headless page never answered both: ${JSON.stringify(frames.map((frame) => frame.type))}`,
+        `the headless page never answered: ${JSON.stringify(frames.map((frame) => frame.type))}`,
     },
   );
-  const fill = answered.find((frame) => frame.type === "fillAnswer");
-  expect(
-    fill?.type === "fillAnswer" && fill.id === 7 && fill.nonce === HEADLESS_NONCE,
-    `the reader's answer: ${JSON.stringify(fill)}`,
-  );
-  expectEq(
-    withoutIds(fill.answer),
-    withoutIds(readPage(FILL_JOB, parsePage)),
-    "the page's reading against linkedom's",
-  );
-  expect(
-    fill.answer.kind === "read" &&
-      fill.answer.article.length > 0 &&
-      fill.answer.facts.title === "File over app",
-    `the reader read the article: ${JSON.stringify(fill.answer)}`,
-  );
-
-  log("and merges a block both devices changed as the editor's merge does");
   const merge = answered.find((frame) => frame.type === "mergeAnswer");
   expect(
-    merge?.type === "mergeAnswer" && merge.id === 8,
+    merge?.type === "mergeAnswer" && merge.id === 8 && merge.nonce === HEADLESS_NONCE,
     `the merge's answer: ${JSON.stringify(merge)}`,
   );
   // as the wire carries each: a key the node merge leaves undefined is no key on the wire
@@ -579,13 +518,11 @@ const driveHeadless = async (
     "the page's merge against the editor's under node",
   );
   expectEq(merge.merged?.overlapped, false, "two changes to two lines do not overlap");
-  const drawn = await browser(["get", "text", "body"]);
-  expect(!drawn.includes("File over app"), "the headless page drew the page it read");
 };
 
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: an item draws its link by the name its item goes by now and its diagram from the one inlined script, typing on a locked block writes nothing, a pause writes the typed block as one put under the hash the phone gave it, a nonce-less frame is ignored, an announced change is laid in, a write the phone finds changed is written again over what it holds, a selection offers no Ask agent, a flush is answered and a link opens its item by id; headless, the page reads a shared page as linkedom does and merges a block as the editor's merge does under node",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: an item draws its link by the name its item goes by now and its diagram from the one inlined script, typing on a locked block writes nothing, a pause writes the typed block as one put under the hash the phone gave it, a nonce-less frame is ignored, an announced change is laid in, a write the phone finds changed is written again over what it holds, a selection offers no Ask agent, a flush is answered and a link opens its item by id; headless, the page merges a block as the editor's merge does under node",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,

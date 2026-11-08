@@ -33,11 +33,10 @@ how it ships.
   and every frame is a string. `tools/e2e/src/scenarios/phone-editor-page.ts`
   loads the built page from `file://`.
 
-- **THE PHONE'S BLOCK MERGE AND ITS SHARE READER RUN IN A HEADLESS PAGE.** The
-  replica settles a `CONFLICT` with the editor's diff3, which needs Plate and
-  its markdown pipeline, and a shared page is read by `@repo/page-reader` over
-  a DOM; both live only in the page, so a hidden WebView loads it headless and
-  answers each `mergeJob` and `fillJob`
+- **THE PHONE'S BLOCK MERGE RUNS IN A HEADLESS PAGE.** The replica settles a
+  `CONFLICT` with the editor's diff3, which needs Plate and its markdown
+  pipeline, which live only in the page, so a hidden WebView loads it headless
+  and answers each `mergeJob`
   (`apps/mobile-editor/src/headless/headless-mode.ts`,
   `apps/mobile/src/editor/headless-page-host.ts`), which is why the engine's
   merge resolves. Rejected: the editor compiled into Hermes (a second build of
@@ -74,10 +73,9 @@ how it ships.
   BACKUP.** Both download again or are sent from here (owner decision), so
   `apps/mobile/modules/backup-exclusion` keeps them out of the iCloud backup
   (`apps/mobile/src/files/expo-file-folders.ts`). A sign-in, a sign-out and a
-  revocation wipe the rows, every file and the system's HTTP cache
-  (`apps/mobile/modules/http-cache`), which the Worker's `no-store` keeps a
-  file's bytes out of but not a page a share read; the boot keeps them, and a
-  kept credential over an empty database pulls the library afresh.
+  revocation wipe the rows and every file, and the Worker's `no-store` keeps a
+  file's bytes out of the system's HTTP cache; the boot keeps them, and a kept
+  credential over an empty database pulls the library afresh.
 
 - **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE: PINNED, OR CACHED AND
   DROPPED OLDEST FIRST.** A file is downloaded once however many screens ask
@@ -116,8 +114,8 @@ how it ships.
   after first unlock (a looser class for a read no path makes).
 
 - **A PHONE SAVE IS ONE CREATE WHERE THE LIBRARY'S SCOPE SAVES.** A link is
-  saved for the cloud's fill to read, and the cell folds it onto the item
-  already holding its address; a thought is a note named by its first line; a
+  saved for the cloud's fill to read, and a save of an address the library
+  holds answers that item; a thought is a note named by its first line; a
   non-web link is refused in `@repo/notes/items/item-kind`'s words
   (`apps/mobile/src/items/phone-saves.ts`). A sign-out with anything unsent
   asks first, and then discards it (owner decision).
@@ -147,61 +145,36 @@ how it ships.
   passage projection, for a line the quote holds).
   `tools/e2e/src/scenarios/phone-annotations-hosted.ts`.
 
-- **A SHARE IS A SAVE THE APP MAKES, READ ON THE PHONE; THE EXTENSION ONLY HANDS
-  IT OVER.** The share extension (`expo-share-intent`'s "Save to Inteligir", for
+- **A SHARE IS A SAVE THE APP MAKES, AS ITS LINK; THE EXTENSION ONLY HANDS IT
+  OVER.** The share extension (`expo-share-intent`'s "Save to Inteligir", for
   a page, a link or text, never a photo or a file) writes the share into the
   App Group and opens the app at its handoff address
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
-  app fetches the page itself, judging each redirect by its spelling, a step
-  into private space only from an address there
-  (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
-  saves it read, cover and all; a page it cannot read now, an answer that is a
-  file whatever it was served as (`isPage`, the fill's own rule), or a page it
-  read no text from, is saved as its link, which the cloud's fill reads
-  (`apps/mobile/src/items/share-save.ts`). An address that moved, a redirect
-  having changed its `urlKey`, can have ended at a sign-in wall, since the phone
-  sends no cookie. So an item already at the shared address keeps its article:
-  the share lands on it as a link, which adds the note, unless the cloud has yet
-  to read it or could not and it holds no article (`fetchState` alone cannot
-  say, since Read the page again leaves the article on an item that waits). A
-  read past that keeps the shared address, an item there taking it, unless the
-  end is surely the page: the replica holds that address, so the save joins
-  that item as the fill's fold does and an item waiting at the shared address
-  folds onto it too, or a link no item holds turned out a video or a song. An
-  end past what an item's address holds stays shared, as the fill's does. A
-  moved save that stays at the shared address takes the sheet's title before
-  the read's, since a wall names itself; any other takes the read's first.
-  Residual: a holder the replica has yet to pull goes unseen, so one at the end
-  leaves a second item, until Read the page again folds it, and one at the
-  shared address takes the read over its article; a waiting item that takes the
-  read of a video or a song keeps kind link, since only the fill sets a kind on
-  an item that exists. Rejected: the final address on every save (a page that
-  redirects to its sign-in would be saved at the sign-in's address); handing
-  every moved address to the fill (app share links are short links, and a site
-  that blocks data centres would end unread though the phone had read it).
-  Words shared beside the link are the item's note on every path, since every
-  save and every fold carries a note and a fold drops a stub's title
-  (`apps/mobile/src/items/share-payload.ts`); an unread link is named by its
-  address or by the title the share sheet gave. Residual: an app that hands a
+  app saves a page or a link as its link, which the cloud's fill reads, and
+  text alone as a thought (`apps/mobile/src/items/share-save.ts`). Words shared
+  beside the link are a new item's note, and an unread link is named by its
+  address or by the title the share sheet gave
+  (`apps/mobile/src/items/share-payload.ts`). Residual: an app that hands a
   page's name as text leaves a note repeating the title once the cloud reads
-  it, redundant and not lost, since only the phone's own read knows the title
-  to compare. Rejected: short words naming an unread link (an item that already
-  holds the address takes no title, so they would be lost there); a fold moving
-  a stub's title into the note (a second path to remember what the note already
-  carries).
+  it, redundant and not lost. Rejected: reading on the phone (a hidden reader,
+  a cookie-less fetch walking private space and an HTTP cache to wipe, for
+  pages the cloud reads anyway; a page only a home or office network reaches is
+  one the cloud cannot read, and says so); short words naming an unread link
+  (the cloud renames only an item its address names, so the page's own title
+  would never show).
   A page keeps its address to the last character, since it comes over as
   nothing but that address; text takes its link and its note from
   `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and
   its lines kept, so text holding a link is a link share whatever the
-  extension's search found, and is read on the phone as any other. Rejected:
+  extension's search found, and is saved as any other. Rejected:
   expo-share-intent's `webUrl` for text (its search stops at a bracket, a comma
-  or an accented letter, so the wrong page is read, and finds nothing straight
+  or an accented letter, so the wrong page is saved, and finds nothing straight
   after a bracket or a colon, so no page is);
   trimming a sentence's marks off every share (the real last character of
   `…/Oklahoma!`); reading a link up to the first space (a language with no
   spaces runs its sentence on from the link, and an emoji sits right after one).
   It opens the item and only then lets the share go, so a signed-out share
-  waits, and so does one a sign-out caught mid-read, which the closed replica
+  waits, and so does one a sign-out caught mid-save, which the closed replica
   refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
   Rejected: expo-sharing (experimental receive, no page title); an extension

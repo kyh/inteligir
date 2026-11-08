@@ -65,12 +65,11 @@ export const checkedLanding = (job: FillJob, landing: FillLanding): FillLanding 
   return { itemId: job.itemId, kind: "failed", sentence: TEXT_NOT_SAVED, url: job.url };
 };
 
-// what the cell made of it: read into the item, said as failed, folded onto the item that holds the
-// page's final address, or nothing, since the item no longer waits for that reading
+// what the cell made of it: read into the item, said as failed, or nothing, since the item no
+// longer waits for that reading
 export const fillLandedSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("filled") }),
   z.object({ kind: z.literal("failed") }),
-  z.object({ intoId: z.string(), kind: z.literal("folded") }),
   z.object({ kind: z.literal("stale") }),
 ]);
 export type FillLanded = z.infer<typeof fillLandedSchema>;

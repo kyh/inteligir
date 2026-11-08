@@ -137,7 +137,7 @@ export const libraryTools = {
     saveLink: items.saveLink.meta(
       openapi({
         description:
-          "Saves a web address as an item, optionally titled, tagged, filed and with a note. A link the library already holds keeps its item, which gains the tags and moves only to a folder named here; the page is read in the background.",
+          "Saves a web address as an item, optionally titled, tagged, filed and with a note; the page is read in the background. A link the library already holds answers that item unchanged; tag or file it with organize_items.",
         method: "PUT",
         operationId: "save_link",
         summary: "Save a link",

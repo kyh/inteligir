@@ -5,14 +5,14 @@
 // and finds none straight after a bracket or a colon, so the link is read here, where a sentence's
 // marks are told from the address's, and text holding one is a link share whatever the search
 // found. Every spelling of the link is taken out of what the text says, and what is left is the
-// person's words, the item's note on every path. Only punctuation left is no note.
+// person's words, a new item's note. Only punctuation left is no note.
 // Pure: the share inbox and the tests read it.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
 import { fieldLine } from "@repo/notes/items/saved-facts";
 import { linkInText, withoutLink } from "./link-in-text";
 
-export interface SharedLink {
+interface SharedLink {
   kind: "link";
   url: string;
   title: string | null;

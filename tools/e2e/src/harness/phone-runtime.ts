@@ -1,22 +1,18 @@
 // the phone's own runtime, the one the app composes, under node against a booted Worker: node's
 // sqlite in the phone's own file, its files in memory, a network the scenario can take away, a
-// Keychain the harness holds, and the editor page's own code where the app runs it in its headless
-// WebView: the block merge, and the reader a shared page is read with, over linkedom where the page
-// has its WebView's DOM
+// Keychain the harness holds, and the editor page's own block merge where the app runs it in its
+// headless WebView
 
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { FillJob } from "@repo/editor-bridge/protocol";
-import { createPageFetch } from "@repo/mobile/items/page-fetch";
 import { saveShared } from "@repo/mobile/items/share-save";
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime, CredentialStore, PhoneLibrary } from "@repo/mobile/lib/compose-runtime";
 import { openNodeReplicaSql } from "@repo/mobile/lib/node-replica-sql";
 import { memoryFolders } from "@repo/mobile/test-support/memory-folders";
-import { mergeSides, readPage } from "@repo/mobile-editor/headless-mode";
+import { mergeSides } from "@repo/mobile-editor/headless-mode";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
-import { parsePage } from "@repo/page-reader/linkedom-page";
 import { expect, expectEq } from "./assert";
 import { OWNER, PHONE_BUILD } from "./cloud-account";
 import { pollUntil } from "./poll";
@@ -51,9 +47,6 @@ export const phoneRuntime = async (
   let held: Kept | null = options.kept ?? null;
   const runtime = composeRuntime({
     build: PHONE_BUILD,
-    clearHttpCache: async () => {
-      await Promise.resolve();
-    },
     clock: {
       after: (ms, run) => {
         const timer = setTimeout(run, ms);
@@ -142,21 +135,9 @@ export const untilItem = async (
   );
 };
 
-// the phone's share sheet: the page read on the phone, as its headless page reads it
-export const shareFromPhone = async (phone: Phone, shared: Parameters<typeof saveShared>[1]) => {
-  const fetchOnPhone = createPageFetch(
-    async (input, init) => (phone.network.online ? await globalThis.fetch(input, init) : offline()),
-    { acceptLanguage: "en-US,en;q=0.9", userAgent: `inteligir-e2e-phone/${PHONE_BUILD.version}` },
-  );
-  return await saveShared(
-    {
-      newBlockId: () => randomBytes(12).toString("hex"),
-      ports: {
-        fetch: fetchOnPhone,
-        read: async (job: FillJob) => await Promise.resolve(readPage(job, parsePage)),
-      },
-      replica: libraryOf(phone).replica,
-    },
+// the phone's share sheet, which saves what it was handed as its link
+export const shareFromPhone = async (phone: Phone, shared: Parameters<typeof saveShared>[1]) =>
+  await saveShared(
+    { newBlockId: () => randomBytes(12).toString("hex"), replica: libraryOf(phone).replica },
     shared,
   );
-};

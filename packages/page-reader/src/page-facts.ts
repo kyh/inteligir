@@ -1,8 +1,5 @@
-// what a page says about itself, as a wire carries it, and what the reader made of its text: the
-// phone's page answers the phone with the facts. zod alone, so a host that only carries the answer
-// loads no DOM and no extractor.
-
-import { z } from "zod";
+// what a page says about itself and what the reader made of its text, in types that name no DOM and
+// no extractor.
 
 // a page to read: its html, the address it was read at, and which text it is kept for, its prose or
 // (a video's, a song's) its description
@@ -12,19 +9,18 @@ export interface PageArgs {
   readonly prefer: "article" | "description";
 }
 
-export const pageFactsSchema = z.strictObject({
-  author: z.string().nullable(),
-  description: z.string().nullable(),
+export interface PageFacts {
+  readonly author: string | null;
+  readonly description: string | null;
   // cover candidates, the page's own order of preference, absolute web urls
-  images: z.array(z.string()),
-  lang: z.string().nullable(),
+  readonly images: readonly string[];
+  readonly lang: string | null;
   // the page's own oEmbed discovery link
-  oembed: z.string().nullable(),
-  published: z.string().nullable(),
-  site: z.string().nullable(),
-  title: z.string().nullable(),
-});
-export type PageFacts = z.infer<typeof pageFactsSchema>;
+  readonly oembed: string | null;
+  readonly published: string | null;
+  readonly site: string | null;
+  readonly title: string | null;
+}
 
 // the body ladder's rungs, rich to plain
 export type Rung = "rich" | "plain" | "text";

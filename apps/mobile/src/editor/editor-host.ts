@@ -27,7 +27,7 @@ export type EditorRequestPorts = {
 // answers are its own host's
 export type EditorPageEvent = Exclude<
   PageFrame,
-  { type: "request" | "ready" | "flushed" | "fillAnswer" | "mergeAnswer" }
+  { type: "request" | "ready" | "flushed" | "mergeAnswer" }
 >;
 
 // what the phone tells a loaded page on its own: the replica moved
@@ -235,7 +235,7 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
         settle?.(frame.ok);
         return;
       }
-      if (frame.type === "fillAnswer" || frame.type === "mergeAnswer") {
+      if (frame.type === "mergeAnswer") {
         return;
       }
       args.onEvent(frame);

@@ -168,7 +168,7 @@ and the display's alike, becomes a FAIL carrying the reason it would have
 skipped with.
 
 A scenario whose save must read a page serves it from `page-fixture.ts`, on
-loopback. The phone's runtime reads it there; the Worker's fill reads it at
+loopback. The Worker's fill reads it at
 `PAGE_HOST`, a name in `.test` that the Worker host answers from that server
 through Miniflare's outbound service (`cloudWorker({ pages })`), so the fill's
 guard judges the name as it judges any site's and is never widened for a

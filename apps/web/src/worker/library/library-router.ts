@@ -151,7 +151,7 @@ const committed = async <T>(context: CellContext, result: CellResult<T>): Promis
 // how a list or a read answers unless asked
 const PAGE_DEFAULT = 50;
 
-const savedSchema = z.object({ folded: z.boolean(), item: liveItemRowSchema });
+const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
 const editedSchema = z.object({ dropped: z.array(z.string()), seq: z.number() });
 const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
 const changedSchema = z.object({
@@ -487,7 +487,7 @@ export const libraryRouter = os.router({
             library.ids,
             input,
           );
-          if (!saved.folded) {
+          if (saved.created) {
             askReading(scope, actor, saved.item);
           }
           return saved;

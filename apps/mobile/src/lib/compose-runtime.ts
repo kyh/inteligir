@@ -8,8 +8,8 @@
 // through its outbox, sent whenever the cloud can be reached. A sign-in starts the database over,
 // since it may hold another account's library; a relaunch opens what it holds, and a database
 // emptied meanwhile (the app reinstalled while the Keychain kept its credential) simply pulls the
-// library again. A sign-out, a revoked credential and a deleted account wipe the replica, the files
-// and the system's HTTP cache; a build the cloud no longer takes keeps everything until it is
+// library again. A sign-out, a revoked credential and a deleted account wipe the replica and the
+// files; a build the cloud no longer takes keeps everything until it is
 // updated. A sign-out lets the device go at the cloud only once its copy is gone, so one whose wipe
 // failed opens again what the phone still holds, still the account's.
 
@@ -63,9 +63,6 @@ export interface ComposeRuntimeArgs {
   readonly merge: BlockMerge;
   readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
   readonly shrinkCover: FileCachePorts["shrink"];
-  // what the system kept of the fetches above: a page a share read, which the Worker's own
-  // `no-store` has no say over
-  readonly clearHttpCache: () => Promise<void>;
 }
 
 // the account's library as this phone holds it, while signed in
@@ -124,6 +121,11 @@ const revokeQuietly = async (library: PhoneLibrary): Promise<void> => {
   }
 };
 
+const wipe = async (replica: LibraryReplica, files: FileCache): Promise<void> => {
+  await replica.wipe();
+  await files.clear();
+};
+
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const session = createExternalStore<PhoneSession>({ kind: "restoring" });
   let sql: Promise<ReplicaSql> | null = null;
@@ -176,12 +178,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       );
     }
     return opening.replica;
-  };
-
-  const wipe = async (replica: LibraryReplica, files: FileCache): Promise<void> => {
-    await replica.wipe();
-    await files.clear();
-    await args.clearHttpCache();
   };
 
   // this phone leaves its account: every row, every unsent change and every file go. The wipe

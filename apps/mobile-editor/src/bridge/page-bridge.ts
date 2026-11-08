@@ -29,10 +29,7 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
 /** @internal */
-export type NativeEvent = Extract<
-  NativeFrame,
-  { type: "itemChanged" | "flush" | "fillJob" | "mergeJob" }
->;
+export type NativeEvent = Extract<NativeFrame, { type: "itemChanged" | "flush" | "mergeJob" }>;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
 export interface BridgeTransport {

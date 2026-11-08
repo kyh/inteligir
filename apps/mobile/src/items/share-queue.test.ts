@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { deferred, nextTask } from "../test-support/async";
 import { createShareQueue } from "./share-queue";
 
-// a settle the test ends when it chooses, as a page read that takes its time
+// a settle the test ends when it chooses, as one that takes its time
 const pending = () => {
   const ends: (() => void)[] = [];
   const events: string[] = [];
@@ -32,7 +32,7 @@ describe("the shares the inbox settles", () => {
     const { end, events, ports } = pending();
     const queue = createShareQueue<string>();
     queue.offer("first", ports);
-    // the context replaces its intent with the second share while the first is read
+    // the context replaces its intent with the second share while the first settles
     queue.offer("second", ports);
     end(0);
     await vi.waitFor(() => {

@@ -1,7 +1,7 @@
 // Saving from the phone, through the replica's outbox, so a save made offline lists at once and
 // lands when the phone is back: a link is a save the cloud reads (its fill), a thought is a note
-// named by its first line, each where the Library's scope saves. The cell folds a link onto the item
-// already holding its address, and the replica answers that item at once when it holds it.
+// named by its first line, each where the Library's scope saves. A link whose address an item
+// already holds answers that item and changes nothing, at once when the replica holds it.
 // Platform-free: the suites and the scenario suite run it under node.
 
 import type { LibraryReplica, LinkInput, Made } from "@repo/library-replica/library-replica";

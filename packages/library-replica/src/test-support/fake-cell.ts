@@ -125,15 +125,11 @@ const placed = (block: LibraryBlock, ord: string, section: LibrarySection): Stor
   section,
 });
 
-// a save's words as the one paragraph the real cell's codec would read them into, past the note
-// block at `after`; blank words are none
-const noteBlocks = (
-  id: string,
-  note: string | undefined,
-  after: string | null = null,
-): [string, StoredBlock][] => {
+// a save's words as the one paragraph the real cell's codec would read them into; blank words are
+// none
+const noteBlocks = (id: string, note: string | undefined): [string, StoredBlock][] => {
   const blockId = `${id}-note`;
-  const [ord] = ordsBetween(after, null, 1);
+  const [ord] = ordsBetween(null, null, 1);
   return note === undefined || note.trim() === "" || ord === undefined
     ? []
     : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, ord, "note")]];
@@ -439,23 +435,8 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // a save onto the item holding its address: the item stands in `folderId`, its tags join the
-  // item's, its note goes after the item's own
-  const foldOnto = (
-    id: string,
-    folderId: string | null,
-    tags: readonly string[],
-    note: string | undefined,
-  ) => {
-    const item = held(id);
-    const merged = [...new Set([...item.fields.tags, ...tags])];
-    const last = orderedBlocks(item.blocks).findLast((stored) => stored.section === "note");
-    const blocks = new Map([
-      ...item.blocks,
-      ...noteBlocks(`${id}-${String(head + 1)}`, note, last?.ord ?? null),
-    ]);
-    return { folded: true, ...land(id, { ...item.fields, folderId, tags: merged }, blocks) };
-  };
+  // a save of the address an item holds: that item as it stands
+  const answerHeld = (id: string) => ({ created: false, item: liveRow(id, held(id)) });
 
   // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
   const namesakeOf = (op: FolderOp, folder: FolderRow | null): FolderRow | null => {
@@ -633,17 +614,15 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
         save: os.library.items.save.handler(({ input }) =>
-          once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
+          once(input.opId, z.object({ created: z.boolean() }).and(landedSchema), () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
             const holder = holderOf(input.url);
             if (holder !== null) {
-              // a page's folder only where the item has none
-              const folderId = held(holder).fields.folderId ?? input.folderId;
-              return foldOnto(holder, folderId, input.tags, input.note);
+              return answerHeld(holder);
             }
             made(input.id);
             return {
-              folded: false,
+              created: true,
               ...land(
                 input.id,
                 pageFields(input, NOW),
@@ -659,21 +638,19 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
         saveLink: os.library.items.saveLink.handler(({ input }) =>
-          once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
+          once(input.opId, z.object({ created: z.boolean() }).and(landedSchema), () => {
             const holder = holderOf(input.url);
+            if (holder !== null) {
+              return answerHeld(holder);
+            }
             const folderId =
               input.folder !== undefined && input.folder !== null && "id" in input.folder
                 ? input.folder.id
                 : null;
-            if (holder !== null) {
-              // a link moves the item only to a folder it names
-              const landsIn = folderId ?? held(holder).fields.folderId;
-              return foldOnto(holder, landsIn, input.tags ?? [], input.note);
-            }
             const id = input.id ?? "01900000-0000-7000-8000-cell00000000";
             made(id);
             return {
-              folded: false,
+              created: true,
               ...land(
                 id,
                 stubFields({

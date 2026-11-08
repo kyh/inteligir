@@ -73,9 +73,7 @@ root.
   overlap keeps the item whole and named. An item the set made goes to Deleted
   unless a person's part changed since (a fill is not a person), told by each
   fill's own change set: a field still holds what the set left or what a fill
-  wrote there. The folder, tags and note a fold carried are a person's part,
-  since a fill writes those only carrying a person's save over, unless that save
-  goes back in the same undo. Sets undo newest first. Unlike the line oracle the
+  wrote there. Sets undo newest first. Unlike the line oracle the
   suites hold it to (`packages/notes/src/test-support/revert-edit.ts`), a block
   keeps its identity across a move, so a block moved, edited and then deleted
   stays deleted. Rejected: a list of the fields a fill owns (it drifts from what

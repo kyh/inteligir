@@ -18,7 +18,6 @@
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@repo/page-reader": "workspace:*",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
     "tsx": "catalog:",

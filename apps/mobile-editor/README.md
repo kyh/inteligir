@@ -21,14 +21,11 @@ opens it through the native stack. The phone's replica, its outbox and its
 navigation stack stay native.
 
 The same page has a second mode, headless: an `init` in `headless` mode mounts
-no editor, reads each page the phone fetched for a share with
-`@repo/page-reader` over the WebView's own `DOMParser` into the item's article
-blocks, and merges each block the replica's outbox met changed elsewhere with
-the editor's own diff3 (`src/headless/headless-mode.ts`). The phone keeps one
-such page open, a WebView nothing shows
+no editor and merges each block the replica's outbox met changed elsewhere
+with the editor's own diff3 (`src/headless/headless-mode.ts`). The phone keeps
+one such page open, a WebView nothing shows
 (`apps/mobile/src/editor/headless-page.tsx`); it reaches no network either,
-since the page's policy refuses every connection and a parsed document loads
-nothing.
+since the page's policy refuses every connection.
 
 ## The build
 
@@ -77,17 +74,15 @@ end that receives it.
   (the highlights a tap on a marked passage names), `openItem` (the page has
   written what it holds and asks the stack to open the item a link names),
   `flushed`.
-- Page to native, headless: `fillAnswer { id, nonce, answer }`, what the reader
-  made of a page (its facts and its article as blocks, in order) or why it read
-  nothing, and `mergeAnswer { id, nonce, merged }`, a block both devices
-  changed, merged, with whether the phone's lines were kept over the other's.
+- Page to native, headless: `mergeAnswer { id, nonce, merged }`, a block both
+  devices changed, merged, with whether the phone's lines were kept over the
+  other's.
 - Native to page: `init { mode: "item", nonce, itemId, focus, fileMaxBytes }` or
   `init { mode: "headless", nonce }`, `response { id, ok }`,
   `itemChanged { ids, reset, overlapped }` (the replica moved; the page reads
   its item again when it is among them, and says so when the replica merged
   its write over another device's change to the same lines), `flush`
-  (answered by `flushed` with its id), and, headless, `fillJob { id, nonce,
-  job }` (a page's bytes as base64, its charset and its address) and
+  (answered by `flushed` with its id), and, headless,
   `mergeJob { id, nonce, sides }`. The page follows the phone's appearance
   through `prefers-color-scheme`, so no frame carries a theme.
 
@@ -122,7 +117,7 @@ vite/classic-page.ts    the entry rewrite and the build's refusal
 src/
   main.tsx              connects the bridge, waits for init, mounts the item or
                         serves headless
-  headless/headless-mode.ts  the headless page's reader and merge, exported as
+  headless/headless-mode.ts  the headless page's merge, exported as
                         ./headless-mode
   bridge/page-bridge.ts correlation, timeouts, the nonce, the window door
   item/item-page.tsx    one item's editor by its id, under the touch profile
@@ -144,7 +139,7 @@ under their block hashes. The suites cover correlation, timeouts and every
 dropped frame (`src/bridge/page-bridge.test.ts`), an item page whose pause
 reaches the phone as ops under their bases, settled again over a changed item,
 compiled like the shipped page (`src/item/item-page.test.tsx`), and the
-headless page's reading and merge (`src/headless/headless-mode.test.ts`).
+headless page's merge (`src/headless/headless-mode.test.ts`).
 `vite/classic-page.test.ts` pins the build's verdicts. The page in a real
 browser from `file://`, with a scripted phone on its bridge, is
 `tools/e2e/src/scenarios/phone-editor-page.ts`.

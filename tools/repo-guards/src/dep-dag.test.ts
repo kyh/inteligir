@@ -43,10 +43,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/editor-bridge edge is the
     // page's wire, so the scripted phone speaks the frames the page parses; the
-    // @repo/mobile-editor edge is the page's headless reader and merge, which the phone's runtime
-    // reads a shared page and merges a block with; the @repo/page-reader edge is the linkedom DOM
-    // that reader runs over under node, where the page has its WebView's; the @repo/messages-fake
-    // edge is the scripted Claude each Worker it boots runs its built-in agent against; the
+    // @repo/mobile-editor edge is the page's headless merge, which the phone's runtime merges a
+    // block with; the @repo/messages-fake edge is the scripted Claude each Worker it boots runs its built-in agent against; the
     // @repo/notes edge is the block hashes and fields the scripted phone's replica answers an item
     // page with.
     "@repo/e2e": [
@@ -56,17 +54,15 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/mobile",
       "@repo/mobile-editor",
       "@repo/notes",
-      "@repo/page-reader",
     ],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // the phone editor page's wire, zod alone over the library's grammars (@repo/notes) and the
-    // reader's answer (@repo/page-reader's page facts), so the native end parses the frames the
-    // page sends without compiling the page
-    "@repo/editor-bridge": ["@repo/notes", "@repo/page-reader"],
+    // the phone editor page's wire, zod alone over the library's grammars (@repo/notes), so the
+    // native end parses the frames the page sends without compiling the page
+    "@repo/editor-bridge": ["@repo/notes"],
     // a page read into an item, over the DOM its host hands it: the article is written as the
     // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
-    // Worker's fill, the extension's worker and the phone's page run one reading.
+    // Worker's fill and the extension's worker run one reading.
     "@repo/page-reader": ["@repo/editor", "@repo/notes"],
     // the browser's Save, a `/v1` client of its own: the @repo/contract edge is the wire and its
     // connect page's messages, the @repo/page-reader edge the one reading of the page it saves,
@@ -88,16 +84,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/notes",
     ],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge (@repo/editor-bridge), so no contract and no cloud wire. The
-    // @repo/page-reader edge is its headless page: a page the phone shares is read with the
-    // library's own reader, over the WebView's DOM.
-    "@repo/mobile-editor": [
-      "@repo/editor",
-      "@repo/editor-bridge",
-      "@repo/notes",
-      "@repo/page-reader",
-      "@repo/ui",
-    ],
+    // its own bridge (@repo/editor-bridge), so no contract and no cloud wire.
+    "@repo/mobile-editor": ["@repo/editor", "@repo/editor-bridge", "@repo/ui"],
     // the replica engine every device runs: `/v1`'s wire (@repo/contract) and the library model,
     // schema and SQL its cell runs (@repo/notes); the block merge is the editor's diff3, which its
     // host injects, so no @repo/editor edge
