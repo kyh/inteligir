@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the Worker's library cell and in every device's replica. `src/library/` is the library model: an item as fields and blocks, its ops, its undo and its one SQL schema; `src/knowledge/` is links, tags and search over its rows; `src/markdown/` is the dialect's one grammar. No I/O, no clock, no crypto — the caller injects them.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the Worker's library cell and on every device. `src/library/` is the library model: an item as fields and blocks, its ops, its undo and its one SQL schema; `src/knowledge/` is links, tags and search over its rows; `src/markdown/` is the dialect's one grammar. No I/O, no clock, no crypto — the caller injects them.",
   "type": "module",
   "exports": {
     "./formulas/collect-formulas": "./src/formulas/collect-formulas.ts",

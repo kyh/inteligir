@@ -5,7 +5,6 @@ import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
 import { MESSAGES_FAKE_ORIGIN, messagesService } from "./messages-service.ts";
-import { replicaSqlService } from "./replica-sql-service.ts";
 import { ORIGIN } from "./src/worker/test-support/test-origin.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
@@ -48,9 +47,6 @@ export default defineConfig({
         // the producer alone: a suite hands the consumer its batch itself (createMessageBatch), so
         // no message a test's save sends is read behind its back
         queueProducers: { FILLS: { queueName: FILL_QUEUE } },
-        // a replica's SQLite for the suite that runs the replica engine against the cell, served
-        // from this node process: workerd cannot load sqlite-wasm (replica-sql-service.ts)
-        serviceBindings: { REPLICA_SQL: replicaSqlService },
         // every fetch the Worker and its objects make: the scripted Messages API at its address, and
         // nothing else (messages-service.ts)
         outboundService: messagesService,

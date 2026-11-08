@@ -38,15 +38,10 @@ export type CellRefusal =
   // the day's allowance of the built-in agent is spent, until `resetsAt`
   | { readonly kind: "agent-budget"; readonly resetsAt: number };
 
-// `head` is the sequence number the write moved the library to, which the cell's socket ping
-// carries, or null when it changed nothing; `moved` is what it moved, the sockets' other frame
+// `moved` is what the write moved, which the sockets are told once it commits, or null when it
+// moved nothing
 export type CellResult<T> =
-  | {
-      readonly ok: true;
-      readonly value: T;
-      readonly head: number | null;
-      readonly moved: MovedFrame | null;
-    }
+  | { readonly ok: true; readonly value: T; readonly moved: MovedFrame | null }
   | { readonly ok: false; readonly refusal: CellRefusal };
 
 export class RefusedWriteError extends Error {

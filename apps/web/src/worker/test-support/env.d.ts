@@ -8,9 +8,6 @@ declare global {
       // ctx.exports.LibraryDO's namespace under a binding name, since listDurableObjectIds finds a
       // namespace by the name env binds it to; the Worker itself never reads it
       LIBRARY_CELL: DurableObjectNamespace<LibraryDO>;
-      // a replica's SQLite, held on the suite's node side, since workerd cannot load sqlite-wasm
-      // (apps/web/replica-sql-service.ts)
-      REPLICA_SQL: Fetcher;
     }
   }
 }

@@ -121,10 +121,6 @@ export const createLibrarySocket = ({
           threads.tell(frame);
           break;
         }
-        // a replica's head, and this page holds none; the moved frame beside it says what moved
-        case "library": {
-          break;
-        }
         // no default
       }
     },

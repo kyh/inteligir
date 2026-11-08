@@ -20,14 +20,14 @@ workspace.
 ```
 src/
   iso-date.ts          # a Date → local `YYYY-MM-DD`, the only date text shared
-  library/             # the library model: what the cell and every replica share
+  library/             # the library model: what the cell and every device share
     library-nodes.ts   # the persisted node set, strict zod over Plate's own
                        # node props, checked at the cell's boundary
     library-item.ts    # an item's fields, one column each, capped to a row
     item-makes.ts      # what each make's fields are, which the cell lands
                        # and a device shows before the cell answers
     block-ops.ts       # insert/put/drop/move and field patches, each naming
-                       # its base; the per-block guard, apply and rebase
+                       # its base; the per-block guard and its apply
     block-order.ts, block-hash.ts, canonical-json.ts  # fractional order
                        # keys, a block's hash, one spelling of a JSON value
     derive-item.ts     # title, card, text, links, tags and the url's key,
@@ -36,10 +36,9 @@ src/
                        # as the base, newest set first
     library-schema.ts  # the ONE DDL, versioned by `meta.schema`
     library-sql.ts     # the ports, plans as generators, statement chunking
-    sql-value.ts       # a SQL value and row as zod, a leaf node loads as it
-                       # stands
+    sql-value.ts       # a SQL value and row as zod
     library-queries.ts # every read and write over the schema, as plans
-    library-index.ts   # the listing over a replica's rows, in memory
+    library-index.ts   # the listing over the cell's rows, in memory
     uuid-v7.ts         # an id minted on a device that sorts by when
   knowledge/           # links, tags and search, over the library's rows
     link-resolve.ts    # a link's target: the `[[Title|uuid]]` id tier, then
@@ -141,12 +140,10 @@ src/
 
 ## Seams
 
-- `SqlPort` / `AsyncSqlStatements` (`library/library-sql.ts`): one statement
-  per call. The cell binds `ctx.storage.sql` to `SqlPort`, with
-  `transactionSync` as its `transaction(work)`; a replica binds its driver to
-  `AsyncSqlStatements`, and its transaction is `ReplicaSql.exclusive`
-  (`@repo/library-replica`). A plan (`library-queries.ts`) runs on either
-  through `runPlan` or `runPlanAsync`.
+- `SqlPort` (`library/library-sql.ts`): one statement per call. The cell
+  binds `ctx.storage.sql` to it, with `transactionSync` as its
+  `transaction(work)`, and a plan (`library-queries.ts`) runs over it through
+  `runPlan`.
 
 ## Testing
 
@@ -155,9 +152,9 @@ tests. `src/knowledge/` pins the resolver's tiers (an oracle equivalence for
 the basename buckets among them) and the search policy; `src/text/` pins the
 diff3 merge; `src/library/` runs its SQL on SQLite's own wasm build behind a
 port that refuses what a Durable Object refuses
-(`src/test-support/wasm-sql-port.ts`), and its properties (rebases commute,
-undo restores, undo agrees with its line oracle, chunking under both caps) draw
-from the one seeded generator. The suites run under a 512MB heap ceiling
+(`src/test-support/wasm-sql-port.ts`), and its properties (undo restores,
+undo agrees with its line oracle, chunking under both caps) draw from the one
+seeded generator. The suites run under a 512MB heap ceiling
 (`vitest.config.ts`), so an allocation that grows with a note's size, like a
 diff trace that copies the whole frontier every round, fails here rather than
 passing on a default heap.

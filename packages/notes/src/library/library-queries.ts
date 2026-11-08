@@ -2,8 +2,7 @@
 // runs alike. A write binds every value and cuts every many-row statement under a Durable
 // Object's limits (`chunkStatement`); a user's text is matched with instr(), since a Durable
 // Object refuses a pattern-match operand past 50 bytes. A row is applied only over an older one,
-// and what an item's row carries (its body, links, tags and index row) lands with it or not at
-// all, so a replica laying a pulled page over its own rows keeps whichever is newer, whole.
+// so a write stamped with a sequence the row has passed lands nothing.
 
 import { z } from "zod";
 
@@ -14,13 +13,11 @@ import { blockHashSchema, orderedBlocks } from "./block-ops";
 import type { ItemState, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, ordSchema } from "./block-order";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
-import { deriveItem, itemCardSchema } from "./derive-item";
+import { itemCardSchema } from "./derive-item";
 import type { DerivedItem, ItemCard, ItemSearchText } from "./derive-item";
 import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema } from "./library-nodes";
-import { LIBRARY_CHANGE_KINDS } from "./library-schema";
-import type { LibraryChangeKind } from "./library-schema";
 import { all, chunkStatement, LibraryRowError, run } from "./library-sql";
 import type { SqlPlan, SqlRow, SqlStatement, SqlValue } from "./library-sql";
 
@@ -57,7 +54,7 @@ const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
 // ---- items ----
 
 // an item's row: its fields, and what its body says that the row carries (its card) beside the
-// url key its fields give, so a replica lays a pulled row before the body it describes arrives
+// url key its fields give, so a listing reads the row alone
 export interface ItemRowWrite {
   readonly id: string;
   readonly fields: LibraryItemFields;
@@ -306,7 +303,7 @@ export const readItem = function* readItem(id: string): SqlPlan<StoredItem | nul
   return row === undefined ? null : storedItemOf(row);
 };
 
-// every item that is not purged, by id: what a replica's listing is built from at open
+// every item that is not purged, by id: what the cell's listing is built from
 export const readLiveItems = function* readLiveItems(): SqlPlan<LiveStoredItem[]> {
   const rows = yield all(
     `SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE purged = 0 ORDER BY id`,
@@ -328,8 +325,8 @@ const BLOCK_COLUMNS = "item_id, block_id, ord, section, json, hash, text, seq";
 export const blockWritesOf = (blocks: readonly StoredBlock[], derived: DerivedItem): BlockWrite[] =>
   blocks.map((stored) => ({ stored, text: derived.blocks.get(stored.block.id)?.text ?? "" }));
 
-// each block over its own row only when that row is older, so a pulled page never takes a block
-// back; a write stores each block once, at its own sequence number
+// each block over its own row only when that row is older, so a block is never taken back; a
+// write stores each block once, at its own sequence number
 export const storeBlocks = function* storeBlocks(
   itemId: string,
   blocks: readonly BlockWrite[],
@@ -372,16 +369,6 @@ export const dropBlocks = function* dropBlocks(
       tail: ")",
     }),
   );
-};
-
-// a body as a whole, under the item's row that just landed
-const replaceBlocks = function* replaceBlocks(
-  itemId: string,
-  blocks: readonly BlockWrite[],
-  seq: number,
-): SqlPlan<void> {
-  yield run("DELETE FROM blocks WHERE item_id = ?", [itemId]);
-  yield* storeBlocks(itemId, blocks, seq);
 };
 
 const blockRowSchema = z.object({
@@ -546,31 +533,6 @@ export const storeSearchRow = function* storeSearchRow(
   ]);
 };
 
-// ---- an item's body ----
-
-export interface ItemBodyWrite {
-  readonly id: string;
-  // the sequence the cell sent the body at
-  readonly seq: number;
-  readonly blocks: readonly StoredBlock[];
-}
-
-// an item's body as the cell sent it: laid only under the item's row at that same sequence, so a
-// body older or newer than the row a replica holds lands nothing, and derived from that row's
-// fields with it (its blocks' text, links, tags and index row); whether it landed
-export const storeItemBody = function* storeItemBody(body: ItemBodyWrite): SqlPlan<boolean> {
-  const item = yield* readItem(body.id);
-  if (item?.kind !== "live" || item.seq !== body.seq) {
-    return false;
-  }
-  const blocks = new Map(body.blocks.map((stored) => [stored.block.id, stored]));
-  const derived = deriveItem(item.fields, blocks);
-  yield* replaceBlocks(body.id, blockWritesOf(orderedBlocks(blocks), derived), body.seq);
-  yield* storeDerived(body.id, derived);
-  yield* storeSearchRow(body.id, derived.search);
-  return true;
-};
-
 const COLUMN_WEIGHTS = [
   SEARCH_FIELD_WEIGHTS.title,
   SEARCH_FIELD_WEIGHTS.headings,
@@ -716,71 +678,6 @@ export const linksTo = (targetId: string): SqlPlan<string[]> =>
 // the live items linking to an address, by its url key: a saved link's Linked from
 export const linksToUrl = (key: string): SqlPlan<string[]> =>
   liveSourcesWhere("links.target_key = ?", key);
-
-// ---- the change log ----
-
-export interface ChangeEntry {
-  readonly kind: LibraryChangeKind;
-  readonly id: string;
-  readonly seq: number;
-  readonly gone: boolean;
-}
-
-export const recordChanges = function* recordChanges(
-  entries: readonly ChangeEntry[],
-): SqlPlan<void> {
-  yield* runEach(
-    chunkStatement({
-      each: "(?, ?, ?, ?)",
-      head: "INSERT INTO changes (kind, id, seq, gone) VALUES ",
-      rows: entries.map((entry) => [entry.kind, entry.id, entry.seq, entry.gone ? 1 : 0]),
-      separator: ", ",
-      tail: " ON CONFLICT (kind, id) DO UPDATE SET seq = excluded.seq, gone = excluded.gone",
-    }),
-  );
-};
-
-const changeRowSchema = z.object({
-  gone: z.number(),
-  id: z.string(),
-  kind: z.enum(LIBRARY_CHANGE_KINDS),
-  seq: z.number(),
-});
-
-export interface ChangesPage {
-  readonly changes: readonly ChangeEntry[];
-  // the cursor that page ends at
-  readonly upto: number;
-  readonly more: boolean;
-}
-
-const CHANGES_AFTER =
-  "SELECT kind, id, seq, gone FROM changes WHERE seq > ? ORDER BY seq, kind, id";
-
-const changeOf = (raw: SqlRow): ChangeEntry => {
-  const row = parseRow(raw, changeRowSchema, "a change");
-  return { gone: row.gone === 1, id: row.id, kind: row.kind, seq: row.seq };
-};
-
-// about `limit` changes after `cursor`, never ending inside one write: every change a write
-// stamped with its sequence number rides in the same page
-export const readChanges = function* readChanges(
-  cursor: number,
-  limit: number,
-): SqlPlan<ChangesPage> {
-  const first = (yield all(`${CHANGES_AFTER} LIMIT ?`, [cursor, limit])).map(changeOf);
-  const last = first.at(-1);
-  if (last === undefined) {
-    return { changes: [], more: false, upto: cursor };
-  }
-  const rest = (yield all(
-    "SELECT kind, id, seq, gone FROM changes WHERE seq = ? ORDER BY kind, id",
-    [last.seq],
-  )).map(changeOf);
-  const changes = [...first.filter((entry) => entry.seq < last.seq), ...rest];
-  const after = yield all("SELECT seq FROM changes WHERE seq > ? LIMIT 1", [last.seq]);
-  return { changes, more: after.length > 0, upto: last.seq };
-};
 
 // ---- meta ----
 

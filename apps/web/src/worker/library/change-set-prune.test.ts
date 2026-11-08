@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  blocksOf,
   cellOf,
   clockAt,
   createItem,
@@ -101,8 +102,7 @@ describe("the change-set prune", () => {
       expect(versions()).toBe(2);
       const answer = landedValue(library.undo(person(), { changeSetIds: [agentSet(state)] }));
       expect(answer.reverted).toStrictEqual([itemId]);
-      const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([later, second]);
+      expect(blocksOf(library, itemId)).toStrictEqual([later, second]);
     });
   });
 

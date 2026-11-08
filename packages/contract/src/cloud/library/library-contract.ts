@@ -1,8 +1,8 @@
 // The library's procedures, the account's library cell their one implementation and
-// `/v1/rpc/library` serving every one. The apps call the rows their replicas and screens need; an
-// agent calls the rows tagged as tools, a connected assistant through the connector and the
-// built-in agent in the cell, and the apps call only a few of those. A write takes an optional
-// `opId`, which the cell keeps, so the outbox resending after a lost answer lands once. Which of
+// `/v1/rpc/library` serving every one. The apps call the rows their screens need; an agent calls
+// the rows tagged as tools, a connected assistant through the connector and the built-in agent in
+// the cell, and the apps call only a few of those. A write takes an optional `opId`, which the
+// cell keeps, so a save queue resending after a lost answer lands once. Which of
 // these an agent sees as a tool, and how it is titled, is the Worker's to decorate
 // (apps/web/src/worker/connector/library-tools.ts); nothing here names MCP or OpenAPI.
 
@@ -27,11 +27,9 @@ import {
 } from "../v1-errors";
 import {
   agentViewContextSchema,
-  BODY_IDS_MAX,
   BULK_ITEMS_MAX,
   changeSetSchema,
   cursorSchema,
-  epochSchema,
   eventIdSchema,
   folderNameSchema,
   folderOpSchema,
@@ -42,7 +40,6 @@ import {
   importJobSchema,
   itemReadSchema,
   itemSummarySchema,
-  libraryChangeSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
   folderRowSchema,
@@ -97,39 +94,6 @@ const folderPathSchema = z
 const folderTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
   .nullable();
-
-const syncContract = {
-  // the change log after `cursor`, about a thousand rows a page and never ending inside one write;
-  // `reset` when the library is not the one `epoch` names, so the replica starts over from 0
-  pull: signedBase
-    .input(z.strictObject({ cursor: seqSchema, epoch: epochSchema.nullable() }))
-    .output(
-      z.discriminatedUnion("kind", [
-        z.object({
-          changes: z.array(libraryChangeSchema),
-          epoch: epochSchema,
-          kind: z.literal("changes"),
-          more: z.boolean(),
-          upto: seqSchema,
-        }),
-        z.object({ epoch: epochSchema, kind: z.literal("reset") }),
-      ]),
-    ),
-
-  // items' bodies in the order asked, about 4 MB an answer and at least one; `deferred` waits for
-  // the next ask, and `gone` names items with no body to send
-  bodies: signedBase
-    .input(z.strictObject({ ids: z.array(idSchema).min(1).max(BODY_IDS_MAX) }))
-    .output(
-      z.object({
-        bodies: z.array(
-          z.object({ blocks: z.array(storedBlockSchema), id: idSchema, seq: seqSchema }),
-        ),
-        deferred: z.array(idSchema),
-        gone: z.array(idSchema),
-      }),
-    ),
-};
 
 const itemsContract = {
   list: signedBase
@@ -598,8 +562,8 @@ export const libraryContract = {
   listing: listingContract,
   organize: organizeContract,
 
-  // full-text search over titles, notes and saved articles; the app searches its own replica, so
-  // this answers agents
+  // full-text search over titles, notes and saved articles, for agents; the apps search through
+  // `listing.page`'s words
   search: signedBase
     .input(
       z.strictObject({
@@ -615,8 +579,6 @@ export const libraryContract = {
       }),
     )
     .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
-
-  sync: syncContract,
 
   // one item's ops, guarded block by block and field by field: it lands
   // whole or answers every conflict. `write`, not `apply`: a client's path is a function's

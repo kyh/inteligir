@@ -1,17 +1,15 @@
 // A conversation's events as the cell keeps them: each one of the contract's own union
-// (`@repo/contract/cloud/library/agent-events`), stored once as a synced row of the thread, so every
-// device pulls it as it pulls items, and told to the account's sockets once it commits. An event a
+// (`@repo/contract/cloud/library/agent-events`), stored once as a row of the thread, which a read of
+// the thread's events answers, and told to the account's sockets once it commits. An event a
 // thread's object pushed is named by that push's sequence and its place in it, the person's
 // message that opened a turn by the turn.
 
 import type { AgentEvent } from "@repo/contract/cloud/library/agent-events";
 import type { threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
-import { recordChanges } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import type { LandingScope } from "../library/cell-landing";
-import { threadEventRowOf } from "../library/cell-sync";
+import { threadEventRowOf } from "../library/cell-threads";
 
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
@@ -52,7 +50,6 @@ export const storeEvent = (
       seq,
     ],
   );
-  runPlan(storage, recordChanges([{ gone: false, id: eventId, kind: "thread_event", seq }]));
   scope.moved.thread(threadId);
   return threadEventRowOf(storage, eventId);
 };

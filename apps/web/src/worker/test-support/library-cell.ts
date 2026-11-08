@@ -6,6 +6,9 @@ import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-so
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+import { readBlocks, readItem } from "@repo/notes/library/library-queries";
+import type { StoredItem } from "@repo/notes/library/library-queries";
+import { runPlan } from "@repo/notes/library/library-sql";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 
@@ -166,3 +169,13 @@ export const refusalOf = <T>(result: CellResult<T>) => {
   }
   return result.refusal;
 };
+
+// an item's blocks as the cell holds them, in order
+export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[] =>
+  landedValue(library.read((sql) => runPlan(sql, readBlocks(itemId)))).map(
+    (stored) => stored.block,
+  );
+
+// an item's row as the cell holds it, or null for none
+export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>
+  landedValue(library.read((sql) => runPlan(sql, readItem(itemId))));

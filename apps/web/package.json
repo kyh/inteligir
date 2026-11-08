@@ -63,7 +63,6 @@
     "@libsql/client": "^0.18.0",
     "@modelcontextprotocol/client": "catalog:",
     "@repo/agent-skills": "workspace:*",
-    "@repo/library-replica": "workspace:*",
     "@repo/messages-fake": "workspace:*",
     "@repo/workspace": "workspace:*",
     "@rolldown/plugin-babel": "catalog:",

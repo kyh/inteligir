@@ -6,13 +6,12 @@ import {
   chunkStatement,
   run,
   runPlan,
-  runPlanAsync,
   SQL_MAX_PARAMS,
   SQL_MAX_STATEMENT_BYTES,
 } from "./library-sql";
 import type { RepeatedStatement, SqlPlan, SqlValue } from "./library-sql";
 import { mulberry32 } from "../test-support/seeded-random";
-import { asyncPortOf, openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
+import { openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
 
 const placeholders = (width: number): string =>
   `(${Array.from({ length: width }, () => "?").join(", ")})`;
@@ -96,18 +95,16 @@ const broken = function* broken(): SqlPlan<void> {
   throw new Error("stop");
 };
 
-describe("the plan runners", () => {
-  it("drive one plan over the synchronous port and the asynchronous one alike", async () => {
+describe(runPlan, () => {
+  it("drives a plan over the port, handing each statement its rows", () => {
     expect(runPlan(openWasmSqlPort(), counting())).toBe(3);
-    await expect(runPlanAsync(asyncPortOf(openWasmSqlPort()), counting())).resolves.toBe(3);
   });
 
-  it("throw an engine's refusal into the plan at its yield", async () => {
+  it("throws an engine's refusal into the plan at its yield", () => {
     expect(runPlan(openWasmSqlPort(), failing())).toBe("refused");
-    await expect(runPlanAsync(asyncPortOf(openWasmSqlPort()), failing())).resolves.toBe("refused");
   });
 
-  it("land nothing of a transaction that throws", () => {
+  it("lands nothing of a transaction that throws", () => {
     const port = openWasmSqlPort();
     runPlan(port, counting());
     expect(() => {

@@ -356,7 +356,7 @@ describe("a page's reading, landed", () => {
         sentence: "x".repeat(20_000),
         url,
       }),
-    ).resolves.toStrictEqual({ head: null, moved: null, ok: true, value: { kind: "stale" } });
+    ).resolves.toStrictEqual({ moved: null, ok: true, value: { kind: "stale" } });
     const fields = await inCell(
       cellOf(accountId),
       (state) => stateOf(state, saved.item.id)?.fields,

@@ -36,6 +36,7 @@ import {
   cellOf,
   createItem,
   inCell,
+  landedValue,
   noteFields,
   paragraph,
   person,
@@ -119,9 +120,9 @@ const signedInTab = async (email: string) => {
   return { cookie, opened: await openWithTicket(ticket) };
 };
 
-// a write through the cell's engine, followed by what follows every committed write: the head it
-// moved the library to, and the item it made
-const writeInCell = async (accountId: string): Promise<{ head: number; id: string }> =>
+// a write through the cell's engine, followed by what follows every committed write: the item it
+// made, at the sequence it holds
+const writeInCell = async (accountId: string): Promise<{ id: string; seq: number }> =>
   await inCell(cellOf(accountId), async (state) => {
     const library = openCellLibrary(state, env);
     const id = crypto.randomUUID();
@@ -131,13 +132,12 @@ const writeInCell = async (accountId: string): Promise<{ head: number; id: strin
       id,
     });
     await settleCommit(state, env, library, result);
-    return { head: result.ok && result.head !== null ? result.head : 0, id };
+    return { id, seq: landedValue(result).item.seq };
   });
 
-// the frames a write that made one item sends
-const itemWritten = ({ head, id }: { head: number; id: string }): LibrarySocketFrame[] => [
-  { head, type: "library" },
-  { folders: false, items: [{ id, seq: head }], threads: [], type: "moved" },
+// the frame a write that made one item sends
+const itemWritten = ({ id, seq }: { id: string; seq: number }): LibrarySocketFrame[] => [
+  { folders: false, items: [{ id, seq }], threads: [], type: "moved" },
 ];
 
 // "open" once `ms` pass with the socket still open, else the code it closed with
@@ -162,7 +162,7 @@ describe("the account's socket", () => {
     const first = await openWithTicket(ticket);
     const second = await openWithTicket(ticket);
     const written = await writeInCell(accountId);
-    await until(() => first.frames.length > 1 && second.frames.length > 1);
+    await until(() => first.frames.length > 0 && second.frames.length > 0);
     expect(first.frames).toStrictEqual(itemWritten(written));
     expect(second.frames).toStrictEqual(itemWritten(written));
     first.socket.send(SOCKET_KEEPALIVE_PING);
@@ -175,9 +175,9 @@ describe("the account's socket", () => {
     const mineSocket = await openWithTicket(mine.ticket);
     const theirSocket = await openWithTicket(theirs.ticket);
     const mineWritten = await writeInCell(mine.accountId);
-    await until(() => mineSocket.frames.length > 1);
+    await until(() => mineSocket.frames.length > 0);
     const theirsWritten = await writeInCell(theirs.accountId);
-    await until(() => theirSocket.frames.length > 1);
+    await until(() => theirSocket.frames.length > 0);
     expect(mineSocket.frames).toStrictEqual(itemWritten(mineWritten));
     expect(theirSocket.frames).toStrictEqual(itemWritten(theirsWritten));
   });
@@ -380,7 +380,7 @@ describe("the account's socket", () => {
     const opened = await openWithTicket(ticket);
     await evictDurableObject(cellOf(accountId), { webSockets: "hibernate" });
     const written = await writeInCell(accountId);
-    await until(() => opened.frames.length > 1);
+    await until(() => opened.frames.length > 0);
     expect(opened.frames).toStrictEqual(itemWritten(written));
   });
 });
@@ -466,18 +466,20 @@ describe("the moved frame", () => {
     const { accountId, login, ticket } = await signedInDevice("moved-fill@example.test");
     const opened = await openWithTicket(ticket);
     const url = "https://pages.example/moved";
-    const saved = await v1Link(deviceHeaders(login.credential)).library.items.saveLink({ url });
+    const { library } = v1Link(deviceHeaders(login.credential));
+    const saved = await library.items.saveLink({ url });
     await until(() => movedOf(opened).length === 1);
-    const landed = await cellOf(accountId).landFill({
+    await cellOf(accountId).landFill({
       itemId: saved.item.id,
       kind: "failed",
       sentence: "The page took too long to answer.",
       url,
     });
     await until(() => movedOf(opened).length === 2);
+    const { seq } = await library.items.get({ id: saved.item.id });
     expect(movedOf(opened)[1]).toStrictEqual({
       folders: false,
-      items: [{ id: saved.item.id, seq: landed.ok ? landed.head : null }],
+      items: [{ id: saved.item.id, seq }],
       threads: [],
       type: "moved",
     });

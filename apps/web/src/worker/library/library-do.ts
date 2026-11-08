@@ -1,5 +1,5 @@
 // The account's library cell: one SQLite Durable Object per account, the only writer of its
-// library and the source every replica pulls from. It holds the library's tables, its change sets
+// library and the source every client reads. It holds the library's tables, its change sets
 // and jobs, and the account's live sockets; its rules are the engine's (`./library-engine`). The
 // Worker reaches it by `ctx.exports.LibraryDO`, under a name a verified credential or the cell
 // itself gave (`./library-cell`); fetch carries what stays a request and its response, a client's
@@ -57,7 +57,6 @@ import {
   acceptSocket,
   CELL_SOCKET_PATH,
   holderFromHeader,
-  pingLibraryMoved,
   severHolder,
   socketHolder,
   tellSockets,
@@ -245,10 +244,6 @@ export class LibraryDO extends DurableObject<Env> {
         tellSockets(this.ctx, EVERYTHING_MOVED);
       }
       await runAgentJobs(this.#agentCell(library));
-      const moved = library.head();
-      if (moved !== head) {
-        pingLibraryMoved(this.ctx, moved);
-      }
       await scheduleAlarm(this.ctx, library);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
@@ -317,7 +312,7 @@ export class LibraryDO extends DurableObject<Env> {
     const parsed = fillLandingSchema.safeParse(landing);
     if (!parsed.success) {
       console.error({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
-      return { head: null, moved: null, ok: true, value: { kind: "stale" } };
+      return { moved: null, ok: true, value: { kind: "stale" } };
     }
     const library = openCellLibrary(this.ctx, this.env);
     return await settleCommit(this.ctx, this.env, library, library.landReading(parsed.data));

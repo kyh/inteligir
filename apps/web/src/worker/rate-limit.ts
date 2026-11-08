@@ -121,9 +121,9 @@ export const RATE_WINDOWS = {
   // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
   // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
   connector: { max: 300, windowMs: 60_000 },
-  // every signed call on /v1/rpc, keyed on the device or the browser session: a replica back from
-  // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
-  // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop
+  // every signed call on /v1/rpc, keyed on the device or the browser session: a screen reads its
+  // pages again on each socket frame, and a phone back online lands its waiting saves a write a
+  // call, which a few hundred calls cover, so a ceiling past that is a loop
   rpc: { max: 1200, windowMs: 60_000 },
 } as const satisfies Record<CallerRateFamily | HolderRateFamily | "connector", RateWindow>;
 

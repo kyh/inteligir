@@ -77,14 +77,9 @@ const closeEach = (sockets: readonly WebSocket[], code: number, reason: string):
   }
 };
 
-// a frame for every socket of the account's: the library's new head, a turn's event
+// a frame for every socket of the account's: what a write moved, a turn's event
 export const tellSockets = (ctx: DurableObjectState, frame: LibrarySocketFrame): void => {
   sendEach(ctx.getWebSockets(), frame);
-};
-
-// the library committed a write
-export const pingLibraryMoved = (ctx: DurableObjectState, head: number): void => {
-  tellSockets(ctx, { head, type: "library" });
 };
 
 // a credential check on the next request does not reach a socket that already has one

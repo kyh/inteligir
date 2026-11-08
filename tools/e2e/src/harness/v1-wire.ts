@@ -3,7 +3,7 @@
 // Worker, which describes no deleted account (`./worker-host.ts`).
 
 import { createHash } from "node:crypto";
-import { createORPCClient } from "@orpc/client";
+import { createORPCClient, isDefinedError, safe } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
@@ -61,29 +61,20 @@ export const readFile = async (
   return await fetch(`${worker.origin}${V1_BLOBS_PATH}/${sha}`, { headers: asked });
 };
 
-// an item's every field as the change log last wrote it, read the way a replica pulls it, or null
-// for an item it holds no live row of
+// an item's every field as the cell holds it, read the way an app opens it, or null for an item it
+// holds no live row of
 export const itemFieldsOf = async (
   library: V1Client["library"],
   id: string,
 ): Promise<LibraryItemFields | null> => {
-  let fields: LibraryItemFields | null = null;
-  let cursor = 0;
-  for (;;) {
-    const page = await library.sync.pull({ cursor, epoch: null });
-    if (page.kind === "reset") {
-      throw new Error("the change log answered a reset to a pull from its start");
-    }
-    for (const change of page.changes) {
-      if (change.kind === "item" && change.id === id) {
-        fields = change.row.kind === "live" ? change.row.fields : null;
-      }
-    }
-    if (!page.more) {
-      return fields;
-    }
-    cursor = page.upto;
+  const [error, item] = await safe(library.items.get({ id }));
+  if (isDefinedError(error) && error.code === "NOT_FOUND") {
+    return null;
   }
+  if (error !== null) {
+    throw error;
+  }
+  return item.fields;
 };
 
 const accountIdSchema = z.object({ accountId: z.string().nullable() });

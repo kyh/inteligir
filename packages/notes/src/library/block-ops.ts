@@ -1,8 +1,7 @@
 // What a write is: ops over one item's blocks and fields, each naming the base it was computed
 // from. The guard lands an op only where its base still holds, so two writers touching different
 // blocks or fields never meet, and one whose base moved meets the block or value as it is now.
-// The cell applies a batch whole or answers every conflict; a device's outbox rebases its queued
-// ops over what landed, dropping the ones already true and keeping the rest for its merge.
+// The cell applies a batch whole or answers every conflict, and an op already true is satisfied.
 
 import { z } from "zod";
 

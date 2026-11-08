@@ -2,15 +2,14 @@
 // cell's SQLite, each write one `transactionSync`. It holds no state of its own, so the Durable
 // Object opens it per call over its storage, and a test opens it over the same storage with its
 // own clock. A write takes the library's next sequence number once, stamps every row it touches
-// and the change log with it, joins its actor's change set, and keeps its answer under its `opId`
-// for 30 days, so an outbox resending after a lost answer is told what landed.
+// with it, joins its actor's change set, and keeps its answer under its `opId` for 30 days, so a
+// client resending after a lost answer is told what landed.
 
 import { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
 import {
   nextHead,
   readItem,
   readMeta,
-  recordChanges,
   storeTombstone,
   writeMeta,
 } from "@repo/notes/library/library-queries";
@@ -47,8 +46,6 @@ import { collectMoved } from "./cell-moved";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
-import { libraryHead, pullChanges, readBodies } from "./cell-sync";
-import type { BodiesAnswer, PullAnswer } from "./cell-sync";
 import { undoChangeSets } from "./cell-undo";
 import { landWrite } from "./cell-writes";
 import type { ItemWrite } from "./cell-writes";
@@ -112,6 +109,13 @@ const undoSchema = z.object({
 
 const answerRowSchema = z.object({ answer: z.string() });
 const deletedAtSchema = z.number().int().nonnegative();
+const headSchema = z.number().int().nonnegative();
+
+// the last sequence number a write took, 0 before the first
+export const libraryHead = (sql: SqlStatements): number => {
+  const head = runPlan(sql, readMeta("head"));
+  return head === null ? 0 : headSchema.parse(head);
+};
 
 const PAYLOADS = {
   seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
@@ -169,7 +173,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         const now = deps.now();
         const prior = request.opId === undefined ? null : priorAnswer(request.opId, request.answer);
         if (prior !== null) {
-          return { head: null, moved: null, ok: true, value: prior };
+          return { moved: null, ok: true, value: prior };
         }
         const taken: Taken = { seq: null, set: null };
         const moved = collectMoved();
@@ -200,7 +204,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           ]);
           ensureJob(storage, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
-        return { head: taken.seq, moved: moved.frame(), ok: true, value };
+        return { moved: moved.frame(), ok: true, value };
       });
     } catch (error) {
       if (error instanceof RefusedWriteError) {
@@ -253,7 +257,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
         dropItemBlobs(storage, id, scope.now);
-        runPlan(storage, recordChanges([{ gone: false, id, kind: "item", seq }]));
         scope.moved.item(id, seq);
         purged.push(id);
       }
@@ -360,7 +363,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { ok: false, refusal: { kind: "gone" } };
     }
     try {
-      return { head: null, moved: null, ok: true, value: storage.transaction(read) };
+      return { moved: null, ok: true, value: storage.transaction(read) };
     } catch (error) {
       if (error instanceof RefusedWriteError) {
         return { ok: false, refusal: error.refusal };
@@ -381,12 +384,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const fillWanted = (itemId: string, url: string): CellResult<boolean> =>
     reading(() => fillWaits(storage, itemId, url));
-
-  const pull = (request: { readonly cursor: number; readonly epoch: string | null }) =>
-    reading((): PullAnswer => pullChanges(storage, request));
-
-  const bodies = (itemIds: readonly string[]) =>
-    reading((): BodiesAnswer => readBodies(storage, itemIds));
 
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
@@ -447,7 +444,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     answered,
     beginStrayRemovals,
     blobRemovals: () => blobRemovals(storage),
-    bodies,
     claimDueFills,
     closeChangeSet,
     deletedAt,
@@ -462,7 +458,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
     // the deletion's retry wipes it
     nextJobAt: () => (deletedAt() === null ? nextJobAt(storage) : null),
-    pull,
     purgeItems,
     read,
     reserve,
