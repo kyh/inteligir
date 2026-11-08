@@ -1,24 +1,32 @@
 // the dev build of the extension in a real Chromium against a booted Worker, as a store build
-// saves to the cloud: connected by the site's own connect page, a save of a page lands read, a
-// second save says the page is already in the library, and a save made while the cloud cannot be reached waits in the extension and is sent by
-// its alarm once the cloud answers again. The Worker is reached through a relay the scenario cuts,
-// as a laptop loses its network; the page is a fixture served on loopback, which the dev build may
-// script without a click, as activeTab lets a person's click do on any page.
+// saves to the cloud: it rides the browser's sign-in to the site, which the connect page points it
+// at; a save of a page lands read, a second save says the page is already in the library, and a
+// save made while the cloud cannot be reached waits in the extension and is sent by its alarm once
+// the cloud answers again. A session the account signs out from another device, and a sign-out on
+// the site, each leave the extension signed out with what it saves waiting, sent once the browser
+// signs in again. The Worker is reached through a relay the scenario cuts, as a laptop loses its
+// network; the page is a fixture served on loopback, which the dev build may script without a
+// click, as activeTab lets a person's click do on any page.
 
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { once } from "node:events";
 import { z } from "zod";
+import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import {
   asLocalhost,
   connectExtension,
+  extensionAccount,
   extensionLaunchFlags,
   extensionPage,
   queuedSaves,
   saveFromWorker,
+  sessionBearerOf,
+  signInOnSite,
+  signOutOnSite,
 } from "../harness/extension-fixture";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -26,6 +34,8 @@ import { v1Client } from "../harness/v1-wire";
 
 const ARTICLE_PATH = "/essays/file-over-app";
 const LATER_PATH = "/essays/read-it-later";
+const REVOKED_PATH = "/essays/signed-out-elsewhere";
+const SIGNED_OUT_PATH = "/essays/signed-out-here";
 const TITLE = "File over app";
 const PASSAGE = "Apps are ephemeral, and the files they write outlast every one of them.";
 const DEADLINE_MS = 60_000;
@@ -51,6 +61,14 @@ const startPages = async (): Promise<{ server: Server; origin: string }> => {
   const pages = new Map([
     [ARTICLE_PATH, pageOf(TITLE, PASSAGE)],
     [LATER_PATH, pageOf("Read it later", "A page saved while the cloud was out of reach.")],
+    [
+      REVOKED_PATH,
+      pageOf("Signed out elsewhere", "A page saved after another device signed this browser out."),
+    ],
+    [
+      SIGNED_OUT_PATH,
+      pageOf("Signed out here", "A page saved after the site signed this browser out."),
+    ],
   ]);
   const server = createServer((request, response) => {
     const page = pages.get(request.url ?? "");
@@ -65,34 +83,60 @@ const startPages = async (): Promise<{ server: Server; origin: string }> => {
   return { origin: `http://127.0.0.1:${String(port)}`, server };
 };
 
+// the page open in a tab, then an extension page in front, from which the save is asked
+const saveInTab = async (browser: AgentBrowser, page: string) => {
+  await browser(["tab", "new", page], DEADLINE_MS);
+  await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
+  return await saveFromWorker(browser, page);
+};
+
+// what the extension keeps waiting has all gone, within the alarm's two turns
+const untilNothingWaits = async (browser: AgentBrowser, deadlineMs: number): Promise<void> => {
+  await pollUntil(
+    async () => await queuedSaves(browser),
+    (queued) => queued.length === 0,
+    {
+      deadlineMs,
+      describe: (queued) => `the save still waits: ${JSON.stringify(queued)}`,
+      intervalMs: 2000,
+    },
+  );
+};
+
 export const browserExtension: Scenario = {
   description:
-    "the dev extension in a real Chromium, connected by the site's connect page, saves a page read, says a second save is already saved, and queues a save the cloud could not take and sends it once the cloud answers",
+    "the dev extension in a real Chromium rides the browser's sign-in: it saves a page read, says a second save is already saved, queues a save the cloud could not take and sends it once the cloud answers, and a session ended elsewhere or a sign-out on the site leaves it signed out, its saves waiting until the browser signs in again",
   name: "browser-extension",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
-    await signUp(worker.origin);
+    const owner = await signUp(worker.origin);
     const link = await ctx.cloudLink(worker);
     const cloud = asLocalhost(link.origin);
-    const device = await v1Client(worker, null).account.signIn({
-      ...OWNER,
-      deviceName: "E2E Oracle",
-    });
-    const { library } = v1Client(worker, device.credential);
+    // the account's own session, called through the extension's door, so the oracle needs no
+    // credential of its own
+    const { account, library } = v1Client(worker, sessionBearerOf(owner.cookie));
+    const landed = async (url: string): Promise<boolean> => {
+      const { items } = await library.items.list({ kind: "link" });
+      return items.some((item) => item.url === url);
+    };
     const pages = await startPages();
     try {
       const browser = await ctx.browser("extension", {
         launchFlags: extensionLaunchFlags(ctx),
       });
 
-      ctx.log("signed in on the site, the connect page hands the extension its credential");
+      ctx.log("signed in on the site, the connect page points the extension at the account");
       await connectExtension(browser, cloud);
+      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
+      expectEq(
+        await extensionAccount(browser),
+        OWNER.email,
+        "the account the extension says it saves to",
+      );
 
       ctx.log("a save of the page lands read");
       const article = `${pages.origin}${ARTICLE_PATH}`;
-      await browser(["open", article], DEADLINE_MS);
-      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
-      const first = await saveFromWorker(browser, article);
+      const first = await saveInTab(browser, article);
       expectEq(first, { created: true, kind: "saved", title: TITLE }, "the first save's answer");
       const { items } = await library.items.list({ kind: "link" });
       const saved = items.find((item) => item.url === article);
@@ -114,10 +158,8 @@ export const browserExtension: Scenario = {
       ctx.log("with the cloud out of reach, a save waits in the extension as its address alone");
       await link.cut();
       const laterPage = `${pages.origin}${LATER_PATH}`;
-      await browser(["tab", "new", laterPage], DEADLINE_MS);
-      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
-      const offline = await saveFromWorker(browser, laterPage);
-      expectEq(offline, { kind: "queued" }, "the offline save's answer");
+      const offline = await saveInTab(browser, laterPage);
+      expectEq(offline, { kind: "queued", waitsFor: "connection" }, "the offline save's answer");
       const waiting = await queuedSaves(browser);
       expectEq(
         waiting.map((save) => save.url),
@@ -127,23 +169,55 @@ export const browserExtension: Scenario = {
 
       ctx.log("the cloud answers again, and the alarm sends what waited");
       await link.restore();
-      await pollUntil(
-        async () => await queuedSaves(browser),
-        (queued) => queued.length === 0,
-        {
-          deadlineMs: RESENT_DEADLINE_MS,
-          describe: (queued) => `the save still waits: ${JSON.stringify(queued)}`,
-          intervalMs: 2000,
-        },
+      await untilNothingWaits(browser, RESENT_DEADLINE_MS);
+      expect(await landed(laterPage), "the waited save landed");
+
+      ctx.log("the account signs this browser out from another device, and a save waits for it");
+      const { devices } = await account.devices.list();
+      const others = devices.filter((device) => !device.current && device.revokedAt === null);
+      expect(others.length > 0, `the browser's session is listed: ${JSON.stringify(devices)}`);
+      for (const other of others) {
+        await account.devices.revoke({ id: other.id });
+      }
+      const revokedPage = `${pages.origin}${REVOKED_PATH}`;
+      const revoked = await saveInTab(browser, revokedPage);
+      expectEq(revoked, { kind: "queued", waitsFor: "sign-in" }, "a save after the session ended");
+      const waitingForSignIn = await queuedSaves(browser);
+      expectEq(
+        waitingForSignIn.map((save) => [save.email, save.url]),
+        [[OWNER.email, revokedPage]],
+        "what waits for the sign-in",
       );
-      const after = await library.items.list({ kind: "link" });
-      expect(
-        after.items.some((item) => item.url === laterPage),
-        `the waited save landed: ${JSON.stringify(after.items)}`,
+      expectEq(await extensionAccount(browser), null, "the extension's account");
+
+      ctx.log("signed in and connected again, the save that waited goes");
+      await connectExtension(browser, cloud);
+      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
+      await untilNothingWaits(browser, DEADLINE_MS);
+      expect(await landed(revokedPage), "the save made signed out landed");
+
+      ctx.log("a sign-out on the site signs the extension out, and a save waits unread");
+      await signOutOnSite(browser, cloud);
+      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
+      expectEq(await extensionAccount(browser), null, "the extension's account");
+      const signedOutPage = `${pages.origin}${SIGNED_OUT_PATH}`;
+      const signedOut = await saveInTab(browser, signedOutPage);
+      expectEq(signedOut, { kind: "queued", waitsFor: "sign-in" }, "a save after the sign-out");
+
+      ctx.log("signing in on the site again sends it by the alarm, with no connect asked");
+      await signInOnSite(browser, cloud);
+      await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
+      await untilNothingWaits(browser, RESENT_DEADLINE_MS);
+      expect(await landed(signedOutPage), "the save made after the sign-out landed");
+      expectEq(
+        await extensionAccount(browser),
+        OWNER.email,
+        "the account the extension saves to again",
       );
     } finally {
       pages.server.close();
     }
   },
-  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
+  // it waits on the alarm three times, past the two minutes a scenario's own work is given
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + 2 * RESENT_DEADLINE_MS,
 };

@@ -1,10 +1,10 @@
-// The dev build of the extension in a scenario's own browser, a profile of its own, connected to a
-// booted Worker's account as a person connects it: signed in on the site's own sign-in, which comes
-// back to the connect page, and Connect clicked there, so the site hands the extension its
-// credential through externally_connectable. The Worker is reached as `localhost`, the host the dev
-// build's manifest lets message it, and one no host permission names, so the extension's calls
-// meet CORS as a store build's do; its fixture pages are served on 127.0.0.1, which the dev build
-// may script without a click.
+// The dev build of the extension in a scenario's own browser, a profile of its own, riding the
+// browser's sign-in to a booted Worker's site as a person's does: signed in on the site's own
+// sign-in, which comes back to the connect page, and Connect clicked there, so the extension learns
+// the site through externally_connectable and reads the session cookie the sign-in left in the
+// browser's jar. The Worker is reached as `localhost`, the dev build's one cloud host and the page
+// its manifest lets message it; its fixture pages are served on 127.0.0.1, which the dev build may
+// script without a click.
 
 import path from "node:path";
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
@@ -12,6 +12,7 @@ import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity"
 import { z } from "zod";
 import { clickButtonIn, parseEval, untilBodyHolds } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";
+import { expect, expectEq } from "./assert";
 import { OWNER } from "./cloud-account";
 import { SUBMIT_READY } from "./selectors";
 
@@ -37,11 +38,22 @@ export const asLocalhost = (origin: string): string => {
   return url.origin;
 };
 
-// signs the browser in on the site at `cloudOrigin` and connects the extension there
-export const connectExtension = async (
-  browser: AgentBrowser,
-  cloudOrigin: string,
-): Promise<void> => {
+// what the extension sends `/v1` for a browser holding `cookie`, a sign-up's or a sign-in's: the
+// session cookie's own signed value as the bearer, so an oracle calls through the extension's door
+export const sessionBearerOf = (cookie: string): string => {
+  const token = cookie
+    .split("; ")
+    .find((pair) => pair.split("=")[0]?.endsWith("better-auth.session_token") === true)
+    ?.split("=")
+    .slice(1)
+    .join("=");
+  expect(token !== undefined && token !== "", `no session cookie in ${cookie}`);
+  return token;
+};
+
+// signs the browser in on the site at `cloudOrigin`, as a person does, and lands on the connect
+// page, which the sign-in comes back to
+export const signInOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
   const next = new URLSearchParams({ next: CONNECT_EXTENSION_PATH }).toString();
   await browser(["open", `${cloudOrigin}/app/sign-in?${next}`], 60_000);
   await browser(["wait", "#email"], 60_000);
@@ -50,19 +62,56 @@ export const connectExtension = async (
   await browser(["wait", SUBMIT_READY], 60_000);
   await browser(["click", SUBMIT_READY]);
   await untilBodyHolds(browser, ["Connect the browser extension"], 60_000);
+};
+
+// signs the browser in on the site at `cloudOrigin` and connects the extension there
+export const connectExtension = async (
+  browser: AgentBrowser,
+  cloudOrigin: string,
+): Promise<void> => {
+  await signInOnSite(browser, cloudOrigin);
   await clickButtonIn(browser, "main", "Connect");
   await untilBodyHolds(browser, ["Connected."], 60_000);
+};
+
+// signs the browser out on the site at `cloudOrigin` through Better Auth's own sign-out, as the
+// site's Sign out does, which ends the session and clears its cookie from the jar
+export const signOutOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
+  await browser(["open", `${cloudOrigin}/about`], 60_000);
+  const status = parseEval(
+    await browser(
+      [
+        "eval",
+        `(async () => {
+          const response = await fetch("/api/auth/sign-out", {
+            body: "{}",
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          });
+          return String(response.status);
+        })()`,
+      ],
+      30_000,
+    ),
+    z.string(),
+  );
+  expectEq(status, "200", "the site's sign-out");
 };
 
 // what the extension's pages hear from its worker (apps/extension/src/messages.ts)
 const extensionOutcomeSchema = z.discriminatedUnion("kind", [
   z.object({ created: z.boolean(), kind: z.literal("saved"), title: z.string() }),
-  z.object({ kind: z.literal("queued") }),
+  z.object({ kind: z.literal("queued"), waitsFor: z.enum(["connection", "sign-in"]) }),
   z.object({ kind: z.literal("refused"), reason: z.string() }),
   // the eval's own answer when the article's tab is not open
   z.object({ kind: z.literal("no-tab") }),
 ]);
 export type ExtensionOutcome = z.infer<typeof extensionOutcomeSchema>;
+
+const extensionStatusSchema = z.object({
+  account: z.object({ email: z.string(), libraryUrl: z.string() }).nullable(),
+  signInUrl: z.string(),
+});
 
 // from an extension page, as the popup asks: the worker reads the tab at `pageUrl` (a loopback
 // page, which the dev build may script without a click) and saves it
@@ -85,7 +134,25 @@ export const saveFromWorker = async (
     extensionOutcomeSchema,
   );
 
-const queuedSchema = z.array(z.looseObject({ title: z.string(), url: z.string() }));
+// from an extension page, as the popup and the welcome page ask: the account whose library the
+// browser saves to, as the cloud reads the browser's session, or null when it is signed out
+export const extensionAccount = async (browser: AgentBrowser): Promise<string | null> => {
+  const status = parseEval(
+    await browser(
+      [
+        "eval",
+        `(async () => JSON.stringify(await chrome.runtime.sendMessage({ type: "status" })))()`,
+      ],
+      60_000,
+    ),
+    extensionStatusSchema,
+  );
+  return status.account?.email ?? null;
+};
+
+const queuedSchema = z.array(
+  z.looseObject({ email: z.string(), title: z.string(), url: z.string() }),
+);
 
 // the saves the worker keeps waiting, as its storage holds them, from an extension page
 export const queuedSaves = async (browser: AgentBrowser) =>
