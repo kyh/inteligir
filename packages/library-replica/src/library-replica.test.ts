@@ -11,9 +11,9 @@ import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
 import type { LibraryReplica } from "./library-replica";
 import type { BlockMerge, ReplicaTransport } from "./replica-ports";
-import { deferred, nextTurn } from "./test-support/deferred";
-import { createFakeCell } from "./test-support/fake-cell";
-import type { FakeCell, FakeDevice } from "./test-support/fake-cell";
+import { deferred, nextTurn } from "@repo/contract/test-support/deferred";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { openDevice, paragraph, relaunch, textOf } from "./test-support/replica-harness";
 import type { TestDevice } from "./test-support/replica-harness";
 

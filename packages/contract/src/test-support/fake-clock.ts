@@ -1,7 +1,7 @@
 // A clock the suites move by hand: `now` stands still until `advance` moves it, running each timer
 // that comes due on the way, in the order they come due.
 
-import type { ReplicaClock } from "../replica-ports";
+import type { Clock } from "../cloud/library/account-socket";
 
 interface Timer {
   readonly at: number;
@@ -9,7 +9,7 @@ interface Timer {
   readonly run: () => void;
 }
 
-export interface FakeClock extends ReplicaClock {
+export interface FakeClock extends Clock {
   readonly advance: (ms: number) => void;
   // the timers still waiting
   readonly pending: () => number;

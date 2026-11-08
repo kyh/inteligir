@@ -66,7 +66,7 @@ export const liveFolders = (sql: SqlStatements): FolderRow[] =>
 
 const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === null ? row : null);
 
-const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): void => {
+const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRow => {
   const seq = scope.seq();
   scope.storage.run(
     `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
@@ -75,6 +75,8 @@ const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): void => 
     [row.id, row.parentId, row.name, row.sort, row.deletedAt, seq],
   );
   runPlan(scope.storage, recordChanges([{ gone: false, id: row.id, kind: "folder", seq }]));
+  scope.moved.folder();
+  return { ...row, seq };
 };
 
 const conflictOf = (id: string, current: FolderRow | null): ConflictCurrent => ({
@@ -187,54 +189,57 @@ const subtreeOf = (sql: SqlStatements, root: FolderRow): FolderRow[] => {
   return found;
 };
 
-const landOp = (scope: LandingScope, op: FolderOp): void => {
+// the rows the op changed, none for an op already true
+const landOp = (scope: LandingScope, op: FolderOp): FolderRow[] => {
   const { storage } = scope;
   const held = readFolder(storage, op.id);
   switch (op.op) {
     case "create": {
-      if (held === null) {
-        storeFolder(scope, {
-          deletedAt: null,
-          id: op.id,
-          name: op.name,
-          parentId: op.parentId,
-          sort: op.sort,
-        });
-      }
-      break;
+      return held === null
+        ? [
+            storeFolder(scope, {
+              deletedAt: null,
+              id: op.id,
+              name: op.name,
+              parentId: op.parentId,
+              sort: op.sort,
+            }),
+          ]
+        : [];
     }
     case "rename": {
-      if (held !== null && held.name !== op.name) {
-        storeFolder(scope, { ...held, name: op.name });
-      }
-      break;
+      return held !== null && held.name !== op.name
+        ? [storeFolder(scope, { ...held, name: op.name })]
+        : [];
     }
     case "move": {
-      if (held !== null && (held.parentId !== op.parentId || held.sort !== op.sort)) {
-        storeFolder(scope, { ...held, parentId: op.parentId, sort: op.sort });
-      }
-      break;
+      return held !== null && (held.parentId !== op.parentId || held.sort !== op.sort)
+        ? [storeFolder(scope, { ...held, parentId: op.parentId, sort: op.sort })]
+        : [];
     }
     case "delete": {
       const current = live(held);
-      if (current !== null) {
-        for (const folder of subtreeOf(storage, current)) {
-          storeFolder(scope, { ...folder, deletedAt: scope.now });
-        }
-      }
-      break;
+      return current === null
+        ? []
+        : subtreeOf(storage, current).map((folder) =>
+            storeFolder(scope, { ...folder, deletedAt: scope.now }),
+          );
     }
     // no default
   }
 };
 
-// every op in order, each against the tree the ones before it left; any conflict lands none
-export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): void => {
+// every op in order, each against the tree the ones before it left; any conflict lands none. The
+// answer is each folder the write changed, as it left it
+export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): FolderRow[] => {
   const conflicts: ConflictCurrent[] = [];
+  const landed = new Map<string, FolderRow>();
   for (const op of ops) {
     const conflict = opConflict(scope.storage, op);
     if (conflict === null) {
-      landOp(scope, op);
+      for (const row of landOp(scope, op)) {
+        landed.set(row.id, row);
+      }
     } else {
       conflicts.push(conflict);
     }
@@ -242,6 +247,7 @@ export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): voi
   if (conflicts.length > 0) {
     refuse({ current: conflicts, kind: "conflict" });
   }
+  return [...landed.values()];
 };
 
 // the folder a target names, the folders a path names made where they are missing, each name cut

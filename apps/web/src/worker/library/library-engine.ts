@@ -43,6 +43,7 @@ import { importsRunning } from "./cell-import-jobs";
 import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
+import { collectMoved } from "./cell-moved";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -168,11 +169,13 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         const now = deps.now();
         const prior = request.opId === undefined ? null : priorAnswer(request.opId, request.answer);
         if (prior !== null) {
-          return { head: null, ok: true, value: prior };
+          return { head: null, moved: null, ok: true, value: prior };
         }
         const taken: Taken = { seq: null, set: null };
+        const moved = collectMoved();
         const scope: LandingScope = {
           bytesCap,
+          moved,
           now,
           seq: () => {
             taken.seq ??= runPlan(storage, nextHead());
@@ -197,7 +200,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           ]);
           ensureJob(storage, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
-        return { head: taken.seq, ok: true, value };
+        return { head: taken.seq, moved: moved.frame(), ok: true, value };
       });
     } catch (error) {
       if (error instanceof RefusedWriteError) {
@@ -251,6 +254,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         }
         dropItemBlobs(storage, id, scope.now);
         runPlan(storage, recordChanges([{ gone: false, id, kind: "item", seq }]));
+        scope.moved.item(id, seq);
         purged.push(id);
       }
       return { missing, purged };
@@ -356,7 +360,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { ok: false, refusal: { kind: "gone" } };
     }
     try {
-      return { head: null, ok: true, value: storage.transaction(read) };
+      return { head: null, moved: null, ok: true, value: storage.transaction(read) };
     } catch (error) {
       if (error instanceof RefusedWriteError) {
         return { ok: false, refusal: error.refusal };

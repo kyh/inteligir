@@ -31,7 +31,7 @@ import { all, run, runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-import type { CallFailure } from "./call-outcome";
+import type { CallFailure } from "@repo/contract/cloud/library/call-outcome";
 import { createFoldedMakes } from "./folded-makes";
 import { itemIdsOf } from "./outbox-ops";
 import { createOutbox } from "./outbox";
@@ -58,8 +58,8 @@ import {
   wipeSynced,
 } from "./replica-rows";
 import type { Touched } from "./replica-rows";
-import { createSocketHint } from "./replica-socket";
-import type { SocketHint } from "./replica-socket";
+import { createSocketHint } from "@repo/contract/cloud/library/account-socket";
+import type { SocketHint } from "@repo/contract/cloud/library/account-socket";
 import { serialLock } from "./serial-lock";
 
 export type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
@@ -456,6 +456,10 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   };
 
   const onFrame = (frame: LibrarySocketFrame): void => {
+    // the head frame beside every moved frame is what the replica pulls on
+    if (frame.type === "moved") {
+      return;
+    }
     if (frame.type === "library") {
       if (frame.head > status.cursor) {
         kick();

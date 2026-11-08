@@ -1061,6 +1061,9 @@ importers:
       '@kyh/tsconfig':
         specifier: 'catalog:'
         version: 1.3.0
+      '@noble/hashes':
+        specifier: 'catalog:'
+        version: 2.4.0
       '@orpc/server':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
@@ -1275,9 +1278,6 @@ importers:
       '@kyh/tsconfig':
         specifier: 'catalog:'
         version: 1.3.0
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.45
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

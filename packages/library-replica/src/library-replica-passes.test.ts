@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createFakeCell } from "./test-support/fake-cell";
-import type { FakeCell, FakeDevice } from "./test-support/fake-cell";
-import { fakeClock } from "./test-support/fake-clock";
-import type { FakeClock } from "./test-support/fake-clock";
-import { fakeSockets } from "./test-support/fake-sockets";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
+import { fakeClock } from "@repo/contract/test-support/fake-clock";
+import type { FakeClock } from "@repo/contract/test-support/fake-clock";
+import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
 import { openDevice } from "./test-support/replica-harness";
 import type { TestDevice } from "./test-support/replica-harness";
 

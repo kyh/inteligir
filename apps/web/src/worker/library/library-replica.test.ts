@@ -9,7 +9,7 @@ import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import type { BlockMerge, ReplicaSql, StagedBlobs } from "@repo/library-replica/replica-ports";
-import { deferred } from "@repo/library-replica/test-support/deferred";
+import { deferred } from "@repo/contract/test-support/deferred";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { env, exports } from "cloudflare:workers";

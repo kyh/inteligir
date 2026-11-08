@@ -152,7 +152,7 @@ const answeredBefore = <T>(
   if (!prior.ok) {
     return prior;
   }
-  return prior.value === null ? null : { head: null, ok: true, value: prior.value };
+  return prior.value === null ? null : { head: null, moved: null, ok: true, value: prior.value };
 };
 
 const statusOf = (sql: SqlStatements, threadId: string): ThreadAnswer => ({

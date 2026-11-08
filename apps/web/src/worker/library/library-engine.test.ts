@@ -140,7 +140,7 @@ describe("a write to the library cell", () => {
         opId,
       });
       expect(first.ok && first.head).toBe(1);
-      expect(again).toStrictEqual({ head: null, ok: true, value: landedValue(first) });
+      expect(again).toStrictEqual({ head: null, moved: null, ok: true, value: landedValue(first) });
       expect(library.head()).toBe(1);
     });
   });
@@ -357,7 +357,12 @@ describe("a write to the library cell", () => {
       // a settle that looked in R2 before the removal ended lands nothing; one after it lands
       expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
-      expect(settled).toStrictEqual({ head: null, ok: true, value: { settled: true } });
+      expect(settled).toStrictEqual({
+        head: null,
+        moved: null,
+        ok: true,
+        value: { settled: true },
+      });
     });
   });
 

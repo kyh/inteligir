@@ -18,7 +18,11 @@ import {
   PayloadTooLargeError,
   QuotaError,
 } from "@repo/contract/cloud/v1/errors";
-import { importJobSchema, liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
+import {
+  folderRowSchema,
+  importJobSchema,
+  liveItemRowSchema,
+} from "@repo/contract/cloud/library/library-wire";
 import { ORPCError, implement } from "@orpc/server";
 import { noteFields } from "@repo/notes/library/item-makes";
 import { z } from "zod";
@@ -48,6 +52,7 @@ import {
   setDeleted,
 } from "./cell-items";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
+import { itemWhole, listingPage, listingScopes, listingTitles } from "./cell-listing";
 import {
   listHistory,
   listItems,
@@ -151,7 +156,7 @@ const changedSchema = z.object({
   changed: z.array(z.string()),
   missing: z.array(z.string()),
 });
-const headSchema = z.object({ seq: z.number() });
+const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
 const importAnswer = z.object({ job: importJobSchema });
 const rulesAnswer = z.object({ rules: z.string() });
 
@@ -226,10 +231,13 @@ export const libraryRouter = os.router({
       async ({ context, input }) =>
         await committed(
           context,
-          context.library.landApart({ answer: headSchema, opId: input.opId }, (scope) => {
-            writeFolders(scope, input.ops);
-            return { seq: libraryHead(scope.storage) };
-          }),
+          context.library.landApart(
+            { answer: foldersWrittenSchema, opId: input.opId },
+            (scope) => ({
+              folders: writeFolders(scope, input.ops),
+              seq: libraryHead(scope.storage),
+            }),
+          ),
         ),
     ),
   },
@@ -330,6 +338,9 @@ export const libraryRouter = os.router({
         ),
       );
     }),
+    get: os.items.get.handler(({ context, input }) =>
+      answer(context.library.read((sql) => itemWhole(sql, input.id))),
+    ),
     list: os.items.list.handler(({ context, input }) =>
       answer(
         context.library.read((sql) =>
@@ -417,6 +428,17 @@ export const libraryRouter = os.router({
         }),
       );
     }),
+  },
+  listing: {
+    page: os.listing.page.handler(({ context, input }) =>
+      answer(context.library.read((sql) => listingPage(sql, input))),
+    ),
+    scopes: os.listing.scopes.handler(({ context }) =>
+      answer(context.library.read((sql) => listingScopes(sql))),
+    ),
+    titles: os.listing.titles.handler(({ context }) =>
+      answer(context.library.read((sql) => listingTitles(sql))),
+    ),
   },
   organize: {
     outline: os.organize.outline.handler(({ context }) =>

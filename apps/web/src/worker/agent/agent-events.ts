@@ -53,5 +53,6 @@ export const storeEvent = (
     ],
   );
   runPlan(storage, recordChanges([{ gone: false, id: eventId, kind: "thread_event", seq }]));
+  scope.moved.thread(threadId);
   return threadEventRowOf(storage, eventId);
 };

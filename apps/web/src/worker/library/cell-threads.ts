@@ -78,4 +78,5 @@ export const deleteThread = (scope: LandingScope, threadId: string): void => {
       ...events.map((id) => ({ gone: true, id, kind: "thread_event" as const, seq })),
     ]),
   );
+  scope.moved.thread(threadId);
 };

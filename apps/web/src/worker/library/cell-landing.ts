@@ -24,6 +24,7 @@ import { z } from "zod";
 
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import { encodeParts, keepSuperseded, partsFit } from "./cell-parts";
+import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -51,13 +52,14 @@ export interface Landing {
 }
 
 // what a write lands under: its one sequence number and time, and its actor's set, each taken on
-// the first landing so a write that lands nothing moves nothing
+// the first landing so a write that lands nothing moves nothing; and what it moved, for the sockets
 export interface LandingScope {
   readonly storage: CellStorage;
   readonly bytesCap: number;
   readonly now: number;
   readonly seq: () => number;
   readonly set: () => OpenSet;
+  readonly moved: MovedCollector;
 }
 
 const sameBlock = (a: StoredBlock | undefined, b: StoredBlock): boolean =>
@@ -246,6 +248,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     storeItemBlobs(storage, itemId, shas, scope.now);
   }
   runPlan(storage, recordChanges([{ gone: false, id: itemId, kind: "item", seq }]));
+  scope.moved.item(itemId, seq);
   return {
     card: derived.card,
     fields: after.fields,
