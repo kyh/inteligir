@@ -1,19 +1,21 @@
 // One item's page per mount: the WebView's ref and the nonce the page loaded under belong to its
-// host, whose questions the item's ports answer from the replica, and the replica's change feed
-// reaches the page as `itemChanged`, the merges that kept this phone's lines named, so the page
-// reads its item again and says so. Every way off the screen writes what the page holds while it
-// still runs to answer.
+// host, whose questions the item's ports answer from the account's library. The item's query
+// moving to a sequence no write of this page's made reaches the page as `itemChanged`, so it reads
+// its item again, and so does another item's name moving, so a link shows the name its item goes
+// by now; the connection coming or going reaches it as `connection`. Every way off the screen
+// writes what the page holds while it still runs to answer.
 
+import { onlineManager, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useNavigation } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router";
 import type { ParamListBase } from "expo-router/react-navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { mintBridgeNonce } from "@/lib/app-runtime";
-import { useLibrary } from "@/lib/library-hooks";
+import { useItem, useLibrary } from "@/lib/library-hooks";
 import { createEditorHost } from "./editor-host";
 import type { EditorHost, EditorHostArgs } from "./editor-host";
-import { createItemPorts } from "./item-ports";
+import { createItemPorts, renamedTargets } from "./item-ports";
 import { editorPageSource } from "./page-source";
 import type { PageSource } from "./page-source";
 
@@ -65,40 +67,64 @@ export const useItemEditor = (
   init: EditorHostArgs["init"],
   onEvent: EditorHostArgs["onEvent"],
 ): ItemEditor => {
-  const { files, replica } = useLibrary();
+  const library = useLibrary();
+  const queryClient = useQueryClient();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [editor] = useState((): ItemEditor => {
+  const [editor] = useState(() => {
     const source = editorPageSource();
+    // the sequences this page's own writes left the item at
+    const wrote = new Set<number>();
     const host = createEditorHost({
       init,
       mintNonce: mintBridgeNonce,
       onEvent,
+      online: () => onlineManager.isOnline(),
       pageUrl: source?.uri ?? "",
-      ports: createItemPorts({ files, replica }),
+      ports: createItemPorts({
+        library,
+        queryClient,
+        wrote: (itemId, seq) => {
+          if (itemId === init.itemId) {
+            wrote.add(seq);
+          }
+        },
+      }),
     });
-    return { host, source };
+    return { host, source, wrote };
   });
 
-  // the page reads its item again when the replica says it moved
+  const read = useItem(init.itemId);
+  const seq = read.kind === "held" ? read.item.seq : null;
+  const seen = useRef<number | null>(null);
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = seq;
+    if (seq === null || before === null || before === seq || editor.wrote.has(seq)) {
+      return;
+    }
+    editor.host.send({ ids: [init.itemId], overlapped: [], reset: false, type: "itemChanged" });
+  }, [editor, init.itemId, seq]);
+
+  const titles = useQuery(library.queries.library.listing.titles.queryOptions()).data?.targets;
+  const seenTitles = useRef(titles);
+  useEffect(() => {
+    const before = seenTitles.current;
+    seenTitles.current = titles;
+    if (before === undefined || titles === undefined || before === titles) {
+      return;
+    }
+    const renamed = renamedTargets(before, titles, init.itemId);
+    if (renamed.length > 0) {
+      editor.host.send({ ids: renamed, overlapped: [], reset: false, type: "itemChanged" });
+    }
+  }, [editor, init.itemId, titles]);
+
   useEffect(
     () =>
-      replica.onChange((change) => {
-        editor.host.send({
-          ids: [...change.ids],
-          overlapped: [...change.overlapped],
-          reset: change.reset,
-          type: "itemChanged",
-        });
+      onlineManager.subscribe((online) => {
+        editor.host.send({ online, type: "connection" });
       }),
-    [editor, replica],
-  );
-  // the body the item in view waits on comes first: the screen takes the focus each time it is in
-  // view, an item a pop returns to included, whatever order the blur and the focus fire in. A focus
-  // left on an item closed meanwhile orders one body first, which costs nothing
-  useFocusEffect(
-    useCallback(() => {
-      replica.focus(init.itemId);
-    }, [init.itemId, replica]),
+    [editor],
   );
   useFlushOnLeave(editor.host);
 

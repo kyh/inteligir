@@ -3,10 +3,13 @@
 // rows do not jump.
 
 import { Image, Pressable, Text, View } from "react-native";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import type { z } from "zod";
+import type { listedItemSchema } from "@repo/contract/cloud/library/library-wire";
 import { shownTitle } from "@repo/notes/items/item-name";
 import { useFileUri } from "@/lib/library-hooks";
 import { cardCaption } from "./card-caption";
+
+export type ListedItem = z.infer<typeof listedItemSchema>;
 
 const THUMB_SIZE = 64;
 
@@ -26,7 +29,7 @@ export const LibraryCardRow = ({
   onPress,
   row,
 }: {
-  row: ReplicaListingRow;
+  row: ListedItem;
   onPress: () => void;
   onLongPress: () => void;
 }) => {
@@ -40,7 +43,7 @@ export const LibraryCardRow = ({
     >
       <View className="grow basis-0 gap-0.5">
         <Text className="text-16 text-card-foreground" numberOfLines={2}>
-          {shownTitle(row.title)}
+          {shownTitle(row.card.title)}
         </Text>
         {caption === "" ? null : (
           <Text className="text-13 text-muted-foreground" numberOfLines={1}>

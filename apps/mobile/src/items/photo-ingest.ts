@@ -1,6 +1,5 @@
 // A photo from the camera or the library, scaled down and re-encoded, then saved as an image item
-// of its own through the replica's outbox, so one taken offline lands once the phone is back. The
-// re-encode writes no EXIF, so where the photo was taken never reaches the library or its history.
+// of its own, its bytes sent up first, which needs a connection. The re-encode writes no EXIF, so where the photo was taken never reaches the library or its history.
 // A HEIC becomes a JPEG here, since the Mac's editor and every browser take one, and a PNG stays
 // a PNG. Only a screen imports this; it loads native modules.
 
@@ -14,7 +13,7 @@ import {
 import type { ImagePickerOptions } from "expo-image-picker";
 import { ActionSheetIOS } from "react-native";
 import { messageOf } from "../lib/error-message";
-import type { LibraryReplica } from "@repo/library-replica/library-replica";
+import type { PhoneSaves } from "./phone-saves";
 import { photoName, photoResize, photoType } from "./photo-plan";
 import type { PhotoType } from "./photo-plan";
 
@@ -22,6 +21,8 @@ export type PhotoIngest =
   | { kind: "picked"; itemId: string }
   | { kind: "cancelled" }
   | { kind: "refused"; message: string };
+
+const NOT_SENT = "The photo didn't reach your library. Check your connection and try again.";
 
 type PhotoSource = "camera" | "library";
 
@@ -101,7 +102,7 @@ const reencoded = async ({ type, uri }: PickedPhoto): Promise<Uint8Array<ArrayBu
 };
 
 export const ingestPhoto = async (
-  replica: LibraryReplica,
+  saves: Pick<PhoneSaves, "addFile">,
   folderId: string | null,
 ): Promise<PhotoIngest> => {
   const source = await chooseSource();
@@ -113,13 +114,27 @@ export const ingestPhoto = async (
     if (picked.kind !== "photo") {
       return picked;
     }
-    const made = await replica.createFile({
-      file: { bytes: await reencoded(picked), mime: picked.type },
-      folderId,
-      name: photoName(new Date(), picked.type),
-      tags: [],
-    });
-    return { itemId: made.id, kind: "picked" };
+    const saved = await saves.addFile(
+      {
+        bytes: await reencoded(picked),
+        mime: picked.type,
+        name: photoName(new Date(), picked.type),
+      },
+      { folderId },
+    );
+    switch (saved.kind) {
+      case "saved": {
+        return { itemId: saved.id, kind: "picked" };
+      }
+      case "refused": {
+        return { kind: "refused", message: saved.message };
+      }
+      case "unreachable":
+      case "ended": {
+        return { kind: "refused", message: NOT_SENT };
+      }
+      // no default
+    }
   } catch (error) {
     return {
       kind: "refused",

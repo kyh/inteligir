@@ -68,7 +68,7 @@ interface NoteInput {
   readonly title: string;
 }
 
-export interface LinkInput {
+interface LinkInput {
   readonly url: string;
   readonly title?: string;
   // markdown the cell reads into the item's note
@@ -87,7 +87,7 @@ interface FileInput {
 
 // what a make answers: the item a screen opens, which is the item the library already holds at a
 // saved link's address, `created` false, when the cell will answer the save with it
-export interface Made {
+interface Made {
   readonly id: string;
   readonly created: boolean;
 }

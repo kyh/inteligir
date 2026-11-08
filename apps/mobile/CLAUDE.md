@@ -1,7 +1,7 @@
 # Decisions: @repo/mobile
 
-The phone: its editor page, its replica and its files, the agent, its look, and
-how it ships.
+The phone: its editor page, its cache, its shares and its files, the agent, its
+look, and how it ships.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Editor and dialect
@@ -11,12 +11,12 @@ how it ships.
   WKWebView loads no module script or `crossorigin` tag from `file://`
   (vitejs/vite#14483), so the build is one IIFE and fails on anything else
   (`apps/mobile-editor/vite/classic-page.ts`). The page ships in the bundle, so
-  an item opens offline (`apps/mobile/plugins/with-editor-page.js`), and in the
-  native fingerprint, so an EAS Update beside another page matches no install
-  (`apps/mobile/fingerprint.config.js`). Rejected: a React Native renderer of
-  the dialect (cannot edit, degrades what it does not model); Expo DOM
-  components (a second compile of the editor, typechecked under the phone's
-  TypeScript 6, not the editor's Vite, React Compiler and TypeScript 7).
+  it loads with no network (`apps/mobile/plugins/with-editor-page.js`), and in
+  the native fingerprint, so an EAS Update beside another page matches no
+  install (`apps/mobile/fingerprint.config.js`). Rejected: a React Native
+  renderer of the dialect (cannot edit, degrades what it does not model); Expo
+  DOM components (a second compile of the editor, typechecked under the
+  phone's TypeScript 6, not the editor's Vite, React Compiler and TypeScript 7).
 
 - **NATIVE REACHES THE EDITOR PAGE ONLY THROUGH ITS DOOR, AND THE WEBVIEW IS ONE
   POLICY.** The door is installed non-writable on `window`, never a message
@@ -24,71 +24,79 @@ how it ships.
   `init` carries the nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The
   wire breaks freely, since one binary ships both ends
   (`packages/editor-bridge/src/protocol.ts`); an item page's host is the item
-  session's ops over the phone's replica
-  (`apps/mobile-editor/src/item/item-host.ts`). The WebView loads the page and
-  its frames, hands a followed web link to Safari and refuses the rest; its
-  origin list admits every address, because the library hands what that list
-  refuses to the OS before the policy runs
-  (`apps/mobile/src/editor/editor-host.ts`). Every injected script ends `true;`
-  and every frame is a string. `tools/e2e/src/scenarios/phone-editor-page.ts`
-  loads the built page from `file://`.
+  session's ops over the account's library
+  (`apps/mobile-editor/src/item/item-host.ts`,
+  `apps/mobile/src/editor/item-ports.ts`). The WebView loads the page and its
+  frames, hands a followed web link to Safari and refuses the rest; its origin
+  list admits every address, because the library hands what that list refuses
+  to the OS before the policy runs (`apps/mobile/src/editor/editor-host.ts`).
+  Every injected script ends `true;` and every frame is a string.
+  `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
+  `file://`.
 
-- **THE PHONE'S BLOCK MERGE RUNS IN A HEADLESS PAGE.** The replica settles a
-  `CONFLICT` with the editor's diff3, which needs Plate and its markdown
-  pipeline, which live only in the page, so a hidden WebView loads it headless
-  and answers each `mergeJob`
-  (`apps/mobile-editor/src/headless/headless-mode.ts`,
-  `apps/mobile/src/editor/headless-page-host.ts`), which is why the engine's
-  merge resolves. Rejected: the editor compiled into Hermes (a second build of
-  it, under TypeScript 6); a merge on the cell (a second write policy).
+- **THE PHONE'S ITEM PAGE READS OFFLINE AND WRITES ONLINE.** The page opens the
+  item as the cloud holds it, or as the phone last read it while there is no
+  connection, and a pause's ops go to the cloud at once, under their bases; a
+  base that moved answers the item as it is now, which the page merges with
+  the editor's own diff3 (`apps/mobile/src/editor/item-ports.ts`). With no
+  connection the page is read-only and says "Needs a connection", told so by
+  the `init`'s `online` and each `connection` frame, and an edit a drop caught
+  is written once the phone is back (`apps/mobile/src/editor/use-item-editor.ts`).
+  Rejected: queueing edits offline (the outbox, the merge and the headless
+  page that ran it, for edits an online-first library never takes offline).
 
 ## Cloud, sync and accounts
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   The session and the login flow publish stores the screens subscribe to, so a
   revocation and a refused login show (`apps/mobile/src/lib/compose-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`). A sign-in is ONE library, its
-  replica, `/v1` client, query helpers, files and previews made together and
-  closed together, so a revocation a pass of the replica hears ends it for all,
-  a refusal on any other call waits for the next pass, and a refusal heard
-  under an earlier sign-in never ends the next. The route guard,
-  never a per-screen branch, decides which screens exist (`Stack.Protected` in
-  `apps/mobile/src/app/_layout.tsx`): signed in, the Library, an item, a
-  script-less viewer of a file and the agent; signed out, the sign-in.
+  `apps/mobile/src/login/login-store.ts`). A sign-in is ONE library, its `/v1`
+  client, query helpers, saves, shares and previews made together and closed
+  together, so a revocation any of its calls hears ends it for all, once
+  however many hear it, and a refusal heard under an earlier sign-in never
+  ends the next. The route guard, never a per-screen branch, decides which
+  screens exist (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`):
+  signed in, the Library, an item, a script-less viewer of a file and the
+  agent; signed out, the sign-in.
 
-- **THE PHONE RUNS THE REPLICA ENGINE OVER EXPO-SQLITE, AND HOLDS ITS SOCKET
-  ONLY IN THE FOREGROUND.** The Mac's engine (`@repo/library-replica`) reads,
-  lists and searches offline and queues every write with its base, over one
-  expo-sqlite file in WAL: each transaction an exclusive one behind one JS
-  write lock, every value bound, every statement finalized
-  (`apps/mobile/src/lib/expo-replica-sql.ts`). The background suspends the
-  replica and closes the socket, since iOS suspends the app anyway; a resume
-  or a reconnect pulls and sends (`apps/mobile/src/lib/app-runtime.ts`). The
-  phone's own tables are one step in `apps/mobile/src/lib/phone-db.ts`, edited
-  in place until EAS's first build (`easProject` in
-  `apps/mobile/app.config.js`), then appended. Rejected: a store of the
-  phone's own beside the engine (a second model of the library).
+- **THE PHONE READS THROUGH TANSTACK QUERY, ITS CACHE KEPT BETWEEN LAUNCHES,
+  AND HOLDS ITS SOCKET ONLY IN THE FOREGROUND.** Every screen reads the
+  contract's procedures through `@orpc/tanstack-query`
+  (`apps/mobile/src/lib/library-hooks.ts`), and the cache is persisted to
+  expo-sqlite's key-value store (`@tanstack/react-query-persist-client` and
+  `@tanstack/query-async-storage-persister`, pinned with
+  `@tanstack/react-query` in `pnpm-workspace.yaml`), so what was last read
+  shows offline; the client build is its buster, a file's address
+  (`meta.persist: false`) and a write are never kept
+  (`apps/mobile/src/lib/compose-runtime.ts`). Online is the network's state
+  and focus the app's (`apps/mobile/src/lib/app-runtime.ts`). The account's
+  socket says what each write moved, and the queries reading it ask again; an
+  open socket asks everything again. The background closes it, since iOS
+  suspends the app anyway. Rejected: the replica engine over expo-sqlite (a
+  copy of the whole library, its outbox and its merge, for a premise that
+  keeps the truth in the cloud); a mutation kept for later (a write offline
+  says so, and only a share waits).
 
-- **THE PHONE'S DATABASE AND PINNED FILES ARE IN DOCUMENTS, OUT OF THE DEVICE
-  BACKUP.** Both download again or are sent from here (owner decision), so
-  `apps/mobile/modules/backup-exclusion` keeps them out of the iCloud backup
-  (`apps/mobile/src/files/expo-file-folders.ts`). A sign-in, a sign-out and a
-  revocation wipe the rows and every file, and the Worker's `no-store` keeps a
-  file's bytes out of the system's HTTP cache; the boot keeps them, and a kept
-  credential over an empty database pulls the library afresh.
+- **THE PHONE'S KEY-VALUE STORE IS OUT OF THE DEVICE BACKUP, AND ITS FILES ARE
+  IN THE CACHE.** The store holds the kept cache and the shares waiting, so
+  `apps/mobile/modules/backup-exclusion` keeps its folder out of the iCloud
+  backup with its first write (owner decision): a restore onto another phone
+  would send shares under nobody's sign-in (`apps/mobile/src/lib/app-runtime.ts`).
+  A file is in `Paths.cache`, which iOS keeps out of the backup and may purge
+  (`apps/mobile/src/files/expo-file-folder.ts`). A sign-in, a sign-out and a
+  revocation clear the cache, the shares and every file, and the Worker's
+  `no-store` keeps a file's bytes out of the system's HTTP cache; a relaunch
+  keeps them.
 
-- **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE: PINNED, OR CACHED AND
-  DROPPED OLDEST FIRST.** A file is downloaded once however many screens ask
-  for it at once, and a cover's thumbnail is made from the bytes that crossed.
-  A staged upload, and a file a live note of the person's embeds, are pinned in
-  Documents; every other file and thumbnail is in the purgeable cache, its use
-  stamped in `phone_files` and the least recent dropped past the cap. An upload
-  whose write landed moves into the cache, or stays pinned, so the phone never
-  downloads what it sent. Each file keeps the type it was staged as or the
-  cloud served (`phone_files`, `phone_staged`), which the item page draws a
-  note's file by over the bridge, and one pasted there goes through the
-  replica's outbox (`apps/mobile-editor/src/item/item-host.ts`). A file over
-  512 KB lists from a 320 px thumbnail made once. No cover is decoded past
+- **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE, IN THE PURGEABLE
+  CACHE.** A file is downloaded once however many screens ask for it at once,
+  and a cover's thumbnail is made from the bytes that crossed. A file the phone
+  sent up is kept as it went, so the phone never downloads what it sent. Each
+  file keeps the type it was sent as or the cloud served, which the item page
+  draws a note's file by over the bridge, and one pasted there is sent up by
+  its hash before the write naming it
+  (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists from a
+  320 px thumbnail made once. No cover is decoded past
   `FILL_LIMITS.coverMaxPixels`: one is drawn whole only when it is a small file
   whose header names a size within that, any other picture goes through the
   thumbnail, one at a time in the app's own process and measured by the decoder
@@ -96,14 +104,12 @@ how it ships.
   placeholder, since a few bytes can name a bitmap that kills the app on every
   launch (`apps/mobile/src/files/expo-thumbnail.ts`). Residual: a turned AVIF
   or HEIC, whose header nothing here reads, is drawn upright before the decoder
-  measures it. A screen waiting on a file it could not reach asks again after
-  each pass of the replica that ends clean, a failed one saying nothing of the
-  file (`apps/mobile/src/files/watch-file.ts`). A sign-out moves the cache's
-  generation, so a download begun before it lands nothing
-  (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
-  (its promise API is deprecated); a staged upload discarded once sent (the
-  next draw downloaded what the phone had just sent); a type read from the
-  first bytes (no sniff names a recording, which WebKit then may not play).
+  measures it. A screen waiting on a file it could not reach asks again once
+  the phone is back online (`apps/mobile/src/lib/library-hooks.ts`). A
+  sign-out moves the cache's generation, so a download begun before it lands
+  nothing (`apps/mobile/src/files/file-cache.ts`). Rejected:
+  `expo-file-system/legacy` (its promise API is deprecated); a type read from
+  the first bytes (no sniff names a recording, which WebKit then may not play).
 
 - **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, WHILE UNLOCKED.**
   Nothing reads it behind a lock screen, since the app runs nothing in the
@@ -117,17 +123,17 @@ how it ships.
   saved for the cloud's fill to read, and a save of an address the library
   holds answers that item; a thought is a note named by its first line; a
   non-web link is refused in `@repo/notes/items/item-kind`'s words
-  (`apps/mobile/src/items/phone-saves.ts`). A sign-out with anything unsent
-  asks first, and then discards it (owner decision).
+  (`apps/mobile/src/items/phone-saves.ts`). A save, a new note and a move to
+  Deleted need a connection and say so rather than wait; only a share waits.
   `tools/e2e/src/scenarios/phone-file-ops-hosted.ts`.
 
 - **A PHONE PHOTO IS AN IMAGE ITEM OF ITS OWN, AT MOST 2048PX WITH NO EXIF, A
   JPEG UNLESS IT WAS A PNG.** The Mac's editor draws no HEIC, so a photo the
   photo button adds is re-encoded to at most 2048px on its long edge with no
   EXIF, so no location reaches the library's history, and saved as a file item
-  whose bytes are staged, pinned, until the upload lands, then kept. A PNG is
-  re-encoded as a PNG, since a JPEG has no transparency and draws it black
-  (`apps/mobile/src/items/photo-ingest.ts`,
+  once its bytes are sent up, which needs a connection; the bytes sent stay in
+  the cache. A PNG is re-encoded as a PNG, since a JPEG has no transparency and
+  draws it black (`apps/mobile/src/items/photo-ingest.ts`,
   `apps/mobile/src/items/photo-plan.ts`). A picture pasted into a note's text
   is kept as the bytes the paste handed over, with whatever details they
   carry, as on every device. Rejected: a picked photo placed in a note (the
@@ -140,9 +146,9 @@ how it ships.
   App Group and opens the app at its handoff address
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
   app saves a page or a link as its link, which the cloud's fill reads, and
-  text alone as a thought (`apps/mobile/src/items/share-save.ts`). Words shared
-  beside the link are a new item's note, and an unread link is named by its
-  address or by the title the share sheet gave
+  text alone as a thought (`apps/mobile/src/items/share-outbox.ts`). Words
+  shared beside the link are a new item's note, and an unread link is named by
+  its address or by the title the share sheet gave
   (`apps/mobile/src/items/share-payload.ts`). Residual: an app that hands a
   page's name as text leaves a note repeating the title once the cloud reads
   it, redundant and not lost. Rejected: reading on the phone (a hidden reader,
@@ -162,12 +168,26 @@ how it ships.
   trimming a sentence's marks off every share (the real last character of
   `…/Oklahoma!`); reading a link up to the first space (a language with no
   spaces runs its sentence on from the link, and an emoji sits right after one).
-  It opens the item and only then lets the share go, so a signed-out share
-  waits, and so does one a sign-out caught mid-save, which the closed replica
-  refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
+  It keeps the share and only then lets the share go, so a signed-out share
+  waits in the share context, and so does one a sign-out caught mid-keep
+  (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
   Rejected: expo-sharing (experimental receive, no page title); an extension
   that saves.
+
+- **A SHARE IS KEPT ON THE PHONE BEFORE ITS FIRST CALL, AND WAITS THERE UNTIL
+  IT LANDS.** The outbox writes each share to the key-value store under the op
+  id it is sent with, then sends it, and sends every one still waiting at each
+  launch, resume and reconnect, so a share made offline survives a relaunch and
+  lands once however many sends a lost answer repeats; one the cloud refuses
+  waits, said, until it is tried again or let go
+  (`apps/mobile/src/items/share-outbox.ts`). The Library says "N saves waiting"
+  rather than draw a card for an item the cloud has not made
+  (`apps/mobile/src/library/unsent-banner.tsx`), and a sign-out with any asks
+  first, and then discards them (owner decision).
+  `tools/e2e/src/scenarios/phone-offline-share.ts`. Rejected: the share
+  context alone (it holds one share, and loses it to the next); an optimistic
+  card (a listing row the cloud never made, to reconcile once it lands).
 
 - **THE PHONE ASKS THE ACCOUNT'S BUILT-IN AGENT, ONLINE ONLY, THROUGH THE PANEL
   EVERY DEVICE DRAWS.** A conversation is the account's, so the phone lists the

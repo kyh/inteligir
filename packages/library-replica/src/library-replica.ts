@@ -62,8 +62,8 @@ import { createSocketHint } from "@repo/contract/cloud/library/account-socket";
 import type { SocketHint } from "@repo/contract/cloud/library/account-socket";
 import { serialLock } from "./serial-lock";
 
-export type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
-export type { LinkInput, Made } from "./replica-commands";
+export type { ReplicaListingRow } from "./replica-listing";
+/** @internal */
 export { ReplicaClosedError } from "./outbox";
 
 type ThreadRow = z.infer<typeof threadRowSchema>;
@@ -86,7 +86,7 @@ const RETRY_MAX_MS = 60_000;
 const REREAD_ALL_OVER = 200;
 
 // a write the cell refused, waiting for the person to send it again or let it go
-export interface ParkedWrite {
+interface ParkedWrite {
   readonly seq: number;
   readonly itemIds: readonly string[];
   readonly reason: string;

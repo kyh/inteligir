@@ -1,10 +1,19 @@
-// Home: the library this phone holds, newest first, offline as online. A scope from the menu (every
-// item, Unsorted, a folder, Deleted), the kind chips and the header's search narrow it, the search
-// ranked by the replica's own full-text index; the field above saves a link or a thought where the
-// scope saves. The menu opens the built-in agent's conversations, which need a connection.
-// FlatList, not a ScrollView: a library holds thousands of items and an eager row each janks the
-// open.
+// Home: the account's library, newest first, a page at a time as the list scrolls, and as the phone
+// last read it while there is no connection. A scope from the menu (every item, Unsorted, a
+// folder, Deleted), the kind chips and the header's search narrow it, the search ranked by the
+// cell's own index; the field above saves a link or a thought where the scope saves. Pulling the
+// list down reads it again. The menu opens the built-in agent's conversations, which need a
+// connection. FlatList, not a ScrollView: a library holds thousands of items and an eager row each
+// janks the open.
 
+import {
+  keepPreviousData,
+  onlineManager,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -19,28 +28,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { UNREACHABLE } from "@repo/contract/cloud/library/call-outcome";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
-import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { shownTitle } from "@repo/notes/items/item-name";
-import type { SearchSide } from "@repo/notes/library/library-queries";
-import { createPhoneSaves } from "@/items/phone-saves";
 import { ingestPhoto } from "@/items/photo-ingest";
-import type { SavedItem } from "@/items/phone-saves";
-import { newBlockId } from "@/lib/app-runtime";
-import { messageOf } from "@/lib/error-message";
-import { useLibrary, useListing, useReplicaStatus } from "@/lib/library-hooks";
+import type { SaveOutcome } from "@/items/phone-saves";
+import { useLibrary } from "@/lib/library-hooks";
 import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
-import {
-  listingQuery,
-  saveFolderOf,
-  scopeTitle,
-  searchHits,
-  searchSideOf,
-} from "@/library/library-query";
+import type { ListedItem } from "@/library/library-card";
+import { listingPage, saveFolderOf, scopeTitle } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 
@@ -55,45 +56,69 @@ const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
   { kind: "note", label: "Notes" },
 ];
 
+const NEEDS_CONNECTION = "Needs a connection";
+
+// the search waits for a pause in the typing before it asks the cloud
+const SEARCH_PAUSE_MS = 300;
+
+// a save that met no connection, or a sign-in that ended under it, said as the screen says it
+const NOT_SAVED = "Your library can't be reached right now. Try again once it can.";
+
 // a picture or a PDF opens full size; everything else opens in the editor
-const openRow = (row: ReplicaListingRow): void => {
-  if (row.kind === "image" || row.kind === "pdf") {
+const openRow = (row: ListedItem): void => {
+  if (row.fields.kind === "image" || row.fields.kind === "pdf") {
     openViewer(row.id);
     return;
   }
   openItem(row.id);
 };
 
+// what only the cloud can make needs a connection, and says so rather than wait for one
+const online = (): boolean => {
+  if (!onlineManager.isOnline()) {
+    Alert.alert(NEEDS_CONNECTION, "Try again once your library can be reached.");
+    return false;
+  }
+  return true;
+};
+
+// a save the cloud did not take, said; true for one it took
+const saidIfNotSaved = (saved: SaveOutcome): saved is Extract<SaveOutcome, { kind: "saved" }> => {
+  if (saved.kind === "refused") {
+    Alert.alert("Couldn't save", saved.message);
+  } else if (saved.kind !== "saved") {
+    Alert.alert("Couldn't save", NOT_SAVED);
+  }
+  return saved.kind === "saved";
+};
+
 const SaveField = ({ scope }: { scope: LibraryScope }) => {
-  const { replica } = useLibrary();
+  const { queries, saves } = useLibrary();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const save = (): void => {
     if (draft.trim() === "" || saving) {
       return;
     }
+    if (!online()) {
+      return;
+    }
     void (async () => {
       setSaving(true);
-      let saved: SavedItem;
-      try {
-        saved = await createPhoneSaves({ newBlockId, replica }).saveText(draft, {
-          folderId: saveFolderOf(scope),
-        });
-      } catch (error) {
-        saved = { kind: "refused", message: messageOf(error) };
-      }
+      const saved = await saves.saveText(draft, { folderId: saveFolderOf(scope) });
       setSaving(false);
-      if (saved.kind === "refused") {
-        Alert.alert("Couldn't save", saved.message);
+      if (!saidIfNotSaved(saved)) {
         return;
       }
       setDraft("");
-      if (!saved.made.created) {
+      void queryClient.invalidateQueries({ queryKey: queries.library.listing.key() });
+      if (!saved.created) {
         Alert.alert("Already in your library", undefined, [
           { style: "cancel", text: "OK" },
           {
             onPress: () => {
-              openItem(saved.made.id);
+              openItem(saved.id);
             },
             text: "Open",
           },
@@ -155,38 +180,25 @@ const KindChips = ({
   </ScrollView>
 );
 
-// the replica's ranked hits for the words typed, offline as online
-const useSearchHits = (query: string, side: SearchSide): ReadonlyMap<string, number> | null => {
-  const { replica } = useLibrary();
-  const [hits, setHits] = useState<{
-    query: string;
-    ranks: ReadonlyMap<string, number>;
-    side: SearchSide;
-  } | null>(null);
-  const words = query.trim();
+// the words typed, once the typing pauses
+const usePaused = (words: string): string => {
+  const [paused, setPaused] = useState(words);
   useEffect(() => {
-    if (words === "") {
-      return;
-    }
-    let live = true;
-    void (async () => {
-      const ranks = await searchHits(replica, words, side);
-      if (live) {
-        setHits({ query: words, ranks, side });
-      }
-    })();
+    const timer = setTimeout(() => {
+      setPaused(words);
+    }, SEARCH_PAUSE_MS);
     return () => {
-      live = false;
+      clearTimeout(timer);
     };
-  }, [replica, side, words]);
-  if (words === "") {
-    return null;
-  }
-  return hits?.query === words && hits.side === side ? hits.ranks : new Map();
+  }, [words]);
+  return paused;
 };
 
-const emptyLabel = (pulled: boolean, filtered: boolean): string => {
-  if (!pulled) {
+const emptyLabel = (listing: { isPending: boolean; isError: boolean }, filtered: boolean) => {
+  if (listing.isError) {
+    return UNREACHABLE;
+  }
+  if (listing.isPending) {
     return "Loading your library…";
   }
   return filtered
@@ -198,23 +210,40 @@ const LibraryScreen = () => {
   const theme = useTheme();
   // a value, not a class: className draws nothing on a SafeAreaView
   const screen = { backgroundColor: theme.background, flex: 1 };
-  const { replica } = useLibrary();
-  const status = useReplicaStatus();
+  const { newId, queries, saves } = useLibrary();
+  const queryClient = useQueryClient();
   const [chosenScope, setChosenScope] = useState<LibraryScope>({ kind: "all" });
   const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const folders = replica.folders();
+  const scopes = useQuery(queries.library.listing.scopes.queryOptions());
+  const folders = scopes.data?.folders ?? [];
   // a folder deleted on another device reads as every item, so nothing lists under it or saves
   // into it
-  const scope = listedScope(chosenScope, folders);
-  const hits = useSearchHits(query, searchSideOf(scope));
-  const listingAsked = listingQuery({ hits, kinds, scope });
-  const page = useListing(listingAsked);
+  const scope = scopes.data === undefined ? chosenScope : listedScope(chosenScope, folders);
+  const words = usePaused(query.trim());
+  const listing = useInfiniteQuery(
+    queries.library.listing.page.infiniteOptions({
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+      initialPageParam: undefined,
+      input: (cursor: number | undefined) => listingPage({ kinds, scope, words }, cursor),
+      placeholderData: keepPreviousData,
+    }),
+  );
+  const rows = listing.data?.pages.flatMap((page) => page.items) ?? [];
+  const changedItems = async (): Promise<void> => {
+    await queryClient.invalidateQueries({ queryKey: queries.library.key() });
+  };
+  const remove = useMutation(
+    queries.library.items.delete.mutationOptions({ onSettled: changedItems }),
+  );
+  const restore = useMutation(
+    queries.library.items.restore.mutationOptions({ onSettled: changedItems }),
+  );
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
-    await replica.sync();
+    await Promise.allSettled([listing.refetch(), scopes.refetch()]);
     setRefreshing(false);
   };
 
@@ -231,36 +260,69 @@ const LibraryScreen = () => {
   };
 
   const newNote = async (): Promise<void> => {
-    const made = await createPhoneSaves({ newBlockId, replica }).newNote({
-      folderId: saveFolderOf(scope),
-    });
-    openItem(made.id, "title");
+    if (!online()) {
+      return;
+    }
+    const made = await saves.newNote({ folderId: saveFolderOf(scope) });
+    if (saidIfNotSaved(made)) {
+      void changedItems();
+      openItem(made.id, "title");
+    }
   };
 
   const addPhoto = async (): Promise<void> => {
-    const added = await ingestPhoto(replica, saveFolderOf(scope));
+    if (!online()) {
+      return;
+    }
+    const added = await ingestPhoto(saves, saveFolderOf(scope));
     if (added.kind === "refused") {
       Alert.alert("Couldn't add the photo", added.message);
     } else if (added.kind === "picked") {
+      void changedItems();
       openViewer(added.itemId);
     }
   };
 
-  const rowActions = (row: ReplicaListingRow): void => {
-    const deleted = row.deletedAt !== null;
+  const moveRow = async (row: ListedItem, deleted: boolean): Promise<void> => {
+    if (!online()) {
+      return;
+    }
+    const asked = { ids: [row.id], opId: newId() };
+    try {
+      if (!deleted) {
+        await remove.mutateAsync(asked);
+        return;
+      }
+      const { addressHeld } = await restore.mutateAsync(asked);
+      if (addressHeld.length > 0) {
+        Alert.alert(
+          "Couldn't restore",
+          "Another item already holds this address. Delete it and try again.",
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        deleted ? "Couldn't restore" : "Couldn't delete",
+        refusalText(error, UNREACHABLE),
+      );
+    }
+  };
+
+  const rowActions = (row: ListedItem): void => {
+    const deleted = row.fields.deletedAt !== null;
     const options = ["Cancel", "Open", deleted ? "Restore" : "Move to Deleted"];
     ActionSheetIOS.showActionSheetWithOptions(
       {
         cancelButtonIndex: 0,
         destructiveButtonIndex: deleted ? undefined : 2,
         options,
-        title: shownTitle(row.title),
+        title: shownTitle(row.card.title),
       },
       (index) => {
         if (index === 1) {
           openRow(row);
         } else if (index === 2) {
-          void (deleted ? replica.restoreItems([row.id]) : replica.deleteItems([row.id]));
+          void moveRow(row, deleted);
         }
       },
     );
@@ -344,13 +406,6 @@ const LibraryScreen = () => {
             Ask the agent
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
-            onPress={() => {
-              void refresh();
-            }}
-          >
-            Sync now
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
             destructive
             onPress={() => {
               void confirmSignOut();
@@ -373,8 +428,13 @@ const LibraryScreen = () => {
             }}
           />
         }
-        data={page.items}
+        data={rows}
         keyExtractor={(row) => row.id}
+        onEndReached={() => {
+          if (listing.hasNextPage && !listing.isFetchingNextPage) {
+            void listing.fetchNextPage();
+          }
+        }}
         ListHeaderComponent={
           <>
             <UnsentBanner />
@@ -385,7 +445,7 @@ const LibraryScreen = () => {
         ListEmptyComponent={
           <View className="items-center gap-2 px-6 py-24">
             <Text className="text-center text-16 text-muted-foreground">
-              {emptyLabel(status.cursor > 0 || status.failure !== null, filtered)}
+              {emptyLabel(listing, filtered)}
             </Text>
           </View>
         }

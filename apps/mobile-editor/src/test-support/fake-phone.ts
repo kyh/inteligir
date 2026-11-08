@@ -1,6 +1,6 @@
 // The native end of the bridge, as the page sees it: a transport that records every frame the page
 // sends, answers its requests from an in-memory library of items (which lands an item page's ops
-// only on the bases they name, as the phone's replica does) a case can replace, and delivers
+// only on the bases they name, as the account's cell does) a case can replace, and delivers
 // native frames through the receiver the page installed.
 
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
@@ -175,8 +175,8 @@ export const createFakePhone = (library: Readonly<Record<string, ItemState>> = {
       deliver({
         fileMaxBytes: FILE_MAX_BYTES,
         focus: null,
-        mode: "item",
         nonce: PHONE_NONCE,
+        online: true,
         type: "init",
         ...overrides,
       });

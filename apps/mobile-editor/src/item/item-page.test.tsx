@@ -8,6 +8,7 @@ import {
   createItemSession,
   ITEM_UNSAVED,
 } from "@repo/editor/item/item-session";
+import { NEEDS_CONNECTION } from "@repo/editor/item/item-editor";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
@@ -65,21 +66,17 @@ const manualTimers = () => {
   };
 };
 
-const connectItem = async (phone: FakePhone) => {
+const connectItem = async (phone: FakePhone, online = true) => {
   const connecting = connectPageBridge(phone.transport);
   phone.deliver({
     fileMaxBytes: 1024,
     focus: null,
     itemId: ITEM,
-    mode: "item",
     nonce: PHONE_NONCE,
+    online,
     type: "init",
   });
-  const { bridge, init } = await connecting;
-  if (init.mode !== "item") {
-    throw new Error("the fake phone opened the page in another mode");
-  }
-  return { bridge, init };
+  return await connecting;
 };
 
 const sessionOver = async (phone: FakePhone) => {
@@ -107,7 +104,7 @@ afterEach(() => {
   mounted = null;
 });
 
-describe("an item page over the phone's replica", () => {
+describe("an item page over the library the phone reaches", () => {
   it("reads the item, and lands a pause's edit on the phone as ops under their bases", async () => {
     const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
     const { editor, session, timers } = await sessionOver(phone);
@@ -341,6 +338,27 @@ describe("an item page over the phone's replica", () => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: false }]);
     });
     expect(phone.events("editorState").at(-1)).toMatchObject({ saveError: BODY_TO_COME });
+  });
+
+  it("only reads while the phone has no connection, and takes edits once it says one is back", async () => {
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
+    const { bridge, init } = await connectItem(phone, false);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    await expect(screen.findByText(NEEDS_CONNECTION)).resolves.toBeDefined();
+    act(() => {
+      phone.deliver({ nonce: PHONE_NONCE, online: true, type: "connection" });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
+    });
+    act(() => {
+      phone.deliver({ nonce: PHONE_NONCE, online: false, type: "connection" });
+    });
+    await expect(screen.findByText(NEEDS_CONNECTION)).resolves.toBeDefined();
   });
 
   it("tells the phone a block no write can store is unsaved, and answers a flush that it failed", async () => {

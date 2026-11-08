@@ -643,12 +643,6 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **A killed page reloads.** In the simulator, quit the item's
   `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the item
   reloads with its text.
-- **The database upgrades.** Every step appended to `apps/mobile/src/lib/phone-db.ts`
-  since the build TestFlight last served: install that build, sign in, leave an
-  edit unsent, then install this build over it. Passing: it opens with no
-  error, the unsent edit still waits, and turning on airplane mode and a cold
-  launch shows the library. The first TestFlight build has no build before it,
-  so it skips this.
 
 ### The site
 

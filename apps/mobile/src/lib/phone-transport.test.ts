@@ -1,4 +1,4 @@
-import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
+import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
 import { describe, expect, it } from "vitest";
 import { downloadBlob } from "./phone-transport";
 
@@ -8,7 +8,7 @@ const CLIP = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
 // the cloud's answer to every request, and the paths asked
 const answering = (response: () => Response) => {
   const asked: string[] = [];
-  const transport: ReplicaTransport = {
+  const transport: V1Transport = {
     fetch: async (request) => {
       asked.push(new URL(request.url).pathname);
       return await Promise.resolve(response());

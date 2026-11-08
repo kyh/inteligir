@@ -7,9 +7,9 @@ import {
   REQUESTS,
 } from "@repo/editor-bridge/protocol";
 import type {
+  ItemInit,
   NativeFrame,
   PageFrame,
-  PageInit,
   RequestKind,
   RequestPayload,
   RequestResult,
@@ -29,7 +29,7 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
 /** @internal */
-export type NativeEvent = Extract<NativeFrame, { type: "itemChanged" | "flush" | "mergeJob" }>;
+export type NativeEvent = Extract<NativeFrame, { type: "itemChanged" | "flush" | "connection" }>;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
 export interface BridgeTransport {
@@ -49,7 +49,7 @@ export interface PageBridge {
 
 export interface ConnectedPage {
   readonly bridge: PageBridge;
-  readonly init: PageInit;
+  readonly init: ItemInit;
 }
 
 /** @internal */

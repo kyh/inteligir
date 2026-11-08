@@ -1,9 +1,9 @@
-// The page in its item mode: one item's editor, by its id, over the phone's replica on the other end
-// of the bridge. The page draws the item's blocks with the desktop's editor through the touch kit,
-// writes what changed as ops after a pause, says why a write failed, and opens a linked item
-// through the native stack.
+// The page: one item's editor, by its id, over the library the phone reaches on the other end of
+// the bridge. The page draws the item's blocks with the desktop's editor through the touch kit,
+// writes what changed as ops after a pause, says why a write failed, only reads while the phone
+// has no connection, and opens a linked item through the native stack.
 
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
@@ -20,6 +20,7 @@ import { ThemeProvider } from "@repo/ui/lib/theme";
 
 import type { PageBridge } from "../bridge/page-bridge";
 import { bridgeItemStore, installItemPageHost } from "./item-host";
+import type { PageConnection } from "./item-host";
 
 const after = (ms: number, run: () => void): (() => void) => {
   const timer = setTimeout(run, ms);
@@ -59,17 +60,20 @@ export interface MountedPage {
 /** @internal */
 export const ItemPage = ({
   bridge,
+  connection,
   init,
   onSession,
   ports,
 }: {
   bridge: PageBridge;
+  connection: PageConnection;
   init: ItemInit;
   onSession: (session: ItemSession | null) => void;
   ports: ItemSessionPorts;
 }) => {
   const [session, setSession] = useState<ItemSession | null>(null);
   useEditorState(bridge, session);
+  const online = useSyncExternalStore(connection.subscribe, connection.online);
   return (
     <ThemeProvider theme="system" setTheme={keepSystemTheme}>
       <SizeProvider size="compact">
@@ -82,6 +86,7 @@ export const ItemPage = ({
               >
                 <ItemEditor
                   itemId={init.itemId}
+                  offline={!online}
                   ports={ports}
                   onSession={(next) => {
                     setSession(next);
@@ -123,7 +128,13 @@ export const mountItemPage = ({
   const root = createRoot(container);
   root.render(
     <StrictMode>
-      <ItemPage bridge={bridge} init={init} onSession={handleSession} ports={ports} />
+      <ItemPage
+        bridge={bridge}
+        connection={host.connection}
+        init={init}
+        onSession={handleSession}
+        ports={ports}
+      />
     </StrictMode>,
   );
   return {

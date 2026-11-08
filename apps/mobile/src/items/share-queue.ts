@@ -1,14 +1,13 @@
 // The shares the inbox settles (`./share-inbox`), one at a time, the latest last. The share
-// context holds one intent and replaces it when another share arrives, and a settle waits behind
-// the replica's writes queued before it, so a share made meanwhile is settled once the one before
-// it is done, and the context is let go only once the intent just settled is still
-// the one it holds: a reset after the first would clear the second unsaved. A share the library
-// left under is held in the context, for the sign-in after to settle, or at once by the screen a
-// sign-out that failed opened again meanwhile.
+// context holds one intent and replaces it when another share arrives while one is being kept, so
+// a share made meanwhile is settled once the one before it is done, and the context is let go only
+// once the intent just settled is still the one it holds: a reset after the first would clear the
+// second unkept. A share the library left under is held in the context, for the sign-in after to
+// settle, or at once by the screen a sign-out that failed opened again meanwhile.
 
 interface ShareQueuePorts<T> {
-  // saves the share and opens its item, or answers "held" for a library that left under it; it
-  // never throws
+  // keeps the share in the outbox, or answers "held" for a library that left under it; it never
+  // throws
   readonly settle: (intent: T) => Promise<"settled" | "held">;
   // lets the context's intent go
   readonly reset: () => void;

@@ -1,6 +1,6 @@
-// The built-in agent's conversations, the account's and the same on every device: read from the
-// replica, so a past one reads offline, newest first, each with its state when a turn is under way.
-// Asking needs a connection, which the conversation says where it would send.
+// The built-in agent's conversations, the account's and the same on every device: as the phone last
+// read them, so a past one reads offline, newest first, each with its state when a turn is under
+// way. Asking needs a connection, which the conversation says where it would send.
 
 import { Stack } from "expo-router";
 import { FlatList, Pressable, Text, View } from "react-native";
@@ -12,8 +12,7 @@ import { useTheme } from "@/lib/theme";
 
 const ConversationsScreen = () => {
   const theme = useTheme();
-  // newest first, as the replica reads them
-  const threads = useThreads() ?? [];
+  const { more, threads = [] } = useThreads();
   return (
     <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }} edges={["left", "right"]}>
       <Stack.Toolbar placement="right">
@@ -31,6 +30,7 @@ const ConversationsScreen = () => {
         contentInsetAdjustmentBehavior="automatic"
         data={threads}
         keyExtractor={(thread) => thread.id}
+        onEndReached={more}
         ListEmptyComponent={
           <View className="items-center px-6 py-24">
             <Text className="text-center text-16 text-muted-foreground">{EMPTY_WORDS}</Text>

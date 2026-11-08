@@ -79,6 +79,7 @@ const ADDRESS_HELD =
 // A write the closed replica refused: the account it wrote for has left this device, or is
 // leaving, so a row laid now would sit in the wiped database for whoever signs in next. Its message
 // is the person's; a caller that can hold the write for the next sign-in reads its type.
+/** @internal */
 export class ReplicaClosedError extends Error {
   constructor() {
     super("This device is signed out of your library, so this wasn't saved.");

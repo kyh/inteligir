@@ -1,7 +1,7 @@
-// iOS copies Documents into the phone's iCloud backup. What the replica holds downloads again from
-// the account's library, so its database and the pinned files' folder are kept out (owner
-// decision): a staged photo's outbox row lives in that database, so a backup would restore bytes
-// nothing sends.
+// iOS copies Documents into the phone's iCloud backup. The phone's key-value store holds the
+// cache of what it read, which reads again from the account's library, and the shares waiting,
+// which a restore onto another phone would send under nobody's sign-in, so it is kept out (owner
+// decision).
 // The native half is modules/backup-exclusion, linked on iOS alone because the phone ships for
 // iPhone only.
 

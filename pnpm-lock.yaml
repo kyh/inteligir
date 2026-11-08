@@ -179,8 +179,14 @@ catalogs:
     '@tanstack/eslint-plugin-query':
       specifier: ^5.106.0
       version: 5.106.0
+    '@tanstack/query-async-storage-persister':
+      specifier: 5.105.0
+      version: 5.105.0
     '@tanstack/react-query':
       specifier: ^5.104.5
+      version: 5.105.0
+    '@tanstack/react-query-persist-client':
+      specifier: 5.105.0
       version: 5.105.0
     '@tanstack/react-router':
       specifier: 1.170.46
@@ -541,18 +547,21 @@ importers:
       '@repo/editor-bridge':
         specifier: workspace:*
         version: link:../../packages/editor-bridge
-      '@repo/library-replica':
-        specifier: workspace:*
-        version: link:../../packages/library-replica
       '@repo/mobile-editor':
         specifier: workspace:*
         version: link:../mobile-editor
       '@repo/notes':
         specifier: workspace:*
         version: link:../../packages/notes
+      '@tanstack/query-async-storage-persister':
+        specifier: 'catalog:'
+        version: 5.105.0
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.105.0(@types/react@19.2.17)(react@19.2.3)
+      '@tanstack/react-query-persist-client':
+        specifier: 'catalog:'
+        version: 5.105.0(@tanstack/react-query@5.105.0(@types/react@19.2.17)(react@19.2.3))(@types/react@19.2.17)(react@19.2.3)
       expo:
         specifier: ~57.0.27
         version: 57.0.27(87f720aaeb7a7070b3ec3ce496c83f2c)
@@ -635,6 +644,9 @@ importers:
       '@kyh/tsconfig':
         specifier: 'catalog:'
         version: 1.3.0
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.45
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.3
@@ -1488,9 +1500,6 @@ importers:
       '@repo/mobile':
         specifier: workspace:*
         version: link:../../apps/mobile
-      '@repo/mobile-editor':
-        specifier: workspace:*
-        version: link:../../apps/mobile-editor
       '@repo/notes':
         specifier: workspace:*
         version: link:../../packages/notes
@@ -5138,8 +5147,24 @@ packages:
     resolution: {integrity: sha512-w1+YvwmTkwt5n8yUqEH3IWZ9DsmorCZW/EQ3KYHnqEgIkOZpH54NvW6/Epq3Dzb8H0ifIeYX8PExvrNLIH5FIA==}
     engines: {node: '>=20.19'}
 
+  '@tanstack/query-async-storage-persister@5.105.0':
+    resolution: {integrity: sha512-I2QmE8pKHdYjvAIy+hf5ARZx9QmsUehk2RxdwNX1cYqHip8y2MmPUDhlLzvGCudKmOVKW0gPVPdiiN4AKcU3lg==}
+
   '@tanstack/query-core@5.105.0':
     resolution: {integrity: sha512-7p56vRmT/z4UJ6sctGIdl5WRUQyUv53IUpUwEKi2g97zMbO7zh8ZsCLffGAvCPBR4xD72e3VXsDyLwXHhoNTMQ==}
+
+  '@tanstack/query-persist-client-core@5.105.0':
+    resolution: {integrity: sha512-bOy2lMzzEyacL6s9hIa0tKmaIr/TM24HZaK9a20ctZjPYlCs6NhGdgbxi20RcdJWZwWunkLqPDnxfClD7QIyKg==}
+
+  '@tanstack/react-query-persist-client@5.105.0':
+    resolution: {integrity: sha512-88XnwRDyGnlEGgnX2ePbUnEwGoQpQufLKR5bqCfs8CQbNoS2km3Ib/MNKWwrRTQDOdmJYhl6wBPJEdUBBMH5XA==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.105.0
+      '@types/react': 19.2.17
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tanstack/react-query@5.105.0':
     resolution: {integrity: sha512-y+hMuDERvgg6ay1da0V1a6ZC0ZONt7dELxSFkqRZuwm7p1TTZs0MoXrPlBRflIpRoYjvzQVYxycnLImpFLhWrw==}
@@ -15981,7 +16006,24 @@ snapshots:
 
   '@tanstack/history@1.162.5': {}
 
+  '@tanstack/query-async-storage-persister@5.105.0':
+    dependencies:
+      '@tanstack/query-core': 5.105.0
+      '@tanstack/query-persist-client-core': 5.105.0
+
   '@tanstack/query-core@5.105.0': {}
+
+  '@tanstack/query-persist-client-core@5.105.0':
+    dependencies:
+      '@tanstack/query-core': 5.105.0
+
+  '@tanstack/react-query-persist-client@5.105.0(@tanstack/react-query@5.105.0(@types/react@19.2.17)(react@19.2.3))(@types/react@19.2.17)(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-persist-client-core': 5.105.0
+      '@tanstack/react-query': 5.105.0(@types/react@19.2.17)(react@19.2.3)
+      react: 19.2.3
+    optionalDependencies:
+      '@types/react': 19.2.17
 
   '@tanstack/react-query@5.105.0(@types/react@19.2.17)(react@19.2.3)':
     dependencies:

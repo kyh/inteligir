@@ -1,6 +1,7 @@
 // An item's file full size, by the item's id: a picture zoomable, a PDF in a WebView that runs no
 // script and loads nothing but the file, from the phone's file cache, which fetches it from the
-// cloud the first time and keeps it offline after. A file of another kind says so.
+// cloud the first time and keeps it after, until iOS clears its cache. A file of another kind says
+// so.
 
 import { shownTitle } from "@repo/notes/items/item-name";
 import { Stack, useLocalSearchParams } from "expo-router";
@@ -74,7 +75,8 @@ const Centered = ({ children }: { children: string }) => (
 const ViewerScreen = () => {
   const theme = useTheme();
   const params = useLocalSearchParams<{ id: string }>();
-  const item = useItem(firstParam(params.id) ?? "");
+  const read = useItem(firstParam(params.id) ?? "");
+  const item = read.kind === "held" ? read.item : null;
   const sha = item?.fields.originalSha ?? null;
   const kind = item?.fields.kind ?? null;
   const shown = kind === "image" || kind === "pdf";
@@ -85,9 +87,11 @@ const ViewerScreen = () => {
       <ActivityIndicator />
     </View>
   );
-  if (item === null || (item !== undefined && sha === null)) {
-    body = <Centered>This file is not in your library on this iPhone.</Centered>;
-  } else if (item !== undefined && !shown) {
+  if (read.kind === "missing" || (item !== null && sha === null)) {
+    body = <Centered>This file is not in your library.</Centered>;
+  } else if (read.kind === "unreachable") {
+    body = <Centered>Your library can&apos;t be reached right now.</Centered>;
+  } else if (item !== null && !shown) {
     body = <Centered>This file opens on your Mac.</Centered>;
   } else if (uri === null) {
     body = (
@@ -103,7 +107,7 @@ const ViewerScreen = () => {
     <SafeAreaView style={screenOf(theme.background)} edges={["left", "right", "bottom"]}>
       <Stack.Screen
         options={{
-          title: item === null || item === undefined ? "" : shownTitle(item.card.title),
+          title: item === null ? "" : shownTitle(item.card.title),
         }}
       />
       {body}

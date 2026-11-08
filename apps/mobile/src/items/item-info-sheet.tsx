@@ -1,8 +1,7 @@
 // An item's Info: where it came from, when it was saved, what it is and where it is filed, read from
-// the item's own fields and the folders the replica holds.
+// the item's own fields and the folders the library lists.
 
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
-import type { ListingFolder } from "@repo/notes/library/library-index";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { SPACE } from "@/lib/theme";
 
@@ -16,8 +15,14 @@ const KIND_LABELS: Record<LibraryItemFields["kind"], string> = {
   video: "Video",
 };
 
-// a folder's path from the top, by the names the replica holds
-const folderPath = (folders: readonly ListingFolder[], folderId: string | null): string => {
+export interface InfoFolder {
+  readonly id: string;
+  readonly name: string;
+  readonly parentId: string | null;
+}
+
+// a folder's path from the top, by the names the library lists
+const folderPath = (folders: readonly InfoFolder[], folderId: string | null): string => {
   const names: string[] = [];
   let at = folders.find((folder) => folder.id === folderId);
   while (at !== undefined && names.length < folders.length) {
@@ -31,7 +36,7 @@ const folderPath = (folders: readonly ListingFolder[], folderId: string | null):
 // what Info shows of an item, each row only when the item says it
 const rowsOf = (
   fields: LibraryItemFields,
-  folders: readonly ListingFolder[],
+  folders: readonly InfoFolder[],
 ): { label: string; value: string }[] =>
   [
     { label: "Link", value: fields.url },
@@ -52,7 +57,7 @@ export const ItemInfoSheet = ({
   visible,
 }: {
   fields: LibraryItemFields | null;
-  folders: readonly ListingFolder[];
+  folders: readonly InfoFolder[];
   onClose: () => void;
   visible: boolean;
 }) => (

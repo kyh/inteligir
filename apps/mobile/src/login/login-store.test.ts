@@ -1,5 +1,5 @@
-import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
-import type { FakeDevice } from "@repo/library-replica/test-support/fake-cell";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import type { FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
 import { createLoginStore } from "./login-store";
 

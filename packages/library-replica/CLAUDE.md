@@ -11,8 +11,7 @@ and cited.
   ids, the `/v1` transport, the socket dial, the staged files and the block
   merge are handed in; the package imports no node, React, React Native, Expo,
   editor or UI module and touches no platform global (`oxlint.config.ts`), so
-  the editor's diff3 is injected as the merge, which resolves, so the phone
-  runs it in its headless page (`apps/mobile/src/editor/headless-page-host.ts`).
+  the editor's diff3 is injected as the merge, which resolves.
   Rejected: an engine per host (the tab's and the phone's rules would drift);
   importing the merge (Plate into Hermes and every node suite).
   `packages/library-replica/src/replica-ports.ts`.
@@ -147,7 +146,6 @@ and cited.
   files are laid only while the replica is open, checked under the outbox's own
   hold, which a wipe takes too, so a write is either past the check and removed
   by the wipe or refused with `ReplicaClosedError`, whose message a screen can
-  say and whose type a caller that can keep the write reads
-  (`apps/mobile/src/items/share-save.ts`). Rejected: taking the write and
+  say and whose type a caller that can keep the write reads. Rejected: taking the write and
   sending nothing (a row laid in a wiped database goes out under whoever signs
   in next, since rows name no account). `packages/library-replica/src/outbox.ts`.

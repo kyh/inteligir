@@ -88,8 +88,8 @@ describe("a request", () => {
 
   it("rejects with the phone's own words when it refuses", async () => {
     const { bridge, phone } = await connected();
-    phone.answer = () => ({ error: "the replica is closed", ok: false });
-    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow("the replica is closed");
+    phone.answer = () => ({ error: "the library is closed", ok: false });
+    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow("the library is closed");
   });
 
   it("rejects an answer that is not the shape its kind promises", async () => {
@@ -224,15 +224,15 @@ describe("the window transport", () => {
       fileMaxBytes: 1024,
       focus: "body",
       itemId: ITEM,
-      mode: "item",
       nonce: PHONE_NONCE,
+      online: true,
       type: "init",
     });
     const call = /^window\.(?<door>\w+)\((?<literal>".*")\);true;$/su.exec(script);
     expect(call?.groups?.door).toBe(PAGE_RECEIVER);
     door?.(JSON.parse(call?.groups?.literal ?? '""'));
     const { bridge, init } = await connecting;
-    expect(init).toMatchObject({ focus: "body", itemId: ITEM, mode: "item" });
+    expect(init).toMatchObject({ focus: "body", itemId: ITEM, online: true });
 
     bridge.emit({ itemId: OTHER, type: "openItem" });
     expect(JSON.parse(posted.at(-1) ?? "null")).toStrictEqual({

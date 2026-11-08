@@ -3,9 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": {
-    "./headless-mode": "./src/headless/headless-mode.ts"
-  },
   "scripts": {
     "build": "vite build",
     "test": "vitest run",

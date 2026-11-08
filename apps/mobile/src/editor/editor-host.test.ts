@@ -123,6 +123,7 @@ const hostOver = (
   const recording = recordingPorts();
   const reloads: number[] = [];
   let minted = 0;
+  let online = true;
   const host = createEditorHost({
     flushTimeoutMs: options.flushTimeoutMs ?? 1000,
     init: { focus: options.focus ?? null, itemId: ITEM },
@@ -133,6 +134,7 @@ const hostOver = (
     onEvent: (event) => {
       events.push(event);
     },
+    online: () => online,
     pageUrl: PAGE_URL,
     ports: { ...recording.ports, ...options.ports },
   });
@@ -157,13 +159,27 @@ const hostOver = (
     return init.nonce;
   };
   const responses = () => injected.filter((frame) => frame.type === "response");
-  return { calls: recording.calls, events, fromPage, host, injected, load, reloads, responses };
+  const setOnline = (next: boolean): void => {
+    online = next;
+  };
+  return {
+    calls: recording.calls,
+    events,
+    fromPage,
+    host,
+    injected,
+    load,
+    reloads,
+    responses,
+    setOnline,
+  };
 };
 
 describe("the native end of the editor page's bridge", () => {
-  it("answers ready with init, a fresh nonce per load, and focus only on the first", () => {
-    const { injected, load } = hostOver({ focus: "title" });
+  it("answers ready with init, a fresh nonce per load, focus only on the first, and the connection as it is", () => {
+    const { injected, load, setOnline } = hostOver({ focus: "title" });
     const first = load();
+    setOnline(false);
     const second = load();
     expect(first).not.toBe(second);
     expect(injected).toMatchObject([
@@ -171,16 +187,16 @@ describe("the native end of the editor page's bridge", () => {
         fileMaxBytes: BLOB_MAX_BYTES,
         focus: "title",
         itemId: ITEM,
-        mode: "item",
         nonce: first,
+        online: true,
         type: "init",
       },
       {
         fileMaxBytes: BLOB_MAX_BYTES,
         focus: null,
         itemId: ITEM,
-        mode: "item",
         nonce: second,
+        online: false,
         type: "init",
       },
     ]);
@@ -348,6 +364,8 @@ describe("the native end of the editor page's bridge", () => {
       reset: false,
       type: "itemChanged",
     });
+    host.send({ online: false, type: "connection" });
+    expect(injected.at(-1)).toStrictEqual({ nonce, online: false, type: "connection" });
   });
 
   it("injects a frame the page reads back unchanged, whatever the item holds", async () => {

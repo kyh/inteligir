@@ -1,10 +1,11 @@
 // The app's root: the session decides which screens exist (`Stack.Protected`, never a per-screen
 // branch). Signed in, the Library, an item, a file's viewer and the built-in agent's
-// conversations, each reading the one library this phone holds through its context, and the share
-// inbox and the headless page beside them; signed out, the sign-in. A build the cloud no longer
-// takes, or a library that would not open, says so in place of every screen.
+// conversations, each reading the sign-in's library through its context, with the share inbox
+// beside them; signed out, the sign-in. Every query reads the cache the phone kept from its last
+// launch first, so what was read then shows offline. A build the cloud no longer takes, or a store
+// that would not open, says so in place of every screen.
 
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import * as SplashScreen from "expo-splash-screen";
@@ -12,9 +13,8 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { HeadlessPage } from "@/editor/headless-page";
 import { ShareInbox } from "@/items/share-inbox";
-import { ensureStarted, queryClient, useSession } from "@/lib/app-runtime";
+import { ensureStarted, getRuntime, useSession } from "@/lib/app-runtime";
 import type { PhoneSession } from "@/lib/compose-runtime";
 import { LibraryContext } from "@/lib/library-hooks";
 import { useTheme } from "@/lib/theme";
@@ -63,9 +63,10 @@ const RootLayout = () => {
   }
 
   const library = session.kind === "signed-in" ? session.library : null;
+  const { persistOptions, queryClient } = getRuntime();
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
         <LibraryContext value={library}>
           <ShareIntentProvider options={SHARE_OPTIONS}>
             <Stack
@@ -88,11 +89,10 @@ const RootLayout = () => {
               </Stack.Protected>
             </Stack>
             {library === null ? null : <ShareInbox />}
-            {library === null ? null : <HeadlessPage />}
             <StatusBar />
           </ShareIntentProvider>
         </LibraryContext>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 };

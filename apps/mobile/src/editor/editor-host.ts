@@ -1,5 +1,5 @@
 // The native end of the editor page's bridge, and the one policy for what the WebView may load.
-// Pure: the screen attaches the WebView and hands it the ports over the phone's replica, so every
+// Pure: the screen attaches the WebView and hands it the ports over the account's library, so every
 // frame it answers or drops runs under test. A frame counts only when it came from the page's own
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
@@ -18,20 +18,16 @@ import type {
 import { messageOf } from "../lib/error-message";
 import { sameDocument } from "../lib/same-document";
 
-// every question an item's page asks, answered from the phone's replica
+// every question an item's page asks, answered from the account's library
 export type EditorRequestPorts = {
   readonly [K in RequestKind]: (payload: RequestPayload<K>) => Promise<RequestResult<K>>;
 };
 
-// what the page says on its own; a `flushed` is the host's to settle, and the headless page's
-// answers are its own host's
-export type EditorPageEvent = Exclude<
-  PageFrame,
-  { type: "request" | "ready" | "flushed" | "mergeAnswer" }
->;
+// what the page says on its own; a `flushed` is the host's to settle
+export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "flushed" }>;
 
-// what the phone tells a loaded page on its own: the replica moved
-type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" }>>;
+// what the phone tells a loaded page on its own: an item moved, or the connection did
+type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" | "connection" }>>;
 
 // the part of the WebView the host drives
 interface EditorView {
@@ -44,8 +40,9 @@ export interface EditorHostArgs {
   pageUrl: string;
   // what the first load's `init` says; a later load opens the same item with no focus, since the
   // keyboard it would raise is one the person never asked for again. Every load names the
-  // library's size cap, which the page holds a pasted file to
-  init: Omit<ItemInit, "fileMaxBytes" | "mode" | "nonce" | "type">;
+  // library's size cap, which the page holds a pasted file to, and the connection as it is then
+  init: Omit<ItemInit, "fileMaxBytes" | "nonce" | "online" | "type">;
+  online: () => boolean;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
@@ -175,8 +172,8 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
       ...args.init,
       fileMaxBytes: BLOB_MAX_BYTES,
       focus: first ? args.init.focus : null,
-      mode: "item",
       nonce,
+      online: args.online(),
       type: "init",
     });
   };
@@ -233,9 +230,6 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
         const settle = flushes.get(frame.id);
         flushes.delete(frame.id);
         settle?.(frame.ok);
-        return;
-      }
-      if (frame.type === "mergeAnswer") {
         return;
       }
       args.onEvent(frame);
