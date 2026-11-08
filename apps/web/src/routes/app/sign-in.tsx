@@ -11,7 +11,7 @@ import { siteConfig } from "#lib/site-config";
 const SignInPage = () => {
   const router = useRouter();
   const { next } = Route.useSearch();
-  const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
+  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.signIn.email({
       email: fieldValue(form, "email"),
       password: fieldValue(form, "password"),
@@ -55,7 +55,7 @@ const SignInPage = () => {
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !ready}>
           {pending ? "Signing in…" : "Sign in"}
         </Button>
         <Link

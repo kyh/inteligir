@@ -10,7 +10,7 @@ import { authPageSearchSchema, resetLanding } from "#lib/next-path";
 const ForgotPasswordPage = () => {
   const { next } = Route.useSearch();
   const [sent, setSent] = useState(false);
-  const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
+  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.requestPasswordReset({
       email: fieldValue(form, "email"),
       redirectTo: resetLanding(next),
@@ -48,7 +48,7 @@ const ForgotPasswordPage = () => {
             autoFocus
           />
           <AuthError message={error} />
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || !ready}>
             {pending ? "Sending…" : "Send reset link"}
           </Button>
         </form>

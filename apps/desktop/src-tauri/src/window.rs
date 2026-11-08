@@ -154,6 +154,7 @@ pub fn create_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 /// Brings the window forward; false when there is none.
+#[cfg(target_os = "macos")]
 pub fn show_main<R: Runtime>(app: &AppHandle<R>) -> bool {
     let Some(window) = app.get_webview_window(MAIN) else {
         return false;

@@ -24,7 +24,7 @@ const refusalMessage = async (response: Response): Promise<string> => {
 const SignUpPage = () => {
   const router = useRouter();
   const { next } = Route.useSearch();
-  const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
+  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
     const request: SignUpRequest = {
       email: fieldValue(form, "email"),
       inviteCode: fieldValue(form, "inviteCode"),
@@ -87,7 +87,7 @@ const SignUpPage = () => {
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !ready}>
           {pending ? "Creating account…" : "Create account"}
         </Button>
       </form>

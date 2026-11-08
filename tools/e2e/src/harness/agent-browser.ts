@@ -6,7 +6,7 @@ import { describeExecError, exec } from "./exec";
 import { OWNER } from "./cloud-account";
 import type { CloudWorker } from "./cloud-worker";
 import { pollUntil } from "./poll";
-import { LIBRARY_RAIL } from "./selectors";
+import { LIBRARY_RAIL, SUBMIT_READY } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
@@ -264,7 +264,8 @@ export const createScenarioBrowser = (
     await run(["wait", "#email"], 60_000);
     await run(["fill", "#email", OWNER.email]);
     await run(["fill", "#password", OWNER.password]);
-    await run(["click", 'button[type="submit"]']);
+    await run(["wait", SUBMIT_READY], 60_000);
+    await run(["click", SUBMIT_READY]);
     await run(["wait", LIBRARY_RAIL], 90_000);
   };
   const controls: ScenarioBrowserControls = {

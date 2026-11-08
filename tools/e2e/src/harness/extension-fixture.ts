@@ -13,6 +13,7 @@ import { z } from "zod";
 import { clickButtonIn, parseEval, untilBodyHolds } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";
 import { OWNER } from "./cloud-account";
+import { SUBMIT_READY } from "./selectors";
 
 // what the scenario's browser launches with on every call: the profile and the dev build
 export const extensionLaunchFlags = (args: {
@@ -46,7 +47,8 @@ export const connectExtension = async (
   await browser(["wait", "#email"], 60_000);
   await browser(["fill", "#email", OWNER.email]);
   await browser(["fill", "#password", OWNER.password]);
-  await browser(["click", 'button[type="submit"]']);
+  await browser(["wait", SUBMIT_READY], 60_000);
+  await browser(["click", SUBMIT_READY]);
   await untilBodyHolds(browser, ["Connect the browser extension"], 60_000);
   await clickButtonIn(browser, "main", "Connect");
   await untilBodyHolds(browser, ["Connected."], 60_000);

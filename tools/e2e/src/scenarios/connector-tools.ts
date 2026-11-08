@@ -9,6 +9,7 @@ import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { startAssistant } from "../harness/connector-assistant";
 import type { ConnectorAssistant } from "../harness/connector-assistant";
 import type { Scenario } from "../harness/scenario";
+import { SUBMIT_READY } from "../harness/selectors";
 import { v1Client } from "../harness/v1-wire";
 
 const DEADLINE_MS = 60_000;
@@ -143,7 +144,8 @@ const letIn = async (
     await browser(["wait", "#email"], DEADLINE_MS);
     await browser(["fill", "#email", OWNER.email]);
     await browser(["fill", "#password", OWNER.password]);
-    await browser(["click", 'button[type="submit"]']);
+    await browser(["wait", SUBMIT_READY], DEADLINE_MS);
+    await browser(["click", SUBMIT_READY]);
   }
   await untilBodyHolds(
     browser,

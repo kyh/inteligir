@@ -112,3 +112,13 @@ describe("resetting a password on the way to a page that needs a session", () =>
     expect(forgot).not.toContain("evil.example");
   });
 });
+
+describe("an account page before it hydrates", () => {
+  it.each(["/app/sign-in", "/app/sign-up", "/app/forgot-password"])(
+    "holds %s's submit, which the browser would send as a GET with what was typed",
+    async (path) => {
+      const page = await drawn(path);
+      expect(page).toMatch(/<button[^>]*type="submit"[^>]*disabled=""/u);
+    },
+  );
+});
