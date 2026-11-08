@@ -1,22 +1,30 @@
 # Decisions: @repo/extension
 
-The browser extension: how it connects to an account, what it reads of a page,
-how it saves and waits, what it may reach, and how it builds. `AGENTS.md` §
-Decisions says how a bullet is written and cited.
+The browser extension: whose sign-in it rides, what it reads of a page, how it
+saves and waits, what it may reach, and how it builds. `AGENTS.md` § Decisions
+says how a bullet is written and cited.
 
 ## Browser extension
 
-- **THE EXTENSION IS A `/v1` CLIENT WITH A DEVICE CREDENTIAL OF ITS OWN, HANDED
-  OVER BY THE SITE'S CONNECT PAGE.** Signed in there, a click mints it a
-  credential for the session's account (`account.connectExtension`, refused to
-  a device's bearer) and sends it through `externally_connectable` to the one
-  id the committed key names; the manifest lets that page message it and no
+- **THE EXTENSION RIDES THE BROWSER'S OWN SIGN-IN TO THE SITE, AND THE SITE'S
+  CONNECT PAGE NAMES THE SITE.** The worker reads Better Auth's session cookie
+  for the cloud's origin from the browser's jar (`__Secure-better-auth.session_token`
+  on https, `better-auth.session_token` on a local Worker's http) and sends its
+  signed value as `/v1`'s bearer, the extension's door, and asks
+  `/api/auth/get-session` through Better Auth's own client whose session it
+  is; it keeps only that cloud's origin and the account's email. The connect
+  page sends the one id the committed key names a message through
+  `externally_connectable`; the manifest lets that page message it and no
   other extension, the worker checks the sender's origin exactly and parses
-  the message before it keeps anything, and the page's origin becomes the
-  cloud it calls. A credential the extension did not take, or one it replaces,
-  is revoked. Rejected: a password typed into the extension (a second sign-in
-  form, on the Web Store's cadence); the Mac's app as its door (no save with
-  the Mac closed). `apps/extension/src/background/connection.ts`,
+  the message before it asks anything, and the page's origin becomes the cloud
+  it calls, answered with the account found signed in there. No credential
+  crosses, and a sign-out on the site leaves no cookie, so the next call or
+  look reads the extension signed out. Rejected: a device credential of its
+  own minted by the connect page (a second secret per browser, which outlived
+  the browser's sign-out); a password typed into the extension (a second
+  sign-in form, on the Web Store's cadence); the Mac's app as its door (no save
+  with the Mac closed). `apps/extension/src/background/sign-in.ts`,
+  `apps/extension/src/background/connection.ts`,
   `apps/extension/src/background/listeners.ts`,
   `apps/web/src/lib/extension-connect.ts`.
 
@@ -48,33 +56,41 @@ Decisions says how a bullet is written and cited.
   link landing under its op id first would stand in for its page. A waiting save the cloud
   refuses as too old a build waits for the browser's update, which
   `storage.local` outlives; any other refusal lets it
-  go, a full library too, which only the person can empty; a revoked
-  credential forgets the connection and every save made under it, unless a
-  connect replaced it while the call was on its way, since that refusal
-  answers for the old one and never the one just handed over. Rejected: the
-  page's HTML in the queue (2 MB a save in a 10 MB store); a timer (the worker
-  dies 30 s after its last event).
-  `apps/extension/src/background/save-queue.ts`.
+  go, a full library too, which only the person can empty. Each save names the
+  account it was made under by its email and is sent only under that
+  account's session, so one made signed out, or met by the cloud's 401 as the
+  session ended, waits for that account to sign in here again, whoever signs
+  in meanwhile, and the popup says "Saved once you sign in to Inteligir
+  again"; a 410, the account deleted, lets go every save made under it and
+  the kept account, unless a sign-in as another replaced it while the call was
+  on its way. While a save waits, each alarm asks the cloud whose session the
+  browser holds, one small read every 30 s. Rejected: the page's HTML in the
+  queue (2 MB a save in a 10 MB store); a timer (the worker dies 30 s after
+  its last event); dropping what waited at a sign-out (a site's sign-out would
+  lose saves the person made). `apps/extension/src/background/save-queue.ts`.
 
-- **THE CREDENTIAL AND THE QUEUE ARE STORAGE'S, AND THE WORKER HOLDS NOTHING.**
-  `storage.local` is opened to trusted contexts alone as the worker starts, so
-  the capture script it injects into a page reads neither; every listener is
-  registered in `main()`'s first turn, an async answer returns `true`, and
-  every call has a deadline under the 30 s a worker waits on a fetch.
-  `apps/extension/src/entrypoints/background.ts`.
+- **THE ACCOUNT AND THE QUEUE ARE STORAGE'S, THE SESSION THE BROWSER'S JAR,
+  AND THE WORKER HOLDS NOTHING.** `storage.local` is opened to trusted contexts
+  alone as the worker starts, so the capture script it injects into a page
+  reads neither; every listener is registered in `main()`'s first turn, an
+  async answer returns `true`, and every call has a deadline under the 30 s a
+  worker waits on a fetch. `apps/extension/src/entrypoints/background.ts`.
 
-- **ACTIVETAB, NEVER `<all_urls>`.** The store builds ask `activeTab`,
-  `alarms`, `contextMenus`, `scripting` and `storage` and no host: the click
-  on the toolbar, the shortcut or a menu grants the one tab every save is made
-  over. The cloud answers CORS for the extension's exact origin
-  (`apps/web/src/worker/cors.ts`), so a call needs no host; a cover on another
-  site is kept only where it lets the extension read it, else the item has
-  none. Only the dev build adds `127.0.0.1`, so the e2e scripts its fixture
-  page without a click, and the store zip refuses a manifest carrying a host,
-  `<all_urls>` or a connect page but production's. Rejected: `<all_urls>` (an
-  install warning that every page is readable at any time, for a save that
-  only follows a click); the cloud's origin as a host (a second spelling of
-  what CORS answers). `apps/extension/src/manifest.ts`.
+- **ACTIVETAB AND THE CLOUD'S SITE, NEVER `<all_urls>`.** The store builds ask
+  `activeTab`, `alarms`, `contextMenus`, `cookies`, `scripting` and `storage`,
+  and the production site as their one host: the host and `cookies` read the
+  site's session cookie, and the worker's calls to that host need no CORS. The
+  click on the toolbar, the shortcut or a menu grants the one tab every save
+  is made over; a cover on another site is kept only where it lets the
+  extension read it, else the item has none. The dev build names a local
+  Worker's `localhost` in its place and adds `127.0.0.1`, so the e2e scripts
+  its fixture page without a click, and the store zip refuses a manifest whose
+  hosts are not exactly production's, one carrying `<all_urls>`, or a connect
+  page but production's. Rejected: `<all_urls>` (an install warning that every
+  page is readable at any time, for a save that only follows a click); no host
+  at all (the session lives in the site's cookie, which only a host lets the
+  extension read). `apps/extension/src/manifest.ts`,
+  `apps/extension/wxt.config.ts`.
 
 - **THE BUILD FLOOR HOLDS THE EXTENSION AS IT HOLDS EVERY CLIENT.** Every call
   names its build (`<version>+extension`) and its version is the product's
@@ -87,7 +103,7 @@ Decisions says how a bullet is written and cited.
 - **THE ID IS THE COMMITTED KEY'S, AND THE STORE ZIP STRIPS IT.** The dev build
   and the unpacked store build carry `EXTENSION_PUBLIC_KEY`, so their id is
   Chrome's derivation of it, known before any store listing: the origin the
-  cloud answers CORS for and the id the connect page sends to. The zip carries
+  cloud trusts and the id the connect page sends to. The zip carries
   no key, since the Web Store signs the item with its own, whose public half
   the owner commits once in its place (`docs/releasing.md`).
   `packages/contract/src/cloud/extension/extension-identity.ts`,
@@ -126,16 +142,20 @@ Decisions says how a bullet is written and cited.
   a cover, never a copy. Rejected: Keep a copy on `items.save` (no
   device opens a copy, so it would upload bytes nobody reads; a single-file
   copy needs every stylesheet, font and picture the page names, which an
-  `activeTab` extension with no host cannot fetch across origins; the frozen
-  DOM alone could spend the capture's 2 MB). `apps/extension/src/background/save-page.ts`.
+  `activeTab` extension whose one host is the cloud's site cannot fetch across
+  origins; the frozen DOM alone could spend the capture's 2 MB).
+  `apps/extension/src/background/save-page.ts`.
 
-- **DISCONNECT IS THE WELCOME PAGE'S, AND THAT PAGE CAN ALWAYS BE OPENED AGAIN.**
-  The install opens it once; the popup links it as Manage connection while
-  connected, and the manifest names it `options_ui`, in a tab, so the toolbar
-  button's own Options reaches it when the popup could read no connection.
-  Rejected: Disconnect in the popup (it saves as it opens, and one stray click
-  there would forget what waits); a message from the site that disconnects (a
-  page could then sign a browser out, on a door that only hands a credential
-  over). `apps/extension/src/manifest.ts`,
+- **THE EXTENSION HAS NO SIGN-OUT OF ITS OWN: THE SITE'S SIGNS IT OUT, AND IT
+  SAYS WHO IS SIGNED IN AND LINKS THE SITE.** The popup names the account
+  beside Open your library; the welcome page, which the install opens once and
+  the manifest names `options_ui`, in a tab, so the toolbar button's own
+  Options reaches it, says whose library this browser saves to and that
+  signing out of Inteligir signs the extension out too, or links the site's
+  sign-in. Rejected: a Disconnect of its own (a second sign-out that left the
+  browser signed in on the site, and in the popup, which saves as it opens,
+  one stray click would forget what waits); a message from the site that
+  signs it out (the site's own sign-out already ends the session it rides).
+  `apps/extension/src/manifest.ts`,
   `apps/extension/src/entrypoints/popup/app.tsx`,
   `apps/extension/src/entrypoints/welcome/app.tsx`.

@@ -1,28 +1,22 @@
-// the page the extension opens once installed, and the popup's Manage connection and the browser's
-// Options open again: whose library this browser saves to, with Disconnect, or the way to connect
-// it, the site's page that hands it a credential. A failed connection says so in its own words,
-// never a save's.
+// the page the extension opens once installed, and the browser's Options opens again: whose library
+// this browser saves to, as the browser is signed in on the site, or the way to sign in. The
+// extension has no sign-out of its own: signing out on the site signs it out too. A status it could
+// not read says so in its own words, never a save's.
 
-import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useState } from "react";
 
 import type { Status, WorkerAsks } from "../../messages";
 
 export interface WelcomeProps {
-  ask: Pick<WorkerAsks, "disconnect" | "status">;
+  ask: Pick<WorkerAsks, "status">;
 }
 
-const CONNECT_COPY = "Connect this browser to your Inteligir library to save to it.";
-const UNREADABLE_COPY = "Couldn't read this browser's connection. Close this page and try again.";
+const SIGN_IN_COPY = "Sign in to Inteligir in this browser to save to your library.";
+const SIGNED_IN_COPY = "Signing out of Inteligir in this browser signs this extension out too.";
+const UNREADABLE_COPY = "Couldn't read whose library this is. Close this page and try again.";
 
-const Connection = ({
-  status,
-  onDisconnect,
-}: {
-  status: Status | "unreadable" | null;
-  onDisconnect: () => void;
-}) => {
+const Account = ({ status }: { status: Status | "unreadable" | null }) => {
   if (status === null) {
     return (
       <p className="flex items-center gap-2 text-subtitle text-muted-foreground">
@@ -38,27 +32,33 @@ const Connection = ({
       </p>
     );
   }
-  if (status.connection === null) {
+  if (status.account === null) {
     return (
       <div className="flex flex-col items-start gap-3">
-        <p className="text-subtitle text-foreground">{CONNECT_COPY}</p>
+        <p className="text-subtitle text-foreground">{SIGN_IN_COPY}</p>
         <a
           className="text-subtitle text-foreground underline"
-          href={status.connectUrl}
+          href={status.signInUrl}
           rel="noreferrer"
           target="_blank"
         >
-          Connect your library
+          Sign in to Inteligir
         </a>
       </div>
     );
   }
   return (
     <div className="flex flex-col items-start gap-3">
-      <p className="text-subtitle text-foreground">{`Saving to ${status.connection.email}'s library`}</p>
-      <Button onClick={onDisconnect} size="compact" variant="tertiary">
-        Disconnect
-      </Button>
+      <p className="text-subtitle text-foreground">{`Saving to ${status.account.email}'s library`}</p>
+      <a
+        className="text-subtitle text-foreground underline"
+        href={status.account.libraryUrl}
+        rel="noreferrer"
+        target="_blank"
+      >
+        Open your library
+      </a>
+      <p className="text-body text-muted-foreground">{SIGNED_IN_COPY}</p>
     </div>
   );
 };
@@ -75,7 +75,7 @@ export const Welcome = ({ ask }: WelcomeProps) => {
       }
     };
     void look();
-    // a connection made in another tab shows here when this one is looked at again
+    // a sign-in or sign-out in another tab shows here when this one is looked at again
     const again = () => {
       if (document.visibilityState === "visible") {
         void look();
@@ -91,14 +91,7 @@ export const Welcome = ({ ask }: WelcomeProps) => {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-background p-8 text-foreground">
       <h1 className="text-display">Save to Inteligir</h1>
-      <Connection
-        onDisconnect={() => {
-          void (async () => {
-            setStatus((await ask.disconnect()) ?? "unreadable");
-          })();
-        }}
-        status={status}
-      />
+      <Account status={status} />
       <p className="text-body text-muted-foreground">
         Click the Inteligir button in the toolbar to save the page you&rsquo;re on, or right-click a
         page, a link or an image. Everything you save lands in Unsorted.

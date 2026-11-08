@@ -5,20 +5,29 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS } from "./cloud";
-import { forgetConnection, readConnection } from "./connection";
+import { keepConnection, readConnection } from "./connection";
 import { keepSave, markWaiting, queuedSaves, SEND_ALARM, sendQueued } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
-import { CONNECTION, fakeCloud, handOver, MINTED, NEXT } from "./test-support/fake-cloud";
+import type { SignIn } from "./sign-in";
+import {
+  fakeCloud,
+  OTHER_SESSION,
+  SESSION,
+  SIGNED_IN,
+  SIGNED_OUT,
+} from "./test-support/fake-cloud";
 
 beforeEach(async () => {
   fakeBrowser.reset();
-  await handOver(MINTED);
+  await keepConnection({ email: SESSION.email, origin: SESSION.origin });
 });
 
 const NOW = Date.UTC(2026, 10, 5, 12);
+const SECOND = "01900000-0000-7000-8000-0000000000a2";
+const THIRD = "01900000-0000-7000-8000-0000000000a3";
 
 const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
-  deviceId: CONNECTION.deviceId,
+  email: SESSION.email,
   firstTry: false,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
@@ -28,9 +37,10 @@ const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   ...overrides,
 });
 
-const depsWith = (cloud: ReturnType<typeof fakeCloud>) => ({
+const depsWith = (cloud: ReturnType<typeof fakeCloud>, signIn: SignIn | null = SIGNED_IN) => ({
   cloud: () => cloud.cloud,
   now: () => NOW,
+  signIn: async () => signIn,
 });
 
 describe("a save that waits", () => {
@@ -64,7 +74,7 @@ describe("a save that waits", () => {
 
   it("waits again, the later ones behind it, while the cloud does not answer", async () => {
     await keepSave(waiting());
-    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
     const cloud = fakeCloud({
       saveLink: async () => {
         throw new TypeError("Failed to fetch");
@@ -94,7 +104,7 @@ describe("a save that waits", () => {
 
   it("waits through a build the cloud calls too old, for the update the browser makes", async () => {
     await keepSave(waiting());
-    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
     const outdated = fakeCloud({
       saveLink: async () => {
         throw new ORPCError("CLIENT_OUTDATED");
@@ -104,7 +114,7 @@ describe("a save that waits", () => {
     expect(outdated.links).toHaveLength(1);
     await expect(queuedSaves()).resolves.toStrictEqual([
       waiting(),
-      waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }),
+      waiting({ opId: SECOND, savedAt: NOW - 900 }),
     ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
     // the updated extension's worker sends both
@@ -114,72 +124,102 @@ describe("a save that waits", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("is never sent under another device's credential, and lets go one no resend can land", async () => {
-    await keepSave(waiting({ deviceId: "another-sign-in" }));
-    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a3" }));
+  it("is sent only under its own account's session, and lets go one no resend can land", async () => {
+    await keepSave(waiting({ email: OTHER_SESSION.email }));
+    await keepSave(waiting({ opId: THIRD }));
     const cloud = fakeCloud({
       saveLink: async () => {
         throw new ORPCError("QUOTA");
       },
     });
     await sendQueued(depsWith(cloud));
-    expect(cloud.links.map((link) => link.opId)).toStrictEqual([
-      "01900000-0000-7000-8000-0000000000a3",
-    ]);
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([THIRD]);
+    // the other account's save waits for that account to sign in here again
+    await expect(queuedSaves()).resolves.toStrictEqual([waiting({ email: OTHER_SESSION.email })]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    const other = fakeCloud({});
+    await sendQueued(depsWith(other, { kind: "signed-in", session: OTHER_SESSION }));
+    expect(other.links.map((link) => link.opId)).toStrictEqual([waiting().opId]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("is let go, unsent, once this browser holds no connection", async () => {
+  it("is kept, unsent, while the browser is signed out or the cloud did not say who it is", async () => {
     await keepSave(waiting());
-    await forgetConnection();
-    const cloud = fakeCloud({});
-    await sendQueued(depsWith(cloud));
-    expect(cloud.links).toStrictEqual([]);
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+    const none: SignIn = { kind: "none" };
+    for (const signIn of [SIGNED_OUT, none, null]) {
+      const cloud = fakeCloud({});
+      await sendQueued(depsWith(cloud, signIn));
+      expect(cloud.links).toStrictEqual([]);
+    }
+    await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
-  it("ends the connection, and what waited under it, once the cloud says the credential is gone", async () => {
+  it("asks nobody who is signed in while nothing waits", async () => {
+    let asked = 0;
+    await sendQueued({
+      cloud: () => fakeCloud({}).cloud,
+      now: () => NOW,
+      signIn: async () => {
+        asked += 1;
+        return SIGNED_IN;
+      },
+    });
+    expect(asked).toBe(0);
+  });
+
+  it("waits for its account to sign in again once the cloud says the session ended", async () => {
     await keepSave(waiting());
-    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
-    const cloud = fakeCloud({
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const ended = fakeCloud({
       saveLink: async () => {
         throw new ORPCError("UNAUTHORIZED");
+      },
+    });
+    await sendQueued(depsWith(ended));
+    expect(ended.links).toHaveLength(1);
+    await expect(queuedSaves()).resolves.toHaveLength(2);
+    await expect(readConnection()).resolves.toStrictEqual({
+      email: SESSION.email,
+      origin: SESSION.origin,
+    });
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    // signed in again, both go
+    const again = fakeCloud({});
+    await sendQueued(depsWith(again));
+    expect(again.links).toHaveLength(2);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("lets go what waited for an account the cloud deleted, and the account with it", async () => {
+    await keepSave(waiting());
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    await keepSave(waiting({ email: OTHER_SESSION.email, opId: THIRD }));
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        throw new ORPCError("GONE");
       },
     });
     await sendQueued(depsWith(cloud));
     await expect(readConnection()).resolves.toBeNull();
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      waiting({ email: OTHER_SESSION.email, opId: THIRD }),
+    ]);
   });
 
-  it("keeps the connection a connect handed over while a call under the old one was on its way", async () => {
+  it("keeps the account a sign-in as another replaced while the call was on its way", async () => {
     await keepSave(waiting());
-    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
+    const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
     const cloud = fakeCloud({
       saveLink: async () => {
-        await handOver(NEXT);
-        await keepSave(
-          waiting({
-            deviceId: NEXT.deviceId,
-            opId: "01900000-0000-7000-8000-0000000000a3",
-            savedAt: NOW - 800,
-          }),
-        );
-        throw new ORPCError("UNAUTHORIZED");
+        await keepConnection(replaced);
+        throw new ORPCError("GONE");
       },
     });
     await sendQueued(depsWith(cloud));
-    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
-    await expect(queuedSaves()).resolves.toHaveLength(3);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
-    // the next pass lets the old credential's saves go, and sends what the new one made
-    const answering = fakeCloud({});
-    await sendQueued(depsWith(answering));
-    expect(answering.links.map((link) => link.opId)).toStrictEqual([
-      "01900000-0000-7000-8000-0000000000a3",
-    ]);
+    await expect(readConnection()).resolves.toStrictEqual(replaced);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
   it("drops a record that does not parse, rather than sending it", async () => {

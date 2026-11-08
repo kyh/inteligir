@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
-import { answerConnectPage, connectPageOrigin, readConnection } from "./connection";
-import type { Connection } from "./connection";
-import { CONNECTION } from "./test-support/fake-cloud";
+import { answerConnectPage, connectPageOrigin } from "./connection";
+import type { SignIn } from "./sign-in";
+import { SESSION, SIGNED_IN, SIGNED_OUT } from "./test-support/fake-cloud";
 
 beforeEach(() => {
   fakeBrowser.reset();
 });
-
-const { origin: _origin, ...MINTED } = CONNECTION;
 
 const PAGE = { origin: "https://inteligir.com", url: "https://inteligir.com/connect/extension" };
 
@@ -49,41 +47,32 @@ describe("the page that may connect the extension", () => {
 });
 
 describe("the connect page's messages", () => {
-  const revoked: Connection[] = [];
-  const deps = {
-    revoke: async (connection: Connection) => {
-      revoked.push(connection);
-    },
-  };
   const SITE = "https://inteligir.com";
+  const asked: string[] = [];
+  const answering = (signIn: SignIn | null) => ({
+    signIn: async (origin: string) => {
+      asked.push(origin);
+      return signIn;
+    },
+  });
 
   beforeEach(() => {
-    revoked.length = 0;
+    asked.length = 0;
   });
 
-  it("names no account to a hello, and keeps a credential handed over with the page's origin as its cloud", async () => {
-    await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
-      email: null,
+  it("answer the account the browser is signed in as on the page's own site", async () => {
+    await expect(answerConnectPage(SITE, answering(SIGNED_IN))).resolves.toStrictEqual({
+      email: SESSION.email,
     });
-    await expect(
-      answerConnectPage({ connection: MINTED, type: "connect" }, SITE, deps),
-    ).resolves.toStrictEqual({
-      email: MINTED.email,
-    });
-    const held = await readConnection();
-    expect(held).toStrictEqual({ ...MINTED, origin: SITE });
-    await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
-      email: null,
-    });
-    expect(revoked).toStrictEqual([]);
+    expect(asked).toStrictEqual([SITE]);
   });
 
-  it("revokes the credential a new connection replaces", async () => {
-    await answerConnectPage({ connection: MINTED, type: "connect" }, SITE, deps);
-    const next = { ...MINTED, credential: `igd_${"b".repeat(64)}`, deviceId: "next" };
-    await answerConnectPage({ connection: next, type: "connect" }, SITE, deps);
-    const held = await readConnection();
-    expect(held?.deviceId).toBe("next");
-    expect(revoked.map((connection) => connection.deviceId)).toStrictEqual([MINTED.deviceId]);
+  it("name no account when the browser is signed out there, or the cloud did not answer", async () => {
+    const none: SignIn = { kind: "none" };
+    for (const signIn of [SIGNED_OUT, none, null]) {
+      await expect(answerConnectPage(SITE, answering(signIn))).resolves.toStrictEqual({
+        email: null,
+      });
+    }
   });
 });

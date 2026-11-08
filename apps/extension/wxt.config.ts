@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import extensionPackage from "./package.json" with { type: "json" };
 import {
+  cloudHostPattern,
   connectPagePattern,
   DEV_CLOUD_ORIGIN,
   extensionManifest,
@@ -43,12 +44,13 @@ const shippedFiles = (dir: string): string[] =>
 // the fields the store zip refuses on, read as the store would read the file
 const storeManifestSchema = z.looseObject({
   externally_connectable: z.looseObject({ matches: z.array(z.string()) }),
+  host_permissions: z.array(z.string()).optional(),
   version: z.string(),
 });
 
-// what the store signs: no key, since the Web Store signs the item with its own, no host and never
-// every site, the production site's connect page the one that may message it, no file naming a
-// checkout's cloud, and the zip holding exactly the build's files
+// what the store signs: no key, since the Web Store signs the item with its own, the production
+// site its one host and never every site, that site's connect page the one that may message it, no
+// file naming a checkout's cloud, and the zip holding exactly the build's files
 const checkStoreZip = (outDir: string, zipPath: string): void => {
   const manifest = storeManifestSchema.parse(
     JSON.parse(readFileSync(path.join(outDir, "manifest.json"), "utf-8")),
@@ -56,8 +58,11 @@ const checkStoreZip = (outDir: string, zipPath: string): void => {
   if ("key" in manifest) {
     fail("the store manifest carries a key: the Web Store signs the item with its own");
   }
-  if ("host_permissions" in manifest || JSON.stringify(manifest).includes("<all_urls>")) {
-    fail("the store manifest asks for a host: the store build has activeTab alone");
+  if (
+    !isDeepStrictEqual(manifest.host_permissions, [cloudHostPattern("store")]) ||
+    JSON.stringify(manifest).includes("<all_urls>")
+  ) {
+    fail("the store manifest asks for a host but the production site's");
   }
   if (!isDeepStrictEqual(manifest.externally_connectable.matches, [connectPagePattern("store")])) {
     fail("the store manifest lets a page other than the production connect page message it");
@@ -109,7 +114,7 @@ export default defineConfig({
       }
     },
     // a zip is the store's, checked, and beside it the unpacked store build: the same files with the
-    // committed key, so a release check loads the store build under the id the cloud answers
+    // committed key, so a release check loads the store build under the id the cloud trusts
     "zip:extension:done": (wxt, zipPath) => {
       try {
         if (flavorOfMode(wxt.config.mode) !== "store") {

@@ -1,35 +1,36 @@
 // the extension's service worker: the toolbar's and the right-click's saves to the library over
-// `/v1`, the site's connect page handing it a credential, and the alarm that sends what waited.
-// It answers the extension's own pages and the one connect page its manifest names, nothing else.
-// Every listener is registered in main()'s first turn, as MV3 wants, and nothing it needs later is
-// held in memory: the connection and the queue are storage's.
+// `/v1`, under the browser's own sign-in to the site, which the connect page points it at, and the
+// alarm that sends what waited. It answers the extension's own pages and the one connect page its
+// manifest names, nothing else. Every listener is registered in main()'s first turn, as MV3 wants,
+// and nothing it needs later is held in memory: the account and the queue are storage's, the
+// session the browser's jar.
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
 import type { ExtensionRequest, Outcome, Status, WorkerAnswer } from "../messages";
-import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
+import { flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import { readConnection, revokeQuietly } from "../background/connection";
-import type { Connection } from "../background/connection";
+import { cloudOrigin, readConnection } from "../background/connection";
 import { connectPageListener, ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { ensureSendAlarm, SEND_ALARM, sendQueued, signedOut } from "../background/save-queue";
+import { ensureSendAlarm, SEND_ALARM, sendQueued } from "../background/save-queue";
+import type { SendDeps } from "../background/save-queue";
+import { askedSignIn, cloudSignIn, heldSignIn, saveSignIn } from "../background/sign-in";
+import type { Session } from "../background/sign-in";
 
 // src/entrypoints/welcome, which WXT writes at this path
 const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
 
-const cloudFor = (connection: Connection) =>
-  cloudOf(connection, browser.runtime.getManifest().version);
+const cloudFor = (session: Session) => cloudOf(session, browser.runtime.getManifest().version);
 
 const saveDeps: SaveDeps = {
   capture: captureTab,
@@ -38,21 +39,14 @@ const saveDeps: SaveDeps = {
   newBlockId: () => crypto.randomUUID(),
   now: () => Date.now(),
   randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+  signIn: saveSignIn,
 };
 
-const sendDeps = {
+const sendDeps: SendDeps = {
   cloud: cloudFor,
   now: () => Date.now(),
+  signIn: cloudSignIn,
 };
-
-// the cloud this build connects to before it holds a connection: the production site, or for the
-// dev build the local Worker `pnpm dev:web` serves. The mode is a literal in the bundle, so a store
-// build carries no checkout's origin (the zip's check in wxt.config.ts)
-const FIRST_CLOUD_ORIGIN =
-  import.meta.env.MODE === "store" ? PRODUCTION_CLOUD_ORIGIN : DEV_CLOUD_ORIGIN;
-
-const connectUrl = (connection: Connection | null): string =>
-  `${connection?.origin ?? FIRST_CLOUD_ORIGIN}${CONNECT_EXTENSION_PATH}`;
 
 const tabFacts = (tab: Browser.tabs.Tab): TabFacts | null =>
   tab.id === undefined ? null : { id: tab.id, title: tab.title, url: tab.url };
@@ -69,23 +63,20 @@ const withBadge = async (tabId: number, run: () => Promise<Outcome>): Promise<Ou
   return outcome;
 };
 
+// the cloud asked, and when it does not answer, what the browser holds
 const status = async (): Promise<Status> => {
-  const connection = await readConnection();
+  const origin = cloudOrigin(await readConnection());
+  const signIn = (await cloudSignIn()) ?? (await heldSignIn());
   return {
-    connectUrl: connectUrl(connection),
-    connection:
-      connection === null
-        ? null
-        : {
-            email: connection.email,
-            libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}`,
-            manageUrl: browser.runtime.getURL(WELCOME_PAGE),
-          },
+    account:
+      signIn.kind === "signed-in"
+        ? {
+            email: signIn.session.email,
+            libraryUrl: `${signIn.session.origin}${LIBRARY_PAGE_PATH}`,
+          }
+        : null,
+    signInUrl: `${origin}${CONNECT_EXTENSION_PATH}`,
   };
-};
-
-const revoke = async (connection: Connection): Promise<void> => {
-  await cloudFor(connection).signOut();
 };
 
 const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
@@ -104,14 +95,6 @@ const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
       return await withBadge(facts.id, async () => await saveTab(saveDeps, { tab: facts }));
     }
     case "status": {
-      return await status();
-    }
-    case "disconnect": {
-      const connection = await readConnection();
-      if (connection !== null) {
-        await signedOut(connection.deviceId);
-        void revokeQuietly({ revoke }, connection);
-      }
       return await status();
     }
     // no default
@@ -174,7 +157,7 @@ const installed = async (reason: string): Promise<void> => {
   }
 };
 
-// every start: the credential and the queue kept from the capture script the worker injects, and
+// every start: the account and the queue kept from the capture script the worker injects, and
 // the alarm made again while a save waits, since an update or a restart can clear it
 const starting = async (): Promise<void> => {
   await browser.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
@@ -193,7 +176,7 @@ export default defineBackground({
         answered: async () => {
           await sendQueued(sendDeps);
         },
-        revoke,
+        signIn: askedSignIn,
       }),
     );
     browser.contextMenus.onClicked.addListener((info, tab) => {

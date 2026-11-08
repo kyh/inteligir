@@ -1,26 +1,21 @@
 // a cloud that answers as a case scripts it and records what it was asked: each call's answer is
-// the script's, a thrown error included, so a case says how the cloud met a save
+// the script's, a thrown error included, so a case says how the cloud met a save; and the browser's
+// sign-in as a case sets it
 
 import type { Cloud, FileCreate, LinkSave, PageSave, Saved } from "../cloud";
-import { answerConnectPage } from "../connection";
-import type { Connection } from "../connection";
+import type { Session, SignIn } from "../sign-in";
 
-export const CONNECTION: Connection = {
-  credential: `igd_${"a".repeat(64)}`,
-  deviceId: "extension-device",
+export const SESSION: Session = {
+  bearer: "session-token.signature",
   email: "reader@example.test",
   origin: "http://localhost:5174",
-  userId: "reader",
 };
 
-const { origin: SITE, ...minted } = CONNECTION;
-export const MINTED = minted;
-export const NEXT = { ...minted, credential: `igd_${"b".repeat(64)}`, deviceId: "next-device" };
+export const SIGNED_IN: SignIn = { kind: "signed-in", session: SESSION };
+export const SIGNED_OUT: SignIn = { email: SESSION.email, kind: "signed-out" };
 
-// the connect page's hand-over, which keeps what it is given and revokes what that replaces
-export const handOver = async (connection: typeof MINTED): Promise<void> => {
-  await answerConnectPage({ connection, type: "connect" }, SITE, { revoke: async () => {} });
-};
+// another account, signed in on the same site
+export const OTHER_SESSION: Session = { ...SESSION, email: "other@example.test" };
 
 export const savedAs = (title: string, created = true): Saved => ({
   created,
@@ -61,7 +56,6 @@ export const fakeCloud = (script: {
         fake.links.push(input);
         return await (script.saveLink ?? (async () => savedAs(input.title ?? input.url)))();
       },
-      signOut: async () => {},
     },
     files: [],
     links: [],

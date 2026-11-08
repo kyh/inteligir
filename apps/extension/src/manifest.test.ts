@@ -4,33 +4,37 @@ import { describe, expect, it } from "vitest";
 import { connectPagePattern, extensionManifest, flavorOfMode } from "./manifest";
 
 describe("the manifest", () => {
-  it("carries the key and the fixture pages' host only in the dev build", () => {
+  it("carries the key, a local Worker's site and the fixture pages' host in the dev build", () => {
     const dev = extensionManifest("dev", "0.6.0");
     expect(dev).toMatchObject({
-      host_permissions: ["http://127.0.0.1/*"],
+      host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
       key: EXTENSION_PUBLIC_KEY,
     });
   });
 
-  it("carries neither in the store zip, and the key alone in the unpacked store build", () => {
+  it("names the production site as its one host in the store builds, and the key in the unpacked one alone", () => {
     const store = extensionManifest("store", "0.6.0");
     expect("key" in store).toBe(false);
-    expect("host_permissions" in store).toBe(false);
+    expect(store.host_permissions).toStrictEqual(["https://inteligir.com/*"]);
     const unpacked = extensionManifest("store-unpacked", "0.6.0");
     expect(unpacked).toMatchObject({ key: EXTENSION_PUBLIC_KEY });
-    expect("host_permissions" in unpacked).toBe(false);
+    expect(unpacked.host_permissions).toStrictEqual(["https://inteligir.com/*"]);
   });
 
-  it("asks for activeTab, never every site, and runs on the Chrome that has `browser`", () => {
-    const store = extensionManifest("store", "0.6.0");
-    expect(store.permissions).toStrictEqual([
-      "activeTab",
-      "alarms",
-      "contextMenus",
-      "scripting",
-      "storage",
-    ]);
-    expect(store.minimum_chrome_version).toBe("148");
+  it("asks for activeTab and the site's cookies, never every site, and runs on the Chrome that has `browser`", () => {
+    for (const flavor of ["dev", "store", "store-unpacked"] as const) {
+      const manifest = extensionManifest(flavor, "0.6.0");
+      expect(manifest.permissions, flavor).toStrictEqual([
+        "activeTab",
+        "alarms",
+        "contextMenus",
+        "cookies",
+        "scripting",
+        "storage",
+      ]);
+      expect(JSON.stringify(manifest), flavor).not.toContain("<all_urls>");
+      expect(manifest.minimum_chrome_version, flavor).toBe("148");
+    }
   });
 
   it("names the welcome page as its options in every build, so the browser can open it again", () => {

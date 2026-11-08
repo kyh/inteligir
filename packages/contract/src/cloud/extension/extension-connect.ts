@@ -11,7 +11,11 @@ import { deviceLoginResponseSchema } from "../device/device-schema";
 
 export const extensionConnectRequestSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("hello") }),
-  z.strictObject({ connection: deviceLoginResponseSchema, type: z.literal("connect") }),
+  // the extension reads no credential from it, and rides the browser's own sign-in instead
+  z.strictObject({
+    connection: deviceLoginResponseSchema.optional(),
+    type: z.literal("connect"),
+  }),
 ]);
 export type ExtensionConnectRequest = z.infer<typeof extensionConnectRequestSchema>;
 

@@ -1,9 +1,12 @@
-// A save the cloud did not answer waits here, in `storage.local`, and is sent again by an alarm.
-// Each save is kept before its first call goes, so a worker stopped mid-save loses nothing, and
-// it keeps the address and the title, never the page: what the queue sends is a link to read,
-// which the cloud's fill reads once it lands (`items.saveLink`). One key a save, so two saves at once never write over each
-// other; an alarm, since the worker dies 30 s after its last event and a timer with it, made as a
-// save is kept and again at every start, since an update or a restart can clear one.
+// A save the cloud did not answer, or made while its account was signed out, waits here, in
+// `storage.local`, and is sent again by an alarm. Each save is kept before its first call goes, so
+// a worker stopped mid-save loses nothing, and it keeps the address and the title, never the page:
+// what the queue sends is a link to read, which the cloud's fill reads once it lands
+// (`items.saveLink`). One key a save, so two saves at once never write over each other; an alarm,
+// since the worker dies 30 s after its last event and a timer with it, made as a save is kept and
+// again at every start, since an update or a restart can clear one. A save is sent only under the
+// session of the account it was made under, so one made before a sign-out waits for that account
+// to sign in again, whoever signs in meanwhile.
 
 import { browser } from "wxt/browser";
 import { z } from "zod";
@@ -12,7 +15,7 @@ import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS, failureOf } from "./cloud";
 import type { CallFailure, Cloud, LinkSave } from "./cloud";
 import { forgetConnection, readConnection } from "./connection";
-import type { Connection } from "./connection";
+import type { Session, SignIn } from "./sign-in";
 
 const KEY_PREFIX = "save:";
 export const SEND_ALARM = "send-saves";
@@ -28,8 +31,8 @@ const FIRST_TRY_MS = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
 const ABANDONED_MS = FIRST_TRY_MS + 30_000;
 
 const queuedSaveSchema = z.strictObject({
-  // the device it was made under: a save is never sent under another connection's credential
-  deviceId: z.string().min(1),
+  // the account it was made under, whose library alone it lands in
+  email: z.string().min(1),
   // no try has gone unanswered yet, so the first may still be under way
   firstTry: z.boolean(),
   // the item's id and the write's op id, minted once, so a resend after a lost answer lands once
@@ -66,11 +69,6 @@ export const queuedSaves = async (): Promise<QueuedSave[]> => {
   return saves.toSorted((a, b) => a.savedAt - b.savedAt);
 };
 
-const forgetQueue = async (): Promise<void> => {
-  const saves = await queuedSaves();
-  await browser.storage.local.remove(saves.map(keyOf));
-};
-
 // the alarm stands while a save waits, and goes once none does
 export const ensureSendAlarm = async (): Promise<void> => {
   const saves = await queuedSaves();
@@ -90,23 +88,19 @@ export const keepSave = async (save: QueuedSave): Promise<void> => {
   await ensureSendAlarm();
 };
 
-// the cloud no longer takes `deviceId`'s credential: the extension forgets it and what waited under
-// it, and answers whether that left this browser unconnected. A call still on its way when a connect
-// replaced that credential answers for the one it replaced, so the connection held now stays, and
-// what the old one left waiting goes at the next send, which sends nothing under another device's
-// credential
-export const signedOut = async (deviceId: string): Promise<boolean> => {
+// the cloud deleted the account `email` named: what waited for it can never land, and this browser
+// no longer holds it, unless a sign-in as another account replaced it while the call was on its way
+export const accountGone = async (email: string): Promise<void> => {
+  const saves = await queuedSaves();
+  await browser.storage.local.remove(saves.filter((save) => save.email === email).map(keyOf));
   const held = await readConnection();
-  if (held !== null && held.deviceId !== deviceId) {
-    return false;
+  if (held?.email === email) {
+    await forgetConnection();
   }
-  await forgetConnection();
-  await forgetQueue();
   await ensureSendAlarm();
-  return true;
 };
 
-// a try that went unanswered: the save waits for the alarm
+// a try that went unanswered, or a session that ended: the save waits for the alarm
 export const markWaiting = async (save: QueuedSave): Promise<void> => {
   await keepSave({ ...save, firstTry: false });
 };
@@ -121,8 +115,10 @@ export const linkOf = (save: QueuedSave): LinkSave => {
 };
 
 export interface SendDeps {
-  readonly cloud: (connection: Connection) => Cloud;
+  readonly cloud: (session: Session) => Cloud;
   readonly now: () => number;
+  // the cloud asked who this browser is signed in as, null when it did not answer
+  readonly signIn: () => Promise<SignIn | null>;
 }
 
 // a call a later try may pass with nothing asked of the person: no answer, or a build too old for
@@ -131,34 +127,38 @@ const waitsToResend = (failure: CallFailure): boolean =>
   failure.kind === "unanswered" ||
   (failure.kind === "refused" && failure.reason === "update-extension");
 
-// every waiting save sent oldest first, until one cannot go yet: the cloud is not there, or not for
-// this build, so the rest wait with it
-export const sendQueued = async (deps: SendDeps): Promise<void> => {
-  const connection = await readConnection();
-  for (const save of await queuedSaves()) {
-    if (connection === null || save.deviceId !== connection.deviceId) {
-      await dropSave(save);
-      continue;
-    }
+// every save of the account signed in sent oldest first, until one cannot go yet: the cloud is not
+// there, not for this build, or not for this session, so the rest wait with it. Another account's
+// saves wait for that account
+const sendSignedIn = async (deps: SendDeps, session: Session, saves: QueuedSave[]) => {
+  for (const save of saves.filter((waiting) => waiting.email === session.email)) {
     const due = !save.firstTry || deps.now() - save.savedAt >= ABANDONED_MS;
     if (!due) {
       continue;
     }
     try {
-      await deps.cloud(connection).saveLink(linkOf(save));
+      await deps.cloud(session).saveLink(linkOf(save));
       await dropSave(save);
     } catch (error) {
       const failure = failureOf(error);
-      if (waitsToResend(failure)) {
+      if (waitsToResend(failure) || failure.kind === "signed-out") {
         await markWaiting(save);
-        break;
+        return;
       }
-      if (failure.kind === "signed-out") {
-        await signedOut(save.deviceId);
-        break;
+      if (failure.kind === "gone") {
+        await accountGone(save.email);
+        return;
       }
       await dropSave(save);
     }
+  }
+};
+
+export const sendQueued = async (deps: SendDeps): Promise<void> => {
+  const saves = await queuedSaves();
+  const signIn = saves.length === 0 ? null : await deps.signIn();
+  if (signIn?.kind === "signed-in") {
+    await sendSignedIn(deps, signIn.session, saves);
   }
   await ensureSendAlarm();
 };

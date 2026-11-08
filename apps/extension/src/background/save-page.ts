@@ -4,9 +4,9 @@
 // it script (the Web Store, the PDF viewer), one past the capture's cap, one it read no text from,
 // or one whose reading the cloud refuses as a call, is saved as its link, for the cloud's fill to
 // read, and a page with no web address is refused. Every save is queued before its first call
-// (./save-queue), and one the cloud did not answer is sent again as its link. A link or a picture
-// a right-click names is saved by its address, and a picture a page drew from its own bytes as a
-// file of its own.
+// (./save-queue), and one the cloud did not answer is sent again as its link, as is one made while
+// its account is signed out, once it signs in again. A link or a picture a right-click names is
+// saved by its address, and a picture a page drew from its own bytes as a file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
@@ -24,13 +24,14 @@ import type { Outcome } from "../messages";
 import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { failureOf } from "./cloud";
 import type { Cloud, Saved } from "./cloud";
-import { readConnection } from "./connection";
-import type { Connection } from "./connection";
-import { dropSave, keepSave, linkOf, markWaiting, signedOut } from "./save-queue";
+import { accountGone, dropSave, keepSave, linkOf, markWaiting } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
+import type { Session, SignIn } from "./sign-in";
 
 export interface SaveDeps {
-  readonly cloud: (connection: Connection) => Cloud;
+  readonly cloud: (session: Session) => Cloud;
+  // who the browser is signed in as, for a save to go under
+  readonly signIn: () => Promise<SignIn>;
   // the tab's page, or null when the browser will not script it or it answered no page
   readonly capture: (tabId: number) => Promise<CapturedPage | null>;
   // a cover candidate's bytes, or null for one this browser could not read
@@ -57,10 +58,11 @@ const savedOutcome = (saved: Saved): Outcome => ({
   title: saved.item.fields.title,
 });
 
-// a credential the cloud no longer takes, said as how it ended: a connect may have replaced it while
-// the call was on its way, which leaves this browser connected, so nothing asks to connect again
-const refusedSignedOut = async (deviceId: string): Promise<Outcome> =>
-  refused((await signedOut(deviceId)) ? "signed-out" : "failed");
+// a save that waits for its account to sign in again, which the alarm then sends
+const waitsForSignIn = async (queued: QueuedSave): Promise<Outcome> => {
+  await markWaiting(queued);
+  return { kind: "queued", waitsFor: "sign-in" };
+};
 
 // how a call that did not land ends the save it made
 const settleFailure = async (queued: QueuedSave, cause: unknown): Promise<Outcome> => {
@@ -68,11 +70,14 @@ const settleFailure = async (queued: QueuedSave, cause: unknown): Promise<Outcom
   switch (failure.kind) {
     case "unanswered": {
       await markWaiting(queued);
-      return { kind: "queued" };
+      return { kind: "queued", waitsFor: "connection" };
     }
     case "signed-out": {
-      await dropSave(queued);
-      return await refusedSignedOut(queued.deviceId);
+      return await waitsForSignIn(queued);
+    }
+    case "gone": {
+      await accountGone(queued.email);
+      return refused("not-connected");
     }
     case "refused": {
       await dropSave(queued);
@@ -136,13 +141,13 @@ const keepCover = async (
 
 const queuedFor = (
   deps: SaveDeps,
-  connection: Connection,
+  email: string,
   save: Pick<QueuedSave, "title" | "url">,
 ): QueuedSave => {
   const now = deps.now();
   return {
     ...save,
-    deviceId: connection.deviceId,
+    email,
     firstTry: true,
     id: uuidV7(now, deps.randomBytes(16)),
     opId: uuidV7(now, deps.randomBytes(16)),
@@ -183,24 +188,32 @@ const captureInTime = async (deps: SaveDeps, tabId: number): Promise<CapturedPag
   }
 };
 
+// a tab saved while its account is signed out waits as its address and title, read by the cloud's
+// fill once it lands, so the tab is not scripted for a reading no call would carry
 export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> => {
-  const connection = await readConnection();
-  if (connection === null) {
+  const signIn = await deps.signIn();
+  if (signIn.kind === "none") {
     return refused("not-connected");
   }
   const { tab } = args;
   if (tab.url === undefined || !isWebUrl(tab.url)) {
     return refused("unsupported-page");
   }
+  if (signIn.kind === "signed-out") {
+    return await waitsForSignIn(
+      queuedFor(deps, signIn.email, { title: fieldLine(tab.title ?? null) ?? "", url: tab.url }),
+    );
+  }
+  const { session } = signIn;
   const page = await captureInTime(deps, tab.id);
   const url = page !== null && isWebUrl(page.url) ? page.url : tab.url;
-  const queued = queuedFor(deps, connection, {
+  const queued = queuedFor(deps, session.email, {
     title: fieldLine(page?.title ?? null) ?? fieldLine(tab.title ?? null) ?? "",
     url,
   });
   const html = page?.html ?? null;
   const read = html === null ? null : readCapture(deps, html, url);
-  const cloud = deps.cloud(connection);
+  const cloud = deps.cloud(session);
   return await sendKept(queued, async () => {
     if (read === null) {
       return await cloud.saveLink(linkOf(queued));
@@ -230,26 +243,38 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
 // a link or a web picture a right-click names, saved by its address for the cloud to read: a
 // picture's address answers with its bytes, which the cloud keeps as a picture of its own
 export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome> => {
-  const connection = await readConnection();
-  if (connection === null) {
-    return refused("not-connected");
+  const signIn = await deps.signIn();
+  switch (signIn.kind) {
+    case "none": {
+      return refused("not-connected");
+    }
+    case "signed-out": {
+      return await waitsForSignIn(queuedFor(deps, signIn.email, { title: "", url }));
+    }
+    case "signed-in": {
+      const queued = queuedFor(deps, signIn.session.email, { title: "", url });
+      const cloud = deps.cloud(signIn.session);
+      return await sendKept(queued, async () => await cloud.saveLink(linkOf(queued)));
+    }
+    // no default
   }
-  const queued = queuedFor(deps, connection, { title: "", url });
-  const cloud = deps.cloud(connection);
-  return await sendKept(queued, async () => await cloud.saveLink(linkOf(queued)));
 };
 
 // a picture a page drew from its own bytes (a data: address) has no address to save, so its
 // bytes go, named after the page it was on; they are never queued, so one the cloud did not take
-// says it needs a connection
+// says it needs a connection, or a sign-in
 export const savePicture = async (
   deps: SaveDeps,
   picture: { readonly bytes: Uint8Array<ArrayBuffer>; readonly pageUrl: string },
 ): Promise<Outcome> => {
-  const connection = await readConnection();
-  if (connection === null) {
+  const signIn = await deps.signIn();
+  if (signIn.kind === "none") {
     return refused("not-connected");
   }
+  if (signIn.kind === "signed-out") {
+    return refused("signed-out");
+  }
+  const { session } = signIn;
   if (picture.bytes.length > BLOB_MAX_BYTES) {
     return refused("too-large");
   }
@@ -257,7 +282,7 @@ export const savePicture = async (
   if (sniffed?.kind !== "image") {
     return refused("unsupported-page");
   }
-  const cloud = deps.cloud(connection);
+  const cloud = deps.cloud(session);
   const now = deps.now();
   try {
     const sha = await cloud.putFile(picture.bytes, sniffed.mediaType);
@@ -273,9 +298,21 @@ export const savePicture = async (
     return { created: true, kind: "saved", title: made.item.fields.title };
   } catch (error) {
     const failure = failureOf(error);
-    if (failure.kind === "signed-out") {
-      return await refusedSignedOut(connection.deviceId);
+    switch (failure.kind) {
+      case "signed-out": {
+        return refused("signed-out");
+      }
+      case "gone": {
+        await accountGone(session.email);
+        return refused("not-connected");
+      }
+      case "refused": {
+        return refused(failure.reason);
+      }
+      case "unanswered": {
+        return refused("needs-connection");
+      }
+      // no default
     }
-    return refused(failure.kind === "refused" ? failure.reason : "needs-connection");
   }
 };

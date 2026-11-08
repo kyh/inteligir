@@ -6,16 +6,26 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
 import { CAPTURE_DEADLINE_MS } from "./capture-tab";
-import { forgetConnection, readConnection } from "./connection";
+import { keepConnection, readConnection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
 import type { SaveDeps } from "./save-page";
 import { queuedSaves, SEND_ALARM } from "./save-queue";
-import { fakeCloud, handOver, MINTED, NEXT, savedAs } from "./test-support/fake-cloud";
+import type { SignIn } from "./sign-in";
+import {
+  fakeCloud,
+  OTHER_SESSION,
+  savedAs,
+  SESSION,
+  SIGNED_IN,
+  SIGNED_OUT,
+} from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
+
+const KEPT = { email: SESSION.email, origin: SESSION.origin };
 
 beforeEach(async () => {
   fakeBrowser.reset();
-  await handOver(MINTED);
+  await keepConnection(KEPT);
 });
 
 afterEach(() => {
@@ -67,12 +77,25 @@ const unauthorized = async (): Promise<never> => {
   throw new ORPCError("UNAUTHORIZED");
 };
 
+const gone = async (): Promise<never> => {
+  throw new ORPCError("GONE");
+};
+
+const NONE: SignIn = { kind: "none" };
+
 let seq = 0;
 
-const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } = {}) => {
+const depsWith = (
+  cloud: FakeCloud,
+  options: { captured?: CapturedPage | null; signIn?: SignIn } = {},
+) => {
   const covers: string[] = [];
+  const captures: number[] = [];
   const deps: SaveDeps = {
-    capture: async () => (options.captured === undefined ? page() : options.captured),
+    capture: async (tabId) => {
+      captures.push(tabId);
+      return options.captured === undefined ? page() : options.captured;
+    },
     cloud: () => cloud.cloud,
     fetchCover: async (url) => {
       covers.push(url);
@@ -84,8 +107,9 @@ const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } 
     },
     now: () => Date.UTC(2026, 10, 5, 12),
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+    signIn: async () => options.signIn ?? SIGNED_IN,
   };
-  return { covers, deps };
+  return { captures, covers, deps };
 };
 
 describe("a tab saved", () => {
@@ -249,15 +273,16 @@ describe("a tab saved", () => {
     });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "queued",
+      waitsFor: "connection",
     });
     const [queued] = await queuedSaves();
     expect(queued).toMatchObject({
-      deviceId: MINTED.deviceId,
+      email: SESSION.email,
       title: "File over app",
       url: URL_SAVED,
     });
     expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
-      "deviceId",
+      "email",
       "firstTry",
       "id",
       "opId",
@@ -284,56 +309,76 @@ describe("a tab saved", () => {
     expect(alarmAtCall).toBeDefined();
   });
 
-  it("ends the connection, and asks for it again, once the cloud says the credential is gone", async () => {
-    const cloud = fakeCloud({
-      save: async () => {
-        throw new ORPCError("UNAUTHORIZED");
-      },
+  it("waits for its account to sign in again once the cloud says the session ended", async () => {
+    const cloud = fakeCloud({ save: unauthorized });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "queued",
+      waitsFor: "sign-in",
     });
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      expect.objectContaining({ email: SESSION.email, firstTry: false, url: URL_SAVED }),
+    ]);
+    await expect(readConnection()).resolves.toStrictEqual(KEPT);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+  });
+
+  it("waits unread, as its address and title, while the browser is signed out of its account", async () => {
+    const cloud = fakeCloud({});
+    const run = depsWith(cloud, { signIn: SIGNED_OUT });
+    await expect(saveTab(run.deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "queued",
+      waitsFor: "sign-in",
+    });
+    expect(run.captures).toStrictEqual([]);
+    expect(cloud.saves).toStrictEqual([]);
+    expect(cloud.links).toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      expect.objectContaining({
+        email: SESSION.email,
+        firstTry: false,
+        title: TAB.title,
+        url: URL_SAVED,
+      }),
+    ]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+  });
+
+  it("lets go a save, and the account, once the cloud says the account was deleted", async () => {
+    const cloud = fakeCloud({ save: gone });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
-      reason: "signed-out",
+      reason: "not-connected",
     });
     await expect(readConnection()).resolves.toBeNull();
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("asks for the connection again when another save's refusal already ended it", async () => {
-    const other = depsWith(fakeCloud({ save: unauthorized })).deps;
+  it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
+    const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
     const cloud = fakeCloud({
       save: async () => {
-        await saveTab(other, { tab: TAB });
-        return await unauthorized();
+        await keepConnection(replaced);
+        return await gone();
       },
     });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
-      reason: "signed-out",
+      reason: "not-connected",
     });
-  });
-
-  it("keeps the connection a connect handed over while its call under the old one was on its way", async () => {
-    const cloud = fakeCloud({
-      save: async () => {
-        await handOver(NEXT);
-        throw new ORPCError("UNAUTHORIZED");
-      },
-    });
-    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
-      kind: "refused",
-      reason: "failed",
-    });
-    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
+    await expect(readConnection()).resolves.toStrictEqual(replaced);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("asks for a connection first, and saves nothing off the web", async () => {
+  it("asks for a sign-in first, and saves nothing off the web", async () => {
     const cloud = fakeCloud({});
+    for (const signIn of [SIGNED_IN, SIGNED_OUT]) {
+      await expect(
+        saveTab(depsWith(cloud, { signIn }).deps, { tab: { ...TAB, url: "chrome://settings" } }),
+      ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
+    }
     await expect(
-      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
-    await forgetConnection();
-    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      saveTab(depsWith(cloud, { signIn: NONE }).deps, { tab: TAB }),
+    ).resolves.toStrictEqual({
       kind: "refused",
       reason: "not-connected",
     });
@@ -351,6 +396,22 @@ describe("a right-click's address or picture", () => {
     ]);
   });
 
+  it("keeps an address for its account to sign in again, and asks for a sign-in where none was", async () => {
+    const cloud = fakeCloud({});
+    const url = "https://example.test/a-link";
+    await expect(
+      saveAddress(depsWith(cloud, { signIn: SIGNED_OUT }).deps, url),
+    ).resolves.toStrictEqual({ kind: "queued", waitsFor: "sign-in" });
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      expect.objectContaining({ email: SESSION.email, title: "", url }),
+    ]);
+    await expect(saveAddress(depsWith(cloud, { signIn: NONE }).deps, url)).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "not-connected",
+    });
+    expect(cloud.links).toStrictEqual([]);
+  });
+
   it("saves a picture a page drew from its bytes as a file, named after the page", async () => {
     const cloud = fakeCloud({});
     await expect(
@@ -365,17 +426,26 @@ describe("a right-click's address or picture", () => {
     ]);
   });
 
-  it("keeps the connection a connect handed over while a picture's call was on its way", async () => {
-    const cloud = fakeCloud({
-      putFile: async () => {
-        await handOver(NEXT);
-        throw new ORPCError("UNAUTHORIZED");
-      },
-    });
+  it("asks a picture's account to sign in again, since its bytes wait in no queue", async () => {
+    const quiet = fakeCloud({});
+    await expect(
+      savePicture(depsWith(quiet, { signIn: SIGNED_OUT }).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "signed-out" });
+    expect(quiet.uploads).toStrictEqual([]);
+    const ended = fakeCloud({ putFile: unauthorized });
+    await expect(
+      savePicture(depsWith(ended).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "signed-out" });
+    await expect(readConnection()).resolves.toStrictEqual(KEPT);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("lets the account go once the cloud says a picture's account was deleted", async () => {
+    const cloud = fakeCloud({ putFile: gone });
     await expect(
       savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "failed" });
-    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
+    ).resolves.toStrictEqual({ kind: "refused", reason: "not-connected" });
+    await expect(readConnection()).resolves.toBeNull();
   });
 
   it("says a picture's bytes need a connection, since they wait in no queue", async () => {

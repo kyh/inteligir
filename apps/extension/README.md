@@ -2,10 +2,11 @@
 
 The Chromium extension (Chrome, Arc, Brave, Edge, Vivaldi): a toolbar button
 and a right-click Save that read the page you're on and save it to your
-Inteligir library over `/v1`, with a device credential of its own, so a save
-needs no app open. It connects to an account through the site's
-`/connect/extension` page, reads the page with `@repo/page-reader`, and keeps a
-save the cloud did not answer until it does.
+Inteligir library over `/v1`, under the browser's own sign-in to the site, so a
+save needs no app open and signing out on the site signs it out too. The
+site's `/connect/extension` page points it at the account, it reads the page
+with `@repo/page-reader`, and it keeps a save the cloud did not answer, or made
+while signed out, until it can land.
 
 ## The build
 
@@ -15,9 +16,9 @@ WXT builds it from `src/entrypoints/` (`wxt.config.ts`). `pnpm --filter
 checked against `src/manifest.ts`), the popup and welcome pages, the
 `background.js` service worker and the `capture.js` script `executeScript`
 injects (an unlisted script, one IIFE). A build's flavor is its mode: `wxt` and
-`wxt build` carry the committed key, connect from a local Worker on
-`localhost` and may script `127.0.0.1`; `--mode store` connects from
-inteligir.com alone. `pnpm package:extension` (`NODE_ENV=production wxt zip
+`wxt build` carry the committed key, ride a local Worker's sign-in on
+`localhost` and may script `127.0.0.1`; `--mode store` rides inteligir.com's
+alone. `pnpm package:extension` (`NODE_ENV=production wxt zip
 --mode store`) writes the Web Store zip,
 `.output/inteligir-extension-<version>.zip`, after checking it, and the
 unpacked store build beside it at `.output/chrome-mv3-store-unpacked`.
@@ -33,8 +34,9 @@ src/manifest.ts                   the MV3 manifest, one function of the build's 
 src/entrypoints/background.ts     the service worker: its listeners, the menus, the badge
 src/entrypoints/capture.ts        the script executeScript injects: the rendered DOM, cloned
 src/entrypoints/popup/            the toolbar's popup: the save and how it went
-src/entrypoints/welcome/          the page an install, the popup and Options open: the account and Disconnect, or Connect
-src/background/connection.ts      the credential, kept in storage, and the connect page's messages
+src/entrypoints/welcome/          the page an install and Options open: whose library it saves to, or where to sign in
+src/background/connection.ts      the account and the cloud, kept in storage, and the connect page's messages
+src/background/sign-in.ts         the browser's session cookie for the cloud, and whose it is
 src/background/listeners.ts       who the worker hears: its own pages and the one connect page
 src/background/cloud.ts           the /v1 calls, their deadline and what a failure means
 src/background/save-page.ts       a tab, a link or a picture saved
