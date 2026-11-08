@@ -26,7 +26,8 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(offline replicas, a byte-exact codec, our own agent loop). Where they
+(device credentials, a byte-exact codec, block writes settled by diff3, our
+own agent loop). Where they
 disagree, these premises win, and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
@@ -135,7 +136,7 @@ this guide wins.
 apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell, each conversation with the built-in agent
 apps/workspace          @repo/workspace — the SPA the Worker serves at /library, which the Mac app's window shows
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
-apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, over its own replica, offline
+apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, with its own credential
 packages/domain         @repo/domain — zod-only leaf vocabulary
@@ -270,7 +271,7 @@ Every surface, and how an agent sees it run; a scenario is one of
 | The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's  |
 | The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                             |
 | The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                      |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)   |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-share` (its runtime under node)  |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
@@ -325,16 +326,17 @@ runs it bare.
 One line per rule that binds more than one workspace; the bullet behind each
 is in the file named.
 
-- **The cell owns every rule; a device holds a replica.** Every write is
-  guarded, applied and logged by the account's library cell; a device reads
-  its replica and writes through its outbox, and the page asks the Mac's
-  shell only for its update (`apps/workspace/src/shell/desktop-bridge.ts`,
-  `apps/desktop/CLAUDE.md`).
+- **The cell owns every rule, and every device reads it online.** Every write
+  is guarded, applied and logged by the account's library cell; a device reads
+  and writes it through `/v1`, its reads cached by TanStack Query and asked
+  again when the account's socket says what moved (`apps/web/CLAUDE.md`,
+  `apps/workspace/CLAUDE.md`, `apps/mobile/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
-- **The phone holds a full replica, and asks the built-in agent online**: it
-  reads and queues offline, and its threads are the account's,
-  the same on every device (`apps/mobile/CLAUDE.md`).
+- **Only a save waits offline**: the extension's queue and the phone's share
+  outbox keep a save before its first call and send it until it lands;
+  everything else says it needs a connection (`apps/extension/CLAUDE.md`,
+  `apps/mobile/CLAUDE.md`).
 - **One write policy**: every write carries the base it was computed from (a
   block's hash, a field's value), the cell applies a block only while its base
   holds and answers `CONFLICT` with the block as it is, and the editor's diff3
@@ -368,7 +370,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its replica and files, the agent, its look, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: its connection, its saves and its queue
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces

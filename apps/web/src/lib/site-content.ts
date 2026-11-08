@@ -13,8 +13,8 @@ export const homeMarkdown = `# ${name}: one library for everything you save
 
 ${name} keeps everything you save and write in one library: links and articles, videos, images,
 PDFs and files, beside the notes you write. It does the work of a bookmark manager like Raindrop and
-a notes app like Obsidian at once. The library lives in your ${name} account, and your iPhone keeps
-a copy of it. When you ask, the built-in AI agent files, tags, summarizes and edits
+a notes app like Obsidian at once. The library lives in your ${name} account, and your Mac, your
+iPhone and a browser all show it. When you ask, the built-in AI agent files, tags, summarizes and edits
 it with you.
 
 ## Save from anywhere
@@ -23,8 +23,8 @@ it with you.
   Edge saves the page you're on with one click, or a link or an image from the right-click menu.
 - **From the window.** Paste a link, or drag links and files onto the app. Any file up to 100 MB is
   kept as it is.
-- **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once, offline
-  too, and our cloud reads the page once it reaches your library.
+- **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once and our
+  cloud reads the page; shared offline, it waits on your iPhone until you're back online.
 
 Saving is instant and free, and calls no model. The extension reads the title, picture and text of
 the page you save from it when it can, and our cloud reads every other link.
@@ -45,10 +45,10 @@ and the agent files and tags everything waiting, following filing rules you writ
 
 ## Your library, on every device
 
-Your library is kept in your account in our cloud, and every iPhone you sign in on keeps a copy of
-every item's text and of each picture, PDF or file you open. That copy opens, reads and searches
-with no connection, and what you change goes out when you're back online. In a browser or the Mac
-app, [your library](${libraryUrl}) opens whenever you're online.
+Your library is kept in your account in our cloud, and the Mac app, the iPhone app and
+[your library](${libraryUrl}) in a browser each show it whenever you're online. Your iPhone keeps
+what you last opened, so it still shows with no connection, and a page you save from the browser
+extension or your iPhone's share sheet while offline waits there and lands once you're back.
 
 Your Raindrop bookmarks come in from a backup with their collections and tags, each one's
 highlights quoted in its note, and an Obsidian folder comes in as a zip.
@@ -85,8 +85,8 @@ collaborator would, in the open, with every change it makes reversible. It is ma
 ## What makes it different
 
 - **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
-  and each iPhone you sign in on keeps a copy of every item's text and of each file you open, which
-  work with no connection.
+  and your Mac, your iPhone and a browser all show it; your iPhone keeps what you last opened, to
+  read with no connection.
 - **Saving is instant and free.** The extension reads the page you save from it when it can, our
   cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
   you ask.
@@ -136,13 +136,14 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 export const llmsTxt = `# ${name}
 
 > ${name} is a library of everything a person saves and writes (links, articles, videos, images,
-> PDFs, files and their own notes), kept in their account and on every iPhone they sign in on,
-> with a built-in AI agent that files, tags, summarizes and edits it with them.
+> PDFs, files and their own notes), kept in their account and shown on their Mac, their iPhone
+> and in a browser, with a built-in AI agent that files, tags, summarizes and edits it with them.
 
 An account is required, and its first 1 GB is free; creating one takes an invite code. The library
-is kept in the account, in ${name}'s cloud. Each iPhone keeps a copy of every item's text and of
-each file opened on it, which reads and searches with no connection, and a browser tab at
-${libraryUrl}, or the Mac app's window on it, shows it online. ${name} saves from Chrome,
+is kept in the account, in ${name}'s cloud. A browser tab at ${libraryUrl}, the Mac app's window on
+it and the iPhone app show it online, and the iPhone keeps what it last read to show with no
+connection; a page saved from the browser extension or the iPhone's share sheet while offline waits
+and lands once back online. ${name} saves from Chrome,
 Arc, Brave and Edge through its browser extension, by pasting or dragging onto the window, and from
 the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the page it saves when
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs

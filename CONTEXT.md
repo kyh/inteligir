@@ -20,11 +20,12 @@ that reach it.
 `LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
 `library:<userId>` only from a verified credential, or from what the cell itself
 gave out: a fill message or a conversation's name. It holds the items,
-their **blocks**, folders, tags, links, threads, the change log,
-change sets and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
-is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
-accounts. Not a **replica**, which pulls the cell's change log and writes
-through the cell.
+their **blocks**, folders, tags, links, threads, change sets and the
+account's live sockets, and it is the library's only writer: every `/v1`
+library call and every **connector** call is forwarded to it. R2 holds the
+bytes it names by hash, and D1 only the accounts. Not what a device shows:
+every app reads the cell online, and keeps at most a cache of what it last
+read, which a **moved frame** tells it to read again.
 
 **principal** — who a library call is by, as the Worker verified it: the
 account and the actor whose **change set** its writes join (a device, the
@@ -65,27 +66,23 @@ one top-level `:::article` container after the note
 (`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
 
-**replica** — a copy of the synced tables, every item, block, folder, tag,
-link, thread and thread event, in SQLite, pulled from the cell's change log by
-cursor. The engine is `@repo/library-replica`
-(`packages/library-replica/src/library-replica.ts`): its pull lays a row only
-over an older one (`replica-pull.ts`, `replica-rows.ts`), and a read lays the
-**outbox** over each item (`replica-listing.ts`). No device holds one: the
-library's page and the phone read the cell online, and the Worker's suites run
-the engine against the real cell
-(`apps/web/src/worker/library/library-replica.test.ts`). Not the **library
-cell**, the only writer.
+**moved frame** — what the account's socket tells every device once a write
+commits: each item it moved at its sequence, whether a folder moved, and which
+threads, a list past `MOVED_IDS_MAX` saying "all"
+(`apps/web/src/worker/library/cell-moved.ts`, the frame in
+`@repo/contract/cloud/library/library-socket`). A device asks again for what
+it shows of those, and for everything each time its socket opens
+(`@repo/contract/cloud/library/account-socket`). A hint, never the state: a
+frame carries no row, so one missed loses nothing.
 
-**outbox** — a **replica**'s queued writes
-(`packages/library-replica/src/outbox.ts`). Each is written in the replica's
-own transaction, so the screen shows it at once, then sent oldest first with
-an op id the cell answers once, so a resend after a lost answer is the same
-write; a later write to an item joins its row while it waits
-(`outbox-ops.ts`). A `CONFLICT` settles through the block merge and goes
-again (`outbox-settle.ts`); a refusal no resend passes is **parked** for the
-person. Not the browser extension's
-retry queue, which holds a save's url and title and writes nothing
-until the save lands.
+**share outbox** — the iPhone's shares from other apps still to land, each kept
+in its key-value store before its first call and sent until the cloud answers
+it, through a relaunch too (`apps/mobile/src/items/share-outbox.ts`); a share
+the cloud refuses is **parked** with its words, for Try again or Let it go.
+The one write a device keeps offline, with the browser extension's retry
+queue, which holds a save's url and title the same way. Not a queue of edits:
+typing, a save typed into the app, a photo and a delete each need a
+connection.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
 (`apps/web/src/worker/connector/connector-route.ts`), the library's procedures
@@ -123,8 +120,8 @@ waits its turn (`apps/web/src/worker/agent/agent-turns.ts`). Not a connected
 assistant's call, which is no turn.
 
 **thread** — a conversation with the **built-in agent**, the account's, so
-every device shows it: its transcript in its own object and its events synced
-as rows (`agent-turns.ts`).
+every device shows it: its transcript in its own object and its events as rows
+of the cell, which each device reads online (`agent-turns.ts`).
 
 ## The library
 
@@ -234,8 +231,11 @@ there when the screen shows no folder.
 **Needs a connection** — what a screen says of something only the cloud
 answers (the open item's typing, ⌘P's search, the agent and its Undo, import,
 the account) while the device is offline: the open item reads but takes no
-edit, and a call waits rather than fails
-(`apps/workspace/src/app/cloud/needs-connection.tsx`).
+edit (`packages/editor/src/item/item-editor.tsx`), and on the library's page a
+call waits rather than fails
+(`apps/workspace/src/app/cloud/needs-connection.tsx`); the iPhone says it of a
+save, a photo and a delete, and keeps only a share
+(**share outbox**).
 
 **Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
 under a conversation: `library.history.undo` over the CHANGE SETS named, in a

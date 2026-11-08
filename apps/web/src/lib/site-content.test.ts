@@ -51,6 +51,7 @@ const RETIRED_CLAIMS: readonly (readonly [string, RegExp])[] = [
   ["the app and agent on the Mac alone", /\bruns? on (?:your|that) Mac\b/iu],
   ["the Mac as where data starts", /\bleaves? (?:your|the user's) Mac\b/iu],
   ["a library on the Mac alone", /\blibrary on your Mac\b/iu],
+  ["a copy of the library on the phone", /\bkeeps? a copy\b|\bcopy of every item\b/iu],
 ];
 
 const claimsIn = (text: string): string[] =>

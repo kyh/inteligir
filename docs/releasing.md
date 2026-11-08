@@ -151,7 +151,7 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
    pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
-   curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+desktop' \
+   curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+mobile' \
      --data '{}' https://inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
    ```
 
@@ -318,9 +318,9 @@ the owner's account; a spare macOS user keeps your own WebKit store out of it.
   - ⌘V inside a note still pastes text into the note, and ⌘V of a screenshot
     there, or a picture or a PDF dropped from Finder on its text, lands where
     the caret or the drop was and draws at once, the PDF as a card naming it
-    whose Download lands in Downloads. Turn the network off and paste another
-    screenshot. Passing: it draws offline, the footer says one change waits,
-    and once the network is back the item in the library's browser tab at
+    whose Download lands in Downloads. Turn the network off. Passing: the note
+    says Needs a connection and takes no paste. Turn it back on and paste
+    another screenshot. Passing: the item in the library's browser tab at
     `/library` shows both pictures. A file over 100 MB dropped on the text is
     refused with a message and adds nothing.
   - A link dragged from Safari, Chrome and Arc onto the window saves, and so
@@ -420,13 +420,12 @@ account whose library holds about 2,000 items gives the timing check its load.
   the `.appex`.
 
 - **Sign in** with the account's email and password. Passing: the library
-  pulls and shows. Kill the app and open it again. Passing: the splash holds
-  until it knows, the sign-in form never flashes, and the phone is still
-  signed in, its library there before any pull.
-- **The replica on the device.** Search the library for a word only an
-  article's body holds, then sign out and in again. Passing: the search finds
-  it (expo-sqlite's full-text search on the device), and the second sign-in
-  pulls the library afresh with no error.
+  shows. Kill the app and open it again. Passing: the splash holds until it
+  knows, the sign-in form never flashes, and the phone is still signed in,
+  what it last showed there before the first answer.
+- **Search.** Search the library for a word only an article's body holds,
+  then sign out and in again. Passing: the search finds it (the cell's search,
+  online), and the second sign-in starts from an empty cache with no error.
 - **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
   keyboard's microphone each land once; the selection handles and the edit
   menu work, with no floating toolbar; the formatting toolbar rides the
@@ -441,24 +440,24 @@ account whose library holds about 2,000 items gives the timing check its load.
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
 - **A picture in a note.** Copy a photo in Photos, tap at the end of a line
-  of a note and paste. Passing: the picture lands under the line and draws;
-  the item at `/library` in a browser shows it once the banner under the
-  library has counted down. Then open, on the phone, a note the Mac pasted a
+  of a note and paste. Passing: the picture lands under the line and draws,
+  and the item at `/library` in a browser shows it. Then open, on the phone, a note the Mac pasted a
   picture, a video and a PDF into. Passing: the picture draws, the video plays
   in the note, and the PDF shows as a card naming it, with no Download. Turn
   on airplane mode and open the note again. Passing: the picture still draws.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
-  library and any item open, a picture item opened once before opens in the
-  viewer, and one never opened says it is not on this iPhone yet; a note whose
-  text holds a picture the Mac pasted, opened once online, draws it offline. Edit a note
-  and add a photo while still offline, kill the app, open it, turn airplane
-  mode off. Passing: both reach the Mac, the banner under the library counts
-  them down to nothing, and the photo then opens offline with no download.
-- **Both devices at once.** With the phone offline, change one paragraph of a
-  note on the phone and another on the Mac, then reconnect; then change the
-  same lines of one paragraph on both. Passing: different paragraphs both
-  land; the same lines keep the phone's and say so on the phone (the merge run
-  in the headless page).
+  library and the items opened before show, an item read-only under "Needs a
+  connection"; a picture item opened once before opens in the viewer, and one
+  never opened says it is not on this iPhone yet; a note whose text holds a
+  picture the Mac pasted, opened once online, draws it offline. Save a link or
+  a thought, New note, add a photo and Move to Deleted. Passing: each says
+  Needs a connection. Share a page from Safari, kill the app and open it.
+  Passing: the library says "1 save waiting". Turn airplane mode off. Passing:
+  the save lands, the line goes, and the item shows on the Mac.
+- **Both devices at once.** Change one paragraph of a note on the phone and
+  another on the Mac at once, then the same lines of one paragraph on both.
+  Passing: different paragraphs both land; the same lines keep the phone's
+  where they overlap and say so on the phone (the editor page's own merge).
 - **Deleted.** Move an item to Deleted on the phone, then restore it on the Mac.
   Passing: it leaves both libraries and comes back with its text.
 - **Photos.** Add one from the camera and one from the library. Passing: each
@@ -473,19 +472,19 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **A Mac's edit arrives at once.** With the phone's app in the foreground on
   an item, edit that item on the Mac. Passing: the change shows on the phone
   within seconds (the account's socket dialed from the device by its ticket).
-- **Sign out.** With one edit still unsent (airplane mode), Sign out. Passing: it
-  asks first, "Sign out and discard unsent changes?" over a line naming the one
-  change; confirmed, the sign-in screen shows at once, even offline. Signed
+- **Sign out.** With a share waiting (airplane mode), Sign out. Passing: it
+  asks first, "Sign out and discard saves waiting?" over a line counting the
+  one save; confirmed, the sign-in screen shows at once, even offline. Signed
   in again and signed out online, Settings › Account on the Mac no longer
   lists the phone (it lets its device go once its copy is gone).
 - **Revoke.** Sign the phone in again and, with its app open, choose Sign out on
   its row in Settings › Account on the Mac. Passing: the sign-in screen says
-  this iPhone was signed out once the replica's next pass hears it, and a
-  relaunch stays signed out. No suite runs this on a real device.
+  this iPhone was signed out once its next call hears it, and a relaunch stays
+  signed out. No suite runs this on a real device.
 - **No iCloud backup of the library.** Settings › your name › iCloud › Manage
   Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
-  small fraction of the items it holds (the replica downloads again), and
-  photos added in airplane mode do not grow it.
+  small fraction of what it shows (the kept library and the shares waiting
+  are out of the backup), and shares made in airplane mode do not grow it.
 - **A new phone signs in as itself.** Restore this iPhone's encrypted backup
   onto another iPhone and open the app. Passing: it shows the sign-in screen
   (the Keychain's credential is this device's only), and once signed in
@@ -495,8 +494,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   site, cover and article once the cloud reads it. From YouTube and Mail: the
   link is saved and read the same way, a video's text its description. From X: a
   post fills in with its words once the cloud reads it, rather than staying
-  blank under the title X. Shared offline: it saves as its link at once and is
-  read once it reaches the cloud. Shared signed out: it waits for the sign-in. A
+  blank under the title X. Shared offline: the library says "1 save waiting",
+  and it lands as its link once back online. Shared signed out: it waits for the sign-in. A
   photo does not offer Inteligir. Share a second page while the first is still
   saving: both are saved, and each opens in turn. Share a page the library
   already holds: that item opens, with no second card and nothing on it changed.
@@ -529,9 +528,9 @@ account whose library holds about 2,000 items gives the timing check its load.
   Untitled. Type a line and go back. Passing: they read that line. Phone
   components do not run under vitest.
 - **The item in view loads first.** Sign in afresh to the 2,000-item account,
-  open an item, follow a `[[link]]` in it, then go back before the pull ends.
-  Passing: the item you went back to shows its text while the rest of the
-  library is still arriving.
+  open an item, follow a `[[link]]` in it, then go back at once. Passing: the
+  item you went back to shows its text while the library's list is still
+  loading.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; and the picture
   and PDF viewers open.
@@ -556,10 +555,9 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **Sign out during an upload.** Start a large upload on a slow link, then Sign
   out. Passing: the sign-out finishes at once. That React Native's fetch honours
   the abort cannot run under vitest.
-- **A new library schema.** When `LIBRARY_SCHEMA_VERSION`
-  (`packages/notes/src/library/library-schema.ts`) moved since the build
-  TestFlight last served, install this build over that one, signed in. Passing:
-  it opens, pulls the library again, and shows no error. No suite installs one
+- **This build over the last.** Install this build over the one TestFlight
+  last served, signed in, with a share waiting. Passing: it opens signed in,
+  what it last showed is there, and the share lands. No suite installs one
   build over another.
 - **A block that can't save asks before you leave.** Leave an item holding a
   block that can't save (a very long code block). Passing: the Alert reads the
@@ -618,12 +616,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   `fsCachedData`). Passing: it holds no library file and no bearer. A suite
   proves the Worker's no-store on device reads; nothing on the phone clears the
   system's HTTP cache, so only this check shows nothing lands there.
-- **An open item that folds.** Save a link offline at an address already in the
-  library, leave the item open and type, then go online. Passing: the screen
-  stays open through the fold and the typed words land on the older item. On
-  that item, Move to Deleted moves the item on screen, since
-  `apps/mobile/src/app/item/[id].tsx` deletes by the id its item read answered,
-  a line no suite runs.
 
 ### The iPhone app, in the simulator or a development build
 
@@ -632,10 +624,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   Simulator › the item's page. Passing: the item is editable, and the console
   has no `Refused to` line; the static CSP is otherwise proven in Chromium
   alone.
-- **The headless page under WebKit.** In the same build, run Both devices at
-  once's same-paragraph edit, then Safari › Develop › Simulator › the hidden
-  page. Passing: its console has no `Refused to` line and no error, and the
-  merge lands as that check says.
 - **The share address.** In the simulator, share a link from Safari to the
   app, once with the app quit and once with it open. Passing: `+native-intent`
   lands on the Library both times, with no Unmatched-route screen flashing
@@ -658,7 +646,7 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The library cell on a preview and in production.** On the PR's Worker
   preview, sign a device in against the preview's D1 (`apps/web/README.md`
   § Previews), mint its socket's ticket (`curl -s -X POST -H 'authorization:
-  Bearer igd_…' -H 'x-inteligir-build: <version>+desktop' -H 'content-type:
+  Bearer igd_…' -H 'x-inteligir-build: <version>+mobile' -H 'content-type:
   application/json' --data '{}' <preview>/v1/rpc/account/socketTicket`), then
   open `wss://<preview>/v1/socket?ticket=<the ticket>` within the minute
   (`websocat`) and send `ping`. Passing: the upload took the `exports` map in
@@ -668,6 +656,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   that only `ctx.exports` reaches. On the production deploy, passing is the
   same, and its output says, for each of the three tombstones, whether it may
   leave the map; one it clears is deleted from the map in the next change.
+- **A new library schema.** When `LIBRARY_SCHEMA_VERSION`
+  (`packages/notes/src/library/library-schema.ts`) moved since the last
+  deploy, open the library on the preview and then in production. Passing: it
+  opens on an empty library with no error, and the Worker's log shows one
+  `cell-schema-reset` for the account. No suite deploys over a cell.
 
 - **A link the cloud reads.** On the production deploy, have a connected
   assistant save a long public article's link (`save_link`), and another's to a
@@ -720,24 +713,24 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The library's page on a preview and in production.** Sign in at
   `<preview>/app/sign-in` with an account of the preview's D1 that a device
   has filled, and open `<preview>/library`. Passing: the page draws the
-  library's items with no policy violation in the console (SQLite's wasm
-  compiles under `'wasm-unsafe-eval'`); `<preview>/library?item=<id>` opens that
+  library's items with no policy violation in the console;
+  `<preview>/library?item=<id>` opens that
   item, and a reload keeps it open; `<preview>/library/assets/<a file the page
   loaded>` answers from the asset server with no Worker invocation in the logs;
   and `<preview>/libraryish` answers the site's 404. On the production deploy,
   passing is the same at `inteligir.com/library`.
 - **The page in Safari, Chrome and Firefox.** In each, signed in, open
   `/library`, then edit an item on the phone. Passing: the edit shows in the tab
-  without a reload and the rail's footer reads "Up to date"; with the network
-  off, the footer reads "Waiting for a connection", Settings › Account's rows
-  say "Needs a connection", and a line typed meanwhile lands in the phone's copy
-  once the network is back.
+  without a reload; with the network off, the open item says Needs a
+  connection and takes no typing, Settings › Account's rows say "Needs a
+  connection", and a line typed just before the network went lands in the
+  phone's copy once it is back.
 - **A tab that holds a change asks before it goes, in Safari, Chrome and
-  Firefox.** With the network off, type a line in an item and close the tab,
-  then reload it. Passing: the browser asks before each, and nothing asks once
-  the network is back and the footer reads "Up to date". Then, online, type a
-  line and switch to another tab at once for a minute. Passing: the line is in
-  the phone's copy before you switch back.
+  Firefox.** Type a line in an item and turn the network off at once, then
+  close the tab, and reload it. Passing: the browser asks before each, and
+  nothing asks once the network is back and the line has landed. Then, online,
+  type a line and switch to another tab at once for a minute. Passing: the line
+  is in the phone's copy before you switch back.
 - **A long item's outline and its formulas, in the tab and in the Mac app.**
   Open an item with three headings or more and scroll it, then import a zip
   holding a note whose text is `{{2+2|5}}` and open that note. Passing: an
@@ -748,10 +741,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   note with a list nested 128 levels and one nested 129. Passing: the first
   lands and the agent's view reads it; the second is left out and
   counted under "couldn't be read". Only a Worker has a Worker's stack.
-- **An equation, a diagram and a date open offline.** Open the tab, turn the
-  network off, then open, for the first time since the tab loaded, an item
-  holding an equation, a Mermaid diagram and a date. Passing: each draws, and
-  no "Something went wrong" screen shows.
+- **An equation, a diagram and a date open offline.** Open an item holding an
+  equation, a Mermaid diagram and a date, go back to the library, turn the
+  network off and open it again. Passing: each draws, read-only under Needs a
+  connection, and no "Something went wrong" screen shows.
 - **A dialog's backdrop covers the screen in Safari on an iPhone with iOS 26.**
   Open `/library` in Safari on the phone, scroll the grid down, then open a
   card's Quick Look and, from ⌘P's Save a link…, its dialog. Passing: the dimmed

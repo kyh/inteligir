@@ -48,9 +48,11 @@ refer to as "**Europe**", and "**European**" should be understood accordingly).
 Your library, the notes you write and the links, pages and files you save, is
 your account's, kept by our cloud: the part of the Service we run on
 Cloudflare, at inteligir.com. An account is required. Each device you sign in
-on keeps a copy of your library, reads it with no connection, and sends what
-you change to our cloud when it has one; our cloud tells each of your devices
-when another has changed it. This Privacy Policy states exactly what that
+on reads your library from our cloud and sends what you change there, and our
+cloud tells each of your devices when another has changed it. The iPhone keeps
+what it last read, so that still shows with no connection, and the browser
+extension and the iPhone each keep a page you save offline until it reaches
+our cloud. This Privacy Policy states exactly what that
 means: what each device sends and where, what it keeps, how long our cloud
 keeps it, and how it is deleted.
 
@@ -145,7 +147,7 @@ as:
     under the id of the access you gave it.
   - **The app's version, on every request to our cloud.** The phone app and
     the browser extension say which version they are, and which of the two, on
-    each request they send our cloud, so it can stop answering a version too old to sync with
+    each request they send our cloud, so it can stop answering a version too old to work with
     it rather than answer it wrongly. Our cloud reads it to decide whether to
     answer, and keeps no record of it.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
@@ -405,35 +407,33 @@ Specifically, in our cloud:
   or your account, and deleting it deletes both.
 - Cloudflare's request log keeps each entry for up to seven days.
 
-**Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
-your library offline:
+**Your phone.** Signed in, the phone keeps what it last read of your library,
+so that still shows with no connection:
 
-- **Every item**, its text and folders, downloaded from your
-  library, a small picture for each card, and a picture, PDF or other
-  file once you open it.
-- **Whatever it has not sent yet.** Edits, saves, new notes, deletions and
-  photos wait on the phone until your library takes them.
-  A change the library refuses stays on the phone and says so. A page you
-  share to Inteligir waits in the share sheet's own storage on the phone until
-  the app saves it.
+- **What it last read**: the items, lists, folders and conversations it
+  showed, a small picture for each card, and a picture, PDF or other file once
+  you open it.
+- **Pages you share while offline.** A page or text you share to Inteligir
+  waits on the phone until your library takes it; one the library refuses
+  stays on the phone and says so. Nothing else waits: an edit, a save typed
+  into the app, a photo or a deletion needs a connection, and says so.
 
-It all lives in the app's own storage on the phone. The items and unsent
-changes, photos waiting to be sent and the files your notes embed included,
-sit where the app keeps them out of the phone's iCloud backup: a phone
-restored from a backup downloads your library again, and anything it had not
-sent is gone. Other files you opened sit in the app's cache, which iOS may
+It all lives in the app's own storage on the phone. What it last read and the
+shares waiting sit where the app keeps them out of the phone's iCloud backup:
+a phone restored from a backup reads your library again, and a share it had
+not sent is gone. The files you opened sit in the app's cache, which iOS may
 clear and never backs up. The phone's sign-in is kept in the iPhone's Keychain
 for that iPhone alone: a backup restored onto another phone does not carry it,
 so the new phone signs in again and becomes a device of its own.
 
-- **Signing out** on the phone erases all of it — items, files and anything
-  unsent, which it asks about first — and
-  tells our cloud to remove the phone from your account. A phone that signs out
-  offline forgets its sign-in all the same; revoke it from Settings › Account on
-  a Mac.
-- **Revoking the phone** from a Mac, or **deleting the account**, erases the
-  same the next time the phone reaches our cloud and is refused, without
-  asking. Until then it keeps what it holds.
+- **Signing out** on the phone erases all of it — what it kept, the files and
+  any shares waiting, which it asks about first — and tells our cloud to
+  remove the phone from your account. A phone that signs out offline forgets
+  its sign-in all the same; revoke it from Settings › Account on a Mac or at
+  inteligir.com/library.
+- **Revoking the phone** from another device, or **deleting the account**,
+  erases the same the next time the phone reaches our cloud and is refused,
+  without asking. Until then it keeps what it holds.
 
 ## How we share your personal information
 
@@ -527,18 +527,19 @@ information about their rights below.
 **Access or update your information.** If you have registered for an account
 with us through the Service, you may review and update certain account
 information by logging into the account. Settings › Account on a Mac shows the
-account it is signed in to, when it last synced, and your devices with when each
-was last seen; our website's account pages list your devices too. The sign-in
+account it is signed in to, and your devices with when each was last seen; our
+website's account pages list your devices too. The sign-in
 page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
 **Privacy settings.** Signing a device out of your account (Settings › Account)
-stops it syncing, and on the phone deletes its copy of your library.
+ends its access, and on the phone deletes what it kept of your library.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If
-you block our website's session cookie, you cannot sign in to its account pages;
-the apps do not depend on it. If you clear our website's web storage, it forgets
+you block our website's session cookie in your browser, you cannot sign in to
+its account pages or your library there; the Mac app keeps its own, and the
+iPhone app and the browser extension do not depend on it. If you clear our website's web storage, it forgets
 your theme and shows its dark one, and your library in a browser tab forgets its
 settings and layout and follows your device's theme.
 
@@ -629,9 +630,10 @@ These are the edges of that protection, stated plainly:
 - **We can read what our cloud holds.** Your library is stored unencrypted to
   us (Cloudflare encrypts its storage at rest, but there is no end-to-end
   encryption). Don't keep in it what you wouldn't store in a hosted notes app.
-- **A lost phone holds a full copy of your library's text**, behind its
-  passcode. Revoke it from Settings › Account on a Mac: it erases its
-  copy the next time it goes online, but a phone that never does keeps it.
+- **A lost phone holds what it last read of your library**, behind its
+  passcode. Revoke it from Settings › Account on a Mac or at
+  inteligir.com/library: it erases what it kept the next time it goes online,
+  but a phone that never does keeps it.
 - **Deleting an item does not delete it at once**: it waits in Deleted, and
   what Undo keeps of its changes stays seven days, as [Retention](#retention)
   says, unless you delete the item for good or delete the account first.

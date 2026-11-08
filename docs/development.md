@@ -70,8 +70,8 @@ as it changes (`vite build --watch`) and the local Worker serves that build at
 reload the tab after an edit. Only the updater needs the shell; a tab's
 Settings says updates come with the Mac app.
 
-`pnpm package:desktop` builds the .app, the shell alone, around the site's URL, signed when the keychain holds a
-Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
+`pnpm package:desktop` builds the .app, the shell alone, around the site's
+URL, signed when the keychain holds a Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
 § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, `/v1` with
@@ -119,18 +119,19 @@ boots (`tools/e2e/src/harness/extension-fixture.ts`). The store builds
 
 ## Where state lives
 
-| What                                                             | Where                                                                                                                                            |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Site + cloud Worker (`pnpm dev:web`)                             | 5174 (pinned — `strictPort`)                                                                                                                     |
-| UI gallery (`pnpm dev:gallery`)                                  | 5175 (pinned — `strictPort`)                                                                                                                     |
-| Scripted Messages API (`pnpm dev:web`)                           | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                                                                                       |
-| Extension dev server (`pnpm dev:extension`)                      | 3000, or the first free port to 3010 (WXT's own probe)                                                                                           |
-| The Mac app's WebKit store (the site's cookie, the page's prefs) | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev` |
-| The extension's credential and the saves it waits on             | the browser's extension storage (`storage.local`), kept from the pages it scripts                                                                |
-| Accounts, sessions, devices, invites, revoked grants             | D1 (local file under `apps/web/.wrangler`)                                                                                                       |
-| The library's files                                              | R2, `BLOBS` (same `.wrangler` dir)                                                                                                               |
-| Library cells, their sockets and conversations                   | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                |
-| Connected assistants' clients, grants and tokens                 | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                            |
+| What                                                             | Where                                                                                                                                                   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Site + cloud Worker (`pnpm dev:web`)                             | 5174 (pinned — `strictPort`)                                                                                                                            |
+| UI gallery (`pnpm dev:gallery`)                                  | 5175 (pinned — `strictPort`)                                                                                                                            |
+| Scripted Messages API (`pnpm dev:web`)                           | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                                                                                              |
+| Extension dev server (`pnpm dev:extension`)                      | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                  |
+| The Mac app's WebKit store (the site's cookie, the page's prefs) | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`        |
+| The extension's credential and the saves it waits on             | the browser's extension storage (`storage.local`), kept from the pages it scripts                                                                       |
+| The iPhone's kept reads, the shares it waits on, its files       | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; the credential in the Keychain (`apps/mobile/CLAUDE.md`) |
+| Accounts, sessions, devices, invites, revoked grants             | D1 (local file under `apps/web/.wrangler`)                                                                                                              |
+| The library's files                                              | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                      |
+| Library cells, their sockets and conversations                   | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                       |
+| Connected assistants' clients, grants and tokens                 | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                   |
 
 ## Quality gates
 
