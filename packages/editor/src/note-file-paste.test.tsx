@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlateEditor } from "platejs/react";
 
-import { fileSha } from "@repo/library-replica/library-replica";
+import { fileSha } from "@repo/notes/library/file-sha";
 
 import { fileNotKept, fileTooLarge, filesToKeep } from "@repo/editor/kits/image-kit";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";

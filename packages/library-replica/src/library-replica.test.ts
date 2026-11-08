@@ -1,11 +1,12 @@
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
+import { fileSha } from "@repo/notes/library/file-sha";
 import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
 import { assert, describe, expect, it, vi } from "vitest";
 
-import { fileSha, ReplicaClosedError } from "./library-replica";
+import { ReplicaClosedError } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";

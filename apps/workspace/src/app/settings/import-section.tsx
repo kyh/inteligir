@@ -6,8 +6,8 @@
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
-import { fileSha } from "@repo/library-replica/library-replica";
 import { keptFileType } from "@repo/notes/items/item-kind";
+import { fileSha } from "@repo/notes/library/file-sha";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";

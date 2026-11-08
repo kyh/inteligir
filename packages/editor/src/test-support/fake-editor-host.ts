@@ -1,4 +1,4 @@
-import { fileSha } from "@repo/library-replica/library-replica";
+import { fileSha } from "@repo/notes/library/file-sha";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { installEditorHost } from "@repo/editor/host-io";
@@ -72,7 +72,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       if (options.keepFile !== undefined) {
         return await options.keepFile(bytes, mime);
       }
-      // as both hosts' outboxes do, which stage no file without a type
+      // as the hosts do, which keep no file without a type
       if (mime === "") {
         return await Promise.reject(new Error("a file is kept under a type"));
       }

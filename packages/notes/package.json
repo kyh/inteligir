@@ -40,6 +40,7 @@
     "./library/block-order": "./src/library/block-order.ts",
     "./library/canonical-json": "./src/library/canonical-json.ts",
     "./library/derive-item": "./src/library/derive-item.ts",
+    "./library/file-sha": "./src/library/file-sha.ts",
     "./library/item-makes": "./src/library/item-makes.ts",
     "./library/library-index": "./src/library/library-index.ts",
     "./library/library-item": "./src/library/library-item.ts",
