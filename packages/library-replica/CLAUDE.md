@@ -13,7 +13,7 @@ and cited.
   editor or UI module and touches no platform global (`oxlint.config.ts`), so
   the editor's diff3 is injected as the merge, which resolves, so the phone
   runs it in its headless page (`apps/mobile/src/editor/headless-page-host.ts`).
-  Rejected: an engine per host (the Mac's and the phone's rules would drift);
+  Rejected: an engine per host (the tab's and the phone's rules would drift);
   importing the merge (Plate into Hermes and every node suite).
   `packages/library-replica/src/replica-ports.ts`.
 

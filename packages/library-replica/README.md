@@ -2,8 +2,8 @@
 
 The replica engine every device runs: the account's library as this device
 holds it, read offline and caught up with the account's library cell whenever
-it can reach it. It is one package so the Mac's window, the browser tab and the
-phone hold the same rows by the same rules, and it names no platform: the host
+it can reach it. It is one package so the library's page (a browser tab, or the
+Mac app's window on it) and the phone hold the same rows by the same rules, and it names no platform: the host
 hands it its SQLite, its clock, its ids, its `/v1` transport, its socket dial,
 the place its unsent files wait, and the editor's block merge.
 

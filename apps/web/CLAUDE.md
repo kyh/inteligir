@@ -26,8 +26,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/device/sign-up.ts`.
 
 - **A DEVICE CREDENTIAL, OR THE SITE'S SESSION, LISTS AND REVOKES ITS
-  ACCOUNT'S DEVICES**, so Settings › Account, in a signed-in Mac or the library's
-  browser tab, removes a lost phone with no password asked, as a sign-out asks
+  ACCOUNT'S DEVICES**, so Settings › Account, in the library's page, a
+  browser tab or the Mac app's window, removes a lost phone with no password asked, as a sign-out asks
   none; the web's devices page stays as the fallback. The list marks the device
   asking, and that row offers no Revoke: this device leaves through a sign-out,
   which asks before it drops what it has not sent.
@@ -38,11 +38,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   best-effort, and no unreachable cloud holds that sign-out open.** The phone's
   sign-out takes its copy away first and only then revokes, unawaited, and a
   phone whose copy would not go opens it again, still the account's; a sign-in
-  it could not keep or open lets that device go the same way. The Mac does the
-  same from a library that would not open, or a sign-in it could not keep,
-  where the page waits three seconds at most, since the reload after would drop
-  the call. Settings › Account on the Mac and in the tab goes the other way,
-  since a wire stands there and a tab holds no credential to drop: it signs out
+  it could not keep or open lets that device go the same way. Settings › Account
+  in a tab, the Mac app's window among them, goes the other way, since a wire
+  stands there and a tab holds no credential to drop: it signs out
   over that wire first, so it needs a connection, and wipes once the cloud has
   answered; a wipe that fails meets the cloud's refusal at the next call, which
   ends the session as any revocation does. Rejected: forgetting the credential
@@ -51,7 +49,6 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   failed wipe left a library on a dead credential, whose edits nothing could
   send). `apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
-  `apps/workspace/src/app/cloud/shell-library.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
@@ -640,18 +637,16 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   of its own (a second sign-in, CORS on every call).
   `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
 
-- **TWO PAGES THE WORKER NEVER SERVED CALL `/v1` ACROSS ORIGINS, AND IT ANSWERS
-  CORS FOR THOSE ORIGINS ALONE.** The Mac's shell serves its page on
-  `tauri://localhost` (`MAC_APP_ORIGIN`) and the browser extension's worker
-  calls from its own id's origin (`EXTENSION_ORIGIN`), so each call is
-  cross-origin; the Worker answers the preflight and lets each exact origin read
-  the routes it calls (`/v1/rpc` and `/v1/blobs`, for each), with no
-  credentials, since both send a device
-  credential as a bearer and never a cookie. The socket opens on a ticket and
-  asks no CORS, and every other origin meets none; `vite dev` answers no
-  preflight of its own, so the Worker answers as deployed. Rejected: the
-  shell's HTTP plugin carrying the page's calls (a proxy in Rust for every
-  call); host permissions for the extension (an install warning, and the store
+- **ONE PAGE THE WORKER NEVER SERVED CALLS `/v1` ACROSS ORIGINS, AND IT ANSWERS
+  CORS FOR THAT ORIGIN ALONE.** The browser extension's worker calls from its
+  own id's origin (`EXTENSION_ORIGIN`), so each call is cross-origin; the
+  Worker answers the preflight and lets that exact origin read the routes it
+  calls (`/v1/rpc` and `/v1/blobs`), with no credentials, since it sends a
+  device credential as a bearer and never a cookie. The Mac app's window shows
+  the site's own page, so it calls on its own origin. The socket opens on a
+  ticket and asks no CORS, and every other origin meets none; `vite dev`
+  answers no preflight of its own, so the Worker answers as deployed. Rejected:
+  host permissions for the extension (an install warning, and the store
   build's activeTab alone); a reflected origin (any page could read what a
   cookie opened). `apps/web/src/worker/cors.ts`, `apps/web/vite.config.ts`.
 
@@ -672,7 +667,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   to carry the person's words there; `save_link` asks first, and its card shows
   the address as the library would read it, the host named beside it, since
   the model's own reply is what such a page writes. Nothing a
-  device draws is the same door: the page, the Mac and the phone's editor page
+  device draws is the same door: the library's page, in a tab and the Mac app alike, and the phone's editor page
   each draw no remote image, frame or media
   (`tools/repo-guards/src/remote-media.test.ts`).
   Rejected: holding the read until the person confirms it after the turn (a

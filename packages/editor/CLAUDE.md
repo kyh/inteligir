@@ -280,8 +280,10 @@ alone, and no walk narrows structurally.
   `packages/editor/src/scroll-reveal.ts`). The outline places its scanner line
   by the runs' boxes before it measures a heading (`activeHeadingAt` in
   `packages/editor/src/toc.tsx`). Rejected: content-visibility only where the
-  engine anchors itself (no paint skip in the shipped app).
-  `tools/e2e/src/scenarios/desktop-shell/long-note.ts`.
+  engine anchors itself (no paint skip in the shipped app). Residual: Chromium
+  keeps its own anchor, so no scenario can show WebKit's, and a long note's far
+  jump and scroll back up are the owner's check on a Mac (`docs/releasing.md`).
+  `packages/editor/src/run-anchoring.test.tsx`.
 
 - **MARKDOWN IS A CODEC BESIDE THE LIBRARY, AND IT RUNS HEADLESS.**
   `@repo/editor/codec/*` reaches no React, so it runs wherever the library
@@ -365,8 +367,8 @@ alone, and no walk narrows structurally.
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
   SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, the
   feed's `titleOf` is live, and `readFile(sha)` answers from the host's file
-  source (the tab's staged bytes, then `/v1/blobs`; the Mac's scheme; the
-  phone's cache over the bridge). A media block holds `{sha}` (a file its
+  source (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app
+  alike; the phone's cache over the bridge). A media block holds `{sha}` (a file its
   `name`) or a web `{url}`, its type the Blob's. A link reaches an item only by
   `[[…]]`, by its id or by `titleKey`, the key the cell resolves a title by; a
   markdown url resolves by path only in an import. Rejected: paths a host maps

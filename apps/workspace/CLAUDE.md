@@ -6,9 +6,8 @@ preferences. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-`src/main.tsx` opens the account's library (in the tab the session, then the
-replica; in the Mac app the shell's credential, then its replica) and mounts
-the router; `src/router.tsx` makes the router and the QueryClient it
+`src/main.tsx` opens the account's library (the session, then the replica) and
+mounts the router; `src/router.tsx` makes the router and the QueryClient it
 carries. `app/cloud/` holds the `/v1` client and its query utils, the replica's
 queries and the page's library context; `app/workspace.tsx` owns the rail, the
 grid or the open item, the panel and the palette; `app/library/` the grid, its
@@ -16,8 +15,8 @@ scope, selection, Quick Look, the verbs over items and what a paste or a drop
 saves; `app/item/` the open item, its stages and the editor's host;
 `app/panel/` Info; `app/agent/` the built-in agent's
 conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
-`app/settings/` the Settings layer. Every shell answer
-is parsed in `src/shell/shell-commands.ts`.
+`app/settings/` the Settings layer. The Mac app's update, the one thing the
+page asks its shell, is parsed in `src/shell/desktop-bridge.ts`.
 
 ## The page over the cell
 
@@ -30,7 +29,7 @@ is parsed in `src/shell/shell-commands.ts`.
   not find out says it didn't open and offers Try again. Its calls are the
   apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
   server on the device (a second writer beside the cell); the replica in OPFS
-  (one tab would hold it, and the Mac's replica is the shell's, in Rust); a
+  (one tab would hold it); a
   fault of the site's read as signed out (a password asked of someone signed
   in). `apps/workspace/src/app/cloud/page-library.ts`,
   `apps/workspace/src/main.tsx`.
@@ -84,57 +83,21 @@ is parsed in `src/shell/shell-commands.ts`.
   the replica or the open item holds anything unsent the browser asks before the
   tab closes, reloads or leaves, its listener there only then; a session that
   ended asks nothing, since nothing can go. An open item that will not write
-  asks before the page leaves it, saying why, in the tab and on the Mac
+  asks before the page leaves it, saying why
   (`apps/workspace/src/app/item/leave-item.ts`). Rejected: suspending the replica
   out of sight as the phone does (its outbox is on disk, the tab's is not); a
   listener always armed (it bars the back-forward cache).
   `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
 
-- **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
-  OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
-  shell for its config and the credential a sign-in kept: with none the page
-  is the first run, a sign-in or a new account with an invite code, whose
-  device credential the shell keeps in the Keychain before the library opens
-  (a Keychain that refuses it gives the device's slot back, so no device is
-  left signed in with no credential); with one, the replica engine runs over
-  the shell's SQLite and staged files, its calls going to the cloud's origin
-  with the credential as the bearer and the build in a header. What differs by
-  host is one `PageLibrary`: where a file is drawn and read from, the transport an
-  upload rides, what the page does about what it holds before it
-  goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
-  edit when the shell says it is quitting) and where a sign-out goes, each
-  host's every way of leaving taking what the page's own storage remembers of
-  the account (`apps/workspace/src/app/cloud/account-storage.ts`). A leave no
-  page saw (a session that lapsed with no tab open, a quit in the middle of
-  one) takes it at the next open, which compares the storage's one
-  `storageAccount` row, an account's opaque id, with who is opening. The
-  Mac's routes ride the hash, since its document never changes, so a reload
-  keeps the route, and the page drops it where it lands signed out: the next
-  account opens on All items, not on the last one's Settings or item. Rejected:
-  a first-run window of the shell's own (a second page beside the one the shell
-  carries); the tab's cookie in the window (a cross-site cookie WebKit would
-  not send); clearing only where an open reads no session (the site's sign-in
-  takes a lapsed cookie and lands on the library, so the next account's first
-  open reads one); dropping the route in each way of leaving (a sign-out, a
-  deletion, a revoke and the failed open's Sign out each reload, and all of them
-  meet that one arm). `apps/workspace/src/app/cloud/shell-library.ts`,
-  `apps/workspace/src/app/cloud/sign-in-page.tsx`, `apps/workspace/src/main.tsx`.
-
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
-  through a client of its own and stops at a session's end, so each host watches
-  its status beside the wire's interceptor and gives both one answer: the tab
-  goes to the site's sign-in, the Mac lets its credential go and opens on the
-  sign-in, and a Mac below the build floor keeps its credential, replica and
-  outbox and says to update, in a toast and in the rail's footer, since the
-  next build goes on as the same device. The floor spares a page the Worker
-  served, so a tab it refuses is a browser too old to mark its calls as that
-  page's, and the tab says so. Rejected: waiting for a wire call (an idle page
-  makes none, and a stopped replica reads as up to date); a page of its own for
-  the outdated Mac, as the phone draws (the Mac's library reads and queues on
-  disk, and its updater needs no person to go find it); the refused tab sent to
-  sign in (the sign-in sends a signed-in tab straight back, for good).
+  through a client of its own and stops at a session's end, so the page watches
+  its status beside the wire's interceptor and gives both one answer: it goes to
+  the site's sign-in. The floor spares a page the Worker served, so a tab it
+  refuses is a browser too old to mark its calls as that page's, and the tab
+  says so. Rejected: waiting for a wire call (an idle page makes none, and a
+  stopped replica reads as up to date); the refused tab sent to sign in (the
+  sign-in sends a signed-in tab straight back, for good).
   `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/cloud/shell-library.ts`,
   `apps/workspace/src/app/sidebar/sync-words.ts`, `apps/workspace/src/main.tsx`,
   over `apps/web/src/worker/client-floor.ts`.
 
@@ -184,7 +147,7 @@ is parsed in `src/shell/shell-commands.ts`.
   `apps/workspace/src/app/workspace.tsx`.
 
 - **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
-  MOUNTED.** `?item=<id>` is the open item (after the hash on the Mac): every open is a history entry, so
+  MOUNTED.** `?item=<id>` is the open item: every open is a history entry, so
   the browser's Back leaves the item and Forward reopens it, and a link or a
   reload opens it, once the replica holds it (a card that folded answers only
   for the run that made it, A FOLDED MAKE'S ID). Settings is a layer in the
@@ -230,8 +193,7 @@ is parsed in `src/shell/shell-commands.ts`.
   (`apps/workspace/src/app/library/library-view.tsx`). An item opens full size
   in its place and takes the keyboard unless something holds it, so Escape goes
   back (`apps/workspace/src/app/item/item-view.tsx`): a file's viewer over its
-  bytes where its host draws them (`/v1/blobs/<sha>` in the tab, the shell's
-  scheme on the Mac), a saved page's source above its text, a link not
+  bytes (`/v1/blobs/<sha>`), a saved page's source above its text, a link not
   yet read saying so, and the item's blocks in the editor over the replica
   (`apps/workspace/src/app/item/item-stages.tsx`). Rejected: a list beside an
   always-open item (saved pages read as text files).
@@ -342,26 +304,22 @@ is parsed in `src/shell/shell-commands.ts`.
   THERE WAITS IN THE OUTBOX.** The editor's host reads a note's picture or
   file through the `PageLibrary`'s `readFile`: the tab its own unsent bytes,
   then `/v1/blobs/<sha>`, which the browser keeps under the cloud's immutable
-  answer; the Mac its scheme, which serves its staged files, its cache or the
-  cloud's copy. A file pasted or dropped into a note is kept by the replica's
+  answer. A file pasted or dropped into a note is kept by the replica's
   `keepFile`, so it draws at once and goes up ahead of the write naming it.
   Rejected: a cache of the page's own (the browser's already holds the
   answer); an `<img>` on `/v1/blobs` (a pasted file is not there until the
   outbox sends it). `apps/workspace/src/app/item/page-editor-host.ts`,
   `apps/workspace/src/app/cloud/page-library.ts`.
 
-- **THE MAC'S WINDOW HAS NO TITLE BAR, SO THE PAGE DRAWS WHAT ONE DOES.** Under
-  the macOS shell the traffic lights sit over the page's top-left corner
-  (`apps/desktop/src-tauri/src/window.rs`). The rail and Settings each open on a
-  childless strip that keeps the corner clear and drags the window; the top bar
-  over the grid or an open item moves clear of the lights while the rail is off
-  screen, closed or a sheet below its breakpoint, and drags by everything in it
-  but its controls, the one thing left to drag by then. A screen with neither,
-  the sign-in, a failed open or the crash screen, drags by its own background.
-  A tab and the shell on Linux have a title bar of their own and reserve
-  nothing. Rejected: the system's title bar (a bar above the page's own top
-  bar); a top bar that drags by its bare background alone (its title and count
-  press to nothing). `apps/workspace/src/app/title-bar.ts`,
+- **THE MAC APP'S WINDOW KEEPS THE SYSTEM'S TITLE BAR, SO THE PAGE DRAWS THE
+  SAME IN EVERY HOST.** macOS draws the window's title bar above the page and
+  drags the window by it, so the page reserves no corner and marks nothing to
+  drag by, and the Mac app shows the page a tab shows. The one thing the page
+  asks its shell is the update: an in-page notice and Settings' Updates row,
+  over three commands and one event (`apps/workspace/src/shell/desktop-bridge.ts`,
+  `apps/desktop/src-tauri/src/updater.rs`). Rejected: an overlay title bar the
+  page draws around (drag strips, an inset top bar and a branch per host for a
+  few pixels of chrome). `apps/workspace/src/app/update-notice.tsx`,
   `apps/workspace/src/app/top-bar.tsx`.
 
 ## Repo guards, vendoring and tooling
@@ -374,11 +332,9 @@ is parsed in `src/shell/shell-commands.ts`.
 
 - **THE PAGE IS ITS OWN WORKSPACE, AND THE WORKER SERVES ITS BUILD** (owner
   decision). `@repo/workspace` depends on neither app: the Worker copies its
-  build into its assets and answers it at `/library` (THE LIBRARY'S PAGE IS THE
-  WORKER'S, in `apps/web/CLAUDE.md`), the desktop embeds the same build
-  (`frontendDist`), each through `^build`. Only the page reaches
-  `@tauri-apps/*` (`SHELL_API_CLIENTS` in
-  `tools/repo-guards/src/dep-dag.test.ts`), and its loop is `pnpm dev:web`,
-  which rebuilds it as it changes. Rejected: the page inside `apps/web` (the
-  Mac embeds it too); a dev server of the page's own (a second origin, its
-  calls cross-site).
+  build into its assets through `^build` and answers it at `/library` (THE
+  LIBRARY'S PAGE IS THE WORKER'S, in `apps/web/CLAUDE.md`), and the Mac app's
+  window loads it from there. Only the page reaches `@tauri-apps/*`
+  (`SHELL_API_CLIENTS` in `tools/repo-guards/src/dep-dag.test.ts`), and its
+  loop is `pnpm dev:web`, which rebuilds it as it changes. Rejected: a dev
+  server of the page's own (a second origin, its calls cross-site).

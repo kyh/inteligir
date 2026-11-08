@@ -1,9 +1,8 @@
 # @repo/e2e — the end-to-end suite
 
 Boots the REAL Worker (apps/web's `cf build` output under Miniflare), the
-desktop shell, the browser extension and the phone's own runtime on scratch
-dirs, drives them over `/v1`, the connector, a headless browser and WebDriver,
-and asserts on the wire, in the cell and on disk. It is orchestration plus
+browser extension and the phone's own runtime on scratch dirs, drives them over
+`/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. It is orchestration plus
 plain assertions on purpose — no test framework; the runner exits non-zero on
 any failure with a readable transcript.
 
@@ -15,7 +14,7 @@ pnpm e2e --only agent-cell    # one scenario (comma-separated, repeatable)
 pnpm e2e --lanes 1            # one scenario at a time, every line as it happens
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # every scenario, in run order, and what it proves
-pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
+pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser
 ```
 
 Before the first scenario the runner builds the browser extension's dev build
@@ -29,10 +28,7 @@ when it ends, after a live `[name] started` line, so two lanes never
 interleave; `--lanes 1` streams each line as it happens. A run that dies first
 (a signal, a crash, a job's timeout) prints what each scenario still running
 had written, under an `[name] INTERRUPTED` line. The summary lists
-every scenario in registry order whatever finished first. A scenario that needs
-something only one may hold at a time names it in `exclusive` and never runs
-beside another holding it: today that is `desktop-shell`, the shell's window on
-the run's one display, driven through WebKit's WebDriver. Everything else a
+every scenario in registry order whatever finished first. Everything a
 scenario touches is its own, which is what lets it share a run: its scratch
 dir, ports reserved ephemerally and never handed to two lanes in one run
 (`src/harness/ports.ts`), and browser sessions named for it. A build a scenario
@@ -41,7 +37,7 @@ one at a time (`src/harness/turbo-build.ts`), because a second build would
 rewrite the output a running Worker serves its assets from.
 
 Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
-that builds or boots a Worker, or the desktop shell, declares more). A run
+that builds or boots a Worker declares more). A run
 still going past it FAILS with its processes' output tails and is torn down,
 so a hang costs one scenario, not the whole job. Time its build sat queued
 behind another lane's moves the deadline out by as much, since the budget is
@@ -72,23 +68,9 @@ scratch dir and tears everything down afterwards:
   teardown with the scenario.
 - `cloudLink(worker)` — a relay to a booted Worker on a port of its own, so a
   scenario can cut the cloud and restore it (`src/harness/cloud-link.ts`): a
-  cut refuses every new connection and drops every open one, as a Mac that lost
-  its network meets the cloud, and a restore listens on the same port again.
-  Registered for teardown with the scenario.
-- `desktopShell({ cloudOrigin })` — the checkout's built Tauri shell
-  (`pnpm turbo run build:shell --filter=@repo/desktop`, an unbundled debug
-  build with the page inside it, which the runner makes before the first
-  scenario when any selected one is `exclusive` on `desktop-shell`, outside
-  every deadline), calling the cloud at `cloudOrigin`, a Worker's or a
-  `cloudLink`'s. Launched by `tauri-driver` on the scenario's scratch `HOME`,
-  which a second launch in the same scenario finds again, so a relaunch keeps
-  the replica and the credential's stand-in. Its `window` is a WebDriver
-  session over the shell's one window, `dataDir` is where the shell keeps the
-  account's replica and staged files, `replicaFiles()` lists the replicas it
-  holds (`replicaTitle` reads an item back off one), and `quit()` sends the
-  shell the SIGTERM it quits on. Registered for teardown with the scenario. It
-  runs on Linux alone, and skips with no display (run the suite under
-  `xvfb-run -a`), no `tauri-driver` or `WebKitWebDriver`, or no built shell.
+  cut refuses every new connection and drops every open one, as a device that
+  lost its network meets the cloud, and a restore listens on the same port
+  again. Registered for teardown with the scenario.
 - `browser(label)` — an agent-browser session registered for teardown with the
   scenario, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openLibrary(worker, { path?, ready? })`
@@ -111,16 +93,16 @@ owner, a second one standing in for another device, with a network a
 scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch reads, on loopback, which the Worker's fill reaches under
 a public name of its own (`page-fixture.ts`); the browser extension's dev build, connected through the
-site's connect page, and its worker's save (`extension-fixture.ts`); and the PNG
-reader for what a frame or a thumbnail
-draws (`png-pixels.ts`).
+site's connect page, and its worker's save (`extension-fixture.ts`); and the
+one-colour PNG a scenario saves (`png-pixels.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
+Worker alone, as `cloudWorker` does, and prints its origin: the packaged Mac
+app's smoke (`apps/desktop/scripts/smoke-packaged.ts`) opens its window on it.
 
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`, `timeoutMs` only when a green run can near the default, and
-   `exclusive` when it holds something only one scenario may, such as the
-   desktop shell); it shares a run with others in lanes, so it binds no fixed
+   `run(ctx)`, and `timeoutMs` only when a green run can near the default); it
+   shares a run with others in lanes, so it binds no fixed
    port and writes nothing outside its scratch dir;
    assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
    this environment/branch does not have yet. The `description` says what the
@@ -136,8 +118,7 @@ Each feature issue lands with its scenario here.
 
 Every process the harness starts runs with every host `GIT_*` variable
 stripped, since turbo hashes the checkout through git and a hook's `GIT_DIR`
-would point it elsewhere, and the desktop shell without an inherited
-`INTELIGIR_*` (`src/harness/exec.ts`). The Worker's own settings ride as
+would point it elsewhere (`src/harness/exec.ts`). The Worker's own settings ride as
 Miniflare bindings over its config's (`cloudWorker({ vars, json, pages })`),
 never as process env.
 
@@ -151,21 +132,16 @@ under the scenario's scratch dir; secrets are passed as text bindings, so no
 browser binary every browser scenario needs: `pnpm add -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
-The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-with WebKitGTK's WebDriver (`webkitgtk-webdriver`, `webkit2gtk-driver` before
-Ubuntu 26.04) and `cargo install tauri-driver
---version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
-driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
+The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
 every scenario's session still launches with its own flags. Only a failure THERE (the browser cannot launch at all)
 reports SKIP, for that scenario and every browser scenario after it, with the
 exact launcher error; opening the app and everything after is a real assertion.
-A SKIP still exits 0, which is right on a machine with no browser or no display
-and wrong on one provisioned for both: there a failed install or a missing
-display passes as skipped scenarios behind a green step. So a run whose
-environment was provisioned passes `--no-skip`, and every skip, the browser's
-and the display's alike, becomes a FAIL carrying the reason it would have
-skipped with.
+A SKIP still exits 0, which is right on a machine with no browser and wrong on
+one provisioned for it: there a failed install passes as skipped scenarios
+behind a green step. So a run whose
+environment was provisioned passes `--no-skip`, and every skip becomes a FAIL
+carrying the reason it would have skipped with.
 
 A scenario whose save must read a page serves it from `page-fixture.ts`, on
 loopback. The Worker's fill reads it at
