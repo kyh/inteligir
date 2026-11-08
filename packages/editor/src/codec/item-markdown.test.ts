@@ -687,71 +687,34 @@ describe("an equation's fence line", () => {
 });
 
 describe("a footnote", () => {
-  const NOTED =
-    "Before.\n\nA long para with a claim[^a] and more words.\n\nAfter.\n\n[^a]: the source\n";
-
-  it("rides as its source, and the paragraph it stands in lands", () => {
-    const item = imported(NOTED);
+  it("lands as its words: the call where it stood, the definition a paragraph of its own", () => {
+    const item = imported("A claim[^a] here.\n\n[^a]: the source\n");
     expect(item.leftOut).toBe(0);
-    expect(types(item)).toStrictEqual(["p", "p", "p", "p"]);
-    const stored = JSON.stringify(item.blocks);
-    expect(stored).toContain("A long para with a claim");
-    expect(stored).toContain(" and more words.");
-    expect(stored).toContain('"source":"[^a]"');
-    expect(stored).toContain('"source":"[^a]: the source"');
-    expect(bodyOf(exported(item).text)).toBe(NOTED);
+    expect(types(item)).toStrictEqual(["p", "p"]);
+    expect(JSON.stringify(item.blocks)).not.toContain('"opaque"');
+    expect(bodyOf(exported(item).text)).toBe("A claim\\[^a] here.\n\n\\[^a]: the source\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
-    expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
   });
 
   it.each([
-    ["a line alone", "text[^1] more\n\n[^1]: note\n"],
-    ["a heading", "# Title[^1]\n\n[^1]: note\n"],
+    ["a heading", "# one[^1]\n\n[^1]: note\n"],
     ["a list item", "- item one[^1]\n- item two\n\n[^1]: note\n"],
     ["a quote", "> one[^1]\n> two\n\n[^1]: note\n"],
     ["an alert", "> [!NOTE]\n> one[^1]\n\n[^1]: note\n"],
     ["a table", "| a      | b   |\n| ------ | --- |\n| one[^1] | two |\n\n[^1]: note\n"],
-    ["a toggle", ":::toggle\none[^1]\n:::\n\n[^1]: note\n"],
     ["a tab", ":::tabs\n=== A\none[^1]\n:::\n\n[^1]: note\n"],
   ])("keeps the words around one in %s", (_name, text) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
     const body = bodyOf(exported(item).text);
-    expect(body).toContain("[^1]");
-    expect(body).toContain("[^1]: note");
+    expect(body).toContain(String.raw`one\[^1]`);
+    expect(body).toContain(String.raw`\[^1]: note`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it.each([
-    ["ending a toggle", ":::toggle\nBody[^a].\n\n[^a]: the source\n\n:::\n", "toggle"],
-    ["alone in a toggle", ":::toggle\n[^a]: the source\n\n:::\n", "toggle"],
-    ["ending a tab", ":::tabs\n=== A\nBody[^a].\n\n[^a]: the source\n\n:::\n", "tab_group"],
-    [
-      "ending a column",
-      ":::columns\n:::column\nBody[^a].\n\n[^a]: the source\n\n:::\n:::\n",
-      "column_group",
-    ],
-  ])("keeps a container a definition stands %s in", (_name, text, type) => {
-    const item = imported(text);
-    expect(types(item)).toStrictEqual([type]);
-    expect(bodyOf(exported(item).text)).toBe(text);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a definition of several blocks whole", () => {
-    const text = "One[^a].\n\n[^a]: First.\n\n    Second.\n\n    - third\n\nAfter.\n";
-    const item = imported(text);
-    expect(item.leftOut).toBe(0);
-    expect(bodyOf(exported(item).text)).toBe(text);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a definition nothing uses, and a call no definition answers, as their source", () => {
-    const item = imported("[^a]: unused\n\nA call[^nothing] alone.\n");
-    expect(item.leftOut).toBe(0);
-    const body = bodyOf(exported(item).text);
-    expect(body).toContain("[^a]: unused");
-    expect(body).toContain("A call[^nothing] alone.");
+  it("keeps a container the definition stands in whole", () => {
+    const item = imported(":::toggle\nBody[^a].\n\n[^a]: the source\n:::\n");
+    expect(types(item)).toStrictEqual(["toggle"]);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -760,58 +723,6 @@ describe("a footnote", () => {
     expect(bodyOf(exported(item).text).trimEnd()).toBe(String.raw`A typed \[^a] here.`);
     expect(JSON.stringify(reimported(item).blocks)).toContain("A typed [^a] here.");
     expect(content(reimported(item)).blocks).toStrictEqual(content(item).blocks);
-  });
-
-  it.each([
-    ["[see [^a]](https://example.com) here\n\n[^a]: said\n"],
-    ["[see [^a]](https://example.com) here\n"],
-    ["**bold [^a] words**\n"],
-    ["| a[^b] |\n| - |\n| c[^d] |\n"],
-    ["[^a]: see [^b]\n\nOne[^a].\n"],
-  ])("holds a call wherever text stands in %j", (text) => {
-    const item = imported(text);
-    expect(item.leftOut).toBe(0);
-    expect(bodyOf(exported(item).text)).not.toContain(String.raw`\[^`);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it.each([
-    ["a bare url", "https://x.y/?q=[^a-z]+b", "https://x.y/?q=[^a-z]+b"],
-    ["a www address", "www.x.y/?q=[^a-z]+b", "www.x.y/?q=[^a-z]+b"],
-    ["an angled url", "<https://x.y/?q=[^a-z]+b>", "https://x.y/?q=[^a-z]+b"],
-    ["a marked bare url", "_https://x.y/?q=[^a-z]+b_", "_https://x.y/?q=[^a-z]+b_"],
-  ])("holds nothing in %s, whose text is its address", (_name, spelled, written) => {
-    for (const text of [`see ${spelled} now\n`, `see ${spelled} now\n\n[^a-z]: said\n`]) {
-      const item = imported(text);
-      expect(JSON.stringify(item.blocks)).not.toContain('"source":"[^a-z]"');
-      expect(bodyOf(exported(item).text)).toContain(`see ${written} now`);
-      expect(content(reimported(item))).toStrictEqual(content(item));
-    }
-  });
-
-  it.each([
-    ["words of its own", "[see [^a] here](https://x.y/z)"],
-    ["its address and a title", '[https://x.y/[^a]](https://x.y/[^a] "words")'],
-  ])("holds a call in a label of %s", (_name, spelled) => {
-    const item = imported(`${spelled} now\n`);
-    expect(JSON.stringify(item.blocks)).toContain('"source":"[^a]"');
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("reads a tab's label past a call it spells", () => {
-    const item = imported(":::tabs\n=== See [^a]\nbody\n:::\n");
-    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  // no spelling is read in a held source, so a highlight there writes the escape that says it is text
-  it("reads nothing out of what a definition holds", () => {
-    const item = imported("One[^a].\n\n[^a]: ==kept== and @2026-08-22 and [[Other]]\n");
-    expect(item.annotations).toStrictEqual({});
-    expect(bodyOf(exported(item).text)).toContain(
-      String.raw`[^a]: \==kept== and @2026-08-22 and [[Other]]`,
-    );
-    expect(content(reimported(item))).toStrictEqual(content(item));
   });
 });
 

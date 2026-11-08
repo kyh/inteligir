@@ -7,7 +7,7 @@
 // quote's or a list's line prefixes) maps character by character; any other inline (a link, a
 // strong or emphasis run, inline code, an html tag, a wiki link) is atomic: an edge inside it
 // widens to its edge, and the `<br/>` between a cell's lines is a block edge, as the editor reads
-// it. Code, math, frontmatter and a footnote's definition are not text.
+// it. Code, math and frontmatter are not text.
 
 import { z } from "zod";
 import { leadingAlertMarker } from "../markdown/alert-marker";
@@ -22,7 +22,6 @@ import {
   parseFormulaRaw,
   splitMarkerIds,
 } from "../markdown/remark-inline-constructs";
-import { footnoteCallsIn } from "../markdown/remark-references";
 
 // the dialect's tree as this walk reads it: the parse's mdast, structurally
 interface MdPoint {
@@ -57,26 +56,10 @@ const DELIMITERS = new Set(["*", "_", "~"]);
 
 // blocks whose children are the text a person reads
 const PHRASING_BLOCKS = new Set(["paragraph", "heading", "tableCell"]);
-// flow that holds no reading text: a footnote's definition stands as its source, where no marker
-// reads
-const SKIPPED_FLOW = new Set([
-  "code",
-  "math",
-  "yaml",
-  "html",
-  "definition",
-  "footnoteDefinition",
-  "thematicBreak",
-]);
-// inlines that contribute nothing to the text: an embed, a footnote's number, a tag
-const SILENT_INLINES = new Set([
-  "image",
-  "imageReference",
-  "wikiEmbed",
-  "footnoteReference",
-  "html",
-  "definition",
-]);
+// flow that holds no reading text
+const SKIPPED_FLOW = new Set(["code", "math", "yaml", "html", "definition", "thematicBreak"]);
+// inlines that contribute nothing to the text: an embed, a tag
+const SILENT_INLINES = new Set(["image", "imageReference", "wikiEmbed", "html", "definition"]);
 
 interface MarkerSpan {
   // indexes into the projection's text: the first start marker, the last end marker
@@ -145,7 +128,7 @@ const inTextOrder = (value: string, found: readonly Found[]): Segment[] => {
   return segments;
 };
 
-// what a text stands in: a label reads no date, and a bare link's text is its address, no call
+// what a text stands in: a label reads no date, and neither does a bare link's text, its address
 type TextPlace = "prose" | "label" | "address";
 
 // the constructs of one text's value in order; an escaped first character keeps one text
@@ -185,11 +168,6 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, place: TextPlac
           start: match.index,
         });
       }
-    }
-  }
-  if (place !== "address") {
-    for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
-      found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
     }
   }
   return inTextOrder(value, found);

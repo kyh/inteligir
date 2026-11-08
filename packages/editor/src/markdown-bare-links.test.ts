@@ -8,7 +8,6 @@ import {
   parseMarkdown,
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
-import { projectPassages } from "@repo/notes/annotations/passage-text";
 
 const parsed = (md: string): Value => {
   const result = parseMarkdown(md);
@@ -199,7 +198,6 @@ describe("a plain bare url stays as it is written", () => {
     ["| a                 |\n| ----------------- |\n| see https://x.y/a |\n"],
     ["| a               |\n| --------------- |\n| https://x.y/a b |\n"],
     ["| a       |\n| ------- |\n| www.x.y |\n"],
-    ["[^a]: see https://x.y/a\n"],
     ["<span>https://x.y/a</span>\n"],
   ])("%j", (md) => {
     expect(kept(md)).toBe(md);
@@ -359,16 +357,11 @@ describe("every address beside everything", () => {
 describe("a link in a held source", () => {
   it.each([
     ["punctuation and a word after it", `<span>${LABELLED}.x</span>\n`],
-    ["a call after it", `<span>${LABELLED}[^b]</span>\n`],
     ["the end of a mark", `<span>**${LABELLED}**</span>\n`],
     ["the end of a mark, words run on past it", `<span>**${LABELLED}**.x</span>\n`],
     ["the end of a mark, a hard break after it", `<span>**${LABELLED}**\\\nb</span>\n`],
-    ["the end of a mark in a footnote", `[^a]: **${LABELLED}**\n`],
-    ["a hard break in a footnote", `[^a]: **${LABELLED}**\\\n    b\n`],
-    ["a call past a mark in a footnote", `[^a]: *x ${LABELLED}*[^b]\n`],
     ["a mark over its label", `<span>[**${URL}**](${URL})</span>\n`],
     ["a mark over a mail address's label", "<span>[*a@b.cd*](mailto:a@b.cd)</span>\n"],
-    ["a mark over its label in a footnote", `[^a]: [~~${URL}~~](${URL})\n`],
   ])("keeps its label at %s", (_name, md) => {
     expect(kept(md)).toBe(md);
   });
@@ -378,8 +371,6 @@ describe("a link in a held source", () => {
     ["a word a space away", "<span>https://x.y/a b</span>\n"],
     ["a hard break", "<span>https://x.y/a  \nb</span>\n"],
     ["an underline around it", "<span><u>https://x.y/a</u></span>\n"],
-    ["a footnote", "[^a]: see https://x.y/a\n"],
-    ["a hard break in a footnote", "[^a]: https://x.y/a  \n    b\n"],
   ])("stays bare at %s", (_name, md) => {
     expect(kept(md)).toBe(md);
   });
@@ -399,26 +390,5 @@ describe("a link in a held source", () => {
     const inner = INNER_RE.exec(kept(`<span>${inline}</span>\n`))?.groups?.inner;
     assert(inner !== undefined, inline);
     expect(readOf(`<u>${inner}</u>\n`)).toStrictEqual(readOf(`<u>${inline}</u>\n`));
-  });
-});
-
-describe("a call in an address reads as the writer spells the link", () => {
-  it.each([
-    ["a word after it", "[https://x.y/[^a]b](https://x.y/\\[^a]b)c\n"],
-    ["an address no literal ends on", "[https://x.y/[^a]b!](https://x.y/\\[^a]b!)\n"],
-  ])("a label's call stays a label's, beside %s", (_name, md) => {
-    expect(kept(md)).toBe(md);
-  });
-
-  it("an address that needs no label holds no call", () => {
-    expect(kept("[https://x.y/[^a]b](https://x.y/[^a]b) c\n")).toBe("https://x.y/[^a]b c\n");
-  });
-
-  it.each(
-    ["https://x.y/[^a]b", "https://x.y/[^a]b!"].flatMap((address) =>
-      BESIDE.map(([before, after]) => `${before}[${address}](${address})${after}\n`),
-    ),
-  )("%j reads the same written", (md) => {
-    expect(projectPassages(kept(md)).text).toBe(projectPassages(md).text);
   });
 });

@@ -70,53 +70,6 @@ describe("the text a person reads", () => {
     },
   );
 
-  it("reads a footnote's call as nothing, its definition in view or not", () => {
-    expect(projectPassages("One[^a] word.\n\n[^a]: said\n").text).toBe("One word. ");
-    expect(projectPassages("One[^a] word.\n").text).toBe("One word. ");
-    expect(projectPassages(String.raw`One\[^a] word.`).text).toBe("One[^a] word. ");
-    expect(projectPassages(String.raw`One[\^a] word.`).text).toBe("One[^a] word. ");
-  });
-
-  it.each([
-    ["a bare url", "https://x.y/?q=[^a-z]+b", "https://x.y/?q=[^a-z]+b"],
-    ["a www address", "www.x.y/?q=[^a-z]+b", "www.x.y/?q=[^a-z]+b"],
-    ["an angled url", "<https://x.y/?q=[^a-z]+b>", "https://x.y/?q=[^a-z]+b"],
-    ["a marked bare url", "_https://x.y/?q=[^a-z]+b_", "https://x.y/?q=[^a-z]+b"],
-    [
-      "a label the writer drops",
-      "[https://x.y/?q=[^a-z]+b](https://x.y/?q=[^a-z]+b)",
-      "https://x.y/?q=[^a-z]+b",
-    ],
-  ])("reads %s whole, its text being its address", (_name, spelled, read) => {
-    expect(projectPassages(`see ${spelled} now\n`).text).toBe(`see ${read} now `);
-  });
-
-  it.each([
-    ["words of its own", "[see [^a] here](https://x.y/z) now", "see here now "],
-    [
-      "its address and a title",
-      '[https://x.y/[^a]b](https://x.y/[^a]b "words") now',
-      "https://x.y/b now ",
-    ],
-    [
-      "an address no literal ends on",
-      "[https://x.y/[^a]b!](https://x.y/[^a]b!) now",
-      "https://x.y/b! now ",
-    ],
-    [
-      "an address a word touches",
-      "[https://x.y/[^a]b](https://x.y/[^a]b)c now",
-      "https://x.y/bc now ",
-    ],
-    [
-      "an address a word stands before",
-      "c[https://x.y/[^a]b](https://x.y/[^a]b) now",
-      "chttps://x.y/b now ",
-    ],
-  ])("reads a call in a label of %s as nothing", (_name, spelled, read) => {
-    expect(projectPassages(`${spelled}\n`).text).toBe(read);
-  });
-
   it("reads a cell's lines as blocks a space apart", () => {
     const projection = projectPassages("| a |\n| - |\n| one<br/>two |\n");
     expect(projection.text).toBe("a one two ");

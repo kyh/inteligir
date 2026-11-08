@@ -39,12 +39,6 @@ describe("where the markers land", () => {
     );
   });
 
-  it("finds a quote of a bare url whose address spells a call", () => {
-    const placed = placeOne("see https://x.y/?q=[^a-z]+b now\n", "https://x.y/?q=[^a-z]+b");
-    expect(placed.missing).toStrictEqual([]);
-    expect(placed.content).toBe("see %%i:h1:start%%https://x.y/?q=[^a-z]+b %%i:h1:end%%now\n");
-  });
-
   describe("in a cell of two lines", () => {
     it("matches across the lines, each marker on its own line's bytes", () => {
       const placed = placeOne(cell("the one<br/>two here"), "one two");
@@ -143,11 +137,6 @@ describe("where the markers land", () => {
 
   it("matches nothing in code, math or frontmatter", () => {
     const content = "---\ntitle: secret\n---\n\n```\nsecret\n```\n\n$$\nsecret\n$$\n";
-    expect(placeOne(content, "secret").missing).toStrictEqual(["h1"]);
-  });
-
-  it("matches nothing in a footnote's definition, which stands as its source", () => {
-    const content = "One[^a].\n\n[^a]: secret\n";
     expect(placeOne(content, "secret").missing).toStrictEqual(["h1"]);
   });
 });

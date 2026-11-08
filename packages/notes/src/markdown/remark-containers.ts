@@ -1,7 +1,7 @@
 // The `:::` markers are line grammar, not block grammar: micromark reads them as paragraph text, so
 // this transform splits marker lines out of the paragraphs of every flow container (the root, a
-// quote, a list item, a footnote) and folds the blocks between an opener and its `:::` into one
-// node. Containers nest, and a `:::` closes the innermost one open. A marker swallowed by an inline
+// quote, a list item) and folds the blocks between an opener and its `:::` into one node.
+// Containers nest, and a `:::` closes the innermost one open. A marker swallowed by an inline
 // construct, or whose first character an escape wrote, is not a marker, and the serializer writes
 // that escape before a line of text that would read as one. An opener whose container cannot be
 // read whole (never closed, content before the first `=== Label` of tabs, anything but a
@@ -27,7 +27,7 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
-import { isHeldDefinition, isHeldFootnote } from "./remark-opaque";
+import { isHeldDefinition } from "./remark-opaque";
 import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
@@ -593,7 +593,6 @@ const FLOW_TYPES: ReadonlySet<string> = new Set<ContainerContent["type"]>([
   "code",
   "columnGroup",
   "definition",
-  "footnoteDefinition",
   "heading",
   "html",
   "list",
@@ -624,11 +623,7 @@ const rewriteTree = (node: Root | RootContent): void => {
       identity,
       (article) => article,
     );
-  } else if (
-    node.type === "blockquote" ||
-    node.type === "footnoteDefinition" ||
-    node.type === "listItem"
-  ) {
+  } else if (node.type === "blockquote" || node.type === "listItem") {
     node.children = rewriteFlow(node.children, identity, identity, null);
   }
 };
@@ -637,7 +632,7 @@ const rewriteTree = (node: Root | RootContent): void => {
 const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set(["blockquote", "list", "table"]);
 
 const blankBeforeMarker = (last: ContainerContent | undefined): string =>
-  last !== undefined && (ABSORBS_NEXT_LINE.has(last.type) || isHeldFootnote(last)) ? "\n" : "";
+  last !== undefined && ABSORBS_NEXT_LINE.has(last.type) ? "\n" : "";
 
 const emptyFirstItem = (list: List): boolean => {
   const [item] = list.children;
