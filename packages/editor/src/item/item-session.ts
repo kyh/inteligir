@@ -1,15 +1,15 @@
-// An item open in the editor by its id, over the replica every device runs: the editor's value is
+// An item open in the editor by its id, over the store its host hands it: the editor's value is
 // the item's blocks, each top-level element the block its id names, and the session keeps no copy
 // of the value of its own. A pause in typing writes what changed since the blocks it last
-// acknowledged (`item-diff.ts`) through the store, which queues it for the cell; a field patch
-// writes at once. A change that lands from elsewhere is laid into the value with the editor's own
-// transforms, outside its undo history, which starts over: a block only one side changed takes
-// that side, one both changed is merged three ways (`@repo/editor/stale-write`), and an edit
-// outlives a drop either way round. A write the store refuses on a base that moved under it
-// settles the same way and goes again, and a merge that kept this device's lines over another's
-// change to the same ones is said, whether this session or the replica's outbox made it. A block
-// no write can store, and an edit that waits on a body still to come, stay in the editor as the
-// person left them, counted unsaved and said, so a host holds the leave.
+// acknowledged (`item-diff.ts`) through the store; a field patch writes at once. A change that
+// lands from elsewhere is laid into the value with the editor's own transforms, outside its undo
+// history, which starts over: a block only one side changed takes that side, one both changed is
+// merged three ways (`@repo/editor/stale-write`), and an edit outlives a drop either way round. A
+// write the store refuses on a base that moved under it settles the same way and goes again, and a
+// merge that kept this device's lines over another's change to the same ones is said, whether this
+// session or the store made it. A block no write can store, and an edit that waits on a body still
+// to come, stay in the editor as the person left them, counted unsaved and said, so a host holds
+// the leave.
 // Construction is inert: nothing reads, subscribes or schedules until `start()`.
 
 import { NodeApi, TextApi } from "platejs";
@@ -59,8 +59,7 @@ export interface ItemStoreChange {
   readonly overlapped: ReadonlySet<string>;
 }
 
-// the replica as the session reaches it: `@repo/library-replica`'s own item read, write and
-// change feed, which a host hands over as they are
+// the item as the session reaches it: the host's read of it, its write and its word of what moved
 export interface ItemStore {
   readonly item: (itemId: string) => Promise<HeldItem | null>;
   readonly write: (itemId: string, input: ItemWrite) => Promise<ItemWriteOutcome>;

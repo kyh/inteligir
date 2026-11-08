@@ -52,7 +52,7 @@ export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => 
   return read === null ? kept(mine, true) : kept(read, conflicted);
 };
 
-// the replica's block merge (`@repo/library-replica`'s `BlockMerge`), which resolves, since a host
-// whose editor runs apart from its engine answers across a bridge (the phone's page)
+// the block merge a host hands its library's engine, which resolves, since a host whose editor
+// runs apart from that engine answers across a bridge (the phone's page)
 export const replicaMerge = async (sides: BlockSides): Promise<MergedBlock> =>
   await Promise.resolve(mergeBlocks(sides));

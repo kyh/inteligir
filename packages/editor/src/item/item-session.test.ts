@@ -1,6 +1,6 @@
-// The item session over a real replica: the engine on its in-memory SQLite, reaching a fake cell
-// through its own transport, with the editor's own block merge, so a pause, a write, a CONFLICT
-// and a landing run as they do on a device.
+// The item session over items held in memory as the cell holds them, with the editor's own block
+// merge and a pause on a clock the case moves, so a pause, a write, a base that moved under it and
+// a landing from elsewhere run as they do on a device.
 
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -8,19 +8,17 @@ import { createSlateEditor, ElementApi, NodeApi } from "platejs";
 import type { Path, SlateEditor } from "platejs";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
-import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
-import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
-import type { TestDevice } from "@repo/library-replica/test-support/replica-harness";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
+import { itemOf, noteFields, paragraph } from "@repo/notes/test-support/library-items";
 
 import { itemView } from "@repo/editor/codec/item-view";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { blockId } from "@repo/editor/node-props";
-import { replicaMerge } from "@repo/editor/stale-write";
 
+import { memoryItems } from "../test-support/memory-item";
+import type { MemoryItems } from "../test-support/memory-item";
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
 import {
@@ -32,7 +30,7 @@ import {
   ITEM_UNSAVED,
   KEPT_CHANGING,
 } from "./item-session";
-import type { ItemSession, ItemStore, ItemStoreChange } from "./item-session";
+import type { ItemSession, ItemSessionPorts, ItemStore, ItemStoreChange } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
   children: lines.map((text) => ({ children: [{ text }], type: "code_line" })),
@@ -54,32 +52,68 @@ const table = (id: string, rows: readonly (readonly string[])[]): LibraryBlock =
 const textOf = (node: LibraryNode): string =>
   "text" in node ? node.text : node.children.map(textOf).join("\n");
 
-const cellBlock = (cell: FakeCell, itemId: string, id: string): LibraryBlock | undefined =>
-  cell.item(itemId)?.blocks.get(id)?.block;
-
 const editorText = (editor: SlateEditor, index: number): string => {
   const node = editor.children[index];
   const read = ElementApi.isElement(node) ? readElement(node) : null;
   return read?.kind === "block" ? textOf(read.block) : "";
 };
 
-// a note made on the Mac and landed, which the phone has pulled
-const landedNote = async (
-  cell: FakeCell,
-  mac: TestDevice,
-  phone: TestDevice,
-  blocks: readonly LibraryBlock[],
-): Promise<string> => {
-  const { id } = await mac.replica.createNote({
-    blocks: blocks.map((block, index) => ({ block, ord: `a${String(index)}`, section: "note" })),
-    folderId: null,
-    tags: [],
-    title: "Plans",
-  });
-  await mac.replica.sync();
-  await phone.replica.sync();
-  return id;
+// the session's pause on a clock the case moves: `advance` runs each timer that comes due, in
+// the order they come due
+interface HandClock {
+  readonly after: ItemSessionPorts["after"];
+  readonly advance: (ms: number) => void;
+}
+
+const handClock = (): HandClock => {
+  let now = 0;
+  const timers = new Set<{ readonly at: number; readonly run: () => void }>();
+  return {
+    advance: (ms) => {
+      const until = now + ms;
+      for (;;) {
+        const [next] = [...timers].toSorted((a, b) => a.at - b.at);
+        if (next === undefined || next.at > until) {
+          break;
+        }
+        timers.delete(next);
+        now = next.at;
+        next.run();
+      }
+      now = until;
+    },
+    after: (ms, run) => {
+      const timer = { at: now + ms, run };
+      timers.add(timer);
+      return () => {
+        timers.delete(timer);
+      };
+    },
+  };
 };
+
+const ITEM = "0190a000-0000-7000-8000-000000000001";
+const TARGET = "0190a000-0000-7000-8000-000000000002";
+
+interface Library {
+  readonly memory: MemoryItems;
+  readonly clock: HandClock;
+}
+
+// the library with one item in it, its blocks in the order given
+const libraryWith = (
+  blocks: readonly LibraryBlock[],
+  { section = "note", title = "Plans" }: { section?: LibrarySection; title?: string } = {},
+): Library => ({
+  clock: handClock(),
+  memory: memoryItems([[ITEM, itemOf(blocks, noteFields({ title }), section)]]),
+});
+
+const blockIn = (memory: MemoryItems, id: string): LibraryBlock | undefined =>
+  memory.item(ITEM)?.blocks.get(id)?.block;
+
+const hashIn = (memory: MemoryItems, id: string): string =>
+  memory.item(ITEM)?.blocks.get(id)?.hash ?? "";
 
 // the id Plate gave the element at `path`, below the top level
 const nestedIdAt = (editor: SlateEditor, path: Path): string | undefined => {
@@ -101,22 +135,22 @@ interface Recorded {
   readonly writes: string[];
 }
 
-// the phone's replica as the session reaches it, each write it is handed kept by name
-const recorded = (phone: TestDevice): Recorded => {
+// the store as the session reaches it, each write it is handed kept by name
+const recorded = (memory: MemoryItems): Recorded => {
   const writes: string[] = [];
   const store: ItemStore = {
-    item: phone.replica.item,
-    onChange: phone.replica.onChange,
+    item: memory.store.item,
+    onChange: memory.store.onChange,
     write: async (itemId, input) => {
       writes.push(...input.ops.map(named));
-      return await phone.replica.write(itemId, input);
+      return await memory.store.write(itemId, input);
     },
   };
   return { store, writes };
 };
 
-// the phone's editor over the item, opened and following it, with Plate's ids on as the app runs
-// it: Plate turns its id plugin off under NODE_ENV=test
+// the editor over the item, opened and following it, with Plate's ids on as the app runs it:
+// Plate turns its id plugin off under NODE_ENV=test
 interface Opened {
   readonly editor: SlateEditor;
   readonly session: ItemSession;
@@ -125,14 +159,14 @@ interface Opened {
 }
 
 const openOn = async (
-  phone: TestDevice,
-  itemId: string,
-  store: ItemStore = phone.replica,
+  { clock, memory }: Library,
+  store: ItemStore = memory.store,
+  itemId = ITEM,
 ): Promise<Opened> => {
   const editor = createSlateEditor({ nodeId: true, plugins: BASE_KIT });
   const overlaps: string[] = [];
   const session = createItemSession(itemId, editor, {
-    after: phone.clock.after,
+    after: clock.after,
     notifyOverlap: (title) => {
       overlaps.push(title);
     },
@@ -143,219 +177,175 @@ const openOn = async (
 };
 
 // what a pause in typing does: the timer fires, and the write it starts is let finish
-const pause = async (phone: TestDevice, session: ItemSession): Promise<void> => {
-  phone.clock.advance(ITEM_IDLE_MS);
+const pause = async ({ clock }: Library, session: ItemSession): Promise<void> => {
+  clock.advance(ITEM_IDLE_MS);
   await delay(0);
   await session.flush();
 };
 
-const devices = async () => {
-  const cell = createFakeCell();
-  const mac = await openDevice(cell, "mac");
-  const phone = await openDevice(cell, "phone", { merge: replicaMerge });
-  return { cell, mac, phone };
-};
-
 describe("an item open in the editor", () => {
   it("opens on the item's blocks, each element the block its id names", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), code("c1", ["one"])]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), code("c1", ["one"])]);
+    const { editor, session } = await openOn(library);
     expect(editor.children.map((node) => node.id)).toStrictEqual(["p1", "c1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
-  it("opens an item that reaches this device after the editor asked for it", async () => {
-    const { mac, phone } = await devices();
-    const { id } = await mac.replica.createNote({
-      blocks: [{ block: paragraph("p1", "first"), ord: "a0", section: "note" }],
-      folderId: null,
-      tags: [],
-      title: "Plans",
-    });
-    await mac.replica.sync();
-    const { editor, session } = await openOn(phone, id);
+  it("opens an item the store holds only after the editor asked for it", async () => {
+    const library = libraryWith([]);
+    const { editor, session } = await openOn(library, library.memory.store, TARGET);
     expect(session.status()).toStrictEqual({ kind: "missing" });
-    await phone.replica.sync();
+    library.memory.put(TARGET, itemOf([paragraph("p1", "first")], noteFields({ title: "Plans" })));
     await session.flush();
     expect(editor.children.map((node) => node.id)).toStrictEqual(["p1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
-  it("writes nothing until a pause, then the edit as ops in the outbox, and lands them", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    const { editor, session } = await openOn(phone, id);
+  it("writes nothing until a pause, then the edit as ops, which land", async () => {
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText(" words", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    expect(phone.replica.status().unsent).toBe(0);
     expect(session.status()).toMatchObject({ unsaved: true });
-    await pause(phone, session);
-    expect(phone.replica.status().unsent).toBe(1);
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first"));
+    await pause(library, session);
     expect(session.status()).toMatchObject({ unsaved: false });
-    expect(cell.item(id)?.blocks.get("p1")?.block).toStrictEqual(paragraph("p1", "first"));
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first words"));
-    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first words"));
+    expect(blockIn(memory, "p2")).toStrictEqual(paragraph("p2", "x"));
   });
 
   it("writes only the block typed in, though Plate names every element inside the others", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [
+    const library = libraryWith([
       paragraph("p1", "first"),
       code("c1", ["one", "two"]),
       table("t1", [["a", "b"]]),
     ]);
-    const { store, writes } = recorded(phone);
-    const { editor, session } = await openOn(phone, id, store);
+    const { memory } = library;
+    const { store, writes } = recorded(memory);
+    const { editor, session } = await openOn(library, store);
     expect(nestedIdAt(editor, [1, 0])).toBeDefined();
     expect(nestedIdAt(editor, [2, 0, 1])).toBeDefined();
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     expect(writes).toStrictEqual(["put:p1"]);
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "c1")).toStrictEqual(code("c1", ["one", "two"]));
-    expect(cellBlock(cell, id, "t1")).toStrictEqual(table("t1", [["a", "b"]]));
+    expect(blockIn(memory, "c1")).toStrictEqual(code("c1", ["one", "two"]));
+    expect(blockIn(memory, "t1")).toStrictEqual(table("t1", [["a", "b"]]));
   });
 
   it("writes back no block laid in from another device", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [
+    const library = libraryWith([
       paragraph("p1", "first"),
       code("c1", ["one"]),
       table("t1", [["a"]]),
     ]);
-    const { store, writes } = recorded(phone);
-    const { editor, session } = await openOn(phone, id, store);
-    const onMac = await mac.replica.item(id);
-    const hashOf = (wanted: string): string =>
-      onMac?.blocks.find((held) => held.block.id === wanted)?.hash ?? "";
-    await mac.replica.write(id, {
-      ops: [
-        { baseHash: hashOf("c1"), block: code("c1", ["one", "two, from the Mac"]), op: "put" },
-        { baseHash: hashOf("t1"), block: table("t1", [["a", "b"]]), op: "put" },
-      ],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    const { memory } = library;
+    const { store, writes } = recorded(memory);
+    const { editor, session } = await openOn(library, store);
+    memory.landElsewhere(ITEM, [
+      {
+        baseHash: hashIn(memory, "c1"),
+        block: code("c1", ["one", "two, from the Mac"]),
+        op: "put",
+      },
+      { baseHash: hashIn(memory, "t1"), block: table("t1", [["a", "b"]]), op: "put" },
+    ]);
     await session.flush();
     expect(editorText(editor, 1)).toBe("one\ntwo, from the Mac");
     expect(nestedIdAt(editor, [2, 0, 1])).toBeDefined();
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     expect(writes).toStrictEqual(["put:p1"]);
   });
 
-  it("settles a CONFLICT through the merge, keeping both devices' edits to one block", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two", "three"])]);
-    const { editor, overlaps, session } = await openOn(phone, id);
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[0];
-    const mine = await mac.replica.write(id, {
-      ops: [
+  it("settles a write whose base moved through the merge, keeping both devices' edits to one block", async () => {
+    const library = libraryWith([code("c1", ["one", "two", "three"])]);
+    const { memory } = library;
+    const { editor, overlaps, session } = await openOn(library);
+    memory.landElsewhere(
+      ITEM,
+      [
         {
-          baseHash: held?.hash ?? "",
+          baseHash: hashIn(memory, "c1"),
           block: code("c1", ["one", "two", "three, from the Mac"]),
           op: "put",
         },
       ],
-    });
-    expect(mine.kind).toBe("queued");
-    await mac.replica.sync();
+      { quiet: true },
+    );
     editor.tf.insertText(", from the phone", { at: { offset: 3, path: [0, 0, 0] } });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    await session.flush();
+    await pause(library, session);
     const merged = ["one, from the phone", "two", "three, from the Mac"];
-    expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe(merged.join("\n"));
+    expect(textOf(blockIn(memory, "c1") ?? paragraph("c1", ""))).toBe(merged.join("\n"));
     expect(editorText(editor, 0)).toBe(merged.join("\n"));
-    expect(phone.replica.status().unsent).toBe(0);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
     expect(overlaps).toStrictEqual([]);
   });
 
-  it("says a CONFLICT whose merge kept this device's line over the other's change to it", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two"])]);
-    const { editor, overlaps, session } = await openOn(phone, id);
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[0];
-    await mac.replica.write(id, {
-      ops: [
-        { baseHash: held?.hash ?? "", block: code("c1", ["one, the Mac's", "two"]), op: "put" },
-      ],
-    });
-    await mac.replica.sync();
+  it("says a settle whose merge kept this device's line over the other's change to it", async () => {
+    const library = libraryWith([code("c1", ["one", "two"])]);
+    const { memory } = library;
+    const { editor, overlaps, session } = await openOn(library);
+    memory.landElsewhere(
+      ITEM,
+      [{ baseHash: hashIn(memory, "c1"), block: code("c1", ["one, the Mac's", "two"]), op: "put" }],
+      { quiet: true },
+    );
     editor.tf.insertText(", the phone's", { at: { offset: 3, path: [0, 0, 0] } });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    await session.flush();
+    await pause(library, session);
     expect(overlaps).toStrictEqual(["Plans"]);
-    expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe("one, the phone's\ntwo");
+    expect(textOf(blockIn(memory, "c1") ?? paragraph("c1", ""))).toBe("one, the phone's\ntwo");
   });
 
   it("says a landing whose merge kept this editor's line over the other device's", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two"])]);
-    const { editor, overlaps, session } = await openOn(phone, id);
+    const library = libraryWith([code("c1", ["one", "two"])]);
+    const { memory } = library;
+    const { editor, overlaps, session } = await openOn(library);
     editor.tf.insertText(", the phone's", { at: { offset: 3, path: [0, 0, 0] } });
     session.edited();
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[0];
-    await mac.replica.write(id, {
-      ops: [
-        { baseHash: held?.hash ?? "", block: code("c1", ["one, the Mac's", "two"]), op: "put" },
-      ],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "c1"), block: code("c1", ["one, the Mac's", "two"]), op: "put" },
+    ]);
     await session.flush();
     expect(overlaps).toStrictEqual(["Plans"]);
     expect(editorText(editor, 0)).toBe("one, the phone's\ntwo");
   });
 
   it("lays another device's edit to another block into the open editor, which no undo takes back", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[1];
-    await mac.replica.write(id, {
-      ops: [{ baseHash: held?.hash ?? "", block: paragraph("p2", "from the Mac"), op: "put" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "p2"), block: paragraph("p2", "from the Mac"), op: "put" },
+    ]);
     await session.flush();
     expect(editorText(editor, 0)).toBe("first!");
     expect(editorText(editor, 1)).toBe("from the Mac");
     editor.undo();
     expect(editorText(editor, 1)).toBe("from the Mac");
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
-    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "from the Mac"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(blockIn(memory, "p2")).toStrictEqual(paragraph("p2", "from the Mac"));
   });
 
   it("starts the undo over when a block lands above the last edit, which leaves others whole", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [
+    const library = libraryWith([
       paragraph("p1", "keep this sentence"),
       paragraph("p2", "typed here"),
     ]);
-    const { editor, session } = await openOn(phone, id);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
     session.edited();
-    await pause(phone, session);
-    await mac.replica.write(id, {
-      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    await pause(library, session);
+    memory.landElsewhere(ITEM, [
+      { block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" },
+    ]);
     await session.flush();
     expect(editorText(editor, 0)).toBe("above");
     editor.undo();
@@ -364,27 +354,18 @@ describe("an item open in the editor", () => {
       "typedXYZ here",
     ]);
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "keep this sentence"));
+    await pause(library, session);
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "keep this sentence"));
   });
 
   it("starts the undo over when a block above the last edit goes, and goes on recording", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [
-      paragraph("p1", "first"),
-      paragraph("p2", "typed here"),
-    ]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "typed here")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
     session.edited();
-    await pause(phone, session);
-    const onMac = await mac.replica.item(id);
-    await mac.replica.write(id, {
-      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", blockId: "p1", op: "drop" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    await pause(library, session);
+    memory.landElsewhere(ITEM, [{ baseHash: hashIn(memory, "p1"), blockId: "p1", op: "drop" }]);
     await session.flush();
     expect(() => {
       editor.undo();
@@ -397,20 +378,15 @@ describe("an item open in the editor", () => {
   });
 
   it("starts the undo over when the block under the last edit is laid in anew", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "a long first line")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "a long first line")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 2, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    await mac.replica.sync();
-    const onMac = await mac.replica.item(id);
-    await mac.replica.write(id, {
-      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", block: paragraph("p1", "short"), op: "put" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    await pause(library, session);
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "p1"), block: paragraph("p1", "short"), op: "put" },
+    ]);
     await session.flush();
     expect(editorText(editor, 0)).toBe("short");
     expect(() => {
@@ -420,57 +396,54 @@ describe("an item open in the editor", () => {
   });
 
   it("drops what a redo would replay when a landing moves the blocks under it", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "typed here")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "typed here")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("XYZ", { at: { offset: 5, path: [0, 0] } });
     editor.undo();
-    await mac.replica.write(id, {
-      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    memory.landElsewhere(ITEM, [
+      { block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" },
+    ]);
     await session.flush();
     editor.redo();
     expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["above", "typed here"]);
   });
 
   it("keeps the undo through its own write coming back", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
+    await pause(library, session);
+    library.memory.tell(ITEM);
     await session.flush();
     editor.undo();
     expect(editorText(editor, 0)).toBe("first");
   });
 
-  it("keeps its blocks while a replica that started over holds the row ahead of the body", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    // the replica as it reads just after a reset: the row pulled again, its blocks still to come
-    let startedOver = false;
+  it("keeps its blocks while the store holds the item's row ahead of its body", async () => {
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
+    // the store as it reads with the item's row in and its blocks still to come
+    let bodyToCome = false;
     const told = new Set<(change: ItemStoreChange) => void>();
     const store: ItemStore = {
       item: async (itemId) => {
-        const held = await phone.replica.item(itemId);
-        return held === null || !startedOver ? held : { ...held, blocks: [], bodyHeld: false };
+        const held = await memory.store.item(itemId);
+        return held === null || !bodyToCome ? held : { ...held, blocks: [], bodyHeld: false };
       },
       onChange: (listener) => {
         told.add(listener);
-        const stop = phone.replica.onChange(listener);
+        const stop = memory.store.onChange(listener);
         return () => {
           told.delete(listener);
           stop();
         };
       },
-      write: phone.replica.write,
+      write: memory.store.write,
     };
-    const { editor, session } = await openOn(phone, id, store);
-    startedOver = true;
+    const { editor, session } = await openOn(library, store);
+    bodyToCome = true;
     for (const listener of told) {
       listener({ ids: new Set(), overlapped: new Set(), reset: true });
     }
@@ -478,73 +451,50 @@ describe("an item open in the editor", () => {
     expect(editor.children.map((node) => node.id)).toStrictEqual(["p1", "p2"]);
     expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
     // the body lands again, carrying another device's edit, and the editor follows it
-    startedOver = false;
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[1];
-    await mac.replica.write(id, {
-      ops: [{ baseHash: held?.hash ?? "", block: paragraph("p2", "from the Mac"), op: "put" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    bodyToCome = false;
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "p2"), block: paragraph("p2", "from the Mac"), op: "put" },
+    ]);
     await session.flush();
     expect(editorText(editor, 0)).toBe("first");
     expect(editorText(editor, 1)).toBe("from the Mac");
   });
 
   it("keeps a link to an item by its id through the item's rename", async () => {
-    const { cell, mac, phone } = await devices();
-    const { id: target } = await mac.replica.createNote({
-      blocks: [],
-      folderId: null,
-      tags: [],
-      title: "Target",
-    });
     const link: LibraryNode = {
       children: [{ text: "" }],
-      itemId: target,
+      itemId: TARGET,
       title: "Target",
       type: "wikiLink",
     };
-    const id = await landedNote(cell, mac, phone, [
-      { children: [{ text: "see " }, link], id: "l1", type: "p" },
-    ]);
-    const { editor, session } = await openOn(phone, id);
-    await mac.replica.write(target, {
-      ops: [{ base: "Target", field: "title", op: "set", value: "Renamed" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    const library = libraryWith([{ children: [{ text: "see " }, link], id: "l1", type: "p" }]);
+    const { memory } = library;
+    memory.put(TARGET, itemOf([], noteFields({ title: "Target" })));
+    const { editor, session } = await openOn(library);
+    memory.landElsewhere(TARGET, [{ base: "Target", field: "title", op: "set", value: "Renamed" }]);
     editor.tf.insertText("Look: ", { at: { offset: 0, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    const stored = cell.item(id)?.blocks;
-    expect(cellBlock(cell, id, "l1")?.children).toContainEqual(link);
-    const view = itemView(stored ?? new Map(), {
-      title: (itemId) => cell.item(itemId)?.fields.title ?? null,
+    await pause(library, session);
+    expect(blockIn(memory, "l1")?.children).toContainEqual(link);
+    const view = itemView(memory.item(ITEM)?.blocks ?? new Map(), {
+      title: (itemId) => memory.item(itemId)?.fields.title ?? null,
     });
-    expect(view.markdown).toBe(`Look: see [[Renamed|${target}]]\n`);
+    expect(view.markdown).toBe(`Look: see [[Renamed|${TARGET}]]\n`);
   });
 
   it("patches a field at once, over the value the item holds", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { session } = await openOn(library);
     await session.patch([{ base: "Plans", field: "title", op: "set", value: "Plans for May" }]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans for May" } });
-    await phone.replica.sync();
-    expect(cell.item(id)?.fields.title).toBe("Plans for May");
+    expect(library.memory.item(ITEM)?.fields.title).toBe("Plans for May");
   });
 
   it("draws the item's properties as rows and writes a row's edit as its patch", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    await mac.replica.write(id, {
-      ops: [{ key: "status", op: "property", value: "draft" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
-    const { session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
+    memory.landElsewhere(ITEM, [{ key: "status", op: "property", value: "draft" }]);
+    const { session } = await openOn(library);
     await session.flush();
     const source = itemProperties(session);
     expect(source.read(source.snapshot())).toStrictEqual([
@@ -553,77 +503,70 @@ describe("an item open in the editor", () => {
     source.commit({ kind: "set", prop: { key: "status", type: "text", value: "done" } });
     source.commit({ kind: "add", prop: { key: "rating", type: "number", value: 4 } });
     await session.flush();
-    await phone.replica.sync();
-    expect(cell.item(id)?.fields.properties).toStrictEqual({ rating: 4, status: "done" });
+    expect(memory.item(ITEM)?.fields.properties).toStrictEqual({ rating: 4, status: "done" });
     source.commit({ key: "status", kind: "remove" });
     await session.flush();
-    await phone.replica.sync();
-    expect(cell.item(id)?.fields.properties).toStrictEqual({ rating: 4 });
+    expect(memory.item(ITEM)?.fields.properties).toStrictEqual({ rating: 4 });
   });
 
   it("follows the item again when it starts before its close has written", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     const closing = session.close();
     await session.start();
     await closing;
-    expect(phone.replica.status().unsent).toBe(1);
-    const onMac = await mac.replica.item(id);
-    const held = onMac?.blocks[1];
-    await mac.replica.write(id, {
-      ops: [{ baseHash: held?.hash ?? "", block: paragraph("p2", "the Mac's"), op: "put" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "p2"), block: paragraph("p2", "the Mac's"), op: "put" },
+    ]);
     await session.flush();
     expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["first!", "the Mac's"]);
   });
 
   it("keeps an edit unsaved and goes again after a pause when the item keeps changing", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
     let refusals = 0;
     const churning: ItemStore = {
-      item: phone.replica.item,
-      onChange: phone.replica.onChange,
+      item: memory.store.item,
+      onChange: memory.store.onChange,
       write: async (itemId, input) => {
         if (refusals < 3) {
           refusals += 1;
-          const item = await phone.replica.item(itemId);
+          const item = await memory.store.item(itemId);
           return item === null ? { kind: "missing" } : { item, kind: "changed" };
         }
-        return await phone.replica.write(itemId, input);
+        return await memory.store.write(itemId, input);
       },
     };
-    const { editor, session } = await openOn(phone, id, churning);
+    const { editor, session } = await openOn(library, churning);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    phone.clock.advance(ITEM_IDLE_MS);
+    library.clock.advance(ITEM_IDLE_MS);
     await vi.waitFor(() => {
       expect(session.status()).toMatchObject({ failure: KEPT_CHANGING, unsaved: true });
     });
     expect(refusals).toBe(3);
-    expect(phone.replica.status().unsent).toBe(0);
-    await pause(phone, session);
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first"));
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
   });
 
   it("holds an edit over a body still to come, says so to a leave, and writes it once it lands", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
     let toCome = true;
     const store: ItemStore = {
-      item: phone.replica.item,
-      onChange: phone.replica.onChange,
+      item: memory.store.item,
+      onChange: memory.store.onChange,
       write: async (itemId, input) =>
-        toCome ? { kind: "waiting" } : await phone.replica.write(itemId, input),
+        toCome ? { kind: "waiting" } : await memory.store.write(itemId, input),
     };
-    const { editor, session } = await openOn(phone, id, store);
+    const { editor, session } = await openOn(library, store);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     await session.flush();
@@ -631,28 +574,21 @@ describe("an item open in the editor", () => {
     expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["first!", "x"]);
 
     toCome = false;
-    await pause(phone, session);
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
   });
 
   it("files what the person types under a saved page's article in the note", async () => {
-    const { cell, mac, phone } = await devices();
-    const { id } = await mac.replica.createNote({
-      blocks: [{ block: paragraph("a1", "the page"), ord: "a0", section: "article" }],
-      folderId: null,
-      tags: [],
+    const library = libraryWith([paragraph("a1", "the page")], {
+      section: "article",
       title: "Saved",
     });
-    await mac.replica.sync();
-    await phone.replica.sync();
-    const { editor, session } = await openOn(phone, id);
+    const { editor, session } = await openOn(library);
     editor.tf.insertNodes({ children: [{ text: "mine" }], type: "p" }, { at: [1] });
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    await pause(library, session);
+    const held = [...(library.memory.item(ITEM)?.blocks.values() ?? [])];
     expect(held.map(({ section }) => section).toSorted()).toStrictEqual(["article", "note"]);
     expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
       { text: "mine" },
@@ -660,143 +596,118 @@ describe("an item open in the editor", () => {
   });
 
   it("files an article block it dropped back in the article when an undo restores it", async () => {
-    const { cell, mac, phone } = await devices();
-    const { id } = await mac.replica.createNote({
-      blocks: [
-        { block: paragraph("a1", "the page"), ord: "a0", section: "article" },
-        { block: paragraph("a2", "goes on"), ord: "a1", section: "article" },
-      ],
-      folderId: null,
-      tags: [],
+    const library = libraryWith([paragraph("a1", "the page"), paragraph("a2", "goes on")], {
+      section: "article",
       title: "Saved",
     });
-    await mac.replica.sync();
-    await phone.replica.sync();
-    const { editor, session } = await openOn(phone, id);
+    const { editor, session } = await openOn(library);
     editor.tf.removeNodes({ at: [1] });
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     editor.undo();
     session.edited();
-    await pause(phone, session);
-    await phone.replica.sync();
-    expect(cell.item(id)?.blocks.get("a2")?.section).toBe("article");
+    await pause(library, session);
+    expect(library.memory.item(ITEM)?.blocks.get("a2")?.section).toBe("article");
   });
 
   it("files text still unwritten in the note when a page's article lands above it", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, []);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("mine", { at: { offset: 0, path: [0, 0] } });
     session.edited();
-    await mac.replica.write(id, {
-      ops: [{ block: paragraph("a1", "the page"), op: "insert", ord: "a0", section: "article" }],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
-    await pause(phone, session);
-    await phone.replica.sync();
-    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    memory.landElsewhere(ITEM, [
+      { block: paragraph("a1", "the page"), op: "insert", ord: "a0", section: "article" },
+    ]);
+    await pause(library, session);
+    const held = [...(memory.item(ITEM)?.blocks.values() ?? [])];
     expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
       { text: "mine" },
     ]);
-    expect(cellBlock(cell, id, "a1")).toStrictEqual(paragraph("a1", "the page"));
+    expect(blockIn(memory, "a1")).toStrictEqual(paragraph("a1", "the page"));
   });
 
   it("says a block no write can store and holds it unsaved, until it can be written", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
     await session.flush();
     expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
     editor.undo();
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+    expect(blockIn(library.memory, "p2")).toStrictEqual(paragraph("p2", "x"));
   });
 
   it("writes the blocks it can beside the one it holds back", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
     session.edited();
-    await pause(phone, session);
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
-    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(blockIn(memory, "p2")).toStrictEqual(paragraph("p2", "x"));
   });
 
   it("keeps a block it holds back on screen when another device changes that block", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    await pause(phone, session);
-    const onMac = await mac.replica.item(id);
-    await mac.replica.write(id, {
-      ops: [
-        {
-          baseHash: onMac?.blocks[0]?.hash ?? "",
-          block: paragraph("p1", "the Mac's"),
-          op: "put",
-        },
-      ],
-    });
-    await mac.replica.sync();
-    await phone.replica.sync();
+    await pause(library, session);
+    memory.landElsewhere(ITEM, [
+      { baseHash: hashIn(memory, "p1"), block: paragraph("p1", "the Mac's"), op: "put" },
+    ]);
     await session.flush();
     expect(NodeApi.string(editor.children[0] ?? { text: "" }).startsWith("firsty")).toBe(true);
     expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
   });
 
   it("keeps an edit unsaved and goes again after a pause when the store rejects the write", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
     let rejections = 1;
     const failing: ItemStore = {
-      item: phone.replica.item,
-      onChange: phone.replica.onChange,
+      item: memory.store.item,
+      onChange: memory.store.onChange,
       write: async (itemId, input) => {
         if (rejections > 0) {
           rejections -= 1;
-          throw new Error("SQLITE_FULL: database or disk is full");
+          throw new Error("the cell gave no answer");
         }
-        return await phone.replica.write(itemId, input);
+        return await memory.store.write(itemId, input);
       },
     };
-    const { editor, session } = await openOn(phone, id, failing);
+    const { editor, session } = await openOn(library, failing);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     await session.flush();
     expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
-    await pause(phone, session);
+    await pause(library, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
   });
 
   it("answers a flush unsaved for as long as the store rejects the write", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
     const refusing: ItemStore = {
-      item: phone.replica.item,
-      onChange: phone.replica.onChange,
+      item: memory.store.item,
+      onChange: memory.store.onChange,
       write: async () => {
         await Promise.resolve();
         throw new Error("the page gave up waiting for the phone");
       },
     };
-    const { editor, session } = await openOn(phone, id, refusing);
+    const { editor, session } = await openOn(library, refusing);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     await session.flush();
@@ -807,24 +718,22 @@ describe("an item open in the editor", () => {
   });
 
   it("says a field patch the item cannot hold, and still writes the blocks beside it", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
     expect(session.status()).toMatchObject({
       failure: "This item can't hold these properties.",
       unsaved: false,
     });
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
-    expect(cell.item(id)?.fields.properties).toStrictEqual({});
+    expect(blockIn(memory, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(memory.item(ITEM)?.fields.properties).toStrictEqual({});
   });
 
   it("says a field patch the item cannot hold when nothing else is left to write", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { session } = await openOn(library);
     await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
     expect(session.status()).toMatchObject({
       failure: "This item can't hold these properties.",
@@ -833,9 +742,8 @@ describe("an item open in the editor", () => {
   });
 
   it("goes on writing after a surface it told throws", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
-    const { editor, session } = await openOn(phone, id);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { editor, session } = await openOn(library);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     const stop = session.subscribe(() => {
@@ -846,13 +754,12 @@ describe("an item open in the editor", () => {
     editor.tf.insertText("?", { at: { offset: 6, path: [0, 0] } });
     session.edited();
     await session.flush();
-    await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!?"));
+    expect(blockIn(library.memory, "p1")).toStrictEqual(paragraph("p1", "first!?"));
   });
 
   it("says a first read that failed, and opens the item when asked again", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const library = libraryWith([paragraph("p1", "first")]);
+    const { memory } = library;
     let rejections = 1;
     const failing: ItemStore = {
       item: async (itemId) => {
@@ -860,12 +767,12 @@ describe("an item open in the editor", () => {
           rejections -= 1;
           throw new Error("the page gave up waiting for the phone");
         }
-        return await phone.replica.item(itemId);
+        return await memory.store.item(itemId);
       },
-      onChange: phone.replica.onChange,
-      write: phone.replica.write,
+      onChange: memory.store.onChange,
+      write: memory.store.write,
     };
-    const { editor, session } = await openOn(phone, id, failing);
+    const { editor, session } = await openOn(library, failing);
     expect(session.status()).toStrictEqual({ failure: ITEM_UNREAD, kind: "unread" });
     await session.read();
     expect(session.status()).toMatchObject({ failure: null, kind: "open" });
@@ -873,16 +780,15 @@ describe("an item open in the editor", () => {
   });
 
   it("opens with no undo reaching what the editor held before the item", async () => {
-    const { cell, mac, phone } = await devices();
-    const id = await landedNote(cell, mac, phone, [paragraph("p1", "the item's text")]);
+    const library = libraryWith([paragraph("p1", "the item's text")]);
     const editor = createSlateEditor({ nodeId: true, plugins: BASE_KIT });
     editor.tf.insertText("typed before", { at: { offset: 0, path: [0, 0] } });
-    const session = createItemSession(id, editor, {
-      after: phone.clock.after,
+    const session = createItemSession(ITEM, editor, {
+      after: library.clock.after,
       notifyOverlap: () => {
         throw new Error("nothing overlaps here");
       },
-      store: phone.replica,
+      store: library.memory.store,
     });
     await session.start();
     editor.undo();
