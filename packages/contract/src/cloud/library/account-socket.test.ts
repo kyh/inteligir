@@ -43,7 +43,6 @@ describe("the account's socket, a hint", () => {
     await settled();
     const [socket] = sockets;
     socket?.open();
-    socket?.message(JSON.stringify({ head: 7, type: "library" }));
     socket?.message(
       JSON.stringify({
         folders: true,
@@ -57,7 +56,6 @@ describe("the account's socket, a hint", () => {
     socket?.message(JSON.stringify({ type: "from a newer cell" }));
     expect(opened).toBe(1);
     expect(frames).toStrictEqual([
-      { head: 7, type: "library" },
       { folders: true, items: [{ id: ITEM, seq: 7 }], threads: "all", type: "moved" },
     ]);
     hint.close();

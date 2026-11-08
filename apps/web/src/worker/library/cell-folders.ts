@@ -2,14 +2,12 @@
 // name, its parent), and no two live siblings under one name, since an agent files by the path of
 // names from the top. Deleting a folder deletes the folders under it; an item filed in a deleted
 // folder lists as unsorted. A folder is no item, so its writes join no change set; each is stamped
-// with the write's sequence number and logged, as every synced row is.
+// with the write's sequence number, as an item is.
 
 import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/cloud/library/library-wire";
 import type { folderOpSchema } from "@repo/contract/cloud/library/library-wire";
 import { compareText, ordBetween } from "@repo/notes/library/block-order";
 import { titleKey } from "@repo/notes/library/derive-item";
-import { recordChanges } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
@@ -54,7 +52,7 @@ const rowOf = (raw: SqlRow): FolderRow => {
   };
 };
 
-export const readFolder = (sql: SqlStatements, id: string): FolderRow | null => {
+const readFolder = (sql: SqlStatements, id: string): FolderRow | null => {
   const [raw] = sql.all(`SELECT ${COLUMNS} FROM folders WHERE id = ?`, [id]);
   return raw === undefined ? null : rowOf(raw);
 };
@@ -74,7 +72,6 @@ const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRo
        sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq`,
     [row.id, row.parentId, row.name, row.sort, row.deletedAt, seq],
   );
-  runPlan(scope.storage, recordChanges([{ gone: false, id: row.id, kind: "folder", seq }]));
   scope.moved.folder();
   return { ...row, seq };
 };

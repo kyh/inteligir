@@ -95,10 +95,6 @@ const router = os.router({
   },
   organize: { outline: os.organize.outline.handler(unimplemented) },
   search: os.search.handler(unimplemented),
-  sync: {
-    bodies: os.sync.bodies.handler(unimplemented),
-    pull: os.sync.pull.handler(unimplemented),
-  },
   write: os.write.handler(unimplemented),
 });
 

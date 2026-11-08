@@ -844,9 +844,6 @@ importers:
       '@repo/agent-skills':
         specifier: workspace:*
         version: link:../../packages/agent-skills
-      '@repo/library-replica':
-        specifier: workspace:*
-        version: link:../../packages/library-replica
       '@repo/messages-fake':
         specifier: workspace:*
         version: link:../../tools/messages-fake
@@ -1253,34 +1250,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-
-  packages/library-replica:
-    dependencies:
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.45
-      '@repo/contract':
-        specifier: workspace:*
-        version: link:../contract
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../notes
-      '@sqlite.org/sqlite-wasm':
-        specifier: 'catalog:'
-        version: 3.54.1-build1
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@kyh/tsconfig':
-        specifier: 'catalog:'
-        version: 1.3.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/notes:
     dependencies:

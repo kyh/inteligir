@@ -11,7 +11,6 @@ import type { ItemCard } from "@repo/notes/library/derive-item";
 import {
   blockWritesOf,
   dropBlocks,
-  recordChanges,
   storeBlocks,
   storeDerived,
   storeItemRow,
@@ -34,7 +33,7 @@ import type { OpenSet } from "./change-sets";
 // an item's text, all its blocks' together; a block's own is the vocabulary's
 export const ITEM_TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
-// an item as a replica pulls it
+// an item as a write answers it
 export interface LiveItemRow {
   readonly card: ItemCard;
   readonly fields: LibraryItemFields;
@@ -247,7 +246,6 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   if (before === null || !sameShas(priorShas, shas)) {
     storeItemBlobs(storage, itemId, shas, scope.now);
   }
-  runPlan(storage, recordChanges([{ gone: false, id: itemId, kind: "item", seq }]));
   scope.moved.item(itemId, seq);
   return {
     card: derived.card,

@@ -1,7 +1,7 @@
-// The library listing over a replica's rows: which items a grid shows, in what order and how
-// many of each kind, answered from memory on the device. A page costs its own rows; only a filter
-// walks the members. Pinned items lead every order; Deleted lists what was deleted and nothing
-// else, and a purged item is never a row here.
+// The library listing over the cell's rows: which items a grid shows, in what order and how many
+// of each kind, answered from memory. A page costs its own rows; only a filter walks the members.
+// Pinned items lead every order; Deleted lists what was deleted and nothing else, and a purged
+// item is never a row here.
 
 import type { ItemKind } from "../items/item-kind";
 import { siteMatches, urlHost } from "../items/item-url";

@@ -1,24 +1,76 @@
 // The account's conversations with the built-in agent, as the cell keeps them: a thread row and
-// the final events of its turns, synced to every device like the library's other rows. Listing and
-// paging read them; deleting a thread removes its rows and logs each as gone, so every replica
-// drops them too.
+// the final events of its turns. Listing and paging read them; deleting a thread removes its rows.
 
-import { recordChanges } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type {
+  threadEventRowSchema,
+  threadRowSchema,
+} from "@repo/contract/cloud/library/library-wire";
+import { THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
+import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import type { LandingScope } from "./cell-landing";
 import { offsetOf } from "./cell-reads";
 import { refuse } from "./cell-refusal";
-import {
-  THREAD_COLUMNS,
-  THREAD_EVENT_COLUMNS,
-  threadEventRowFrom,
-  threadRowFrom,
-} from "./cell-sync";
 
-const idRowSchema = z.object({ event_id: z.string() });
+type ThreadRow = z.infer<typeof threadRowSchema>;
+type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
+
+const threadSqlSchema = z.object({
+  created_at: z.number(),
+  id: z.string(),
+  seq: z.number(),
+  status: z.enum(THREAD_STATUSES),
+  title: z.string(),
+  updated_at: z.number(),
+});
+
+const threadEventSqlSchema = z.object({
+  at: z.number(),
+  event_id: z.string(),
+  idx: z.number(),
+  json: z.string(),
+  seq: z.number(),
+  thread_id: z.string(),
+  type: z.string(),
+});
+
+const THREAD_COLUMNS = "id, title, status, created_at, updated_at, seq";
+
+const threadRowFrom = (raw: SqlRow): ThreadRow => {
+  const row = threadSqlSchema.parse(raw);
+  return {
+    createdAt: row.created_at,
+    id: row.id,
+    seq: row.seq,
+    status: row.status,
+    title: row.title,
+    updatedAt: row.updated_at,
+  };
+};
+
+const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at, seq";
+
+const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
+  const row = threadEventSqlSchema.parse(raw);
+  return {
+    at: row.at,
+    event: jsonTextSchema.parse(row.json),
+    eventId: row.event_id,
+    idx: row.idx,
+    seq: row.seq,
+    threadId: row.thread_id,
+    type: row.type,
+  };
+};
+
+export const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
+  const [raw] = sql.all(`SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE event_id = ?`, [
+    id,
+  ]);
+  return raw === undefined ? null : threadEventRowFrom(raw);
+};
 
 const threadExists = (sql: SqlStatements, threadId: string): boolean =>
   sql.all("SELECT 1 FROM threads WHERE id = ?", [threadId]).length > 0;
@@ -59,24 +111,13 @@ export const threadEvents = (
   return { events: rows.slice(0, input.limit), more: rows.length > input.limit };
 };
 
-// the thread and every event it stored, each logged as gone
+// the thread and every event it stored
 export const deleteThread = (scope: LandingScope, threadId: string): void => {
   const { storage } = scope;
   if (!threadExists(storage, threadId)) {
     refuse({ kind: "not-found" });
   }
-  const seq = scope.seq();
-  const events = storage
-    .all("SELECT event_id FROM thread_events WHERE thread_id = ?", [threadId])
-    .map((row) => idRowSchema.parse(row).event_id);
   storage.run("DELETE FROM thread_events WHERE thread_id = ?", [threadId]);
   storage.run("DELETE FROM threads WHERE id = ?", [threadId]);
-  runPlan(
-    storage,
-    recordChanges([
-      { gone: true, id: threadId, kind: "thread", seq },
-      ...events.map((id) => ({ gone: true, id, kind: "thread_event" as const, seq })),
-    ]),
-  );
   scope.moved.thread(threadId);
 };

@@ -1,9 +1,8 @@
-// The one schema of the library's SQLite, which the cell and every replica create alike:
-// the synced tables every engine holds, and the cell's own or a replica's beside them. Its version is the
+// The one schema of the library's SQLite, which the account's cell creates. Its version is the
 // `schema` row of `meta`, never SQLite's own version pragma, which a Durable Object refuses
 // (https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/).
-// There is no migration: an engine that finds another version answers `mismatch`, and its host
-// starts it over (a replica pulls again from nothing).
+// There is no migration: a cell that finds another version answers `mismatch`, and its host
+// starts it over.
 
 import { z } from "zod";
 
@@ -13,19 +12,9 @@ import { LIBRARY_SECTIONS } from "./library-nodes";
 import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
-// bump on any change below, and on any change to the JSON a replica's outbox row holds
-// (`@repo/library-replica`), which no build reads in another's shape
+// bump on any change below, since no build reads a schema of another version
 /** @internal */
-export const LIBRARY_SCHEMA_VERSION = 12;
-
-// STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
-// the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
-// function"), so the cell asks nothing
-const LIBRARY_SQLITE_MIN_VERSION = "3.37.0";
-
-// what the change log names a row by
-export const LIBRARY_CHANGE_KINDS = ["item", "folder", "thread", "thread_event"] as const;
-export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
+export const LIBRARY_SCHEMA_VERSION = 13;
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
@@ -58,8 +47,9 @@ const SEARCH_DDL = `CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
   tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
 )`;
 
-// a purged item keeps its id, sequence and deletion as a tombstone forever and nulls the rest,
-// so a replica can never miss a deletion; every other row holds its whole record
+// a purged item keeps its id, sequence and deletion as a tombstone forever and nulls the rest, so
+// no id is ever made again, an import's or a late save's included; every other row holds its
+// whole record
 const ITEMS_DDL = `CREATE TABLE IF NOT EXISTS items (
   rid INTEGER PRIMARY KEY,
   id TEXT NOT NULL UNIQUE,
@@ -94,8 +84,7 @@ const ITEMS_DDL = `CREATE TABLE IF NOT EXISTS items (
     AND saved_at IS NOT NULL AND card IS NOT NULL))
 ) STRICT`;
 
-// the synced tables: what a replica pulls and every screen reads
-const SYNCED_DDL = [
+const LIBRARY_DDL = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v ANY) STRICT, WITHOUT ROWID`,
   ITEMS_DDL,
   // one url, one live item
@@ -155,27 +144,16 @@ const SYNCED_DDL = [
     seq INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS thread_events_thread ON thread_events (thread_id, idx)`,
-] as const;
-
-// the cell's alone: the change log a replica pulls from; the files it holds and the items naming
-// each, which no device reads, since a device asks for a file by the sha an item's row names;
-// change sets, the op ledger, the uploads it holds room for, the built-in agent, imports and
-// exports, and the jobs its alarm runs. A change set's item names its before and after by part: an
-// item's fields and its manifest (each block's id, hash, order key and section) are each kept once
-// per item under their content hash (`snapshot_parts`), so a set that changed one block stores one
-// new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's
-// after is null while the set is open and the item is as it left it; it is written when the set
-// seals, or when another set is about to change the item. A block a write replaces or drops keeps
-// its content in `block_versions`, which the prune job sweeps of what no part names.
-const CELL_DDL = [
-  `CREATE TABLE IF NOT EXISTS changes (
-    kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_CHANGE_KINDS)})),
-    id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    gone INTEGER NOT NULL DEFAULT 0 CHECK (gone IN (0, 1)),
-    PRIMARY KEY (kind, id)
-  ) STRICT, WITHOUT ROWID`,
-  `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
+  // the files the cell holds and the items naming each, which no device reads, since a device
+  // asks for a file by the sha an item's row names; change sets, the op ledger, the uploads it
+  // holds room for, the built-in agent, imports and exports, and the jobs its alarm runs. A change
+  // set's item names its before and after by part: an item's fields and its manifest (each
+  // block's id, hash, order key and section) are each kept once per item under their content hash
+  // (`snapshot_parts`), so a set that changed one block stores one new manifest and nothing else,
+  // and no row nears a Durable Object's 2 MB. A set's after is null while the set is open and the
+  // item is as it left it; it is written when the set seals, or when another set is about to
+  // change the item. A block a write replaces or drops keeps its content in `block_versions`,
+  // which the prune job sweeps of what no part names
   `CREATE TABLE IF NOT EXISTS blobs (
     sha256 TEXT PRIMARY KEY,
     bytes INTEGER NOT NULL,
@@ -338,61 +316,13 @@ const CELL_DDL = [
   `CREATE INDEX IF NOT EXISTS jobs_next ON jobs (next_at)`,
 ] as const;
 
-// what a replica's states of an outbox row are: queued, so a later write to the item joins it;
-// sent at least once, so it goes again exactly as it went; or parked by a refusal no resend passes
-export const OUTBOX_STATES = ["queued", "sent", "parked"] as const;
-
-// a replica's alone (`@repo/library-replica`): its outbox, the writes it has not heard land, oldest
-// first, each under the op id the cell keeps its answer by, `op` the write as JSON; and the bodies
-// it wants, each item's at the sequence its row moved to. A schema mismatch drops these with the
-// rest, so no build reads a row another build wrote
-const REPLICA_DDL = [
-  `CREATE TABLE IF NOT EXISTS outbox (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    op_id TEXT NOT NULL UNIQUE,
-    op TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN (${oneOf(OUTBOX_STATES)})),
-    reason TEXT,
-    created_at INTEGER NOT NULL,
-    CHECK ((state = 'parked') = (reason IS NOT NULL))
-  ) STRICT`,
-  `CREATE TABLE IF NOT EXISTS body_wants (
-    item_id TEXT PRIMARY KEY,
-    seq INTEGER NOT NULL
-  ) STRICT, WITHOUT ROWID`,
-] as const;
-
-export type LibraryRole = "cell" | "replica";
-
-/** @internal */
-export const libraryDdl = (role: LibraryRole): readonly string[] =>
-  role === "cell" ? [...SYNCED_DDL, ...CELL_DDL] : [...SYNCED_DDL, ...REPLICA_DDL];
-
-// what open found: a schema it made, the current one, one of another version (or none it can
-// read) that its host starts over, or an engine older than the schema needs
+// what open found: a schema it made, the current one, or one of another version (or none it can
+// read) that its host starts over
 export type SchemaVerdict =
   | { readonly kind: "created" }
   | { readonly kind: "current" }
-  | { readonly kind: "mismatch"; readonly found: string }
-  | { readonly kind: "unsupported"; readonly sqliteVersion: string };
+  | { readonly kind: "mismatch"; readonly found: string };
 
-const versionParts = (version: string): number[] =>
-  version.split(".").map((part) => Math.trunc(Number(part)) || 0);
-
-/** @internal */
-export const sqliteVersionAtLeast = (version: string, floor: string): boolean => {
-  const have = versionParts(version);
-  const need = versionParts(floor);
-  for (let index = 0; index < Math.max(have.length, need.length); index += 1) {
-    const difference = (have[index] ?? 0) - (need[index] ?? 0);
-    if (difference !== 0) {
-      return difference > 0;
-    }
-  }
-  return true;
-};
-
-const versionRow = z.object({ version: z.string() });
 const countRow = z.object({ tables: z.number() });
 const schemaRow = z.object({ v: z.union([z.string(), z.number()]) });
 
@@ -401,25 +331,18 @@ const firstRow = <T>(rows: readonly SqlRow[], schema: z.ZodType<T>): T | null =>
   return parsed.success ? parsed.data : null;
 };
 
-const createAll = function* createAll(role: LibraryRole): SqlPlan<void> {
-  for (const statement of libraryDdl(role)) {
+const createAll = function* createAll(): SqlPlan<void> {
+  for (const statement of LIBRARY_DDL) {
     yield run(statement);
   }
   yield run("INSERT INTO meta (k, v) VALUES ('schema', ?)", [LIBRARY_SCHEMA_VERSION]);
 };
 
-// a replica's engine-version check, then one `meta.schema` check, then CREATE … IF NOT EXISTS on
-// an empty database; run it in one transaction, at open and never per request
-export const ensureLibrarySchema = function* ensureLibrarySchema(
-  role: LibraryRole,
-): SqlPlan<SchemaVerdict> {
-  if (role === "replica") {
-    const sqliteVersion =
-      firstRow(yield all("SELECT sqlite_version() AS version"), versionRow)?.version ?? "";
-    if (!sqliteVersionAtLeast(sqliteVersion, LIBRARY_SQLITE_MIN_VERSION)) {
-      return { kind: "unsupported", sqliteVersion };
-    }
-  }
+// one `meta.schema` check, then CREATE … IF NOT EXISTS on an empty database; run it in one
+// transaction, at open and never per request. It asks the engine nothing, since a Durable Object
+// refuses sqlite_version() ("not authorized to use function"), and STRICT tables need only the
+// platform's own SQLite
+export const ensureLibrarySchema = function* ensureLibrarySchema(): SqlPlan<SchemaVerdict> {
   const meta = yield all(
     "SELECT count(*) AS tables FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
   );
@@ -430,7 +353,7 @@ export const ensureLibrarySchema = function* ensureLibrarySchema(
     if (firstRow(others, countRow)?.tables !== 0) {
       return { found: "none", kind: "mismatch" };
     }
-    yield* createAll(role);
+    yield* createAll();
     return { kind: "created" };
   }
   let rows: readonly SqlRow[];

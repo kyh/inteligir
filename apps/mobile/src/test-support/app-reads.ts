@@ -1,6 +1,6 @@
-// The contract's fake cell serves the rows a replica calls; the phone also reads an item whole and
-// every title, which this answers from the fake cell's own items as the Worker's cell answers
-// them, each other call going on to the fake cell over the device's own transport.
+// The contract's fake cell serves the rows a client writes through; the phone also reads an item
+// whole and every title, which this answers from the fake cell's own items as the Worker's cell
+// answers them, each other call going on to the fake cell over the device's own transport.
 
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";

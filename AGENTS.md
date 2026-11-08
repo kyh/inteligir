@@ -144,7 +144,6 @@ packages/notes          @repo/notes — the pure, platform-neutral domain: the l
 packages/editor         @repo/editor — the Plate WYSIWYG, and the markdown codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
-packages/library-replica @repo/library-replica — the replica engine every device runs: the pull, the outbox and its sync, over the host's SQLite
 packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
@@ -154,7 +153,6 @@ tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gall
 tools/messages-fake     @repo/messages-fake — a scripted Claude Messages API with no model, which the local Worker, the e2e and the suites run the built-in agent against
 ```
 
-The replica engine is `@repo/library-replica`, pure as `@repo/notes` is.
 Turborepo + pnpm, oxlint/oxfmt, vitest, knip. The site is TanStack Start,
 React 19 and Tailwind 4 on the Worker; auth is Better Auth on D1 (email and
 password, invite-gated, no social providers); the library cell is a SQLite
@@ -368,7 +366,6 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
 - [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
-- [`packages/library-replica/CLAUDE.md`](packages/library-replica/CLAUDE.md) — the replica engine: its ports, the pull, the overlay, the outbox, the socket and the in-memory SQLite
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its replica and files, the agent, its look, and how it ships

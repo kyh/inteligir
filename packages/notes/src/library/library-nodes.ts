@@ -1,7 +1,7 @@
 // The persisted node set: what an item's body may hold, checked at the library cell's boundary on
 // every write. A body is a Plate Value stored one top-level block per row, so this is the Plate
 // vocabulary the editor speaks, spelled once here because @repo/notes is the leaf every host
-// reaches (the cell, every replica and the editor above it) and the editor's own kits are not.
+// reaches (the cell, every device and the editor above it) and the editor's own kits are not.
 // Every element is a strict object: a prop the vocabulary does not name is refused, never
 // carried, so a block a later reader cannot draw never lands.
 

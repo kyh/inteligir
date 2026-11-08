@@ -1,4 +1,4 @@
-// The library's wire: the rows a replica pulls, the shapes a write names, what a refusal carries
+// The library's wire: the rows the apps read, the shapes a write names, what a refusal carries
 // and what an agent reads. Rows and answers are `z.object`, so a field a newer cell adds is
 // stripped rather than refused; requests are strict, since only the newest cell reads them. The
 // persisted vocabulary inside both (an item's fields, a block) is `@repo/notes/library`'s own.
@@ -35,9 +35,9 @@ import {
 // an item, a folder, a change set or a thread; any version, since an import may keep the id its
 // file carried
 export const idSchema = z.uuid();
-// what a device mints for an item or folder it creates, so one made offline already has its id
+// what a device mints for an item or folder it creates, so a save that waits already has its id
 export const newIdSchema = z.uuidv7();
-// the outbox's key for one write, kept by the cell so a resend after a lost answer lands once
+// one write's key, kept by the cell so a resend after a lost answer lands once
 export const opIdSchema = z.uuid();
 export const shaSchema = z.string().regex(SHA256_HEX_RE);
 // a thread event's id: `<threadId>:<push>:<index>` for what its conversation's object pushed, by
@@ -50,8 +50,6 @@ export const seqSchema = z.number().int().nonnegative();
 const isoInstant = z.iso.datetime();
 export const isoDate = z.iso.date();
 
-// the library's identity across a restore: a pull that names another starts over from nothing
-export const epochSchema = z.string().min(1).max(64);
 export const cursorSchema = z.string().min(1).max(512);
 
 // ---- caps a device checks before it sends ----
@@ -59,8 +57,6 @@ export const cursorSchema = z.string().min(1).max(512);
 // one write's ops (the item's text cap binds first), and one bulk change's items
 export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
-// the items one call for bodies names
-export const BODY_IDS_MAX = 1000;
 // a note or link note an agent writes as markdown
 export const MARKDOWN_MAX = 1_000_000;
 // the passage selected in the item a message to the built-in agent leaves from
@@ -75,7 +71,7 @@ export const PAGE_MAX = 50;
 // what one page of the apps' listing carries
 export const LISTING_PAGE_MAX = 1000;
 
-// ---- the synced rows ----
+// ---- the rows ----
 
 // an item's fields as an answer carries them: each one checked as stored, one a newer cell adds
 // stripped
@@ -89,17 +85,6 @@ export const liveItemRowSchema = z.object({
   seq: seqSchema,
   updatedAt: instant,
 });
-
-// an emptied item keeps its id and sequence forever, so no replica misses that it went
-const purgedItemRowSchema = z.object({
-  deletedAt: instant.nullable(),
-  id: idSchema,
-  kind: z.literal("purged"),
-  seq: seqSchema,
-  updatedAt: instant,
-});
-
-const itemRowSchema = z.discriminatedUnion("kind", [liveItemRowSchema, purgedItemRowSchema]);
 
 export const FOLDER_NAME_MAX = 255;
 
@@ -142,7 +127,7 @@ export const threadRowSchema = z.object({
 });
 
 // an event of the thread as the cell stored it, one of `./agent-events`' union kept as JSON: an
-// event this build cannot parse is a row a reader skips, never a pull it refuses
+// event this build cannot parse is a row a reader skips, never a page it refuses
 export const threadEventRowSchema = z.object({
   at: instant,
   event: z.json(),
@@ -152,19 +137,6 @@ export const threadEventRowSchema = z.object({
   threadId: idSchema,
   type: z.string().min(1),
 });
-
-// one entry of the change log: the row as it is now, null when it is gone, which an item and a
-// folder never are, since each keeps its row once it is deleted or emptied; a body is not a row,
-// and is wanted again whenever its item's sequence moves
-const changeOf = <K extends string, R extends z.ZodType>(kind: K, row: R) =>
-  z.object({ id: z.string().min(1), kind: z.literal(kind), row, seq: seqSchema });
-
-export const libraryChangeSchema = z.discriminatedUnion("kind", [
-  changeOf("item", itemRowSchema),
-  changeOf("folder", folderRowSchema),
-  changeOf("thread", threadRowSchema.nullable()),
-  changeOf("thread_event", threadEventRowSchema.nullable()),
-]);
 
 // ---- bodies ----
 

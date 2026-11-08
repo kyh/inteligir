@@ -20,7 +20,7 @@ const stored = (threadId: string): ThreadFrame => ({
   type: "thread",
 });
 
-// a socket the test speaks for, as the replica's onThreadFrame hands frames on
+// a socket the test speaks for, as a host's onThreadFrame hands frames on
 const socket = () => {
   const listeners = new Set<(frame: ThreadFrame) => void>();
   return {

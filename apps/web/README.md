@@ -37,7 +37,7 @@ src/
                      forwarded to its cell (v1-rpc.ts)
     library/         The account's library cell: LibraryDO (library-do.ts),
                      its engine over the cell's SQLite (library-engine.ts:
-                     writes, change sets, undo, sync, quota, files),
+                     writes, change sets, undo, quota, files),
                      every library procedure over it and the markdown codec
                      (library-router.ts, served by library-rpc.ts), what the
                      apps read (cell-listing.ts), the alarm's jobs, the
@@ -128,7 +128,7 @@ Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id derived
 from the call's, so one run again lands once; a deletion waits for the
 person. What the turn did reaches the cell as pushes, each once by its
-sequence, stored as the account's synced thread events, a short progress note
+sequence, stored as the thread's events, a short progress note
 before each tool call among them; the push that ends a
 turn seals its one change set, books what it cost at list price
 (`AGENT_PRICES`), gives back a turn that cost nothing, and lets the links it
@@ -146,33 +146,33 @@ own (`.dev.vars.example`).
 
 ## Routes
 
-| Route                       | Auth            | What                                                                                                                   |
-| --------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `/`                         | —               | Marketing page (SSR); markdown to `Accept: text/markdown`                                                              |
-| `/about`, `/contact`        | —               | Trust pages from `lib/site-content.ts`, negotiated the same way                                                        |
-| `/privacy`                  | —               | Renders `docs/privacy.md` itself (SSR) — never a copy                                                                  |
-| `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                                                                    |
-| `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                                          |
-| `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                               |
-| `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                                          |
-| `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                                                             |
-| `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                               |
-| `/app/forgot-password`      | —               | Requests the reset link                                                                                                |
-| `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                    |
-| `/app/devices`              | session         | The device table: list and revoke                                                                                      |
-| `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in                                            |
-| `/api/auth/*`               | —               | Better Auth (email+password, session cookie)                                                                           |
-| `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form                                                 |
-| `GET /v1/socket`            | ticket          | The account's socket: a head and a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable |
-| `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension                                             |
-| `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell                                                       |
-| `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                                       |
-| `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                                    |
-| `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                                       |
-| `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own                                               |
-| `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                                |
-| `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                          |
-| `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                    |
+| Route                       | Auth            | What                                                                                                        |
+| --------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/`                         | —               | Marketing page (SSR); markdown to `Accept: text/markdown`                                                   |
+| `/about`, `/contact`        | —               | Trust pages from `lib/site-content.ts`, negotiated the same way                                             |
+| `/privacy`                  | —               | Renders `docs/privacy.md` itself (SSR) — never a copy                                                       |
+| `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                                                         |
+| `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                               |
+| `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                    |
+| `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                               |
+| `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                                                  |
+| `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                    |
+| `/app/forgot-password`      | —               | Requests the reset link                                                                                     |
+| `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                         |
+| `/app/devices`              | session         | The device table: list and revoke                                                                           |
+| `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in                                 |
+| `/api/auth/*`               | —               | Better Auth (email+password, session cookie)                                                                |
+| `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form                                      |
+| `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable |
+| `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension                                  |
+| `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell                                            |
+| `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                            |
+| `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                         |
+| `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                            |
+| `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own                                    |
+| `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                     |
+| `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                               |
+| `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                         |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its

@@ -42,7 +42,7 @@ const UNREACHED = failureOf({ kind: "unreachable", transient: false }).sentence;
 type Cell = DurableObjectStub<LibraryDO>;
 
 // the reading landed, as the cell's door takes it (`checkedLanding`); one naming a file the library
-// let go before it landed is read again, as an outbox uploads a file the cell says is missing, and
+// let go before it landed is read again, as a client uploads a file the cell says is missing, and
 // one the cell could not keep (the library full, the article past what an item holds) is said as a
 // page whose text couldn't be saved
 const land = async (cell: Cell, job: FillJob, reading: FillLanding): Promise<void> => {

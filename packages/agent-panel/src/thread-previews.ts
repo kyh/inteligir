@@ -1,5 +1,5 @@
 // The reply the agent is writing, as the account's socket carries it: a preview is never stored and
-// never pulled, so each device folds the frames it hears into the text so far, by thread, and lets
+// never read back, so each device folds the frames it hears into the text so far, by thread, and lets
 // it go once a stored event of that thread arrives (the reply landed, or the turn moved on). A
 // preview this build cannot parse changes nothing.
 
@@ -27,7 +27,8 @@ export interface ThreadPreviews {
   readonly stop: () => void;
 }
 
-// every thread's reply being written, over the replica's thread frames, for a screen that reads it
+// every thread's reply being written, over the account socket's thread frames, for a screen that
+// reads it
 // as an external store
 export const createThreadPreviews = (
   onThreadFrame: (listener: (frame: ThreadFrame) => void) => () => void,

@@ -8,14 +8,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { LIBRARY_CHANGE_KINDS } from "@repo/notes/library/library-schema";
-
-import {
-  agentViewContextSchema,
-  libraryChangeSchema,
-  liveItemRowSchema,
-  newIdSchema,
-} from "./library/library-wire";
+import { agentViewContextSchema, liveItemRowSchema, newIdSchema } from "./library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
 import { V1_CUSTOM_ERROR_STATUS, V1_ERROR_STATUS_MAP } from "./v1-errors";
@@ -67,8 +60,6 @@ const LIBRARY_READS = new Set([
   "listing.titles",
   "organize.outline",
   "search",
-  "sync.bodies",
-  "sync.pull",
 ]);
 
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
@@ -303,7 +294,7 @@ describe("/v1's error statuses", () => {
 });
 
 describe("/v1's rows", () => {
-  it("takes an optional opId on every library write, so the outbox's resend lands once", () => {
+  it("takes an optional opId on every library write, so a resend lands once", () => {
     const writes = rowsOf(v1Contract.library).filter((row) => !LIBRARY_READS.has(row.path));
     expect(writes.length).toBeGreaterThan(0);
     for (const row of writes) {
@@ -345,12 +336,6 @@ describe("/v1's rows", () => {
 });
 
 describe("the library's wire", () => {
-  it("names every kind of row the change log holds", () => {
-    expect(
-      libraryChangeSchema.options.map((option) => option.shape.kind.value).toSorted(),
-    ).toStrictEqual([...LIBRARY_CHANGE_KINDS].toSorted());
-  });
-
   it("drops a field a newer cell adds to a row, rather than refusing the row", () => {
     const row = {
       card: { outline: [], preview: "", title: "Ada", words: 0 },

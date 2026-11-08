@@ -14,19 +14,18 @@ import {
   literalMatches,
   nextHead,
   readBlocks,
-  readChanges,
   readItem,
   readItemState,
   readMeta,
-  recordChanges,
   SEARCH_ROW_MAX_BYTES,
   searchLibrary,
   searchRowBytes,
   searchRowOf,
   storeBlocks,
+  storeDerived,
   readLiveItems,
-  storeItemBody,
   storeItemRow,
+  storeSearchRow,
   storeTombstone,
   writeMeta,
 } from "./library-queries";
@@ -43,13 +42,14 @@ const leaf: [{ text: "" }] = [{ text: "" }];
 
 const library = (): WasmSqlPort => {
   const port = openWasmSqlPort();
-  transactPlan(port, ensureLibrarySchema("cell"));
+  transactPlan(port, ensureLibrarySchema());
   return port;
 };
 
 const exec = <T>(port: WasmSqlPort, plan: SqlPlan<T>): T => transactPlan(port, plan);
 
-// a row, then its body under it, as a replica lays an item; null when the row held is as new or newer
+// a row, then its body and derived rows under it, as the cell lays an item; null when the row held
+// is as new or newer
 const offer = (port: WasmSqlPort, id: string, state: ItemState, seq: number) => {
   const derived = deriveItem(state.fields, state.blocks);
   const landed = exec(
@@ -66,7 +66,10 @@ const offer = (port: WasmSqlPort, id: string, state: ItemState, seq: number) => 
   if (!landed) {
     return null;
   }
-  exec(port, storeItemBody({ blocks: orderedBlocks(state.blocks), id, seq }));
+  port.run("DELETE FROM blocks WHERE item_id = ?", [id]);
+  exec(port, storeBlocks(id, blockWritesOf(orderedBlocks(state.blocks), derived), seq));
+  exec(port, storeDerived(id, derived));
+  exec(port, storeSearchRow(id, derived.search));
   return derived;
 };
 
@@ -139,25 +142,6 @@ describe("items", () => {
       port.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"]),
     ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
     expect(exec(port, linksTo("target"))).toStrictEqual(["item-1"]);
-  });
-
-  it("lays a row before its body, and the body only under the row at the body's own sequence", () => {
-    const port = library();
-    const state = itemOf([paragraph("a", "body words")], noteFields({ title: "Row first" }));
-    const derived = deriveItem(state.fields, state.blocks);
-    const row = { card: derived.card, fields: state.fields, id: "item-1", updatedAt: 1 };
-    expect(exec(port, storeItemRow({ ...row, seq: 3, urlKey: null }))).toBe(true);
-    expect(exec(port, readItemState("item-1"))?.blocks.size).toBe(0);
-    const blocks = orderedBlocks(state.blocks);
-    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 2 }))).toBe(false);
-    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 4 }))).toBe(false);
-    expect(exec(port, storeItemBody({ blocks, id: "missing", seq: 3 }))).toBe(false);
-    expect(exec(port, searchLibrary("body", 10))).toStrictEqual([]);
-    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 3 }))).toBe(true);
-    expect(exec(port, readItemState("item-1"))).toStrictEqual(state);
-    expect(exec(port, searchLibrary("body", 10)).map((hit) => hit.itemId)).toStrictEqual([
-      "item-1",
-    ]);
   });
 
   it("reads every item that is not purged, by id", () => {
@@ -455,34 +439,13 @@ describe("links", () => {
   });
 });
 
-describe("the change log", () => {
-  it("pages by sequence number and never ends a page inside one write", () => {
-    const port = library();
-    const entries = [1, 1, 1, 2, 3, 3].map((seq, index) => ({
-      gone: index === 5,
-      id: `i${String(index)}`,
-      kind: "item" as const,
-      seq,
-    }));
-    exec(port, recordChanges(entries));
-    const first = exec(port, readChanges(0, 2));
-    expect(first).toStrictEqual({ changes: entries.slice(0, 3), more: true, upto: 1 });
-    const second = exec(port, readChanges(first.upto, 2));
-    expect(second.changes.map((entry) => entry.id)).toStrictEqual(["i3", "i4", "i5"]);
-    expect(second.more).toBe(false);
-    expect(exec(port, readChanges(second.upto, 2))).toStrictEqual({
-      changes: [],
-      more: false,
-      upto: 3,
-    });
-  });
-
+describe("meta", () => {
   it("counts the head up one write at a time and keeps meta values", () => {
     const port = library();
     expect(runPlan(port, nextHead())).toBe(1);
     expect(runPlan(port, nextHead())).toBe(2);
-    exec(port, writeMeta("epoch", "e-1"));
-    expect(exec(port, readMeta("epoch"))).toBe("e-1");
+    exec(port, writeMeta("deleted_at", 7));
+    expect(exec(port, readMeta("deleted_at"))).toBe(7);
     expect(exec(port, readMeta("missing"))).toBeNull();
   });
 });

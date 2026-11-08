@@ -83,10 +83,6 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
     // its own bridge (@repo/editor-bridge), so no contract and no cloud wire.
     "@repo/mobile-editor": ["@repo/editor", "@repo/editor-bridge", "@repo/ui"],
-    // the replica engine every device runs: `/v1`'s wire (@repo/contract) and the library model,
-    // schema and SQL its cell runs (@repo/notes); the block merge is the editor's diff3, which its
-    // host injects, so no @repo/editor edge
-    "@repo/library-replica": ["@repo/contract", "@repo/notes"],
     // a leaf: a scripted Claude Messages API with no model behind it, which the local Worker, the
     // e2e scenarios and the Worker's suites run the built-in agent against
     "@repo/messages-fake": [],
@@ -95,8 +91,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/ui": [],
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
-    // the cloud: the @repo/notes edge is the library model the account's cell applies, the same
-    // pure plans and SQL every replica runs, injected with the cell's own storage; the
+    // the cloud: the @repo/notes edge is the library model the account's cell applies, its pure
+    // plans and SQL injected with the cell's own storage; the
     // @repo/editor edge is the markdown codec's headless kits (`@repo/editor/codec/*`), the one
     // reading and writing of an item an agent's procedures go through; the @repo/page-reader edge
     // is the cloud's fill, a saved page read by the reader every device runs, over linkedom

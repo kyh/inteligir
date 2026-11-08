@@ -13,7 +13,7 @@ import type { ClaimedFill } from "./cell-fills";
 import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
 import type { CellResult } from "./cell-refusal";
-import { pingLibraryMoved, tellSockets } from "./cell-sockets";
+import { tellSockets } from "./cell-sockets";
 import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
@@ -91,11 +91,8 @@ export const settleCommit = async <T>(
   library: LibraryEngine,
   result: CellResult<T>,
 ): Promise<CellResult<T>> => {
-  if (result.ok && result.head !== null) {
-    pingLibraryMoved(ctx, result.head);
-    if (result.moved !== null) {
-      tellSockets(ctx, result.moved);
-    }
+  if (result.ok && result.moved !== null) {
+    tellSockets(ctx, result.moved);
     await sendFills(ctx, env, library);
   }
   await scheduleAlarm(ctx, library);

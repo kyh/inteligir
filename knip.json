@@ -75,7 +75,6 @@
     "packages/domain": { "project": ["src/**/*.ts!"] },
     "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
     "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
-    "packages/library-replica": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/notes": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/ui": {

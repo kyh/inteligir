@@ -1,22 +1,17 @@
-// An account's library cell as the replica's suites need it, in memory: `/v1/rpc` served by oRPC's
-// own handler over the contract's rows the replica calls, and `/v1/blobs/<sha>`, each device
-// reaching it through a transport of its own whose network a suite can take down or whose next
-// answers it can lose after the cell acted. It keeps the rules the replica leans on: a write lands
-// only on the bases it names (`@repo/notes/library/block-ops`) and answers CONFLICT with what moved,
-// an op id is answered once, a file must be uploaded before a write names it, and the change log
-// carries each row as it is now under one sequence a write. The real cell is held to the same
-// engine by `apps/web/src/worker/library/library-replica.test.ts`.
+// An account's library cell as a client's suites need it, in memory: `/v1/rpc` served by oRPC's
+// own handler over the rows a client writes through, and `/v1/blobs/<sha>`, each device reaching
+// it through a transport of its own whose network a suite can take down or whose next answers it
+// can lose after the cell acted. It keeps the rules a client leans on: a write lands only on the
+// bases it names (`@repo/notes/library/block-ops`) and answers CONFLICT with what moved, an op id
+// is answered once, a file must be uploaded before a write names it, and every write takes the
+// library's next sequence.
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../cloud/library/library-blobs";
-import type {
-  conflictCurrentSchema,
-  folderOpSchema,
-  libraryChangeSchema,
-} from "../cloud/library/library-wire";
+import type { conflictCurrentSchema, folderOpSchema } from "../cloud/library/library-wire";
 import { folderRowSchema, liveItemRowSchema } from "../cloud/library/library-wire";
 import { v1Contract, V1_RPC_PATH } from "../cloud/v1-contract";
 import type { V1Client } from "../cloud/v1-contract";
@@ -25,14 +20,13 @@ import {
   ConflictError,
   NotFoundError,
   PayloadTooLargeError,
-  QuotaError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "../cloud/v1-errors";
 import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { blockHash } from "@repo/notes/library/block-hash";
-import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
+import { applyOps } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { ordsBetween } from "@repo/notes/library/block-order";
 import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
@@ -44,12 +38,10 @@ import { z } from "zod";
 
 import type { V1Transport } from "../cloud/library/call-outcome";
 
-type LibraryChange = z.infer<typeof libraryChangeSchema>;
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
-type FolderRow = Extract<LibraryChange, { kind: "folder" }>["row"];
-type ChangeKind = LibraryChange["kind"];
+type FolderRow = z.infer<typeof folderRowSchema>;
 
 interface CellItem {
   readonly fields: LibraryItemFields;
@@ -58,12 +50,7 @@ interface CellItem {
   readonly updatedAt: number;
 }
 
-interface Entry {
-  readonly kind: ChangeKind;
-  readonly id: string;
-  readonly seq: number;
-}
-
+/** @internal */
 export interface FakeDevice {
   readonly transport: V1Transport;
   // the same door as a client of the suite's own, for another writer's calls
@@ -73,33 +60,16 @@ export interface FakeDevice {
   readonly loseAnswers: (count: number) => void;
 }
 
+/** @internal */
 export interface FakeCell {
   readonly device: (name: string) => FakeDevice;
   readonly item: (id: string) => CellItem | null;
   readonly items: () => ReadonlyMap<string, CellItem>;
-  readonly folder: (id: string) => FolderRow | null;
-  readonly head: () => number;
-  // the library under a new epoch, its rows kept, as a restore leaves it
-  readonly startOver: () => void;
   // each call, as `<device> <procedure>` (`library/write`), and each upload by sha
   readonly calls: string[];
   readonly uploads: string[];
-  readonly forgetBlob: (sha: string) => void;
-  // an item the cell no longer holds, and has told no device of yet
-  readonly forgetItem: (id: string) => void;
-  // the op ids the cell keeps answers for go, as thirty days take them
-  readonly forgetAnswers: () => void;
-  // writes to these items are refused as too large
-  readonly tooLarge: Set<string>;
-  // writes to these items are refused for a library with no room
-  readonly noRoom: Set<string>;
-  // writes to these items meet a conflict no resend settles
-  readonly unsettled: Set<string>;
   // every call is refused as a revoked sign-in
   readonly signOut: () => void;
-  // the change log's page and how many bodies an answer carries
-  readonly setPage: (changes: number) => void;
-  readonly setBodiesPerAnswer: (bodies: number) => void;
 }
 
 const NOW = 1_700_000_100_000;
@@ -190,16 +160,11 @@ const currentOf = (itemId: string, conflict: OpConflict): ConflictCurrent => {
 
 /** @internal */
 export const createFakeCell = (): FakeCell => {
-  let generation = 1;
-  let epoch = "epoch-1";
   let head = 0;
-  let page = 1000;
-  let bodiesPerAnswer = 1000;
   let signedOut = false;
   let signIns = 0;
   const items = new Map<string, CellItem>();
   const folders = new Map<string, FolderRow>();
-  const log = new Map<string, Entry>();
   // each file's bytes, and its type as its upload named it
   const blobs = new Map<
     string,
@@ -208,13 +173,6 @@ export const createFakeCell = (): FakeCell => {
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
-  const tooLarge = new Set<string>();
-  const noRoom = new Set<string>();
-  const unsettled = new Set<string>();
-
-  const record = (kind: ChangeKind, id: string, seq: number): void => {
-    log.set(`${kind}:${id}`, { id, kind, seq });
-  };
 
   const liveRow = (id: string, item: CellItem): LiveRow => {
     const { card } = deriveItem(item.fields, item.blocks);
@@ -236,7 +194,6 @@ export const createFakeCell = (): FakeCell => {
     head += 1;
     const item: CellItem = { blocks, fields, seq: head, updatedAt: NOW + head };
     items.set(id, item);
-    record("item", id, head);
     return { item: liveRow(id, item) };
   };
 
@@ -289,17 +246,6 @@ export const createFakeCell = (): FakeCell => {
     const item = items.get(input.itemId);
     if (item === undefined) {
       throw new NotFoundError();
-    }
-    if (tooLarge.has(input.itemId)) {
-      throw new PayloadTooLargeError();
-    }
-    if (noRoom.has(input.itemId)) {
-      throw new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } });
-    }
-    if (unsettled.has(input.itemId)) {
-      throw new ConflictError({
-        data: { current: [{ itemId: input.itemId, kind: "item", seq: item.seq }] },
-      });
     }
     needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyOps({ blocks: item.blocks, fields: item.fields }, input.ops);
@@ -362,7 +308,6 @@ export const createFakeCell = (): FakeCell => {
   const storeFolder = (row: FolderRow, landed: Map<string, FolderRow>): void => {
     folders.set(row.id, row);
     landed.set(row.id, row);
-    record("folder", row.id, row.seq);
   };
 
   const deleteUnder = (parentId: string, landed: Map<string, FolderRow>): void => {
@@ -403,29 +348,6 @@ export const createFakeCell = (): FakeCell => {
       }
     }
     return { folders: [...landed.values()], seq: head };
-  };
-
-  const changeOf = (entry: Entry): LibraryChange => {
-    switch (entry.kind) {
-      case "item": {
-        return {
-          id: entry.id,
-          kind: "item",
-          row: liveRow(entry.id, held(entry.id)),
-          seq: entry.seq,
-        };
-      }
-      case "folder": {
-        const row = folders.get(entry.id);
-        if (row === undefined) {
-          throw new Error(`the fake cell logs a folder it does not hold: ${entry.id}`);
-        }
-        return { id: entry.id, kind: "folder", row, seq: entry.seq };
-      }
-      default: {
-        throw new Error(`the fake cell logs no ${entry.kind}`);
-      }
-    }
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
@@ -567,48 +489,6 @@ export const createFakeCell = (): FakeCell => {
           }),
         ),
       },
-      sync: {
-        bodies: os.library.sync.bodies.handler(({ input }) => {
-          const bodies = [];
-          const gone = [];
-          const deferred = [];
-          for (const id of input.ids) {
-            const item = items.get(id);
-            if (item === undefined) {
-              gone.push(id);
-            } else if (bodies.length < bodiesPerAnswer) {
-              bodies.push({ blocks: orderedBlocks(item.blocks), id, seq: item.seq });
-            } else {
-              deferred.push(id);
-            }
-          }
-          return { bodies, deferred, gone };
-        }),
-        pull: os.library.sync.pull.handler(({ input }) => {
-          if (input.epoch !== null && input.epoch !== epoch) {
-            return { epoch, kind: "reset" as const };
-          }
-          const after = [...log.values()]
-            .filter((entry) => entry.seq > input.cursor)
-            .toSorted((a, b) => a.seq - b.seq || (a.id < b.id ? -1 : 1));
-          const taken: Entry[] = [];
-          for (const entry of after) {
-            const last = taken.at(-1);
-            if (taken.length >= page && last !== undefined && last.seq !== entry.seq) {
-              break;
-            }
-            taken.push(entry);
-          }
-          const more = taken.length < after.length;
-          return {
-            changes: taken.map(changeOf),
-            epoch,
-            kind: "changes" as const,
-            more,
-            upto: more ? (taken.at(-1)?.seq ?? input.cursor) : head,
-          };
-        }),
-      },
       write: os.library.write.handler(({ input }) =>
         once(input.opId, landedSchema, () => write(input)),
       ),
@@ -693,35 +573,11 @@ export const createFakeCell = (): FakeCell => {
         transport,
       };
     },
-    folder: (id) => folders.get(id) ?? null,
-    forgetAnswers: () => {
-      answers.clear();
-    },
-    forgetBlob: (sha) => {
-      blobs.delete(sha);
-    },
-    forgetItem: (id) => {
-      items.delete(id);
-    },
-    head: () => head,
     item: (id) => items.get(id) ?? null,
     items: () => items,
-    noRoom,
-    setBodiesPerAnswer: (bodies) => {
-      bodiesPerAnswer = bodies;
-    },
-    setPage: (changes) => {
-      page = changes;
-    },
     signOut: () => {
       signedOut = true;
     },
-    startOver: () => {
-      generation += 1;
-      epoch = `epoch-${String(generation)}`;
-    },
-    tooLarge,
-    unsettled,
     uploads,
   };
 };

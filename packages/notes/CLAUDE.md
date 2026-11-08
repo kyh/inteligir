@@ -24,7 +24,7 @@ root.
   (`LIST_MAX_INDENT`). The editor holds these nodes as they are: a link or
   an embed names its target by id with the title the writer saw, a `#tag` is
   its text, media a sha or a url. Rejected: the vocabulary in `@repo/editor`
-  (the cell and the replicas cannot load Plate), a tag node (two spellings of
+  (the cell cannot load Plate), a tag node (two spellings of
   one tag), an id inside a block (Plate names those again in every editor, so
   one block would hash apart), and loose objects (a prop no reader draws).
 
@@ -39,9 +39,9 @@ root.
   a new note follows its body on every device; the outline keeps the first h1
   to h3, as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
-  block's text. The card alone rides its row, so a replica draws
-  an item before its body arrives. Rejected: syncing the other derived rows
-  (two derivations would drift), a frontmatter block (its keys are columns).
+  block's text. The card alone rides its row, so a listing draws
+  an item without its body. Rejected: a frontmatter block (its keys are
+  columns).
   `packages/notes/src/library/derive-item.ts`.
 
 - **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
@@ -80,23 +80,24 @@ root.
   a fill writes, and a title is a fill's on an unread link and a person's after).
   `packages/notes/src/library/revert-change.test.ts`.
 
-- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR EVERY ENGINE.**
-  `@repo/notes/library/library-schema` versions STRICT tables, a replica's
-  outbox among them, by a `meta.schema` row, a mismatch starting the engine
-  over, and holds a replica to SQLite 3.37 (a Durable Object refuses
-  `sqlite_version()`); `library-sql` runs a plan, one statement yielded at a
-  time, over either port, under 100 parameters and 100 KB a statement;
+- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS, THE CELL'S.**
+  `@repo/notes/library/library-schema` versions STRICT tables by a
+  `meta.schema` row, a mismatch starting the cell over, and asks the engine
+  nothing (a Durable Object refuses `sqlite_version()`); `library-sql` runs a
+  plan, one statement yielded at a time, over the cell's port or the suites'
+  SQLite alike, under 100 parameters and 100 KB a statement;
   `library-queries` matches text with instr() and lays an item, its body and
   derived rows with it, only over an older `seq`. Rejected: SQLite's version
   pragma and pattern-match operators (a Durable Object refuses the one and caps
-  the other at 50 bytes); SQL per engine (it drifts).
+  the other at 50 bytes); SQL written apart from its plans (it drifts from
+  what the suites run).
   `packages/notes/src/test-support/wasm-sql-port.ts`.
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
-  `@repo/notes/library/library-index` holds a replica's listing rows, typed by
-  the host's own row, and answers kind, tag family, folder (with its
-  subfolders), site, date and search scopes, with Deleted apart and a count per
-  kind. It keeps one sorted order per sort, dropped only when a row's place in
+  `@repo/notes/library/library-index` holds the cell's listing rows, typed by
+  the host's own row, built for the one read that asks, and answers kind, tag
+  family, folder (with its subfolders), site, date and search scopes, with
+  Deleted apart and a count per kind. It keeps one sorted order per sort, dropped only when a row's place in
   it moves. Rejected: SQL listing queries (a tag family and a folder tree read
   from memory without a join per page).
   `packages/notes/src/library/library-index.test.ts`.

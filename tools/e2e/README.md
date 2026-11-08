@@ -87,7 +87,7 @@ library's tab over a booted Worker, with a device of the account to seed and
 read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
 `library-tab.ts`); the account's sign-up against a dev Worker
 (`cloud-account.ts`); `/v1` as a phone calls it, a file's upload and read and
-an item's fields as the change log holds them (`v1-wire.ts`); the
+an item's fields as the cell holds them (`v1-wire.ts`); the
 phone's own runtime under node over its own database, signed in as the
 owner, a second one standing in for another device, with a network a
 scenario can take away (`phone-runtime.ts`); the page

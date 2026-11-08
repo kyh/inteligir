@@ -1,9 +1,8 @@
 // The library's SQL runs on the cell's Durable Object, whose `sql.exec` is synchronous and whose
-// transaction is `transactionSync`, and on every replica's driver, which is asynchronous. A query
-// is written once as a plan, a generator that yields one statement at a time and is handed back
-// each statement's rows, so a host drives it with `runPlan` over a synchronous port or
-// `runPlanAsync` over an asynchronous one. A port runs exactly one statement per call, never a
-// BEGIN or a SAVEPOINT: a transaction is the host's to open.
+// transaction is `transactionSync`. A query is written once as a plan, a generator that yields one
+// statement at a time and is handed back each statement's rows, so the cell and the suites' SQLite
+// drive it alike with `runPlan`. A port runs exactly one statement per call, never a BEGIN or a
+// SAVEPOINT: a transaction is the host's to open.
 
 import type { z } from "zod";
 
@@ -34,11 +33,6 @@ export interface SqlPort extends SqlStatements {
   readonly transaction: <T>(work: () => T) => T;
 }
 
-export interface AsyncSqlStatements {
-  readonly run: (sql: string, params: readonly SqlValue[]) => Promise<void>;
-  readonly all: (sql: string, params: readonly SqlValue[]) => Promise<readonly SqlRow[]>;
-}
-
 const NO_ROWS: readonly SqlRow[] = [];
 
 export const all = (sql: string, params: readonly SqlValue[] = []): SqlStep => ({
@@ -65,26 +59,6 @@ export const runPlan = <T>(port: SqlStatements, plan: SqlPlan<T>): T => {
         rows = port.all(sql, params);
       } else {
         port.run(sql, params);
-      }
-    } catch (error) {
-      step = plan.throw(error);
-      continue;
-    }
-    step = plan.next(rows);
-  }
-  return step.value;
-};
-
-export const runPlanAsync = async <T>(port: AsyncSqlStatements, plan: SqlPlan<T>): Promise<T> => {
-  let step = plan.next(NO_ROWS);
-  while (step.done !== true) {
-    const { kind, params, sql } = step.value;
-    let rows: readonly SqlRow[] = NO_ROWS;
-    try {
-      if (kind === "all") {
-        rows = await port.all(sql, params);
-      } else {
-        await port.run(sql, params);
       }
     } catch (error) {
       step = plan.throw(error);

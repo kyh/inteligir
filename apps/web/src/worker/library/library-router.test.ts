@@ -745,10 +745,6 @@ describe("the library's procedures", () => {
       const closing = await library.agent.events({ after: 1, limit: 2, threadId: older });
       expect(closing).toMatchObject({ events: [{ eventId: olderEvents[2], idx: 2 }], more: false });
 
-      const before = await library.sync.pull({ cursor: 0, epoch: null });
-      if (before.kind !== "changes") {
-        throw new Error("a fresh pull started over");
-      }
       await expect(library.agent.delete({ threadId: older })).resolves.toStrictEqual({
         deleted: true,
       });
@@ -756,15 +752,6 @@ describe("the library's procedures", () => {
       expect(
         sql.exec("SELECT event_id FROM thread_events WHERE thread_id = ?", older).toArray(),
       ).toStrictEqual([]);
-      const after = await library.sync.pull({ cursor: before.upto, epoch: before.epoch });
-      expect(after.kind === "changes" ? after.changes : []).toStrictEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ id: older, kind: "thread", row: null }),
-          ...olderEvents.map((id) =>
-            expect.objectContaining({ id, kind: "thread_event", row: null }),
-          ),
-        ]),
-      );
       await expect(refusalOf(library.agent.events({ threadId: older }))).resolves.toMatchObject({
         code: "NOT_FOUND",
         defined: true,
@@ -858,22 +845,6 @@ describe("the library's procedures", () => {
       // on by default, with nothing to make, and the day's allowance untouched
       await expect(agent.status()).resolves.toMatchObject({ enabled: true, turnsLeft: 2 });
       await expect(agent.list({})).resolves.toStrictEqual({ cursor: null, threads: [] });
-    });
-  });
-
-  it("pulls what landed and the bodies it names", async () => {
-    await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
-      const { item } = await library.items.createNote({ markdown: "Synced." });
-      const pulled = await library.sync.pull({ cursor: 0, epoch: null });
-      if (pulled.kind !== "changes") {
-        throw new Error("a fresh replica was told to reset");
-      }
-      expect(pulled.changes.map((change) => change.kind)).toContain("item");
-      const { bodies } = await library.sync.bodies({ ids: [item.id] });
-      expect(bodies[0]?.blocks.map((stored) => stored.block)).toStrictEqual([
-        expect.objectContaining({ children: [{ text: "Synced." }] }),
-      ]);
     });
   });
 });

@@ -1,12 +1,10 @@
 // The cell's rows of the built-in agent's conversations, read and written inside the cell's
 // transactions: a thread and its status, each thread's one open turn, the sends waiting for a turn,
-// the last push each thread's object landed, and the switch. A thread and its events are synced
-// rows, so each write of one takes the library's next sequence number and logs the change for
-// every replica; the rest are the cell's alone.
+// the last push each thread's object landed, and the switch. A thread and its events carry the
+// library's sequence number, as items do, and each write of one tells the sockets the thread moved;
+// the rest are the cell's alone.
 
 import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
-import { recordChanges } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
@@ -61,11 +59,10 @@ export const createThread = (scope: LandingScope, threadId: string, text: string
      VALUES (?, ?, 'idle', ?, ?, ?)`,
     [threadId, titleOf(text), scope.now, scope.now, seq],
   );
-  runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
   scope.moved.thread(threadId);
 };
 
-// a thread's status moved, and with it its sequence, so every replica reads the new one
+// a thread's status moved, and with it its sequence
 export const setThreadStatus = (
   scope: LandingScope,
   threadId: string,
@@ -82,7 +79,6 @@ export const setThreadStatus = (
     seq,
     threadId,
   ]);
-  runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
   scope.moved.thread(threadId);
 };
 

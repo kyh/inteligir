@@ -56,20 +56,20 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Mac). The password check mints the session `deleteUser` runs under, keeping
   its `beforeDelete` order and tombstone the ONE purge path; Better Auth's
   delete routes, which settle for a fresh session, are shut, and with no bearer
-  plugin a browser's session is its cookie. Success wipes this device's
-  replica and forgets the sign-in; after an unanswered deletion, a retry
-  meeting only the kept credential's refusal means the account is gone. Rejected: a
-  second purge path (it drifts); deleting by credential alone (a stolen one
-  ends the account). `apps/web/src/worker/device/account.ts`.
+  plugin a browser's session is its cookie. Success drops what this device
+  holds of the library and forgets the sign-in; after an unanswered deletion, a
+  retry meeting only the kept credential's refusal means the account is gone.
+  Rejected: a second purge path (it drifts); deleting by credential alone (a
+  stolen one ends the account). `apps/web/src/worker/device/account.ts`.
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
   device or browser session the Worker stamps on the upgrade, on one exact path
   only `socket-routes.ts` forwards to; every other forwarded call has any holder
   header dropped, and a path the cell does not know is a 404, so no other
-  credential reaches that door. A committed write sends every socket the head,
-  and a `moved` frame naming what it moved: each item at its sequence, whether
-  the folders moved, each thread, a list past `MOVED_IDS_MAX` ids saying `all`,
+  credential reaches that door. A committed write sends every socket a `moved`
+  frame naming what it moved: each item at its sequence, whether the folders
+  moved, each thread, a list past `MOVED_IDS_MAX` ids saying `all`,
   and an alarm's import run saying `all` of each; a client refetches what it
   shows of those, and everything on a reconnect, since a frame missed while away
   is gone. Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
@@ -192,9 +192,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `bindings.secret()`, a value with `bindings.text`, the reset sender and the
   auth limiter's off switch included, and a binding one mode lacks types as
   optional; the suites add only `TEST_SCHEMA`, the library cell's namespace by
-  name, which `listDurableObjectIds` looks up, and `REPLICA_SQL`, a replica's
-  SQLite held on their node side, since workerd loads no sqlite-wasm
-  (`apps/web/replica-sql-service.ts`). Rejected: a hand-written `Env`
+  name, which `listDurableObjectIds` looks up. Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
   is never checked against the config). The date and flags are one module, the
   fills' queues another, the agent's allowance and prices a third, that the
@@ -227,8 +225,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `ThreadSyncDO`, `RepoCell` and `Registry` are each a
   `state: "deleted"` tombstone, kept until a deploy's answer lets it go
   (`docs/releasing.md` § 5). The schema opens under
-  `blockConcurrencyWhile`; one of another version wipes the cell under a new
-  epoch. Rejected: a namespace binding (anything holding `env` could name any
+  `blockConcurrencyWhile`; one of another version wipes the cell and starts it
+  empty. Rejected: a namespace binding (anything holding `env` could name any
   cell); the cell under a deleted class's export name (nothing documents a
   preview refusing a new class); signing the fill message (no other producer exists to forge one).
   `apps/web/src/worker/library/library-do.ts`,
@@ -529,7 +527,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   replayed into every later call of its conversation and written to the cache
   once, so a paged list is asked again at half its rows until it fits, and
   what still does not is refused, a read told to ask for less and a write that
-  it landed; a synced event carries 2,000 characters of it. Rejected: the
+  it landed; a stored event carries 2,000 characters of it. Rejected: the
   connector's budget (claude.ai takes 150,000); refusing every long page.
   `apps/web/src/worker/agent/agent-tools.ts`.
 
@@ -565,14 +563,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   characters / 3 (it counted CJK at a quarter of its tokens and ids at a third).
   `apps/web/src/worker/agent/agent-allowance.ts`, `thread-request.ts`.
 
-- **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX
-  PUSHES** (owner decision: the phone asks the agent too). The cell stores each
+- **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE THE CELL'S ROWS ITS OBJECT'S
+  OUTBOX PUSHES** (owner decision: the phone asks the agent too). The cell stores each
   push once by its seq, in one transaction, as events of our own union, and
   frames each on the sockets after it commits; previews ride the sockets
   alone. An object that starts over on tables of another version keeps its seq
   going, and the cell's watch hands it again a turn it lost. Rejected: the
   Agents SDK's client socket to the thread (a second socket and auth, nothing
-  offline); Anthropic's event shapes (a vendor's union in every replica); an
+  offline); Anthropic's event shapes (a vendor's union on every device); an
   epoch a push (a fence that resets, which a late push of the old one moves
   back). `apps/web/src/worker/agent/agent-turns.ts`, `thread-schema.ts`,
   `packages/contract/src/cloud/library/agent-events.ts`.
@@ -734,7 +732,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `library.items.get` answers an item whole, its fields and every block, one in
   Deleted included; `library.listing.page` a page of a screen's listing,
   `scopes` the rail's counts and `titles` every live item a note's links resolve
-  against, each over the listing a replica keeps
+  against, each over the in-memory listing
   (`@repo/notes/library/library-index`), built over the cell's rows for the one
   read. A listing's words search the query's side, the library or Deleted,
   through the agent's own search: the ranked index, then the live items holding

@@ -1,9 +1,9 @@
-import { libraryChangeSchema } from "@repo/contract/cloud/library/library-wire";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { describe, expect, it } from "vitest";
 
 import {
+  blocksOf,
   cellOf,
   clockAt,
   createItem,
@@ -16,6 +16,7 @@ import {
   person,
   placed,
   refusalOf,
+  storedItemOf,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
@@ -63,7 +64,7 @@ describe("a write to the library cell", () => {
         itemId,
         ops: [{ baseHash: hashOf(A), block: edited, op: "put" }],
       });
-      expect(write.ok && write.head).toBe(2);
+      expect(landedValue(write).item.seq).toBe(2);
 
       // a second writer read the first block before that edit, and the second block as it stands
       const stale = library.write(person("tablet"), {
@@ -91,8 +92,7 @@ describe("a write to the library cell", () => {
       });
       // the whole write landed nothing: the head did not move, and the second block is as it was
       expect(library.head()).toBe(2);
-      const pulled = landedValue(library.bodies([itemId]));
-      expect(pulled.bodies[0]?.blocks.map((stored) => stored.block)).toStrictEqual([edited, B]);
+      expect(blocksOf(library, itemId)).toStrictEqual([edited, B]);
     });
   });
 
@@ -117,8 +117,7 @@ describe("a write to the library cell", () => {
           ops: [{ baseHash: hashOf(B), block: second, op: "put" }],
         }),
       );
-      const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([first, second]);
+      expect(blocksOf(library, itemId)).toStrictEqual([first, second]);
     });
   });
 
@@ -139,8 +138,8 @@ describe("a write to the library cell", () => {
         id: itemId,
         opId,
       });
-      expect(first.ok && first.head).toBe(1);
-      expect(again).toStrictEqual({ head: null, moved: null, ok: true, value: landedValue(first) });
+      expect(landedValue(first).item.seq).toBe(1);
+      expect(again).toStrictEqual({ moved: null, ok: true, value: landedValue(first) });
       expect(library.head()).toBe(1);
     });
   });
@@ -170,7 +169,7 @@ describe("a write to the library cell", () => {
           id: itemId,
         }),
       );
-      expect(landedValue(library.bodies([itemId])).bodies[0]?.blocks).toHaveLength(2000);
+      expect(blocksOf(library, itemId)).toHaveLength(2000);
     });
   });
 
@@ -358,7 +357,6 @@ describe("a write to the library cell", () => {
       expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
       expect(settled).toStrictEqual({
-        head: null,
         moved: null,
         ok: true,
         value: { settled: true },
@@ -394,76 +392,6 @@ describe("a write to the library cell", () => {
       expect(strays()).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
       expect(library.blobRemovals()).toBe(count);
       expect(library.beginStrayRemovals()).toStrictEqual([]);
-    });
-  });
-});
-
-describe("pulling the library", () => {
-  it("pages the change log to the head, every row as it is now, never ending inside a write", async () => {
-    await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
-      const ids = Array.from({ length: 30 }, () => newItemId());
-      for (const id of ids) {
-        landedValue(
-          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
-        );
-      }
-      const first = landedValue(library.pull({ cursor: 0, epoch: null }));
-      if (first.kind !== "changes") {
-        throw new Error("a fresh replica pulls from the start");
-      }
-      expect(first.upto).toBe(30);
-      expect(first.more).toBe(false);
-      expect(first.changes.map((change) => change.id).toSorted()).toStrictEqual(ids.toSorted());
-      for (const change of first.changes) {
-        expect(libraryChangeSchema.parse(change)).toStrictEqual(change);
-      }
-      const after = landedValue(library.pull({ cursor: first.upto, epoch: first.epoch }));
-      expect(after).toMatchObject({ changes: [], kind: "changes", more: false, upto: 30 });
-    });
-  });
-
-  it("answers a replica of another library, or a cursor with no library behind it, with a reset", async () => {
-    await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
-      landedValue(
-        createItem(library, FILL_ACTOR, {
-          blocks: placed([A]),
-          fields: noteFields(),
-          id: newItemId(),
-        }),
-      );
-      const fresh = landedValue(library.pull({ cursor: 0, epoch: null }));
-      expect(landedValue(library.pull({ cursor: 1, epoch: "another-library" }))).toStrictEqual({
-        epoch: fresh.epoch,
-        kind: "reset",
-      });
-      expect(landedValue(library.pull({ cursor: 3, epoch: null }))).toStrictEqual({
-        epoch: fresh.epoch,
-        kind: "reset",
-      });
-    });
-  });
-
-  it("sends bodies in the order asked, defers past the answer's size, and names an item with none", async () => {
-    await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
-      const big = Array.from({ length: 6 }, (_, index) =>
-        paragraph(`p${String(index)}`, "z".repeat(400 * 1024)),
-      );
-      const one = newItemId();
-      const two = newItemId();
-      landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: one }),
-      );
-      landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: two }),
-      );
-      const missing = newItemId();
-      // past about 4 MB the rest waits for the next ask, the first body whatever its size
-      const answer = landedValue(library.bodies([missing, one, two, one]));
-      expect(answer).toMatchObject({ deferred: [one], gone: [missing] });
-      expect(answer.bodies.map((body) => body.id)).toStrictEqual([one, two]);
     });
   });
 });
@@ -577,8 +505,7 @@ describe("change sets and undo", () => {
       const answer = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
       expect(answer.kept).toStrictEqual([kept]);
       expect(answer.reverted).toStrictEqual([undone]);
-      const [body] = landedValue(library.bodies([undone])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([A]);
+      expect(blocksOf(library, undone)).toStrictEqual([A]);
       expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toStrictEqual({
         changeSetId: setId,
         kind: "already-undone",
@@ -722,8 +649,7 @@ describe("change sets and undo", () => {
         expect(setCount(state)).toBe(sets);
         const answer = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
         expect(answer).toMatchObject({ kept: [], refused: [], reverted: [itemId] });
-        const [body] = landedValue(roomy.bodies([itemId])).bodies;
-        expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([A, passage]);
+        expect(blocksOf(roomy, itemId)).toStrictEqual([A, passage]);
         expect(undoneBy(state, setId)).toBe(answer.changeSetId);
       });
     });
@@ -761,13 +687,11 @@ describe("change sets and undo", () => {
         const partial = landedValue(full.undo(person("laptop"), { changeSetIds: [setId] }));
         expect(partial).toMatchObject({ kept: [], refused: [cut], reverted: [added] });
         expect(undoneBy(state, setId)).toBeNull();
-        const [thinned] = landedValue(roomy.bodies([added])).bodies;
-        expect(thinned?.blocks.map((stored) => stored.block)).toStrictEqual([A]);
+        expect(blocksOf(roomy, added)).toStrictEqual([A]);
         const rest = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
         expect(rest).toMatchObject({ kept: [], refused: [] });
         expect(rest.reverted).toContain(cut);
-        const [whole] = landedValue(roomy.bodies([cut])).bodies;
-        expect(whole?.blocks.map((stored) => stored.block)).toStrictEqual([A, passage]);
+        expect(blocksOf(roomy, cut)).toStrictEqual([A, passage]);
         expect(undoneBy(state, setId)).toBe(rest.changeSetId);
       });
     });
@@ -921,8 +845,7 @@ describe("change sets and undo", () => {
         { actor: "person", hashes: [hashOf(again)] },
         { actor: "fill", hashes: [hashOf(later)] },
       ]);
-      const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([again]);
+      expect(blocksOf(library, itemId)).toStrictEqual([again]);
     });
   });
 
@@ -936,10 +859,10 @@ describe("change sets and undo", () => {
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
       landedValue(library.undo(person(), { changeSetIds: [z.string().parse(set?.id)] }));
-      const pulled = landedValue(library.pull({ cursor: 0, epoch: null }));
-      const row =
-        pulled.kind === "changes" ? pulled.changes.find((change) => change.id === itemId) : null;
-      expect(row?.row).toMatchObject({ fields: { deletedAt: clock.now }, kind: "live" });
+      expect(storedItemOf(library, itemId)).toMatchObject({
+        fields: { deletedAt: clock.now },
+        kind: "live",
+      });
     });
   });
 
@@ -960,9 +883,7 @@ describe("change sets and undo", () => {
       expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toStrictEqual([
         itemId,
       ]);
-      const pulled = landedValue(library.pull({ cursor: 0, epoch: null }));
-      const changes = pulled.kind === "changes" ? pulled.changes : [];
-      expect(changes.find((change) => change.id === itemId)?.row).toMatchObject({ kind: "purged" });
+      expect(storedItemOf(library, itemId)).toMatchObject({ kind: "purged" });
       for (const table of ["snapshot_parts", "block_versions", "change_set_items"]) {
         expect(
           state.storage.sql

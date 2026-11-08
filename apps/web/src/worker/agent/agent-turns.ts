@@ -6,7 +6,7 @@
 // object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every model
 // call the object makes is reserved here first and settled at its exact usage after; every tool
 // call runs here, under the turn, against the library's own procedures; and what the turn did
-// lands here as pushes, each once by its sequence, as the account's synced events. The push that
+// lands here as pushes, each once by its sequence, as the thread's stored events. The push that
 // ends a turn seals it: one change set, its open reservations booked, a turn that cost nothing
 // given back, the links it saved read, and the next waiting send let in. A watch job asks after a
 // turn whose object it has not heard from in five minutes.
@@ -152,7 +152,7 @@ const answeredBefore = <T>(
   if (!prior.ok) {
     return prior;
   }
-  return prior.value === null ? null : { head: null, moved: null, ok: true, value: prior.value };
+  return prior.value === null ? null : { moved: null, ok: true, value: prior.value };
 };
 
 const statusOf = (sql: SqlStatements, threadId: string): ThreadAnswer => ({
@@ -767,7 +767,7 @@ export const landPush = async (
   return kind === "landed" ? { ok: true, value: null } : { ok: false, refusal: kind };
 };
 
-// the reply as it is written, on the account's sockets alone: never stored, never pulled
+// the reply as it is written, on the account's sockets alone: never stored, never read again
 export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswer<null> => {
   const parsed = previewRequestSchema.safeParse(request);
   if (!parsed.success) {

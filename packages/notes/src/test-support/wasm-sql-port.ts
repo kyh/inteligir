@@ -1,5 +1,5 @@
-// The library's SQL under test: SQLite's own wasm build, in memory, behind the port the cell and the
-// replicas hand the plans. The port holds every statement to a SQLite Durable Object's limits
+// The library's SQL under test: SQLite's own wasm build, in memory, behind the port the cell hands
+// the plans. The port holds every statement to a SQLite Durable Object's limits
 // (https://developers.cloudflare.com/durable-objects/platform/limits/ and
 // https://developers.cloudflare.com/durable-objects/api/sql-storage/), so a plan that would be
 // refused on the cell fails here: past 100 bound parameters, past 100 KB of text, a value past
@@ -10,14 +10,7 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { utf8ByteLength } from "../library/canonical-json";
 import { runPlan, SQL_MAX_PARAMS, SQL_MAX_STATEMENT_BYTES } from "../library/library-sql";
 import { sqlRowSchema } from "../library/sql-value";
-import type {
-  AsyncSqlStatements,
-  SqlPlan,
-  SqlPort,
-  SqlRow,
-  SqlStatement,
-  SqlValue,
-} from "../library/library-sql";
+import type { SqlPlan, SqlPort, SqlRow, SqlStatement, SqlValue } from "../library/library-sql";
 
 const sqlite3 = await sqlite3InitModule();
 
@@ -27,10 +20,6 @@ const REFUSED_SQL = /\b(?:like|glob|pragma|begin|commit|rollback|savepoint|relea
 export interface WasmSqlPort extends SqlPort {
   // every statement the port ran, in order
   readonly statements: SqlStatement[];
-  // the database's own statement, past the limits: what a replica's driver sends to hold a
-  // transaction open across awaits
-  readonly raw: (sql: string) => void;
-  readonly close: () => void;
 }
 
 const isText = (value: SqlValue): value is string => typeof value === "string";
@@ -64,12 +53,6 @@ export const openWasmSqlPort = (): WasmSqlPort => {
       record(sql, params);
       return db.selectObjects(sql, [...params]).map((row) => sqlRowSchema.parse(row));
     },
-    close: () => {
-      db.close();
-    },
-    raw: (sql) => {
-      db.exec(sql);
-    },
     run: (sql, params) => {
       record(sql, params);
       db.exec({ bind: [...params], sql });
@@ -78,16 +61,6 @@ export const openWasmSqlPort = (): WasmSqlPort => {
     transaction: (work) => db.transaction(() => work()),
   };
 };
-
-// the same database behind an asynchronous port, as a replica's driver presents its statements
-export const asyncPortOf = (port: WasmSqlPort): AsyncSqlStatements => ({
-  all: async (sql: string, params: readonly SqlValue[]) =>
-    await Promise.resolve(port.all(sql, params)),
-  run: async (sql: string, params: readonly SqlValue[]) => {
-    port.run(sql, params);
-    await Promise.resolve();
-  },
-});
 
 // a plan as one transaction: every statement lands, or none does
 export const transactPlan = <T>(port: SqlPort, plan: SqlPlan<T>): T =>

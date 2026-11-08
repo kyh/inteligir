@@ -1,8 +1,7 @@
 // What the apps read of the library, inside one read transaction: an item whole, and the listing
-// through the in-memory index a replica keeps (`@repo/notes/library/library-index`), built over
-// the cell's rows for the one call, for a screen's pages, the rail's counts and the titles a note's
-// links resolve against. An agent's lists and searches read the same index and the same search
-// (`./cell-reads`).
+// through the in-memory index (`@repo/notes/library/library-index`), built over the cell's rows for
+// the one call, for a screen's pages, the rail's counts and the titles a note's links resolve
+// against. An agent's lists and searches read the same index and the same search (`./cell-reads`).
 
 import type {
   listedItemSchema,

@@ -10,6 +10,7 @@ import { connectorAuth } from "../connector/connector-auth";
 import { loginDevice, signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import { connectAssistant } from "../test-support/connector-session";
 import {
+  blocksOf,
   cellOf,
   clockAt,
   createItem,
@@ -75,10 +76,8 @@ describe("the library cell", () => {
         }),
       );
     });
-    const pulled = await inCell(theirs, (state) =>
-      landedValue(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
-    );
-    expect(pulled).toMatchObject({ changes: [], kind: "changes", upto: 0 });
+    await expect(inCell(mine, itemCount)).resolves.toBe(1);
+    await expect(inCell(theirs, itemCount)).resolves.toBe(0);
   });
 
   it("takes a library call only with a principal of its own account", async () => {
@@ -190,10 +189,9 @@ describe("the library cell", () => {
     await evictDurableObject(stub);
     const after = await inCell(stub, async (state) => {
       const library = openCellLibrary(state, env);
-      const [body] = landedValue(library.bodies([itemId])).bodies;
       return {
         alarm: await state.storage.getAlarm(),
-        body: body?.blocks.length,
+        body: blocksOf(library, itemId).length,
         open: state.storage.sql
           .exec("SELECT count(*) AS n FROM change_sets WHERE sealed_at IS NULL")
           .one().n,
@@ -202,27 +200,21 @@ describe("the library cell", () => {
     expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
   });
 
-  it("starts over under a new epoch when its schema is of another version", async () => {
+  it("starts over empty when its schema is of another version", async () => {
     const stub = cellOf();
-    const before = await inCell(stub, (state) => {
-      const library = engineIn(state, clockAt());
+    await inCell(stub, (state) => {
       landedValue(
-        createItem(library, FILL_ACTOR, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "an older build's")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
         }),
       );
       state.storage.sql.exec("UPDATE meta SET v = 1 WHERE k = 'schema'");
-      return landedValue(library.pull({ cursor: 0, epoch: null }));
     });
     await evictDurableObject(stub);
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const after = await inCell(stub, (state) =>
-      landedValue(engineIn(state, clockAt()).pull({ cursor: 0, epoch: before.epoch })),
-    );
-    expect(after.kind).toBe("reset");
-    expect(after.epoch).not.toBe(before.epoch);
+    await expect(inCell(stub, itemCount)).resolves.toBe(0);
     expect(warned).toHaveBeenCalledWith({ event: "cell-schema-reset", found: "1" });
     warned.mockRestore();
   });
@@ -232,13 +224,11 @@ describe("the library cell", () => {
     const stub = cellOf(accountId);
     const request = { bytes: 5, mime: "image/png", sha: SHA };
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
-      head: null,
       moved: null,
       ok: true,
       value: { held: false },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      head: null,
       moved: null,
       ok: true,
       value: { settled: false },
@@ -248,13 +238,11 @@ describe("the library cell", () => {
       httpMetadata: { contentType: "image/png" },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      head: null,
       moved: null,
       ok: true,
       value: { settled: true },
     });
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
-      head: null,
       moved: null,
       ok: true,
       value: { held: true },
@@ -363,7 +351,7 @@ describe("deleting the account from its cell", () => {
           files: await files(accountBlobPrefix(accountId)),
           grants: await grants(),
           items: itemCount(state),
-          read: refusalOf(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
+          read: refusalOf(engineIn(state, clockAt()).read(() => null)),
           threads: await heldThreads(),
         });
       }
@@ -419,7 +407,7 @@ describe("deleting the account from its cell", () => {
     const key = blobKey(accountId, SHA);
     await expect(
       stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA }),
-    ).resolves.toStrictEqual({ head: null, moved: null, ok: true, value: { held: false } });
+    ).resolves.toStrictEqual({ moved: null, ok: true, value: { held: false } });
     await stub.purge("purge-race@example.test");
     // the upload's bytes reach R2 after the files step listed the account's prefix
     await env.BLOBS.put(key, "bytes", { httpMetadata: { contentType: "image/png" } });
@@ -469,7 +457,7 @@ describe("deleting the account from its cell", () => {
     await evictDurableObject(stub);
     const after = await inCell(stub, (state) => ({
       items: itemCount(state),
-      read: refusalOf(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
+      read: refusalOf(engineIn(state, clockAt()).read(() => null)),
     }));
     expect(after).toStrictEqual({ items: 0, read: { kind: "gone" } });
     await expect(

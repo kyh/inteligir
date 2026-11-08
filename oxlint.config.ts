@@ -14,10 +14,9 @@ const suites = ["**/*.{test,test-d}.{ts,tsx}"];
 // "@platejs/react", and a bare name or one `/*` misses a package's deeper subpaths.
 const NODE = "^node:";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
-// the replica engine and the agent's panel run in the Mac's page, the browser tab, the phone's
-// Hermes and node's tests: no platform, no UI, and no editor, whose diff3 the engine's host hands
-// it as the block merge
-const REPLICA_IMPORTS =
+// the agent's panel runs in the Mac's page, the browser tab, the phone's Hermes and node's tests:
+// no platform, no UI and no editor, since the phone draws it natively
+const PANEL_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
 const NOTES_PURITY =
@@ -231,13 +230,8 @@ export default defineConfig({
       "@repo/page-reader reads a page over the DOM its host hands it, in the Worker's fill and the extension's worker, so it imports no node module (no socket a page could reach) and no React",
     ),
     platformPurity(
-      "packages/library-replica",
-      REPLICA_IMPORTS,
-      "@repo/library-replica is the replica engine every device runs, so it names no platform: its SQL, clock, ids, transport, socket, staged files and block merge are the ports its host hands it",
-    ),
-    platformPurity(
       "packages/agent-panel",
-      REPLICA_IMPORTS,
+      PANEL_IMPORTS,
       "@repo/agent-panel is the built-in agent's panel as every device reads it, so it names no platform and no UI: the Mac's and the tab's page draw it with @repo/ui, the phone natively",
     ),
     platformPurity(
@@ -333,37 +327,6 @@ export default defineConfig({
         ],
       },
     },
-    {
-      // A test is one of the hosts, so it may hand the engine the platform's timers and fetch.
-      excludeFiles: tests,
-      files: ["packages/library-replica/src/**"],
-      rules: {
-        "no-restricted-globals": [
-          "error",
-          {
-            checkGlobalObject: true,
-            globals: [
-              "crypto",
-              "document",
-              "fetch",
-              "indexedDB",
-              "localStorage",
-              "navigator",
-              "setInterval",
-              "setTimeout",
-              "URL",
-              "WebSocket",
-              "window",
-              "XMLHttpRequest",
-            ].map((name) => ({
-              message:
-                "@repo/library-replica names no platform: take the clock, the transport, the socket or the ids from the host's ports (src/replica-ports.ts)",
-              name,
-            })),
-          },
-        ],
-      },
-    },
   ],
   rules: {
     ...pluginQuery.configs.recommended.rules,
@@ -401,8 +364,8 @@ export default defineConfig({
     // `x === null || x.y === null` to be `x?.y === null`, false where x is null
     "typescript/no-unsafe-enum-assignment": "error",
     // it asks every parameter's type to be deeply readonly, which the types a library hands a
-    // callback are not (React's events, DOM nodes, Plate's editor, zod's outputs): 1,160 findings
-    // in notes, the replica and the page alone, nearly all on a library's type
+    // callback are not (React's events, DOM nodes, Plate's editor, zod's outputs): hundreds of
+    // findings in notes and the page alone, nearly all on a library's type
     "typescript/prefer-readonly-parameter-types": "off",
     // the typed rule in place of the base one, which reports the same functions untyped
     "require-await": "off",

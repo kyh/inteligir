@@ -13,15 +13,14 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
-// site and the Worker's mail, consent page and refusals, @repo/contract, @repo/library-replica and
-// @repo/notes for the refusals and notices they hand a surface to show. tools/ui-gallery is not one:
+// site and the Worker's mail, consent page and refusals, @repo/contract and @repo/notes for the
+// refusals and notices they hand a surface to show. tools/ui-gallery is not one:
 // it is never deployed, so no person reads its sample words
 const SURFACES = [
   "@repo/agent-panel",
   "@repo/contract",
   "@repo/editor",
   "@repo/extension",
-  "@repo/library-replica",
   "@repo/mobile",
   "@repo/mobile-editor",
   "@repo/notes",

@@ -63,10 +63,9 @@ import {
 } from "./cell-reads";
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import { saveLink, savePage } from "./cell-saves";
-import { libraryHead } from "./cell-sync";
 import type { CellActor } from "./cell-actor";
 import { listThreads, threadEvents } from "./cell-threads";
-import { landedSchema } from "./library-engine";
+import { landedSchema, libraryHead } from "./library-engine";
 import type { LibraryEngine } from "./library-engine";
 import { readLibraryRules, writeLibraryRules } from "./library-rules";
 
@@ -77,7 +76,7 @@ export interface CellContext {
   readonly library: LibraryEngine;
   // the built-in agent's turns, which `library.agent.*` asks of
   readonly agent: AgentCell;
-  // what follows a committed write: the sockets told the new head, the alarm set
+  // what follows a committed write: the sockets told what it moved, the alarm set
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
 }
 
@@ -456,12 +455,6 @@ export const libraryRouter = os.router({
       ),
     ),
   ),
-  sync: {
-    bodies: os.sync.bodies.handler(({ context, input }) =>
-      answer(context.library.bodies(input.ids)),
-    ),
-    pull: os.sync.pull.handler(({ context, input }) => answer(context.library.pull(input))),
-  },
   write: os.write.handler(
     async ({ context, input }) =>
       await committed(context, context.library.write(context.actor(), input)),

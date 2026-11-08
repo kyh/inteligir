@@ -1,6 +1,6 @@
 // What a conversation with the built-in agent is made of, as every device reads it: the events a
 // thread's rows carry (`threadEventRowSchema`'s `event`, its `type` beside it) and its socket
-// frames. The union is ours, never a model vendor's, so a replica reads one shape whatever the
+// frames. The union is ours, never a model vendor's, so every device reads one shape whatever the
 // agent runs on. A thread's object pushes these to its account's cell, which stores each once; the
 // person's message that opens a turn is the cell's own. A reader skips an event its build cannot
 // parse, so a newer cell may add types.
@@ -9,8 +9,8 @@ import { z } from "zod";
 
 import { agentViewContextSchema } from "./library-wire";
 
-// how much of a tool's result a stored event carries: the agent reads the whole of it, and a synced
-// row never carries a page
+// how much of a tool's result a stored event carries: the agent reads the whole of it, and a
+// thread's event row never carries a page
 export const TOOL_RESULT_SUMMARY_MAX = 2000;
 
 const instant = z.number().int().nonnegative();

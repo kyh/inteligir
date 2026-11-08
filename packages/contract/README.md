@@ -59,8 +59,8 @@ src/
 - **apps/workspace** (the browser tab, and the Mac app's window on it) reaches
   the library and the account through `cloud/v1`, each read a query under
   oRPC's own key that the account's socket invalidates
-  (`cloud/library/library-socket`). **apps/mobile** reaches the library through
-  its replica (`@repo/library-replica`) and the account through `cloud/v1`.
+  (`cloud/library/library-socket`). **apps/mobile** reaches them the same way,
+  its query cache kept between launches.
 - **Every app's suites** drive the fake cell, sockets and clock in
   `test-support/`, the contract's rows answered in memory.
 - **apps/extension** reaches the library's saves and the account's sign-out
@@ -88,7 +88,7 @@ src/
   declares is never a verdict on a credential: it is a fault a client retries,
   but for `BAD_REQUEST`, which says the call can never land as it is.
 - **Every library write takes an optional `opId`**, which the cell keeps, so
-  an outbox resending after a lost answer lands once; the test names each read
+  a save queue resending after a lost answer lands once; the test names each read
   it exempts. A write names the base it was computed from (a block's hash, a
   field's value), and `CONFLICT` carries what it met.
 - **No row is named after a property every function has** (`apply`, `call`,
@@ -105,10 +105,10 @@ src/
   `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
   it, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
   `docs/privacy.md`.
-- **The socket's `library` frame is a hint, never state.** It says the library
-  moved, and a pull carries what did. A `thread` frame carries the agent's turn
-  as it moves: an event the thread's next pull holds too, or a preview no pull
-  ever does. Each frame is JSON, and one of a type a build does not know is no
+- **The socket's `moved` frame is a hint, never state.** It says what a write
+  moved, and a client reads that again over `/v1`. A `thread` frame carries the
+  agent's turn as it moves: an event a read of the thread's events answers too,
+  or a preview no read ever does. Each frame is JSON, and one of a type a build does not know is no
   frame at all, so a newer cell can add types
   (`cloud/library/library-socket.ts`).
 
