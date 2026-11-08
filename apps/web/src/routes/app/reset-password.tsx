@@ -109,7 +109,8 @@ const PasswordChanged = () => (
     footer={<SignInLink label="Sign in" />}
   >
     <p className="text-center text-sm text-muted-foreground">
-      Macs and phones already signed in stay signed in. You can close this tab.
+      Phones already signed in stay signed in; the Mac app and your browsers ask you to sign in
+      again. You can close this tab.
     </p>
   </AuthShell>
 );

@@ -1,11 +1,4 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "identifier": "com.inteligir.desktop.dev",
-  "app": {
-    "security": {
-      "csp": {
-        "connect-src": "'self' ipc: http://ipc.localhost inteligir-files: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*"
-      }
-    }
-  }
+  "identifier": "com.inteligir.desktop.dev"
 }

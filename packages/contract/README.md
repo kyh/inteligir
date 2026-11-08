@@ -42,7 +42,7 @@ src/
     library/           # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
                        #   the agent's events, a file's route, and the socket's frames
     client-build.ts    # the build every request names, and the floor it is held to
-    cloud-origin.ts    # the production origin a client falls back to, and the Mac page's own
+    cloud-origin.ts    # the production origin a client falls back to
     library-page.ts    # where the Worker serves the library's page
     connector.ts       # the connector's path, which an assistant is pointed at
     bytes.ts           # the byte primitives, on globals every target has
@@ -54,7 +54,7 @@ src/
 - **apps/web** SERVES every row, the account's on its own handler and the
   library's in each account's cell, and decorates the library's rows as the
   connector's tools, the one place MCP and OpenAPI meta are written.
-- **apps/workspace** (the Mac's window and the browser tab) and
+- **apps/workspace** (the browser tab, and the Mac app's window on it) and
   **apps/mobile** reach the library through their replica
   (`@repo/library-replica`) and the account through `cloud/v1`.
 - **apps/extension** reaches the library's saves and the account's sign-out

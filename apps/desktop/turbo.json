@@ -2,26 +2,8 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // cargo compiles the shell for its tests and for clippy, and tauri::generate_context! reads the
-    // page @repo/workspace builds (frontendDist), so both wait on that build, as a fresh checkout has
-    // none
-    "test": {
-      "dependsOn": ["^topo", "generate", "^build"]
-    },
-    "typecheck": {
-      "dependsOn": ["^topo", "generate", "^build"]
-    },
-    // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
-    // with @repo/workspace's page inside it. cargo keeps its own incremental cache, keyed
-    // on what turbo cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op
-    // compile.
-    "build:shell": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
-    // The .app: the shell compiled with the page inside it, signed, and the release's assets.
+    // The .app: the shell compiled around the site's URL, signed, and the release's assets.
     "package": {
-      "dependsOn": ["^build"],
       "outputs": [".output/bin/**"],
       // Not a pure function of the source: the signature comes from the keychain and the
       // notarization ticket from Apple, and a cache hit would replay an unsigned artifact over a
@@ -30,15 +12,6 @@
       // how the pack signs: strict env mode strips anything unnamed before scripts/package.ts reads
       // it. The notary's and the updater's keys are .release's alone
       "passThroughEnv": ["APPLE_SIGNING_IDENTITY", "INTELIGIR_PACK_UNSIGNED"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      // the page's build, which the shell embeds, is the page's last: its loop is `pnpm dev:web`
-      "dependsOn": ["^build"],
-      // strict env mode strips anything unnamed: a debug shell reads the cloud's origin from this
-      // one (apps/desktop/src-tauri/src/cloud.rs), else the local Worker's
-      "passThroughEnv": ["INTELIGIR_CLOUD_ORIGIN"]
     }
   }
 }

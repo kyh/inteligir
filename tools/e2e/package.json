@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "e2e": "tsx src/run.ts",
+    "serve-worker": "tsx src/serve-worker.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -6,9 +6,8 @@ in-memory SQLite) and every write through its outbox, and what only the cloud
 answers (the agent and its Undo, import, the account) through `/v1`.
 Signed out, it sends the tab to the site's sign-in, which brings it back. It
 reaches neither the Worker's source nor the shell's: the Worker copies its build
-into its assets ([`apps/web`](../web/README.md)), the desktop shell embeds the
-same build ([`apps/desktop`](../desktop/README.md)), and the page talks to each
-over its wire.
+into its assets ([`apps/web`](../web/README.md)), and the Mac app's window loads
+it from the site ([`apps/desktop`](../desktop/README.md)).
 
 ```
 src/main.tsx        opens the session, then the replica, and mounts the router
@@ -19,9 +18,8 @@ src/app/cloud/      the /v1 client and its query utils, the replica's queries,
                     the page's library context, "Needs a connection"
 src/app/            the workspace: the rail, the grid, the open item, the panel
                     (Info, the agent), the palette, Settings
-src/shell/          what the page says to the Tauri shell: one command per row of
-                    ipc-contract.ts, and shell-commands.ts, the one door that
-                    parses every answer
+src/shell/          what the page asks the Mac app's shell: its update, through
+                    desktop-bridge.ts, which parses every answer
 ```
 
 ## Running it
@@ -34,19 +32,18 @@ pnpm dev:web    # the Worker on localhost:5174, serving this page's build at
 Sign in at `localhost:5174/app/sign-in` (`AGENTS.md` § "There is no seeded
 login" makes the account) and the tab lands in `/library`; reload it after an
 edit. The page runs through the Worker's own route and policy, as a deploy
-does (`apps/web/src/worker/library/library-page.ts`). What the shell holds (the
-replica on disk, the Keychain, the file cache, the updater) a tab does not: it
-keeps its replica in memory, its session in a cookie, and Settings' Updates row
-says why it offers none. `underShell()` in `src/shell/shell-commands.ts` says
-where the page runs.
+does (`apps/web/src/worker/library/library-page.ts`). The Mac app's window is a
+tab of the same page; only its updater is the shell's, and a tab's Settings
+says updates come with the Mac app. `desktopBridge()` in
+`src/shell/desktop-bridge.ts` says where the page runs.
 
 ## Tests
 
 `pnpm --filter @repo/workspace test` runs the page's own suites under jsdom,
 compiled by the React Compiler as the bundle is, and fails any test that logs a
 `console.error` (`src/app/test-support/console-error-gate.ts`). The shell's
-commands answer through Tauri's own IPC mock
-(`src/shell/test-support/mock-shell.ts`). The page against a real Worker is the
+update commands answer through Tauri's own IPC mock
+(`src/app/update-notice.test.tsx`). The page against a real Worker is the
 e2e's: `browser-smoke`, `library-browser`, `sync-conflict-browser` and the other
 `*-browser` scenarios sign in to the built Worker and drive the tab
 (`tools/e2e/src/harness/library-tab.ts`).

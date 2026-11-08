@@ -1,8 +1,8 @@
 // The editor's host on this page: what the editor's kits ask of the page, answered from the
 // replica. A link names its item by id, which the resolver maps to the item the replica holds, and
 // opening it opens that item; an embed draws the item's blocks as the replica holds them; a file
-// a note names by its sha is drawn from where the page draws its files (the cloud's own route in
-// the tab, the shell's scheme on the Mac), and one pasted or dropped into the text is kept in the
+// a note names by its sha is drawn from where the page draws its files (the cloud's own route),
+// and one pasted or dropped into the text is kept in the
 // replica's outbox, which sends it up ahead of the write that names it; a note the editor makes
 // (an extract, a link's Create) is made in the open item's folder.
 

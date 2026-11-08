@@ -1,15 +1,15 @@
-// The desktop shell's connection to a booted Worker, through a relay the scenario can cut: a TCP
-// forwarder on a port of its own, so the shell's calls, uploads and socket reach the Worker as
-// they would the cloud, and a cut refuses every new connection and drops every open one, the way a
-// Mac that lost its network meets the cloud. Restored, it listens on the same port again, so the
-// shell finds the cloud where it left it.
+// A client's connection to a booted Worker, through a relay the scenario can cut: a TCP forwarder
+// on a port of its own, so the client's calls and uploads reach the Worker as they would the cloud,
+// and a cut refuses every new connection and drops every open one, the way a device that lost its
+// network meets the cloud. Restored, it listens on the same port again, so the client finds the
+// cloud where it left it.
 
 import { connect, createServer } from "node:net";
 import type { Server, Socket } from "node:net";
 import { loopbackOrigin } from "./ports";
 
 export interface CloudLink {
-  // the origin the shell is told the cloud is at
+  // the origin the client is told the cloud is at
   readonly origin: string;
   readonly cut: () => Promise<void>;
   readonly restore: () => Promise<void>;

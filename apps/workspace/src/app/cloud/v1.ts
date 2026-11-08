@@ -1,8 +1,6 @@
-// The page's one wire to its account: `/v1/rpc` through the transport its host hands it. In the
-// browser tab that is the origin that served the page, signed in by the session cookie the site's
-// own sign-in set, so the tab holds no credential and names no build (the Worker reads a
-// same-origin page as its own deploy's); in the Mac app it is the cloud's origin with the device's
-// credential and the build. Every call the replica does not answer (Undo, the built-in agent,
+// The page's one wire to its account: `/v1/rpc` on the origin that served the page, signed in by
+// the session cookie the site's own sign-in set, so the page holds no credential and names no
+// build (the Worker reads a same-origin page as its own deploy's). Every call the replica does not answer (Undo, the built-in agent,
 // imports, exports, the account) goes through these utils, as TanStack queries and mutations the
 // page's one QueryClient holds.
 

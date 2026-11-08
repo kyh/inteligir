@@ -140,7 +140,7 @@ export default defineConfig({
     {
       // A type-aware rule reads the program's types, and a .js file no tsconfig program includes
       // has none: every value in it is `any`. The repo's JS is the few files a tool loads by name
-      // and runs as they stand (Expo's config and plugin, the isolation hook, the preview script
+      // and runs as they stand (Expo's config and plugin, the preview script
       // the deploy job runs before it sets up the repo's node).
       files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
       rules: {

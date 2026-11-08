@@ -330,9 +330,8 @@ is in the file named.
 - **The cell owns every rule; a device holds a replica.** Every write is
   guarded, applied and logged by the account's library cell; a device reads
   its replica and writes through its outbox, and the page asks the Mac's
-  shell only what a browser cannot do (the replica, the credential, the file
-  cache, the updater), one row of `apps/workspace/src/shell/ipc-contract.ts`
-  each (`apps/desktop/CLAUDE.md`).
+  shell only for its update (`apps/workspace/src/shell/desktop-bridge.ts`,
+  `apps/desktop/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
 - **The phone holds a full replica, and asks the built-in agent online**: it

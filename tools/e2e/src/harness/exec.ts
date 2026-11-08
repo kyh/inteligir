@@ -71,8 +71,3 @@ export const hermeticProcessEnv = (): NodeJS.ProcessEnv =>
 // an ambient NODE_ENV would build a development bundle, under a turbo key CI never hashes.
 export const buildProcessEnv = (): NodeJS.ProcessEnv =>
   withoutKeys(hermeticProcessEnv(), (key) => key === "NODE_ENV");
-
-// the shell's settings are the scenario's alone: an inherited INTELIGIR_* (the cloud it signs in
-// to) would move it
-export const appLaunchEnv = (): NodeJS.ProcessEnv =>
-  withoutKeys(hermeticProcessEnv(), (key) => key.startsWith("INTELIGIR_"));

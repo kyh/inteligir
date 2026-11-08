@@ -13,8 +13,8 @@ export const homeMarkdown = `# ${name}: one library for everything you save
 
 ${name} keeps everything you save and write in one library: links and articles, videos, images,
 PDFs and files, beside the notes you write. It does the work of a bookmark manager like Raindrop and
-a notes app like Obsidian at once. The library lives in your ${name} account, and your Mac and your
-iPhone each keep a copy of it. When you ask, the built-in AI agent files, tags, summarizes and edits
+a notes app like Obsidian at once. The library lives in your ${name} account, and your iPhone keeps
+a copy of it. When you ask, the built-in AI agent files, tags, summarizes and edits
 it with you.
 
 ## Save from anywhere
@@ -45,10 +45,10 @@ and the agent files and tags everything waiting, following filing rules you writ
 
 ## Your library, on every device
 
-Your library is kept in your account in our cloud, and every Mac and iPhone you sign in on keeps a
-copy of every item's text and of each picture, PDF or file you open. That copy opens, reads and
-searches with no connection, and what you change goes out when you're back online. In a browser,
-[your library](${libraryUrl}) opens whenever you're online.
+Your library is kept in your account in our cloud, and every iPhone you sign in on keeps a copy of
+every item's text and of each picture, PDF or file you open. That copy opens, reads and searches
+with no connection, and what you change goes out when you're back online. In a browser or the Mac
+app, [your library](${libraryUrl}) opens whenever you're online.
 
 Your Raindrop bookmarks come in from a backup with their collections and tags, each one's
 highlights quoted in its note, and an Obsidian folder comes in as a zip.
@@ -85,8 +85,8 @@ collaborator would, in the open, with every change it makes reversible. It is ma
 ## What makes it different
 
 - **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
-  and each Mac and iPhone you sign in on keeps a copy of every item's text and of each file you open,
-  which work with no connection.
+  and each iPhone you sign in on keeps a copy of every item's text and of each file you open, which
+  work with no connection.
 - **Saving is instant and free.** The extension reads the page you save from it when it can, our
   cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
   you ask.
@@ -136,13 +136,13 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 export const llmsTxt = `# ${name}
 
 > ${name} is a library of everything a person saves and writes (links, articles, videos, images,
-> PDFs, files and their own notes), kept in their account and on every Mac and iPhone they sign in
-> on, with a built-in AI agent that files, tags, summarizes and edits it with them.
+> PDFs, files and their own notes), kept in their account and on every iPhone they sign in on,
+> with a built-in AI agent that files, tags, summarizes and edits it with them.
 
 An account is required, and its first 1 GB is free; creating one takes an invite code. The library
-is kept in the account, in ${name}'s cloud. Each Mac and iPhone keeps a copy of every item's text and
-of each file opened on it, which reads and searches with no connection, and a browser tab at
-${libraryUrl} shows it online. ${name} saves from Chrome,
+is kept in the account, in ${name}'s cloud. Each iPhone keeps a copy of every item's text and of
+each file opened on it, which reads and searches with no connection, and a browser tab at
+${libraryUrl}, or the Mac app's window on it, shows it online. ${name} saves from Chrome,
 Arc, Brave and Edge through its browser extension, by pasting or dragging onto the window, and from
 the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the page it saves when
 it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs

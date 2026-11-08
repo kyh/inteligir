@@ -39,7 +39,7 @@ export const siteGraph = () => ({
       "@type": "SoftwareApplication",
       applicationCategory: "ProductivityApplication",
       description:
-        "One library for the links, articles, images, PDFs and files you save and the notes you write, kept in your account and on your Mac and iPhone, with a built-in AI agent that files, tags and edits it with you.",
+        "One library for the links, articles, images, PDFs and files you save and the notes you write, kept in your account and on your iPhone, with a built-in AI agent that files, tags and edits it with you.",
       downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,

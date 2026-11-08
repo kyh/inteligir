@@ -57,7 +57,6 @@ One per file; its header and its failure message state the rule in full.
 - `dangling-references.test.ts`: every `@repo/*` name and group-anchored path in a tracked file resolves (what it reads: below).
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
-- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.
 - `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery.
 - `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
 - `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.

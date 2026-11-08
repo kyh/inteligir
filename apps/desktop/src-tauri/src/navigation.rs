@@ -1,13 +1,5 @@
-//! What the window may load: the app's own page, and the shell's files inside it (a PDF's viewer
-//! is a frame of the page's). Tauri hands this hook a navigation's URL alone, never the frame it is
-//! for, so a load of the files' origin passes whichever frame asks; the page never sends the window
-//! itself there, since it saves a file through a blob of its own origin (`item-stages.tsx`), whose
-//! `download` link WebKitGTK asks this hook about (WebKit on macOS hands a download over unasked),
-//! so a blob the page made passes too. Any other web page opens in the browser instead, and
-//! nothing else loads.
-
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+//! What the window may show: the site's own pages, its blobs (a file the page saves) and the blank
+//! documents of a frame; any other web page opens in the browser instead, and nothing else loads.
 
 use tauri::Url;
 
@@ -16,20 +8,6 @@ pub enum Verdict {
     Allow,
     OpenExternally,
     Deny,
-}
-
-/// The origin a window is pinned to, compared by its parts. Not `Url::origin`: the url crate
-/// answers an opaque origin for any non-special scheme, so `tauri://localhost` would equal nothing,
-/// and `tauri://app@evil` would carry a host of `evil` past a prefix compare.
-pub fn comparable_origin(url: &Url) -> Option<String> {
-    if !url.username().is_empty() || url.password().is_some() {
-        return None;
-    }
-    let host = url.host_str().filter(|host| !host.is_empty())?;
-    Some(match url.port_or_known_default() {
-        Some(port) => format!("{}://{host}:{port}", url.scheme()),
-        None => format!("{}://{host}", url.scheme()),
-    })
 }
 
 /// WebKit asks about a frame's navigations too: a note's html block previews in a srcdoc frame,
@@ -42,23 +20,12 @@ pub fn is_web_url(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https")
 }
 
-/// The origin a blob was made by: WebKit names one `blob:` before its maker's origin, and only that
-/// origin's own scripts can make one.
-fn blob_maker(target: &Url) -> Option<String> {
-    if target.scheme() != "blob" {
-        return None;
-    }
-    comparable_origin(&Url::parse(target.path()).ok()?)
-}
-
-/// Compared by origin, never by prefix: `tauri://localhost` prefixes `tauri://localhost.evil`.
-pub fn classify(target: &Url, pinned: &[&str]) -> Verdict {
-    let pinned_origin =
-        |origin: Option<String>| origin.is_some_and(|origin| pinned.contains(&origin.as_str()));
-    if pinned_origin(comparable_origin(target))
-        || pinned_origin(blob_maker(target))
-        || is_frame_document(target)
-    {
+/// Compared by origin, never by prefix: `http://localhost:5174` prefixes `http://localhost:51740`.
+/// A blob's origin is the page's that made it.
+pub fn classify(target: &Url, app: &Url) -> Verdict {
+    let origin = target.origin();
+    // an opaque origin (a non-web scheme) never equals the app's
+    if (origin.is_tuple() && origin == app.origin()) || is_frame_document(target) {
         return Verdict::Allow;
     }
     if is_web_url(target) {
@@ -68,57 +35,28 @@ pub fn classify(target: &Url, pinned: &[&str]) -> Verdict {
     }
 }
 
-/// A script can navigate the page with no click, and every refused navigation to a web page would
-/// open the browser, so a page in a loop would be a loop of launches. WebKit tells Tauri nothing of
-/// the click behind a navigation, so the browser opens at most once a second instead.
-pub struct ExternalOpens {
-    last: Mutex<Option<Instant>>,
-}
-
-pub const EXTERNAL_OPEN_SPACING: Duration = Duration::from_secs(1);
-
-impl ExternalOpens {
-    pub const fn new() -> Self {
-        Self {
-            last: Mutex::new(None),
-        }
-    }
-
-    /// Records the open when it is allowed.
-    pub fn allow(&self, now: Instant) -> bool {
-        let mut last = self
-            .last
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let allowed =
-            last.is_none_or(|at| now.saturating_duration_since(at) >= EXTERNAL_OPEN_SPACING);
-        if allowed {
-            *last = Some(now);
-        }
-        allowed
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const PINNED: &[&str] = &["tauri://localhost", "inteligir-files://localhost"];
 
     fn url(value: &str) -> Url {
         Url::parse(value).unwrap_or_else(|error| panic!("{value}: {error}"))
     }
 
+    fn site() -> Url {
+        url("https://inteligir.com/library")
+    }
+
     #[test]
-    fn keeps_the_page_and_its_files_on_any_path() {
+    fn keeps_every_page_of_the_site() {
         assert_eq!(
-            classify(&url("tauri://localhost/library/#/settings"), PINNED),
+            classify(&url("https://inteligir.com/library/settings"), &site()),
             Verdict::Allow
         );
         assert_eq!(
             classify(
-                &url(&format!("inteligir-files://localhost/{}", "a".repeat(64))),
-                PINNED
+                &url("https://inteligir.com/app/sign-in?next=%2Flibrary"),
+                &site()
             ),
             Verdict::Allow
         );
@@ -126,73 +64,59 @@ mod tests {
 
     #[test]
     fn compares_origins_not_prefixes() {
+        let local = url("http://localhost:5174/library");
         assert_eq!(
-            classify(&url("tauri://localhost.evil/"), PINNED),
-            Verdict::Deny
-        );
-        assert_eq!(classify(&url("tauri://elsewhere/"), PINNED), Verdict::Deny);
-        assert_eq!(
-            classify(&url("http://localhost/library/"), PINNED),
+            classify(&url("http://localhost:51740/library"), &local),
             Verdict::OpenExternally
         );
-    }
-
-    #[test]
-    fn a_login_in_the_url_is_no_origin() {
-        assert_eq!(comparable_origin(&url("tauri://localhost@evil/")), None);
         assert_eq!(
-            classify(&url("tauri://localhost@evil/"), PINNED),
-            Verdict::Deny
-        );
-        assert_eq!(
-            classify(&url("https://user@inteligir.com/"), PINNED),
+            classify(&url("https://localhost:5174/library"), &local),
             Verdict::OpenExternally
         );
-    }
-
-    #[test]
-    fn opens_other_web_pages_in_the_browser_and_refuses_the_rest() {
         assert_eq!(
-            classify(&url("https://example.com/"), PINNED),
+            classify(&url("https://inteligir.com.evil/library"), &site()),
             Verdict::OpenExternally
         );
-        assert_eq!(classify(&url("file:///etc/passwd"), PINNED), Verdict::Deny);
-        assert_eq!(classify(&url("javascript:alert(1)"), PINNED), Verdict::Deny);
     }
 
     #[test]
     fn lets_a_blob_the_page_made_load_as_its_save_and_no_other() {
         assert_eq!(
-            classify(&url("blob:tauri://localhost/065f281d-fbc4"), PINNED),
+            classify(&url("blob:https://inteligir.com/065f281d-fbc4"), &site()),
             Verdict::Allow
         );
         assert_eq!(
-            classify(&url("blob:https://example.com/065f281d-fbc4"), PINNED),
+            classify(&url("blob:https://example.com/065f281d-fbc4"), &site()),
             Verdict::Deny
         );
         assert_eq!(
-            classify(&url("blob:tauri://localhost.evil/065f281d-fbc4"), PINNED),
-            Verdict::Deny
-        );
-        assert_eq!(
-            classify(&url("blob:null/065f281d-fbc4"), PINNED),
+            classify(&url("blob:null/065f281d-fbc4"), &site()),
             Verdict::Deny
         );
     }
 
     #[test]
     fn lets_frames_load_their_blank_documents() {
-        assert_eq!(classify(&url("about:srcdoc"), PINNED), Verdict::Allow);
-        assert_eq!(classify(&url("about:blank"), PINNED), Verdict::Allow);
-        assert_eq!(classify(&url("about:config"), PINNED), Verdict::Deny);
+        assert_eq!(classify(&url("about:srcdoc"), &site()), Verdict::Allow);
+        assert_eq!(classify(&url("about:blank"), &site()), Verdict::Allow);
+        assert_eq!(classify(&url("about:config"), &site()), Verdict::Deny);
     }
 
     #[test]
-    fn opens_the_browser_at_most_once_a_second() {
-        let opens = ExternalOpens::new();
-        let start = Instant::now();
-        assert!(opens.allow(start));
-        assert!(!opens.allow(start + Duration::from_millis(400)));
-        assert!(opens.allow(start + EXTERNAL_OPEN_SPACING));
+    fn opens_other_web_pages_in_the_browser_and_refuses_the_rest() {
+        assert_eq!(
+            classify(&url("https://example.com/"), &site()),
+            Verdict::OpenExternally
+        );
+        assert_eq!(classify(&url("file:///etc/passwd"), &site()), Verdict::Deny);
+        assert_eq!(
+            classify(&url("javascript:alert(1)"), &site()),
+            Verdict::Deny
+        );
+        assert_eq!(
+            classify(&url("mailto:a@example.com"), &site()),
+            Verdict::Deny
+        );
+        assert_eq!(classify(&url("tauri://localhost/"), &site()), Verdict::Deny);
     }
 }

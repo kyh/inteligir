@@ -62,10 +62,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `engines.node`; `compatibilityDate` is the lockfile's oldest workerd, and no
   earlier than 2026-10-01 (`tools/repo-guards/src/workerd-compat-date.test.ts`);
   `pnpm e2e` boots the built Worker
-  (`tools/e2e/src/scenarios/built-worker-boot.ts`) and desktop shell
-  (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser and tauri-driver
-  are pinned by hand in `.github/workflows/ci.yml`, a global install riding no
-  lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
+  (`tools/e2e/src/scenarios/built-worker-boot.ts`), and `pnpm smoke:desktop`
+  the packaged .app on one (`apps/desktop/scripts/smoke-packaged.ts`);
+  agent-browser is pinned by hand in `.github/workflows/ci.yml`, a global
+  install riding no lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
   the `Cargo.lock` every cargo step runs `--locked` against. The
   browser-extension scenarios pass agent-browser's `--profile` and
   `--extension` on every call (`tools/e2e/src/harness/extension-fixture.ts`),
@@ -87,8 +87,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the output with no error, and the e2e suite and `package:*` ship what it
   replays. Another workspace's files enter a key only through a `^` edge, and
   no task names another workspace's: the Worker's build reaches
-  `@repo/workspace#build` through its own dependency, and the shell's tasks
-  reach the page's through theirs (`apps/desktop/turbo.json`). A
+  `@repo/workspace#build` through its own dependency. A
   file in no workspace is a named input, and a followed file a named output
   (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
   holds the `^` edges and a bundled import's input (`/privacy` renders
@@ -180,14 +179,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`
   everywhere), a second base beside the template's.
 
-- **THE E2E RUNS IN LANES, AND A SCENARIO NAMES WHAT ONLY ONE MAY HOLD.**
+- **THE E2E RUNS IN LANES.**
   `pnpm e2e` runs one scenario per two of the machine's cores at once, at most
   four, each started in registry order as a lane frees and its log printed whole
-  when it ends; `--lanes 1` runs them one after another, streaming. A
-  scenario's `exclusive` names a resource it cannot share (today
-  `desktop-shell`: the run's one display and WebKit's WebDriver), and no two
-  scenarios holding one overlap. Ports, scratch dirs and browser sessions are
-  each lane's own, and the Worker and the phone's editor page are built once
+  when it ends; `--lanes 1` runs them one after another, streaming. Ports,
+  scratch dirs and browser sessions are each lane's own, and the Worker and the phone's editor page are built once
   per run, a build's wait behind another lane's not counted against its
   scenario's deadline. Rejected: one serial run (835 s against about 490 s on
   four cores). `tools/e2e/src/run.ts`.

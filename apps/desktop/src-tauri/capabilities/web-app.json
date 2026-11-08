@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "web-app",
+  "description": "What the site may ask of the shell: the update flow and its event. Tauri counts the app URL's origin (devUrl, or frontendDist in a build) as local, so this reaches the site's own pages and nothing else.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-check-for-updates",
+    "allow-download-update",
+    "allow-install-update"
+  ]
+}

@@ -338,12 +338,12 @@ and end them, and the account's deletion revokes every one.
   table on its own writes, every row past its 60s window with it, so every
   Worker window is declared in `RATE_WINDOWS` and a guard holds each to 60s or
   less.
-- **CORS for two origins alone** (`src/worker/cors.ts`): the Mac app's page,
-  which its shell serves on `tauri://localhost`, and the browser extension's
-  worker, each on the routes it calls and by its exact origin, never a
-  reflected one. Every other browser client is served by this Worker from this
-  origin. `access-control-allow-credentials` stays absent: both send a device
-  credential as a bearer, and the auth surface is cookie-bearing.
+- **CORS for one origin alone** (`src/worker/cors.ts`): the browser extension's
+  worker, on the routes it calls and by its exact origin, never a reflected
+  one. Every other browser client, the Mac app's window among them, is served
+  by this Worker from this origin. `access-control-allow-credentials` stays
+  absent: the extension sends a device credential as a bearer, and the auth
+  surface is cookie-bearing.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
   so a failed step aborts the deletion rather than orphaning data, and the
   retry runs every step again. THE ORDER IS LOAD-BEARING

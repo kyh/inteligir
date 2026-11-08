@@ -1,21 +1,18 @@
-// Two pages this Worker never served call `/v1` across origins: the Mac app's, on the origin its
-// shell serves it from (`MAC_APP_ORIGIN`), and the browser extension's service worker, on its own
-// (`EXTENSION_ORIGIN`), which asks no host permission. Each is answered on the routes it calls and
-// on those alone, by its own exact origin, never a reflected one, and with no credentials: each
-// sends its device credential as a bearer, never a cookie, so an origin let in reads nothing a
-// session cookie would have opened. The socket is no CORS request (it opens on a ticket a call
-// minted), and every other origin, the site's own pages included, meets no CORS header.
+// One page this Worker never served calls `/v1` across origins: the browser extension's service
+// worker, on its own origin (`EXTENSION_ORIGIN`), which asks no host permission. It is answered on
+// the routes it calls and on those alone, by its own exact origin, never a reflected one, and with
+// no credentials: it sends its device credential as a bearer, never a cookie, so the origin let in
+// reads nothing a session cookie would have opened. The socket is no CORS request (it opens on a
+// ticket a call minted), and every other origin, the site's own pages included, meets no CORS
+// header.
 
-import { MAC_APP_ORIGIN } from "@repo/contract/cloud/origin";
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 
-// each page's calls: the Mac page's file uploads, the extension's covers and the pictures a
-// right-click saves
+// the extension's calls: its covers and the pictures a right-click saves among them
 const CROSS_ORIGIN_ROUTES = new Map<string, readonly string[]>([
-  [MAC_APP_ORIGIN, [V1_RPC_PATH, V1_BLOBS_PATH]],
   [EXTENSION_ORIGIN, [V1_RPC_PATH, V1_BLOBS_PATH]],
 ]);
 

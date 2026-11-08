@@ -49,7 +49,6 @@ interface LibraryAdd {
 }
 
 export interface LibraryViewProps {
-  readonly railOpen: boolean;
   readonly scope: LibraryScope;
   readonly title: string;
   // undefined until the replica's listing has been read once
@@ -175,7 +174,6 @@ const SortMenu = ({
 );
 
 export const LibraryView = ({
-  railOpen,
   scope,
   title,
   page,
@@ -201,7 +199,7 @@ export const LibraryView = ({
   }
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
-      <TopBar railOpen={railOpen} className="px-4">
+      <TopBar className="px-4">
         <h1 className="m-0 truncate text-title font-medium">{title}</h1>
         <span className="text-body text-muted-foreground tabular-nums">
           {formatCount(page.total)}

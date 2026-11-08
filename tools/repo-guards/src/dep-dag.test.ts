@@ -36,7 +36,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // widening it to a remark-carrying module drags remark into every client bundle, which "the
     // contract's @repo/notes edge" below walks for.
     "@repo/contract": ["@repo/domain", "@repo/notes"],
-    // the shell is Rust (src-tauri) and holds no src/: the page it shows is @repo/workspace's build
+    // the shell is Rust (src-tauri) and holds no src/: the page it shows is the one the site serves
     "@repo/desktop": [],
     "@repo/domain": [],
     // the @repo/contract edge is `/v1`'s wire, which the scenarios drive a booted Worker over; the
@@ -104,10 +104,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // reading and writing of an item an agent's procedures go through; the @repo/page-reader edge
     // is the cloud's fill, a saved page read by the reader every device runs, over linkedom
     "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
-    // the library's page, which the Worker serves and the Mac's window shows: the replica engine
-    // every device runs (@repo/library-replica), the agent's panel every device reads
-    // (@repo/agent-panel) and `/v1`'s wire (@repo/contract) to the account's cell; it reaches no
-    // shell source, only the shell's IPC (SHELL_API_CLIENTS below)
+    // the library's page, which the Worker serves to a tab and the Mac app's window alike: the
+    // replica engine every device runs (@repo/library-replica), the agent's panel every device
+    // reads (@repo/agent-panel) and `/v1`'s wire (@repo/contract) to the account's cell; it reaches
+    // no shell source, only the shell's update commands (SHELL_API_CLIENTS below)
     "@repo/workspace": [
       "@repo/agent-panel",
       "@repo/contract",

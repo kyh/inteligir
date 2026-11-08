@@ -1,11 +1,4 @@
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
-import { toast } from "@repo/ui/components/sonner";
-
-// a shell command that rejected: its words are for the log, and the row says its own sentence
-export const bridgeFailed = (cause: unknown, sentence: string): void => {
-  console.warn("[desktop] the shell did not answer", cause);
-  toast.error(sentence);
-};
 
 export const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-[7rem_1fr] items-baseline gap-x-4 gap-y-1 text-subtitle">

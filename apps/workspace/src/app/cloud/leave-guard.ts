@@ -1,21 +1,17 @@
-// What the page does about the changes it holds when it is about to go, which each host does its
-// own way. In the tab (CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE
-// LOSING IT), what it changed lives only in its memory until the cell takes it, so while any of it
-// is held the browser asks before the tab closes, reloads or goes elsewhere. The listener is there
-// only while something is held, as MDN advises, since it keeps the page from the back-forward cache
-// (https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event). The Mac's guard
-// writes what is held instead, as the shell asks before it quits (`shell-library.ts`).
+// What the page does about the changes it holds when it is about to go (CLAUDE.md § THE TAB SENDS
+// WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT): what it changed lives only in its
+// memory until the cell takes it, so while any of it is held the browser asks before the tab
+// closes, reloads or goes elsewhere. The listener is there only while something is held, as MDN
+// advises, since it keeps the page from the back-forward cache
+// (https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).
 
 import type { ReplicaStatus } from "@repo/library-replica/library-replica";
 
-// something the page holds that its host has not kept yet
-export interface Held {
+// something the page holds that the cell has not taken yet
+interface Held {
   // whether it holds anything now, asked again each time it says it moved
   readonly holding: () => boolean;
   readonly onMove: (moved: () => void) => () => void;
-  // writes it where the host keeps it (the open item's edit, into the outbox), for a host that can
-  // wait for that before the page goes; what only the cell can take has none
-  readonly write?: () => Promise<void>;
 }
 
 export interface LeaveGuard {

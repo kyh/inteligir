@@ -43,12 +43,9 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
-      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit), its menu
-      # bar icon loads the appindicator at runtime, and the shell scenarios drive the window
-      # through WebKit's own WebDriver, `webkitgtk-webdriver` from Ubuntu 26.04 on, where it replaced
-      # webkit2gtk-driver
+      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit)
       - name: Desktop system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkitgtk-webdriver
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev
 
       # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
       - name: Desktop Rust toolchain
@@ -72,26 +69,18 @@ jobs:
         # cooldown
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
-      - name: E2E shell driver
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # tauri-driver fronts WebKitWebDriver for the shell scenarios, a cargo install a developer
-        # makes once. pinned by hand, like agent-browser: a cargo install rides no lockfile. the Rust
-        # cache keeps the binary, so a warm run only checks it is that version
-        run: cargo install tauri-driver --version 2.1.0 --locked
-
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         # outside verify on purpose: it boots real instances and drives them over the wire, because
-        # every unit can pass while the composition fails. The two steps above provide the browser
-        # and the shell's WebDriver and xvfb-run the display, so a skip is a broken setup, and
-        # --no-skip fails it rather than passing it behind a green step. Two lanes, half the
-        # runner's four cores, which is what a four-core machine's default runs, so a local run
-        # is the one CI runs; the shell scenarios hold the one display one at a time
-        run: xvfb-run -a pnpm e2e --no-skip --lanes 2
+        # every unit can pass while the composition fails. The step above provides the browser, so
+        # a skip is a broken setup, and --no-skip fails it rather than passing it behind a green
+        # step. Two lanes, half the runner's four cores, which is what a four-core machine's default
+        # runs, so a local run is the one CI runs
+        run: pnpm e2e --no-skip --lanes 2
 
-  # the app ships only as a macOS arm64 .app: the shell's macOS code (the Keychain's store, the
-  # window's own) compiles and runs only here; typecheck, lint, knip, format and build read no
-  # platform, so the check job alone runs them
+  # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
+  # compiles and runs only here; typecheck, lint, knip, format and build read no platform, so the
+  # check job alone runs them
   test-macos:
     runs-on: macos-latest
     # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold
@@ -132,7 +121,8 @@ jobs:
       - name: Smoke desktop
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         # only a macOS host can pack or boot the .app, and packing takes minutes, so it stays out of
-        # verify, which runs on every platform
+        # verify, which runs on every platform. Its window opens on a Worker the smoke boots on the
+        # runner, never production
         env:
           # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
           # apps/desktop/turbo.json passes it through turbo's strict env
