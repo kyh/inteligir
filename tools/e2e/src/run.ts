@@ -3,14 +3,13 @@ import { availableParallelism, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { parseArgs } from "node:util";
-import { shellBinary } from "./harness/desktop-shell";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import { hearingBuildQueueWaits } from "./harness/turbo-build";
 import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
-import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/scenario";
+import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { agentCell } from "./scenarios/agent-cell";
 import { agentPanelBrowser } from "./scenarios/agent-panel-browser";
@@ -18,8 +17,6 @@ import { browserExtension } from "./scenarios/browser-extension";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { connectorTools } from "./scenarios/connector-tools";
-import { desktopOnboarding } from "./scenarios/desktop-onboarding";
-import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { extensionIntegrated } from "./scenarios/extension-integrated";
 import { fileItems } from "./scenarios/file-items";
@@ -54,8 +51,6 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   tidyLibraryBrowser,
   builtWorkerBoot,
-  desktopShell,
-  desktopOnboarding,
   linkCapture,
   raindropImport,
   browserSmoke,
@@ -84,16 +79,14 @@ const USAGE = `Usage: pnpm e2e [--only <names>] [--lanes <n>] [--keep] [--list] 
                   1 runs them one after another, streaming each line as it happens
   --keep          keep the scratch dirs for post-mortem
   --list          print every scenario and what it proves, then exit
-  --no-skip       every SKIP FAILS; for a run whose environment was provisioned, browser and
-                  display, so a skip is a broken setup
+  --no-skip       every SKIP FAILS; for a run whose browser was provisioned, so a skip is a
+                  broken setup
 `;
 
 // a hang backstop, far above any scenario's green run: they pass in seconds.
 const DEFAULT_SCENARIO_TIMEOUT_MS = 180_000;
 // a cold build of the browser extension, its reader and its codec bundled
 const EXTENSION_BUILD_TIMEOUT_MS = 300_000;
-// a cold build compiles the shell and every crate under it
-const SHELL_BUILD_TIMEOUT_MS = 1_200_000;
 
 interface CliOptions {
   only: string[];
@@ -389,42 +382,31 @@ const runAndReport = async (args: Omit<RunScenarioArgs, "output">): Promise<Scen
   return result;
 };
 
-// up to `lanes` scenarios at once, each started in registry order once a lane is free and nothing
-// running holds a resource it is exclusive on; a scenario that waits for one lets the next start
+// up to `lanes` scenarios at once, each started in registry order once a lane is free
 const runInLanes = async (
   selected: readonly Scenario[],
   lanes: number,
   run: (scenario: Scenario) => Promise<void>,
 ): Promise<void> => {
   const waiting = [...selected];
-  const held = new Set<ExclusiveResource>();
   const running = new Map<Scenario, Promise<Scenario>>();
-  const free = (scenario: Scenario): boolean =>
-    (scenario.exclusive ?? []).every((resource) => !held.has(resource));
   const settle = async (scenario: Scenario): Promise<Scenario> => {
     await run(scenario);
     return scenario;
   };
   const startWhatFits = (): void => {
-    for (let index = waiting.findIndex(free); running.size < lanes && index !== -1;) {
-      const [next] = waiting.splice(index, 1);
-      if (next !== undefined) {
-        for (const resource of next.exclusive ?? []) {
-          held.add(resource);
-        }
-        running.set(next, settle(next));
+    while (running.size < lanes) {
+      const next = waiting.shift();
+      if (next === undefined) {
+        return;
       }
-      index = waiting.findIndex(free);
+      running.set(next, settle(next));
     }
   };
-  // with nothing running nothing is held, so the first waiting scenario always starts
   startWhatFits();
   while (running.size > 0) {
     const done = await Promise.race(running.values());
     running.delete(done);
-    for (const resource of done.exclusive ?? []) {
-      held.delete(resource);
-    }
     startWhatFits();
   }
 };
@@ -459,30 +441,6 @@ const buildExtension = async (repoRoot: string): Promise<void> => {
   console.log(`${timestamp()} built (${seconds(Date.now() - startedAt)})`);
 };
 
-// the unbundled debug shell the shell scenarios drive (harness/desktop-shell.ts), built here so a
-// cold compile spends no scenario's deadline; cargo's own cache makes a warm one a check. a
-// machine that cannot build it leaves them to skip, saying why, and a failed build removes the
-// last one's binary, which would otherwise run code this checkout no longer holds
-const buildShell = async (repoRoot: string): Promise<void> => {
-  if (process.platform !== "linux") {
-    return;
-  }
-  const startedAt = Date.now();
-  console.log(`${timestamp()} building the desktop shell the shell scenarios drive`);
-  try {
-    await exec(
-      "pnpm",
-      ["turbo", "run", "build:shell", "--filter=@repo/desktop", "--output-logs=errors-only"],
-      { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: SHELL_BUILD_TIMEOUT_MS },
-    );
-  } catch (error) {
-    console.error(`${timestamp()} the shell did not build:\n${describeExecError(error)}`);
-    await rm(shellBinary(repoRoot), { force: true });
-    return;
-  }
-  console.log(`${timestamp()} built the shell (${seconds(Date.now() - startedAt)})`);
-};
-
 const main = async (): Promise<number> => {
   const options = parseCliOptions(process.argv.slice(2));
   if (options.list) {
@@ -495,9 +453,6 @@ const main = async (): Promise<number> => {
   const selected = selectScenarios(options);
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
   await buildExtension(repoRoot);
-  if (selected.some((scenario) => scenario.exclusive?.includes("desktop-shell") === true)) {
-    await buildShell(repoRoot);
-  }
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   const lanes = Math.min(options.lanes, Math.max(1, selected.length));
   console.log(

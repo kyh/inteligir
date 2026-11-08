@@ -1,19 +1,16 @@
 // Nothing a device draws in an item comes from the web: an image or a video at a web address in a
 // note would be fetched the moment a device opens it, a request no person made, and the built-in
 // agent writes notes a saved page may have told it to. Each surface's content policy is the one
-// wall, so each is held here: the tab's, the Mac's and the phone's editor page's.
+// wall, so each is held here: the library's page, which a tab and the Mac app's window both show,
+// and the phone's editor page.
 
 import { describe, expect, it } from "vitest";
 import { sourceOf } from "./repo";
 
-const POLICIES = [
-  "apps/desktop/src-tauri/tauri.conf.json",
-  "apps/mobile-editor/index.html",
-  "apps/web/src/worker/library/library-page.ts",
-];
+const POLICIES = ["apps/mobile-editor/index.html", "apps/web/src/worker/library/library-page.ts"];
 
 const DIRECTIVES = /(?<name>default|font|frame|img|media)-src"?:?\s*"?(?<sources>[^;",]*)/gu;
-const LOCAL_SOURCES = new Set(["'none'", "'self'", "blob:", "data:", "inteligir-files:"]);
+const LOCAL_SOURCES = new Set(["'none'", "'self'", "blob:", "data:"]);
 
 describe("what a device draws in an item", () => {
   it.each(POLICIES)("comes from nowhere on the web under %s", (file) => {
