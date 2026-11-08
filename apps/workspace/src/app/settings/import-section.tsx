@@ -1,8 +1,8 @@
 // Bringing a library in, the cell's job (`library.imports.*`): a Raindrop export or a zip of
 // markdown, an Obsidian vault among them, goes up to the library's files by its SHA-256 and is read
 // a page at a time, every item it adds in one change set, and Stop ends it after the
-// page it is on, keeping what it added. It waits for a connection, and reaches `/v1` through the
-// page's host, the tab's cookie or the Mac's credential.
+// page it is on, keeping what it added. It waits for a connection, and reaches `/v1` under the
+// page's session cookie.
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";

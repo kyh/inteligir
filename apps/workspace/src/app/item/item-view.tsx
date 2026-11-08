@@ -32,7 +32,6 @@ const after = (ms: number, run: () => void): (() => void) => {
 };
 
 export interface ItemViewProps {
-  readonly railOpen: boolean;
   readonly itemId: string;
   readonly onBack: () => void;
   readonly onTogglePanel: () => void;
@@ -84,7 +83,7 @@ const EditorScroller = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
+export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
   const replica = useReplica();
   const queries = useReplicaQueries();
   const item = useQuery(queries.item(itemId));
@@ -114,7 +113,7 @@ export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }:
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
     <div className="flex h-full min-h-0 flex-col" data-item-id={itemId} onKeyDown={onKeyDown}>
-      <TopBar railOpen={railOpen} className="px-3">
+      <TopBar className="px-3">
         <Button
           variant="ghost"
           size="icon-compact"

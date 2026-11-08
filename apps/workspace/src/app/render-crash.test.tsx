@@ -3,14 +3,10 @@
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { clearShell, mockShell } from "../shell/test-support/mock-shell";
 import { RenderCrash } from "./render-crash";
 import { fakePageLibrary, renderOnLibrary } from "./test-support/fake-page-library";
 
-afterEach(() => {
-  cleanup();
-  clearShell();
-});
+afterEach(cleanup);
 
 const crashedHolding = (unsent: number): void => {
   const { library } = fakePageLibrary({ answer: () => ({}) });
@@ -25,12 +21,5 @@ describe("the crash screen", () => {
   it("says a reload loses what the tab has not sent", () => {
     crashedHolding(2);
     expect(screen.getByText(/reloading the page now loses them/u)).toBeTruthy();
-  });
-
-  it("says the Mac keeps what it has not sent, through a reload too", () => {
-    mockShell();
-    crashedHolding(1);
-    expect(screen.getByText(/this Mac keeps it either way/u)).toBeTruthy();
-    expect(screen.queryByText(/loses/u)).toBeNull();
   });
 });

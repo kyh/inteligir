@@ -15,7 +15,6 @@ import {
   EDITOR_MEASURES,
   EDITOR_SIZES,
 } from "../appearance-options";
-import { TitleBarDragStrip } from "../top-bar";
 import { AccountSection } from "./account-section";
 import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -29,7 +28,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 ];
 
 // ids agree with the sections below; the nav scrolls to one rather than linking to its fragment,
-// since the Mac's routes ride the hash and a fragment there is a route
+// so the address stays the route
 const NAV = [
   { id: "account", label: "Account" },
   { id: "import", label: "Import" },
@@ -99,7 +98,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => (
       className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-border p-3"
       aria-label="Settings"
     >
-      <TitleBarDragStrip />
       <Button variant="ghost" size="compact" className="mb-2 justify-start" onClick={onBack}>
         <ArrowLeftIcon />
         Library

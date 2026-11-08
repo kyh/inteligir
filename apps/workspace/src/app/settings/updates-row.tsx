@@ -1,95 +1,76 @@
-import { useState } from "react";
 import { Button } from "@repo/ui/components/button";
-import { updateAction } from "../../shell/update-state";
-import type { UpdateAction, UpdateState } from "../../shell/update-state";
-import { runUpdateAction, useDesktopUpdates } from "../desktop-updates";
-import { bridgeFailed, Row } from "./settings-chrome";
+import type { DesktopUpdateState } from "../../shell/desktop-bridge";
+import { moveUpdate, useDesktopUpdates } from "../desktop-updates";
+import type { UpdateMove } from "../desktop-updates";
+import { Row } from "./settings-chrome";
 
-const statusLabel = (state: UpdateState): string => {
+interface RowWords {
+  readonly status: string;
+  readonly button: { readonly label: string; readonly move: UpdateMove } | null;
+}
+
+const CHECK = { label: "Check for updates", move: "check" } as const;
+
+const rowWords = (state: DesktopUpdateState): RowWords => {
   switch (state.status) {
-    case "disabled": {
-      return state.reason;
-    }
     case "idle": {
-      return "Updates download by themselves and install when you quit.";
+      return { button: CHECK, status: "Inteligir checks for updates when it opens." };
     }
     case "checking": {
-      return "Checking…";
+      return { button: null, status: "Checking…" };
     }
-    case "up-to-date": {
-      return `Inteligir ${state.currentVersion} is the newest version.`;
+    case "not-available": {
+      return { button: CHECK, status: "Inteligir is up to date." };
+    }
+    case "available": {
+      return {
+        button: { label: "Download", move: "download" },
+        status: `Inteligir ${state.version} is ready to download.`,
+      };
     }
     case "downloading": {
-      return `Downloading Inteligir ${state.version} — ${String(state.percent)}%`;
+      return { button: null, status: `Downloading the update — ${String(state.downloadPercent)}%` };
     }
-    case "ready": {
-      return `Inteligir ${state.version} installs when you quit.`;
+    case "downloaded": {
+      return {
+        button: { label: "Restart to update", move: "install" },
+        status: `Inteligir ${state.version} installs when it restarts.`,
+      };
     }
     case "error": {
-      return "The last update didn't go through. Inteligir tries again on its next check.";
-    }
-    // no default
-  }
-};
-
-const actionLabel = (action: UpdateAction): string => {
-  switch (action.action) {
-    case "check": {
-      return "Check for updates";
-    }
-    case "install": {
-      return "Restart to update";
+      return { button: CHECK, status: "The last update didn't go through." };
     }
     // no default
   }
 };
 
 export const UpdatesRow = () => {
-  const updates = useDesktopUpdates();
-  const [pending, setPending] = useState(false);
+  const state = useDesktopUpdates();
 
-  if (updates.kind === "no-bridge") {
+  if (state === null) {
     return (
       <Row label="Updates">
-        <span className="text-subtitle text-muted-foreground">
-          Automatic updates come with the desktop app.
-        </span>
+        <span className="text-subtitle text-muted-foreground">Updates come with the Mac app.</span>
       </Row>
     );
   }
-  if (updates.kind === "loading") {
-    return <Row label="Updates">…</Row>;
-  }
 
-  const { state } = updates;
-  const action = updateAction(state);
-
-  const run = async (next: UpdateAction): Promise<void> => {
-    setPending(true);
-    try {
-      await runUpdateAction(next);
-    } catch (error) {
-      bridgeFailed(error, "The updater did not answer.");
-    }
-    setPending(false);
-  };
-
+  const { button, status } = rowWords(state);
   return (
     <Row label="Updates">
       <span className="flex items-center gap-2">
-        {action === null ? null : (
+        {button === null ? null : (
           <Button
             variant="tertiary"
             size="compact"
-            disabled={pending}
             onClick={() => {
-              void run(action);
+              void moveUpdate(button.move);
             }}
           >
-            {actionLabel(action)}
+            {button.label}
           </Button>
         )}
-        <span className="text-subtitle text-muted-foreground">{statusLabel(state)}</span>
+        <span className="text-subtitle text-muted-foreground">{status}</span>
       </span>
       {state.status === "error" ? (
         <span className="mt-1 block text-body text-destructive">{state.message}</span>

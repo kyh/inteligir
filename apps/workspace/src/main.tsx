@@ -1,14 +1,10 @@
-// The library's page, in whichever host serves it. In the browser tab it opens the account's
+// The library's page, in a browser tab or the Mac app's window alike: it opens the account's
 // library (the session, then the replica), and with no session sends the browser to the site's
-// sign-in, which brings it back here. In the Mac app it opens the library the shell keeps for the
-// account it is signed in to, or the sign-in that is the app's first run. Either way, sign-in is
-// the first run: there is nothing to choose before it.
+// sign-in, which brings it back here. Sign-in is the first run: there is nothing to choose before it.
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import type { SessionEnd } from "@repo/library-replica/call-outcome";
 import { onlineManager } from "@tanstack/react-query";
-import { createBrowserHistory, createHashHistory, RouterProvider } from "@tanstack/react-router";
-import type { RouterHistory } from "@tanstack/react-router";
+import { createBrowserHistory, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
@@ -16,16 +12,11 @@ import type { Root } from "react-dom/client";
 import { createLeaveGuard, replicaHolds } from "./app/cloud/leave-guard";
 import { openPageLibrary, signInHref } from "./app/cloud/page-library";
 import type { PageLibrary, PageOpening } from "./app/cloud/page-library";
-import { OpenFailedPage, TabOpenFailedPage } from "./app/cloud/open-failed-page";
-import { createShellLeaveGuard, openShellLibrary } from "./app/cloud/shell-library";
-import type { ShellOpening } from "./app/cloud/shell-library";
-import { SignInPage } from "./app/cloud/sign-in-page";
+import { OpenFailedPage } from "./app/cloud/open-failed-page";
 import { createPageQueryClient } from "./app/cloud/v1";
 import { installLightPrints } from "./app/light-prints";
 import { applyStoredSpellcheck } from "./app/spellcheck";
 import { createAppRouter } from "./router";
-import type { PageBasepath } from "./router";
-import { underShell } from "./shell/shell-commands";
 import "./styles/globals.css";
 
 // before the first paint: a stored "off" must not flash red underlines
@@ -42,18 +33,17 @@ const TOO_OLD =
   "This browser is too old to open your library. Update it, or open the library in another browser.";
 
 // the library drawn: the replica running, catching up the moment the connection comes back
-const mount = (library: PageLibrary, history: RouterHistory, basepath: PageBasepath): void => {
+const mount = (library: PageLibrary): void => {
   library.replica.start();
   onlineManager.subscribe((online) => {
     if (online) {
       library.replica.resume();
     }
   });
-  const router = createAppRouter(
-    history,
-    { library, queryClient: createPageQueryClient() },
-    basepath,
-  );
+  const router = createAppRouter(createBrowserHistory(), {
+    library,
+    queryClient: createPageQueryClient(),
+  });
   root.render(
     <StrictMode>
       <RouterProvider router={router} />
@@ -85,7 +75,7 @@ const openInTab = async (target: Root): Promise<void> => {
     // nothing is drawn yet, so no boundary would catch it: the tab says it didn't open instead
     target.render(
       <StrictMode>
-        <TabOpenFailedPage
+        <OpenFailedPage
           reload={() => {
             window.location.reload();
           }}
@@ -112,58 +102,11 @@ const openInTab = async (target: Root): Promise<void> => {
         holding: () => replicaHolds(library.replica.status()),
         onMove: library.replica.onStatus,
       });
-      mount(library, createBrowserHistory(), LIBRARY_PAGE_PATH);
+      mount(library);
       break;
     }
     // no default
   }
 };
 
-// the Mac's page opened again from the start: the library, or the sign-in once signed out
-const reloadShellPage = (): void => {
-  window.location.reload();
-};
-
-// the Mac's document never changes under it: its routes ride the hash, so a reload is the same file
-const openInShell = async (target: Root): Promise<void> => {
-  const leave = createShellLeaveGuard();
-  let opening: ShellOpening;
-  try {
-    opening = await openShellLibrary(leave, reloadShellPage);
-  } catch (error) {
-    // nothing is drawn yet, so no boundary would catch it: the window says what failed instead
-    target.render(
-      <StrictMode>
-        <OpenFailedPage
-          cause={error}
-          queryClient={createPageQueryClient()}
-          reload={reloadShellPage}
-        />
-      </StrictMode>,
-    );
-    return;
-  }
-  switch (opening.kind) {
-    case "signed-out": {
-      // the route is the last account's, and the sign-in reloads onto whatever this URL says
-      window.history.replaceState(null, "", window.location.pathname);
-      target.render(
-        <StrictMode>
-          <SignInPage
-            config={opening.config}
-            queryClient={createPageQueryClient()}
-            onSignedIn={reloadShellPage}
-          />
-        </StrictMode>,
-      );
-      break;
-    }
-    case "ready": {
-      mount(opening.library, createHashHistory(), "/");
-      break;
-    }
-    // no default
-  }
-};
-
-await (underShell() ? openInShell(root) : openInTab(root));
+await openInTab(root);

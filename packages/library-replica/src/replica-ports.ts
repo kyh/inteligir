@@ -1,5 +1,5 @@
-// What a host hands the replica engine: everything that differs between the Mac's Rust replica,
-// the phone's expo-sqlite, the browser tab's memory and a test. The engine names no platform: its
+// What a host hands the replica engine: everything that differs between the phone's expo-sqlite,
+// the browser tab's memory and a test. The engine names no platform: its
 // SQL, its clock, its ids, its transport, its socket, the bytes it uploads and the block merge are
 // all these ports.
 
@@ -47,8 +47,8 @@ export interface ReplicaSocket {
 export type SocketDial = (url: string) => ReplicaSocket;
 
 // a file waiting to be uploaded, by its SHA-256: the bytes stay on the device until the write that
-// names them lands, and outlive a relaunch. Its type comes with them, for a host that serves the
-// file itself before the cloud holds it (the Mac's scheme)
+// names them lands, and outlive a relaunch. Its type comes with them, so a host can draw the file
+// before the cloud holds it
 export interface StagedBlobs {
   readonly put: (sha: string, bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<void>;
   // null when the device no longer holds them

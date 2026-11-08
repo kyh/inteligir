@@ -4,8 +4,8 @@
 //
 // The browser tab's: SQLite's own wasm in memory, with the session cookie for its credential. The
 // tab keeps nothing between loads: it pulls the library again each time it opens, and a write it
-// queued goes once the cell answers, so the tab is online only. The Mac's is the shell's
-// (`shell-library.ts`).
+// queued goes once the cell answers, so the tab is online only. The Mac app's window is a tab of
+// the same page.
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { replicaMerge } from "@repo/editor/stale-write";
@@ -47,8 +47,7 @@ export interface PageLibrary {
   readonly account: SignedIn;
   // what asks before the page leaves while a change it holds has not reached the cell
   readonly leave: LeaveGuard;
-  // where a file of the library is drawn from: the cloud's own route in the tab, the shell's
-  // scheme on the Mac
+  // where a file of the library is drawn from: the cloud's own route
   readonly fileUrl: (sha: string) => string;
   // a file's bytes from there, a file this device has not sent up yet among them, as the editor
   // draws a picture in a note; rejects while no copy of it can be had
@@ -87,7 +86,7 @@ export const pageClock: ReplicaClock = {
   now: () => Date.now(),
 };
 
-export const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
+const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
 // a file waiting for the write that names it to land: in memory, as the rows are, so a reload
 // takes it with the write it waited for; the page draws it from here until then
@@ -118,7 +117,7 @@ const memoryStagedBlobs = (): StagedBlobs & { readonly file: (sha: string) => Bl
 const fileUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
 
 // a file of the library as `url` answers it, read whole
-export const fileAt = async (
+const fileAt = async (
   url: string,
   fetchFile: (request: Request) => Promise<Response>,
 ): Promise<Blob> => {

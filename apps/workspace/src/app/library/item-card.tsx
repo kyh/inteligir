@@ -1,6 +1,6 @@
-// One item as a card: its cover from the library's files (where the page's host draws them: the
-// cloud's own route in the tab, the shell's scheme on the Mac), else a tile for its kind; a note shows its first paragraph. The
-// card only reports gestures: the grid owns the selection, the focus and the menu.
+// One item as a card: its cover from the library's files (the cloud's own route), else a tile for
+// its kind; a note shows its first paragraph. The card only reports gestures: the grid owns the
+// selection, the focus and the menu.
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";

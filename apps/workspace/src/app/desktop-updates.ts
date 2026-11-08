@@ -1,62 +1,55 @@
-// The updater lives in the shell because it replaces the app; the page mirrors its state. The
-// shell's door parses every answer and frame before it lands here, so the store only ever holds a
-// state it knows. Outside the shell there is no updater, and the page says so instead of
-// pretending. The store starts on its first subscriber, never at import.
+// The updater lives in the Mac app's shell because it replaces the app; the page mirrors the state
+// the shell pushes and asks it to move. One store, so the notice and Settings say one thing. It
+// starts on its first subscriber, never at import, and starts with a check, as the page loads.
 
 import { useSyncExternalStore } from "react";
 
-import { shellUpdates, underShell } from "../shell/shell-commands";
-import type { UpdateAction, UpdateState } from "../shell/update-state";
+import { desktopBridge } from "../shell/desktop-bridge";
+import type { DesktopBridge, DesktopUpdateState } from "../shell/desktop-bridge";
 
-type UpdatesSnapshot =
-  | { kind: "loading" }
-  | { kind: "no-bridge" }
-  | { kind: "state"; state: UpdateState };
+/** null in a browser tab, which has no updater. */
+type UpdatesSnapshot = DesktopUpdateState | null;
+
+const ASKS = {
+  check: async (bridge: DesktopBridge) => await bridge.checkForUpdates(),
+  download: async (bridge: DesktopBridge) => await bridge.downloadUpdate(),
+  install: async (bridge: DesktopBridge) => await bridge.installUpdate(),
+} satisfies Record<string, (bridge: DesktopBridge) => Promise<DesktopUpdateState>>;
+
+export type UpdateMove = keyof typeof ASKS;
 
 /** @internal */
-export const createUpdatesStore = ({
-  getState,
-  onState,
-}: Pick<typeof shellUpdates, "getState" | "onState">) => {
+export const createUpdatesStore = (bridge: DesktopBridge | null) => {
   const listeners = new Set<() => void>();
-  let snapshot: UpdatesSnapshot = { kind: "loading" };
+  let snapshot: UpdatesSnapshot = bridge === null ? null : { status: "idle" };
   let started = false;
 
-  const publish = (next: UpdatesSnapshot): void => {
-    snapshot = next;
+  const adopt = (state: DesktopUpdateState): void => {
+    snapshot = state;
     for (const listener of listeners) {
       listener();
     }
   };
-  const adopt = (state: UpdateState): void => {
-    publish({ kind: "state", state });
-  };
-  const readFirst = async (): Promise<void> => {
+  // a shell that refuses the call answers as an update that did not go through, so every screen
+  // already has its words for it
+  const move = async (next: UpdateMove): Promise<void> => {
+    if (bridge === null) {
+      return;
+    }
     try {
-      const state = await getState();
-      // the shell pushes every move, so a frame or an action adopted while the read was out is newer
-      if (snapshot.kind === "loading") {
-        adopt(state);
-      }
+      adopt(await ASKS[next](bridge));
     } catch (error) {
-      console.warn("[updates] the shell did not answer", error);
+      console.warn("[desktop] the updater did not answer", error);
+      adopt({ message: "The updater did not answer.", status: "error" });
     }
-  };
-  const start = (): void => {
-    if (started) {
-      return;
-    }
-    started = true;
-    if (!underShell()) {
-      publish({ kind: "no-bridge" });
-      return;
-    }
-    onState(adopt);
-    void readFirst();
   };
   const subscribe = (listener: () => void): (() => void) => {
     listeners.add(listener);
-    start();
+    if (!started && bridge !== null) {
+      started = true;
+      bridge.onUpdateState(adopt);
+      void move("check");
+    }
     return () => {
       listeners.delete(listener);
     };
@@ -64,22 +57,13 @@ export const createUpdatesStore = ({
   const getSnapshot = (): UpdatesSnapshot => snapshot;
 
   return {
-    // runs an action against the shell and adopts the state it answers; a no-op outside the shell
-    run: async (action: () => Promise<UpdateState>): Promise<void> => {
-      if (underShell()) {
-        adopt(await action());
-      }
-    },
+    move,
     use: (): UpdatesSnapshot => useSyncExternalStore(subscribe, getSnapshot),
   };
 };
 
-const store = createUpdatesStore(shellUpdates);
+const store = createUpdatesStore(desktopBridge());
 
 export const useDesktopUpdates = store.use;
 
-// each action answers with the state it left behind, adopted like a pushed frame: a check, or
-// Restart to Update, which relaunches the app once the update is in
-export const runUpdateAction = async (action: UpdateAction): Promise<void> => {
-  await store.run(action.action === "check" ? shellUpdates.check : shellUpdates.install);
-};
+export const moveUpdate = store.move;
