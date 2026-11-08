@@ -323,16 +323,17 @@ alone, and no walk narrows structurally.
   `packages/editor/src/codec/item-edit.ts`.
 
 - **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
-  OPS.** `createItemSession` opens an item over the replica's read, write and
-  change feed (`ItemStore`): each top-level element is the block its Plate node
+  OPS.** `createItemSession` opens an item over its host's read, write and word
+  of what moved (`ItemStore`): each top-level element is the block its Plate node
   id names, the ids inside one the editor's alone, and 800 ms after the last
   keystroke the ops of what changed since the blocks last acknowledged go to the
-  outbox, decided by hash; a field patch goes at once, under its base. A change
+  store, decided by hash; a field patch goes at once, under its base. A change
   from elsewhere is laid in outside the undo and starts it over, since an undo
   replays each edit at the path it was recorded at, a block both sides changed
-  merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the
-  replica runs on a CONFLICT too. Each item gets its own editor and session,
-  drawn once its blocks are in (`packages/editor/src/item/item-editor.tsx`). A
+  merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), as a write the
+  store refused on a moved base is settled too. Each item gets its own editor
+  and session, drawn once its blocks are in
+  (`packages/editor/src/item/item-editor.tsx`). A
   block no write can store stays as the person left it and counts as a failure
   and as unsaved, so the surface says so on every host and each host holds the
   leave;
@@ -342,12 +343,8 @@ alone, and no walk narrows structurally.
   The block that names a file is in no value until the file is kept, so the keep
   writes it, surface or none, and counts as unsaved until that write is done; a
   leave writes what the value holds at once and waits for each keep's write.
-  A card that folds stays open under its id, which the replica
-  answers as the item it landed on, and that item lands as any change from
-  elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`). An
-  edit of a block that item's body has yet to bring, or of a field whose base
-  moved, waits on the body, unsaved and said so a leave holds, and goes after
-  the next pause once it lands.
+  An edit over a body the store has yet to bring waits on it, unsaved and said
+  so a leave holds, and goes after the next pause once it lands.
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored
@@ -418,6 +415,19 @@ alone, and no walk narrows structurally.
   second image node for one place), and a writer that drops the tag beside an
   image (it would filter Plate's private output).
   `packages/editor/src/markdown/md-rules.ts`.
+
+- **WITH NO CONNECTION AN ITEM READS BUT TAKES NO EDIT, AND ONE TYPED BEFORE
+  THE CONNECTION WENT IS WRITTEN WHEN IT IS BACK.** The host says it is offline
+  (`offline` on the item editor), and the surface goes read-only under Plate's
+  `readOnly` and says "Needs a connection" above the text, the words every
+  screen says of what only the cloud answers. Read-only keeps out typing, a
+  paste and a drop in slate itself, and what edits around it reads the same
+  flag: the find bar offers no replace, the touch toolbar draws nothing and no
+  formula recomputes. An edit the drop caught stays unsaved and said, and goes
+  the moment the host is back rather than a pause later. Rejected: queueing an
+  edit offline (the cloud is the truth, and a queue that outlives the tab is a
+  second writer); a read-only flag of the editor's own (every node and toolbar
+  already reads Plate's). `packages/editor/src/item/item-editor.tsx`.
 
 ## The open item's merge
 

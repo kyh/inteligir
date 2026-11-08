@@ -4,10 +4,11 @@
 // gets an editor and a session of its own, so the last write of the item left behind diffs that
 // item's value and never the next one's, and the editor is drawn only once the item's blocks are
 // in it, so nothing is typed into a value the item then replaces. Why an edit is not saved stays
-// in view above the text, on every host. A formula's display follows the pills it names, and the
-// desktop draws the outline beside the text.
+// in view above the text, on every host. With no connection the item reads but takes no edit, and
+// says so; an edit typed before the connection went is written as soon as it is back. A formula's
+// display follows the pills it names, and the desktop draws the outline beside the text.
 
-import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 
 import { Button } from "@repo/ui/components/button";
@@ -36,6 +37,9 @@ const CHUNK_BLOCKS = 100;
 export const MISSING_ITEM =
   "This item isn't on this device. It was deleted, or hasn't reached it yet.";
 
+/** @internal */
+export const NEEDS_CONNECTION = "Needs a connection";
+
 export interface ItemEditorProps {
   readonly itemId: string;
   // read once, when the item opens: a host that hands over another store opens the item again
@@ -43,6 +47,8 @@ export interface ItemEditorProps {
   readonly ports: ItemSessionPorts;
   // the session, once it follows the item: what a host flushes and reads the status of
   readonly onSession: (session: ItemSession | null) => void;
+  // the host has no connection, so the cell takes no write
+  readonly offline?: boolean;
 }
 
 // the item's pills recomputed once it opens, after each change and when another item changes,
@@ -53,7 +59,7 @@ const FormulaRecompute = ({ itemId, store }: { itemId: string; store: ItemStore 
   return null;
 };
 
-const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
+const ItemSurface = ({ itemId, ports, onSession, offline = false }: ItemEditorProps) => {
   const profile = useEditorProfile();
   const editor = usePlateEditor({
     chunking: { chunkSize: CHUNK_BLOCKS, contentVisibilityAuto: false },
@@ -80,6 +86,14 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
   }, [session]);
   // the editor answers for its item by the item's id, where a writer outside the surface finds it
   useEffect(() => registerLiveEditor(itemId, editor), [itemId, editor]);
+  // an edit the lost connection failed goes the moment it is back, not a pause later
+  const wasOffline = useRef(offline);
+  useEffect(() => {
+    if (wasOffline.current && !offline) {
+      void session.flush();
+    }
+    wasOffline.current = offline;
+  }, [offline, session]);
   if (status.kind === "missing") {
     return (
       <p className={cn(editorColumnPx(profile), "pt-4 text-body text-muted-foreground")}>
@@ -113,22 +127,26 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
   };
   return (
     <OpenItemProvider itemId={itemId}>
-      {status.failure === null ? null : (
-        <p
-          role="alert"
+      {status.failure === null && !offline ? null : (
+        <div
           className={cn(
             editorColumnPx(profile),
-            "sticky top-[env(safe-area-inset-top)] z-10 bg-background py-2 text-body text-destructive",
+            "sticky top-[env(safe-area-inset-top)] z-10 bg-background py-2 text-body",
           )}
         >
-          {status.failure}
-        </p>
+          {offline ? <p className="text-muted-foreground">{NEEDS_CONNECTION}</p> : null}
+          {status.failure === null ? null : (
+            <p role="alert" className="text-destructive">
+              {status.failure}
+            </p>
+          )}
+        </div>
       )}
-      <Plate editor={editor} onValueChange={handleValueChange}>
+      <Plate editor={editor} onValueChange={handleValueChange} readOnly={offline}>
         <EditorContainer>
           <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
         </EditorContainer>
-        <FormulaRecompute itemId={itemId} store={ports.store} />
+        {offline ? null : <FormulaRecompute itemId={itemId} store={ports.store} />}
         {profile === "desktop" ? <TableOfContents /> : null}
       </Plate>
     </OpenItemProvider>
