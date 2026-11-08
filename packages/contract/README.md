@@ -40,13 +40,15 @@ src/
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors (account-schema.ts)
     device/            # the device credential, its sign-in and the account's devices
     library/           # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
-                       #   the agent's events, a file's route, and the socket's frames
+                       #   the agent's events, a file's route, the socket's frames, the socket client
+                       #   every app dials (account-socket.ts) and what a failed call means (call-outcome.ts)
     client-build.ts    # the build every request names, and the floor it is held to
     cloud-origin.ts    # the production origin a client falls back to
     library-page.ts    # where the Worker serves the library's page
     connector.ts       # the connector's path, which an assistant is pointed at
     bytes.ts           # the byte primitives, on globals every target has
     extension/         # the extension's key, id, origin and store link, and the connect page's messages
+  test-support/        # the fake cell, sockets, clock and deferred every client's suites drive
 ```
 
 ## Who consumes it
@@ -57,6 +59,8 @@ src/
 - **apps/workspace** (the browser tab, and the Mac app's window on it) and
   **apps/mobile** reach the library through their replica
   (`@repo/library-replica`) and the account through `cloud/v1`.
+- **Every app's suites** drive the fake cell, sockets and clock in
+  `test-support/`, the contract's rows answered in memory.
 - **apps/extension** reaches the library's saves and the account's sign-out
   through `cloud/v1`, and its connect page's messages through
   `cloud/extension`: a browser install updates on the Web Store's cadence, so

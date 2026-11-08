@@ -37,16 +37,15 @@ sign-out wipes it). The socket is a hint and never the state.
   writes join, and how a `CONFLICT` settles.
 - `src/folded-makes.ts` — the makes the cell folded this run, by the id a screen
   open on one still holds.
-- `src/replica-socket.ts` — the account's socket.
-- `src/call-outcome.ts` — what a call's failure means to the passes, and a
-  file's upload.
+- `src/call-outcome.ts` — the contract's call outcome under the path the page
+  imports it by, until that page goes.
 - `src/memory-sql.ts` — SQLite's own wasm build in memory: the browser tab's
   replica and the suites'.
 
 ## Tests
 
 `pnpm --filter @repo/library-replica test` runs the engine against a fake cell
-(`src/test-support/fake-cell.ts`), oRPC's own handler over the contract's rows,
+(`@repo/contract/test-support/fake-cell`), oRPC's own handler over the contract's rows,
 with seeded properties for seq-ordered apply (`src/replica-rows.test.ts`),
 compaction (`src/outbox-ops.test.ts`) and replay
 (`src/library-replica.test.ts`), and its passes' schedule on a clock moved by

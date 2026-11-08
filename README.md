@@ -28,9 +28,9 @@ What you need:
   extension.
 - Nothing else to install, and no plan of your own for the built-in agent.
 
-The Mac and the iPhone keep a copy of your library, read it with no connection
-and send what you change once they have one. The iPhone app comes by
-TestFlight invite.
+The iPhone keeps a copy of your library, reads it with no connection and sends
+what you change once it has one; the Mac app shows it from inteligir.com. The
+iPhone app comes by TestFlight invite.
 
 Coming from Raindrop or Obsidian? Import a Raindrop CSV backup, or a zip of
 your notes, from Settings › Import.
@@ -42,11 +42,11 @@ What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 Each account's library is one SQLite Durable Object, its library cell, on the
 one Cloudflare Worker [`apps/web`](./apps/web/README.md), which also serves the
 site, the accounts, the library's files in R2, the reading of saved pages and
-the connector a person's own assistant reaches the library through. The Mac
-app ([`apps/desktop`](./apps/desktop/README.md)), the iPhone app
-([`apps/mobile`](./apps/mobile/README.md)) and the library's page in a browser
-tab each hold a replica of the library and send their writes through one
-`/v1` wire; the browser extension
+the connector a person's own assistant reaches the library through. The iPhone
+app ([`apps/mobile`](./apps/mobile/README.md)) and the library's page, in a
+browser tab or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md)),
+each hold a replica of the library and send their writes through one `/v1`
+wire; the browser extension
 ([`apps/extension`](./apps/extension/README.md)) saves over the same wire. A
 saved page is read by the extension that saved it, on the device, and by the
 Worker's fill otherwise, off a Queue. The built-in agent is
@@ -55,10 +55,10 @@ conversation, its tools the library's procedures.
 
 ### Install & run
 
-The Mac app is a window over the library's page, its replica and its
-credential kept in the shell. The signed, notarized macOS build is on the
-latest GitHub release (the site's Download button reads it), and an installed
-app updates itself on quit. The iPhone app ships to TestFlight by EAS, and the
+The Mac app is a window on the site's library page (inteligir.com/library).
+The signed, notarized macOS build is on the latest GitHub release (the site's
+Download button reads it), and an installed app offers each update, which
+installs on Restart. The iPhone app ships to TestFlight by EAS, and the
 extension to the Chrome Web Store ([`docs/releasing.md`](./docs/releasing.md)).
 
 From a checkout, with the prerequisites in

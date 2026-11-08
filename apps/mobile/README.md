@@ -233,8 +233,7 @@ last transformed it, so a class just added that draws nothing under a running
 
 Unset, the phone talks to the production origin in every build
 (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, which the extension
-reads too and the desktop spells again in `apps/desktop/src-tauri/src/cloud.rs`
-under a repo guard).
+reads too).
 `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time, through
 `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no value and
 cannot point anywhere else. A value that is not an absolute http(s) URL throws

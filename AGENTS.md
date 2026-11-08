@@ -133,8 +133,8 @@ this guide wins.
 
 ```
 apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell, each conversation with the built-in agent
-apps/workspace          @repo/workspace — the SPA: the Mac app's window, and the browser tab at /library
-apps/desktop            @repo/desktop — THE MAC APP: the Tauri window around the SPA; the replica, credential and file cache in Rust
+apps/workspace          @repo/workspace — the SPA the Worker serves at /library, which the Mac app's window shows
+apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
 apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, over its own replica, offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, with its own credential
@@ -174,7 +174,7 @@ cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to a
 pnpm dev:web         # THE CLOUD: the real Worker on miniflare, http://localhost:5174 (pinned):
                      #   the site, accounts, /v1, the connector, every library cell,
                      #   and the library in a browser tab at /library
-pnpm dev             # the Mac app's window over that Worker
+pnpm dev             # the Mac app's window on that Worker's localhost:5174/library
 ```
 
 No bootstrap script, and no Cloudflare or Anthropic account. Node 24 and pnpm
@@ -264,15 +264,15 @@ credential adds its check to `docs/releasing.md` § 5, under its surface.
 Every surface, and how an agent sees it run; a scenario is one of
 `tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
 
-| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
-| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
-| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
-| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                    |
-| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`     |
-| The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's      |
-| The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
-| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                          |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)       |
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                          |
+| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------- |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`             |
+| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                |
+| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools` |
+| The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's  |
+| The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                             |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                      |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)   |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
@@ -335,7 +335,7 @@ is in the file named.
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
 - **The phone holds a full replica, and asks the built-in agent online**: it
-  reads and queues offline as the Mac does, and its threads are the account's,
+  reads and queues offline, and its threads are the account's,
   the same on every device (`apps/mobile/CLAUDE.md`).
 - **One write policy**: every write carries the base it was computed from (a
   block's hash, a field's value), the cell applies a block only while its base
@@ -372,7 +372,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its replica and files, the agent, its look, and how it ships
-- [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window and bridge, its replica, credential and files, updates, dictation, and the shell's e2e
+- [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: its connection, its saves and its queue
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling

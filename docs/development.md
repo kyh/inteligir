@@ -14,8 +14,8 @@ owner's.
 - Rust through rustup: `apps/desktop/rust-toolchain.toml` pins the toolchain the
   desktop shell builds on, and the first `cargo` call installs it. On Linux,
   Tauri's prerequisites too (on Debian or Ubuntu: `build-essential`,
-  `libxdo-dev`, `libssl-dev`, `libwebkit2gtk-4.1-dev`,
-  `libayatana-appindicator3-dev`, `librsvg2-dev`; other distributions are in
+  `libxdo-dev`, `libssl-dev`, `libwebkit2gtk-4.1-dev`, `librsvg2-dev`; other
+  distributions are in
   <https://v2.tauri.app/start/prerequisites/>); a Mac ships its own WebKit
 - `pnpm install` at the repo root (workspace-wide)
 - For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
@@ -29,7 +29,7 @@ owner's.
 ## Commands
 
 ```bash
-pnpm dev                # The Mac app's window over the local Worker (pnpm dev:web)
+pnpm dev                # The Mac app's window on the local Worker's library page (pnpm dev:web)
 pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one)
@@ -40,7 +40,7 @@ pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at local
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
-pnpm smoke:desktop      # Package the .app, check its bundle and signature, launch it to its page, SIGTERM (macOS only)
+pnpm smoke:desktop      # Package the .app, check its bundle and signature, open it on a Worker this machine boots (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
 pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
@@ -53,27 +53,24 @@ pnpm e2e                # The scenario suite (one mode — the SPA is a static b
 
 ## Running
 
-`pnpm dev` runs `tauri dev` over the page's last build, with no dev server of
-its own (`--no-dev-server`) and the local policy
-(`apps/desktop/src-tauri/tauri.local.conf.json`, which lets the page call this
-machine alone): the Rust shell compiled and launched on its own page at
-`tauri://localhost/library/`, calling the Worker `pnpm dev:web` serves on
-`localhost:5174`, or the loopback origin `INTELIGIR_CLOUD_ORIGIN` names, the one
-variable a debug shell reads (`apps/desktop/src-tauri/src/cloud.rs`) and the one
-its turbo task passes through strict env mode (`apps/desktop/turbo.json`). Its
-first run is a sign-in with an account of that Worker (`AGENTS.md` § There is
-no seeded login). An edit to the shell's Rust rebuilds and relaunches it; an
-edit to the page reaches the window once `pnpm --filter @repo/workspace build`
-has run and the shell relaunches.
+`pnpm dev` runs `tauri dev --config src-tauri/tauri.local.conf.json`: the Rust
+shell compiled and launched on its `devUrl`, `http://localhost:5174/library`,
+the page `pnpm dev:web` serves, as an app of its own
+(`com.inteligir.desktop.dev`). `INTELIGIR_CLOUD_ORIGIN`, a loopback origin
+only, points any build at another Worker on this machine
+(`apps/desktop/src-tauri/src/window.rs`). Its first run is the site's sign-in
+with an account of that Worker (`AGENTS.md` § There is no seeded login). An
+edit to the shell's Rust rebuilds and relaunches it; an edit to the page
+reaches the window once `pnpm dev:web` has rebuilt it and you press ⌘R.
 
 Iterating on the PAGE needs no Rust: `pnpm dev:web` rebuilds `@repo/workspace`
 as it changes (`vite build --watch`) and the local Worker serves that build at
 `localhost:5174/library`, through the same route and policy a deploy runs
 (`apps/web/src/worker/library/library-page.ts`); sign in at `/app/sign-in` and
-reload the tab after an edit. Whatever needs the shell (the updater, the
-replica on disk, the Keychain) draws nothing in a tab.
+reload the tab after an edit. Only the updater needs the shell; a tab's
+Settings says updates come with the Mac app.
 
-`pnpm package:desktop` builds the .app around the page's build, with nothing else to run inside it, signed when the keychain holds a
+`pnpm package:desktop` builds the .app, the shell alone, around the site's URL, signed when the keychain holds a
 Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
 § Packaging).
 
@@ -122,21 +119,18 @@ boots (`tools/e2e/src/harness/extension-fixture.ts`). The store builds
 
 ## Where state lives
 
-| What                                                 | Where                                                                             |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Site + cloud Worker (`pnpm dev:web`)                 | 5174 (pinned — `strictPort`)                                                      |
-| UI gallery (`pnpm dev:gallery`)                      | 5175 (pinned — `strictPort`)                                                      |
-| Scripted Messages API (`pnpm dev:web`)               | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                        |
-| Extension dev server (`pnpm dev:extension`)          | 3000, or the first free port to 3010 (WXT's own probe)                            |
-| The Mac app's replica and its staged files           | `~/Library/Application Support/com.inteligir.desktop/` (`library/`, `staged/`)    |
-| The Mac app's fetched files                          | `~/Library/Caches/com.inteligir.desktop/files/`, the least read let go past 5 GB  |
-| The Mac app's credential                             | the Keychain, service `com.inteligir.desktop`                                     |
-| A debug shell's (`pnpm dev`), all three              | the same places under `com.inteligir.desktop.dev`, an app of its own              |
-| The extension's credential and the saves it waits on | the browser's extension storage (`storage.local`), kept from the pages it scripts |
-| Accounts, sessions, devices, invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                        |
-| The library's files                                  | R2, `BLOBS` (same `.wrangler` dir)                                                |
-| Library cells, their sockets and conversations       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                 |
-| Connected assistants' clients, grants and tokens     | KV, `OAUTH_KV` (same `.wrangler` dir)                                             |
+| What                                                             | Where                                                                                                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Site + cloud Worker (`pnpm dev:web`)                             | 5174 (pinned — `strictPort`)                                                                                                                     |
+| UI gallery (`pnpm dev:gallery`)                                  | 5175 (pinned — `strictPort`)                                                                                                                     |
+| Scripted Messages API (`pnpm dev:web`)                           | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                                                                                       |
+| Extension dev server (`pnpm dev:extension`)                      | 3000, or the first free port to 3010 (WXT's own probe)                                                                                           |
+| The Mac app's WebKit store (the site's cookie, the page's prefs) | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev` |
+| The extension's credential and the saves it waits on             | the browser's extension storage (`storage.local`), kept from the pages it scripts                                                                |
+| Accounts, sessions, devices, invites, revoked grants             | D1 (local file under `apps/web/.wrangler`)                                                                                                       |
+| The library's files                                              | R2, `BLOBS` (same `.wrangler` dir)                                                                                                               |
+| Library cells, their sockets and conversations                   | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                |
+| Connected assistants' clients, grants and tokens                 | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                            |
 
 ## Quality gates
 
@@ -162,17 +156,16 @@ types and the `.wxt/tsconfig.json` their `generate` tasks write, so a bare
 `pnpm lint` on a fresh checkout reads those two programs without them.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
-and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
-`webkitgtk-webdriver` from the runner's apt), and
-runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
-open a real window, in two lanes, half its four cores. ONE run, because there
+(pinned by hand) and runs the scenario suite, in two lanes, half its four
+cores. ONE run, because there
 is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
 app ships: `pnpm test` again, since the shell's macOS code compiles and runs
 only there, and `pnpm smoke:desktop` on an ad-hoc pack
-(`INTELIGIR_PACK_UNSIGNED=1`). Each step CI adds on top of `pnpm verify`
+(`INTELIGIR_PACK_UNSIGNED=1`), its window opened on a Worker the smoke boots
+on the runner. Each step CI adds on top of `pnpm verify`
 carries the reason `verify` cannot run it as a comment beside it in
 `.github/workflows/ci.yml`.
 
@@ -186,8 +179,7 @@ per-export orphan guard over `@repo/ui`).
 End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
 own with its state in a scratch dir, and drives it the way a person or an
 assistant does: the library's tab in a headless browser, the browser extension
-in Chromium, the phone's editor page and runtime, and the desktop shell itself,
-over WebDriver on Linux. It is deliberately outside
+in Chromium, and the phone's editor page and runtime. It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
 lanes, half the machine's cores and at most four at once, each printed whole
 when it ends; `--lanes 1` runs them one at a time and streams every line, and

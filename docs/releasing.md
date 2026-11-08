@@ -107,9 +107,9 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:desktop && pnpm package:extension
 ```
 
-`smoke:desktop` packages the app, signs it, notarizes it with `.release/` and
-boots it; quit any running Inteligir first, since the packaged app would hand
-over to it. Its output must say `package: notarizing with …` and
+`smoke:desktop` packages the app, signs it, notarizes it with `.release/`,
+boots a Worker on this machine and opens the app on it, never production. Its
+output must say `package: notarizing with …` and
 `package: signing the update`: a pack that reports `.release/` absent opens
 only on the Mac that built it, and one with no updater key ships an app that
 never updates. Package only through `pnpm smoke:desktop` or
@@ -254,7 +254,7 @@ previews.
 ### The Mac app
 
 Each on the signed pack, opened from Finder, against production, signed in to
-the owner's account; a spare macOS user keeps your own Keychain out of it.
+the owner's account; a spare macOS user keeps your own WebKit store out of it.
 
 - **Signed and notarized, with nothing else to run and no entitlement.**
 
@@ -269,46 +269,38 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   `satisfies its Designated Requirement`, the entitlements print none (no
   `allow-jit`, no `allow-unsigned-executable-memory`, no `network.client`),
   `spctl` says `accepted` with `source=Notarized Developer ID`, and `stapler`
-  says `The validate action worked!`. `pnpm smoke:desktop` on a Mac runs the
-  same pack to its page and quits it; it must pass on macOS 13.5, the oldest
+  says `The validate action worked!`. `pnpm smoke:desktop` on a Mac opens the
+  same pack on a local Worker's `/library` and quits it; it must pass on macOS 13.5, the oldest
   the pack allows, as on the newest.
 
-- **The first run is a sign-in, and the Keychain keeps it.** Open the app on
-  a Mac user that never ran it. Passing: the window opens on the sign-in;
-  signing in shows the account's library; Keychain Access lists an item named
-  `com.inteligir.desktop`; Settings › Account lists this Mac by its name; and
-  Quit and reopen goes straight to the library. Create an account with an
-  invite code the same way, on a second spare user: the same.
-- **A Keychain that says no is said.** Lock the login keychain
-  (`security lock-keychain ~/Library/Keychains/login.keychain-db`), open the
-  app, and choose Deny when macOS asks for the keychain. Passing: the window
-  says your library didn't open and that the Keychain didn't let Inteligir in,
-  with Try again and Sign out; unlock the keychain and choose Try again, and the
-  library opens as it was.
+- **The first run is the site's sign-in in the window.** Open the app on a Mac
+  user that never ran it. Passing: the window opens on the site's sign-in;
+  signing in shows the account's library; and Quit and reopen goes straight to
+  it. Create an account with an invite code the same way, on a second spare
+  user: the same.
 - **A development build is an app of its own.** With the release signed in,
   run `pnpm dev` from a checkout and sign it in to `pnpm dev:web`'s Worker, then
-  sign it out. Passing: Keychain Access lists `com.inteligir.desktop.dev` beside
-  `com.inteligir.desktop`; `~/Library/Application Support/com.inteligir.desktop`
-  still holds `library/`; and the release opens on its library, signed in, with
-  nothing missing.
-- **Offline, the library is the Mac's.** Turn the network off, Quit and reopen.
-  Passing: the library and an item open, a picture already seen draws, an edit
-  types and the footer says it waits for a connection. Turn the network on.
-  Passing: the footer reads "Up to date" and the edit shows in the library's
-  browser tab at `/library`.
-- **Files.** A picture, a PDF, an `.mp4`, a `.mov` and an `.m4a` item, each
-  first opened on this Mac. Passing: the picture draws; the PDF opens in
-  WebKit's own viewer, with zoom and text selection; each recording plays,
-  seeks and scrubs, which means AVFoundation's range requests were answered
-  through the shell's scheme. Then drop a PDF and an `.m4a` from Finder onto
-  the grid with the network off, and open each. Passing: the PDF opens in the
-  viewer and the recording plays, before the upload and again once the network
-  is back. A file item's Download lands in Downloads under its own name, and the
-  window stays on the item.
-- **Quit keeps what was just typed.** Type a word in an item and press ⌘Q at
-  once; then the same with the menu-bar icon's Quit. Passing: each time, the
-  app reopens with the word in the item, and with the network on it reaches the
-  library's browser tab at `/library`.
+  sign it out. Passing: the release opens on its library, still signed in: the
+  two keep separate WebKit stores (`com.inteligir.desktop.dev` beside
+  `com.inteligir.desktop`).
+- **Offline, the window says so.** Turn the network off, Quit and reopen.
+  Passing: the window shows WebKit's load error. Turn the network on and choose
+  View › Reload. Passing: the library opens.
+- **Files.** A picture, a PDF, an `.mp4`, a `.mov` and an `.m4a` item. Passing:
+  the picture draws; the PDF opens in WebKit's own viewer, with zoom and text
+  selection; each recording plays, seeks and scrubs. A file item's Download
+  lands in Downloads under its own name, and the window stays on the item.
+- **An update.** On a build one behind the latest, open the app. Passing: the
+  notice offers Download, then Restart, and the app reopens on the new version;
+  Check for Updates… and Settings › About then say it's up to date.
+- **The window has the system title bar.** Passing: it drags the window, a
+  double-click zooms it and a second returns it, and the page draws no inset
+  for the red, yellow and green buttons.
+- **Closing the window hides it.** Close the window, then click Inteligir in
+  the Dock. Passing: the window comes back on the page it showed.
+- **⌘Q right after typing.** Type a word in an item and press ⌘Q at once.
+  Accepted until #932: that word can be lost, since the page saves only on
+  `pagehide`.
 - **Dictation is the Mac's.** Press fn twice in a note and speak, then type.
   Passing: the words land once, at the caret, typing carries on after them, and
   the Edit menu shows Start Dictation….
@@ -338,42 +330,11 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   an open item returns to the library.
 - **Scale.** Sign in on a spare Mac user to an account of 20,000 to 50,000
   items (a generated zip of notes, imported in the browser tab). Passing: the
-  first full pull ends with the footer reading "Up to date" while the window
-  stays responsive. Then Quit and reopen. Passing: the grid's first paint, read
-  from the Mac's replica through the bridge, is under about 2 s, and a search
-  with ⌘P answers as you type.
+  library opens while the window stays responsive, and a search with ⌘P
+  answers as you type.
 - **Words.** Passing: no "vault", and no "notes" meaning the whole library,
   across the window, the menus, the dialogs, the sign-in and the update's
   prompts.
-- **The window moves by its top edge, and the traffic lights cover nothing.**
-  Signed in on the signed pack, drag the top of the sidebar. Press [ to close
-  the sidebar and drag the grid's bar, once by its title and once by the space
-  beside it. Open an item and drag its bar above the title's text, then open
-  Settings and drag the strip above Library. Double-click each. Then make the
-  window as narrow as it goes and press Command-plus until the sidebar leaves.
-  Passing: the window follows every drag, each double-click zooms it and a
-  second returns it, the bar's buttons still click and start no drag, and the
-  red, yellow and green buttons sit clear of the sidebar's Library header, of
-  the grid's title and an item's Back button with the sidebar closed or gone,
-  and of Settings' Library button, each of which still takes a click. No suite
-  sees the Overlay title bar, Tauri's drag script or the real geometry.
-- **A sign-out from elsewhere reaches an idle window.** With the grid open and
-  idle, sign this Mac out from inteligir.com/app/devices or Settings › Account
-  on another Mac. Passing: within about a minute the window opens on the
-  sign-in, its replica file is gone, and Keychain Access no longer lists
-  `com.inteligir.desktop`. The suites run this over a mocked shell, never the
-  real Keychain.
-- **A build too old says so, and keeps everything.** A release reaches
-  production alone, so this runs on a development build: sign `pnpm dev` in to
-  `pnpm dev:web`'s Worker, add `MIN_CLIENT_BUILD=99.0.0` to
-  `apps/web/.dev.vars`, restart `pnpm dev:web`, and type in an item. Passing:
-  the rail says Update Inteligir, a notice says the version is too old, and the
-  credential, the replica and the edit all stay. Take the line out, restart
-  `pnpm dev:web`, and quit and reopen the app. Passing: the edit goes. The
-  suites run this over a mocked shell.
-- **This Mac in Devices.** Open Settings › Account. Passing: This Mac sits on
-  its own row with no Sign out, and other devices keep theirs. The suites run
-  this over a mocked shell.
 - **Settings' section links.** Click each link in Settings' nav. Passing: each
   scrolls to its section in WKWebView, and Settings stays open. The suites run
   this in jsdom alone.
@@ -384,15 +345,6 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
 - **A long address in an approval.** Ask the agent to save a link with a very
   long address. Passing: it wraps inside the approval card and pushes nothing
   off the panel. jsdom has no layout.
-- **Sign out during a load.** Open a large PDF and sign out while it loads.
-  Passing: the Caches files folder stays empty. `cargo test` proves this with a
-  real listener and a sign-out mid-fetch, not with WebKit driving the scheme.
-- **Sign out from "Your library didn't open".** Force that page and press Sign
-  out. Passing: this Mac leaves the device list within the reload. A suite proves
-  the forget, revoke and reload order over a mock shell, not WebKit's reload
-  racing the call, which waits 3 seconds at most. This holds while the Mac can
-  read its sign-in. With the Keychain refused it has nothing to sign out with:
-  it stays listed, and is removed from another device.
 - **A folder zipped in Finder.** Compress, in Finder, a folder of notes that
   keeps its pictures in `assets/`, and import that zip into a fresh account.
   Passing: its notes land at the top of the library with their pictures, and no

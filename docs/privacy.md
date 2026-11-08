@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of November 6, 2026.
+Effective as of November 8, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -73,12 +73,12 @@ through the Service or otherwise includes:
     in Cloudflare D1 (Better Auth, the sign-in software our cloud runs), and the
     invite code you redeemed with your email beside it. You create the account
     in the app, or on our website: your name, email, password and invite code
-    cross the wire over HTTPS once, and, from the app, the same request signs
-    that Mac in. A password reset emails you a link through Cloudflare's own
+    cross the wire over HTTPS once, and, from the phone, the same request signs
+    that phone in. A password reset emails you a link through Cloudflare's own
     email sending, and the link's token waits in D1 (see
     [Retention](#retention)).
-  - **Device records** — a name per device (the name Finder shows for a Mac, the
-    name a phone reports for itself, or one you type when you sign the device
+  - **Device records** — a name per device (the name a phone reports for itself,
+    or one you type when you sign the device
     in), timestamps (created, last seen, revoked) and the SHA-256 hash of each
     device credential. The credential itself is answered once, when the device
     signs in with your email and password or creates the account, and never
@@ -141,18 +141,18 @@ as:
     login with no throttle is a password oracle. Once signed in, a device's
     reads and writes of your library, and its attempts to delete the
     account, are counted the same way under the device's id, never an address,
-    a browser tab's under its session's id, and a connected assistant's calls
+    a browser tab's, or the Mac app's, under its session's id, and a connected assistant's calls
     under the id of the access you gave it.
-  - **The app's version, on every request to our cloud.** The Mac app, the
-    phone app and the browser extension say which version they are, and which
-    of the three, on each request they send our cloud, so it can stop answering a version too old to sync with
+  - **The app's version, on every request to our cloud.** The phone app and
+    the browser extension say which version they are, and which of the two, on
+    each request they send our cloud, so it can stop answering a version too old to sync with
     it rather than answer it wrongly. Our cloud reads it to decide whether to
     answer, and keeps no record of it.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
-    release feed whether a newer version exists 15 seconds after launch and
-    every 4 minutes after that, downloads a newer one from GitHub in the
-    background and installs it when you quit the app (or at once, with Restart
-    to Update). GitHub sees your IP address, nothing about your library or your
+    release feed whether a newer version exists each time its window opens your
+    library, and when you choose Check for Updates…; it downloads a newer one
+    from GitHub only when you choose Download, and installs it when you choose
+    Restart. GitHub sees your IP address, nothing about your library or your
     account.
   - **The phone's update check — to Expo.** Each time the phone app starts it
     asks Expo's update service whether a newer version of its app code exists,
@@ -192,8 +192,9 @@ facilitated by cookies and other technologies. The Service uses only these:
   connecting sends you to our consent page, the page sets one more, for at most
   ten minutes and cleared once you answer, that ties your answer to the browser
   you were asked in. Your library in a browser tab, at inteligir.com/library,
-  is signed in by that same session cookie. The Mac app and the iPhone app use
-  no cookies.
+  is signed in by that same session cookie. The Mac app's window is signed in
+  by that same session cookie, kept in the app's own web storage on your Mac;
+  the iPhone app uses no cookies.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's web storage (local storage), first-party, and
   never sends it to us; your library in a browser tab keeps its settings and
@@ -275,11 +276,9 @@ The apps also hold to these, plainly:
   reaches your library. A picture you paste into a note's text is not saved
   again: it reaches your library as the file you pasted, with whatever details
   it carries.
-- **The Mac's copy of your library, and its sign-in.** The Mac app keeps a
-  copy of your library, and the files you open from it, in its own
-  folders on that Mac, so it reads them with no connection; signing out deletes
-  them. The device's sign-in is kept in the macOS Keychain and nowhere else on
-  disk. The app keeps no log.
+- **The Mac app keeps no copy of your library.** It shows your library from
+  our website, and keeps the site's sign-in cookie and the page's settings in
+  its own web storage on that Mac. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as
 Anthropic's Claude, which our cloud runs to operate the built-in agent you can
@@ -534,7 +533,7 @@ page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
 **Privacy settings.** Signing a device out of your account (Settings › Account)
-stops it syncing, and on a Mac deletes its copy of your library.
+stops it syncing, and on the phone deletes its copy of your library.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If
@@ -644,8 +643,8 @@ These are the edges of that protection, stated plainly:
   closed as part of the revoke — but revocation cannot reach a response already
   in flight.
 - **Signing out on a device revokes it the same way, but only if our cloud hears
-  the sign-out.** Settings › Account on a Mac waits for a connection. The phone,
-  the browser extension and a Mac whose library will not open go on without one.
+  the sign-out.** Settings › Account on a Mac waits for a connection. The phone
+  and the browser extension go on without one.
   A device our cloud did not hear from forgets its credential while its row stays
   active, until you revoke it from Settings › Account on a Mac or from the
   account pages on our website.
