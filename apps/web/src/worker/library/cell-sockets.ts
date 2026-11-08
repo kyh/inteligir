@@ -11,8 +11,8 @@ import { z } from "zod";
 
 import { credentialIdSchema } from "./library-principal";
 
-// who a socket answers to: a device by its credential, or a browser tab by its session; the
-// Worker verifies it and stamps it on the upgrade, over any copy the request carried, and the
+// who a socket answers to: a session, whichever door it came by, or a device by its credential;
+// the Worker verifies it and stamps it on the upgrade, over any copy the request carried, and the
 // ticket it opens with names the same holder (`./socket-ticket`)
 const HOLDER_KINDS = ["device", "session"] as const;
 export const holderSchema = z.strictObject({

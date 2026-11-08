@@ -5,8 +5,8 @@ import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, `/v1`'s holders on the device or browser
-// session that signed in, and an assistant on its grant; the kill switch is read here, not per
+// Unauthenticated callers are keyed on their address, `/v1`'s holders on the session or device
+// credential that signed in, and an assistant on its grant; the kill switch is read here, not per
 // caller.
 
 /** @internal */
@@ -121,7 +121,7 @@ export const RATE_WINDOWS = {
   // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
   // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
   connector: { max: 300, windowMs: 60_000 },
-  // every signed call on /v1/rpc, keyed on the device or the browser session: a screen reads its
+  // every signed call on /v1/rpc, keyed on the session or the device credential: a screen reads its
   // pages again on each socket frame, and a phone back online lands its waiting saves a write a
   // call, which a few hundred calls cover, so a ceiling past that is a loop
   rpc: { max: 1200, windowMs: 60_000 },

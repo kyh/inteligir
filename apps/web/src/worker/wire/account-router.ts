@@ -1,9 +1,11 @@
-// The account's procedures, which the Worker answers itself on `/v1/rpc/account`: a device's
-// sign-in and sign-up, signing out, the browser extension's credential, the account's devices, its
-// deletion with the password asked again, the socket's ticket, and the assistants let in through
-// the connector. A signed row meets its credential in one middleware, verified lazily from the
-// request's context (`./v1-principal`); a sign-in or sign-up spends its caller's window. The
-// devices' cores, which mint, verify and revoke credentials, are `../device/*`.
+// The account's procedures, which the Worker answers itself on `/v1/rpc/account`: a device
+// credential's sign-in and sign-up, signing out, the browser extension's credential, the account's
+// devices, its sessions beside its device credentials, its deletion with the password asked again,
+// the socket's ticket, and the assistants let in through the connector. A signed row meets its
+// credential in one middleware, verified lazily from the request's context (`./v1-principal`); a
+// sign-in or sign-up spends its caller's window. The sessions' cores are `../auth/session-devices`
+// and `../auth/delete-account`; the device credentials', which mint, verify and revoke them,
+// `../device/*`.
 
 import {
   TooManyRequestsError,
@@ -17,16 +19,17 @@ import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { eq } from "drizzle-orm";
 
 import { createAuth, createSignUpAuth } from "../auth/auth";
+import { deleteAccountUnderSession } from "../auth/delete-account";
+import { listSessionDevices, revokeSessionDevice } from "../auth/session-devices";
 import { listAssistants, revokeAssistant } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
-import { session, user } from "../db/schema";
+import { user } from "../db/schema";
 import { deleteAccountWithPassword } from "../device/account";
 import { listDevices, revokeDevice } from "../device/devices";
 import { loginDevice, mintDeviceCredential } from "../device/login";
 import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
-import { severSockets } from "../library/socket-routes";
 import { mintSocketTicket } from "../library/socket-ticket";
 import { spendCallerBudget, spendHolderBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
@@ -57,6 +60,12 @@ const signedIn = os.middleware(async ({ context, next }) => {
 
 const originOf = (request: Request): string => new URL(request.url).origin;
 
+const internalAdapterOf = async (context: AccountContext) => {
+  const authContext = await createAuth(context.env, context.ctx, originOf(context.request))
+    .$context;
+  return authContext.internalAdapter;
+};
+
 const accountRouter = os.router({
   // the assistants let in through the connector's consent page, each one grant
   assistants: {
@@ -80,13 +89,14 @@ const accountRouter = os.router({
       return { revoked: true as const };
     }),
   },
-  // a browser's session alone mints the extension its credential: a device's could otherwise mint
-  // credentials that outlive its own revocation. The session stays, the site's own
+  // the site's own page alone mints the extension its credential, on its session: a device's, the
+  // phone's or the extension's could otherwise mint credentials that outlive its own end. The
+  // session stays, the site's own
   connectExtension: os.connectExtension
     .use(signedIn)
     .handler(async ({ context, errors, input }) => {
       const { db, signedIn: principal } = context;
-      if (principal.actor.kind !== "session") {
+      if (principal.actor.kind !== "session" || principal.actor.door !== "page") {
         throw errors.UNAUTHORIZED();
       }
       const owner = await db
@@ -112,14 +122,20 @@ const accountRouter = os.router({
     if (!(await spendHolderBudget(env, db, "accountDelete", holderIdOf(principal)))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const deletion = await deleteAccountWithPassword(env, context.ctx, db, {
-      origin: originOf(context.request),
-      password: input.password,
-      userId: principal.accountId,
-    });
+    const deletion =
+      principal.actor.kind === "session"
+        ? await deleteAccountUnderSession(env, context.ctx, context.request, input.password)
+        : await deleteAccountWithPassword(env, context.ctx, db, {
+            origin: originOf(context.request),
+            password: input.password,
+            userId: principal.accountId,
+          });
     switch (deletion) {
       case "gone": {
         throw errors.GONE();
+      }
+      case "signed-out": {
+        throw errors.UNAUTHORIZED();
       }
       case "invalid-credentials": {
         throw errors.INVALID_CREDENTIALS();
@@ -133,17 +149,25 @@ const accountRouter = os.router({
   devices: {
     list: os.devices.list.use(signedIn).handler(async ({ context }) => {
       const { accountId, actor } = context.signedIn;
-      return await listDevices(
-        context.db,
-        accountId,
-        actor.kind === "device" ? actor.deviceId : null,
-      );
+      const [sessions, credentials] = await Promise.all([
+        listSessionDevices(
+          context.db,
+          accountId,
+          actor.kind === "session" ? actor.sessionId : null,
+        ),
+        listDevices(context.db, accountId, actor.kind === "device" ? actor.deviceId : null),
+      ]);
+      return {
+        devices: [...sessions, ...credentials].toSorted((a, b) => a.createdAt - b.createdAt),
+      };
     }),
+    // the session or the device credential by that id, among the account's own alone
     revoke: os.devices.revoke.use(signedIn).handler(async ({ context, errors, input }) => {
-      const revoked = await revokeDevice(context.ctx, context.db, {
-        deviceId: input.deviceId,
-        userId: context.signedIn.accountId,
-      });
+      const id = "id" in input ? input.id : input.deviceId;
+      const userId = context.signedIn.accountId;
+      const revoked =
+        (await revokeSessionDevice(await internalAdapterOf(context), context.db, { id, userId })) ||
+        (await revokeDevice(context.ctx, context.db, { deviceId: id, userId }));
       if (!revoked) {
         throw errors.NOT_FOUND();
       }
@@ -164,16 +188,15 @@ const accountRouter = os.router({
     }
     return result.response;
   }),
-  // the credential that asks: a device's is revoked, and a browser tab's session ends, its sockets
-  // with it
+  // the credential that asks: a device's is revoked, and a session ends, its sockets with it
   signOut: os.signOut.use(signedIn).handler(async ({ context }) => {
     const { actor, accountId } = context.signedIn;
-    if (actor.kind === "device") {
-      await revokeDevice(context.ctx, context.db, { deviceId: actor.deviceId, userId: accountId });
-    } else {
-      await context.db.delete(session).where(eq(session.id, actor.sessionId));
-      await severSockets(context.ctx.exports, accountId, { id: actor.sessionId, kind: "session" });
-    }
+    await (actor.kind === "device"
+      ? revokeDevice(context.ctx, context.db, { deviceId: actor.deviceId, userId: accountId })
+      : revokeSessionDevice(await internalAdapterOf(context), context.db, {
+          id: actor.sessionId,
+          userId: accountId,
+        }));
     return { revoked: true as const };
   }),
   signUp: os.signUp.handler(async ({ context, errors, input }) => {

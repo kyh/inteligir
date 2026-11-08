@@ -1,6 +1,6 @@
 // Who a call to the library is by: the account, and the actor whose change set its writes join. The
-// Worker resolves it from the credential the request carried (a device's bearer and a browser's
-// session on `/v1`, an assistant's OAuth token on the connector), drops any copy the request
+// Worker resolves it from the credential the request carried (a session through the door it came
+// by and a device's bearer on `/v1`, an assistant's OAuth token on the connector), drops any copy the request
 // brought, and stamps it on the request it forwards to the account's cell
 // (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there alone, since
 // only the Worker reaches a cell, and holds it to the account its own name gives. The built-in
@@ -23,15 +23,21 @@ export const LIBRARY_SCOPES = ["library", "library:read"] as const;
 // the id a credential goes by: a device's, a browser session's or an assistant's grant
 export const credentialIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u);
 
-// an app signed in on a device: the Mac, the phone, the extension
+// an app signed in on a device by a device credential
 const deviceActorSchema = z.strictObject({
   deviceId: credentialIdSchema,
   deviceName: z.string().min(1).max(128),
   kind: z.literal("device"),
 });
 
-// the library in a browser tab, signed in with the site's own session
+// the door a session reached `/v1` by (`../wire/v1-principal`): the site's own page, a tab or the
+// Mac app's window; the phone; the browser extension, on the browser's own session
+const SESSION_DOORS = ["page", "phone", "extension"] as const;
+export type SessionDoor = (typeof SESSION_DOORS)[number];
+
+// one of Better Auth's sessions, whichever device signed it in
 const sessionActorSchema = z.strictObject({
+  door: z.enum(SESSION_DOORS),
   kind: z.literal("session"),
   sessionId: credentialIdSchema,
 });
@@ -144,6 +150,14 @@ export const principalFromHeader = (value: string | null): NamedPrincipal | null
   return principal.success ? principal.data : null;
 };
 
+// a session's change sets are named by the door its writes came through, which says the surface
+// where a stored user agent would only guess at it
+const SESSION_LABELS = {
+  extension: "You from the browser extension",
+  page: "You in the browser",
+  phone: "You on your iPhone",
+} as const satisfies Record<SessionDoor, string>;
+
 // the actor a principal's writes are by, in its change set's words for it
 export const cellActorOf = (principal: NamedPrincipal): CellActor => {
   const { actor } = principal;
@@ -152,7 +166,7 @@ export const cellActorOf = (principal: NamedPrincipal): CellActor => {
       return { deviceId: actor.deviceId, kind: "person", label: `You on ${actor.deviceName}` };
     }
     case "session": {
-      return { deviceId: actor.sessionId, kind: "person", label: "You in the browser" };
+      return { deviceId: actor.sessionId, kind: "person", label: SESSION_LABELS[actor.door] };
     }
     // every call under one grant joins one set, sealed after its quiet (`./cell-actor`)
     case "assistant": {

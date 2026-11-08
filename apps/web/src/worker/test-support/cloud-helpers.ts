@@ -3,6 +3,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import {
   librarySocketFrameSchema,
@@ -44,6 +45,10 @@ export const buildHeaders = (): Record<string, string> => clientBuildHeaders(flo
 // a browser on one of this Worker's own pages, which ships in the same deploy and names no build
 export const OWN_PAGE_HEADERS = { origin: ORIGIN, "sec-fetch-site": "same-origin" } as const;
 
+// the browser the site's sign-up is made in
+export const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+
 // what a browser sends back: the name=value of each cookie the response set
 export const cookieHeaderOf = (response: Response): string => {
   const headers = new Headers();
@@ -58,7 +63,11 @@ export const signUpUser = async (email: string): Promise<{ cookie: string; passw
   const response = await drained(
     exports.default.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
       body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
-      headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
+      headers: {
+        ...OWN_PAGE_HEADERS,
+        "content-type": "application/json",
+        "user-agent": BROWSER_USER_AGENT,
+      },
       method: "POST",
     }),
   );
@@ -148,6 +157,52 @@ export const deviceHeaders = (credential: string) => ({
   authorization: `Bearer ${credential}`,
 });
 
+// a session cookie's value as the browser's jar holds it, signed and encoded as Better Auth set it
+export const sessionTokenOf = (cookie: string): string => {
+  const value = cookie
+    .split("; ")
+    .find((pair) => pair.split("=")[0]?.endsWith("session_token") === true)
+    ?.split("=")[1];
+  if (value === undefined) {
+    throw new Error("no session cookie");
+  }
+  return value;
+};
+
+// what the phone's runtime sends with its calls: its build, the cookie it keeps and its app scheme
+export const phoneHeaders = (cookie: string) => ({
+  ...buildHeaders(),
+  cookie,
+  "expo-origin": PHONE_ORIGIN,
+});
+
+// what the browser extension sends: its build, and the browser's own session cookie as a bearer
+export const extensionHeaders = (cookie: string) => ({
+  ...buildHeaders(),
+  authorization: `Bearer ${sessionTokenOf(cookie)}`,
+});
+
+// the system networking stack's user agent, which the phone's native requests carry
+export const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
+
+// the phone's sign-in as its runtime makes it: Better Auth's own route, the app scheme named in
+// `expo-origin`, which a native request sends in place of an Origin
+export const signInPhone = async (email: string, password = PASSWORD): Promise<string> => {
+  const response = await drained(
+    exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+      body: JSON.stringify({ email, password }),
+      headers: {
+        "content-type": "application/json",
+        "expo-origin": PHONE_ORIGIN,
+        "user-agent": PHONE_USER_AGENT,
+      },
+      method: "POST",
+    }),
+  );
+  expect(response.status).toBe(200);
+  return cookieHeaderOf(response);
+};
+
 // a caller at the floor that holds no credential yet: a sign-in or a sign-up
 export const anonymous = () => v1Link(buildHeaders());
 
@@ -160,11 +215,11 @@ export const loginDevice = async (
   return await anonymous().account.signIn({ deviceName, email, password: PASSWORD });
 };
 
-// a device's socket, opened as every client opens it: a ticket its credential minted
-export const openSocket = async (
-  credential: string,
+// a socket opened as every client opens one: on a ticket minted under these headers' credential
+export const openSocketAs = async (
+  headers: Record<string, string>,
 ): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> => {
-  const { ticket } = await v1Link(deviceHeaders(credential)).account.socketTicket();
+  const { ticket } = await v1Link(headers).account.socketTicket();
   const response = await exports.default.fetch(
     `${ORIGIN}${V1_SOCKET_PATH}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`,
     { headers: { upgrade: "websocket" } },
@@ -185,3 +240,9 @@ export const openSocket = async (
   });
   return { frames, socket };
 };
+
+// a device's socket, on a ticket its credential minted
+export const openSocket = async (
+  credential: string,
+): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> =>
+  await openSocketAs(deviceHeaders(credential));

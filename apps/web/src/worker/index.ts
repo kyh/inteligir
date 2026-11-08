@@ -1,7 +1,7 @@
 import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { createAuth } from "./auth/auth";
+import { createAuth, withoutAuthToken } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import {
   CONSENT_PATH,
@@ -89,7 +89,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname.startsWith("/api/auth/")) {
-    return await createAuth(env, ctx, url.origin).handler(request);
+    return withoutAuthToken(await createAuth(env, ctx, url.origin).handler(request));
   }
 
   // the site's sign-up form, which its own page posts and which ships in the same deploy

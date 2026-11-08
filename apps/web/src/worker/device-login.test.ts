@@ -105,7 +105,7 @@ describe("device sign-in", () => {
       password: PASSWORD,
     });
     const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(devices.map((row) => row.name)).toStrictEqual(["Laptop"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Laptop"]);
   });
 
   it("refuses a wrong password without a device row", async () => {
@@ -285,9 +285,11 @@ describe("device sign-in", () => {
     await site.account.devices.revoke({ deviceId: first.deviceId });
 
     const { devices } = await site.account.devices.list();
-    expect(devices.map((row) => row.name)).toStrictEqual(["Laptop", "Desktop"]);
-    expect(devices[0]?.revokedAt).not.toBeNull();
-    expect(devices[1]?.revokedAt).toBeNull();
+    expect(devices.map((row) => [row.name, row.revokedAt === null])).toStrictEqual([
+      ["Chrome on Mac", true],
+      ["Laptop", false],
+      ["Desktop", true],
+    ]);
   });
 
   it("never lets one account revoke another's device", async () => {

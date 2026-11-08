@@ -2,9 +2,10 @@
 // worker, on its own origin (`EXTENSION_ORIGIN`), which asks no host permission. It is answered on
 // the routes it calls and on those alone, by its own exact origin, never a reflected one, and with
 // no credentials: it sends its device credential as a bearer, never a cookie, so the origin let in
-// reads nothing a session cookie would have opened. The socket is no CORS request (it opens on a
-// ticket a call minted), and every other origin, the site's own pages included, meets no CORS
-// header.
+// reads nothing a session cookie would have opened; nor does it let `expo-origin` through, the
+// header the phone's cookie is read under (`./wire/v1-principal.ts`). The socket is no CORS request
+// (it opens on a ticket a call minted), and every other origin, the site's own pages included,
+// meets no CORS header.
 
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";

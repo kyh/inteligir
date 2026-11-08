@@ -22,6 +22,7 @@ const SOCKET_SUITES = [
   "src/worker/account-delete.test.ts",
   "src/worker/device-manage.test.ts",
   "src/worker/library/library-socket.test.ts",
+  "src/worker/session-devices.test.ts",
 ];
 
 // BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / a Worker secret), so the test env

@@ -1,7 +1,7 @@
 // The account's procedures, which the Worker answers itself on `/v1/rpc/account` (the library's go
 // on to the account's cell): a device's credential and its sign-in, the browser extension's
-// credential, the account's devices, its deletion, the ticket its socket opens with and the
-// assistants it has let in.
+// credential, the account's devices (its signed-in sessions and its device credentials), its
+// deletion, the ticket its socket opens with and the assistants it has let in.
 
 import { z } from "zod";
 
