@@ -21,7 +21,7 @@ reach it.
 `library:<userId>` only from a verified credential, or from what the cell itself
 gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, highlights, threads, the change log,
-History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
+change sets and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
 accounts. Not a **replica**, which a device reads while it writes through the
 cell.
@@ -34,14 +34,16 @@ stamps it on the call it forwards to the **library cell** and drops any copy the
 request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
 credential: the cell never sees one.
 
-**change set** — the unit of History and of undo. Every write lands in one,
+**change set** — the unit of undo. Every write lands in one,
 which records each item it touched before and after, its actor (the person,
 the agent, an assistant, an import, a fill or an undo) and when it opened and
 sealed. A device's typing seals after 15 s of quiet or 60 s in all;
 a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
-them (`apps/web/src/worker/library/change-sets.ts`), and the revert is
+each until seven days after it sealed
+(`apps/web/src/worker/library/change-sets.ts`,
+`apps/web/src/worker/library/change-set-prune.ts`), and the revert is
 `@repo/notes/library/revert-change`'s.
 
 **block** — one top-level node of an item's body, a Plate element stored as a
@@ -264,18 +266,14 @@ the cell refused, which waits for the person (Try again, Let it go). Never a
 cursor, a head or an outbox.
 
 **Needs a connection** — what a screen says of something only the cloud
-answers (History, the agent, import and export, the account) while the device
+answers (the agent and its Undo, import and export, the account) while the device
 is offline: the call waits rather than fails
 (`apps/workspace/src/app/cloud/needs-connection.tsx`).
 
-**History** — the panel tab listing an item's CHANGE SETS, newest first, each
-by who made it and when (`apps/workspace/src/app/panel/history-tab.tsx`).
-"Show this version" reads the item as that set left it; **Undo** takes the set
-back. Not the editor's own undo (⌘Z), which lives and dies with the open item.
-
-**Undo** — History's button, "Undo this turn" under an agent's turn and "Undo
-this conversation" under a conversation: `library.history.undo` over the
-CHANGE SETS named, in a change set of its own, so an undo is itself in History.
+**Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
+under a conversation: `library.history.undo` over the CHANGE SETS named, in a
+change set of its own, for seven days after each set sealed. Not the editor's
+own undo (⌘Z), which lives and dies with the open item.
 A block changed since stays, and an item whose later edits overlap the set's is
 kept whole and named. An item a rule holds back (a full library, an address
 another item holds now) is named apart, and its set can be undone again, as can

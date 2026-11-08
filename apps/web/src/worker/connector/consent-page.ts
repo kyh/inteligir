@@ -75,7 +75,7 @@ export const consentPage = ({ account, details, handle }: ConsentQuestion): stri
   return documentOf(
     `Connect ${details.clientName} to your library`,
     `<h1>Allow ${name} to read and change your library?</h1>
-<p>${name} will be able to search and read everything in the library you're signed in to as <strong>${escapeHtml(account.email)}</strong>, save links, write notes and change your items. Each change it makes shows in History, where you can undo it.</p>
+<p>${name} will be able to search and read everything in the library you're signed in to as <strong>${escapeHtml(account.email)}</strong>, save links, write notes and change your items.</p>
 <p class="muted">${publisher} Access is sent to <strong>${escapeHtml(details.redirectHost)}</strong>.</p>
 ${local}
 <form method="post">

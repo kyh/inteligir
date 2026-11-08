@@ -173,11 +173,15 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   mcp.tool(…))`: its name, title, description and the verb whose read-only and
   idempotent hints oRPC infers, then the hints no verb implies (closed-world
   but `save_link`, destructive where it changes what is there). A row without
-  tool meta is no tool. The cell implements the decorated contract while
+  tool meta is no tool, and `library.history`'s rows carry none: Undo is the
+  person's press under the built-in agent's turn, and what an assistant changed
+  it changes back when asked. The cell implements the decorated contract while
   clients type against the plain one, held equal by a `*.test-d.ts`.
   Rejected: the meta in `@repo/contract` (every client would bundle MCP and
-  OpenAPI; `oxlint.config.ts` refuses both outside `apps/web/src/worker`) and a
-  walker decorating by path (it rebuilds oRPC's internals).
+  OpenAPI; `oxlint.config.ts` refuses both outside `apps/web/src/worker`); a
+  walker decorating by path (it rebuilds oRPC's internals); an assistant's own
+  undo tool (with no listing it names no set, and an agent undoing a turn would
+  undo it under the person).
   `apps/web/src/worker/connector/library-tools.ts`.
 
 - **THE WORKER'S `Env` IS ONLY WHAT `cf workers types` GENERATES FROM
@@ -238,15 +242,20 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   person). `apps/web/src/worker/library/library-engine.ts`, `cell-landing.ts`,
   `cell-annotations.ts`.
 
-- **A CHANGE SET SEALS BY THE CELL'S ONE ALARM, AND AN ITEM'S REVISIONS RUN IN
-  THE ORDER ITS STATES HELD.** Each actor's set seals by its policy when its
-  `jobs` row comes due. A set's after for an item, with the item's revision, is
-  written once another set is about to change the item or the set seals, so
-  the newest revision is the item as it stands. Rejected: a timer per set
-  (eviction loses it); each seal's revision of its own after (a late seal
-  outranks a newer state); a revision per write (typing makes thousands).
+- **A CHANGE SET SEALS BY THE CELL'S ONE ALARM, AND UNDO REACHES BACK SEVEN
+  DAYS** (owner decision). Each actor's set seals by its policy when its `jobs`
+  row comes due. A set's after for an item is written once another set is
+  about to change the item or the set seals, so it is the item as that set
+  left it however the seals interleave. Seven days after a set closes the prune
+  drops it, and then every part, block version and file only it named, so
+  what Undo keeps of the library is a week of its changes. Rejected: a timer
+  per set (eviction loses it); each seal's own after (a late seal outranks a
+  newer state); a revision of the item per set to browse (the spec keeps no
+  page history, and Undo needs only a set's before and after); keeping sets
+  until the item is purged (an often-edited item would keep every keystroke's
+  block forever).
   `apps/web/src/worker/library/change-sets.ts`, `cell-actor.ts`,
-  `history-prune.ts`.
+  `change-set-prune.ts`.
 
 - **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
   CREDENTIALS LAST.** Better Auth's `beforeDelete` asks the cell to purge, step
@@ -431,20 +440,20 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `packages/notes/src/items/link-fill.ts`.
 
 - **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
-  item names it or any item's history does, and `history_blobs` keeps which
-  files each fields part and block version names, so the ask is one lookup. A
-  file that lands, or that an item stops naming, waits a day under an `unnamed`
+  item names it or any change set does, and `history_blobs` keeps which files
+  each fields part and block version names, so the ask is one lookup. A file
+  that lands, or that an item stops naming, waits a day under an `unnamed`
   job, which an item naming it drops; a purge, or a prune dropping the last
-  history naming it, hands it to the alarm's next run, since Delete forever
+  change set naming it, hands it to the alarm's next run, since Delete forever
   frees room at once; an import that ends however it ended lets its files go, a
   reading that lands nowhere hands its cover to the alarm's next run, and none
   goes while an import runs or an export writes, whose plans may name it.
-  Rejected: releasing by `refs` alone (a file only history holds would go); a
-  sweep of rows with no refs (the same); searching history's JSON for the sha
-  (a read of every part per file, whose CPU holds every write); releasing
-  inside the purge (it cannot wait out a running import).
+  Rejected: releasing by `refs` alone (a file only a change set holds would
+  go); a sweep of rows with no refs (the same); searching the parts' JSON for
+  the sha (a read of every part per file, whose CPU holds every write);
+  releasing inside the purge (it cannot wait out a running import).
   `apps/web/src/worker/library/cell-blobs.ts`, `cell-parts.ts`,
-  `history-prune.ts`, `cell-imports.ts`, `cell-fills.ts`.
+  `change-set-prune.ts`, `cell-imports.ts`, `cell-fills.ts`.
 
 - **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
   NAMED FROM ONE ORIGIN PER DEPLOYMENT** (owner decision). The provider owns
@@ -530,8 +539,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `thread-loop.ts`.
 
 - **THE AGENT'S TOOLS ARE THE LIBRARY'S PROCEDURES, RUN BY ITS CELL UNDER A
-  PRINCIPAL ONLY `agentTool` MINTS.** The registrar's tool rows minus
-  `undo_change`, each by its `operationId` with its input less `opId`; the cell
+  PRINCIPAL ONLY `agentTool` MINTS.** The registrar's tool rows, each by its
+  `operationId` with its input less `opId`; the cell
   runs one through its own router as `agent{threadId, turn}` only while that
   turn is open, its write's op id derived from `agent:<threadId>:<toolUseId>`,
   so a call run again lands once; no header carries an agent. Rejected: the

@@ -185,10 +185,10 @@ const SYNCED_DDL = [
 
 // the cell's alone: the change log a replica pulls from; the files it holds and the items naming
 // each, which no device reads, since a device asks for a file by the sha an item's row names;
-// History, the op ledger, the uploads it holds room for, the built-in agent, imports and exports,
-// and the jobs its alarm runs. A change set's item names its before and after by part: an item's
-// fields, its manifest (each block's id, hash, order key and section) and its highlights are each
-// kept once per item under their content hash (`snapshot_parts`), so a revision that changed one
+// change sets, the op ledger, the uploads it holds room for, the built-in agent, imports and
+// exports, and the jobs its alarm runs. A change set's item names its before and after by part: an
+// item's fields, its manifest (each block's id, hash, order key and section) and its highlights are
+// each kept once per item under their content hash (`snapshot_parts`), so a set that changed one
 // block stores one new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's
 // after is null while the set is open and the item is as it left it; it is written when the set
 // seals, or when another set is about to change the item. A block a write replaces or drops keeps
@@ -247,16 +247,6 @@ const CELL_DDL = [
       AND (after_fields IS NULL) = (after_annotations IS NULL))
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS change_set_items_item ON change_set_items (item_id)`,
-  `CREATE TABLE IF NOT EXISTS revisions (
-    item_id TEXT NOT NULL,
-    rev INTEGER NOT NULL,
-    change_set_id TEXT NOT NULL,
-    at INTEGER NOT NULL,
-    fields TEXT NOT NULL,
-    manifest TEXT NOT NULL,
-    PRIMARY KEY (item_id, rev)
-  ) STRICT`,
-  `CREATE INDEX IF NOT EXISTS revisions_set ON revisions (change_set_id)`,
   `CREATE TABLE IF NOT EXISTS snapshot_parts (
     item_id TEXT NOT NULL,
     hash TEXT NOT NULL,
@@ -269,8 +259,8 @@ const CELL_DDL = [
     json TEXT NOT NULL,
     PRIMARY KEY (item_id, hash)
   ) STRICT`,
-  // the files each fields part and block version names, so whether any item's history still holds
-  // a file is one lookup, never a read of the history itself
+  // the files each fields part and block version names, so whether any change set still holds a
+  // file is one lookup, never a read of the parts themselves
   `CREATE TABLE IF NOT EXISTS history_blobs (
     item_id TEXT NOT NULL,
     hash TEXT NOT NULL,

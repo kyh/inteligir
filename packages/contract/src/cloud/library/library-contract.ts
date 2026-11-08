@@ -415,30 +415,12 @@ const organizeContract = {
   ),
 };
 
+// the change sets the cell keeps, each until seven days after it closed
 const historyContract = {
-  // the change sets that touched one item, those one conversation's turns made, or the library's
-  // newest
+  // the sets one conversation's turns made, or the library's newest
   list: signedBase
-    .input(
-      z
-        .strictObject({ cursor, itemId: idSchema.optional(), limit, threadId: idSchema.optional() })
-        .refine((input) => input.itemId === undefined || input.threadId === undefined, {
-          error: "names one item or one conversation",
-        }),
-    )
+    .input(z.strictObject({ cursor, limit, threadId: idSchema.optional() }))
     .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
-
-  // an item as one revision left it, for History to show and a restore to patch back
-  revision: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
-    .input(z.strictObject({ itemId: idSchema, rev: z.number().int().positive() }))
-    .output(
-      z.object({
-        blocks: z.array(storedBlockSchema),
-        fields: z.object(FIELDS),
-        rev: z.number().int().positive(),
-      }),
-    ),
 
   // newest first, in one change set of its own; an item a later edit overlaps is named under
   // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
@@ -466,7 +448,7 @@ const historyContract = {
 
 // an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
 // zip of markdown, this app's export or an Obsidian vault included. The cell runs it as a
-// job, a page at a time, every item it adds in one change set History shows
+// job, a page at a time, every item it adds in one change set
 const importsContract = {
   start: signedBase
     .errors({

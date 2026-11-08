@@ -51,10 +51,10 @@ const words = (count: number, seed: string): string =>
   Array.from({ length: count }, (_, index) => `${seed}${String(index)}`).join(" ");
 
 describe("the built-in agent's tools", () => {
-  it("are the connector's tools but undo_change, each by its name, deleting and reaching the web on the person's word", async () => {
+  it("are the connector's tools, each by its name, deleting and reaching the web on the person's word", async () => {
     const listed = await registered();
     const names = AGENT_TOOL_DEFINITIONS.map((tool) => tool.name);
-    expect(names).toStrictEqual(listed.filter((name) => name !== "undo_change").toSorted());
+    expect(names).toStrictEqual(listed.toSorted());
     expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toStrictEqual(names);
     expect(names.filter(asksFirst)).toStrictEqual(["delete_items", "save_link"]);
   });
@@ -128,7 +128,6 @@ describe("the built-in agent's tools", () => {
           ["read_item", { count: 500, id: longId, responseFormat: "detailed" }],
           ["read_item", { from: 200, id: longId }],
           ["list_highlights", { limit: 50 }],
-          ["item_history", { limit: 50 }],
           ["list_tags_and_folders", {}],
           ["create_note", { markdown: words(2000, "note") }],
         ];
@@ -159,8 +158,8 @@ describe("the built-in agent's tools", () => {
       const context = { actor: () => person(), agent, library, settle: agent.settle };
       const call = { threadId: "thread-1", toolUseId: "toolu_1" };
       await expect(
-        runAgentTool(libraryRouter, context, { ...call, input: {}, name: "undo_change" }),
-      ).resolves.toStrictEqual({ content: "There is no tool named undo_change.", isError: true });
+        runAgentTool(libraryRouter, context, { ...call, input: {}, name: "empty_library" }),
+      ).resolves.toStrictEqual({ content: "There is no tool named empty_library.", isError: true });
       await expect(
         runAgentTool(libraryRouter, context, { ...call, input: [], name: "list_items" }),
       ).resolves.toStrictEqual({ content: "A tool's input is a JSON object.", isError: true });

@@ -414,7 +414,7 @@ describe("a turn's seal", () => {
   );
 
   it(
-    "lists one conversation's sets, by the turn that made each, and refuses an item beside it",
+    "lists one conversation's sets, by the turn that made each",
     { timeout: TURN_MS },
     async () => {
       // the day's allowance in the suites is two turns: one a conversation
@@ -430,12 +430,6 @@ describe("a turn's seal", () => {
         expect(changeSets.map((set) => [set.threadId, set.turn])).toStrictEqual([
           [first.threadId, 1],
         ]);
-        const [made] = changeSets[0]?.items ?? [];
-        expect(made).toBeDefined();
-        const both = await refusalOf(
-          client.history.list({ itemId: made?.id ?? "", threadId: first.threadId }),
-        );
-        expect(both.code).toBe("BAD_REQUEST");
       });
     },
   );

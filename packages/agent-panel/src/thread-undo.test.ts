@@ -42,7 +42,7 @@ describe("an agent conversation's undo", () => {
   });
 });
 
-describe("a conversation longer than one page of History", () => {
+describe("a conversation longer than one page of change sets", () => {
   it("is undone from every page, each set once, in as few undos as the cell takes", () => {
     // three pages as the cell answers them, newest first; a set made after the first page was
     // asked moved the second page's first set onto it again

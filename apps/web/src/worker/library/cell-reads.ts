@@ -2,7 +2,7 @@
 // search's filters through the same in-memory index a replica keeps (`@repo/notes/library/
 // library-index`), built over the cell's rows for the one call; an item as its markdown view,
 // paged by block position and cut to a page an agent's tool result can carry; the folder tree and
-// tags; highlights; and the change sets History shows. Times an agent reads are ISO 8601.
+// tags; highlights; and the change sets Undo takes back. Times an agent reads are ISO 8601.
 
 import type {
   changeSetSchema,
@@ -566,9 +566,8 @@ const setItemSchema = z.object({
   created: z.number(),
   item_id: z.string(),
 });
-const revRowSchema = z.object({ rev: z.number().nullable() });
 
-const setItemOf = (sql: SqlStatements, setId: string, raw: z.infer<typeof setItemSchema>) => {
+const setItemOf = (sql: SqlStatements, raw: z.infer<typeof setItemSchema>) => {
   const now = runPlan(sql, readItem(raw.item_id));
   const before =
     raw.before_fields === null ? null : readFieldsPart(sql, raw.item_id, raw.before_fields);
@@ -577,56 +576,31 @@ const setItemOf = (sql: SqlStatements, setId: string, raw: z.infer<typeof setIte
   if (raw.after_fields !== null) {
     after = readFieldsPart(sql, raw.item_id, raw.after_fields);
   }
-  const [rev] = sql.all(
-    "SELECT max(rev) AS rev FROM revisions WHERE item_id = ? AND change_set_id = ?",
-    [raw.item_id, setId],
-  );
   return {
     created: raw.created === 1,
     deleted:
       after !== null && after.deletedAt !== null && (before === null || before.deletedAt === null),
     id: raw.item_id,
-    rev: revRowSchema.parse(rev).rev,
     title: now?.kind === "live" ? now.card.title : (after?.title ?? before?.title ?? ""),
   };
 };
 
-export interface HistoryInput {
+interface HistoryInput {
   readonly cursor?: string | undefined;
-  readonly itemId?: string | undefined;
-  // the sets one conversation's turns opened, which its Undo takes back
+  // the sets one conversation's turns opened, which its Undo takes back; else the library's newest
   readonly threadId?: string | undefined;
   readonly limit: number;
 }
 
-// the filter a listing narrows to: one item's sets, one conversation's, or the library's newest
-interface HistoryFilter {
-  readonly where: string;
-  readonly params: readonly string[];
-}
-
-const historyFilter = (input: HistoryInput): HistoryFilter => {
-  if (input.itemId !== undefined) {
-    return {
-      params: [input.itemId],
-      where: "WHERE id IN (SELECT change_set_id FROM change_set_items WHERE item_id = ?)",
-    };
-  }
-  if (input.threadId !== undefined) {
-    return { params: [input.threadId], where: "WHERE thread_id = ?" };
-  }
-  return { params: [], where: "" };
-};
-
 export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
   const offset = offsetOf(input.cursor);
-  const filter = historyFilter(input);
+  const threadId = input.threadId ?? null;
   const sets = sql
     .all(
       `SELECT id, actor, label, opened_at, sealed_at, thread_id, turn, undone_by FROM change_sets
-       ${filter.where}
+       WHERE ? IS NULL OR thread_id = ?
        ORDER BY opened_at DESC, id DESC LIMIT ? OFFSET ?`,
-      [...filter.params, input.limit + 1, offset],
+      [threadId, threadId, input.limit + 1, offset],
     )
     .map((row) => setRowSchema.parse(row));
   const shown = sets.slice(0, input.limit);
@@ -642,7 +616,7 @@ export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
            WHERE change_set_id = ? ORDER BY item_id LIMIT ?`,
           [set.id, SET_ITEMS_SHOWN],
         )
-        .map((row) => setItemOf(sql, set.id, setItemSchema.parse(row)));
+        .map((row) => setItemOf(sql, setItemSchema.parse(row)));
       return {
         actor: set.actor,
         closedAt: set.sealed_at === null ? null : isoOf(set.sealed_at),

@@ -18,7 +18,8 @@ import type { ConnectorAuth, GrantMetadata } from "./connector-auth";
 // where a person who is not signed in signs in, and is sent back from
 const SIGN_IN_PATH = "/app/sign-in";
 
-// a client's name as a grant keeps it: what it gave, at most as long as History shows
+// a client's name as a grant keeps it: what it gave, at most as long as the account's list of
+// assistants shows
 const NAME_MAX = 128;
 
 const pageResponse = (html: string, status: number, headers = new Headers()): Response => {

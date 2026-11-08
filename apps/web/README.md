@@ -37,7 +37,7 @@ src/
                      forwarded to its cell (v1-rpc.ts)
     library/         The account's library cell: LibraryDO (library-do.ts),
                      its engine over the cell's SQLite (library-engine.ts:
-                     writes, change sets, History, undo, sync, quota, files),
+                     writes, change sets, undo, sync, quota, files),
                      every library procedure over it and the markdown codec
                      (library-router.ts, served by library-rpc.ts), the
                      alarm's jobs, the account's purge in order

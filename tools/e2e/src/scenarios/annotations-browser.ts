@@ -108,7 +108,7 @@ export const annotationsBrowser: Scenario = {
     );
 
     ctx.log("the Highlights tab holds its card, the words and the note");
-    await browser(["click", 'button[aria-label="Info, highlights, History and the agent"]']);
+    await browser(["click", 'button[aria-label="Info, highlights and the agent"]']);
     // pressed where it is, not where a pointer finds it: the panel slides in as it opens
     await clickButtonIn(browser, PANEL, "Highlights");
     const card = `[data-annotation-id="${made.id}"]`;

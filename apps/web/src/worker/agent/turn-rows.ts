@@ -17,7 +17,7 @@ import { refuse } from "../library/cell-refusal";
 
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 
-// History's words for the built-in agent's change sets
+// the built-in agent's change sets' label
 const AGENT_LABEL = "Agent";
 
 // a thread's name: its first message's first line, as long as a row shows

@@ -68,7 +68,7 @@ const shared = {
   // secret (.github/workflows/preview.yml), .dev.vars locally
   BETTER_AUTH_SECRET: bindings.secret(),
   MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
-  // what one account's library may hold, its files and its history included: 1 GiB
+  // what one account's library may hold, its files and its change sets included: 1 GiB
   LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
   // suites, the e2e harness, a local script's .dev.vars

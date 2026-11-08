@@ -96,7 +96,6 @@ const TOOL_WORDS = new Map([
   ["create_note", "Wrote a note"],
   ["delete_items", "Moved items to Deleted"],
   ["edit_item", "Edited an item"],
-  ["item_history", "Read an item's history"],
   ["list_highlights", "Read the highlights"],
   ["list_items", "Looked through the library"],
   ["list_tags_and_folders", "Read the folders and tags"],
@@ -292,7 +291,6 @@ export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => 
 
 // the calls that only read the library, drawn with the read icon; every other one writes
 const READS = new Set([
-  "item_history",
   "list_highlights",
   "list_items",
   "list_tags_and_folders",

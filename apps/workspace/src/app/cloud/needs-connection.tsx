@@ -1,7 +1,7 @@
 // CLAUDE.md § A CELL CALL PAUSES OFFLINE AND SAYS SO. What a screen shows of a call only the cell
-// answers (History, the agent, imports and exports, the account) while it is not answered: with no
-// connection TanStack Query pauses it rather than failing it, and the screen says it needs one;
-// a refusal says its own sentence. A read says so where it would draw; a write, wherever it was
+// answers (the agent and its Undo, imports and exports, the account) while it is not answered:
+// with no connection TanStack Query pauses it rather than failing it, and the screen says it needs
+// one; a refusal says its own sentence. A read says so where it would draw; a write, wherever it was
 // asked from (a card's menu, a button, Settings), says so in one notice the page keeps up while
 // any waits.
 

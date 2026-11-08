@@ -24,8 +24,8 @@ import type { LibraryItemFields } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
 
-// one block of an item at the close of a change set: what a revision keeps for it, its content
-// held apart under its hash
+// one block of an item at the close of a change set: what the set keeps for it, its content held
+// apart under its hash
 export interface ManifestEntry {
   readonly blockId: string;
   readonly hash: string;
@@ -97,7 +97,7 @@ export type ItemRevert =
 export interface ItemRevertInput {
   readonly change: ItemChange;
   readonly now: ItemNow | null;
-  // a block's content by its hash, from the versions a revision keeps
+  // a block's content by its hash, from the versions a change set keeps
   readonly blockAt: (hash: string) => LibraryBlock | undefined;
   // when an item the set made is moved to Deleted
   readonly at: number;

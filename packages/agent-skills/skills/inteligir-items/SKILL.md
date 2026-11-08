@@ -4,7 +4,7 @@ The library is everything the person saved and wrote, and every item in it has o
 plus a body of text. A saved link's fields say where it points and what the page is, and its text
 holds the person's note and the page's readable text; an image, a PDF or any other file is an item
 whose fields name the original; a note the person writes is an item too. One shape is what lets
-search, History, every device and you work on every item alike.
+search, every device and you work on every item alike.
 
 ## Kinds And Fields
 
@@ -54,7 +54,6 @@ or more items, and tag by topic, never by kind.
 - Write a new note with `create_note`, titled, tagged and filed in one call.
 - Tag, untag, file, pin and rename with `organize_items`, many items in one call when they share
   the change.
-- `item_history` says who changed an item and when.
 
 ## What You Must Not Touch
 

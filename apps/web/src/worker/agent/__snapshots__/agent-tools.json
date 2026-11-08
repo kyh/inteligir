@@ -170,36 +170,6 @@
     "name": "edit_item"
   },
   {
-    "description": "Lists the change sets that touched one item, those one conversation with the built-in agent made (each set names its conversation), or the library's most recent ones: who made each, when, and what it changed. It narrows to one item or one conversation, never both at once.",
-    "input_schema": {
-      "additionalProperties": false,
-      "properties": {
-        "cursor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
-        },
-        "itemId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        },
-        "threadId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        }
-      },
-      "type": "object"
-    },
-    "name": "item_history"
-  },
-  {
     "description": "Lists highlights and their notes, for one item or across the library since a date, newest first, with a cursor for the next page.",
     "input_schema": {
       "additionalProperties": false,

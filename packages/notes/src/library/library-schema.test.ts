@@ -28,7 +28,7 @@ describe(ensureLibrarySchema, () => {
     );
     expect(tables(replica)).not.toContain("change_sets");
     expect(tables(cell)).toStrictEqual(
-      expect.arrayContaining(["change_sets", "revisions", "jobs"]),
+      expect.arrayContaining(["change_sets", "snapshot_parts", "jobs"]),
     );
     expect(tables(cell)).not.toContain("outbox");
     expect(libraryDdl("cell").length).toBeGreaterThan(libraryDdl("replica").length);

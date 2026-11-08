@@ -555,7 +555,7 @@ describe("pulling the library", () => {
 });
 
 describe("change sets and undo", () => {
-  it("joins a person's writes into one set until 15 s of quiet, then seals it with a revision", async () => {
+  it("joins a person's writes into one set until 15 s of quiet, then seals it with its after", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
       const library = engineIn(state, clock);
@@ -572,18 +572,20 @@ describe("change sets and undo", () => {
         }),
       );
       const sets = () => state.storage.sql.exec("SELECT id, sealed_at FROM change_sets").toArray();
+      const after = () =>
+        state.storage.sql
+          .exec("SELECT after_manifest FROM change_set_items WHERE item_id = ?", itemId)
+          .one().after_manifest;
       expect(sets()).toHaveLength(1);
       clock.now = start + 24_000;
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBeNull();
+      expect(after()).toBeNull();
       expect(library.nextJobAt()).toBe(start + 25_000);
       clock.now = start + 25_000;
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBe(start + 25_000);
-      const revisions = state.storage.sql
-        .exec("SELECT rev FROM revisions WHERE item_id = ?", itemId)
-        .toArray();
-      expect(revisions).toStrictEqual([{ rev: 1 }]);
+      expect(after()).not.toBeNull();
     });
   });
 
@@ -955,7 +957,7 @@ describe("change sets and undo", () => {
     });
   });
 
-  it("writes each revision when its state stops being the item's, so the newest is the item as it stands", async () => {
+  it("writes each set's after when its state stops being the item's, so each is the item as that set left it", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
       const library = engineIn(state, clock);
@@ -982,20 +984,31 @@ describe("change sets and undo", () => {
       put(person(), later, again);
       clock.now = start + 62_000;
       library.runDueJobs(() => {});
-      const revisions = state.storage.sql
-        .exec("SELECT rev, at FROM revisions WHERE item_id = ? ORDER BY rev", itemId)
-        .toArray();
-      expect(revisions).toStrictEqual([
-        { at: start, rev: 1 },
-        { at: start + 2000, rev: 2 },
-        { at: start + 2000, rev: 3 },
-        { at: start + 62_000, rev: 4 },
+      const manifestSchema = z.array(z.tuple([z.string(), z.string(), z.string(), z.string()]));
+      const afters = state.storage.sql
+        .exec(
+          `SELECT sets.actor AS actor, parts.json AS manifest
+           FROM change_set_items items JOIN change_sets sets ON sets.id = items.change_set_id
+           JOIN snapshot_parts parts ON parts.item_id = items.item_id
+             AND parts.hash = items.after_manifest
+           WHERE items.item_id = ? ORDER BY sets.opened_at`,
+          itemId,
+        )
+        .toArray()
+        .map((row) => ({
+          actor: row.actor,
+          hashes: manifestSchema
+            .parse(JSON.parse(z.string().parse(row.manifest)))
+            .map(([, hash]) => hash),
+        }));
+      // the reading that made the item, the person's set, and the reading in its middle
+      expect(afters).toStrictEqual([
+        { actor: "fill", hashes: [hashOf(A)] },
+        { actor: "person", hashes: [hashOf(again)] },
+        { actor: "fill", hashes: [hashOf(later)] },
       ]);
-      const blocksOf = (rev: number) =>
-        landedValue(library.revision(itemId, rev))?.blocks.map((stored) => stored.block);
-      expect([1, 2, 3, 4].map(blocksOf)).toStrictEqual([[A], [typed], [later], [again]]);
       const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual(blocksOf(4));
+      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([again]);
     });
   });
 
@@ -1061,7 +1074,7 @@ describe("change sets and undo", () => {
     });
   });
 
-  it("empties Deleted: the item stays a tombstone, its highlights and history go", async () => {
+  it("empties Deleted: the item stays a tombstone, its highlights and what its change sets kept go", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
       const library = engineIn(state, clock);
@@ -1093,7 +1106,7 @@ describe("change sets and undo", () => {
       const changes = pulled.kind === "changes" ? pulled.changes : [];
       expect(changes.find((change) => change.id === itemId)?.row).toMatchObject({ kind: "purged" });
       expect(changes.find((change) => change.id === "hl")?.row).toBeNull();
-      for (const table of ["revisions", "snapshot_parts", "block_versions", "change_set_items"]) {
+      for (const table of ["snapshot_parts", "block_versions", "change_set_items"]) {
         expect(
           state.storage.sql
             .exec(`SELECT count(*) AS n FROM ${table} WHERE item_id = ?`, itemId)

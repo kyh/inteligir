@@ -305,13 +305,6 @@ export const libraryRouter = os.router({
         ),
       ),
     ),
-    revision: os.history.revision.handler(({ context, input }) => {
-      const revision = answer(context.library.revision(input.itemId, input.rev));
-      if (revision === null) {
-        throw new NotFoundError();
-      }
-      return revision;
-    }),
     undo: os.history.undo.handler(
       async ({ context, input }) =>
         await committed(context, context.library.undo(context.actor(), input)),

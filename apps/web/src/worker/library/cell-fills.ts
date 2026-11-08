@@ -39,7 +39,7 @@ import {
 } from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
-// who a page's reading is by, in History's words
+// who a page's reading is by, in its change set's words
 export const FILL_ACTOR: CellActor = { kind: "fill", label: "Read from the web" };
 
 // how long a sent reading's row waits before the alarm sends it again: long enough for the send
