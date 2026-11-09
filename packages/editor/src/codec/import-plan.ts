@@ -1,12 +1,13 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
-// doc at a time against the whole plan, resolving its links by the resolver's tiers (path, name,
-// alias, then the `[[Title|uuid]]` id, `@repo/editor/knowledge/link-resolve`). Last, every file no
-// item names becomes an item of its own, so a bare file is a card of its own. A zip's paths reach
-// all this with the folder an unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
-// every other dot-folder and what an operating system left are skipped, and a `.canvas` or a
-// `.base` is always an item, never an attachment. An `AGENTS.md` is a note like any other, unless
+// doc at a time against the whole plan, resolving a `[[…]]` by the resolver's tiers (path, name,
+// alias, `@repo/editor/knowledge/link-resolve`) and a page link by the `id:` its target's file
+// carries. Last, every file no item names becomes an item of its own, so a bare file is a card of
+// its own. A zip's paths reach all this with the folder an unpacked export was zipped under taken
+// off (`unwrapExport`). Obsidian's settings (`.obsidian/`), every other dot-folder and what an
+// operating system left are skipped, and a `.canvas` or a `.base` is always an item, never an
+// attachment. An `AGENTS.md` is a note like any other, unless
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
 // person's own instructions, so only the person writes them, and a zip is anyone's text.
 
@@ -99,7 +100,7 @@ export interface PlannedDoc {
   readonly path: string;
   readonly itemId: string;
   readonly title: string;
-  // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
+  // the `id:` its frontmatter carries, which other docs' page links key by
   readonly fileId: string | null;
   readonly aliases: readonly string[];
   // the url key its frontmatter names, by which the cell folds two saves of one page into one item

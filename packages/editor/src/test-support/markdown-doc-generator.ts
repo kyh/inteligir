@@ -1,5 +1,5 @@
-// Output is not byte-canonical (toCanonical normalizes it) and avoids opaque
-// constructs, so the property test exercises the modelled nodes.
+// Seeded markdown over the dialect's constructs, not as the writer spells them, so a suite reads
+// and writes the modelled nodes in shapes no fixture holds.
 
 import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
 

@@ -547,7 +547,6 @@ describe("a footnote, its definition in another block", () => {
   it("reads as its text, the same in an edit of its call's line as in the whole item", () => {
     const blocks = storedOf("One[^a] word.\n\nTwo.\n\n[^a]: secret\n");
     const whole = JSON.stringify([...blocks.values()].map(({ block }) => withoutId(block)));
-    expect(whole).not.toContain('"opaque"');
     const after = editedTo(blocks, "word.", "word!");
     expect(JSON.stringify([...after.values()].map(({ block }) => withoutId(block)))).toBe(
       whole.replace("word.", "word!"),

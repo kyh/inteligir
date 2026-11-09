@@ -1,7 +1,7 @@
 // An item as an agent reads it: the dialect markdown an export writes, with every link to an item
-// written `[[Title|uuid]]` (its live title, its id after the last pipe) and every file the library
-// holds written `assets/<sha>`, so what the agent writes back names the same items and files. The
-// person's note comes first and the page a fill read after it inside `:::article`. Each block
+// written `[Title](mention:<id>)` (its live title and its id) and every file the library holds
+// written `assets/<sha>`, so what the agent writes back names the same items and files. The
+// person's note comes first and the page a fill read after it inside an `article` fence. Each block
 // knows where it sits in the text, so an edit maps back to the blocks it touched; a run of list
 // items is written as one list, so its items share one place.
 

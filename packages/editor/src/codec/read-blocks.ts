@@ -63,9 +63,6 @@ export const INLINE_TYPES: ReadonlySet<string> = new Set([
   "formulaPill",
   "inline_equation",
   "mention",
-  "opaque",
-  "wikiEmbed",
-  "wikiLink",
 ]);
 
 const isElement = (node: Descendant): node is TElement => ElementApi.isElement(node);

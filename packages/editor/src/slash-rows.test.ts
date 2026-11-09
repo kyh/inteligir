@@ -1,5 +1,4 @@
-// a row whose bytes re-parse as an opaque node inserts something the editor can no longer edit:
-// the next open draws it as a raw island.
+// a row whose construct the writer escapes inserts something the next open reads as its text.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElementApi } from "platejs";
@@ -13,8 +12,6 @@ import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
-const OPAQUE_TYPES = new Set(["opaque"]);
-
 const typesIn = (nodes: readonly Descendant[], wanted: ReadonlySet<string>): string[] =>
   nodes.flatMap((node) => {
     if (!ElementApi.isElement(node)) {
@@ -22,8 +19,6 @@ const typesIn = (nodes: readonly Descendant[], wanted: ReadonlySet<string>): str
     }
     return wanted.has(node.type) ? [node.type] : typesIn(node.children, wanted);
   });
-
-const opaqueTypesIn = (nodes: readonly Descendant[]): string[] => typesIn(nodes, OPAQUE_TYPES);
 
 // the menu opens after text and on an empty line, and a row's bytes may differ between the two.
 const START_LINES = new Map<string, string>([
@@ -57,7 +52,7 @@ describe("every slash row inserts a modeled construct", () => {
 
     const parsed = parseMarkdown(md);
     expect(parsed.ok, md).toBe(true);
-    expect(parsed.ok ? opaqueTypesIn(parsed.value) : [], md).toStrictEqual([]);
+    expect(md).not.toMatch(/\\:|\\\[\\\[/u);
     expect(rewrite(md), md).toBe(md);
   });
 });
