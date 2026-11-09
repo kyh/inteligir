@@ -141,7 +141,7 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
      prints the hint to pass (`confirm_data_loss` for `device`).
    - Anything else that recreates a table (a `__new_` table, a `DROP TABLE`):
      STOP. D1 ignores the foreign-key pragma a recreate leans on, so the drop
-     cascades through every session and account (`apps/web/CLAUDE.md`,
+     cascades through every session and account (`packages/db/CLAUDE.md`,
      Declare D1 uniques as named unique indexes).
 
    Deploy never touches the schema, so it belongs in D1 before the code that
@@ -852,7 +852,7 @@ that deployment.
 ### The built-in agent
 
 Production and the previews each have their own AI Gateway and Anthropic
-workspace (`apps/web/README.md` § The built-in agent); nothing here crosses
+workspace (`packages/service/README.md` § The built-in agent); nothing here crosses
 them. An account has two turns a UTC day (`AGENT_ALLOWANCE` in
 `packages/service/agent-limits.ts`): spread a check that takes more across accounts or
 days, and run turns that must fall an hour apart either side of midnight UTC.

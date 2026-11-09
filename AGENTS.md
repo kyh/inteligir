@@ -26,9 +26,9 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(a byte-exact codec, block writes settled by diff3, our own agent loop). Where
-they
-disagree, these premises win, and the stage's issue says what changes.
+(a byte-exact codec, block writes settled by diff3, our own agent loop, the
+phone's editor as a WebView page). Where they disagree, these premises win,
+and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
   Notion.
@@ -140,7 +140,7 @@ apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/e
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
 packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each conversation with the built-in agent
-packages/db             @repo/db — the D1 accounts database's drizzle schema and client, and the drizzle-kit configs that push it
+packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's with the migrations it runs as it wakes
 packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's markdown grammar, and the codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
@@ -267,15 +267,15 @@ credential adds its check to `docs/releasing.md` § 5, under its surface.
 Every surface, and how an agent sees it run; a scenario is one of
 `tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
 
-| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
-| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
-| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `worker-doors`, `account-hosted` |
-| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                    |
-| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`     |
-| The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's      |
-| The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                                 |
-| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                          |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-share` (its runtime under node)      |
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                                                                                                                     |
+| ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `worker-doors`, `worker-door-faults`, `account-hosted`; the cloud's code in workerd, `pnpm --filter @repo/service test` |
+| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                                                                                                           |
+| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`                                                                                            |
+| The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's                                                                                             |
+| The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                                                                                                                        |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                                                                                                                 |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-share` (its runtime under node)                                                                                             |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
@@ -307,10 +307,11 @@ runs it bare.
   comment; `as const` and `satisfies` are fine): parse at the boundary or
   narrow with a guard. Kebab-case filenames. Make illegal states
   unrepresentable.
-- **The library model is pure and platform-neutral**: `@repo/contract`'s
-  model, the editor's grammar and `@repo/service` take no node or react import
-  and no `crypto` or `URL` global (lint-enforced); callers inject the SQL
-  driver, the clock, random bytes and fresh ids.
+- **`@repo/contract` is client-safe and platform-neutral**: every client and
+  the Worker compile against it, so it takes no node, react, server or drizzle
+  import, and its model no `crypto` or `URL` global, nor do the editor's
+  grammar or the service's model (lint-enforced); callers inject the clock,
+  random bytes and fresh ids.
 - **knip is a CI gate**, `verify`'s `//#knip` task, which
   `pnpm turbo run //#knip` runs alone after the extension's `generate`
   (`docs/development.md` § Quality gates): a new file must be reachable from
@@ -334,10 +335,11 @@ is in the file named.
 - **The cell owns every rule, and every device reads it online.** Every write
   is guarded, applied and logged by the account's library cell; a device reads
   and writes it through `/v1`, its reads cached by TanStack Query and asked
-  again when the account's socket says what moved (`apps/web/CLAUDE.md`,
+  again when the account's socket says what moved (`packages/service/CLAUDE.md`,
   `apps/web/src/library/CLAUDE.md`, `apps/mobile/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
-  does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
+  does not know and the Worker refuses an older build
+  (`packages/service/CLAUDE.md`).
 - **Only a save waits offline**: the extension's queue and the phone's share
   outbox keep a save before its first call and send it until it lands;
   everything else says it needs a connection (`apps/extension/CLAUDE.md`,
@@ -345,7 +347,8 @@ is in the file named.
 - **One write policy**: every write carries the base it was computed from (a
   block's hash, a field's value), the cell applies a block only while its base
   holds and answers `CONFLICT` with the block as it is, and the editor's diff3
-  settles that in every host (`apps/web/CLAUDE.md`, `packages/editor/CLAUDE.md`).
+  settles that in every host (`packages/service/CLAUDE.md`,
+  `packages/editor/CLAUDE.md`).
 - **The UI is `@repo/ui`'s**: every floating surface a Base UI primitive through
   it, chrome text in the five type roles (`packages/ui/CLAUDE.md`), and the
   React Compiler on for every bundle (`tools/repo-guards/CLAUDE.md`).
@@ -359,6 +362,16 @@ is in the file named.
 - **A library scope has one spelling**: `@repo/contract/library-scope`, read by
   the page's pref, the items listing and the view context
   (`apps/web/src/library/CLAUDE.md`).
+- **The layout is kyh/init's, with two departures**: `@repo/db` reads
+  `@repo/contract` and never the reverse, and a route reaches `@repo/service`
+  through the doors in Start's request context (`apps/web/CLAUDE.md`).
+- **Each program's `Env` is generated from its own config**: the service's from
+  its suites' Worker, the app's from what deploys, and the app's entry program
+  checks every service module it reaches against the deployed one
+  (`apps/web/CLAUDE.md`).
+- **The library model is the contract's**: the persisted node set, an item's
+  fields and blocks, their ops and order, and a url's key, which every client
+  and the cell parse alike (`packages/contract/CLAUDE.md`).
 
 ## Decisions
 
@@ -370,12 +383,14 @@ file nearest the code it governs; every path in these files is held to the
 tree by `tools/repo-guards/src/dangling-references.test.ts`, and this index to
 the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
-- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, and the open item's merge
+- [`packages/contract/CLAUDE.md`](packages/contract/CLAUDE.md) — the library model (the node set, an item's fields and blocks, their ops, order and listing); a url's key and what a file is
+- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, the open item's merge, and the grammar, links and a file's facts
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
-- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
+- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the cloud: accounts and sessions, the wire, the library cell (its SQL and undo), fills, search, the connector, the built-in agent, and its program and suites
+- [`packages/db/CLAUDE.md`](packages/db/CLAUDE.md) — the D1 schema and how it ships, and the cell's drizzle schema and its migrations
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
-- [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sessions and accounts
+- [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — the site and the Worker: the layout's departures from kyh/init, Start's paths and doors, each program's `Env`, the library's route, and previews
 - [`apps/web/src/library/CLAUDE.md`](apps/web/src/library/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke

@@ -1,8 +1,9 @@
 # @repo/editor
 
-The item editor: Plate (platejs) over an item's blocks, the markdown codec an
-import and the agent read and write through, and everything that keeps a
-round-trip byte-stable.
+The item editor: Plate (platejs) over an item's blocks, the dialect's one
+markdown grammar, the codec an import and the agent read and write through,
+and everything that keeps a round-trip byte-stable. Its decisions are this
+package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Why it exists
 
@@ -10,7 +11,10 @@ The editor is the largest single thing in the product and the one with the
 strictest invariant — **reading a file in and writing it back out must not
 change its bytes**. Splitting it out makes that invariant a package boundary: the byte
 contract, its fixture matrix and the kit-parity guards live together, and the
-workspace above it consumes an editor rather than containing one.
+library's page above it (`apps/web/src/library`) consumes an editor rather
+than containing one. The cell runs the same codec headless
+(`packages/service/src/library/library-router.ts`), and the phone's editor page hosts the
+editor whole (`apps/mobile-editor`).
 
 Deps: `@repo/contract` (the library model), `@repo/ui` (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
 `host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`)

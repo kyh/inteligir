@@ -8,7 +8,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **No coverage tooling, on purpose, and a structural guard states its own
   rule.** Targeted structural invariants instead: the dependency DAG and where
   each package may reach (`tools/repo-guards`), each package's node and react
-  rule and the MCP and OpenAPI imports only the Worker makes
+  rule and the MCP and OpenAPI imports only the service makes
   (`oxlint.config.ts`), every `/v1` refusal mapped to a status
   (`packages/contract/src/v1-contract.test.ts`), `@repo/ui`'s per-export
   orphans and type roles, the editor's buffer invariant, and the words on
@@ -168,8 +168,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **EVERY TSCONFIG EXTENDS `@kyh/tsconfig/base.json`, AS kyh/init's DO** (owner
   decision). A program adds only what its runtime needs: its `lib` (ES2023, the
   pages' and Hermes' ceiling; a node program may take ES2024), `types`, `jsx`,
-  `paths`, `customConditions` and `moduleSuffixes`, and one reaching
-  `apps/web/cloudflare.config.ts` allows the `.ts` import spelling it uses. As
+  `paths`, `customConditions` and `moduleSuffixes`, and one reaching a
+  Worker's config (`apps/web/cloudflare.config.ts`,
+  `packages/service/cloudflare.config.ts`) allows the `.ts` import spelling
+  it uses. As
   each workspace's catalog dependency, the base's version is in every
   typecheck key with no global turbo row. With no `noImplicitReturns`, an
   exhaustive `switch` with no `default` declares a return type excluding
@@ -190,7 +192,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **LINT READS TYPES, AND EVERY SUITE IS HELD TO ULTRACITE'S VITEST PRESET.**
   oxlint runs type-aware (`oxlint-tsgolint`) after the `generate` tasks whose
-  types the Worker's and the extension's programs extend, every type-aware rule
+  types the Worker's, the service's and the extension's programs extend, every type-aware rule
   at error but consistent-return, no-unnecessary-condition,
   prefer-optional-chain and prefer-readonly-parameter-types, and its own config
   makes an unused disable directive an error. Every suite is held to

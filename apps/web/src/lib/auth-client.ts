@@ -49,8 +49,8 @@ export const signInHref = (here: Pick<Location, "pathname" | "search">): string 
 
 // Better Auth slides a session and its cookie together on its own read alone, which a tab
 // otherwise makes only as it opens, so a tab left open would lose its cookie seven days after its
-// sign-in, however much it was used (`apps/web/CLAUDE.md` § ONLY BETTER AUTH'S OWN READ SLIDES A
-// SESSION). Well inside the day a session waits before it slides.
+// sign-in, however much it was used (`packages/service/CLAUDE.md` § ONLY BETTER AUTH'S OWN READ
+// SLIDES A SESSION). Well inside the day a session waits before it slides.
 /** @internal */
 export const SESSION_READ_MS = 3_600_000;
 
