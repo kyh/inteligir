@@ -14,8 +14,7 @@ import type { z } from "zod";
 
 import { useCloud, useWire } from "../cloud/library-context";
 import { FileRefusedError, uploadFile } from "../cloud/library-files";
-import { refusalText } from "@repo/contract/refusal-text";
-import { NEEDS_CONNECTION } from "../cloud/needs-connection";
+import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import { formatCount } from "../library/item-labels";
 import { Row, SectionHeading } from "./settings-chrome";
 

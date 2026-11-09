@@ -8,13 +8,13 @@ import {
   createItemSession,
   ITEM_UNSAVED,
 } from "@repo/editor/item/item-session";
-import { NEEDS_CONNECTION } from "@repo/editor/item/item-editor";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/contract/library/block-hash";
 import type { ItemState } from "@repo/contract/library/block-ops";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { connectPageBridge } from "../bridge/page-bridge";

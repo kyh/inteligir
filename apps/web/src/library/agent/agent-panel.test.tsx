@@ -3,6 +3,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -10,7 +11,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { NEEDS_CONNECTION, PausedWrites } from "../cloud/needs-connection";
+import { PausedWrites } from "../cloud/needs-connection";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";

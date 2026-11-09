@@ -11,6 +11,8 @@
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 
@@ -35,9 +37,6 @@ const CHUNK_BLOCKS = 100;
 
 /** @internal */
 export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
-
-/** @internal */
-export const NEEDS_CONNECTION = "Needs a connection";
 
 export interface ItemEditorProps {
   readonly itemId: string;

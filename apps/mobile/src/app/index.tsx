@@ -29,7 +29,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
-import { refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { ItemKind } from "@repo/contract/items/item-kind";
@@ -55,8 +55,6 @@ const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
   { kind: "file", label: "Files" },
   { kind: "note", label: "Notes" },
 ];
-
-const NEEDS_CONNECTION = "Needs a connection";
 
 // the search waits for a pause in the typing before it asks the cloud
 const SEARCH_PAUSE_MS = 300;

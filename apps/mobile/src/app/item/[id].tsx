@@ -19,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
-import { refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { EditorPageEvent, LoadVerdict } from "@/editor/editor-host";
@@ -144,10 +144,7 @@ const ItemScreen = () => {
 
   const moveToDeleted = (): void => {
     if (!onlineManager.isOnline()) {
-      Alert.alert(
-        "Needs a connection",
-        "An item moves to Deleted once your library can be reached.",
-      );
+      Alert.alert(NEEDS_CONNECTION, "An item moves to Deleted once your library can be reached.");
       return;
     }
     Alert.alert(

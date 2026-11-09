@@ -2,7 +2,7 @@
 // the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
 // an empty scope says why and offers a next step.
 
-import { refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";
@@ -19,7 +19,6 @@ import type { LibraryScope } from "@repo/contract/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
-import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { TopBar } from "../top-bar";

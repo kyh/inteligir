@@ -12,6 +12,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
@@ -41,8 +42,6 @@ import {
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
-
-const NEEDS_CONNECTION = "Needs a connection";
 
 // a refused send, the allowance's words naming when it fills again from now
 const refusalNow = (cause: unknown): string => sendRefusalWords(cause, Date.now());
