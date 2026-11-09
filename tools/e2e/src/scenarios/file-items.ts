@@ -1,8 +1,9 @@
 // files kept as items in the library in the cloud: a PDF, a recording, an archive and a picture
 // each uploaded by its sha (`/v1/blobs/<sha>`) and made an item of its kind; a file past the cap
 // refused before its bytes are read; each served as the apps read it, a PDF with no sandbox, a
-// recording by its ranges, anything else under one; a deleted item's file kept for Deleted and the
-// item restored whole; and a picture two items name kept when one of them is emptied from Deleted.
+// recording by its ranges, anything else under one, an html file's sandbox kept through the site's
+// document policy; a deleted item's file kept for Deleted and the item restored whole; and a
+// picture two items name kept when one of them is emptied from Deleted.
 
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
@@ -143,6 +144,23 @@ const expectServed = async (
   );
 };
 
+// the file's answer passes through the site's document policy (apps/web/src/start.ts), which must
+// leave a stranger's page its own script-less sandbox rather than the site's policy and its nonce
+const expectPageFileSandboxed = async (worker: CloudWorker, phone: V1Caller) => {
+  const upload = await uploadFile(worker, phone, {
+    bytes: new Uint8Array(Buffer.from("<html><script>alert(1)</script></html>")),
+    type: "text/html; charset=utf-8",
+  });
+  expectEq(upload.status, 201, "the page file's upload");
+  const page = await readFile(worker, phone, upload.sha);
+  const policy = page.headers.get("content-security-policy") ?? "";
+  await page.arrayBuffer();
+  expect(
+    policy.includes("sandbox") && !policy.includes("script-src"),
+    `an html file keeps its own sandbox, not the site's page policy: ${policy}`,
+  );
+};
+
 const expectDeleteAndRestore = async (
   ctx: ScenarioContext,
   worker: CloudWorker,
@@ -195,7 +213,7 @@ const expectSharedFileKept = async (
 
 export const fileItems: Scenario = {
   description:
-    "a PDF, a webm, a zip and a PNG uploaded by their sha land as items of their kind; a file declared past the cap is refused before its bytes; the PDF is served with no sandbox, the recording by its ranges and the archive under a sandbox; a deleted item keeps its file and restores whole; a picture two items name stays when one is emptied from Deleted",
+    "a PDF, a webm, a zip and a PNG uploaded by their sha land as items of their kind; a file declared past the cap is refused before its bytes; the PDF is served with no sandbox, the recording by its ranges, and the archive and an html file under a sandbox; a deleted item keeps its file and restores whole; a picture two items name stays when one is emptied from Deleted",
   name: "file-items",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -213,6 +231,9 @@ export const fileItems: Scenario = {
 
     ctx.log("the PDF unsandboxed, a recording's range, and the archive under a sandbox");
     await expectServed(worker, phone, saved);
+
+    ctx.log("an html file under its own sandbox, through the site's document policy");
+    await expectPageFileSandboxed(worker, phone);
 
     const pdf = saved.get("Lecture notes.pdf");
     const picture = saved.get("red.png");
