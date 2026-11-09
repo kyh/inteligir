@@ -80,13 +80,17 @@ is parsed in `shell/desktop-bridge.ts`.
   tab that lost its connection fails, and the crash screen offers a reload. The
   account's socket dials again the moment the browser says it is online,
   rather than at its next wait, and every time it opens every query is read
-  again. Residual: a lazy module reached through a shared barrel (lucide-react,
-  Base UI) keeps a chunk of its own of under a kilobyte, the calendar's and
-  Settings' among them, fetched on first use. Rejected: no splitting at all
-  (the site would load the library); route splitting alone (the lazy nodes
-  split into chunks of their own); warming each chunk at boot (a tab offline
-  before they land still fails); a boundary per lazy node (the group leaves
-  almost nothing to fail to load). `apps/web/vite.config.ts`,
+  again. What the group reaches through a shared barrel (lucide-react, Base
+  UI) stays in chunks of rolldown's own, which the document preloads, so every
+  chunk runs in source order. Residual: a lazy node keeps an entry of a few
+  bytes over the group (the calendar's), fetched on first use, and wrapping
+  every module for that order costs the build about 3%. Rejected: no splitting
+  at all (the site would load the library); route splitting alone (the lazy
+  nodes split into chunks of their own); a group that takes its dependencies
+  (it takes what the site shares, so the site loads the library); warming each
+  chunk at boot (a tab offline before they land still fails); a boundary per
+  lazy node (the group leaves almost nothing to fail to load).
+  `apps/web/vite.config.ts`,
   `apps/web/src/library/cloud/use-library-socket.ts`.
 
 - **THE ACCOUNT'S SOCKET SAYS WHAT MOVED, AND THE PAGE READS THAT AGAIN.** A

@@ -22,9 +22,11 @@ const reportSkips: Logger = {
 };
 
 // src/library/CLAUDE.md § THE LIBRARY IS ONE CHUNK. A route file's own module stays out, since the
-// route tree the site's entry imports holds its options; the router's split halves of it go in,
-// and so does what its beforeLoad imports lazily, the tab's open. A module the site reaches too is
-// left to rolldown's own chunks, which the library's chunk imports.
+// route tree the site's entry imports holds its options, and so do the router's split halves of
+// it, each a chunk of its own: grouped, rolldown 1.2 hands the router a namespace its facade never
+// defines. What they reach goes in, and so does what the beforeLoad imports lazily, the tab's
+// open. A module the site reaches too is left to rolldown's own chunks, which the library's chunk
+// imports.
 const LIBRARY_ROUTE_SPLIT = /[\\/]src[\\/]routes[\\/]library(?:\.tsx|[\\/])[^?]*\?tsr-split=/u;
 const LIBRARY_ROUTE_FILE = /[\\/]src[\\/]routes[\\/]library\.tsx$/u;
 
@@ -62,6 +64,9 @@ const reachedOnlyFromLibrary = (
 const answers = new WeakMap<ChunkingContext, Map<string, boolean>>();
 
 const libraryChunk = (id: string, context: ChunkingContext): string | null => {
+  if (LIBRARY_ROUTE_SPLIT.test(id)) {
+    return null;
+  }
   const known = answers.get(context) ?? new Map<string, boolean>();
   answers.set(context, known);
   return reachedOnlyFromLibrary(id, context, known) ? "library" : null;
@@ -89,11 +94,16 @@ export default defineConfig({
   environments: {
     client: {
       build: {
-        // the library's chunk is about 3.1 MB on purpose (above), so the ceiling (kB) is there to
+        // the library's chunk is about 3.2 MB on purpose (above), so the ceiling (kB) is there to
         // catch a dependency that doubles it
         chunkSizeWarningLimit: 6000,
+        // the group leaves what it reaches through a barrel (lucide-react, Base UI) to rolldown's own
+        // chunks, which import the group back; rolldown's advice for a group that takes no
+        // dependencies is both of these, or a chunk reads an export the cycle has yet to run
         rolldownOptions: {
+          preserveEntrySignatures: "allow-extension",
           output: {
+            strictExecutionOrder: true,
             codeSplitting: {
               groups: [
                 { debugName: "library", includeDependenciesRecursively: false, name: libraryChunk },
