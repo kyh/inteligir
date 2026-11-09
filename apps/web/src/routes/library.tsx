@@ -6,8 +6,8 @@ import { onlineManager } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { libraryQueries } from "../app/cloud/library-queries";
-import { Workspace } from "../app/workspace";
+import { libraryQueries } from "../library/cloud/library-queries";
+import { Workspace } from "../library/workspace";
 
 const workspaceSearchSchema = z.object({
   // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback

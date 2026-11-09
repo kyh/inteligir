@@ -4,8 +4,8 @@
 
 import { useSyncExternalStore } from "react";
 
-import { desktopBridge } from "../shell/desktop-bridge";
-import type { DesktopBridge, DesktopUpdateState } from "../shell/desktop-bridge";
+import { desktopBridge } from "./shell/desktop-bridge";
+import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 
 /** null in a browser tab, which has no updater. */
 type UpdatesSnapshot = DesktopUpdateState | null;

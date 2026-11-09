@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/device/device-schema";
 
 import { routeTree } from "../routeTree.gen";
-import { Route as resetPasswordRoute } from "../routes/app/reset-password";
+import { Route as resetPasswordRoute } from "../routes/_site/app/reset-password";
 
 // The route is ssr: false, so a server render draws none of its views; a route at the same id,
 // bound to its search schema and its page, under a router loading as a browser's does, is the

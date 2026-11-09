@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { createAppRouter } from "../router";
+import { createAppRouter } from "./test-support/library-router";
 import { createPageQueryClient } from "./cloud/v1";
 import { forgetPref, PREFS } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";

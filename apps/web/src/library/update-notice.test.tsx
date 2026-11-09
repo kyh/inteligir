@@ -4,7 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DesktopUpdateState } from "../shell/desktop-bridge";
+import type { DesktopUpdateState } from "./shell/desktop-bridge";
 
 // the store reads its bridge as the module loads, so each test loads the page's modules afresh
 beforeEach(() => {

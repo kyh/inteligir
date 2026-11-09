@@ -11,11 +11,11 @@ import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 
-import { AppearanceProvider } from "../app/appearance";
-import { PausedWrites } from "../app/cloud/needs-connection";
-import { PREFS, usePref } from "../app/prefs";
-import { UpdateNotice } from "../app/update-notice";
-import type { PageContext } from "../router";
+import { AppearanceProvider } from "./appearance";
+import { PausedWrites } from "./cloud/needs-connection";
+import { PREFS, usePref } from "./prefs";
+import { UpdateNotice } from "./update-notice";
+import type { PageContext } from "./test-support/library-router";
 
 const RootLayout = () => {
   const [theme, chooseTheme] = usePref(PREFS.theme);

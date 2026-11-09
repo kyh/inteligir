@@ -4,7 +4,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAppRouter } from "../../router";
+import { createAppRouter } from "../test-support/library-router";
 import { createPageQueryClient } from "../cloud/v1";
 import { fakePageLibrary } from "../test-support/fake-page-library";
 

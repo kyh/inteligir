@@ -3,7 +3,7 @@
 @import "./print.css";
 /* The editor package is outside this app's scan root, so an editor-only
    utility silently never generates unless its sources are named here. */
-@source "../../../../packages/editor/src/**/*.{ts,tsx}";
+@source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
   /* The only place each appearance default is written: app/appearance.tsx

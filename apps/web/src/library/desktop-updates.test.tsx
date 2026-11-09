@@ -3,7 +3,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { DesktopBridge, DesktopUpdateState } from "../shell/desktop-bridge";
+import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 import { createUpdatesStore } from "./desktop-updates";
 
 afterEach(cleanup);

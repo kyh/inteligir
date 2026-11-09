@@ -8,10 +8,10 @@ import { createRouter } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
-import { PageLibraryProvider } from "./app/cloud/library-context";
-import type { PageLibrary } from "./app/cloud/library-context";
-import { RenderCrash } from "./app/render-crash";
-import { routeTree } from "./routeTree.gen";
+import { PageLibraryProvider } from "../cloud/library-context";
+import type { PageLibrary } from "../cloud/library-context";
+import { RenderCrash } from "../render-crash";
+import { routeTree } from "../../../../workspace/src/routeTree.gen";
 
 export interface PageContext {
   readonly queryClient: QueryClient;

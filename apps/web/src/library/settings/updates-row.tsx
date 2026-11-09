@@ -1,5 +1,5 @@
 import { Button } from "@repo/ui/components/button";
-import type { DesktopUpdateState } from "../../shell/desktop-bridge";
+import type { DesktopUpdateState } from "../shell/desktop-bridge";
 import { moveUpdate, useDesktopUpdates } from "../desktop-updates";
 import type { UpdateMove } from "../desktop-updates";
 import { Row } from "./settings-chrome";

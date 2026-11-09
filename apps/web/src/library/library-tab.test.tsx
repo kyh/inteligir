@@ -25,7 +25,7 @@ describe("the tab's open", () => {
     "says the library didn't open and offers Try again when its session read met no answer",
     async () => {
       vi.stubGlobal("fetch", async () => await Promise.reject(new TypeError("Failed to fetch")));
-      await import("./main");
+      await import("./library-tab");
       await screen.findByRole("heading", { name: "Your library didn't open" });
       expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
     },
@@ -58,7 +58,7 @@ describe("a tab the build floor refuses", () => {
         const { response } = await floor.handle(input, { prefix: V1_RPC_PATH });
         return response ?? new Response(null, { status: 404 });
       });
-      await import("./main");
+      await import("./library-tab");
       const said = await screen.findByText(/This browser is too old/u, undefined, {
         timeout: DRAWS_MS,
       });

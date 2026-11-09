@@ -7,8 +7,8 @@
 import { onlineManager } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { accountReads } from "../../app/settings/account-section";
-import { SettingsPage } from "../../app/settings/settings-page";
+import { accountReads } from "../../library/settings/account-section";
+import { SettingsPage } from "../../library/settings/settings-page";
 
 const Settings = () => {
   const navigate = useNavigate();

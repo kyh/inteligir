@@ -1,7 +1,7 @@
 import type { Clock } from "@repo/contract/library/account-socket";
 import { describe, expect, it, vi } from "vitest";
 
-import { keepSession, SESSION_READ_MS } from "./session-keeper";
+import { keepSession, SESSION_READ_MS } from "../library/cloud/session-keeper";
 
 // a clock the test runs by hand: `tick` fires whatever is waiting, as that much time passing would
 const handClock = () => {

@@ -6,7 +6,7 @@ import { legalHead } from "#lib/page-head";
 import { PAGES } from "#lib/page-meta";
 
 // the doc itself rather than a copy, so the page cannot say something docs/terms.md does not
-import terms from "../../../../docs/terms.md?raw";
+import terms from "../../../../../docs/terms.md?raw";
 
 export const Route = createFileRoute("/terms")({
   head: () => legalHead(PAGES.terms, terms),

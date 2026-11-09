@@ -9,19 +9,19 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
-import { claimAccountStorage, forgetAccountStorage } from "./app/cloud/account-storage";
-import { createPageAuth } from "./app/cloud/auth-client";
-import { createLeaveGuard } from "./app/cloud/leave-guard";
-import type { FileCloud } from "./app/cloud/library-files";
-import { OpenFailedPage } from "./app/cloud/open-failed-page";
-import { pageClock } from "./app/cloud/page-clock";
-import { readSession, SIGN_IN_PATH, signInHref } from "./app/cloud/page-session";
-import { keepSession } from "./app/cloud/session-keeper";
-import { createLibrarySocket } from "./app/cloud/use-library-socket";
-import { createCloudWire, createPageQueryClient } from "./app/cloud/v1";
-import { installLightPrints } from "./app/light-prints";
-import { applyStoredSpellcheck } from "./app/spellcheck";
-import { createAppRouter } from "./router";
+import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";
+import { createPageAuth } from "./cloud/auth-client";
+import { createLeaveGuard } from "./cloud/leave-guard";
+import type { FileCloud } from "./cloud/library-files";
+import { OpenFailedPage } from "./cloud/open-failed-page";
+import { pageClock } from "./cloud/page-clock";
+import { readSession, SIGN_IN_PATH, signInHref } from "./cloud/page-session";
+import { keepSession } from "./cloud/session-keeper";
+import { createLibrarySocket } from "./cloud/use-library-socket";
+import { createCloudWire, createPageQueryClient } from "./cloud/v1";
+import { installLightPrints } from "./light-prints";
+import { applyStoredSpellcheck } from "./spellcheck";
+import { createAppRouter } from "./test-support/library-router";
 import "./styles/globals.css";
 
 // before the first paint: a stored "off" must not flash red underlines
