@@ -303,9 +303,9 @@ alone, and no walk narrows structurally.
   jump and scroll back up are the owner's check on a Mac (`docs/releasing.md`).
   `packages/editor/src/run-anchoring.test.tsx`.
 
-- **MARKDOWN IS A CODEC BESIDE THE LIBRARY, AND IT RUNS HEADLESS.**
-  `@repo/editor/codec/*` reaches no React, so it runs wherever the library
-  does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
+- **MARKDOWN IS A CODEC BESIDE THE LIBRARY.** `@repo/editor/codec/*` reaches
+  no React, so it runs wherever the library does (THE MARKDOWN RUNS
+  HEADLESS). It reads a file into an
   item's fields and blocks over the rule table and writes one back as
   markdown, a file under the item's name, so `import(export(item))` means the
   item, ids aside, over every fixture
@@ -325,18 +325,18 @@ alone, and no walk narrows structurally.
   anchor, block id, comment or highlight. A block no store takes is counted
   among what an import could not read, and an edit, a note the agent writes or
   a save's note holding one is turned down; a link or image with no address is
-  its words or its source, so it takes no block with it, and a definition
-  nothing uses is the line it was written as. A list item is its words, and a
-  block nested in one sits at the item's indent plus one; one the item opens
-  with nests under an empty line. Rejected: Plate's list rule alone (it made
+  its words or its source, so it takes no block with it (EVERY READER PARSES
+  THROUGH ONE PLUGIN LIST says what a definition reads as). A list item is its
+  words, and a block nested in one sits at the item's indent plus one; one the
+  item opens with nests under an empty line, but for a heading, which is the
+  item's words. Rejected: Plate's list rule alone (it made
   every such block a `p`, which holds no address, fence or source). What
   follows a `$$` on its line leads the expression, since an equation holds no
   fence meta and a person who opens `$$ E = mc^2` wrote it there. An agent's
   edit must match once, keep the article's own lines and nest no deeper than
   the editor reads; only the blocks it spans are read again, matched by
-  content so the rest keep their ids. Rejected: a second markdown grammar for
-  import (two readings drift) and re-reading a whole item per edit (every
-  block's id would turn over). `packages/editor/src/markdown/md-rules.ts`,
+  content so the rest keep their ids. Rejected: re-reading a whole item per
+  edit (every block's id would turn over). `packages/editor/src/markdown/md-rules.ts`,
   `packages/editor/src/codec/item-edit.ts`,
   `packages/editor/src/codec/library-links.ts`.
 
@@ -493,10 +493,9 @@ alone, and no walk narrows structurally.
   become links by id and files by sha, and a file's path written as a url, by
   the codec or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
   a `#` or `%` in a name reads back. Past the import nothing is a path: the
-  editor reaches an item by a page link's id, its `[[` picker ranking the
-  library's titles its host hands over (`setLibraryTitles` in
-  `packages/editor/src/host-io.ts`), and a file by its sha, and only an
-  http(s) url reaches the browser. Rejected: resolving
+  editor reaches an item by a page link's id, its `[[` picker the library's
+  titles (THE `[[` PICKER IS PLATE'S MENTION INPUT), and a file by its sha,
+  and only an http(s) url reaches the browser. Rejected: resolving
   a live note's relative url (no library item has a path to resolve it
   against).
   `packages/editor/src/codec/import-plan.ts`.
