@@ -182,7 +182,7 @@ describe("every door is one Start route and one row of the service's table", () 
     expect(
       routes.map((route) => route.file),
       `the sweep found no route file under ${ROUTES_DIR} — it is broken, not the tree`,
-    ).toContain(`${ROUTES_DIR}index.tsx`);
+    ).toContain(`${ROUTES_DIR}_site/index.tsx`);
     expect(table.length).toBeGreaterThan(0);
   });
 
