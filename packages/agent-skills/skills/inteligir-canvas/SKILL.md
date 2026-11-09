@@ -6,9 +6,10 @@ is not a diagram renderer and not a place for readable sentences.
 ## When To Reach For It
 
 Use canvas when someone asks for a canvas, edits an existing one, or wants a
-sketch they can rearrange. Use a **`plaintext` code fence** for a generic flow,
-wireframe, or menu sketch — ASCII stays readable everywhere, including in a diff.
-Use a chart for quantity and an image for anything polished.
+sketch they can rearrange. Use a **`mermaid` code fence** for a flowchart or a
+sequence, and a **`plaintext` code fence** for a wireframe or menu sketch — both
+stay readable as text everywhere. Use a chart for quantity and an image for
+anything polished.
 
 The test: if the words matter more than where the boxes sit, canvas is the wrong
 block.

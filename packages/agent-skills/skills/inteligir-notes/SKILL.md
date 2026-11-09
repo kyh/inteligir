@@ -14,9 +14,11 @@ are listed at the end of this section.
 
 1. **An item's text is the note.** Write markdown in this dialect. Never restate an item's fields
    (its title, tags, url) in its text: they live in its fields, and `organize_items` changes them.
-2. **Text round-trips.** Every construct below survives an edit unchanged. A construct spelled
-   wrong does not error; it stays literal text, which is a silent failure. Follow the grammar
-   exactly.
+   An item has no frontmatter, so a `---` block opening the text stays a code block.
+2. **A construct reads back as itself.** Every construct below keeps its meaning through an
+   edit, though the library may respell it: a rule as `***`, a bare address as `<https://…>`. A
+   construct spelled wrong does not error; it stays literal text, which is a silent failure.
+   Follow the grammar exactly.
 3. **Preserve what you did not come to change.** Formula identities, link ids and unfamiliar
    syntax all stay as found. `edit_item` changes only the passages you name, so
    name only what you mean to change.
@@ -41,6 +43,11 @@ read `::::article` and close with `::::`. The note is the person's; the article 
 was read, and reading the page again replaces it. Write in the note, never in the article, and
 never move or remove either line.
 
+The text is written as the library spells it: a backslash before a character that would
+otherwise read as syntax (`\*`, `\[\[`), and before every punctuation mark inside a date's, a
+pill's or a tab's brackets (`:date[2026\-08\-22]`, `:formula[1\,000]{source="1000"}`). Quote it
+that way in `edit_item`'s old text; in new text, a label reads the same with or without them.
+
 ## Choosing A Block
 
 | You need                                          | Use                                 | Not                                          |
@@ -54,7 +61,8 @@ never move or remove either line.
 | Detail most readers can skip                      | Toggle                              | A section the reader must scroll past        |
 | Short blocks read side by side                    | Columns                             | A table holding paragraphs                   |
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
-| Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
+| A flowchart, sequence or timeline                 | Mermaid diagram                     | ASCII boxes and arrows                       |
+| Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use Mermaid   |
 | A styled layout no block can draw                 | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 
@@ -65,7 +73,7 @@ When two fit, take the one that reads faster.
 ### Headings, Lists, Quotes
 
 One `# H1` opens a note's text; sections use `##` through `####`. Checklists are `- [ ]` and
-`- [x]`. Blockquotes are `>`.
+`- [x]`. Blockquotes are `>`. A rule is `***`.
 
 ```markdown
 # Migration Plan
@@ -97,6 +105,16 @@ a `:---:` row reads as a plain one.
 
 Ordinary fences with a language tag. An unknown tag is preserved and rendered without
 highlighting. Use a `plaintext` fence for ASCII diagrams.
+
+A `mermaid` fence is drawn as the diagram its Mermaid source describes, and one that does not
+parse shows where it failed:
+
+````markdown
+```mermaid
+flowchart LR
+  Queue --> Store
+```
+````
 
 ### Callouts
 
@@ -193,21 +211,35 @@ one, and an unknown name (`:::note`) stays its own text.
 
 ### Inline
 
-| Form            | Syntax                       |
-| --------------- | ---------------------------- |
-| Link to an item | `[Note Title](mention:<id>)` |
-| Date            | `:date[2026-08-22]`          |
-| Tag             | `#tag`                       |
-| Formula pill    | `:formula[4]{source="2+2"}`  |
-| Strikethrough   | `~~text~~`                   |
-| Inline math     | `$$E = mc^2$$`               |
+| Form                     | Syntax                       |
+| ------------------------ | ---------------------------- |
+| Link to an item          | `[Note Title](mention:<id>)` |
+| Link to an item by title | `[[Note Title]]`             |
+| Date                     | `:date[2026-08-22]`          |
+| Tag                      | `#tag`                       |
+| Formula pill             | `:formula[4]{source="2+2"}`  |
+| Strikethrough            | `~~text~~`                   |
+| Inline math              | `$$E = mc^2$$`               |
 
-Code — inline or fenced — is inert: nothing inside it is parsed as a construct, which is how you
-write an example of any syntax on this page. In prose, a backslash before the colon keeps a date
-or a pill plain text: `\:date[2026-08-22]`. A date that is no day of the calendar stays text.
+```markdown
+Ship the queue by :date[2026-08-22]; it moves :formula[1,200]{source="1200"} jobs a day.
+```
 
-There is no underline or highlight: either is kept as its plain words. Raw HTML reads as its own
-text, so a styled layout belongs in an `inteligir-html` fence.
+`[[Note Title]]` links the one item with that title once you write it, and otherwise stays text
+(inteligir Links). Code — inline or fenced — is inert: nothing inside it is parsed as a
+construct, which is how you write an example of any syntax on this page. In prose, a backslash
+before the colon keeps a date or a pill plain text: `\:date[2026-08-22]`. A date that is no day
+of the calendar stays text.
+
+### What Markdown Cannot Hold
+
+- Underline and a picture's size are the editor's alone: `read_item` shows such words and
+  pictures plain, and a block you rewrite loses them.
+- A link's title (`[words](https://… "title")`) and a table's column alignment are dropped.
+- Raw HTML (`<u>`, `<mark>`, `<div>`) reads as the text it spells, so a styled layout belongs in
+  an `inteligir-html` fence.
+- A highlight (`==…==`), a comment (`%%…%%`), a block id (`^ref`) and a footnote (`[^1]`) are
+  plain text.
 
 ## Focused Contracts
 

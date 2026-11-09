@@ -13,13 +13,15 @@ syntax is for something that should render, not for something to click.
 and the id of the item it points at. That id is the link: it keeps pointing at the right item after
 a rename, and the reader sees the item's title, never the id. **Keep every id you read, exactly.**
 To link to an item you found, write its title and the id `search_library` or `list_items` answered;
-never type an id from memory.
+never type an id from memory: a link to an id no item holds keeps only its words.
 
-When you create or edit a note, `[[Title]]` links the one item with that title, case aside. If no item
-has it, or more than one does, it stays plain text and never becomes a link later, so check the
-title first, and use the id form whenever you have the id. A link links a whole item: in
-`[[Title#Heading]]` or `[[Title|shown words]]` the heading and the words go, and `[[#Heading]]`
-stays text. `![[Title]]` is a plain link too: nothing pulls another item's text in.
+When you create or edit a note, `[[Title]]` links the one item with that title, case aside, and
+`read_item` writes it back as `[Title](mention:<id>)`. If no item has the title, or more than one
+does, it stays plain text and never becomes a link later, so check the title first, and use the
+id form whenever you have the id. A link links a whole item: in `[[Title#Heading]]` or
+`[[Title|shown words]]` the heading and the words go, and `[[#Heading]]` stays text.
+`![[Title]]` is a plain link too: nothing pulls another item's text in. A `\[\[…]]` in what you
+read is the person's own brackets, plain text; leave it as it is.
 
 `read_item` also answers which items link to this one and which it links to, so you need not
 search the library's text for them.
@@ -31,7 +33,9 @@ search the library's text for them.
 ```
 
 Use a label that says where it goes. Preserve existing destinations exactly. Never author
-`javascript:`, `data:`, `file:`, or a URL carrying credentials.
+`javascript:`, `data:`, `file:`, or a URL carrying credentials. A bare address is a link too,
+which `read_item` writes as `<https://example.com/rfc>`, and a link's title after its address
+(`"…"`) is dropped.
 
 ## Embeds And Files
 
