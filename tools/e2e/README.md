@@ -17,6 +17,11 @@ pnpm e2e --list               # every scenario, in run order, and what it proves
 pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser
 ```
 
+The extension's scenarios need a browser that loads an unpacked extension:
+Chrome for Testing does, branded Chrome ignores `--load-extension`. On a Mac
+whose agent-browser finds branded Chrome, point it at a Chrome for Testing
+binary with `AGENT_BROWSER_EXECUTABLE_PATH`.
+
 Before the first scenario the runner builds the browser extension's dev build
 through turbo (`--filter=@repo/extension`): a cache hit when nothing changed,
 and never a stale output loaded as if it were this checkout.
