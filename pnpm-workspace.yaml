@@ -148,6 +148,9 @@ catalog:
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   yaml: ^2.9.1
+  # exact, on 13: a note's stored state and its turn log are this release's encoding, and
+  # @slate-yjs/core 1.0.2 binds against 13's types
+  yjs: 13.6.33
   zod: ^4.6.7
   zustand: ^5.0.16
 

@@ -339,6 +339,7 @@ export default defineConfig({
         "packages/service/src/library/library-sql.ts",
         "packages/service/src/library/revert-change.ts",
         "packages/service/src/library/sql-value.ts",
+        "packages/service/src/note/turn-log.ts",
         "packages/service/src/text/**",
       ],
       rules: {
