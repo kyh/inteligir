@@ -5,14 +5,12 @@
 // asked from (a card's menu, a button, Settings), says so in one notice the page keeps up while
 // any waits.
 
-import { refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager, useIsMutating } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-
-export const NEEDS_CONNECTION = "Needs a connection";
 
 const subscribeOnline = (listener: () => void): (() => void) => onlineManager.subscribe(listener);
 const readOnline = (): boolean => onlineManager.isOnline();

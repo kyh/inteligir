@@ -22,8 +22,8 @@ import { PageLibraryProvider } from "./cloud/library-context";
 import { libraryQueries } from "./cloud/library-queries";
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
+import { DesktopUpdateBanner } from "./desktop-update-banner";
 import type { TabOpening } from "./library-tab";
-import { UpdateNotice } from "./update-notice";
 import { Workspace } from "./workspace";
 
 const libraryRoute = getRouteApi("/library");
@@ -76,7 +76,7 @@ const OpenLibrary = ({ floor, library, queryClient }: Opened) => {
                   <ConfirmDialogHost />
                   <Toaster position="bottom-right" />
                   <PausedWrites />
-                  <UpdateNotice />
+                  <DesktopUpdateBanner />
                 </TooltipProvider>
               </MotionPolicy>
             </AppearanceProvider>

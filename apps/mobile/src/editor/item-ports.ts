@@ -11,6 +11,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import type { V1Client } from "@repo/contract/v1";
 import { isOrpcError } from "@repo/contract/v1/errors";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { PhoneLibrary } from "../lib/compose-runtime";
 import type { EditorRequestPorts } from "./editor-host";
@@ -134,7 +135,7 @@ export const createItemPorts = ({
         }
         case "unreachable":
         case "ended": {
-          throw new Error("Needs a connection");
+          throw new Error(NEEDS_CONNECTION);
         }
         // no default
       }

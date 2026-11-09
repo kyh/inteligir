@@ -66,11 +66,14 @@ is parsed in `shell/desktop-bridge.ts`.
   whose order matters shares a `scope`, and refetches in its own callbacks,
   awaited, only the family it moved. A read a press must act on is a mutation
   too, so it waits under that notice and in that scope, retried as a query is.
-  Rejected: a call outside TanStack (it fails at once offline); a note per
-  button (a menu's verb has none).
+  The words are one constant, `NEEDS_CONNECTION`, beside the refusal rule, and
+  the editor's item and the phone say it too, so every device says one thing
+  of a call that waits. Rejected: a call outside TanStack (it fails at once
+  offline); a note per button (a menu's verb has none); the words spelled per
+  surface (each a copy to keep in step).
   `apps/web/src/library/cloud/v1.ts`,
   `apps/web/src/library/cloud/needs-connection.tsx`, over
-  `packages/contract/src/refusal-text.ts`, which the phone says too.
+  `packages/contract/src/refusal-text.ts`.
 
 - **THE LIBRARY IS ONE CHUNK, AND CATCHES UP AS ITS CONNECTION RETURNS.**
   Every module only the library's routes reach, the tab's open and the
@@ -366,12 +369,27 @@ is parsed in `shell/desktop-bridge.ts`.
   SAME IN EVERY HOST.** macOS draws the window's title bar above the page and
   drags the window by it, so the page reserves no corner and marks nothing to
   drag by, and the Mac app shows the page a tab shows. The one thing the page
-  asks its shell is the update: an in-page notice and Settings' Updates row,
-  over three commands and one event (`apps/web/src/library/shell/desktop-bridge.ts`,
+  asks its shell is the update (THE MAC APP'S UPDATE IS A CARD, below), over
+  three commands and one event (`apps/web/src/library/shell/desktop-bridge.ts`,
   `apps/desktop/src-tauri/src/updater.rs`). Rejected: an overlay title bar the
   page draws around (drag strips, an inset top bar and a branch per host for a
-  few pixels of chrome). `apps/web/src/library/update-notice.tsx`,
-  `apps/web/src/library/top-bar.tsx`.
+  few pixels of chrome). `apps/web/src/library/top-bar.tsx`.
+
+- **THE MAC APP'S UPDATE IS A CARD AT THE WINDOW'S CORNER, AND SETTINGS SAYS
+  THE SAME.** The updater is the shell's, since it replaces the app, so the
+  page mirrors the state the shell pushes in one store, which its first screen
+  starts with a check, and asks the shell to move it
+  (`apps/web/src/library/desktop-updates.ts`). kyh/init's banner draws it on
+  `@repo/ui`'s Card and Progress at the bottom right while there is something
+  to do about it: Download, a bar filling as it downloads, Restart, and Try
+  again under the updater's own words; Settings' Updates row reads the same
+  store (`apps/web/src/library/settings/updates-row.tsx`). Nothing downloads or
+  restarts without a click. The card has no anchor and no dismissal of its
+  own, so it is no popup, and it leaves when the update does. A tab has no
+  updater: no card, and the row says updates come with the Mac app. Rejected:
+  a toast (a download's share said in words alone, under notices of what
+  already happened); a store per screen (the card and the row would disagree).
+  `apps/web/src/library/desktop-update-banner.tsx`.
 
 ## Repo guards, vendoring and tooling
 

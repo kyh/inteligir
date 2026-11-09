@@ -15,6 +15,7 @@ import { orderedBlocks } from "@repo/contract/library/block-ops";
 import type { ItemState } from "@repo/contract/library/block-ops";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { deferred } from "@repo/editor/deferred";
@@ -24,7 +25,7 @@ import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-hos
 
 import { memoryItems } from "../test-support/memory-item";
 import type { MemoryItems } from "../test-support/memory-item";
-import { ItemEditor, MISSING_ITEM, NEEDS_CONNECTION } from "./item-editor";
+import { ItemEditor, MISSING_ITEM } from "./item-editor";
 import { BLOCK_HELD_BACK, ITEM_UNREAD, ITEM_UNSAVED } from "./item-session";
 import type { ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 

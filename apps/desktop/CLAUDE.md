@@ -74,7 +74,9 @@ a bullet is written and cited.
   file a config names; a pack without it makes no feed, and its updater is off,
   as under `tauri dev`. The page checks once as it loads and the app menu's
   Check for Updates… checks again; a found update waits for Download and a
-  verified download for Restart, in the page's notice and Settings › About.
+  verified download for Restart, in the page's card at the window's bottom
+  right, which fills a bar as the update downloads
+  (`apps/web/src/library/desktop-update-banner.tsx`), and in Settings › About.
   Rust drives it all behind three commands and one `update-state` event, which
   the page parses (`apps/web/src/library/shell/desktop-bridge.ts`); the window's
   one capability grants those alone (`apps/desktop/src-tauri/capabilities/web-app.json`),

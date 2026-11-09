@@ -11,6 +11,7 @@ import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-
 import type { NativeFrame, PageFrame, RequestResult } from "@repo/editor-bridge/protocol";
 import { blockHash } from "@repo/contract/library/block-hash";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { parseEval } from "../harness/agent-browser";
@@ -45,8 +46,6 @@ const PICTURE_BLOCK: LibraryBlock = {
   type: "img",
 };
 const TAB_TEXT = "Tab text.";
-// what the page says while the phone has no connection
-const NEEDS_CONNECTION = "Needs a connection";
 
 type HeldItem = NonNullable<RequestResult<"item">["item"]>;
 type ItemOutcome = RequestResult<"writeItem">;
