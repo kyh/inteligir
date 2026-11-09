@@ -11,10 +11,12 @@ write by, with the rules of links and tags, which `@repo/editor` holds.
 The library model is pure and platform-neutral: no node or react import, and
 no `crypto` or `URL` global in its modules here (`src/library/`'s SQL and
 undo, `src/knowledge/`, `src/items/`, `src/imports/`, `src/text/`), in the
-contract's model or in the editor's grammar (lint-enforced), and every
-platform capability (the SQL driver, the clock, random bytes and fresh ids) is
-injected. The rest of this package is the Worker's code, whose decisions are
-`apps/web/CLAUDE.md`'s.
+contract's model or in the editor's grammar (lint-enforced), and the clock,
+random bytes and fresh ids are injected. The SQL driver is not: the cell's SQL
+is its Durable Object's own SQLite, through drizzle's durable-sqlite driver
+and the raw port beside it (`packages/service/src/library/cell-storage.ts`),
+so every suite that reaches it runs in workerd. The rest of this package is
+the Worker's code, whose decisions are `apps/web/CLAUDE.md`'s.
 `packages/editor/src/markdown/mdast-nodes.ts` narrows a transform's bare
 `Node` input to the mdast root.
 
@@ -85,18 +87,36 @@ injected. The rest of this package is the Worker's code, whose decisions are
   a fill writes, and a title is a fill's on an unread link and a person's after).
   `packages/service/src/library/revert-change.test.ts`.
 
-- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS, THE CELL'S.**
-  `@repo/service/library/library-schema` versions STRICT tables by a
-  `meta.schema` row, a mismatch starting the cell over, and asks the engine
-  nothing (a Durable Object refuses `sqlite_version()`); `library-sql` runs a
-  plan, one statement yielded at a time, over the cell's port or the suites'
-  SQLite alike, under 100 parameters and 100 KB a statement;
-  `library-queries` matches text with instr() and lays an item, its body and
-  derived rows with it, only over an older `seq`. Rejected: SQLite's version
-  pragma and pattern-match operators (a Durable Object refuses the one and caps
-  the other at 50 bytes); SQL written apart from its plans (it drifts from
-  what the suites run).
-  `packages/service/src/test-support/wasm-sql-port.ts`.
+- **THE CELL'S SCHEMA IS DRIZZLE'S, MIGRATED WHEN THE CELL WAKES.**
+  `@repo/db/cell/schema` declares every table but the search index, an FTS5
+  table sqlite-core cannot declare, which a custom migration of its own makes;
+  drizzle-kit generates the rest (`packages/db/drizzle.config.cell.ts`). The
+  cell runs drizzle's migrator under `blockConcurrencyWhile` on every wake,
+  first wiping a cell that holds tables drizzle did not make or a migration
+  this build's journal lacks, and logs the names a failed run left pending,
+  since the migrator's rollback drops the failing statement's error. No table
+  is STRICT or WITHOUT ROWID, which sqlite-core cannot spell and a generated
+  table rebuild would drop, no trigger sits on one, for the same rebuild, and
+  `meta.v` declares no type, so a value reads back as it was written.
+  Rejected: a hand-written DDL versioned by a `meta` row (a second spelling of
+  the tables, and every version bump wiped every cell).
+  `packages/service/src/library/cell-db.ts`.
+
+- **A QUERY ON A TABLE THAT OUTLIVES THE BLOCK ROWS IS DRIZZLE'S SYNC
+  BUILDER, AND THE REST ARE PLANS.** Items, folders, tags, links, files,
+  uploads, imports, jobs and `meta` are read and written through drizzle's
+  `.all()`, `.get()` and `.run()` inside the cell's `transactionSync`, a
+  multi-row insert cut by its table's width under a Durable Object's 100 bound
+  parameters (`insertChunks`); blocks, block versions, change sets, snapshot
+  parts, answered ops, threads, the agent's tables and the search index stay
+  raw plans (`library-sql`), one statement yielded at a time under 100
+  parameters and 100 KB. `library-queries` matches text with instr() and lays
+  an item, its body and derived rows with it, only over an older `seq`.
+  Rejected: SQLite's version pragma and pattern-match operators (a Durable
+  Object refuses the one and caps the other at 50 bytes); SQLite's wasm build
+  under node for the suites (a second engine, held to a Durable Object's
+  limits by hand).
+  `packages/service/src/library/library-queries.test.ts`.
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
   `@repo/contract/library/library-index` holds the cell's listing rows, typed by

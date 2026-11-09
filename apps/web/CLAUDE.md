@@ -214,8 +214,8 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   `exports.default.fetch()` and reads every body to the end (`drained`), as
   per-file storage isolation needs; the suites that open the account's socket
   share one storage in a project of their own, since Durable Object WebSockets
-  fail under isolation; the model's own suites run under node, its SQL on
-  SQLite's wasm build, which workerd cannot compile. `@repo/web` keeps the
+  fail under isolation; the model's pure suites run under node, and every
+  suite that reaches SQL runs on the cell's own SQLite. `@repo/web` keeps the
   site's suites, which render its routes under node. Rejected: a mocked
   runtime (Better Auth, D1 and the Durable Objects run as they deploy); the
   app's config (its entry's SSR, and fill consumers that would take a suite's
@@ -236,13 +236,14 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   and `AgentThreadDO` in `exports` with SQLite storage and binds no namespace;
   `ThreadSyncDO`, `RepoCell` and `Registry` are each a
   `state: "deleted"` tombstone, kept until a deploy's answer lets it go
-  (`docs/releasing.md` § 5). The schema opens under
-  `blockConcurrencyWhile`; one of another version wipes the cell and starts it
+  (`docs/releasing.md` § 5). The cell runs drizzle's migrator under
+  `blockConcurrencyWhile` on every wake; one holding tables drizzle did not
+  make, or a migration this build's journal lacks, is wiped and migrated from
   empty. Rejected: a namespace binding (anything holding `env` could name any
   cell); the cell under a deleted class's export name (nothing documents a
   preview refusing a new class); signing the fill message (no other producer exists to forge one).
   `packages/service/src/library/library-do.ts`,
-  `library-cell.ts`, `cell-schema.ts`, `packages/service/src/fill/fill-job.ts`.
+  `library-cell.ts`, `cell-db.ts`, `packages/service/src/fill/fill-job.ts`.
 
 - **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
   TRANSACTION.** Every op carries the base it was computed from (a block's
@@ -428,7 +429,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   `packages/contract/src/items/link-fill.ts`.
 
 - **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
-  item names it or any change set does, and `history_blobs` keeps which files
+  item names it or any change set does, and `change_set_blobs` keeps which files
   each fields part and block version names, so the ask is one lookup. A file
   that lands, or that an item stops naming, waits a day under an `unnamed`
   job, which an item naming it drops; a purge, or a prune dropping the last
