@@ -66,11 +66,14 @@ is parsed in `shell/desktop-bridge.ts`.
   whose order matters shares a `scope`, and refetches in its own callbacks,
   awaited, only the family it moved. A read a press must act on is a mutation
   too, so it waits under that notice and in that scope, retried as a query is.
-  Rejected: a call outside TanStack (it fails at once offline); a note per
-  button (a menu's verb has none).
+  The words are one constant, `NEEDS_CONNECTION`, beside the refusal rule, and
+  the editor's item and the phone say it too, so every device says one thing
+  of a call that waits. Rejected: a call outside TanStack (it fails at once
+  offline); a note per button (a menu's verb has none); the words spelled per
+  surface (each a copy to keep in step).
   `apps/web/src/library/cloud/v1.ts`,
   `apps/web/src/library/cloud/needs-connection.tsx`, over
-  `packages/contract/src/refusal-text.ts`, which the phone says too.
+  `packages/contract/src/refusal-text.ts`.
 
 - **THE LIBRARY IS ONE CHUNK, AND CATCHES UP AS ITS CONNECTION RETURNS.**
   Every module only the library's routes reach, the tab's open and the
