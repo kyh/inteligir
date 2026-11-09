@@ -1,105 +1,77 @@
-import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
-import { V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
-import { V1_RPC_PATH } from "@repo/contract/v1";
+// Each door a Start server route hands its request to (apps/web/src/routes), bound to this request's
+// bindings and the ExecutionContext Cloudflare handed the entry: the connector's OAuth provider
+// writes `ctx.props` and `ctx.auth` on that very object and the connector reads them back, so the
+// doors are built per request, never kept.
+
 import { createAuth, withoutAuthToken } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
-import {
-  CONSENT_PATH,
-  connectorAuth,
-  isAuthorizationServerPath,
-  isConnectorPath,
-} from "./connector/connector-auth";
+import { connectorAuth } from "./connector/connector-auth";
 import { handleConnector } from "./connector/connector-route";
 import { handleConsent } from "./connector/consent-route";
+import { doorAt } from "./door-routes";
+import type { Door, DoorName, Doors } from "./doors-api";
+import { handleBlobRoute } from "./library/blob-routes";
 import { handleLibrarySocket } from "./library/socket-routes";
-import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
-import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
 
-// the app's server.ts splits on these, so a route added below must be reachable through one or it
-// never arrives
-const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
+const notFound = (): Response => new Response("not found", { status: 404 });
 
-// the connector, its OAuth endpoints and its consent page, which no prefix of their own holds
-const isConnectorRoute = (pathname: string): boolean =>
-  isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
+const internalError = (): Response => new Response("internal error", { status: 500 });
 
-export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
-  isConnectorRoute(pathname) ||
-  isLibraryPagePath(pathname);
+// Start's own answer to a throw is a JSON 500 and a bare log line, so a door catches its own: the
+// throw logged with its request, and the fault in the door's protocol. Every door answers its own
+// methods, and its path only as the table spells it: Start's splat route takes its prefix bare too
+const door =
+  (name: DoorName, answer: Door, fault: () => Response = internalError): Door =>
+  async (request) => {
+    if (doorAt(new URL(request.url).pathname) !== name) {
+      return notFound();
+    }
+    try {
+      return await answer(request);
+    } catch (error) {
+      logUnhandled(request, error);
+      return fault();
+    }
+  };
 
-const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
-
-interface FrontDoor {
-  readonly owns: (pathname: string) => boolean;
-  readonly answer: (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
-}
-
-// the doors answered whole before any floor: an assistant's, which names no build and takes no
-// session (the token its OAuth endpoints minted, asked for on its consent page), and the library's
-// page, its document from the assets for every path under its prefix
-const FRONT_DOORS: readonly FrontDoor[] = [
-  { answer: handleConnector, owns: isConnectorPath },
-  {
-    answer: async (request, env, ctx) =>
-      await connectorAuth(env).authorizationServer.fetch(request, env, ctx),
-    owns: isAuthorizationServerPath,
-  },
-  { answer: handleConsent, owns: (pathname) => pathname === CONSENT_PATH },
-  {
-    answer: async (request, env) => await handleLibraryPage(request, env.ASSETS),
-    owns: isLibraryPagePath,
-  },
-];
-
-const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
-  const url = new URL(request.url);
-
-  const door = FRONT_DOORS.find(({ owns }) => owns(url.pathname));
-  if (door !== undefined) {
-    return await door.answer(request, env, ctx);
-  }
-
-  // a browser's socket cannot name its build, and its ticket came from a call that met the floor
-  if (url.pathname === V1_SOCKET_PATH) {
-    return await handleLibrarySocket(request, env, ctx, url);
-  }
-
-  // the one wire: its own floor, credential and refusals, all in its protocol
-  if (isRpc(url.pathname)) {
-    return await handleV1Rpc(request, env, ctx, url);
-  }
-
-  // the library's files: the floor and the session checked as the wire checks them
-  if (isBlobPath(url.pathname)) {
-    return await handleBlobRoute(request, env, ctx, url);
-  }
-
-  if (url.pathname.startsWith("/api/auth/")) {
-    return withoutAuthToken(await createAuth(env, ctx, url.origin).handler(request));
-  }
-
-  // the site's sign-up form, which its own page posts and which ships in the same deploy
-  if (request.method === "POST" && url.pathname === AUTH_API_PATHS.signUp) {
-    return await handleInviteSignUp(request, env, ctx);
-  }
-
-  return new Response("not found", { status: 404 });
-};
-
-export const answerDoor = async (
-  request: Request,
-  env: Env,
-  ctx: ExecutionContext,
-): Promise<Response> => {
-  try {
-    return await route(request, env, ctx);
-  } catch (error) {
-    logUnhandled(request, error);
-    const { pathname } = new URL(request.url);
-    return isRpc(pathname) ? rpcFault() : new Response("internal error", { status: 500 });
-  }
+export const doorsFor = (env: Env, ctx: ExecutionContext): Doors => {
+  // an assistant's door, which names no build and takes no session: the token the provider's
+  // endpoints minted, asked for on the consent page
+  const connector: Door = async (request) => await handleConnector(request, env, ctx);
+  const authorizationServer: Door = async (request) =>
+    await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
+  return {
+    auth: door("auth", async (request) =>
+      withoutAuthToken(await createAuth(env, ctx, new URL(request.url).origin).handler(request)),
+    ),
+    // the site's sign-up form, which its own page posts and which ships in the same deploy
+    signUp: door("signUp", async (request) =>
+      request.method === "POST" ? await handleInviteSignUp(request, env, ctx) : notFound(),
+    ),
+    // the one wire: its own floor, credential and refusals, all in its protocol
+    rpc: door(
+      "rpc",
+      async (request) => await handleV1Rpc(request, env, ctx, new URL(request.url)),
+      rpcFault,
+    ),
+    // the library's files: the floor and the session checked as the wire checks them
+    blobs: door(
+      "blobs",
+      async (request) => await handleBlobRoute(request, env, ctx, new URL(request.url)),
+    ),
+    // a browser's socket cannot name its build, and its ticket came from a call that met the floor
+    socket: door(
+      "socket",
+      async (request) => await handleLibrarySocket(request, env, ctx, new URL(request.url)),
+    ),
+    connector: door("connector", connector),
+    connectorMetadata: door("connectorMetadata", connector),
+    authorizationServerMetadata: door("authorizationServerMetadata", authorizationServer),
+    oauthToken: door("oauthToken", authorizationServer),
+    oauthRegister: door("oauthRegister", authorizationServer),
+    consent: door("consent", async (request) => await handleConsent(request, env, ctx)),
+  };
 };

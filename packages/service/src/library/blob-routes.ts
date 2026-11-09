@@ -7,7 +7,7 @@
 // under a script-less sandbox, and every other file under a sandbox too, but a PDF, whose viewer
 // a sandbox blanks.
 
-import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { z } from "zod";
@@ -24,8 +24,6 @@ import { libraryCell } from "./library-cell";
 import type { AppPrincipal } from "./library-principal";
 
 const BLOB_PATH = /^\/v1\/blobs\/(?<sha>[^/]+)$/u;
-
-export const isBlobPath = (pathname: string): boolean => pathname.startsWith(`${V1_BLOBS_PATH}/`);
 
 // ---- what a file is served under ----
 

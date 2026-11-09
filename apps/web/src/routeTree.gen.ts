@@ -13,18 +13,31 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as ConnectorRouteImport } from './routes/connector'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
+import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as ApiSignUpRouteImport } from './routes/api/sign-up'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppForgotPasswordRouteImport } from './routes/app/forgot-password'
 import { Route as AppResetPasswordRouteImport } from './routes/app/reset-password'
 import { Route as AppSignInRouteImport } from './routes/app/sign-in'
 import { Route as AppSignUpRouteImport } from './routes/app/sign-up'
+import { Route as ConnectAuthorizeRouteImport } from './routes/connect/authorize'
 import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
+import { Route as OauthRegisterRouteImport } from './routes/oauth/register'
+import { Route as OauthTokenRouteImport } from './routes/oauth/token'
+import { Route as V1SplatRouteImport } from './routes/v1/$'
+import { Route as V1SocketRouteImport } from './routes/v1/socket'
+import { Route as DotwellKnownOauthProtectedResourceConnectorRouteImport } from './routes/[.]well-known/oauth-protected-resource/connector'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
+import { Route as V1BlobsSplatRouteImport } from './routes/v1/blobs.$'
+import { Route as V1RpcSplatRouteImport } from './routes/v1/rpc.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -44,6 +57,11 @@ const AboutRoute = AboutRouteImport.update({
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectorRoute = ConnectorRouteImport.update({
+  id: '/connector',
+  path: '/connector',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -76,6 +94,22 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSignUpRoute = ApiSignUpRouteImport.update({
+  id: '/api/sign-up',
+  path: '/api/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -101,9 +135,55 @@ const AppSignUpRoute = AppSignUpRouteImport.update({
   path: '/sign-up',
   getParentRoute: () => AppRoute,
 } as any)
+const ConnectAuthorizeRoute = ConnectAuthorizeRouteImport.update({
+  id: '/connect/authorize',
+  path: '/connect/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
   id: '/connect/extension',
   path: '/connect/extension',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthRegisterRoute = OauthRegisterRouteImport.update({
+  id: '/oauth/register',
+  path: '/oauth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthTokenRoute = OauthTokenRouteImport.update({
+  id: '/oauth/token',
+  path: '/oauth/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1SplatRoute = V1SplatRouteImport.update({
+  id: '/v1/$',
+  path: '/v1/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1SocketRoute = V1SocketRouteImport.update({
+  id: '/v1/socket',
+  path: '/v1/socket',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthProtectedResourceConnectorRoute =
+  DotwellKnownOauthProtectedResourceConnectorRouteImport.update({
+    id: '/.well-known/oauth-protected-resource/connector',
+    path: '/.well-known/oauth-protected-resource/connector',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1BlobsSplatRoute = V1BlobsSplatRouteImport.update({
+  id: '/v1/blobs/$',
+  path: '/v1/blobs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V1RpcSplatRoute = V1RpcSplatRouteImport.update({
+  id: '/v1/rpc/$',
+  path: '/v1/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -112,35 +192,61 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRouteWithChildren
+  '/connector': typeof ConnectorRoute
   '/contact': typeof ContactRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/sign-up': typeof ApiSignUpRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/authorize': typeof ConnectAuthorizeRoute
   '/connect/extension': typeof ConnectExtensionRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/v1/$': typeof V1SplatRoute
+  '/v1/socket': typeof V1SocketRoute
   '/app/': typeof AppIndexRoute
+  '/.well-known/oauth-protected-resource/connector': typeof DotwellKnownOauthProtectedResourceConnectorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/rpc/$': typeof V1RpcSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
+  '/connector': typeof ConnectorRoute
   '/contact': typeof ContactRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/sign-up': typeof ApiSignUpRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/authorize': typeof ConnectAuthorizeRoute
   '/connect/extension': typeof ConnectExtensionRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/v1/$': typeof V1SplatRoute
+  '/v1/socket': typeof V1SocketRoute
   '/app': typeof AppIndexRoute
+  '/.well-known/oauth-protected-resource/connector': typeof DotwellKnownOauthProtectedResourceConnectorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/rpc/$': typeof V1RpcSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -148,18 +254,31 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRouteWithChildren
+  '/connector': typeof ConnectorRoute
   '/contact': typeof ContactRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/sign-up': typeof ApiSignUpRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/authorize': typeof ConnectAuthorizeRoute
   '/connect/extension': typeof ConnectExtensionRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/token': typeof OauthTokenRoute
+  '/v1/$': typeof V1SplatRoute
+  '/v1/socket': typeof V1SocketRoute
   '/app/': typeof AppIndexRoute
+  '/.well-known/oauth-protected-resource/connector': typeof DotwellKnownOauthProtectedResourceConnectorRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/rpc/$': typeof V1RpcSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -168,53 +287,92 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/app'
+    | '/connector'
     | '/contact'
     | '/llms.txt'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
+    | '/.well-known/oauth-authorization-server'
+    | '/api/$'
+    | '/api/sign-up'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/authorize'
     | '/connect/extension'
+    | '/oauth/register'
+    | '/oauth/token'
+    | '/v1/$'
+    | '/v1/socket'
     | '/app/'
+    | '/.well-known/oauth-protected-resource/connector'
+    | '/api/auth/$'
+    | '/v1/blobs/$'
+    | '/v1/rpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$'
     | '/about'
+    | '/connector'
     | '/contact'
     | '/llms.txt'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
+    | '/.well-known/oauth-authorization-server'
+    | '/api/$'
+    | '/api/sign-up'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/authorize'
     | '/connect/extension'
+    | '/oauth/register'
+    | '/oauth/token'
+    | '/v1/$'
+    | '/v1/socket'
     | '/app'
+    | '/.well-known/oauth-protected-resource/connector'
+    | '/api/auth/$'
+    | '/v1/blobs/$'
+    | '/v1/rpc/$'
   id:
     | '__root__'
     | '/'
     | '/$'
     | '/about'
     | '/app'
+    | '/connector'
     | '/contact'
     | '/llms.txt'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
     | '/terms'
+    | '/.well-known/oauth-authorization-server'
+    | '/api/$'
+    | '/api/sign-up'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/authorize'
     | '/connect/extension'
+    | '/oauth/register'
+    | '/oauth/token'
+    | '/v1/$'
+    | '/v1/socket'
     | '/app/'
+    | '/.well-known/oauth-protected-resource/connector'
+    | '/api/auth/$'
+    | '/v1/blobs/$'
+    | '/v1/rpc/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,13 +380,26 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AboutRoute: typeof AboutRoute
   AppRoute: typeof AppRouteWithChildren
+  ConnectorRoute: typeof ConnectorRoute
   ContactRoute: typeof ContactRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+  ApiSplatRoute: typeof ApiSplatRoute
+  ApiSignUpRoute: typeof ApiSignUpRoute
+  ConnectAuthorizeRoute: typeof ConnectAuthorizeRoute
   ConnectExtensionRoute: typeof ConnectExtensionRoute
+  OauthRegisterRoute: typeof OauthRegisterRoute
+  OauthTokenRoute: typeof OauthTokenRoute
+  V1SplatRoute: typeof V1SplatRoute
+  V1SocketRoute: typeof V1SocketRoute
+  DotwellKnownOauthProtectedResourceConnectorRoute: typeof DotwellKnownOauthProtectedResourceConnectorRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  V1BlobsSplatRoute: typeof V1BlobsSplatRoute
+  V1RpcSplatRoute: typeof V1RpcSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -259,6 +430,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connector': {
+      id: '/connector'
+      path: '/connector'
+      fullPath: '/connector'
+      preLoaderRoute: typeof ConnectorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -303,6 +481,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sign-up': {
+      id: '/api/sign-up'
+      path: '/api/sign-up'
+      fullPath: '/api/sign-up'
+      preLoaderRoute: typeof ApiSignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/': {
       id: '/app/'
       path: '/'
@@ -338,11 +537,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSignUpRouteImport
       parentRoute: typeof AppRoute
     }
+    '/connect/authorize': {
+      id: '/connect/authorize'
+      path: '/connect/authorize'
+      fullPath: '/connect/authorize'
+      preLoaderRoute: typeof ConnectAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/connect/extension': {
       id: '/connect/extension'
       path: '/connect/extension'
       fullPath: '/connect/extension'
       preLoaderRoute: typeof ConnectExtensionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/register': {
+      id: '/oauth/register'
+      path: '/oauth/register'
+      fullPath: '/oauth/register'
+      preLoaderRoute: typeof OauthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/token': {
+      id: '/oauth/token'
+      path: '/oauth/token'
+      fullPath: '/oauth/token'
+      preLoaderRoute: typeof OauthTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/$': {
+      id: '/v1/$'
+      path: '/v1/$'
+      fullPath: '/v1/$'
+      preLoaderRoute: typeof V1SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/socket': {
+      id: '/v1/socket'
+      path: '/v1/socket'
+      fullPath: '/v1/socket'
+      preLoaderRoute: typeof V1SocketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource/connector': {
+      id: '/.well-known/oauth-protected-resource/connector'
+      path: '/.well-known/oauth-protected-resource/connector'
+      fullPath: '/.well-known/oauth-protected-resource/connector'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceConnectorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/blobs/$': {
+      id: '/v1/blobs/$'
+      path: '/v1/blobs/$'
+      fullPath: '/v1/blobs/$'
+      preLoaderRoute: typeof V1BlobsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v1/rpc/$': {
+      id: '/v1/rpc/$'
+      path: '/v1/rpc/$'
+      fullPath: '/v1/rpc/$'
+      preLoaderRoute: typeof V1RpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -371,13 +633,28 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AboutRoute: AboutRoute,
   AppRoute: AppRouteWithChildren,
+  ConnectorRoute: ConnectorRoute,
   ContactRoute: ContactRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRoute,
+  ApiSplatRoute: ApiSplatRoute,
+  ApiSignUpRoute: ApiSignUpRoute,
+  ConnectAuthorizeRoute: ConnectAuthorizeRoute,
   ConnectExtensionRoute: ConnectExtensionRoute,
+  OauthRegisterRoute: OauthRegisterRoute,
+  OauthTokenRoute: OauthTokenRoute,
+  V1SplatRoute: V1SplatRoute,
+  V1SocketRoute: V1SocketRoute,
+  DotwellKnownOauthProtectedResourceConnectorRoute:
+    DotwellKnownOauthProtectedResourceConnectorRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  V1BlobsSplatRoute: V1BlobsSplatRoute,
+  V1RpcSplatRoute: V1RpcSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

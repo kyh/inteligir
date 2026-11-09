@@ -21,17 +21,10 @@ import type {
 import { z } from "zod";
 
 import { createDb } from "@repo/db/d1/client";
+import { DOOR_ROUTES } from "../door-routes";
 import { credentialIdSchema, LIBRARY_SCOPES } from "../library/library-principal";
 import { spendCallerBudget } from "../rate-limit";
 import { isGrantRevoked } from "./revoked-grants";
-
-// the person's own page, which signs them in and asks; the provider advertises it and refuses a
-// request parsed anywhere else
-export const CONSENT_PATH = "/connect/authorize";
-
-// where an assistant trades its code and its refresh token
-const TOKEN_PATH = "/oauth/token";
-const REGISTRATION_PATH = "/oauth/register";
 
 // the scope a client is told to ask for first; the consent page grants it, or `library` in its
 // place, as the person chooses
@@ -103,10 +96,11 @@ const throttledRegistration = async (env: Env, request: Request) =>
 
 const authorizationServerAt = (env: Env, origin: string): OAuthAuthorizationServer<Env> =>
   new OAuthAuthorizationServer<Env>({
-    authorizeEndpoint: CONSENT_PATH,
+    // the consent page, which the provider advertises and refuses a request parsed anywhere else
+    authorizeEndpoint: DOOR_ROUTES.consent,
     clientIdMetadataDocumentEnabled: true,
     clientRegistrationCallback: async ({ request }) => await throttledRegistration(env, request),
-    clientRegistrationEndpoint: REGISTRATION_PATH,
+    clientRegistrationEndpoint: DOOR_ROUTES.oauthRegister,
     clientRegistrationTTL: REGISTRATION_TTL_SECONDS,
     issuer: origin,
     onError: logRefusal,
@@ -122,7 +116,7 @@ const authorizationServerAt = (env: Env, origin: string): OAuthAuthorizationServ
       }
       return { accessTokenProps: { ...grantPropsSchema.parse(props), grantId } };
     },
-    tokenEndpoint: TOKEN_PATH,
+    tokenEndpoint: DOOR_ROUTES.oauthToken,
   });
 
 // the token is this Worker's own; a grant whose props this build does not read is no grant, nor is
@@ -183,15 +177,3 @@ export const connectorAuth = (env: Env): ConnectorAuth => {
       }),
   };
 };
-
-// the paths the authorization server answers itself: its metadata, token, revocation and
-// registration endpoints
-export const isAuthorizationServerPath = (pathname: string): boolean =>
-  pathname === "/.well-known/oauth-authorization-server" ||
-  pathname === TOKEN_PATH ||
-  pathname === REGISTRATION_PATH;
-
-// the connector and its RFC 9728 document, which its resource server answers
-export const isConnectorPath = (pathname: string): boolean =>
-  pathname === CONNECTOR_PATH ||
-  pathname === `/.well-known/oauth-protected-resource${CONNECTOR_PATH}`;

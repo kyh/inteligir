@@ -13,7 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createDb } from "@repo/db/d1/client";
-import { connectorAuth, isConnectorPath } from "./connector-auth";
+import { connectorAuth } from "./connector-auth";
+import { doorAt } from "../door-routes";
 import { rateLimit, session } from "@repo/db/d1/schema";
 import { CALLER_IP_HEADER, callerRateKey, grantRateKey } from "../rate-limit";
 import {
@@ -120,10 +121,12 @@ describe("the connector's sign-in", () => {
   });
 
   it("owns its own path and its metadata, and nothing under either", () => {
-    expect(isConnectorPath(CONNECTOR_PATH)).toBe(true);
-    expect(isConnectorPath(`/.well-known/oauth-protected-resource${CONNECTOR_PATH}`)).toBe(true);
-    expect(isConnectorPath(`${CONNECTOR_PATH}/`)).toBe(false);
-    expect(isConnectorPath(`${CONNECTOR_PATH}/anything`)).toBe(false);
+    expect(doorAt(CONNECTOR_PATH)).toBe("connector");
+    expect(doorAt(`/.well-known/oauth-protected-resource${CONNECTOR_PATH}`)).toBe(
+      "connectorMetadata",
+    );
+    expect(doorAt(`${CONNECTOR_PATH}/`)).toBeUndefined();
+    expect(doorAt(`${CONNECTOR_PATH}/anything`)).toBeUndefined();
   });
 
   it("takes no app's session: the connector is an assistant's door alone", async () => {
