@@ -299,6 +299,9 @@ catalogs:
     lucide-react:
       specifier: ^1.61.0
       version: 1.62.0
+    mdast-util-to-markdown:
+      specifier: ^2.2.0
+      version: 2.2.0
     miniflare:
       specifier: 5.20261023.0-beta
       version: 5.20261023.0-beta
@@ -1155,7 +1158,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0(supports-color@10.2.2)
       mdast-util-to-markdown:
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0
       micromark-util-character:
         specifier: ^2.1.1
@@ -1320,7 +1323,7 @@ importers:
         specifier: workspace:*
         version: link:../editor
       mdast-util-to-markdown:
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0
       stemmer:
         specifier: ^2.0.1

@@ -24,7 +24,7 @@
   "dependencies": {
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
-    "mdast-util-to-markdown": "^2.2.0",
+    "mdast-util-to-markdown": "catalog:",
     "stemmer": "^2.0.1",
     "zod": "catalog:"
   },
