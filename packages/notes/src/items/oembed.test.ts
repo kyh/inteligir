@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { oembedEndpoint, parseOEmbed } from "./oembed";
+import { oembedEndpoint, parseOEmbed, youTubeStills } from "./oembed";
 
 type Answer = Readonly<Record<string, string | number | string[]>>;
 
@@ -89,5 +89,16 @@ describe("where a fill asks", () => {
   it("asks the page's discovery link on any other host, and nothing without one", () => {
     expect(oembedEndpoint("https://pages.example/post", DISCOVERED)).toBe(DISCOVERED);
     expect(oembedEndpoint("https://pages.example/post", null)).toBeNull();
+  });
+});
+
+describe(youTubeStills, () => {
+  it("names a video's own still frames, best first", () => {
+    expect(youTubeStills("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toStrictEqual([
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    ]);
+    expect(youTubeStills("https://youtu.be/dQw4w9WgXcQ")).toHaveLength(2);
+    expect(youTubeStills("https://example.com/watch?v=dQw4w9WgXcQ")).toStrictEqual([]);
   });
 });
