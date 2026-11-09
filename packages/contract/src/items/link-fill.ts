@@ -1,8 +1,8 @@
 // What any device that reads a saved link judges by: how much of a page it reads, which of its
 // pictures is a cover, whether an answer is a page, a video or a sound at all, which of a page's
 // texts it reads for, and whether a reading is kept. The cloud's fill
-// (apps/web/src/worker/fill/read-page.ts) and the extension each read by these, so a link reads the
-// same whichever read it.
+// (packages/service/src/fill/read-page.ts) and the extension each read by these, so a link reads
+// the same whichever read it.
 
 import { kindForUrl } from "./item-url";
 import { pixelSize, sniffMedia } from "./sniff-media";

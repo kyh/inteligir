@@ -1,5 +1,5 @@
-// workerd's version is a date (1.YYYYMMDD.N). apps/web's compatibilityDate is the oldest workerd the
-// lockfile resolves, never the newest: a workerd cannot emulate a date it predates, so the date
+// workerd's version is a date (1.YYYYMMDD.N). The Worker's compatibilityDate is the oldest workerd
+// the lockfile resolves, never the newest: a workerd cannot emulate a date it predates, so the date
 // moves forward only as every workerd the tools pull does.
 
 import fs from "node:fs";
@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT } from "./repo";
 
 const LOCKFILE = "pnpm-lock.yaml";
-const COMPATIBILITY = "apps/web/compatibility.ts";
+const COMPATIBILITY = "packages/service/compatibility.ts";
 
 // the first date at which a Durable Object's pending I/O holds it from eviction, which the library
 // cell's outbound work relies on

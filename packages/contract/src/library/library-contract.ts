@@ -4,7 +4,7 @@
 // the cell, and the apps call only a few of those. A write takes an optional `opId`, which the
 // cell keeps, so a save queue resending after a lost answer lands once. Which of
 // these an agent sees as a tool, and how it is titled, is the Worker's to decorate
-// (apps/web/src/worker/connector/library-tools.ts); nothing here names MCP or OpenAPI.
+// (packages/service/src/connector/library-tools.ts); nothing here names MCP or OpenAPI.
 
 import { z } from "zod";
 

@@ -13,8 +13,8 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
-// site and the Worker's mail, consent page and refusals, @repo/contract and @repo/service for the
-// refusals and notices they hand a surface to show. tools/ui-gallery is not one:
+// site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
+// refusals and notices it hands a surface to show. tools/ui-gallery is not one:
 // it is never deployed, so no person reads its sample words
 const SURFACES = [
   "@repo/agent-panel",
@@ -37,7 +37,7 @@ const LEGAL_PAGES = ["docs/privacy.md", "docs/terms.md"] as const;
 // a file that may say a word, and why: a row that no longer matches anything is stale
 const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>([
   [
-    "apps/web/src/worker/agent/agent-prompt.ts",
+    "packages/service/src/agent/agent-prompt.ts",
     "the built-in agent's instructions keep their words (AGENTS.md § Rules that matter)",
   ],
 ]);

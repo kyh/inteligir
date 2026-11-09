@@ -17,7 +17,7 @@ One library cell per account, the devices that read it online, and the agents
 that reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
-`LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
+`LibraryDO`, in the Worker (`packages/service/src/library/library-do.ts`), named
 `library:<userId>` only from a verified session or grant, or from what the cell itself
 gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, threads, change sets and the
@@ -33,7 +33,7 @@ named by the door it came through: the site's tab or the Mac app's window, the
 iPhone, or the browser extension; or a **connected assistant** under one grant,
 the only actor with scopes). The Worker
 stamps it on the call it forwards to the **library cell** and drops any copy the
-request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
+request brought (`packages/service/src/library/library-principal.ts`). Not a
 credential: the cell never sees one.
 
 **change set** — the unit of undo. Every write lands in one,
@@ -44,8 +44,8 @@ a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
 each until seven days after it sealed
-(`apps/web/src/worker/library/change-sets.ts`,
-`apps/web/src/worker/library/change-set-prune.ts`), and the revert is
+(`packages/service/src/library/change-sets.ts`,
+`packages/service/src/library/change-set-prune.ts`), and the revert is
 `@repo/service/library/revert-change`'s.
 
 **block** — one top-level node of an item's body, a Plate element stored as a
@@ -70,7 +70,7 @@ Not a heading's stretch of a note (its outline), and not a folder.
 **moved frame** — what the account's socket tells every device once a write
 commits: each item it moved at its sequence, whether a folder moved, and which
 threads, a list past `MOVED_IDS_MAX` saying "all"
-(`apps/web/src/worker/library/cell-moved.ts`, the frame in
+(`packages/service/src/library/cell-moved.ts`, the frame in
 `@repo/contract/library/library-socket`). A device asks again for what
 it shows of those, and for everything each time its socket opens
 (`@repo/contract/library/account-socket`). A hint, never the state: a
@@ -86,9 +86,9 @@ typing, a save typed into the app, a photo and a delete each need a
 connection.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
-(`apps/web/src/worker/connector/connector-route.ts`), the library's procedures
+(`packages/service/src/connector/connector-route.ts`), the library's procedures
 tagged as tools
-(`apps/web/src/worker/connector/library-tools.ts`) and served in the account's
+(`packages/service/src/connector/library-tools.ts`) and served in the account's
 cell (`connector-server.ts`), behind OAuth from
 `@cloudflare/workers-oauth-provider` (`connector-auth.ts`) with a
 read-and-change scope, `library`, and a read-only one, `library:read`. Every
@@ -99,13 +99,13 @@ product's, which never says MCP.
 
 **connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
 Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our
-consent page (`apps/web/src/worker/connector/consent-route.ts`); its model
+consent page (`packages/service/src/connector/consent-route.ts`); its model
 runs on its own plan, never ours. Each one is a grant on the account, which
 `account.assistants` lists and revokes (`assistant-grants.ts`), and Settings ›
 Account shows. Not the **built-in agent**, though both call the same tools.
 
 **built-in agent** — the app's own agent: our loop over Claude, a Durable
-Object for each **thread** (`apps/web/src/worker/agent/agent-thread.ts`),
+Object for each **thread** (`packages/service/src/agent/agent-thread.ts`),
 calling Claude through AI Gateway. It changes the library only through the
 account's cell, by the procedures the **connector** serves, run as the
 agent's; it has no shell, files or web of its own, deleting and saving a link
@@ -117,7 +117,7 @@ Claude ends it, the person stops it, or the allowance does; waiting on an
 approval does not end it. The cell checks the allowance before it starts and
 reserves each model call before it is sent, and its writes are one **change
 set**, which "Undo this turn" reverts. A send while its thread's turn runs
-waits its turn (`apps/web/src/worker/agent/agent-turns.ts`). Not a connected
+waits its turn (`packages/service/src/agent/agent-turns.ts`). Not a connected
 assistant's call, which is no turn.
 
 **thread** — a conversation with the **built-in agent**, the account's, so
@@ -151,7 +151,7 @@ Not a write unit: a block is, guarded by its hash.
 ## Items
 
 **library** — everything a person saved and wrote, their account's: one
-library cell in the cloud (`LibraryDO`, `apps/web/src/worker/library/`), which
+library cell in the cloud (`LibraryDO`, `packages/service/src/library/`), which
 every device they sign in on reads online.
 
 **item** — one card the library lists: a row of fields and a body of Plate
@@ -175,7 +175,7 @@ or names a deleted folder (the `unsorted` scope of
 filed, whatever it is tagged.
 
 **filing rules** — what the person wrote for the agent about their library, one
-row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
+row of the account's library cell (`packages/service/src/library/library-rules.ts`)
 written only from Settings › Account, which every turn of the built-in agent
 carries after the person's message. Tidy my library files and tags by them. An
 import reads an `AGENTS.md` as a note, never as filing rules, unless it says what the library's rules say, when it adds
@@ -188,7 +188,7 @@ Worker's consumer reads the page with `@repo/page-reader` and lands only its
 `description`, the cover, the original file of an address that answered with
 one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
 in place of the address an unread item goes by; it calls no model and never
-writes `url` or `savedAt` (`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
+writes `url` or `savedAt` (`packages/service/src/fill/`). An item's `fetchState` says where it stands:
 `pending`, `filled` or `failed`. A page the extension read an article from is
 saved read and never filled; one it did not goes to the
 fill as its link (`deviceKeepsReading` in `@repo/contract/items/link-fill`).
@@ -269,11 +269,11 @@ extension adds no row to **Devices**
 Mac app's window holds its cookie, the iPhone keeps it in the Keychain, and the
 browser extension rides its browser's. It lasts 60 days from its last use, an
 account holds 20 (a sign-in past that ends the one used longest ago), and a
-password reset ends them all (`apps/web/src/worker/auth/auth.ts`). Not a
+password reset ends them all (`packages/service/src/auth/auth.ts`). Not a
 credential of our own: there is none.
 
 **Account**, **Devices** and **Connected assistants** — Settings › Account: an
-inteligir account (Better Auth, `apps/web/src/worker/auth/auth.ts`), its
+inteligir account (Better Auth, `packages/service/src/auth/auth.ts`), its
 **sessions**, each listed by the device its user agent names (Chrome on Mac,
 iPhone) with This device marked, and the assistants a person let into the
 library through the **connector**

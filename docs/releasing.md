@@ -123,11 +123,11 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
 ## 3. The cloud first
 
-1. **The D1 schema.** `pnpm --filter @repo/web db:push:remote --explain`
+1. **The D1 schema.** `pnpm --filter @repo/db push:remote --explain`
    prints the SQL a push would run against production and runs none of it.
    - Nothing planned: go on.
    - Only `CREATE INDEX`, `CREATE TABLE` or `ALTER TABLE … ADD`: run
-     `pnpm --filter @repo/web db:push:remote`, then `--explain` again, which
+     `pnpm --filter @repo/db push:remote`, then `--explain` again, which
      now plans nothing.
    - A `DROP INDEX` or an `ALTER TABLE … DROP COLUMN` of a column Better Auth
      does not write (such as `account.issuer`, with its index): push it as
@@ -847,14 +847,14 @@ that deployment.
   connector's address with OAuth. Passing: the consent page names ChatGPT;
   with "Only let it read the library" ticked, ChatGPT lists the four reading
   tools and no write; the connector's description in ChatGPT reads as the
-  instructions' first paragraph (`apps/web/src/worker/connector/connector-server.ts`).
+  instructions' first paragraph (`packages/service/src/connector/connector-server.ts`).
 
 ### The built-in agent
 
 Production and the previews each have their own AI Gateway and Anthropic
 workspace (`apps/web/README.md` § The built-in agent); nothing here crosses
 them. An account has two turns a UTC day (`AGENT_ALLOWANCE` in
-`apps/web/agent-limits.ts`): spread a check that takes more across accounts or
+`packages/service/agent-limits.ts`): spread a check that takes more across accounts or
 days, and run turns that must fall an hour apart either side of midnight UTC.
 
 - **Each target's gateway holds its key and admits only us.** In the Cloudflare

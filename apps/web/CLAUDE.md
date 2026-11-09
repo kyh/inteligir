@@ -2,7 +2,9 @@
 
 Accounts and their sessions, `/v1`'s one wire, the connector with its OAuth
 and its tools, the account's library cell and its sockets, and each
-conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet is written and cited.
+conversation with the built-in agent. The code is `@repo/service`'s, the D1
+schema `@repo/db`'s, and the Worker that deploys them this app's.
+`AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Cloud, sessions and accounts
 
@@ -20,8 +22,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   page); a device-name column (a second spelling of what the user agent
   already says); a devices page on the site beside Settings (a second list of
   one account's devices).
-  `apps/web/src/worker/wire/account-router.ts`,
-  `apps/web/src/worker/auth/session-devices.ts`,
+  `packages/service/src/wire/account-router.ts`,
+  `packages/service/src/auth/session-devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A DEVICE SIGNS OUT THROUGH BETTER AUTH'S OWN `/api/auth/sign-out`, AND NO
@@ -52,8 +54,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the library and forgets the sign-in; after an unanswered deletion, a retry
   meeting only its session's refusal means the account is gone. Rejected: a
   second purge path (it drifts); deleting by session alone (a stolen one ends
-  the account). `apps/web/src/worker/auth/delete-account.ts`,
-  `apps/web/src/worker/wire/account-router.ts`.
+  the account). `packages/service/src/auth/delete-account.ts`,
+  `packages/service/src/wire/account-router.ts`.
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
@@ -77,31 +79,32 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cell's default answer (any path it did not match became a socket); the rows
   themselves in a frame (a dropped frame would be a lost write); a frame per
   landed row (an import's run would send thousands).
-  `apps/web/src/worker/library/cell-sockets.ts`, `cell-moved.ts`,
+  `packages/service/src/library/cell-sockets.ts`, `cell-moved.ts`,
   `socket-ticket.ts`, `socket-routes.ts`.
 
 - **Better Auth's `baseURL` is derived per-request from the request origin, and
   sign-up is invite-gated by a Worker route in front of it.** Every hostname
   reaching this Worker is the deployment's own
-  (`apps/web/src/worker/auth/auth.ts`); revisit if one it does not control
+  (`packages/service/src/auth/auth.ts`); revisit if one it does not control
   arrives. Rejected: a fixed fallback (it mints reset links at the wrong
   deployment). The gate is one door, `POST /api/sign-up`, which the site's form
   and the phone's first run both post: one atomic claim, behind a per-address
   window, that a sign-up making no account releases; every other auth instance
   keeps sign-up off.
-  `apps/web/src/worker/auth/invite.ts`, `apps/web/README.md` § Auth.
+  `packages/service/src/auth/invite.ts`, `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and no users (`AGENTS.md` § Project Overview), so a
   push may drop a column Better Auth does not write, and the schema follows
-  what its generator prints for the plugin set (`apps/web/src/worker/db/schema.ts`
+  what its generator prints for the plugin set (`packages/db/src/d1/schema.ts`
   says how). The suites and the e2e harness derive the DDL by `drizzle-kit
   export` and send it as one D1 batch. Rejected: migration files (a history for
   installs nobody holds). The first outside tester is the trigger for
-  migrations. `apps/web/vitest.config.ts`, `tools/e2e/src/harness/worker-host.ts`.
+  migrations. `packages/service/vitest.config.ts`,
+  `tools/e2e/src/harness/worker-host.ts`.
 
 - **Declare D1 uniques as named unique indexes, never `.unique()`**
-  (`apps/web/src/worker/db/schema.ts`). Production D1 holds every unique as
+  (`packages/db/src/d1/schema.ts`). Production D1 holds every unique as
   drizzle-kit 0.31's `<table>_<column>_unique` index, which
   `uniqueIndex("<table>_<column>_unique")` matches, so `drizzle-kit push
   --explain` reports no changes; refuse any plan that recreates a table
@@ -133,7 +136,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   deploy, and neither does a socket opened by ticket, since a browser socket
   sends no header and its ticket came from a call that met the floor.
   `packages/contract/src/client-build.ts`,
-  `apps/web/src/worker/client-floor.ts`.
+  `packages/service/src/client-floor.ts`.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as
@@ -162,7 +165,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `/api`. Rejected: REST beside RPC (two serializers, two error vocabularies)
   and oRPC's default statuses (an unmapped code answers 400).
   `packages/contract/src/v1-errors.ts`,
-  `apps/web/src/worker/wire/rpc-refusal.ts`, `apps/web/src/worker/index.ts`.
+  `packages/service/src/wire/rpc-refusal.ts`, `packages/service/src/doors.ts`.
 
 - **THE LIBRARY'S ROWS BECOME THE CONNECTOR'S TOOLS IN THE WORKER, BY META
   CHAINED ON THE CONTRACT'S OWN ROWS.** A tool row gets `.meta(openapi(…),
@@ -174,18 +177,23 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   it changes back when asked. The cell implements the decorated contract while
   clients type against the plain one, held equal by a `*.test-d.ts`.
   Rejected: the meta in `@repo/contract` (every client would bundle MCP and
-  OpenAPI; `oxlint.config.ts` refuses both outside `apps/web/src/worker`); a
+  OpenAPI; `oxlint.config.ts` refuses both outside `@repo/service`); a
   walker decorating by path (it rebuilds oRPC's internals); an assistant's own
   undo tool (with no listing it names no set, and an agent undoing a turn would
   undo it under the person).
-  `apps/web/src/worker/connector/library-tools.ts`.
+  `packages/service/src/connector/library-tools.ts`.
 
 - **THE WORKER'S `Env` IS ONLY WHAT `cf workers types` GENERATES FROM
   `cloudflare.config.ts`.** Every binding is declared there: a secret with
   `bindings.secret()`, a value with `bindings.text`, the reset sender and the
   auth limiter's off switch included, and a binding one mode lacks types as
-  optional; the suites add only `TEST_SCHEMA`, the library cell's namespace by
-  name, which `listDurableObjectIds` looks up. Rejected: a hand-written `Env`
+  optional. `@repo/service` is typed from its suites' own config, which binds
+  what the app's does, typed alike, with the values the suites run on, and the
+  suites add only `TEST_SCHEMA` and the library cell's namespace by name, which
+  `listDurableObjectIds` looks up; the Worker's program checks every module of
+  the service its entry reaches against the deployed `Env`, and a type test
+  holds the deployed exports to the service's classes, so a binding only the
+  suites declare fails the app's typecheck. Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
   is never checked against the config). The date and flags are one module, the
   fills' queues another, the agent's allowance and prices a third, that the
@@ -193,18 +201,29 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   server cannot load a module the config loads, so the consumer reads its
   queue's settings from `FILL_DELIVERY` and the cell its limits from
   `AGENT_ALLOWANCE` and `AGENT_PRICES`, and `oxlint.config.ts` refuses the
-  import. `apps/web/cloudflare.config.ts`, `apps/web/compatibility.ts`,
-  `apps/web/fill-queues.ts`, `apps/web/agent-limits.ts`.
+  import. `apps/web/cloudflare.config.ts`, `packages/service/cloudflare.config.ts`,
+  `apps/web/src/worker/service-exports.test-d.ts`,
+  `packages/service/compatibility.ts`, `packages/service/fill-queues.ts`,
+  `packages/service/agent-limits.ts`.
 
 - **THE WORKER'S SUITES RUN INSIDE workerd THROUGH `@cloudflare/vitest-plugin`,
-  ON THE BINDINGS `cloudflare.config.ts` DECLARES, RESTATED.** A suite reaches
-  the Worker by `exports.default.fetch()` and reads every body to the end
-  (`drained`), as per-file storage isolation needs; the suites that open the
-  account's socket share one storage in a project of their own, since Durable
-  Object WebSockets fail under isolation. The plugin documents reading only a
-  Wrangler file, hence the restated bindings. Rejected: a mocked runtime
-  (Better Auth, D1 and the Durable Objects run as they deploy).
-  `apps/web/vitest.config.ts`, `apps/web/src/worker/test-support/cloud-helpers.ts`.
+  ON `@repo/service`'S OWN CONFIG.** The plugin reads the service's
+  `cloudflare.config.ts` (its `newConfig`), never deployed: the deployed
+  Durable Objects and the Worker's doors, without the site, whose SSR needs
+  what only Start's vite plugin supplies. A suite reaches the Worker by
+  `exports.default.fetch()` and reads every body to the end (`drained`), as
+  per-file storage isolation needs; the suites that open the account's socket
+  share one storage in a project of their own, since Durable Object WebSockets
+  fail under isolation; the model's own suites run under node, its SQL on
+  SQLite's wasm build, which workerd cannot compile. `@repo/web` keeps the
+  site's suites, which render its routes under node. Rejected: a mocked
+  runtime (Better Auth, D1 and the Durable Objects run as they deploy); the
+  app's config (its entry's SSR, and fill consumers that would take a suite's
+  messages); bindings restated in `vitest.config.ts` (a second spelling of the
+  config). `packages/service/vitest.config.ts`,
+  `packages/service/cloudflare.config.ts`,
+  `packages/service/src/test-support/test-worker.ts`,
+  `packages/service/src/test-support/cloud-helpers.ts`.
 
 - **EACH ACCOUNT'S LIBRARY IS ONE SQLITE DURABLE OBJECT, `LibraryDO`, REACHED
   ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL OR ITS OWN CELL
@@ -222,8 +241,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   empty. Rejected: a namespace binding (anything holding `env` could name any
   cell); the cell under a deleted class's export name (nothing documents a
   preview refusing a new class); signing the fill message (no other producer exists to forge one).
-  `apps/web/src/worker/library/library-do.ts`,
-  `library-cell.ts`, `cell-schema.ts`, `apps/web/src/worker/fill/fill-job.ts`.
+  `packages/service/src/library/library-do.ts`,
+  `library-cell.ts`, `cell-schema.ts`, `packages/service/src/fill/fill-job.ts`.
 
 - **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
   TRANSACTION.** Every op carries the base it was computed from (a block's
@@ -232,7 +251,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   each moved thing as it is, which the editor's diff3 settles. Rejected: a
   whole-item base (two devices in one note always conflict); last write wins
   (an edit lost unseen); a merge in the cell (it cannot ask the person).
-  `apps/web/src/worker/library/library-engine.ts`, `cell-landing.ts`,
+  `packages/service/src/library/library-engine.ts`, `cell-landing.ts`,
   `cell-writes.ts`.
 
 - **A CHANGE SET SEALS BY THE CELL'S ONE ALARM, AND UNDO REACHES BACK SEVEN
@@ -247,7 +266,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   page history, and Undo needs only a set's before and after); keeping sets
   until the item is purged (an often-edited item would keep every keystroke's
   block forever).
-  `apps/web/src/worker/library/change-sets.ts`, `cell-actor.ts`,
+  `packages/service/src/library/change-sets.ts`, `cell-actor.ts`,
   `change-set-prune.ts`.
 
 - **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
@@ -258,8 +277,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   a call verified a moment before meets it rather than founding a library
   nobody reaches. Rejected: sessions first (a failed step leaves no device to
   retry from); a bare `deleteAll` (an in-flight write rebuilds the cell).
-  `apps/web/src/worker/library/account-purge.ts`,
-  `apps/web/src/worker/auth/auth.ts`.
+  `packages/service/src/library/account-purge.ts`,
+  `packages/service/src/auth/auth.ts`.
 
 - **A FILE ROW NEVER NAMES AN OBJECT R2 NO LONGER HOLDS, AND R2 KEEPS NOTHING
   THE CELL REFUSED OR NOBODY SETTLED.** Such an upload becomes a stray, a job
@@ -268,7 +287,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   removal ended, by the count of removals it read first. Rejected: deleting
   right after the refusal (a settle landing meanwhile names a deleted object);
   keeping strays (the 1 GiB cap would not bound R2).
-  `apps/web/src/worker/library/cell-blobs.ts`, `cell-library.ts`.
+  `packages/service/src/library/cell-blobs.ts`, `cell-library.ts`.
 
 - **A LIBRARY CALL REACHES ITS CELL WITH THE PRINCIPAL THE WORKER VERIFIED,
   AND NOTHING THE CALLER SENT IN ITS PLACE.** The Worker reads the session
@@ -279,8 +298,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cell refuses one naming another account. Rejected: the cell verifying the
   session (a second verifier, a D1 read inside every cell call); a stub
   method per procedure (oRPC's handler takes a request).
-  `apps/web/src/worker/wire/v1-rpc.ts`, `v1-principal.ts`,
-  `apps/web/src/worker/library/library-principal.ts`, `library-do.ts`.
+  `packages/service/src/wire/v1-rpc.ts`, `v1-principal.ts`,
+  `packages/service/src/library/library-principal.ts`, `library-do.ts`.
 
 - **THE CELL IMPLEMENTS EVERY LIBRARY ROW ONCE, OVER ITS ENGINE AND THE
   MARKDOWN CODEC.** `implement(libraryTools)`: a write lands in one transaction
@@ -290,7 +309,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   which strips what the cell did not mean to send (about 10 ms a MiB of plain
   blocks, 45 for a table-dense one, measured). Rejected: a second markdown
   reader in the Worker; skipping that parse for speed (a leaked column ships
-  unnoticed). `apps/web/src/worker/library/library-router.ts`,
+  unnoticed). `packages/service/src/library/library-router.ts`,
   `library-engine.ts`.
 
 - **A FILE'S BYTES ARE R2'S, ADDRESSED BY THEIR SHA, AND R2 CHECKS IT.** A
@@ -310,20 +329,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   file by the sha an item's row names, and takes its type from the answer.
   Rejected: a byte-range parser of our own (R2 parses the header); a signed
   URL (a credential in a logged address); a file's row synced to every device
-  (nothing there reads it). `apps/web/src/worker/library/blob-routes.ts`.
+  (nothing there reads it). `packages/service/src/library/blob-routes.ts`.
 
 - **THE WORKER'S PROGRAM HAS NO DOM, SO A DEPENDENCY'S TYPES THAT REFERENCE IT
   ARE MAPPED TO A STUB.** The codec's code-block kit reaches highlight.js,
   whose declarations carry `/// <reference lib="dom" />`, which would type the
   Worker against a stdlib it never runs on (`BufferSource` alone breaks Web
-  Crypto's calls). The program's `paths` maps `highlight.js` to the one type
-  lowlight takes from it (`LanguageFn`). Rejected: `lib.dom` in the Worker
+  Crypto's calls). Each program that holds the codec, the service's and the
+  Worker's entry's, maps `highlight.js` by `paths` to the one type lowlight
+  takes from it (`LanguageFn`). Rejected: `lib.dom` in the Worker
   (two `BodyInit`s); dropping code blocks from the headless kits (the codec
   reads every block a note holds). A sibling package is never mapped: the page
   reader publishes the one entry the fill calls with a `types` condition, its
   DOM-free signature, which its own program holds the implementation to.
-  `apps/web/src/worker/tsconfig.json`,
-  `apps/web/src/worker/types/highlight-js.d.ts`,
+  `packages/service/tsconfig.json`, `apps/web/src/worker/tsconfig.json`,
+  `packages/service/src/types/highlight-js.d.ts`,
   `packages/page-reader/src/read-html-api.ts`.
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ANSWERS THAT ITEM AS IT STANDS.** One
@@ -335,7 +355,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   does, its article and the fields a fill owns, and nothing else of the save.
   Rejected: merging the save into the item (two writers of one item's tags,
   folder and note); answering `exists` (a refusal for what is a success).
-  `apps/web/src/worker/library/cell-saves.ts`.
+  `packages/service/src/library/cell-saves.ts`.
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
   WAIT.** The write lands a `fill` job row in its own transaction, and the cell
@@ -347,8 +367,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   undo that brings it back still waiting asks again. Rejected: sending inside
   the write (a reading asked for a write that rolled back); fetching on the
   cell's alarm (a page's seconds of CPU hold every write).
-  `apps/web/src/worker/library/cell-fills.ts`,
-  `apps/web/src/worker/fill/fill-consumer.ts`.
+  `packages/service/src/library/cell-fills.ts`,
+  `packages/service/src/fill/fill-consumer.ts`.
 
 - **THE CLOUD'S FETCH IS THE PLATFORM'S, EACH HOP JUDGED BY HOW ITS ADDRESS IS
   SPELLED.** A Worker resolves no name, so `fetchPage` refuses any scheme but
@@ -363,7 +383,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   dials by name anyway); refusing every address written out (a public page's
   refusal said a private network it was not on); leaving it to the platform (a
   refusal said at once beats three vague retries).
-  `apps/web/src/worker/fill/page-fetch.ts`, `address-space.ts`.
+  `packages/service/src/fill/page-fetch.ts`, `address-space.ts`.
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
   CHANGE SET, ON AN ITEM STILL WAITING FOR IT.** `landFill` replaces the
@@ -376,7 +396,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   meanwhile); folding it onto the item at the final address (a merge with an
   undo of its own); readdressing it to the final address (a page that
   redirects to its sign-in would be kept at the sign-in's address).
-  `apps/web/src/worker/library/cell-fills.ts`.
+  `packages/service/src/library/cell-fills.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
   `library.imports.start` names a file the device uploaded, and each alarm run
@@ -394,8 +414,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   counting a run in its catch (the platform's kill skips it); a fresh item
   beside one in Deleted (one id names one item, and its twin would stay in
   Deleted).
-  `apps/web/src/worker/library/cell-imports.ts`,
-  `apps/web/src/worker/library/cell-import-markdown.ts`.
+  `packages/service/src/library/cell-imports.ts`,
+  `packages/service/src/library/cell-import-markdown.ts`.
 
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
@@ -404,7 +424,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   (a decoded picture is four bytes a pixel, 48 MB for 4000 by 3000, in an
   isolate whose heap the reading already uses; not measured); the Images
   binding (it bills every picture); a
-  thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
+  thumbnail made in the cell (its CPU holds every write). `packages/service/src/fill/read-page.ts`,
   `packages/contract/src/items/link-fill.ts`.
 
 - **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
@@ -420,7 +440,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   go); a sweep of rows with no refs (the same); searching the parts' JSON for
   the sha (a read of every part per file, whose CPU holds every write);
   releasing inside the purge (it cannot wait out a running import).
-  `apps/web/src/worker/library/cell-blobs.ts`, `cell-parts.ts`,
+  `packages/service/src/library/cell-blobs.ts`, `cell-parts.ts`,
   `change-set-prune.ts`, `cell-imports.ts`, `cell-fills.ts`.
 
 - **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
@@ -437,7 +457,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   verifier to audit); the Host header (the workers.dev name and the domain would
   be two servers whose tokens refuse each other); the KV delete alone (KV has no
   compare-and-swap, and the provider's token check never reads the grant).
-  `apps/web/src/worker/connector/connector-auth.ts`, `revoked-grants.ts`,
+  `packages/service/src/connector/connector-auth.ts`, `revoked-grants.ts`,
   `apps/web/cloudflare.config.ts`.
 
 - **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S
@@ -453,7 +473,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   (the provider's helpers take the raw request, and the page would carry the
   site's bundle); remembering an approval (every connect asks); `form-action`
   (browsers disagree on whether it holds the 302 to the assistant's origin).
-  `apps/web/src/worker/connector/consent-route.ts`, `consent-page.ts`,
+  `packages/service/src/connector/consent-route.ts`, `consent-page.ts`,
   `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
@@ -471,8 +491,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   batch (the Worker would read every body to count it); scopes on every
   principal (only a grant has a limit, and a read-only device would parse and
   still write).
-  `apps/web/src/worker/connector/connector-route.ts`, `connector-server.ts`,
-  `apps/web/src/worker/library/library-principal.ts`.
+  `packages/service/src/connector/connector-route.ts`, `connector-server.ts`,
+  `packages/service/src/library/library-principal.ts`.
 
 - **THE BUILT-IN AGENT IS OUR OWN LOOP, ONE `AgentThreadDO` A CONVERSATION,
   WOKEN BY THE AGENTS SDK'S LIFECYCLE** (owner decision: the Agents SDK, Claude
@@ -487,7 +507,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   turn); PiHarness (`drop_block` on every request, a compaction that drops
   every kept thinking block, a hook that cannot refuse a call); Managed Agents
   (its credential vault, a public connector, a webhook and an account-wide turn lock to
-  attribute writes). `apps/web/src/worker/agent/agent-thread.ts`,
+  attribute writes). `packages/service/src/agent/agent-thread.ts`,
   `library-agent.ts`.
 
 - **A CONVERSATION'S TRANSCRIPT IS CLAUDE'S REPLIES AS RETURNED, ONLY EVER
@@ -503,7 +523,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   rows (one changed byte before a thinking block is a 400); a timeout on the
   SDK's events (it never hands on a ping, and a long unshown thought is no lost
   call).
-  `apps/web/src/worker/agent/thread-schema.ts`, `thread-request.ts`,
+  `packages/service/src/agent/thread-schema.ts`, `thread-request.ts`,
   `thread-loop.ts`.
 
 - **THE AGENT'S TOOLS ARE THE LIBRARY'S PROCEDURES, RUN BY ITS CELL UNDER A
@@ -514,8 +534,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   so a call run again lands once; no header carries an agent. Rejected: the
   connector over HTTP (a credential to mint and refresh, a turn lock to
   attribute it); the API's MCP connector (no permission policy, a public URL).
-  `apps/web/src/worker/agent/agent-tools.ts`,
-  `apps/web/src/worker/library/library-principal.ts`.
+  `packages/service/src/agent/agent-tools.ts`,
+  `packages/service/src/library/library-principal.ts`.
 
 - **THE BUILT-IN AGENT'S RESULTS FIT IN 40,000 CHARACTERS.** A result is
   replayed into every later call of its conversation and written to the cache
@@ -523,7 +543,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   what still does not is refused, a read told to ask for less and a write that
   it landed; a stored event carries 2,000 characters of it. Rejected: the
   connector's budget (claude.ai takes 150,000); refusing every long page.
-  `apps/web/src/worker/agent/agent-tools.ts`.
+  `packages/service/src/agent/agent-tools.ts`.
 
 - **AN APPROVAL WAITS ON THE PERSON TEN MINUTES IN THE THREAD'S OWN ROWS, AND A
   CANCEL DENIES BEFORE IT STOPS.** `delete_items` and `save_link` are journaled
@@ -532,7 +552,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   whether it is still being reserved or already streaming, and answers every
   open call `is_error`, so the next request is valid. Rejected: a tool that
   waits in memory (it dies with an eviction); the platform's `auto` judgment
-  (not the person). `apps/web/src/worker/agent/agent-thread.ts`,
+  (not the person). `packages/service/src/agent/agent-thread.ts`,
   `thread-loop.ts`.
 
 - **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
@@ -555,7 +575,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   reserved); reserving the fallback too (a cold first call at the 50-cent
   ceiling buys under the smallest cap, so every new conversation is refused);
   characters / 3 (it counted CJK at a quarter of its tokens and ids at a third).
-  `apps/web/src/worker/agent/agent-allowance.ts`, `thread-request.ts`.
+  `packages/service/src/agent/agent-allowance.ts`, `thread-request.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE THE CELL'S ROWS ITS OBJECT'S
   OUTBOX PUSHES** (owner decision: the phone asks the agent too). The cell stores each
@@ -566,14 +586,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Agents SDK's client socket to the thread (a second socket and auth beside
   the account's); Anthropic's event shapes (a vendor's union on every device); an
   epoch a push (a fence that resets, which a late push of the old one moves
-  back). `apps/web/src/worker/agent/agent-turns.ts`, `thread-schema.ts`,
+  back). `packages/service/src/agent/agent-turns.ts`, `thread-schema.ts`,
   `packages/contract/src/library/agent-events.ts`.
 
 - **A LINK THE AGENT SAVES IS READ ONLY ONCE ITS TURN SEALS** (owner
   decision). Its fill row names the turn's change set and waits for the seal.
   Rejected: reading it at once (the agent could save a page, read it and act on
   it within the turn: a web reader it was never given).
-  `apps/web/src/worker/library/cell-fills.ts`.
+  `packages/service/src/library/cell-fills.ts`.
 
 - **CLAUDE IS REACHED THROUGH ONE AI GATEWAY A TARGET, WHICH HOLDS THE KEY**
   (owner decision). The provider-native `/anthropic` route, its key stored on
@@ -583,7 +603,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Deploy refuses a Build Output that names none. Rejected: the key on the
   Worker; Unified Billing (a fee, and its fallback is silent); the AI binding
   (it reaches the account in local development); `@ai-sdk/anthropic` (a second
-  conversion of every block). `apps/web/src/worker/agent/anthropic-client.ts`,
+  conversion of every block). `packages/service/src/agent/anthropic-client.ts`,
   `apps/web/cloudflare.config.ts`, `.github/workflows/deploy.yml`.
 
 - **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE THREAD PATH AGAINST A
@@ -595,7 +615,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   scenario expects no drop. Rejected: a mock model (the SDK's stream, the
   API's refusals and the transcript rules would be ours to imitate); a
   recorded replay (it cannot answer a request it never saw).
-  `tools/messages-fake/src/messages-fake.ts`, `apps/web/messages-service.ts`.
+  `tools/messages-fake/src/messages-fake.ts`, `packages/service/messages-service.ts`.
 
 - **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A DEPLOY'S
   DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for server-side
@@ -617,7 +637,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   invalid after it); on-demand compaction (its retention standing unsettled);
   sending what a compaction summarized (the reservation would price input the
   API ignores); a thread on its first definition for good (its tools drift from
-  the procedures they call). `apps/web/src/worker/agent/thread-request.ts`.
+  the procedures they call). `packages/service/src/agent/thread-request.ts`.
 
 - **THE LIBRARY'S PAGE IS THE WORKER'S, AT `/library`, FROM ITS OWN ASSETS AND
   UNDER ITS OWN POLICY.** Every path under the prefix reaches the Worker first
@@ -633,7 +653,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Start route (the site's bundle and policy on the page); the asset server's
   SPA fallback (every unknown path would answer the page); a page on an origin
   of its own (a second sign-in, CORS on every call).
-  `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
+  `packages/service/src/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
 
 - **EVERY PAGE THAT CALLS `/v1` IS ONE THE WORKER SERVED, SO IT ANSWERS NO
   CORS.** The site's page and the Mac app's window call on their own
@@ -646,7 +666,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   deployed. Rejected: CORS for the extension's origin (its host permission
   already reaches the site, and an allowed origin is one more door to keep); a
   reflected origin (any page could read what a cookie opened).
-  `apps/web/src/worker/wire/v1-principal.ts`, `apps/web/vite.config.ts`.
+  `packages/service/src/wire/v1-principal.ts`, `apps/web/vite.config.ts`.
 
 - **THE CONNECT PAGE TELLS THE EXTENSION WHERE THE SITE IS, AND HANDS IT
   NOTHING.** `/connect/extension` is a site route for the person signed in
@@ -673,7 +693,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Rejected: holding the read until the person confirms it after the turn (a
   second gate beside the one approvals are); trusting the prompt's rule against
   following a page (a request sent cannot be undone).
-  `apps/web/src/worker/agent/library-agent.ts`,
+  `packages/service/src/agent/library-agent.ts`,
   `packages/agent-panel/src/thread-entries.ts`.
 
 - **FILING RULES ARE THE PERSON'S OWN WORDS, AND ONLY THE PERSON WRITES THEM.**
@@ -691,9 +711,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Rejected: adopting a folder's rules while the library keeps none (a zip is
   anyone's text, and it would become instructions no person wrote); clearing by
   sending nothing (the old message replays on every call).
-  `apps/web/src/worker/library/library-rules.ts`,
-  `apps/web/src/worker/library/cell-import-markdown.ts`,
-  `apps/web/src/worker/agent/thread-loop.ts`,
+  `packages/service/src/library/library-rules.ts`,
+  `packages/service/src/library/cell-import-markdown.ts`,
+  `packages/service/src/agent/thread-loop.ts`,
   `packages/editor/src/codec/import-plan.ts`.
 
 - **ONLY BETTER AUTH'S OWN READ SLIDES A SESSION, AND A TAB MAKES IT ON THE
@@ -704,7 +724,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   slide on `/v1` (the row outlives the cookie, and an open tab is signed out
   when its cookie lapses with its row standing); forwarding `Set-Cookie` on every `/v1`
   answer (each door, a file's immutable read among them, carrying a header none
-  of them owns). `apps/web/src/worker/auth/auth.ts`,
+  of them owns). `packages/service/src/auth/auth.ts`,
   `apps/workspace/src/app/cloud/session-keeper.ts`.
 
 - **EVERY DEVICE SIGNS IN WITH BETTER AUTH'S OWN SESSION, AND `/v1` READS IT
@@ -725,9 +745,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   by its authority, so the two exact origins are spelled out); a cookie cache
   (a revoked session would live on to its expiry); refusing the twenty-first
   sign-in (a lost phone would lock its person out).
-  `apps/web/src/worker/auth/auth.ts`, `apps/web/src/worker/auth/session-devices.ts`,
-  `apps/web/src/worker/wire/v1-principal.ts`,
-  `apps/web/src/worker/library/library-principal.ts`.
+  `packages/service/src/auth/auth.ts`, `packages/service/src/auth/session-devices.ts`,
+  `packages/service/src/wire/v1-principal.ts`,
+  `packages/service/src/library/library-principal.ts`.
 
 - **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
   THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the
@@ -742,7 +762,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the library); `Disallow` in robots.txt (a page it blocks can still be listed
   by its link). `apps/web/src/lib/next-path.ts`,
   `apps/web/src/components/library-link.tsx`,
-  `apps/web/src/worker/library/library-page.ts`.
+  `packages/service/src/library/library-page.ts`.
 
 - **THE APPS READ WHAT THEY SHOW FROM THE CELL, THROUGH ROWS NO TOOL CARRIES.**
   `library.items.get` answers an item whole, its fields and every block, one in
@@ -760,4 +780,4 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   listing queries (a tag family and a folder tree read from memory without a
   join a page); a search of the apps' own beside the agent's (two rankings of
   one library).
-  `apps/web/src/worker/library/cell-listing.ts`, `library-router.ts`.
+  `packages/service/src/library/cell-listing.ts`, `library-router.ts`.

@@ -19,12 +19,12 @@ const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
 const PANEL_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
-// The connector's tool decoration is the Worker's alone (apps/web/src/worker/connector): a client
+// The connector's tool decoration is the Worker's alone (packages/service/src/connector): a client
 // that reached it would bundle the MCP SDK, whose shims import node:process, and the OpenAPI codec,
 // neither of which Metro tree-shakes away.
 const SERVER_ONLY = {
   message:
-    "MCP and OpenAPI meta live in apps/web/src/worker alone; a client imports @repo/contract's plain rows",
+    "MCP and OpenAPI meta live in @repo/service alone; a client imports @repo/contract's plain rows",
   regex: "^(?:@orpc/(?:mcp|openapi)|@modelcontextprotocol/server)(?:/|$)",
 };
 
@@ -44,7 +44,15 @@ const CONFIG_MODULES = {
 // named `agents`, which the Worker's source does not hold.
 const AGENTS_SDK = {
   group: ["agents", "agents/**", "!agents/lifecycle"],
-  message: "the Worker imports agents/lifecycle alone (apps/web/src/worker/agent/agent-thread.ts)",
+  message: "the Worker imports agents/lifecycle alone (packages/service/src/agent/agent-thread.ts)",
+};
+
+// The Worker's code imports no node module and no React. A test is one of its callers, so it may
+// hand the code under test the platform.
+const SERVICE_PLATFORM = {
+  message:
+    "@repo/service runs on workerd, and its model's suites under node over wasm SQLite: it takes the platform from the runtime or through a port, never a node or React import",
+  regex: NODE_OR_REACT,
 };
 
 // A conversation's object is named only by its account's cell, from a thread its own rows hold, so
@@ -237,11 +245,6 @@ export default defineConfig({
       "@repo/mobile-editor is a page in the phone's WebView, loaded from file://: nothing but the browser is there",
     ),
     platformPurity(
-      "packages/service",
-      NODE_OR_REACT,
-      "@repo/service is the account's cell's rules: it runs on workerd and its suites under node over wasm SQLite, so the cell hands it the platform through its ports",
-    ),
-    platformPurity(
       "packages/ui",
       NODE,
       "@repo/ui is browser-only: the library's page, the extension's pages and the site's server-rendered pages draw it",
@@ -253,41 +256,44 @@ export default defineConfig({
     ),
     {
       // the one place the library's rows become the connector's tools
-      files: ["apps/web/src/worker/**"],
+      files: ["packages/service/src/**"],
       rules: {
         "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES, patterns: [AGENTS_SDK] }],
       },
     },
     {
-      excludeFiles: [...tests, "apps/web/src/worker/**"],
+      excludeFiles: tests,
       files: ["apps/web/src/**"],
       rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK]) },
     },
     {
-      // after the override above, whose options this one replaces for the Worker's own code
+      // after the first of these overrides, whose options this one replaces for the Worker's code
       excludeFiles: [
         ...tests,
-        "apps/web/src/worker/library/library-do.ts",
-        "apps/web/src/worker/agent/agent-turns.ts",
+        "packages/service/src/library/library-do.ts",
+        "packages/service/src/agent/agent-turns.ts",
       ],
-      files: ["apps/web/src/worker/**"],
+      files: ["packages/service/src/**"],
       rules: {
         "no-restricted-imports": [
           "error",
-          { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES, AGENTS_SDK, THREAD_STUB] },
+          {
+            paths: ORPC_V1_NAMES,
+            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, THREAD_STUB],
+          },
         ],
       },
     },
     {
       // the account's cell, which alone names a conversation's object
       files: [
-        "apps/web/src/worker/library/library-do.ts",
-        "apps/web/src/worker/agent/agent-turns.ts",
+        "packages/service/src/library/library-do.ts",
+        "packages/service/src/agent/agent-turns.ts",
       ],
       rules: {
         "no-restricted-imports": [
           "error",
-          { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES, AGENTS_SDK] },
+          { paths: ORPC_V1_NAMES, patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK] },
         ],
       },
     },
@@ -309,7 +315,15 @@ export default defineConfig({
         "packages/editor/src/knowledge/**",
         "packages/editor/src/markdown/**",
         "packages/editor/src/text/**",
-        "packages/service/src/**",
+        "packages/service/src/imports/**",
+        "packages/service/src/items/**",
+        "packages/service/src/knowledge/**",
+        "packages/service/src/library/library-queries.ts",
+        "packages/service/src/library/library-schema.ts",
+        "packages/service/src/library/library-sql.ts",
+        "packages/service/src/library/revert-change.ts",
+        "packages/service/src/library/sql-value.ts",
+        "packages/service/src/text/**",
       ],
       rules: {
         "no-restricted-globals": [

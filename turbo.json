@@ -27,7 +27,8 @@
       "cache": false,
       "persistent": true
     },
-    // a workspace's generated sources (apps/web's Env and runtime types, from `cf workers types`),
+    // a workspace's generated sources (the Worker's and the service's Env and runtime types, from
+    // `cf workers types`),
     // which its typecheck and its suites both read: a test file can carry type claims too. ^topo:
     // the Env is typed from the entry's exports, which import other workspaces
     "generate": {
@@ -55,11 +56,11 @@
       "cache": false,
       "dependsOn": ["@repo/extension#generate"]
     },
-    // the type-aware pass reads each workspace's program, and the Worker's and the extension's
-    // extend what their `generate` writes (the Env types, `.wxt/tsconfig.json`)
+    // the type-aware pass reads each workspace's program, and the Worker's, the service's and the
+    // extension's extend what their `generate` writes (the Env types, `.wxt/tsconfig.json`)
     "//#lint": {
       "cache": false,
-      "dependsOn": ["@repo/web#generate", "@repo/extension#generate"]
+      "dependsOn": ["@repo/web#generate", "@repo/service#generate", "@repo/extension#generate"]
     },
     "format:fix": {
       "cache": false

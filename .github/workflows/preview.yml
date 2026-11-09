@@ -96,7 +96,7 @@ jobs:
 
       # --force: this is the preview database, and a PR's schema is the one it ships
       - name: Preview schema
-        working-directory: apps/web
+        working-directory: packages/db
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_DATABASE_ID: ${{ steps.resources.outputs.d1_id }}

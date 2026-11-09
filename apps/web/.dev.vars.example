@@ -11,7 +11,7 @@
 BETTER_AUTH_SECRET=
 
 # Set to "true" ONLY when a local script signs up several users from one IP —
-# auth is rate-limited to 10 requests/60s per IP (see src/worker/auth/auth.ts).
+# auth is rate-limited to 10 requests/60s per IP (see packages/service/src/auth/auth.ts).
 # RATE_LIMIT_DISABLED=true
 
 # The connector's OAuth issuer, its resource and the one Host it answers all

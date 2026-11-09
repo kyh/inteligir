@@ -33,6 +33,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf every client loads: `/v1`'s wire and the parser-free library model it validates
     // against, so it reaches no markdown parser ("the contract" below walks for one).
     "@repo/contract": [],
+    // a leaf: the D1 accounts database's drizzle schema and its client, which the Worker's auth
+    // reads and drizzle-kit pushes
+    "@repo/db": [],
     // the shell is Rust (src-tauri) and holds no src/: the page it shows is the one the site serves
     "@repo/desktop": [],
     // the @repo/contract edge is `/v1`'s wire, which the scenarios drive a booted Worker over, and
@@ -70,24 +73,20 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // e2e scenarios and the Worker's suites run the built-in agent against
     "@repo/messages-fake": [],
     "@repo/repo-guards": [],
-    // the account's cell's own rules, its SQL, search, undo and imports, over the library model
-    // (@repo/contract) and the dialect's markdown and line merge (@repo/editor)
-    "@repo/service": ["@repo/contract", "@repo/editor"],
+    // the cloud's code: the @repo/contract edge is `/v1`'s wire and the library model its cell
+    // keeps; the @repo/db edge is the accounts' D1 schema Better Auth reads; the @repo/editor edge
+    // is the markdown codec's headless kits (`@repo/editor/codec/*`), the one reading and writing
+    // of an item an agent's procedures go through, and the dialect's line merge; the
+    // @repo/page-reader edge is the cloud's fill, a saved page read by the reader every device
+    // runs, over linkedom
+    "@repo/service": ["@repo/contract", "@repo/db", "@repo/editor", "@repo/page-reader"],
     "@repo/ui": [],
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
-    // the cloud: the @repo/service edge is the account's cell's rules, its plans and SQL injected
-    // with the cell's own storage; the @repo/editor edge is the markdown codec's headless kits
-    // (`@repo/editor/codec/*`), the one reading and writing of an item an agent's procedures go
-    // through; the @repo/page-reader edge is the cloud's fill, a saved page read by the reader
-    // every device runs, over linkedom
-    "@repo/web": [
-      "@repo/contract",
-      "@repo/editor",
-      "@repo/page-reader",
-      "@repo/service",
-      "@repo/ui",
-    ],
+    // the site and the Worker's entry: the @repo/service edge is the cloud's code its entry serves
+    // and exports, the @repo/contract edge the wire its account pages call, and the shared
+    // component kit draws its pages
+    "@repo/web": ["@repo/contract", "@repo/service", "@repo/ui"],
     // the library's page, which the Worker serves to a tab and the Mac app's window alike: the
     // agent's panel every device reads (@repo/agent-panel) and `/v1`'s wire and the library model
     // (@repo/contract) to the account's cell, which it reads online; it reaches no shell source,
@@ -530,7 +529,7 @@ describe("the contract", () => {
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
     expect(isTestFile("packages/contract/src/library/block-ops.test.ts")).toBe(true);
-    expect(isTestFile("apps/web/src/worker/test-support/library-cell.ts")).toBe(true);
+    expect(isTestFile("packages/service/src/test-support/library-cell.ts")).toBe(true);
     expect(isTestFile("tools/e2e/src/scenarios/agent-cell.ts")).toBe(false);
     expect(isTestFile("packages/contract/src/library/block-ops.ts")).toBe(false);
   });

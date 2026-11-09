@@ -66,7 +66,7 @@ reaches the window once `pnpm dev:web` has rebuilt it and you press ⌘R.
 Iterating on the PAGE needs no Rust: `pnpm dev:web` rebuilds `@repo/workspace`
 as it changes (`vite build --watch`) and the local Worker serves that build at
 `localhost:5174/library`, through the same route and policy a deploy runs
-(`apps/web/src/worker/library/library-page.ts`); sign in at `/app/sign-in` and
+(`packages/service/src/library/library-page.ts`); sign in at `/app/sign-in` and
 reload the tab after an edit. Only the updater needs the shell; a tab's
 Settings says updates come with the Mac app.
 
@@ -93,9 +93,9 @@ never drawn by hand: `pnpm --filter @repo/web og:cards`
 `apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
 Playwright's Chromium, and sits outside `pnpm verify` and the build.
 
-The built-in agent's system prompt, `apps/web/src/worker/agent/agent-prompt.ts`,
-is written, never edited by hand: `pnpm --filter @repo/web agent-prompt`
-(`apps/web/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`, and
+The built-in agent's system prompt, `packages/service/src/agent/agent-prompt.ts`,
+is written, never edited by hand: `pnpm --filter @repo/service agent-prompt`
+(`packages/service/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`, and
 `tools/repo-guards` fails a tree whose module differs from what it would write
 (`apps/web/README.md` § The built-in agent).
 
@@ -161,9 +161,10 @@ reads the extension's program, which extends the `.wxt/tsconfig.json` its
 `generate` task writes, so a bare `pnpm knip` on a fresh checkout sees none of
 the extension's suites and calls the exports they use unused. Lint on its own
 is `pnpm turbo run //#lint` for the same reason: its type-aware pass reads
-every workspace's program, and the Worker's and the extension's take the Env
-types and the `.wxt/tsconfig.json` their `generate` tasks write, so a bare
-`pnpm lint` on a fresh checkout reads those two programs without them.
+every workspace's program, and the Worker's, the service's and the extension's
+take the Env types and the `.wxt/tsconfig.json` their `generate` tasks write,
+so a bare `pnpm lint` on a fresh checkout reads those three programs without
+them.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 (pinned by hand) and runs the scenario suite, in two lanes, half its four

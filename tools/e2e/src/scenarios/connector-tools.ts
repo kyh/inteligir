@@ -15,7 +15,7 @@ import { asPhone, sessionBearerOf, v1Client } from "../harness/v1-wire";
 const DEADLINE_MS = 60_000;
 
 // what tools/list answers a grant that may change the library: each tool's title, and the hints
-// a client decides whether to ask the person by (apps/web/src/worker/connector/library-tools.ts).
+// a client decides whether to ask the person by (packages/service/src/connector/library-tools.ts).
 // Only a read says it is read-only; a write leaves the hint out, which MCP reads as false
 const TOOLS = [
   { destructive: null, name: "list_items", openWorld: false, readOnly: true, title: "List items" },

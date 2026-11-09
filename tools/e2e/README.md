@@ -56,7 +56,7 @@ scratch dir and tears everything down afterwards:
 - `cloudWorker({ vars?, json?, pages? })` — the product Worker (apps/web), built through
   turbo once per run and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
-  apps/web's own `db:export` schema plus one invite row; `vars` override
+  `@repo/db`'s own `export` schema plus one invite row; `vars` override
   cloudflare.config.ts's text bindings (a storage cap a scenario can fill), and
   `json` its JSON bindings (the built-in agent's allowance). Each Worker's
   built-in agent runs against its own scripted Messages API

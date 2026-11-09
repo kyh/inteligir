@@ -3,17 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
-    // vitest.config.ts imports compatibility.ts by its `.ts` name, as cloudflare.config.ts does
-    "allowImportingTsExtensions": true
+    "types": ["vite/client"]
   },
-  "include": [
-    "src",
-    "vite.config.ts",
-    "vitest.config.ts",
-    "drizzle.config.ts",
-    "drizzle.config.local.ts"
-  ],
+  "include": ["src", "vite.config.ts", "vitest.config.ts"],
   // `src/worker` is its OWN program (src/worker/tsconfig.json), not a stylistic
   // split: workerd and the DOM each declare `BufferSource` / `BodyInit`
   // globally with different bounds, so one program would type-check the Worker
