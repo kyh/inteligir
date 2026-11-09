@@ -197,6 +197,7 @@
     "slate": "catalog:",
     "unified": "catalog:",
     "unist-util-visit": "^5.1.0",
+    "y-partyserver": "catalog:",
     "yaml": "catalog:",
     "yjs": "catalog:",
     "zod": "catalog:",
