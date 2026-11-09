@@ -33,6 +33,7 @@ import { dirnamePath, normalizePath } from "@repo/contract/knowledge/folder-path
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import { readItem } from "./library-queries";
 import { frontmatterEnd } from "@repo/editor/markdown/frontmatter";
+import { lfOnly } from "@repo/editor/markdown/md-read";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -229,7 +230,8 @@ const readEntry = async (
       if (isRulesHeld(host, entry.path, text)) {
         return { kind: "held" };
       }
-      const front = text.slice(0, frontmatterEnd(text) ?? 0);
+      const lines = lfOnly(text);
+      const front = lines.slice(0, frontmatterEnd(lines) ?? 0);
       return rowOf(entry, { kind, path: entry.path, text: front, zip: entry });
     }
     case "file": {

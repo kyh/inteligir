@@ -15,7 +15,7 @@ const ALERT_LINE_RE = new RegExp(String.raw`^\[!${VARIANT_GROUP}\](?:\n|$)`, "iu
 // loose: the marker leads the text, whatever follows; the match spans one space or break after it.
 const ALERT_LEAD_RE = new RegExp(String.raw`^\s*\[!${VARIANT_GROUP}\]\s?`, "iu");
 
-export const parseAlertVariant = (raw: string): AlertVariant | null => {
+const parseAlertVariant = (raw: string): AlertVariant | null => {
   const upper = raw.toUpperCase();
   return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
 };
@@ -27,6 +27,14 @@ const matchMarker = (
   const match = re.exec(text);
   const variant = match ? parseAlertVariant(match.groups?.variant ?? "") : null;
   return match && variant ? { length: match[0].length, variant } : null;
+};
+
+// the marker that opens a quote's text, as written: what the writer leaves unescaped
+const ALERT_OPEN_RE = new RegExp(String.raw`^\[!${VARIANT_GROUP}\]`, "iu");
+
+export const writtenAlertMarker = (text: string): string | null => {
+  const marker = matchMarker(ALERT_OPEN_RE, text);
+  return marker === null ? null : text.slice(0, marker.length);
 };
 
 // `hidden` is what the live editor may hide behind the badge: every byte of the marker line.

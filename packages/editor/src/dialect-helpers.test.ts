@@ -59,7 +59,12 @@ describe(notePreviewHead, () => {
         { text: "Some " },
         { bold: true, text: "bold" },
         { text: " and a " },
-        { alias: "alias", children: VOID, itemId: null, title: "target", type: "wikiLink" },
+        {
+          children: VOID,
+          key: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+          type: "mention",
+          value: "target",
+        },
         { text: " plus noted text." },
       ]),
       { children: VOID, sha: "a".repeat(64), type: "img" },
@@ -67,7 +72,7 @@ describe(notePreviewHead, () => {
       { children: VOID, type: "chart_block", value: "{}" },
     ];
     expect(notePreviewHead(blocks)).toBe(
-      ["Title", "Some bold and a alias plus noted text.", "", "quoted code"].join("\n"),
+      ["Title", "Some bold and a target plus noted text.", "", "quoted code"].join("\n"),
     );
   });
 
@@ -77,12 +82,12 @@ describe(notePreviewHead, () => {
         { text: "See " },
         {
           children: VOID,
-          itemId: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
-          title: "Plan",
-          type: "wikiLink",
+          key: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+          type: "mention",
+          value: "Plan",
         },
         { text: ", " },
-        { children: VOID, itemId: null, title: "Plan", type: "wikiEmbed" },
+        { children: VOID, key: "9e64c3df-c1e2-4a4d-8c07-91528f422414", type: "mention", value: "" },
         { text: " on " },
         { children: VOID, date: "2026-08-22", type: "date" },
         { text: " for " },
@@ -90,7 +95,7 @@ describe(notePreviewHead, () => {
         { text: "." },
       ]),
     ];
-    expect(notePreviewHead(blocks)).toBe("See Plan, Plan on 2026-08-22 for 4.");
+    expect(notePreviewHead(blocks)).toBe("See Plan, Untitled on 2026-08-22 for 4.");
   });
 
   it("caps at twenty lines, a soft break among them", () => {

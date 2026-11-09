@@ -202,10 +202,10 @@ const codeLine = z.strictObject({
   type: z.literal("code_line"),
 });
 const table = z.strictObject({
-  align: z.array(z.enum(["left", "center", "right"]).nullable()).optional(),
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
+  indent: listIndent,
   type: z.literal("table"),
 });
 const tableRow = z.strictObject({
@@ -230,6 +230,7 @@ const columnGroup = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
+  indent: listIndent,
   type: z.literal("column_group"),
 });
 const column = z.strictObject({
@@ -246,6 +247,7 @@ const tabGroup = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
+  indent: listIndent,
   type: z.literal("tab_group"),
 });
 const tabPanel = z.strictObject({
@@ -259,17 +261,16 @@ const link = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  // markdown's link title, as an image keeps its own
-  title: z.string().optional(),
   type: z.literal("a"),
   url: z.string().min(1),
 });
 /* oxlint-enable no-use-before-define */
 
-const rule = z.strictObject({ children: voidChildren, type: z.literal("hr") });
+const rule = z.strictObject({ children: voidChildren, indent: listIndent, type: z.literal("hr") });
 
 const equation = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   texExpression: z.string(),
   type: z.literal("equation"),
 });
@@ -278,6 +279,7 @@ const equation = z.strictObject({
 const imageProps = z.strictObject({
   caption: z.array(libraryTextSchema).optional(),
   children: voidChildren,
+  indent: listIndent,
   sha: sha256Hex.optional(),
   // markdown's image title, which the editor keeps beside the alt it holds as a caption
   title: z.string().optional(),
@@ -287,6 +289,7 @@ const imageProps = z.strictObject({
 });
 const fileProps = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   name: z.string().min(1).optional(),
   sha: sha256Hex.optional(),
   type: z.literal("file"),
@@ -294,6 +297,7 @@ const fileProps = z.strictObject({
 });
 const videoProps = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   sha: sha256Hex.optional(),
   type: z.literal("video"),
   url: z.string().min(1).optional(),
@@ -301,6 +305,7 @@ const videoProps = z.strictObject({
 
 const mediaEmbed = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   type: z.literal("media_embed"),
   url: z.string().min(1),
 });
@@ -308,63 +313,31 @@ const mediaEmbed = z.strictObject({
 // the rich blocks keep their source as one string: a chart's JSON, a canvas's grid, an html page
 const chartBlock = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   type: z.literal("chart_block"),
   value: z.string(),
 });
 const canvasBlock = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   type: z.literal("canvas_block"),
   value: z.string(),
 });
 const htmlBlock = z.strictObject({
   children: voidChildren,
+  indent: listIndent,
   type: z.literal("html_block"),
   value: z.string(),
 });
 
-// a link reaches its target by id or by title, and an anchor with neither names a heading or a
-// block of the item it stands in (`[[#Rollback]]`)
-const reachesTarget = (value: {
-  blockRef?: string | undefined;
-  heading?: string | undefined;
-  itemId: string | null;
-  title: string;
-}): boolean =>
-  value.title !== "" ||
-  value.itemId !== null ||
-  value.heading !== undefined ||
-  value.blockRef !== undefined;
-const REACHES_TARGET = { error: "names no item, title or anchor" };
-
-// a link by the target's id, so a rename rewrites nothing. The title is what the writer saw, empty
-// where an id or an anchor alone reaches the target. A null id stays null and writes no `links` row:
-// an editor reads the title against the items it holds, each time it draws the link
-const wikiLink = z
-  .strictObject({
-    alias: z.string().min(1).optional(),
-    blockRef: blockIdSchema.optional(),
-    children: voidChildren,
-    heading: z.string().min(1).optional(),
-    itemId: z.string().min(1).nullable(),
-    title: z.string(),
-    type: z.literal("wikiLink"),
-  })
-  .refine(reachesTarget, REACHES_TARGET);
-
-// an embed shows its target whole, one heading's section of it, or one block of it; it names its
-// target as a link does, and an alias is what the writer put after its last pipe (Obsidian's width
-// of an image)
-const wikiEmbed = z
-  .strictObject({
-    alias: z.string().min(1).optional(),
-    blockRef: blockIdSchema.optional(),
-    children: voidChildren,
-    heading: z.string().min(1).optional(),
-    itemId: z.string().min(1).nullable(),
-    title: z.string(),
-    type: z.literal("wikiEmbed"),
-  })
-  .refine(reachesTarget, REACHES_TARGET);
+// a page link: Plate's mention, keyed by the item's id, with the title the writer saw; the live
+// title is the item's, read where the link is drawn or written
+const mention = z.strictObject({
+  children: voidChildren,
+  key: z.string().min(1),
+  type: z.literal("mention"),
+  value: z.string(),
+});
 
 const date = z.strictObject({ children: voidChildren, date: isoDate, type: z.literal("date") });
 
@@ -382,13 +355,6 @@ const inlineEquation = z.strictObject({
   children: voidChildren,
   texExpression: z.string(),
   type: z.literal("inline_equation"),
-});
-
-// what the dialect reads but no node models (an html comment, Obsidian's `%%x%%`), kept as source
-const opaque = z.strictObject({
-  children: voidChildren,
-  source: z.string(),
-  type: z.literal("opaque"),
 });
 
 const libraryElementSchema = z.discriminatedUnion("type", [
@@ -421,12 +387,10 @@ const libraryElementSchema = z.discriminatedUnion("type", [
   column,
   tabPanel,
   link,
-  wikiLink,
-  wikiEmbed,
+  mention,
   date,
   formulaPill,
   inlineEquation,
-  opaque,
 ]);
 export type LibraryElement = z.infer<typeof libraryElementSchema>;
 
@@ -450,9 +414,8 @@ export const collectFileShas = (node: LibraryNode, into: Set<string>): void => {
 
 // a top-level block's id is its row's key, and only a top-level block has one: the ids Plate's
 // nodeId mints below the top level are the editor's own and never stored, so a block has one
-// spelling and one hash in every editor; `ref` is the name a link's `blockRef` reaches it by,
-// Obsidian's `^ref`
-const topLevelId = { id: blockIdSchema, ref: blockIdSchema.optional() };
+// spelling and one hash in every editor
+const topLevelId = { id: blockIdSchema };
 
 // a top-level block: one of the block types, and always named
 export const libraryBlockSchema = z.discriminatedUnion("type", [

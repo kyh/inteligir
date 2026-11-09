@@ -1,17 +1,17 @@
 # @repo/editor
 
-The item editor: Plate (platejs) over an item's blocks, the dialect's one
-markdown grammar, the codec an import and the agent read and write through,
-and everything that keeps a round-trip byte-stable. Its decisions are this
+The item editor: Plate (platejs) over an item's blocks, the dialect's markdown
+on Plate's stock reader and writer, and the codec an import and the agent read
+and write through. Its decisions are this
 package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Why it exists
 
-The editor is the largest single thing in the product and the one with the
-strictest invariant — **reading a file in and writing it back out must not
-change its bytes**. Splitting it out makes that invariant a package boundary: the byte
-contract, its fixture matrix and the kit-parity guards live together, and the
-library's page above it (`apps/web/src/library`) consumes an editor rather
+The editor is the largest single thing in the product, and its markdown has one
+invariant — **reading a file in keeps every letter, and writing it back keeps
+what it means**. Splitting it out makes that invariant a package boundary: the
+rule table, the suites that hold its meaning and the kit-parity guards live
+together, and the library's page above it (`apps/web/src/library`) consumes an editor rather
 than containing one. The cell runs the same codec headless
 (`packages/service/src/library/library-router.ts`), and the phone's editor page hosts the
 editor whole (`apps/mobile-editor`).
@@ -32,12 +32,14 @@ selectors it reads, and `style-hooks.test.ts` pins the two together.
 
 ```
 src/
-  markdown/            # the dialect's one grammar (`md-plugins.ts`, its remark
-                       # plugins, the parse, `fence-langs.ts`, the header
-                       # fence and typed properties in `frontmatter.ts`), and
-                       # the round trip: the Slate↔mdast rules, the one
-                       # markdown→Slate conversion, the bounded fixpoint and
-                       # `serializeNote`, the one way the codec writes markdown
+  markdown/            # the dialect over Plate's stock markdown: the remark
+                       # plugin list (`md-plugins.ts`), the rule table
+                       # (`md-rules.ts`), the read that refuses with a reason
+                       # (`md-read.ts`), Obsidian's `[[…]]` for what comes in
+                       # from outside (`remark-wiki-import.ts`), `fence-langs.ts`,
+                       # the header fence and typed properties in
+                       # `frontmatter.ts`, and `serializeNote`, the one way the
+                       # codec writes markdown
   codec/               # an item as markdown, headless: import and export of
                        # one file, a folder's or zip's import plan, and the
                        # agent's view of an item and its edits
@@ -49,67 +51,61 @@ src/
                        # ops over the host's store, the block diff, its
                        # properties and the line a merge that kept this device's
                        # lines says
-  formulas/            # `{{…}}` pills: collection, the expression and its
+  formulas/            # formula pills: collection, the expression and its
                        # evaluation, the resolve graph, result formatting, and
                        # the `{{` picker, entry, editing, recompute
-  knowledge/           # a link's target (`link-resolve.ts`: the id tier, then
-                       # five path and alias tiers), the `[[` picker's order,
+  knowledge/           # a link's target in an import (`link-resolve.ts`: the
+                       # path and alias tiers), the `[[` picker's order,
                        # what a file says outside its blocks, literal matches
   items/               # a markdown file's facts from its frontmatter, the one
                        # time spelling
   text/                # ONE Myers line diff under diff3, bounded by an edit
-                       # budget, and where a line ends, stated once
-  wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
+                       # budget
+  wiki/                # page links: the `[[` picker, the mention's chip,
+                       # insertion, keys
   properties/          # the panel of an item's typed properties
   lib/                 # debounce, the one door a diagram's markup becomes
                        # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
                        # editor (the hosts' included), and what this package's
                        # suites share: the DOM cleanup, a mounted editor, an
-                       # item held in memory, the codec's ports, the quote
-                       # corpus, sample and generated notes
-  test-support/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+                       # item held in memory, the codec's ports, a value's
+                       # meaning and generated notes
+  test-support/fixtures/  # the corpus and frontmatter files the suites read
   *.test.ts(x)         # each suite beside the module it names, in whichever
                        # folder that module sits; one that holds several
-                       # modules (the round trip, the typing budget, kit
-                       # parity) sits here at the top
+                       # modules (the typing budget, kit parity) sits here at
+                       # the top
   *.ts(x)              # the editor surface and its column, the host seam
                        # (§ Seams), the id of the item the editor shows
                        # (`open-item.tsx`), the write policy, and the
-                       # in-document affordances: menus, toolbars, TOC, embeds
+                       # in-document affordances: menus, toolbars, TOC
 ```
 
 ## Invariants
 
-- **`roundTrip(raw) === raw` for every canonical file.** The fixture matrix
-  under `src/test-support/fixtures/roundtrip/` is the contract: `canonical/` must
-  survive untouched and `churn/` pins the one normalization each input gets
-  (`*.in.md` → `*.out.md`). There is no `raw/`: every input parses.
+- **A read keeps every letter, and a write keeps what the value means.**
+  `markdown/md-matrix.test.ts` writes and reads every node the model holds and
+  reads markdown rows the writer never makes; `md-corpus.test.ts` reads each
+  file under `src/test-support/fixtures/corpus/` and `frontmatter/`, keeps its
+  letters (a few named files below all of them, with why) and writes a
+  fixpoint; `md-text-safety.test.ts` holds what a person types to itself.
   `frontmatter/` holds whole files, which only the codec reads: a body has none.
-- **Never hand-edit or format a fixture.** Their bytes are the assertion —
-  trailing spaces, indentation, line endings. oxfmt ignores the directory;
-  editors must too. Generate them through the `roundTrip` pipeline itself.
+- **Never format a fixture.** A corpus file is the input as some tool wrote
+  it — trailing spaces, indentation, line endings. oxfmt ignores the directory;
+  editors must too.
 - **Every node type is a Base + React pair.** `base-kit.ts` composes the Base
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
   impossible, and `touch-kit.test.ts` holds the touch kit to the same.
-- **Every file reads rich.** The parse is total: no jsx and no expressions, and
-  every tag is html, folded with its closer
-  (`@repo/editor/markdown/remark-inline-html`), so every file the codec reads
-  becomes blocks, settled through the serializer as it comes in. Constructs
-  with no editor node — a tag that cannot pair, any pair but a bare `<u>`, raw
-  HTML but a `<br/>` in a table cell, which is that cell's next line, a
-  definition nothing used, a title on a link or image with no address — are
-  opaque inline nodes (`@repo/editor/markdown/remark-opaque`): shown as inert
-  literal text and written back as their source, which the read re-serialized
-  (a tag keeps its bytes), a footnote is the text it spells, and `{` is
-  prose. Only a nesting deeper than the conversion or the writer holds is
-  refused, a list past `LIST_MAX_INDENT` among it (an import leaves
-  the file out, an agent's edit is turned down, a paste lands as plain text),
-  so nothing is written over it and every item writes; a round trip that never
-  settles or would lose a letter is a rule or serializer bug, which the
-  fixtures and `analyzeMarkdown` (`RoundTripFailure` in
-  `markdown/markdown-doc.ts`) name.
+- **Every file reads, or is refused with a reason.** `readMarkdown`
+  (`markdown/md-read.ts`) answers the blocks, or `too-deep` for a nesting
+  deeper than the conversion or the writer holds, a list past
+  `LIST_MAX_INDENT` among it, or `failed` for a rule that threw; every caller
+  treats a refusal as one (an import leaves the file out, an agent's edit is
+  turned down, a paste lands as plain text), so nothing is written over it and
+  every item writes. Raw html, a definition nothing used, a footnote and a
+  directive the dialect does not name are the text they spell.
 - **Typing walks a long note only through its budget.**
   `typing-budget.test.tsx` types into a generated 10k-line note opened in the
   item editor (`generateLongNote`, `test-support/memory-item.tsx`) and fails
@@ -128,8 +124,7 @@ src/
 - `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
   because kit factories, paste handlers and a deep node's click run outside
   React or with no route to the shell. Its `EditorHostIo` speaks the library
-  by its own keys: `openItem`, `readItemBlocks` (an embed's body and a link's
-  hover preview) and `onItemsChanged` by item id, `readFile` by sha (a picture,
+  by its own keys: `openItem`, `readItemBlocks` (a link's hover preview) and `onItemsChanged` by item id, `readFile` by sha (a picture,
   a recording or a file card in a note, drawn from an object URL of the page's
   own), `keepFile` (a file pasted or dropped into the text, kept by its sha
   ahead of the write that names it), the cap `fileMaxBytes` and whether a file
@@ -180,7 +175,7 @@ pnpm --filter @repo/editor test
 ```
 
 Two vitest projects: `editor` (node, `*.test.ts`, under a 512MB heap) for
-the grammar, the pipeline, the fixtures, the property/adversarial harnesses and the link resolver feed;
+the grammar, the codec, the matrix, the corpus and the link resolver feed;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
 sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`

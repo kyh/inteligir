@@ -14,38 +14,12 @@ import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView } from "./item-edit";
 import type { EditPorts } from "./item-edit";
 import { importItem } from "./item-markdown";
+import { libraryLinks } from "./library-links";
 import { itemView, viewPage } from "./item-view";
 
 const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
 
 const titles = new Map([[OTHER_ID, "Other note"]]);
-
-// an import whose links reach the items `titles` holds, by id or by title, and nothing else
-const storedOf = (text: string): Map<string, StoredBlock> => {
-  const ports = pretendLibrary().importPorts();
-  const read = importItem(
-    { name: "Item", text },
-    {
-      ...ports,
-      wiki: (link) => {
-        const byId = link.alias !== undefined && titles.has(link.alias) ? link.alias : null;
-        const itemId = byId ?? [...titles].find(([, title]) => title === link.target)?.[0] ?? null;
-        return itemId === null
-          ? null
-          : { itemId, kind: "item", title: titles.get(itemId) ?? link.target };
-      },
-    },
-  );
-  if (!read.ok) {
-    throw new Error(read.reason);
-  }
-  return new Map(
-    read.item.blocks.map((placed): [string, StoredBlock] => [
-      placed.block.id,
-      { ...placed, hash: blockHash(placed.block) },
-    ]),
-  );
-};
 
 const portsWith = (): EditPorts => {
   let blocks = 0;
@@ -58,6 +32,23 @@ const portsWith = (): EditPorts => {
     },
     title: (itemId) => titles.get(itemId) ?? null,
   };
+};
+
+// an import whose links reach the items `titles` holds, by title, and nothing else
+const storedOf = (text: string): Map<string, StoredBlock> => {
+  const read = importItem(
+    { name: "Item", text },
+    { ...pretendLibrary().importPorts(), ...libraryLinks(portsWith()) },
+  );
+  if (!read.ok) {
+    throw new Error(read.reason);
+  }
+  return new Map(
+    read.item.blocks.map((placed): [string, StoredBlock] => [
+      placed.block.id,
+      { ...placed, hash: blockHash(placed.block) },
+    ]),
+  );
 };
 
 const FIELDS: LibraryItemFields = {
@@ -99,17 +90,16 @@ const landed = (
 
 const textOf = (blocks: Map<string, StoredBlock>): string => itemView(blocks, portsWith()).markdown;
 
-// each block's ref and the text it stands on, in reading order
-const textBlocks = (blocks: Map<string, StoredBlock>) =>
-  itemView(blocks, portsWith()).blocks.map(({ block }) => ({
-    ref: block.ref,
-    text: block.children.map((child) => ("text" in child ? child.text : "")).join(""),
-  }));
+// each block's text, in reading order
+const textBlocks = (blocks: Map<string, StoredBlock>): string[] =>
+  itemView(blocks, portsWith()).blocks.map(({ block }) =>
+    block.children.map((child) => ("text" in child ? child.text : "")).join(""),
+  );
 
 const NOTE = [
   "# Plan",
   "",
-  `First paragraph links [[Other note|${OTHER_ID}]] and stays.`,
+  "First paragraph links [[Other note]] and stays.",
   "",
   "Second paragraph here.",
   "",
@@ -147,7 +137,7 @@ const withoutIds = (cells: string): string => cells.replaceAll(/"id":"[^"]*",?/g
 
 describe("the agent's view of an item", () => {
   it("writes a link with its item's live title and id", () => {
-    expect(textOf(storedOf(NOTE))).toContain(`[[Other note|${OTHER_ID}]]`);
+    expect(textOf(storedOf(NOTE))).toContain(`[Other note](mention:${OTHER_ID})`);
   });
 
   it("turns down text no block can store, naming the edit, and leaves the block it would replace", () => {
@@ -165,24 +155,20 @@ describe("the agent's view of an item", () => {
   });
 
   it("places every block where its group's text reads back as it", { timeout: 90_000 }, () => {
-    const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/roundtrip/", import.meta.url));
-    for (const dir of ["canonical", "churn"]) {
-      for (const file of readdirSync(`${FIXTURES}${dir}`)) {
-        const blocks = storedOf(readFileSync(`${FIXTURES}${dir}/${file}`, "utf-8"));
-        const view = itemView(blocks, portsWith());
-        for (const placed of view.blocks) {
-          expect(view.markdown.slice(placed.start, placed.end).trim(), `${dir}/${file}`).not.toBe(
-            "",
-          );
-        }
-        // an edit that writes every group back as it was changes nothing
-        const whole = editItemView(
-          blocks,
-          [{ newText: view.markdown, oldText: view.markdown }],
-          portsWith(),
-        );
-        expect(whole.kind === "changed" ? whole.ops : whole, `${dir}/${file}`).toStrictEqual([]);
+    const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/corpus/", import.meta.url));
+    for (const file of readdirSync(FIXTURES)) {
+      const blocks = storedOf(readFileSync(`${FIXTURES}${file}`, "utf-8"));
+      const view = itemView(blocks, portsWith());
+      for (const placed of view.blocks) {
+        expect(view.markdown.slice(placed.start, placed.end).trim(), file).not.toBe("");
       }
+      // an edit that writes every group back as it was changes nothing
+      const whole = editItemView(
+        blocks,
+        [{ newText: view.markdown, oldText: view.markdown }],
+        portsWith(),
+      );
+      expect(whole.kind === "changed" ? whole.ops : whole, file).toStrictEqual([]);
     }
   });
 
@@ -191,7 +177,7 @@ describe("the agent's view of an item", () => {
     const page = viewPage(view, 0, 2);
     expect(page).toMatchObject({ from: 0, to: 2, total: 7 });
     expect(page.markdown).toBe(
-      `# Plan\n\nFirst paragraph links [[Other note|${OTHER_ID}]] and stays.\n`,
+      `# Plan\n\nFirst paragraph links [Other note](mention:${OTHER_ID}) and stays.\n`,
     );
     // starting inside the list takes the whole of it
     expect(viewPage(view, 4, 1)).toMatchObject({
@@ -359,20 +345,16 @@ describe("an edit made on the view", () => {
     expect(links).toHaveLength(2);
   });
 
-  it("keeps typed text that looks like Obsidian's through an edit of its block", () => {
+  it("keeps Obsidian's `^ref`, `%%` and `==` the text they are through an edit of their block", () => {
     const blocks = storedOf(
-      "Area is r \\^2 and x\\==1==y and 50\\%% or 60%%\n\nEnds on r \\^2\n\n\\^alone\n",
+      "Area is r ^2 and x==1==y and 50%% or 60%%\n\nEnds on r ^2\n\n^alone\n",
     );
-    const view = textOf(blocks);
-    expect(view).toContain("Area is r ^2 and x==1==y and 50\\%% or 60%%");
-    expect(view).toContain("Ends on r \\^2");
-    expect(view).toContain("\\^alone");
     const outcome = editItemView(
       blocks,
       [
         { newText: "The area", oldText: "Area" },
         { newText: "Ending", oldText: "Ends" },
-        { newText: "\\^kept", oldText: "\\^alone" },
+        { newText: "^kept", oldText: "^alone" },
       ],
       portsWith(),
     );
@@ -380,9 +362,9 @@ describe("an edit made on the view", () => {
       throw new Error(outcome.refusal.kind);
     }
     expect(textBlocks(landed(blocks, outcome.ops))).toStrictEqual([
-      { ref: undefined, text: "The area is r ^2 and x==1==y and 50%% or 60%%" },
-      { ref: undefined, text: "Ending on r ^2" },
-      { ref: undefined, text: "^kept" },
+      "The area is r ^2 and x==1==y and 50%% or 60%%",
+      "Ending on r ^2",
+      "^kept",
     ]);
   });
 
@@ -412,7 +394,7 @@ describe("an edit made on the view", () => {
     expect(JSON.stringify(outcome.ops)).toContain('"url":"https://a.b/c.png"');
   });
 
-  it("reads the spellings an edit writes in the note, the last edit's alone", () => {
+  it("keeps the spellings an edit writes the text they are, the last edit's alone", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(
       blocks,
@@ -428,14 +410,13 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    const [put] = outcome.ops;
-    expect(put).toMatchObject({ block: { ref: "named" }, op: "put" });
-    const written = JSON.stringify(put);
-    expect(written).toContain('"source":"%%hidden%%"');
-    expect(written).toContain("and ==stays== twice ");
+    expect(outcome.ops).toHaveLength(1);
+    expect(JSON.stringify(outcome.ops[0])).toContain(
+      '"text":" and ==stays== twice %%hidden%% here. ^named"',
+    );
   });
 
-  it("reads no spelling an edit writes in a page", () => {
+  it("keeps the spellings an edit writes in a page the text they are", () => {
     const blocks = storedOf(`Note.\n\n:::article\n\nThe page says.\n\n:::\n`);
     const outcome = editItemView(
       blocks,
@@ -445,10 +426,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(textBlocks(landed(blocks, outcome.ops)).at(-1)).toStrictEqual({
-      ref: undefined,
-      text: "The ==page== %%says%% so. ^x",
-    });
+    expect(textBlocks(landed(blocks, outcome.ops)).at(-1)).toBe("The ==page== %%says%% so. ^x");
   });
 
   it("refuses an old text it cannot place once", () => {
@@ -569,7 +547,6 @@ describe("a footnote, its definition in another block", () => {
   it("reads as its text, the same in an edit of its call's line as in the whole item", () => {
     const blocks = storedOf("One[^a] word.\n\nTwo.\n\n[^a]: secret\n");
     const whole = JSON.stringify([...blocks.values()].map(({ block }) => withoutId(block)));
-    expect(whole).not.toContain('"opaque"');
     const after = editedTo(blocks, "word.", "word!");
     expect(JSON.stringify([...after.values()].map(({ block }) => withoutId(block)))).toBe(
       whole.replace("word.", "word!"),

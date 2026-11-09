@@ -13,10 +13,10 @@ import { CODEC_NOW, pretendLibrary, withoutId } from "../test-support/codec-port
 import { exportItem, importItem } from "./item-markdown";
 import type { ImportedItem } from "./item-markdown";
 
-const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/roundtrip/", import.meta.url));
+const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/", import.meta.url));
 
 const fixtures = (): { name: string; text: string }[] =>
-  (["canonical", "churn", "frontmatter"] as const).flatMap((dir) =>
+  (["corpus", "frontmatter"] as const).flatMap((dir) =>
     readdirSync(`${FIXTURES}${dir}`)
       .toSorted()
       .map((file) => ({
@@ -63,22 +63,6 @@ const content = (item: ImportedItem) => ({
   leftOut: item.leftOut,
 });
 
-describe("import(export(v)) is v, ids aside", () => {
-  it.each(fixtures())("$name", (fixture) => {
-    const first = imported(fixture.text);
-    expect(content(reimported(first))).toStrictEqual(content(first));
-    expect(first.leftOut).toBe(0);
-  });
-
-  // the editor's own seeded documents: all seeds in one test, as its round-trip property runs them
-  it("holds over the editor's generated documents", { timeout: 60_000 }, () => {
-    for (let seed = 20_261_027; seed < 20_261_027 + 24; seed += 1) {
-      const first = imported(generateDoc(seed));
-      expect(content(reimported(first)), `seed ${String(seed)}`).toStrictEqual(content(first));
-    }
-  });
-});
-
 const FRONTMATTER_RE = /^---\n(?<yaml>[\s\S]*?)\n---\n(?:\n|$)/u;
 
 // a file's body, its frontmatter aside: what the person wrote below it
@@ -103,7 +87,48 @@ const typedLine = (text: string, id = "typed"): LibraryBlock => ({
 const typedBody = (text: string): string =>
   bodyOf(exported(typedItem("note", [typedLine(text)])).text);
 
-describe("Obsidian's spellings, through a real export and import", () => {
+const types = (item: ImportedItem): string[] => item.blocks.map(({ block }) => block.type);
+
+const stored = (item: ImportedItem): string => JSON.stringify(item.blocks);
+
+// a file whose first read holds what its write cannot spell: a space at a mark's edge, which the
+// writer moves outside the mark
+const SETTLES_ON_FIRST_WRITE = new Set(["corpus/wiki-in-bold.md"]);
+
+describe("import(export(v)) is v, ids aside", () => {
+  it.each(fixtures())("$name", (fixture) => {
+    const first = imported(fixture.text);
+    expect(first.leftOut).toBe(0);
+    const settled = SETTLES_ON_FIRST_WRITE.has(fixture.name) ? reimported(first) : first;
+    expect(content(reimported(settled))).toStrictEqual(content(settled));
+    expect(exported(reimported(first)).text).toBe(exported(first).text);
+  });
+
+  it("settles only the files in its list on their first write", () => {
+    const settling = fixtures()
+      .filter((fixture) => {
+        const first = imported(fixture.text);
+        return JSON.stringify(content(reimported(first))) !== JSON.stringify(content(first));
+      })
+      .map((fixture) => fixture.name);
+    expect(new Set(settling)).toStrictEqual(SETTLES_ON_FIRST_WRITE);
+  });
+
+  // the editor's own seeded documents: all seeds in one test, as its round-trip property runs them
+  it("holds over the editor's generated documents", { timeout: 60_000 }, () => {
+    for (let seed = 20_261_027; seed < 20_261_027 + 24; seed += 1) {
+      const first = imported(generateDoc(seed));
+      expect(content(reimported(first)), `seed ${String(seed)}`).toStrictEqual(content(first));
+    }
+  });
+
+  it("reads a file saved with CRLF line endings as the same file with LF", () => {
+    const lf = "---\ntags: [a]\n---\n\n# Title\n\nOne\ntwo\n\n- item\n";
+    expect(content(imported(lf.replaceAll("\n", "\r\n")))).toStrictEqual(content(imported(lf)));
+  });
+});
+
+describe("Obsidian's spellings and the dialect's look-alikes, typed as text", () => {
   const LOOK_ALIKES = [
     "area is r ^2",
     "x==1==y",
@@ -114,6 +139,11 @@ describe("Obsidian's spellings, through a real export and import", () => {
     "^abc",
     "%%a ==b== c%%",
     "two lines ^x\nand ==more==",
+    "[[Note]] and ![[pic.png]]",
+    ":date[2026-08-22]",
+    ':formula[2]{source="1+1"}',
+    ":::toggle",
+    "10:30 and a:b",
   ];
 
   it.each(LOOK_ALIKES)("keeps %j, typed in a note, as the text it is", (text) => {
@@ -140,10 +170,15 @@ describe("Obsidian's spellings, through a real export and import", () => {
       "-",
       "1",
       "i:",
+      ":",
+      "[",
+      "]",
       "\\",
       "==x==",
       "%%c%%",
       " ^r",
+      ":date",
+      "{",
     ];
     // a fixed walk through them, so a failure names a text that fails again
     let state = 20_261_106;
@@ -180,29 +215,54 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
-  it.each([...LOOK_ALIKES, "@2026-08-22", "{{1+1}}"])(
-    "keeps %j, typed first in a to-do, as the text it is",
-    (text) => {
-      const todo = (checked: boolean, id: string): LibraryBlock => ({
-        checked,
-        children: [{ text }],
-        id,
-        indent: 1,
-        listStyleType: "todo",
-        type: "p",
-      });
-      const typed = typedItem("note", [todo(false, "open"), todo(true, "done")]);
-      expect(content(reimported(typed))).toStrictEqual(content(typed));
-    },
-  );
-
-  it("reads a real ref in a to-do, and keeps a highlight its text", () => {
-    const item = imported("- [ ] ==first== then ^ref\n");
-    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual(["ref"]);
-    expect(JSON.stringify(item.blocks)).toContain('"text":"==first== then"');
+  it.each(LOOK_ALIKES)("keeps %j, typed first in a to-do, as the text it is", (text) => {
+    const todo = (checked: boolean, id: string): LibraryBlock => ({
+      checked,
+      children: [{ text }],
+      id,
+      indent: 1,
+      listStyleType: "todo",
+      type: "p",
+    });
+    const typed = typedItem("note", [todo(false, "open"), todo(true, "done")]);
+    expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
-  it("answers a file nested past what its spellings are read through as too deep", () => {
+  it("writes Obsidian's spellings with no escape, since nothing reads them", () => {
+    for (const text of ["x==1==y", "50%% and 60%%", "area is r ^2", "^abc", "a == b, 2 ^ 3"]) {
+      expect(typedBody(text)).toBe(`${text}\n`);
+    }
+  });
+
+  it("reads a highlight, a comment and a ref in a file as the text they spell", () => {
+    const first = imported("An ==important== line %%not shown%% here. ^goal\n\n- an item ^item\n");
+    expect(types(first)).toStrictEqual(["p", "p"]);
+    expect(stored(first)).toContain('"text":"An ==important== line %%not shown%% here. ^goal"');
+    expect(stored(first)).toContain('"text":"an item ^item"');
+    expect(content(reimported(first))).toStrictEqual(content(first));
+  });
+
+  it("takes a backslash in a hand-written file as the person's text", () => {
+    const item = imported("\\==kept== and a \\%%comment%% then a \\^ref\n\n\\^own\n");
+    expect(item.blocks.map(({ block }) => block.children)).toStrictEqual([
+      [{ text: "==kept== and a %%comment%% then a ^ref" }],
+      [{ text: "^own" }],
+    ]);
+  });
+
+  it.each([
+    ":::toggle\nfirst line\n\\==x== literal\n:::\n",
+    ":::toggle\n\\==x== literal\nsecond line\n:::\n",
+    ":::toggle\nabc\n:::\nfoo\n\\==x== literal\n",
+    "::::tabs\n:::tab[A]\nfirst line\n\\==x== literal\n:::\n::::\n",
+    "::::columns\n:::column\nfirst line\n\\==x== literal\n:::\n::::\n",
+  ])("takes a backslash on a line beside a `:::` line in %j as the person's text", (text) => {
+    const item = imported(text);
+    expect(stored(item)).toContain("==x== literal");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("answers a file nested past what a read holds as too deep", () => {
     for (const depth of [3000, 6000, 12_000]) {
       const text = `${"> ".repeat(depth)}x\n`;
       expect(importItem({ name: "Deep", text }, library.importPorts())).toStrictEqual({
@@ -211,187 +271,21 @@ describe("Obsidian's spellings, through a real export and import", () => {
       });
     }
   });
-
-  it("writes the escape that keeps typed text text, and none where nothing would read", () => {
-    expect(typedBody("x==1==y")).toBe("x==1==y\n");
-    expect(typedBody("50%% and 60%%")).toBe("50\\%% and 60%%\n");
-    expect(typedBody("area is r ^2")).toBe("area is r \\^2\n");
-    expect(typedBody("^abc")).toBe("\\^abc\n");
-    expect(typedBody("a == b, 2 ^ 3 and 100%")).toBe("a == b, 2 ^ 3 and 100%\n");
-    expect(typedBody("x^2 and y^3 are powers")).toBe("x^2 and y^3 are powers\n");
-  });
-
-  it("reads a real comment and ref, keeps a highlight its text, and writes each back as it stands", () => {
-    const first = imported(
-      [
-        "An ==important== line %%not shown%% here. ^goal",
-        "",
-        "==at the start==",
-        "",
-        "- an item ^item",
-        "",
-        "| a |",
-        "| - |",
-        "| 1 |",
-        "",
-        "^tbl",
-        "",
-      ].join("\n"),
-    );
-    expect(first.blocks.map(({ block }) => block.ref)).toStrictEqual([
-      "goal",
-      undefined,
-      "item",
-      "tbl",
-    ]);
-    const stored = JSON.stringify(first.blocks);
-    expect(stored).toContain('"source":"%%not shown%%"');
-    expect(stored).toContain('"text":"An ==important== line "');
-    expect(stored).not.toContain("^");
-    expect(content(reimported(first))).toStrictEqual(content(first));
-  });
-
-  it("takes a backslash in a hand-written file as the person's text", () => {
-    const item = imported("\\==kept== and a \\%%comment%% then a \\^ref\n\n\\^own\n");
-    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual([undefined, undefined]);
-    expect(item.blocks.map(({ block }) => block.children)).toStrictEqual([
-      [{ text: "==kept== and a %%comment%% then a ^ref" }],
-      [{ text: "^own" }],
-    ]);
-  });
-
-  // a paragraph a `:::` line runs through is cut into lines and joined again around the marker
-  it.each([
-    ":::toggle\nfirst line\n\\==x== literal\n:::\n",
-    ":::toggle\n\\==x== literal\nsecond line\n:::\n",
-    ":::toggle\nabc\n:::\nfoo\n\\==x== literal\n",
-    ":::tabs\n=== A\nfirst line\n\\==x== literal\n:::\n",
-    ":::columns\n:::column\nfirst line\n\\==x== literal\n:::\n:::\n",
-  ])("takes a backslash on a line beside a `:::` line in %j as the person's text", (text) => {
-    const item = imported(text);
-    expect(JSON.stringify(item.blocks)).toContain("==x== literal");
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a comment and a ref a backslash wrote beside a `:::` line as words", () => {
-    const item = imported(":::toggle\nabc\n:::\nfoo \\%%c%%\nbar \\^abc\n");
-    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual([undefined, undefined]);
-    const stored = JSON.stringify(item.blocks);
-    expect(stored).not.toContain('"type":"opaque"');
-    expect(stored).toContain("foo %%c%%\\nbar ^abc");
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it.each([
-    ["a comment", String.raw`%%y\|z%%`],
-    ["a pair of tags", String.raw`<kbd>x\|y</kbd>`],
-    // a tag holds its source as written, so its escape is already there
-    ["a tag", String.raw`<b title="x\|y">`],
-  ])("keeps the pipe of %s in a table cell in its cell", (_name, cell) => {
-    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
-    expect(bodyOf(exported(item).text)).toContain(`| ${cell} |`);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("reads a comment whose pipe a table cell escapes as the comment it is", () => {
-    const item = imported(String.raw`| a |
-| - |
-| %%y\|z%% |
-`);
-    expect(JSON.stringify(item.blocks)).toContain('"source":"%%y|z%%"');
-  });
-
-  it("reads none of them inside a link's words or a code span", () => {
-    const item = imported("[==a== %%b%%](https://example.com) and `==c== %%d%%`\n");
-    expect(JSON.stringify(item.blocks)).not.toContain('"type":"opaque"');
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a ref on a block a person emptied, and a second ref as the words it is", () => {
-    const emptied = typedItem("note", [
-      typedLine("Above.", "above"),
-      { children: [{ text: "" }], id: "empty", ref: "kept", type: "p" },
-    ]);
-    expect(content(reimported(emptied))).toStrictEqual(content(emptied));
-    const twice = imported("Named. ^one\n\n^two\n");
-    expect(twice.blocks.map(({ block }) => [block.ref, block.children])).toStrictEqual([
-      ["one", [{ text: "Named." }]],
-      [undefined, [{ text: "^two" }]],
-    ]);
-    expect(content(reimported(twice))).toStrictEqual(content(twice));
-  });
 });
-
-// the canonical files whose body an import changes, each by what it changes and why; every other
-// one exports its body byte for byte
-const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
-  // YAML no field can read is no field's: it moves into the note as its first code block, where
-  // the person can see and mend it
-  [
-    "frontmatter/invalid.md",
-    (text) =>
-      `\`\`\`yaml\n${FRONTMATTER_RE.exec(text)?.groups?.yaml ?? ""}\n\`\`\`\n\n${bodyOf(text)}`,
-  ],
-  // the library holds a file a note embeds as an image, and an image is a block, so an embed
-  // inside a paragraph splits it where it stood
-  [
-    "canonical/kitchen-sink.md",
-    (text) =>
-      bodyOf(text).replace(
-        " plus ![[embed.png]] inline.",
-        " plus&#x20;\n\n![](embed.png)\n\n&#x20;inline.",
-      ),
-  ],
-  // a link names its item by the title the resolver reads, its padding trimmed, and an embedded
-  // image keeps its width as the image the editor writes it as
-  [
-    "canonical/wiki-edges.md",
-    (text) =>
-      bodyOf(text)
-        .replace("[[ padded ]]", "[[padded]]")
-        .replace("![[img.png|300]]", "![|300](img.png)"),
-  ],
-]);
-
-describe("today's markdown imports losslessly", () => {
-  it.each(fixtures().filter((one) => !one.name.startsWith("churn/")))("$name", (fixture) => {
-    const settle = SETTLED_ON_IMPORT.get(fixture.name) ?? bodyOf;
-    expect(bodyOf(exported(imported(fixture.text)).text)).toBe(settle(fixture.text));
-  });
-
-  it("names only fixtures an import changes", () => {
-    for (const [name, settle] of SETTLED_ON_IMPORT) {
-      const text = fixtures().find((one) => one.name === name)?.text;
-      expect(text, name).toBeDefined();
-      expect(settle(text ?? ""), name).not.toBe(bodyOf(text ?? ""));
-    }
-  });
-});
-
-const types = (item: ImportedItem): string[] => item.blocks.map(({ block }) => block.type);
-
-const labels = (item: ImportedItem): string[] =>
-  item.blocks.flatMap(({ block }) =>
-    block.type === "tab_group"
-      ? block.children.flatMap((panel) =>
-          "type" in panel && panel.type === "tab_panel" ? [panel.label] : [],
-        )
-      : [],
-  );
 
 describe("a block a list item opens with", () => {
   const WEB_IMAGE = "![](https://a.b/c.png)";
 
   it.each([
-    ["a bullet", `- ${WEB_IMAGE}\n`, ["media_embed"]],
-    ["a bullet among others", `- first\n- ${WEB_IMAGE}\n- third\n`, ["p", "media_embed", "p"]],
-    ["a numbered item", `1. first\n2. ${WEB_IMAGE}\n`, ["p", "media_embed"]],
-    ["a nested item", `- a\n  - ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+    ["a bullet", `- ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+    ["a bullet among others", `- first\n- ${WEB_IMAGE}\n- third\n`, ["p", "p", "media_embed", "p"]],
+    ["a numbered item", `1. first\n2. ${WEB_IMAGE}\n`, ["p", "p", "media_embed"]],
+    ["a nested item", `- a\n  - ${WEB_IMAGE}\n`, ["p", "p", "media_embed"]],
     ["words either side", `- text ${WEB_IMAGE} more\n`, ["p", "media_embed", "p"]],
-    ["an item's next line", `- ${WEB_IMAGE}\n  more\n`, ["media_embed", "p"]],
+    ["an item's next line", `- ${WEB_IMAGE}\n  more\n`, ["p", "media_embed", "p"]],
     ["a to-do", `- [ ] ${WEB_IMAGE}\n`, ["p", "media_embed"]],
     ["a done to-do", `- [x] ${WEB_IMAGE}\n`, ["p", "media_embed"]],
-  ])("keeps a web image's address in %s", (_name, text, blocks) => {
+  ])("keeps a web image's address in %s, nested under the item's line", (_name, text, blocks) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(blocks);
@@ -404,32 +298,17 @@ describe("a block a list item opens with", () => {
     ["file", "![](https://a.b/c.pdf)"],
   ])("keeps a web %s in a bullet as the embed it is", (type, embed) => {
     const item = imported(`- ${embed}\n`);
-    expect(types(item)).toStrictEqual([type]);
-    expect(bodyOf(exported(item).text)).toBe(`${embed}\n`);
-  });
-
-  it("keeps the words either side of an image in order, each in the list", () => {
-    const item = imported(`- text ${WEB_IMAGE} more\n`);
-    expect(item.blocks.map(({ block }) => JSON.stringify(block.children))).toStrictEqual([
-      '[{"text":"text "}]',
-      '[{"text":""}]',
-      '[{"text":" more"}]',
-    ]);
+    expect(types(item)).toStrictEqual(["p", type]);
+    expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it.each([
     [false, "[ ]"],
     [true, "[x]"],
-  ])("keeps a to-do's box, checked %s, on a line above what it held", (checked, box) => {
+  ])("keeps a to-do's box, checked %s, on the line above what it held", (checked, box) => {
     const [line, embed] = imported(`- ${box} ${WEB_IMAGE}\n`).blocks.map(({ block }) => block);
     expect(line).toMatchObject({ checked, indent: 1, listStyleType: "todo", type: "p" });
-    expect(embed).toMatchObject({ type: "media_embed", url: "https://a.b/c.png" });
-  });
-
-  it("numbers the items after one a block took out of the list as they were", () => {
-    const item = imported(`1. first\n2. ${WEB_IMAGE}\n3. third\n`);
-    expect(bodyOf(exported(item).text)).toBe(`1. first\n\n${WEB_IMAGE}\n\n3. third\n`);
-    expect(content(reimported(item))).toStrictEqual(content(item));
+    expect(embed).toMatchObject({ indent: 2, type: "media_embed", url: "https://a.b/c.png" });
   });
 
   it.each([
@@ -439,14 +318,14 @@ describe("a block a list item opens with", () => {
     ["a quote", "- > kept\n", "blockquote"],
     ["a table", "- | kept |\n  | ---- |\n  | also |\n", "table"],
     ["a toggle", "- :::toggle\n  kept\n  :::\n", "toggle"],
-    ["tabs", "- :::tabs\n  === One\n  kept\n  :::\n", "tab_group"],
-    ["columns", "- :::columns\n  :::column\n  kept\n  :::\n  :::\n", "column_group"],
-  ])("keeps %s an item opens with as the block it is", (_name, text, type) => {
+    ["tabs", "- ::::tabs\n  :::tab[One]\n  kept\n  :::\n  ::::\n", "tab_group"],
+    ["columns", "- ::::columns\n  :::column\n  kept\n  :::\n  ::::\n", "column_group"],
+  ])("nests %s an item opens with under the item's empty line", (_name, text, type) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
-    expect(types(item)).toStrictEqual([type]);
-    expect(JSON.stringify(item.blocks)).toContain("kept");
-    expect(bodyOf(exported(item).text)).toContain("kept");
+    expect(types(item)).toStrictEqual(["p", type]);
+    expect(item.blocks[1]?.block).toMatchObject({ indent: 2 });
+    expect(stored(item)).toContain("kept");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -472,6 +351,21 @@ describe("a block a list item opens with", () => {
     const item = imported("- # kept\n");
     expect(types(item)).toStrictEqual(["p"]);
     expect(bodyOf(exported(item).text)).toBe("- kept\n");
+  });
+
+  it("stands a heading or a quote a person made a list item outside the list", () => {
+    const typed = typedItem("note", [
+      { children: [{ text: "Head" }], id: "h", indent: 1, listStyleType: "disc", type: "h2" },
+      {
+        children: [{ children: [{ text: "Quote" }], type: "p" }],
+        id: "q",
+        indent: 1,
+        listStyleType: "disc",
+        type: "blockquote",
+      },
+    ]);
+    expect(types(reimported(typed))).toStrictEqual(["h2", "blockquote"]);
+    expect(stored(reimported(typed))).not.toContain("listStyleType");
   });
 });
 
@@ -524,7 +418,6 @@ describe("a reference and its definition", () => {
       `Read the ${WRITTEN} before [the meeting](https://example.com/meet) on Friday.\n`,
     );
     expect(content(reimported(item))).toStrictEqual(content(item));
-    expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
   });
 
   it.each([
@@ -540,7 +433,10 @@ describe("a reference and its definition", () => {
     ["one in a heading", "# [design doc][1]\n\n[1]: https://example.com/doc\n"],
     ["one in a table", "| a |\n| - |\n| [design doc][1] |\n\n[1]: https://example.com/doc\n"],
     ["one in a toggle", ":::toggle\n[design doc][1]\n:::\n\n[1]: https://example.com/doc\n"],
-    ["one in a tab", ":::tabs\n=== A\n[design doc][1]\n:::\n\n[1]: https://example.com/doc\n"],
+    [
+      "one in a tab",
+      "::::tabs\n:::tab[A]\n[design doc][1]\n:::\n::::\n\n[1]: https://example.com/doc\n",
+    ],
     ["one whose definition sits in a quote", "[design doc][1]\n\n> [1]: https://example.com/doc\n"],
   ])("reads %s", (_name, text) => {
     const item = imported(text);
@@ -560,45 +456,35 @@ describe("a reference and its definition", () => {
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual([type]);
     const alt = written.startsWith("![]") ? "" : "chart";
-    expect(bodyOf(exported(item).text)).toBe(`![${alt}](${url})\n`);
     expect(content(item)).toStrictEqual(content(imported(`![${alt}](${url})\n`)));
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps a link's own title, which a bare address cannot spell", () => {
-    const text =
-      '[a](https://example.com "Kept")\n\n[https://example.com](https://example.com "Too")\n';
-    const item = imported(text);
-    expect(bodyOf(exported(item).text)).toBe(text);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a definition's title on the link and the image that use it", () => {
+  it("drops a link's title and a definition's, which no item holds", () => {
     const item = imported(
-      '[a][l] and\n\n![b][i]\n\n[l]: https://example.com "Link title"\n[i]: https://example.com/i.png "Image title"\n',
+      '[a](https://example.com "Kept") and [b][l]\n\n[l]: https://example.com/l "Link title"\n',
     );
     expect(bodyOf(exported(item).text)).toBe(
-      '[a](https://example.com "Link title") and\n\n![b](https://example.com/i.png "Image title")\n',
+      "[a](https://example.com) and [b](https://example.com/l)\n",
     );
-    expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps the words of a reference to no address, and the source of an image of one", () => {
+  it("keeps the words of a reference to no address, the source of an image of one, and its line", () => {
     const item = imported("[words][b] and\n\n![seen][b]\n\n[b]: <>\n");
     expect(item.leftOut).toBe(0);
-    const stored = JSON.stringify(item.blocks);
-    expect(stored).toContain("words");
-    expect(stored).toContain("![seen]()");
+    expect(stored(item)).not.toContain('"type":"a"');
+    expect(stored(item)).toContain('"text":"words and"');
+    expect(stored(item)).toContain('"text":"![seen]()"');
+    expect(stored(item)).toContain('"text":"[b]: <>"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("reads a reference in a page by a definition in the note, and the other way", () => {
+  it("reads a reference in a page by a definition in the note", () => {
     const item = imported(
-      "[note words][n]\n\n[p]: https://example.com/p\n\n:::article\n[page words][p]\n\n[n]: https://example.com/n\n:::\n",
+      "Note.\n\n[p]: https://example.com/p\n\n:::article\n[page words][p]\n:::\n",
     );
-    expect(bodyOf(exported(item).text)).toBe(
-      "[note words](https://example.com/n)\n\n:::article\n[page words](https://example.com/p)\n:::\n",
-    );
+    expect(stored(item)).toContain('"url":"https://example.com/p"');
+    expect(bodyOf(exported(item).text)).not.toContain("]: ");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -610,21 +496,15 @@ describe("a reference and its definition", () => {
     ["opening a list item", "- [orphan]: https://example.com\n"],
     ["in a quote", "> a\n>\n> [orphan]: https://example.com\n"],
     ["opening a toggle", ":::toggle\n\n[orphan]: https://example.com\n:::\n"],
-    ["opening a tab", ":::tabs\n=== A\n\n[orphan]: https://example.com\n:::\n"],
-    ["opening a column", ":::columns\n:::column\n\n[orphan]: https://example.com\n:::\n:::\n"],
-  ])("keeps a definition %s as its line", (_name, text) => {
+    ["opening a tab", "::::tabs\n:::tab[A]\n\n[orphan]: https://example.com\n:::\n::::\n"],
+    ["opening a column", "::::columns\n:::column\n\n[orphan]: https://example.com\n:::\n::::\n"],
+  ])("reads a definition %s as the text it spells", (_name, text) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
-    expect(JSON.stringify(item.blocks)).toContain('"source":"[orphan]: https://example.com');
-    expect(bodyOf(exported(item).text)).toContain("[orphan]: https://example.com");
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("keeps a definition that opens a toggle one, whatever its label escapes", () => {
-    const item = imported(":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n");
-    expect(bodyOf(exported(item).text)).toBe(
-      ":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n",
+    expect(stored(item)).toContain(
+      '{"text":"[orphan]: "},{"children":[{"text":"https://example.com"}]',
     );
+    expect(bodyOf(exported(item).text)).toContain(String.raw`\[orphan]: <https://example.com>`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -634,20 +514,18 @@ describe("a reference and its definition", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("uses the first definition of a label and keeps the next as its line", () => {
+  it("uses the first definition of a label and reads the next as its text", () => {
     const item = imported("[a][b]\n\n[b]: https://example.com/one\n[b]: https://example.com/two\n");
     expect(bodyOf(exported(item).text)).toBe(
-      "[a](https://example.com/one)\n\n[b]: https://example.com/two\n",
+      "[a](https://example.com/one)\n\n\\[b]: <https://example.com/two>\n",
     );
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps text a person typed beside a definition held as its line as text", () => {
-    const held = imported("[b]: https://example.com\n");
+  it("keeps text a person typed that spells a reference or a definition as text", () => {
     const typed = typedItem("note", [
       typedLine("[b] and [a][b] are words", "words"),
       typedLine("[x]: /a/path", "line"),
-      ...held.blocks.map(({ block }) => block),
     ]);
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
@@ -674,7 +552,6 @@ describe("a footnote", () => {
     const item = imported("A claim[^a] here.\n\n[^a]: the source\n");
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(["p", "p"]);
-    expect(JSON.stringify(item.blocks)).not.toContain('"opaque"');
     expect(bodyOf(exported(item).text)).toBe("A claim\\[^a] here.\n\n\\[^a]: the source\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
@@ -685,7 +562,7 @@ describe("a footnote", () => {
     ["a quote", "> one[^1]\n> two\n\n[^1]: note\n"],
     ["an alert", "> [!NOTE]\n> one[^1]\n\n[^1]: note\n"],
     ["a table", "| a      | b   |\n| ------ | --- |\n| one[^1] | two |\n\n[^1]: note\n"],
-    ["a tab", ":::tabs\n=== A\none[^1]\n:::\n\n[^1]: note\n"],
+    ["a tab", "::::tabs\n:::tab[A]\none[^1]\n:::\n::::\n\n[^1]: note\n"],
   ])("keeps the words around one in %s", (_name, text) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
@@ -704,63 +581,46 @@ describe("a footnote", () => {
   it("keeps text a person typed that spells a call as that text", () => {
     const item = typedItem("note", [typedLine("A typed [^a] here.")]);
     expect(bodyOf(exported(item).text).trimEnd()).toBe(String.raw`A typed \[^a] here.`);
-    expect(JSON.stringify(reimported(item).blocks)).toContain("A typed [^a] here.");
     expect(content(reimported(item)).blocks).toStrictEqual(content(item).blocks);
   });
 });
 
+const tabsLabelled = (label: string): LibraryBlock => ({
+  children: [
+    { children: [{ children: [{ text: "one" }], type: "p" }], label: "First", type: "tab_panel" },
+    { children: [{ children: [{ text: "two" }], type: "p" }], label, type: "tab_panel" },
+  ],
+  id: "tabs",
+  type: "tab_group",
+});
+
 describe("a tab's label", () => {
   it.each([
-    [String.raw`\@2026-08-22`, "@2026-08-22"],
-    [String.raw`Due \@2026-08-22`, "Due @2026-08-22"],
-    [String.raw`\{{1+1}}`, "{{1+1}}"],
-    [String.raw`\*\*x\*\*`, "**x**"],
-    [String.raw`\[\[Note]]`, "[[Note]]"],
-    [String.raw`\`x\``, "`x`"],
-    ["&lt;b&gt;", "<b>"],
-    [String.raw`a\\`, "a\\"],
-    ["Plain words", "Plain words"],
-  ])("reads `=== %s` back as the label it spells", (written, label) => {
-    const item = imported(`:::tabs\n=== First\none\n=== ${written}\ntwo\n:::\n`);
-    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
-    expect(labels(item)).toStrictEqual(["First", label]);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-    expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
-  });
-
-  it.each([
-    [String.raw`https\://example.com`, "https://example.com"],
-    [String.raw`www\.example.com`, "www.example.com"],
-    [String.raw`me\@example.com`, "me@example.com"],
-    [String.raw`see https\://example.com here`, "see https://example.com here"],
-  ])("reads `=== %s`, a bare address a backslash keeps, as its label", (written, label) => {
-    const item = imported(`:::tabs\n=== First\none\n=== ${written}\ntwo\n:::\n`);
-    expect(types(item)).toStrictEqual(["tab_group"]);
-    expect(labels(item)).toStrictEqual(["First", label]);
-    expect(bodyOf(exported(item).text)).toContain(`=== ${written}\n`);
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it("writes plain words as they stand, and an escape only where a label needs one", () => {
-    const first = imported(":::tabs\n=== Draft 2\none\n=== \\@2026-08-22\ntwo\n:::\n");
-    expect(bodyOf(exported(first).text)).toBe(
-      ":::tabs\n=== Draft 2\none\n\n=== \\@2026-08-22\ntwo\n:::\n",
-    );
-  });
-
-  it.each([
+    "Plain words",
+    "Draft 2",
     "@2026-08-22",
+    "{{1+1}}",
     "**x**",
     "[[Note]]",
     "`x`",
+    "<b>",
+    "a\\",
+    "a ] b",
+    ":date[2026-08-22]",
     "https://example.com",
-    "www.example.com",
     "me@example.com",
-    String.raw`[a\*b](https://example.com/a*b)`,
-  ])("keeps `=== %s`, which is no plain words, as the lines of text it is", (written) => {
-    const item = imported(`:::tabs\n=== ${written}\nbody\n:::\n`);
-    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["p"]);
-    expect(content(reimported(item))).toStrictEqual(content(item));
+    "",
+  ])("writes %j and reads it back as the label it is", (label) => {
+    const typed = typedItem("note", [tabsLabelled(label)]);
+    expect(content(reimported(typed))).toStrictEqual(content(typed));
+    expect(content(reimported(reimported(typed)))).toStrictEqual(content(typed));
+  });
+
+  it("reads a hand-written label's words, its marks aside", () => {
+    const item = imported("::::tabs\n:::tab[*Draft* `2`]\none\n:::\n::::\n");
+    expect(item.blocks[0]?.block).toMatchObject({
+      children: [{ label: "Draft 2", type: "tab_panel" }],
+    });
   });
 });
 
@@ -779,9 +639,6 @@ describe("one file's `title:`", () => {
     expect(fields).toMatchObject({ properties: { title: null }, title: "Fixture" });
   });
 });
-
-// what the table writer spells an empty paragraph with, an empty cell's as a line's
-const EMPTY_CELL_LINE = "\u200B";
 
 describe("one file as its item", () => {
   it("reads the frontmatter into fields, and every other key as a typed property", () => {
@@ -863,7 +720,7 @@ describe("one file as its item", () => {
   it("keeps a block that is not YAML as the note's first code block", () => {
     const item = imported("---\nkey: [unclosed\n---\n\nBody.\n");
     expect(item.fields.kind).toBe("note");
-    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["code_block", "p"]);
+    expect(types(item)).toStrictEqual(["code_block", "p"]);
     expect(JSON.stringify(item.blocks[0]?.block)).toContain("key: [unclosed");
   });
 
@@ -881,9 +738,7 @@ describe("one file as its item", () => {
       const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
       expect(item.leftOut).toBe(0);
       expect(item.blocks.length).toBeGreaterThan(1);
-      expect(new Set(item.blocks.map(({ block }) => block.type))).toStrictEqual(
-        new Set(["code_block"]),
-      );
+      expect(new Set(types(item))).toStrictEqual(new Set(["code_block"]));
       const text = item.blocks
         .flatMap(({ block }) => block.children)
         .map((child) => /"text":"(?<text>[^"]*)"/u.exec(JSON.stringify(child))?.groups?.text ?? "")
@@ -906,10 +761,19 @@ describe("one file as its item", () => {
   });
 
   it.each([
-    [String.raw`[[Other\|shown]]`, String.raw`[[Other\|shown]]`],
-    [String.raw`![[Other\|300]]`, String.raw`![[Other\|300]]`],
-    ["[[Other]]", "[[Other]]"],
-    [String.raw`[[a\\\|shown]]`, String.raw`[[a\\\|shown]]`],
+    String.raw`[[Other\|shown]]`,
+    String.raw`![[Other\|300]]`,
+    "[[Other]]",
+    "**[[Other]]**",
+  ])("reads %s in a cell as a link to the page, its alias and marks gone", (cell) => {
+    const item = imported(`| a | b |\n| - | - |\n| ${cell} | word |\n`);
+    expect(item.leftOut).toBe(0);
+    expect(stored(item)).toContain('"type":"mention","value":"Other"');
+    expect(exported(item).text).toContain("| [Other](mention:");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it.each([
     [String.raw`$$\|x\|$$`, String.raw`$$\|x\|$$`],
     [String.raw`$$a\\\|b$$`, String.raw`$$a\\\|b$$`],
     [String.raw`*$$\|x\|$$*`, String.raw`$$\|x\|$$`],
@@ -933,7 +797,6 @@ describe("one file as its item", () => {
   ])("stands an image %s alone in its cell, and its bytes hold still", (_name, cell) => {
     const item = imported(`| a |\n| - |\n| ${cell} |\n`);
     expect(item.leftOut).toBe(0);
-    expect(JSON.stringify(item.blocks)).not.toContain('"source"');
     const again = reimported(item);
     expect(content(again)).toStrictEqual(content(item));
     expect(exported(reimported(again)).text).toBe(exported(item).text);
@@ -949,7 +812,7 @@ describe("one file as its item", () => {
   ])("reads the space %s as the edge the image has", (_name, cell, lines, written) => {
     const item = imported(`| a |\n| - |\n| ${cell} |\n`);
     expect(
-      [...JSON.stringify(item.blocks).matchAll(/"text":"(?<text>[^"]*)"\}\],"type":"p"/gu)].map(
+      [...stored(item).matchAll(/"text":"(?<text>[^"]*)"\}\],"type":"p"/gu)].map(
         ([, text]) => text,
       ),
     ).toStrictEqual(["a", ...lines]);
@@ -966,29 +829,26 @@ describe("one file as its item", () => {
 
   it.each([
     ["one<br/>two", ["one", "two"]],
+    ["one<br>two", ["one", "two"]],
     ["**one<br/>two**", ["one", "two"]],
-    ["one<br/><br/>two", ["one", EMPTY_CELL_LINE, "two"]],
-    ["<br/>one<br/>", [EMPTY_CELL_LINE, "one", EMPTY_CELL_LINE]],
-    ["<br/>", [EMPTY_CELL_LINE, EMPTY_CELL_LINE]],
+    ["one<br/><br/>two", ["one", "", "two"]],
+    ["<br/>one<br/>", ["", "one", ""]],
+    ["<br/>", ["", ""]],
   ])("reads the breaks in `%s` as the cell's lines", (cell, lines) => {
     const item = imported(`| a |\n| - |\n| ${cell} |\n`);
     expect(item.leftOut).toBe(0);
-    const written = JSON.stringify(item.blocks);
-    expect(written).not.toContain('"source"');
     expect(
-      [...written.matchAll(/"text":"(?<text>[^"]*)"/gu)].map(([, text]) => text),
+      [...stored(item).matchAll(/"text":"(?<text>[^"]*)"/gu)].map(([, text]) => text),
     ).toStrictEqual(["a", ...lines]);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps a tag in another spelling, or text spelling one, as it stands", () => {
+  it("reads an escaped tag in a cell as the text it spells", () => {
     const item = imported(String.raw`| a |
 | - |
-| one<br>two |
 | one\<br/>two |
 `);
-    expect(JSON.stringify(item.blocks)).toContain('"source":"<br>"');
-    expect(JSON.stringify(item.blocks)).toContain('"text":"one<br/>two"');
+    expect(stored(item)).toContain('"text":"one<br/>two"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -1013,7 +873,7 @@ describe("one file as its item", () => {
     ]);
     expect(exported(item).text).toContain(String.raw`| ${"`"}a\\\|b${"`"} | word |`);
     const again = reimported(item);
-    expect(JSON.stringify(again.blocks).match(/"type":"t[dh]"/gu)).toHaveLength(2);
+    expect(stored(again).match(/"type":"t[dh]"/gu)).toHaveLength(2);
     expect(exported(again).text).toBe(exported(reimported(again)).text);
   });
 
@@ -1049,7 +909,7 @@ describe("one file as its item", () => {
       },
     ]);
     expect(exported(item).text).toContain(String.raw`$$\Vert x\Vert $$`);
-    expect(JSON.stringify(reimported(item).blocks)).toContain(String.raw`\\Vert x\\Vert `);
+    expect(stored(reimported(item))).toContain(String.raw`\\Vert x\\Vert `);
   });
 
   it("keeps the words of a link and the source of an image that name no address", () => {
@@ -1057,39 +917,17 @@ describe("one file as its item", () => {
       "Before [words]() after.\n\n- ![seen]()\n- [listed]()\n\n> [quoted](<>)\n\n| a |\n| - |\n| [cell]() |\n",
     );
     expect(item.leftOut).toBe(0);
-    const stored = JSON.stringify(item.blocks);
-    for (const kept of ["Before ", "words", " after.", "![seen]()", "listed", "quoted", "cell"]) {
-      expect(stored).toContain(kept);
+    for (const kept of ["Before words after.", "![seen]()", "listed", "quoted", "cell"]) {
+      expect(stored(item)).toContain(kept);
     }
-    expect(stored).not.toContain('"type":"a"');
-    expect(content(reimported(item))).toStrictEqual(content(item));
-  });
-
-  it.each([
-    ['![alt](<> "some title")\n', '![alt](<> "some title")'],
-    ['[words](<> "some title")\n', '[words](<> "some title")'],
-    ['[*fine* words](<> "some title")\n', '[*fine* words](<> "some title")'],
-    ['[r]\n\n[r]: <> "emptytitle"\n', '[r](<> "emptytitle")'],
-    ['![r][r]\n\n[r]: <> "emptytitle"\n', '![r](<> "emptytitle")'],
-    ['[![alt](<> "some title")](https://example.com)\n', '![alt](<> "some title")'],
-    [
-      String.raw`| [words](<> "a\|b") |
-| - |
-`,
-      String.raw`[words](<> "a\|b")`,
-    ],
-  ])("keeps the title of what names no address in %j", (text, source) => {
-    const item = imported(text);
-    expect(item.leftOut).toBe(0);
-    expect(bodyOf(exported(item).text)).toContain(source);
+    expect(stored(item)).not.toContain('"type":"a"');
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it("counts what it left out: a block no item can hold", () => {
     const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
-    const text = `Kept.\n\n${fence}`;
-    const item = imported(text);
+    const item = imported(`Kept.\n\n${fence}`);
     expect(item.leftOut).toBe(1);
-    expect(JSON.stringify(item.blocks)).toContain("Kept.");
+    expect(stored(item)).toContain("Kept.");
   });
 });

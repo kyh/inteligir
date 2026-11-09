@@ -15,11 +15,12 @@ A saved page read into an item: its facts and its article.
   `packages/page-reader/src/extract-page.ts`.
 
 - **A SAVED PAGE IS THE EDITOR'S OWN FIXPOINT.** The article is converted down a
-  ladder (rich, plain, text) and the first rung the editor's
-  `canonicalizeImported` calls canonical with at least 97% of the converted
-  letters kept is written, so its blocks export as those same bytes; a page's
-  `{{x}}`, `@2026-01-02`, `%%`, `:::`, `$$`, `[[x]]` and raw tags are escaped so
-  they stay text, and a code block that names one of
+  ladder (rich, plain, text), and the first rung the editor's
+  `canonicalizeImported` reads with at least 97% of the converted letters kept
+  (`KEPT_MIN`) is written as the editor writes it, so its blocks export as those
+  same bytes; every punctuation mark in a page's text is escaped, so its
+  `:date[…]`, `:formula[…]`, `:::`, `$$`, `[[x]]` and raw tags stay text, and a
+  code block that names one of
   the dialect's own fences (`@repo/editor/markdown/fence-langs`) as its language
   keeps its code and loses the name, so a page never writes a runnable block.
   Rejected: defuddle's markdown, Plate's `deserializeHtml`, and canonicalizing

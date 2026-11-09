@@ -21,17 +21,22 @@ the service's (`packages/service/CLAUDE.md`).
 
 - **THE PERSISTED NODE SET IS SPELLED HERE, BELOW THE EDITOR, AND IT IS
   STRICT.** `@repo/contract/library/library-nodes` is Plate's own vocabulary as
-  zod, every node the editor round-trips: every element a strict object, only
-  a top-level block named, by its id and optionally the `ref` a link's
-  `blockRef` reaches, a depth and a size checked before the recursive parse
-  (`storableBlockSchema`), and a list's indent held to what the writer can nest
-  (`LIST_MAX_INDENT`). The editor holds these nodes as they are: a link or
-  an embed names its target by id with the title the writer saw, a `#tag` is
-  its text, media a sha or a url. Rejected: the vocabulary in `@repo/editor`
+  zod, every node the editor reads and writes: every element a strict object,
+  only a top-level block named, by its id, a depth and a size checked before
+  the recursive parse (`storableBlockSchema`), and an indent on any block held
+  to what the writer can nest (`LIST_MAX_INDENT`), so a block nested under a
+  list item keeps its depth. The editor holds these nodes as they are: a page
+  link is Plate's mention, its `key` the item's id and its `value` the title the
+  writer saw, the one link node `deriveItem` reads, which strips every
+  zero-width space Plate writes for an empty line from the text it derives;
+  a `#tag` is its text, media a sha or a url. Rejected: the vocabulary
+  in `@repo/editor`
   (the phone's native end parses its editor page's blocks by it, and loads no
   Plate), a tag node (two spellings of
   one tag), an id inside a block (Plate names those again in every editor, so
-  one block would hash apart), and loose objects (a prop no reader draws).
+  one block would hash apart), a wiki link or an opaque source node beside the
+  mention (a second spelling of every link, and markup no editor edits), and
+  loose objects (a prop no reader draws).
 
 - **AN ITEM IS FIELDS AND BLOCKS, AND EVERYTHING ELSE IS DERIVED IN THE SAME
   TRANSACTION.** `@repo/contract/library/library-item` caps every field, and each

@@ -13,23 +13,16 @@ import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/rea
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
 import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
 
-// A `listStyleType` block hosts BlockList's <ul> inside it and a wikiEmbed expands into
-// block content; either inside <p>/<h*> is invalid DOM and React logs a nesting error.
-const hostsBlockContent = (element: TElement): boolean => {
-  if (stringProp(element, "listStyleType") !== undefined) {
-    return true;
-  }
-  return element.children.some(
-    (child) => ElementApi.isElement(child) && child.type === WIKI_EMBED_KEY,
-  );
-};
+// A `listStyleType` block hosts BlockList's <ul> inside it, which inside <p>/<h*> is invalid DOM
+// and React logs a nesting error.
+const hostsBlockContent = (element: TElement): boolean =>
+  stringProp(element, "listStyleType") !== undefined;
 
 const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
   function Element(props: PlateElementProps) {

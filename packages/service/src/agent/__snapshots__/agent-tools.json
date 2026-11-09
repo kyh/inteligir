@@ -1,6 +1,6 @@
 [
   {
-    "description": "Creates a note from markdown, optionally titled, tagged and filed in a folder. Links to other items are written [[Title]] or [[Title|id]].",
+    "description": "Creates a note from markdown, optionally titled, tagged and filed in a folder. A link to another item is written [Title](mention:id), or [[Title]] for the one item so titled.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -290,7 +290,7 @@
     "name": "organize_items"
   },
   {
-    "description": "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [[Title|id]].",
+    "description": "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [Title](mention:id).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {

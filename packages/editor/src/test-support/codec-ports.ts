@@ -4,10 +4,10 @@
 
 import { fileKindOf } from "@repo/contract/items/item-kind";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
 import type { ExportPorts, FoundFile, HeldFile, ImportPorts } from "../codec/item-markdown";
-import type { Reached } from "../codec/read-blocks";
+import type { LinkedItem } from "../codec/read-blocks";
 import type { WrittenFile } from "../codec/write-blocks";
 
 // 2026-05-28T21:46:40Z, a whole second
@@ -46,28 +46,32 @@ export const pretendLibrary = (): PretendLibrary => {
     paths.set(sha, path);
     return { kind, name: path.slice(path.lastIndexOf("/") + 1), path, place: path, sha };
   };
-  const wiki = (link: WikiBody, embed: boolean): Reached => {
+  const wiki = (link: WikiTarget, embed: boolean): WikiReach => {
     if (embed) {
       const file = fileAt(link.target);
       if (file !== null) {
-        return { file, kind: "file" };
+        return { kind: "file", url: file.path };
       }
     }
     const itemId = `item-${fakeSha(link.target).slice(0, 12)}`;
     titles.set(itemId, link.target);
     return { itemId, kind: "item", title: link.target };
   };
+  const item = (key: string): LinkedItem | null => {
+    const title = titles.get(key);
+    return title === undefined ? null : { itemId: key, title };
+  };
   return {
     exportPorts: () => ({
       held: (file: HeldFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
       path: (file: WrittenFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
       target: (itemId: string) => titles.get(itemId) ?? null,
-      withIds: false,
     }),
     importPorts: () => {
       let blocks = 0;
       return {
         file: fileAt,
+        item,
         newBlockId: () => {
           blocks += 1;
           return `b${String(blocks)}`;

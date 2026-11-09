@@ -8,7 +8,6 @@ import { parseExpression, evaluateExpression } from "@repo/editor/formulas/expre
 import { formatResult } from "@repo/editor/formulas/format-result";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import type { FormulaMeta } from "@repo/editor/formulas/formula-meta";
-import { parseFormulaRaw } from "@repo/editor/markdown/remark-inline-constructs";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -116,11 +115,16 @@ export const formulaNodeFrom = (props: FormulaNodeProps): TElement => {
   return pill;
 };
 
-// A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
+// a typed `{{source|display|meta}}`: the display after the first pipe, the meta after the second
+const formulaPartsOf = (raw: string): FormulaNodeProps => {
+  const [source = "", display = "", ...meta] = raw.split("|");
+  return { display, meta: meta.join("|"), source };
+};
+
+// A body with pipes completes verbatim; a pipeless body runs the entry grammar.
 export const formulaNodeFromTyped = (body: string): TElement | null => {
   if (body.includes("|")) {
-    const { display, meta = "", source } = parseFormulaRaw(body);
-    return formulaNodeFrom({ display, meta, source });
+    return formulaNodeFrom(formulaPartsOf(body));
   }
   const props = formulaPropsFromEntry(body);
   return props === null ? null : formulaNodeFrom(props);

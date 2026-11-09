@@ -37,7 +37,7 @@ checklist, and a callout will drift into three different requirements.
 - **Research** — findings first, then evidence by theme, then sources.
 - **Reference** — one-line definition, rules, examples.
 - **Status** — where it stands, what changed, what happens next.
-- **Summary of saved items** — what they say together first, then each item by its `[[Title|id]]`
+- **Summary of saved items** — what they say together first, then each item by its `[Title](mention:<id>)`
   link with the line that matters.
 
 ## Ask, Or Just Fix It

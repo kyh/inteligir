@@ -327,6 +327,38 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("links a [[Title]] to the one item so titled and keeps one no item holds as text, on a create and an edit", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const target = await library.items.createNote({ markdown: "Here.", title: "Existing Title" });
+      const { item } = await library.items.createNote({
+        markdown: "See [[Existing Title]] and [[Missing]].\n\nTwo.",
+      });
+      const link = { key: target.item.id, type: "mention", value: "Existing Title" };
+      const textOf = async () => {
+        const { blocks } = await library.items.get({ id: item.id });
+        return blocks.map(({ block }) => block.children);
+      };
+      await expect(textOf()).resolves.toStrictEqual([
+        [{ text: "See " }, { children: [{ text: "" }], ...link }, { text: " and [[Missing]]." }],
+        [{ text: "Two." }],
+      ]);
+
+      const { seq } = await library.items.read({ id: item.id });
+      await library.items.edit({
+        baseSeq: seq,
+        edits: [{ newText: "Then [[Existing Title]] and [[Missing]].", oldText: "Two." }],
+        id: item.id,
+      });
+      await expect(textOf()).resolves.toStrictEqual([
+        [{ text: "See " }, { children: [{ text: "" }], ...link }, { text: " and [[Missing]]." }],
+        [{ text: "Then " }, { children: [{ text: "" }], ...link }, { text: " and [[Missing]]." }],
+      ]);
+      const { view } = await library.items.read({ id: item.id });
+      expect(view.markdown).toContain(`Then [Existing Title](mention:${target.item.id}) and`);
+    });
+  });
+
   it("refuses text no block can store, and keeps what stood there", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

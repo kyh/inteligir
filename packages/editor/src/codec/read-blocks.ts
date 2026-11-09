@@ -1,9 +1,8 @@
 // The dialect's value, already the library's vocabulary as the rule table writes it
-// (`md-rules.ts`), with its names resolved: a wiki link or an embed by the title or path the writer
-// gave to the item that answers to it, a file the library holds by its bytes to its sha. A `ref`
-// the note's reader found (`@repo/editor/markdown/remark-obsidian`) moves off its line onto the
-// block. A `#tag` is the text it is. Every block leaves through the vocabulary's own parse, so a
-// prop it does not name is dropped here and never stored.
+// (`md-rules.ts`), with its names checked against the library: a page link's key to the item it
+// names, or its words where no item answers, and a file the library holds by its bytes to its sha.
+// A `#tag` is the text it is. Every block leaves through the vocabulary's own parse, so a prop it
+// does not name is dropped here and never stored.
 
 import { ElementApi } from "platejs";
 import type { Descendant, TElement, TText } from "platejs";
@@ -11,20 +10,10 @@ import type { Descendant, TElement, TText } from "platejs";
 import type { FileKind } from "@repo/contract/items/item-kind";
 import type { JsonValue } from "@repo/contract/library/canonical-json";
 import { libraryNodeSchema } from "@repo/contract/library/library-nodes";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 import { z } from "zod";
 
-import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
-import { BLOCK_REF_KEY } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
-import {
-  isSameItemLink,
-  wikiBodyOf,
-  wikiFieldsOf,
-  wikiNode,
-  wikiPartsOf,
-} from "@repo/editor/wiki/wiki-node";
 
 import { MARK_KEYS, isText, leaf, marksOf, tidyInlines } from "./slate-leaves";
 
@@ -38,17 +27,16 @@ export interface LibraryFile {
   readonly path: string;
 }
 
-// what a `[[…]]` or `![[…]]` reaches: an item (its title, which a link keeps as the name the writer
-// saw), a file's bytes, no item but under a title the caller names as it was written, or nothing
-// the library holds yet, whose title is the written target's own name
-export type Reached =
-  | { readonly kind: "item"; readonly itemId: string; readonly title: string }
-  | { readonly kind: "file"; readonly file: LibraryFile }
-  | { readonly kind: "title"; readonly title: string }
-  | null;
+// the item a page link names, by its id, with its title
+export interface LinkedItem {
+  readonly itemId: string;
+  readonly title: string;
+}
 
 export interface ReadPorts {
-  readonly wiki: (link: WikiBody, embed: boolean) => Reached;
+  // the item a page link's key names, `shown` the title it was written with; null for a key no
+  // item holds, whose link is its words
+  readonly item: (key: string, shown: string) => LinkedItem | null;
   // the bytes a markdown image's address names; null keeps the address
   readonly image: (url: string) => LibraryFile | null;
 }
@@ -56,7 +44,6 @@ export interface ReadPorts {
 // a top-level block in the vocabulary's shape, not yet named: the caller mints its id
 export interface DraftBlock {
   readonly element: TElement;
-  readonly ref: string | null;
 }
 
 // the vocabulary's own props per element type, read off its schemas so a prop it gains or loses
@@ -75,26 +62,12 @@ export const INLINE_TYPES: ReadonlySet<string> = new Set([
   "date",
   "formulaPill",
   "inline_equation",
-  "opaque",
-  "wikiEmbed",
-  "wikiLink",
+  "mention",
 ]);
 
 const isElement = (node: Descendant): node is TElement => ElementApi.isElement(node);
 
 const voidLeaf = (): TText[] => [leaf("", {})];
-
-const opaqueOf = (source: string): TElement => ({
-  children: voidLeaf(),
-  source,
-  type: "opaque",
-});
-
-// a written target's own name: its last segment, less the extension a link may leave off
-const writtenTitle = (target: string): string => {
-  const name = target.slice(target.lastIndexOf("/") + 1);
-  return name.toLowerCase().endsWith(".md") ? name.slice(0, -".md".length) : name;
-};
 
 // an image's Obsidian width, `300` (or `300x200`), after its alt's last pipe
 const WIDTH_RE = /\|(?<width>\d{1,5})(?:x\d{1,5})?$/u;
@@ -142,26 +115,14 @@ const mediaOf = (file: LibraryFile, look: ImageLook): TElement => {
   }
 };
 
-// an anchor alone stays in the item it stands in; a link that reaches an item names it by id and
-// shows its title, which it may not have yet; one that reaches none waits, by the name the writer
-// gave, for an item of that name. A link that reaches nothing and has no name is kept as source
-const readWiki = (node: TElement, embed: boolean, ports: ReadPorts): TElement => {
-  const written = wikiFieldsOf(node);
-  if (isSameItemLink(written)) {
-    return node;
-  }
-  const reached = ports.wiki(wikiPartsOf(written), embed);
-  const item = reached?.kind === "item" ? reached : null;
-  const named = reached?.kind === "title" ? reached.title : writtenTitle(written.title);
-  const title = item?.title ?? named;
-  if (item === null && title.trim() === "") {
-    return opaqueOf(`${embed ? "!" : ""}[[${wikiBodyOf(written) ?? ""}]]`);
-  }
-  return wikiNode(embed ? WIKI_EMBED_KEY : WIKI_LINK_KEY, {
-    ...written,
-    itemId: item?.itemId ?? null,
-    title,
-  });
+// a page link reaches the item its key names, under that item's title; a key no item holds leaves
+// the words it showed
+const readMention = (node: TElement, ports: ReadPorts): Descendant => {
+  const shown = stringProp(node, "value") ?? "";
+  const linked = ports.item(stringProp(node, "key") ?? "", shown);
+  return linked === null
+    ? leaf(shown, {})
+    : { children: voidLeaf(), key: linked.itemId, type: "mention", value: linked.title };
 };
 
 const captionOf = (node: TElement): TText[] => {
@@ -178,7 +139,7 @@ const readImage = (node: TElement, ports: ReadPorts): TElement => {
   const caption = captionOf(node);
   if (url === "") {
     const alt = caption.map((part) => part.text).join("");
-    return { children: [opaqueOf(`![${alt}]()`)], type: "p" };
+    return { children: [leaf(`![${alt}]()`, {})], type: "p" };
   }
   const lastIndex = caption.length - 1;
   const last = caption[lastIndex];
@@ -199,14 +160,11 @@ const readImage = (node: TElement, ports: ReadPorts): TElement => {
   return file === null ? imageOf({ url }, look) : mediaOf(file, look);
 };
 
-// a node whose written name resolves: a link or embed to its item, an image to the bytes it names
-const readVoid = (node: TElement, ports: ReadPorts): TElement | null => {
+// a node whose written name resolves: a page link to its item, an image to the bytes it names
+const readVoid = (node: TElement, ports: ReadPorts): Descendant | null => {
   switch (node.type) {
-    case WIKI_LINK_KEY: {
-      return readWiki(node, false, ports);
-    }
-    case WIKI_EMBED_KEY: {
-      return readWiki(node, true, ports);
+    case "mention": {
+      return readMention(node, ports);
     }
     case "img": {
       return readImage(node, ports);
@@ -243,54 +201,13 @@ export const tidyBlock = (node: TElement): TElement => {
   return { ...node, children: tidied.length > 0 ? tidied : [leaf("", {})] };
 };
 
-// the types a block's trailing `^ref` is read from and written to, inside its own last line
-export const INLINE_REF_TYPES: ReadonlySet<string> = new Set([
-  "p",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-]);
-
-// a read block among the drafts: a `ref` at its end comes off it, and one on a line of its own names
-// the block above, or stays the words it is where that block has one
-const draftInto = (drafts: DraftBlock[], block: TElement): void => {
-  const last = block.children.at(-1);
-  const ref =
-    last !== undefined && isElement(last) && last.type === BLOCK_REF_KEY
-      ? stringProp(last, "ref")
-      : undefined;
-  if (ref === undefined) {
-    drafts.push({ element: tidyBlock(block), ref: null });
-    return;
-  }
-  if (last?.own !== true) {
-    const element = tidyBlock({ ...block, children: block.children.slice(0, -1) });
-    drafts.push({ element, ref });
-    return;
-  }
-  const above = drafts.at(-1);
-  if (above?.ref === null) {
-    drafts[drafts.length - 1] = { ...above, ref };
-    return;
-  }
-  drafts.push({ element: tidyBlock({ ...block, children: [leaf(`^${ref}`, {})] }), ref: null });
-};
-
 // the top-level blocks of one section, in the vocabulary's shapes
-export const readBlocks = (value: readonly Descendant[], ports: ReadPorts): DraftBlock[] => {
-  const drafts: DraftBlock[] = [];
-  for (const node of value) {
-    for (const read of readNode(node, ports)) {
-      if (isElement(read)) {
-        draftInto(drafts, read);
-      }
-    }
-  }
-  return drafts;
-};
+export const readBlocks = (value: readonly Descendant[], ports: ReadPorts): DraftBlock[] =>
+  value.flatMap((node) =>
+    readNode(node, ports).flatMap((read): DraftBlock[] =>
+      isElement(read) ? [{ element: tidyBlock(read) }] : [],
+    ),
+  );
 
 interface JsonObject {
   [key: string]: JsonValue;
@@ -338,7 +255,7 @@ export const libraryJsonOf = (node: Descendant): JsonObject =>
   isText(node) ? textJson(node) : elementJson(node);
 
 // a draft named: the JSON a top-level block is stored as, before the vocabulary's parse
-export const namedBlockJson = (draft: DraftBlock, id: string): JsonObject => {
-  const json = { ...elementJson(draft.element), id };
-  return draft.ref === null ? json : { ...json, ref: draft.ref };
-};
+export const namedBlockJson = (draft: DraftBlock, id: string): JsonObject => ({
+  ...elementJson(draft.element),
+  id,
+});

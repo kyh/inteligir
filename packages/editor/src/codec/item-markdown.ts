@@ -3,7 +3,6 @@
 // person's note. The files an item holds whole sit where an export puts them: a saved link's cover the body's first embed under `assets/covers/`, a file item's
 // original its first embed of its kind.
 
-import type { Root, RootContent } from "mdast";
 import type { TElement } from "platejs";
 
 import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
@@ -13,21 +12,25 @@ import type { StoredBlock } from "@repo/contract/library/block-ops";
 import { ordsBetween } from "@repo/contract/library/block-order";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
-import { parseMdast } from "@repo/editor/markdown/parse";
-import { readObsidian } from "@repo/editor/markdown/remark-obsidian";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
-import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { frontmatterEnd, frontmatterYaml } from "@repo/editor/markdown/frontmatter";
+import {
+  headlessEditor,
+  parseMarkdown,
+  parseMarkdownSections,
+  serializeNote,
+} from "@repo/editor/markdown/markdown-doc";
+import { lfOnly } from "@repo/editor/markdown/md-read";
 import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";
-import { mdToSlate, rootToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
 import { stringProp } from "@repo/editor/node-props";
 
 import { readFrontmatter, writeFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
-import { elementsOf, embedFiles, settled } from "./read-markdown";
-import type { LibraryFile, Reached } from "./read-blocks";
+import { elementsOf } from "./read-markdown";
+import type { LibraryFile, LinkedItem } from "./read-blocks";
 import { leaf } from "./slate-leaves";
 import { writeBlocks } from "./write-blocks";
 import type { WritePorts } from "./write-blocks";
@@ -38,7 +41,10 @@ export interface FoundFile extends LibraryFile {
 }
 
 export interface ImportPorts {
-  readonly wiki: (link: WikiBody, embed: boolean) => Reached;
+  // what an Obsidian `[[…]]` or `![[…]]` names: an item, a file the import holds, or nothing
+  readonly wiki: WikiResolve;
+  // the item a page link's key names, with its title; null for a key no item holds
+  readonly item: (key: string) => LinkedItem | null;
   // the file a markdown image's or link's address names, from this file
   readonly file: (url: string) => FoundFile | null;
   readonly newBlockId: () => string;
@@ -71,31 +77,6 @@ export interface ImportedItem {
 export type ItemImport =
   | { readonly ok: true; readonly item: ImportedItem }
   | { readonly ok: false; readonly reason: "too-deep" };
-
-interface Parts {
-  readonly yaml: string | null;
-  // the root's children before an `:::article`, inside it, and after it
-  readonly before: RootContent[];
-  readonly article: RootContent[] | null;
-  readonly after: RootContent[];
-}
-
-const partsOf = (root: Root): Parts => {
-  let yaml: string | null = null;
-  const before: RootContent[] = [];
-  const after: RootContent[] = [];
-  let article: RootContent[] | null = null;
-  for (const child of root.children) {
-    if (child.type === "yaml") {
-      yaml ??= child.value;
-    } else if (child.type === "articleSection") {
-      article = [...(article ?? []), ...child.children];
-    } else {
-      (article === null ? before : after).push(child);
-    }
-  }
-  return { after, article, before, yaml };
-};
 
 // a lone image block's address: the parse lifts every markdown image into a block of its own
 const imageUrl = (block: TElement | undefined): string | null =>
@@ -157,56 +138,33 @@ const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
   originalSha: held.original?.sha ?? null,
 });
 
-interface SectionValues {
-  readonly before: TElement[];
-  readonly article: TElement[];
-  readonly after: TElement[];
-}
-
-const sectionValues = (parts: Parts): SectionValues | null => {
-  const editor = headlessEditor();
-  const values: TElement[][] = [];
-  for (const children of [parts.before, parts.article ?? [], parts.after]) {
-    const converted = rootToSlate(editor, { children, type: "root" });
-    if (!converted.ok) {
-      return null;
-    }
-    values.push(elementsOf(converted.nodes));
-  }
-  const [before = [], article = [], after = []] = values;
-  return { after, article, before };
-};
-
-// one markdown file as its item
+// one markdown file as its item: its frontmatter split off before the read, so a `---` its body
+// opens with is the body's own; the note is what stands outside its top-level `:::article`
 export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport => {
-  const parts = withinStack((): Parts => {
-    const parsed = partsOf(parseMdast(source.text).root);
-    const before = readObsidian(parsed.before);
-    return { ...parsed, after: readObsidian(parsed.after), before };
-  });
-  const values = parts === null ? null : sectionValues(parts);
-  if (parts === null || values === null) {
+  const text = lfOnly(source.text);
+  const yaml = frontmatterYaml(text);
+  const body = text.slice(frontmatterEnd(text) ?? 0);
+  const read = parseMarkdownSections(body, headlessEditor(), { wiki: ports.wiki });
+  if (!read.ok) {
     return { ok: false, reason: "too-deep" };
   }
-  const front = readFrontmatter(parts.yaml, source.name, ports.now);
-  const sections = [values.before, values.article, values.after];
+  const front = readFrontmatter(yaml, source.name, ports.now);
+  const note = [...read.sections.note];
+  const article = [...(read.sections.article ?? [])];
   const held = takeHeldFiles(
-    { all: sections, first: sections.find((blocks) => blocks.length > 0) ?? values.before },
+    { all: [note, article], first: note.length > 0 ? note : article },
     front.fields.kind,
     ports,
   );
-  const note = [...values.before, ...values.after];
   if (front.invalidYaml !== null) {
     note.unshift(yamlCodeBlock(front.invalidYaml));
   }
   const readPorts = {
     image: (url: string): LibraryFile | null => ports.file(url),
-    wiki: ports.wiki,
+    item: ports.item,
   };
-  const noteValue = settled(elementsOf(embedFiles(note, readPorts)), readObsidian);
-  const pageValue = settled(elementsOf(embedFiles(values.article, readPorts)));
-  const noteBlocks = nameDrafts(readBlocks(noteValue, readPorts), ports.newBlockId);
-  const pageBlocks = nameDrafts(readBlocks(pageValue, readPorts), ports.newBlockId);
+  const noteBlocks = nameDrafts(readBlocks(note, readPorts), ports.newBlockId);
+  const pageBlocks = nameDrafts(readBlocks(article, readPorts), ports.newBlockId);
   return {
     item: {
       blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
@@ -219,7 +177,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
 
 // what a page names that the library could hold resolves to nothing: a page's links and images
 // are addresses on the web
-const PAGE_PORTS = { image: (): null => null, wiki: (): null => null };
+const PAGE_PORTS = { image: (): null => null, item: (): null => null };
 
 export interface ArticleBlocks {
   readonly blocks: readonly PlacedBlock[];
@@ -228,11 +186,11 @@ export interface ArticleBlocks {
 // a page a fill read (the reader's canonical markdown) as its item's article section, keys minted
 // apart from the note's, so a fill never threads its blocks through the person's
 export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
-  const converted = mdToSlate(headlessEditor(), markdown);
+  const converted = parseMarkdown(markdown);
   if (!converted.ok) {
     return null;
   }
-  const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS);
+  const drafts = readBlocks(elementsOf(converted.value), PAGE_PORTS);
   const named = nameDrafts(drafts, newBlockId);
   return { blocks: placed(named.blocks, "article") };
 };

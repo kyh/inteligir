@@ -1,5 +1,5 @@
-// Output is not byte-canonical (toCanonical normalizes it) and avoids opaque
-// constructs, so the property test exercises the modelled nodes.
+// Seeded markdown over the dialect's constructs, not as the writer spells them, so a suite reads
+// and writes the modelled nodes in shapes no fixture holds.
 
 import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
 
@@ -58,6 +58,12 @@ const WORDS = [
 
 const WIKI_TARGETS = ["Alpha Note", "Some Note", "Other", "Project X", "Hub"];
 
+// a page link as the editor writes one, to an item by its id
+const pageLink = (rng: Rng): string => {
+  const at = int(rng, WIKI_TARGETS.length);
+  return `[${WIKI_TARGETS[at] ?? ""}](mention:0190a000-0000-7000-8000-00000000000${String(at)})`;
+};
+
 const MATH_BODIES = ["E=mc^2", "\\int_0^1 x^2 dx", "a^2 + b^2 = c^2", "x + y = z"];
 
 const words = (rng: Rng, n: number): string =>
@@ -66,9 +72,10 @@ const words = (rng: Rng, n: number): string =>
 // no pipe alias, so it can sit in a table cell without `\|` escaping
 const wikiLinkPlain = (rng: Rng): string => {
   const target = pick(rng, WIKI_TARGETS);
-  return chance(rng, 0.2) ? `![[${target}]]` : `[[${target}]]`;
+  return chance(rng, 0.2) ? `![[${target}]]` : pageLink(rng);
 };
 
+// a page link as the editor writes it, or one of Obsidian's spellings an import reads as one
 const wikiLink = (rng: Rng): string => {
   const target = pick(rng, WIKI_TARGETS);
   switch (int(rng, 4)) {
@@ -82,7 +89,7 @@ const wikiLink = (rng: Rng): string => {
       return `![[${target}]]`;
     }
     default: {
-      return `[[${target}#${words(rng, 1)}|${words(rng, 1)}]]`;
+      return pageLink(rng);
     }
   }
 };
@@ -104,8 +111,8 @@ const INLINE_LEAVES: ((rng: Rng) => string)[] = [
       rng,
       MATH_BODIES.map((b) => b.split(" ")[0] ?? b),
     )}$$`,
-  (rng) => `@2026-07-0${1 + int(rng, 9)}`,
-  (rng) => `<u>${words(rng, 1)}</u>`,
+  (rng) => `:date[2026-07-0${String(1 + int(rng, 9))}]`,
+  (rng) => `~~${words(rng, 1)}~~`,
 ];
 
 const inlineText = (rng: Rng, minWords = 3, maxWords = 10): string => {
@@ -186,7 +193,15 @@ const toggle = (rng: Rng): string => `:::toggle\n${inlineText(rng, 3, 8)}\n:::`;
 
 const columns = (rng: Rng): string => {
   const cols = Array.from({ length: 2 }, () => `:::column\n${inlineText(rng, 2, 6)}\n:::`);
-  return `:::columns\n${cols.join("\n\n")}\n:::`;
+  return `::::columns\n${cols.join("\n\n")}\n::::`;
+};
+
+const tabs = (rng: Rng): string => {
+  const panels = Array.from(
+    { length: 2 },
+    () => `:::tab[${words(rng, 1)}]\n${inlineText(rng, 2, 6)}\n:::`,
+  );
+  return `::::tabs\n${panels.join("\n\n")}\n::::`;
 };
 
 const BLOCK_GENERATORS: ((rng: Rng) => string)[] = [
@@ -202,6 +217,7 @@ const BLOCK_GENERATORS: ((rng: Rng) => string)[] = [
   image,
   toggle,
   columns,
+  tabs,
 ];
 
 export const generateDoc = (seed: number): string => {
@@ -223,7 +239,8 @@ const dialectParagraph = (rng: Rng): string => {
   }
   const a = 1 + int(rng, 9);
   const b = 1 + int(rng, 9);
-  return `${inlineText(rng, 3, 8)} {{${String(a)}+${String(b)}|${String(a + b)}}} ${inlineText(rng, 2, 6)}`;
+  const formula = `:formula[${String(a + b)}]{source="${String(a)}+${String(b)}"}`;
+  return `${inlineText(rng, 3, 8)} ${formula} ${inlineText(rng, 2, 6)}`;
 };
 
 const NOTE_BLOCKS: ((rng: Rng) => string)[] = [
@@ -240,6 +257,7 @@ const NOTE_BLOCKS: ((rng: Rng) => string)[] = [
   image,
   toggle,
   columns,
+  tabs,
 ];
 
 const SECTION_BLOCKS = 6;

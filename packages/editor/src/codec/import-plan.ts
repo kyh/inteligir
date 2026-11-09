@@ -1,12 +1,13 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
-// doc at a time against the whole plan, resolving its links by the resolver's tiers (path, name,
-// alias, then the `[[Title|uuid]]` id, `@repo/editor/knowledge/link-resolve`). Last, every file no
-// item names becomes an item of its own, so a bare file is a card of its own. A zip's paths reach
-// all this with the folder an unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
-// every other dot-folder and what an operating system left are skipped, and a `.canvas` or a
-// `.base` is always an item, never an attachment. An `AGENTS.md` is a note like any other, unless
+// doc at a time against the whole plan, resolving a `[[…]]` by the resolver's tiers (path, name,
+// alias, `@repo/editor/knowledge/link-resolve`) and a page link by the `id:` its target's file
+// carries. Last, every file no item names becomes an item of its own, so a bare file is a card of
+// its own. A zip's paths reach all this with the folder an unpacked export was zipped under taken
+// off (`unwrapExport`). Obsidian's settings (`.obsidian/`), every other dot-folder and what an
+// operating system left are skipped, and a `.canvas` or a `.base` is always an item, never an
+// attachment. An `AGENTS.md` is a note like any other, unless
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
 // person's own instructions, so only the person writes them, and a zip is anyone's text.
 
@@ -20,7 +21,7 @@ import {
   isDotEntryPath,
   isOsLitterPath,
 } from "@repo/contract/knowledge/doc-file";
-import { mdLinkTarget } from "@repo/editor/knowledge/link-extract";
+import { mdLinkTarget, mdLinkUrl } from "@repo/editor/knowledge/link-extract";
 import { buildResolver } from "@repo/editor/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/editor/knowledge/link-resolve";
 import {
@@ -31,12 +32,13 @@ import {
   relativePath,
 } from "@repo/contract/knowledge/folder-path";
 import { frontmatterYaml } from "@repo/editor/markdown/frontmatter";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import { lfOnly } from "@repo/editor/markdown/md-read";
+import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
 import { readFrontmatter } from "./item-fields";
 import { importItem } from "./item-markdown";
 import type { FoundFile, ImportedFields, ImportedItem } from "./item-markdown";
-import type { Reached } from "./read-blocks";
+import type { LinkedItem } from "./read-blocks";
 
 // what a path in the folder is to an import
 export type ImportPathKind = "doc" | "file" | "skipped";
@@ -98,7 +100,7 @@ export interface PlannedDoc {
   readonly path: string;
   readonly itemId: string;
   readonly title: string;
-  // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
+  // the `id:` its frontmatter carries, which other docs' page links key by
   readonly fileId: string | null;
   readonly aliases: readonly string[];
   // the url key its frontmatter names, by which the cell folds two saves of one page into one item
@@ -131,7 +133,7 @@ interface DocFront {
 }
 
 const docFront = (path: string, text: string): DocFront => {
-  const yaml = frontmatterYaml(text);
+  const yaml = frontmatterYaml(lfOnly(text));
   const read = readFrontmatter(yaml, docStem(path), 0);
   return {
     aliases: read.fields.aliases,
@@ -182,18 +184,27 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
 export interface PlanReader {
   readonly resolver: TargetResolver;
   readonly docs: ReadonlyMap<string, PlannedDoc>;
+  // each doc by the item id the plan gave it and by the `id:` its file carries, lower-cased
+  readonly byId: ReadonlyMap<string, PlannedDoc>;
   readonly files: ReadonlyMap<string, PlannedFile>;
 }
 
 export const openPlan = (plan: ImportPlan): PlanReader => ({
+  byId: new Map(
+    plan.docs.flatMap((doc): [string, PlannedDoc][] =>
+      doc.fileId === null
+        ? [[doc.itemId, doc]]
+        : [
+            [doc.fileId.toLowerCase(), doc],
+            [doc.itemId, doc],
+          ],
+    ),
+  ),
   docs: new Map(plan.docs.map((doc) => [doc.path, doc])),
   files: new Map(plan.files.map((file) => [file.path, file])),
   resolver: buildResolver(
     [...plan.docs.map((doc) => doc.path), ...plan.files.map((file) => file.path)],
     plan.docs.flatMap((doc) => doc.aliases.map((alias): [string, string] => [alias, doc.path])),
-    plan.docs.flatMap((doc): [string, string][] =>
-      doc.fileId === null ? [] : [[doc.fileId, doc.path]],
-    ),
   ),
 });
 
@@ -233,18 +244,23 @@ export const importPlannedDoc = (
       sha: file.sha,
     };
   };
-  const reachedAt = (path: string | null, embed: boolean): Reached => {
+  const reachedAt = (path: string | null, embed: boolean): WikiReach => {
     const target = path === null ? undefined : docs.get(path);
     if (target !== undefined) {
       return { itemId: target.itemId, kind: "item", title: target.title };
     }
     const file = path === null || !embed ? null : fileAt(path);
-    return file === null ? null : { file, kind: "file" };
+    return file === null ? null : { kind: "file", url: mdLinkUrl(file.path) };
   };
-  const wiki = (link: WikiBody, embed: boolean): Reached =>
-    link.target === ""
-      ? { itemId: doc.itemId, kind: "item", title: doc.title }
-      : reachedAt(reader.resolver.resolveWiki(link.target, link.alias), embed);
+  // an anchor alone names a place in this note, which a page link cannot
+  const wiki = (link: WikiTarget, embed: boolean): WikiReach =>
+    link.target === "" ? null : reachedAt(reader.resolver.resolveWiki(link.target), embed);
+  // a page link names a planned item by its id: one a `[[…]]` resolved to, or the one this app's
+  // export wrote, which its file carries
+  const item = (key: string): LinkedItem | null => {
+    const target = reader.byId.get(key) ?? reader.byId.get(key.toLowerCase());
+    return target === undefined ? null : { itemId: target.itemId, title: target.title };
+  };
   const file = (url: string): FoundFile | null => {
     const target = mdLinkTarget(url);
     const path = target === null ? null : reader.resolver.resolveMd(target, doc.path);
@@ -252,7 +268,7 @@ export const importPlannedDoc = (
   };
   const read = importItem(
     { name: docStem(doc.path), text },
-    { file, newBlockId: ports.newBlockId, now: ports.now, wiki },
+    { file, item, newBlockId: ports.newBlockId, now: ports.now, wiki },
   );
   return read.ok
     ? { ok: true, read: { doc, item: read.item } }

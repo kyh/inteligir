@@ -15,9 +15,7 @@ import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { TouchToolbarKit } from "@repo/editor/touch-toolbar";
 
-const FIXTURES = fileURLToPath(
-  new URL("test-support/fixtures/roundtrip/canonical/", import.meta.url),
-);
+const FIXTURES = fileURLToPath(new URL("test-support/fixtures/corpus/", import.meta.url));
 
 // what a kit registers once Plate has resolved it (nested plugins included), core plugins aside
 const CORE_KEYS = new Set(Object.keys(createSlateEditor().plugins));
@@ -57,15 +55,14 @@ describe("the touch kit", () => {
     expect(missing, "BASE_KIT plugins missing from TOUCH_EDITOR_KIT").toStrictEqual([]);
   });
 
-  it("serializes the canonical corpus to its canonical bytes", () => {
+  it("writes every corpus file as BASE_KIT writes it", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
-      const src = readFileSync(`${FIXTURES}${name}`, "utf-8");
-      const parsed = parseMarkdown(src);
+      const parsed = parseMarkdown(readFileSync(`${FIXTURES}${name}`, "utf-8"));
       expect(parsed.ok, `${name} must parse`).toBe(true);
       if (!parsed.ok) {
         continue;
       }
-      expect(serializeNote(touch, parsed.value).trimEnd(), name).toBe(src.trimEnd());
+      expect(serializeNote(touch, parsed.value), name).toBe(serializeNote(base, parsed.value));
     }
   });
 

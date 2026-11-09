@@ -106,7 +106,9 @@ describe("metadata", () => {
 
 describe("formulas by id", () => {
   it("first instance wins for linked ids", () => {
-    const formulas = formulasIn("{{1|1|id=a;name=x}} and {{2|2|id=a;name=x}}\n");
+    const formulas = formulasIn(
+      ':formula[1]{source="1" meta="id=a;name=x"} and :formula[2]{source="2" meta="id=a;name=x"}\n',
+    );
     expect(formulasById(formulas).get("a")?.source).toBe("1");
   });
 });
@@ -154,7 +156,7 @@ describe("an item's pills", () => {
 
   it("leave a code block's text alone", () => {
     const code: LibraryNode = {
-      children: [{ children: [{ text: "{{1|1}}" }], type: "code_line" }],
+      children: [{ children: [{ text: ':formula[1]{source="1"}' }], type: "code_line" }],
       type: "code_block",
     };
     expect(formulasInBlocks([code])).toStrictEqual([]);
@@ -164,8 +166,8 @@ describe("an item's pills", () => {
 describe("the graph (the skill's own type-scale example)", () => {
   const NOTE = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
   const doc = [
-    `{{28|28|id=b371c6db-70db-48f1-99e2-9ea1ef6f1151;name=h1_size}}`,
-    `{{@(h1_size#${NOTE}#b371c6db-70db-48f1-99e2-9ea1ef6f1151)-6|22|id=c520e764-a784-48c5-81ca-f93ac6f4ad37;name=h2_size}}`,
+    `:formula[28]{source="28" meta="id=b371c6db-70db-48f1-99e2-9ea1ef6f1151;name=h1_size"}`,
+    `:formula[22]{source="@(h1_size#${NOTE}#b371c6db-70db-48f1-99e2-9ea1ef6f1151)-6" meta="id=c520e764-a784-48c5-81ca-f93ac6f4ad37;name=h2_size"}`,
   ].join("\n\n");
 
   it("resolves a bound reference through the same note", () => {
@@ -186,9 +188,11 @@ describe("the graph (the skill's own type-scale example)", () => {
 
   it("answers cyclic for a reference loop", () => {
     const cyclic = formulasIn(
-      [`{{@(b#${NOTE}#idb)+1|0|id=ida;name=a}}`, `{{@(a#${NOTE}#ida)+1|0|id=idb;name=b}}`, ""].join(
-        "\n",
-      ),
+      [
+        `:formula[0]{source="@(b#${NOTE}#idb)+1" meta="id=ida;name=a"}`,
+        `:formula[0]{source="@(a#${NOTE}#ida)+1" meta="id=idb;name=b"}`,
+        "",
+      ].join("\n"),
     );
     const [first] = cyclic;
     if (first === undefined || first.expression === null) {
@@ -204,7 +208,7 @@ describe("the graph (the skill's own type-scale example)", () => {
   });
 
   it("answers missing-ref for an absent note or id", () => {
-    const formulas = formulasIn(`{{@(x#other-note#nope)+1|0|id=ida}}\n`);
+    const formulas = formulasIn(`:formula[0]{source="@(x#other-note#nope)+1" meta="id=ida"}\n`);
     const [first] = formulas;
     if (first === undefined || first.expression === null) {
       throw new Error("expected an executable pill");
@@ -214,8 +218,8 @@ describe("the graph (the skill's own type-scale example)", () => {
   });
 
   it("resolves across notes", () => {
-    const other = formulasIn("{{100|100|id=base;name=base}}\n");
-    const local = formulasIn(`{{@(base#other#base)*2|200|id=d}}\n`);
+    const other = formulasIn(':formula[100]{source="100" meta="id=base;name=base"}\n');
+    const local = formulasIn(`:formula[200]{source="@(base#other#base)*2" meta="id=d"}\n`);
     const [first] = local;
     if (first === undefined || first.expression === null) {
       throw new Error("expected an executable pill");
@@ -257,10 +261,10 @@ const resolveFirst = async (
 describe("loading the graph", () => {
   it("follows a chain through a note the open one never names", async () => {
     const { read, reads } = library({
-      b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
-      c: "{{40|40|id=fc;name=c}}\n",
+      b: ':formula[0]{source="@(c#c#fc)+1" meta="id=fb;name=b"}\n',
+      c: ':formula[40]{source="40" meta="id=fc;name=c"}\n',
     });
-    const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+    const local = formulasIn(':formula[0]{source="@(b#b#fb)*2" meta="id=fa;name=a"}\n');
 
     await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: true, value: 82 });
     expect(reads).toStrictEqual(["b", "c"]);
@@ -268,9 +272,9 @@ describe("loading the graph", () => {
 
   it("answers cyclic for a loop across notes, reading each note once and never itself", async () => {
     const { read, reads } = library({
-      b: "{{@(a#a#fa)+1|0|id=fb;name=b}}\n",
+      b: ':formula[0]{source="@(a#a#fa)+1" meta="id=fb;name=b"}\n',
     });
-    const local = formulasIn("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
+    const local = formulasIn(':formula[0]{source="@(b#b#fb)+1" meta="id=fa;name=a"}\n');
 
     await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: false, reason: "cyclic" });
     expect(reads).toStrictEqual(["b"]);
@@ -278,10 +282,10 @@ describe("loading the graph", () => {
 
   it("stops reading at the cap, and a note past it answers missing-ref", async () => {
     const { read, reads } = library({
-      b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
-      c: "{{40|40|id=fc;name=c}}\n",
+      b: ':formula[0]{source="@(c#c#fc)+1" meta="id=fb;name=b"}\n',
+      c: ':formula[40]{source="40" meta="id=fc;name=c"}\n',
     });
-    const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+    const local = formulasIn(':formula[0]{source="@(b#b#fb)*2" meta="id=fa;name=a"}\n');
 
     await expect(resolveFirst(local, read, 1)).resolves.toStrictEqual({
       ok: false,

@@ -1,5 +1,5 @@
 // The markdown codec's ports over the cell's SQL, read inside the write or read that uses them: a
-// link names an item by its id or, when an agent wrote it by title, by the one live item titled so;
+// page link names an item by its id, and a `[[Title]]` an agent wrote the one live item titled so;
 // a file the view writes `assets/<sha>` is the library's own file under that sha, its kind read
 // off the type it was uploaded as. A port set lives for one call, so the titles it reads once are
 // those the call's transaction sees.
@@ -8,12 +8,11 @@ import type { EditPorts } from "@repo/editor/codec/item-edit";
 import type { FoundFile, ImportPorts } from "@repo/editor/codec/item-markdown";
 import { viewFileAt } from "@repo/editor/codec/item-view";
 import type { ViewPorts } from "@repo/editor/codec/item-view";
+import { libraryLinks } from "@repo/editor/codec/library-links";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 import { itemCardSchema, titleKey } from "@repo/contract/library/derive-item";
 import { jsonTextSchema } from "./sql-value";
-import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
@@ -87,31 +86,21 @@ export const cellCodec = (db: CellDb, ids: CellIds): CellCodec => {
       ? null
       : { kind, name: file.name ?? file.sha, path: url, place: url, sha: file.sha };
   };
-  // a `[[Title|id]]` the view wrote names its item by id; a `[[Title]]` an agent wrote, by title
-  const wiki = (link: WikiBody, embed: boolean) => {
-    const file = embed ? fileAt(link.target) : null;
-    if (file !== null) {
-      return { file, kind: "file" as const };
-    }
-    const byId = link.alias !== undefined && isUuidWikiAlias(link.alias) ? link.alias : null;
-    const named = byId === null ? null : title(byId);
-    const itemId = named === null ? itemByTitle(link.target) : byId;
-    return itemId === null
-      ? null
-      : { itemId, kind: "item" as const, title: title(itemId) ?? link.target };
-  };
+  const fileKind = (sha: string): FileKind | null => fileKindOf(db, sha);
+  const links = libraryLinks({ fileKind, itemByTitle, title });
   return {
     edit: {
-      fileKind: (sha) => fileKindOf(db, sha),
+      fileKind,
       itemByTitle,
       newBlockId: ids.block,
       title,
     },
     importing: (now) => ({
       file: fileAt,
+      item: links.item,
       newBlockId: ids.block,
       now,
-      wiki,
+      wiki: links.wiki,
     }),
     view: { title },
   };

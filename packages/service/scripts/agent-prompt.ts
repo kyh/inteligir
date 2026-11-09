@@ -52,7 +52,8 @@ const systemPrompt = (): string => {
   return system;
 };
 
-// the module as the formatter leaves it: one string literal, on the line after its name
+// one string literal, on the line after its name; the formatter leaves the module alone
+// (`.oxfmtrc.json`), since it picks the literal's quotes by which the prompt holds fewer of
 const moduleText = (system: string): string =>
   [
     "// Written by packages/service/scripts/agent-prompt.ts from @repo/agent-skills: edit the skills",

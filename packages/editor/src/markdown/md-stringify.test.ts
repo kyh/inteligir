@@ -1,54 +1,44 @@
-import type { PhrasingContent } from "mdast";
-import { toMarkdown } from "mdast-util-to-markdown";
+import type { TElement } from "platejs";
 import { describe, expect, it } from "vitest";
 
-import { MD_STRINGIFY } from "./md-plugins";
+import { readValue, writeValue } from "@repo/editor/test-support/markdown-meaning";
 
-const breakAfter = (before: PhrasingContent): string =>
-  toMarkdown(
-    {
-      children: [
-        {
-          children: [before, { type: "break" }, { type: "text", value: "next" }],
-          type: "paragraph",
-        },
-      ],
-      type: "root",
-    },
-    MD_STRINGIFY,
-  );
+const paragraph = (children: TElement["children"]): TElement => ({ children, type: "p" });
 
-const linkTo = (url: string): PhrasingContent => ({
-  children: [{ type: "text", value: url }],
-  type: "link",
-  url,
-});
+const link = (url: string): TElement => ({ children: [{ text: url }], type: "a", url });
 
-describe("MD_STRINGIFY hard break", () => {
-  it("is a backslash after ordinary text", () => {
-    expect(breakAfter({ type: "text", value: "line" })).toBe("line\\\nnext\n");
-  });
-
-  it("is two trailing spaces after a bare url, which would read a backslash as its own", () => {
-    const rows: [PhrasingContent, string][] = [
-      [{ type: "text", value: "see https://example.com/a" }, "see https://example.com/a  \nnext\n"],
+// gfm reads a bare url off finished text, so the url a hard break follows must not take the
+// break's backslash as its own
+describe("a hard break", () => {
+  it("is a backslash, and reads back a break after text, a url and a link alike", () => {
+    const rows: [TElement, string][] = [
+      [paragraph([{ text: "line\nnext" }]), "line\\\nnext\n"],
       [
-        { children: [{ type: "text", value: "http://example.com" }], type: "strong" },
-        "**http://example.com**  \nnext\n",
+        paragraph([{ text: "see " }, link("https://example.com/a"), { text: "\nnext" }]),
+        "see <https://example.com/a>\\\nnext\n",
+      ],
+      [
+        paragraph([link("https://example.com/a!"), { text: "\nnext" }]),
+        "<https://example.com/a!>\\\nnext\n",
       ],
     ];
-    for (const [before, expected] of rows) {
-      expect(breakAfter(before)).toBe(expected);
+    for (const [block, written] of rows) {
+      expect(writeValue([block])).toBe(written);
+      const [read] = readValue(written);
+      expect(read?.children.at(-2)).toStrictEqual({ text: "\n" });
+      expect(read?.children.at(-1)).toStrictEqual({ text: "next" });
     }
   });
 
-  it("is two trailing spaces after a link spelled bare", () => {
-    expect(breakAfter(linkTo("https://example.com"))).toBe("https://example.com  \nnext\n");
-  });
-
-  it("stays a backslash after a url in link syntax", () => {
-    expect(breakAfter(linkTo("https://example.com/a!"))).toBe(
-      "[https://example.com/a!](https://example.com/a!)\\\nnext\n",
-    );
+  it("keeps a typed url whole before it, which reads back as its link", () => {
+    const written = writeValue([paragraph([{ text: "see https://example.com/a\nnext" }])]);
+    expect(readValue(written)).toStrictEqual([
+      paragraph([
+        { text: "see " },
+        link("https://example.com/a"),
+        { text: "\n" },
+        { text: "next" },
+      ]),
+    ]);
   });
 });

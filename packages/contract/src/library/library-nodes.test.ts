@@ -19,13 +19,8 @@ const EVERY_BLOCK = [
       { bold: true, text: "Bold" },
       { italic: true, text: " italic" },
       { children: [{ code: true, text: "link" }], type: "a", url: "https://example.com" },
-      { alias: "shown", children: leaf, itemId: "item-2", title: "Other", type: "wikiLink" },
-      { children: leaf, itemId: null, title: "Not yet", type: "wikiLink" },
-      { blockRef: "b1", children: leaf, itemId: "item-3", title: "Third", type: "wikiEmbed" },
-      { alias: "300", children: leaf, itemId: null, title: "shot.png", type: "wikiEmbed" },
-      { children: leaf, heading: "Rollback", itemId: null, title: "", type: "wikiLink" },
-      { blockRef: "b1", children: leaf, itemId: null, title: "", type: "wikiEmbed" },
-      { children: leaf, itemId: "item-4", title: "", type: "wikiLink" },
+      { children: leaf, key: "item-2", type: "mention", value: "Other" },
+      { children: leaf, key: "item-4", type: "mention", value: "" },
       { text: " #work/plans " },
       { children: leaf, date: "2026-07-01", type: "date" },
       {
@@ -36,14 +31,13 @@ const EVERY_BLOCK = [
         type: "formulaPill",
       },
       { children: leaf, texExpression: "x^2", type: "inline_equation" },
-      { children: leaf, source: "<!-- kept -->", type: "opaque" },
     ],
     id: "p1",
     indent: 1,
     listStyleType: "todo",
     type: "p",
   },
-  { children: [{ text: "Title" }], id: "h1", ref: "intro", type: "h1" },
+  { children: [{ text: "Title" }], id: "h1", type: "h1" },
   { children: [{ text: "Part" }], id: "h2", type: "h2" },
   { children: [{ text: "Section" }], id: "h3", type: "h3" },
   { children: [{ text: "Four" }], id: "h4", type: "h4" },
@@ -56,9 +50,8 @@ const EVERY_BLOCK = [
     lang: "ts",
     type: "code_block",
   },
-  { children: leaf, id: "hr1", type: "hr" },
+  { children: leaf, id: "hr1", indent: 2, type: "hr" },
   {
-    align: ["left", null],
     children: [
       {
         children: [
@@ -69,6 +62,7 @@ const EVERY_BLOCK = [
       },
     ],
     id: "t1",
+    indent: 2,
     type: "table",
   },
   { children: [{ text: "More" }], id: "tg1", type: "toggle" },
@@ -123,13 +117,17 @@ describe("the persisted node set", () => {
     ["a mark spelled false", { children: [{ bold: false, text: "a" }], id: "p", type: "p" }],
     ["a void with text inside", { children: [{ text: "x" }], id: "hr", type: "hr" }],
     ["an id with a newline", { children: [{ text: "a" }], id: "a\nb", type: "p" }],
-    ["a ref that names no block", { children: [{ text: "a" }], id: "p", ref: "a b", type: "p" }],
     [
-      "a ref inside a block",
+      "a block's ref, which no link reaches",
+      { children: [{ text: "a" }], id: "p", ref: "a", type: "p" },
+    ],
+    ["a table's alignment", { align: ["left"], children: [], id: "t", type: "table" }],
+    [
+      "a link's title",
       {
-        children: [{ children: [{ text: "a" }], ref: "inner", type: "p" }],
-        id: "q",
-        type: "blockquote",
+        children: [{ children: [{ text: "a" }], title: "t", type: "a", url: "https://a.b" }],
+        id: "p",
+        type: "p",
       },
     ],
     [
@@ -154,20 +152,24 @@ describe("the persisted node set", () => {
       { children: [{ children: leaf, type: "tag", value: "work" }], id: "p", type: "p" },
     ],
     [
-      "an embed with no title",
-      { children: [{ children: leaf, itemId: "item-3", type: "wikiEmbed" }], id: "p", type: "p" },
-    ],
-    [
-      "a link that reaches nothing",
+      "a page link to no item",
       {
-        children: [{ alias: "shown", children: leaf, itemId: null, title: "", type: "wikiLink" }],
+        children: [{ children: leaf, key: "", type: "mention", value: "Note" }],
         id: "p",
         type: "p",
       },
     ],
     [
-      "the old wiki link spelling",
-      { children: [{ body: "Note", children: leaf, type: "wikiLink" }], id: "p", type: "p" },
+      "a wiki link, which a page link stands for",
+      {
+        children: [{ children: leaf, itemId: "i", title: "N", type: "wikiLink" }],
+        id: "p",
+        type: "p",
+      },
+    ],
+    [
+      "source no node models",
+      { children: [{ children: leaf, source: "<!-- x -->", type: "opaque" }], id: "p", type: "p" },
     ],
   ])("refuses %s", (_, block) => {
     expect(libraryBlockSchema.validate(block)).toBe(false);

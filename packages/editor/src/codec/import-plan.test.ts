@@ -283,36 +283,50 @@ describe("an Obsidian vault read into the library", () => {
     expect(byTitle(library, "spec").folderPath).toBe("Projects/Specs");
   });
 
-  it("resolves links by path, name, alias and id, a block ref beside them", () => {
+  it("links a page by path, name and alias, its anchor and alias dropped, and leaves a miss its text", () => {
     const links = nodesOf(daily).flatMap((node) =>
-      "type" in node && node.type === "wikiLink" ? [node] : [],
+      "type" in node && node.type === "mention" ? [node] : [],
     );
-    expect(
-      links.map(({ alias, blockRef, itemId, title }) => ({ alias, blockRef, itemId, title })),
-    ).toStrictEqual([
-      { alias: undefined, blockRef: "goal", itemId: PROJECT_ID, title: "Project X" },
-      { alias: "the project", blockRef: undefined, itemId: PROJECT_ID, title: "Project X" },
-      { alias: undefined, blockRef: undefined, itemId: PROJECT_ID, title: "Project X" },
-      { alias: undefined, blockRef: undefined, itemId: null, title: "Missing" },
-      { alias: undefined, blockRef: undefined, itemId: PROJECT_ID, title: "Project X" },
+    expect(links.map(({ key, value }) => ({ key, value }))).toStrictEqual([
+      { key: PROJECT_ID, value: "Project X" },
+      { key: PROJECT_ID, value: "Project X" },
+      { key: PROJECT_ID, value: "Project X" },
     ]);
+    expect(textOf(daily)).toContain(" and [[Missing]].");
+    expect(textOf(daily)).toContain(`By id: [[Renamed|${PROJECT_ID}]]`);
   });
 
-  it("names a block by its `^ref`, on its own line or at its end", () => {
-    expect(project.blocks.map(({ block }) => [block.type, block.ref])).toStrictEqual([
-      ["p", "goal"],
-      ["table", "tbl"],
-    ]);
-    expect(JSON.stringify(project.blocks[0]?.block)).not.toContain("^goal");
+  it("keeps a `^ref` the words it is: no block is named by one", () => {
+    expect(project.blocks.map(({ block }) => block.type)).toStrictEqual(["p", "table", "p"]);
+    expect(textOf(project)).toContain("The goal is shipping. ^goal");
+    expect(textOf(project)).toContain("^tbl");
   });
 
-  it("reads a comment out of the person's writing, and keeps a highlight and a tag their text", () => {
-    const nodes = nodesOf(daily);
-    expect(textOf(daily)).toContain("An ==important== line ");
-    expect(nodes.filter((node) => "type" in node && node.type === "opaque")).toStrictEqual([
-      { children: [{ text: "" }], source: "%%not shown%%", type: "opaque" },
+  it("keeps a comment, a highlight and a tag the text they are", () => {
+    expect(textOf(daily)).toContain(
+      "An ==important== line %%not shown%% under #log and #log/today.",
+    );
+  });
+
+  it("reads a link this app's export wrote by its item's id, and one to no item as its words", () => {
+    const { items } = readFolder(
+      {
+        "Beta.md": `---\nid: ${PROJECT_ID}\n---\nBeta's words.\n`,
+        "Alpha.md": `See [Old title](mention:${PROJECT_ID}) and [Gone](mention:0195f3a0-5c1e-7000-8000-0000000000ff).\n`,
+      },
+      new Map(),
+    );
+    const alpha = items.find((item) => item.fields.title === "Alpha");
+    expect(alpha?.blocks.map(({ block }) => block)).toMatchObject([
+      {
+        children: [
+          { text: "See " },
+          { key: PROJECT_ID, type: "mention", value: "Beta" },
+          { text: " and Gone." },
+        ],
+        type: "p",
+      },
     ]);
-    expect(textOf(daily)).toContain(" under #log and #log/today.");
   });
 
   it("plans no more aliases than an item holds", () => {

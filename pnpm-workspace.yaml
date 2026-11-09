@@ -132,6 +132,7 @@ catalog:
   # worklets is reanimated 4's own peer
   react-native-reanimated: 4.5.1
   react-native-worklets: 0.10.1
+  remark-directive: ^4.0.0
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0

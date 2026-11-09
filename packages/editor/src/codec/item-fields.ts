@@ -33,7 +33,7 @@ export type FileFields = Omit<
 >;
 
 export interface FrontmatterRead {
-  // the `id:` the file carries, which a `[[Title|uuid]]` keys by
+  // the `id:` the file carries, which a page link this app's export wrote keys by
   readonly id: string | null;
   readonly fields: FileFields;
   // a block that is not YAML, as written

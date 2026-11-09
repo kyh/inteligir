@@ -1,13 +1,14 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it round-trips, an open item's merge, and the
+The editor, the dialect it reads and writes, an open item's merge, and the
 dialect's one grammar with the links and a file's facts it reads.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
 The Plate WYSIWYG: kits and nodes for every dialect construct, the md-rules
-table, the fixpoint serializer and its fixtures, and an item's editor
+table over Plate's stock markdown and the suites that hold what it means, and
+an item's editor
 (`packages/editor/src/item/item-editor.tsx`) a host drives through its
 session's ports and the `EditorHost` singleton
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
@@ -16,9 +17,7 @@ one `installEditorHost` call per host. Its
 LIBRARY) and carries the link resolver store, so no host writes its own; its
 `EditorHostActions` (Ask agent, `showTag` and a new note, all required) are
 how a deep node asks the shell. The item editor provides the id of the item it
-shows (`open-item.tsx`), which a heading's fold and an embed's cycle check are
-keyed by.
-`static-note.tsx` draws an item's blocks read-only, for an embed. `node-props.ts` is the
+shows (`open-item.tsx`), which a heading's fold is keyed by. `node-props.ts` is the
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
 alone, and no walk narrows structurally.
@@ -29,35 +28,43 @@ alone, and no walk narrows structurally.
 
 - **THE EDITOR IS A WYSIWYG OVER AN ITEM'S BLOCKS, AND EVERY MARKDOWN THE
   CODEC WRITES GOES THROUGH `serializeNote`** (epic #579, owner decision).
-  Plate.js over one owned parse, one rule table and a bounded fixpoint. The
-  live editor writes block ops, never markdown (AN ITEM IS EDITED BY ITS ID);
-  the codec's import and export, the agent's view and edits, and the block
-  merge's markdown all call `serializeNote`, since the rule table expects its
-  whole-value pre-pass. Byte stability is the codec's tested contract: a
-  canonical file round-trips byte-exact, a churn-class construct may
-  canonicalize on its first read (said per fixture), the fixtures are
-  formatter-exempt, and a file nested past what the conversion and the writer
-  hold is refused (an import leaves it out, an agent's edit is turned down, a
-  paste lands as plain text), so every item opens rich and writes. A list is
-  flat in the model, so nothing but a cap holds it inside the writer's
-  recursion: `LIST_MAX_INDENT`, which the rule table refuses past, the
-  vocabulary stores no deeper than and a Tab stops at. Any other nesting is
-  refused where a stack runs out, which V8 says as a RangeError or, compiling a
-  regular expression, as a SyntaxError (`withinStack`). Rejected: a raw
-  editor beside the rich one (markdown is not at rest), a paragraph rule's
-  prune (a heading or list item saved `**a****b**`), Plate's `serializeMd` (no
-  pre-pass, a ZWSP beside every chip) and a catch per item around a write (a
-  list a writer cannot hold would land, and read nowhere after).
-  `packages/editor/src/markdown/markdown-doc.ts`, `packages/editor/README.md`
+  Plate.js over Plate's stock markdown: one remark plugin list
+  (`@repo/editor/markdown/md-plugins`) and one rule table
+  (`@repo/editor/markdown/md-rules`) for the nodes Plate's own table lacks or
+  gets wrong. The live editor writes block ops, never markdown (AN ITEM IS
+  EDITED BY ITS ID); the codec's import and export, the agent's view and edits,
+  and the block merge's markdown all call `serializeNote`, since the rule table
+  expects its whole-value pre-pass (a block nested in a list, an empty
+  equation). Meaning is the codec's tested contract, never bytes: a read keeps
+  every letter a person wrote, a write is its own fixpoint, and what a value
+  means survives a write and a read, over every node the model holds
+  (`packages/editor/src/markdown/md-matrix.test.ts`), the corpus
+  (`md-corpus.test.ts`) and typed text (`md-text-safety.test.ts`); the
+  fixtures are formatter-exempt. `readMarkdown` refuses with a typed reason, never
+  a throw: a file nested past what the conversion and the writer hold is
+  `too-deep` and a rule that throws is `failed`, and every caller treats
+  either as a refusal (an import leaves the file out, an agent's edit is turned
+  down, a paste lands as plain text). A list is flat in the model, so nothing
+  but a cap holds it inside the writer's recursion: `LIST_MAX_INDENT`, which
+  the read refuses past, the vocabulary stores no deeper than and a Tab stops
+  at. Any other nesting is refused where a stack runs out, which V8 says as a
+  RangeError or, compiling a regular expression, as a SyntaxError
+  (`withinStack`). Rejected: a byte-exact codec of our own (most of the
+  editor's code, for round trips no reader needs); a raw editor beside the rich
+  one (markdown is not at rest); Plate's bare `serialize` (no pre-pass); and a
+  catch per item around a write (a list a writer cannot hold would land, and
+  read nowhere after). `packages/editor/src/markdown/markdown-doc.ts`,
+  `packages/editor/src/markdown/md-read.ts`, `packages/editor/README.md`
   § Invariants.
 
-- **THE FIXPOINT RUNS HEADLESS, AND AN IMPORTED PAGE IS WRITTEN AS ITS OWN
+- **THE MARKDOWN RUNS HEADLESS, AND AN IMPORTED PAGE IS WRITTEN AS ITS OWN
   FIXPOINT.** The base kits are headless files
   (`packages/editor/src/kits/headless/`), each live kit adding its components,
-  so the fixpoint runs in node with no React, `@repo/ui` or renderer
+  so the codec runs in node with no React, `@repo/ui` or renderer
   (`packages/editor/src/headless-kits.test.ts`). `canonicalizeImported` answers
-  an imported page's canonical markdown and the share of its letters kept, or
-  nothing when the result is not canonical
+  an imported page's markdown as its blocks write it and the share of its
+  letters kept (`lettersKept`, a multiset, so a letter dropped is not paid back
+  by one the writer added), or nothing when the read refuses it
   (`packages/editor/src/markdown/markdown-doc.ts`).
 
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
@@ -71,51 +78,68 @@ alone, and no walk narrows structurally.
   (`tools/repo-guards/src/appearance-tokens.test.ts`). Rejected: an accent axis
   (nothing in Plate consumes a hue).
 
-- **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
-  `[[#H]]` / `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe
-  starts the alias, an anchor alone stays in its own item, a link by id may hold
-  no title while its item has none, and a body that reaches nothing is kept as
-  its source), `{{source|display|meta}}` formula pills, `@2026-08-22` date
-  chips, `<u>…</u>` underline, GitHub alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
-  `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
-  `:::columns` containers, the top-level `:::article` that holds the page a
-  fill read, and `![](url)` embeds, all valid, round-tripping markdown, the
-  article through the codec alone (the live editor holds no section). Only a
-  web url embeds (`![](path)` is a file the import resolves to its bytes; alt
-  text or a title keeps a web image an image). Every spelling lives in
+- **NOTES SPEAK THE INTELIGIR DIALECT, AND IT IS STOCK MARKDOWN WITH
+  DIRECTIVES** (#931, owner decision). CommonMark and GFM as Plate writes them;
+  a page link is Plate's mention, written `[Title](mention:<id>)`, an untitled
+  item's as `[Untitled](…)`, which reads back as no title; `:date[2026-08-22]`
+  date chips and `:formula[display]{source="…" meta="…"}` formula pills;
+  inline math `$$…$$` (a single `$` is text); GitHub alerts (`> [!NOTE]` …
+  `> [!CAUTION]`) as THE callout; `inteligir-chart` / `inteligir-canvas` /
+  `inteligir-html` fences, and Mermaid a stock code block; the `::::tabs` of
+  `:::tab[Label]` panels, `:::toggle` and the `::::columns` of
+  `:::column{width="40%"}` containers; the top-level `article` container that
+  holds the page a fill read, the article through the codec alone (the live
+  editor holds no section); and `![](url)` embeds. A bare url is written
+  `<url>`. Only a web url embeds (`![](path)` is a file the import resolves to
+  its bytes; alt text or a title keeps a web image an image). What markdown
+  cannot spell is lost on a write, each loss in the changelog: underline, a
+  link's title, a table's alignment, an image's width, a web file's name, an
+  ordered list's restart inside a run, and a heading or a quote as a list item,
+  which stands outside the list. Every fence name lives in
   `@repo/editor/markdown/fence-langs`, which
-  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. The codec
-  writes plain `.md`: no bundles, no meta.json.
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to, and the
+  skills' examples read as the constructs they show
+  (`packages/editor/src/skill-examples.test.ts`). The codec writes plain `.md`:
+  no bundles, no meta.json. Rejected: transclusion (`![[Note]]` reads as a link,
+  and nothing draws another item's text inside one); an owned grammar for any
+  of it (STOCK BEFORE CUSTOM, in `AGENTS.md`).
+  `packages/editor/src/markdown/md-plugins.ts`,
+  `packages/editor/src/markdown/md-rules.ts`.
 
-- **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
-  TEXT.** Pills, dates and `:::` lines are read from
-  finished text, so a backslash before one's first character keeps it text
-  (`\@2026-08-22`), and the serializer writes that escape before typed text the
-  next parse would read as one, so what a person types stays text. A
-  `=== Label` line is one finished text too: a label is plain words, a construct in one leaves the
-  whole group prose, and the writer escapes a label that would read as one, a
-  bare url among them, since what GFM reads past that escape is still the line's
-  text.
-  Rejected: reading a construct in a label (a label is a string, with no inline
-  to hold it). Obsidian's spellings in a note hold to the same rule (MARKDOWN
-  IS A CODEC BESIDE THE LIBRARY).
-  `packages/editor/src/markdown/text-escapes.ts`,
-  `packages/editor/src/markdown/remark-inline-constructs.ts`,
-  `packages/editor/src/markdown/remark-containers.ts`.
+- **A DIRECTIVE THE DIALECT DOES NOT NAME IS ITS TEXT, AND TYPED TEXT STAYS
+  TEXT.** remark-directive reads every `:name`, `::name` and `:::name`, so a
+  directive the dialect does not read (an unknown name, a leaf, a date that is
+  no day) is restored to the bytes that wrote it, an unknown container's
+  marker lines as paragraphs around what it held. Inside a line the writer
+  escapes a `:` only before `date` or `formula`, the names that could turn
+  typed text into a node, so `10:30` stays as typed; a line that opens with
+  colons keeps the stock escape. Every text a person types reads back as
+  itself, and a url they type becomes its link
+  (`packages/editor/src/markdown/md-text-safety.test.ts`). Rejected: the
+  directive writer's own escape before any word (`10\:30` on every save), and
+  reading constructs from finished text (an owned grammar beside the stock
+  one). `restoreUnknownDirectives` in
+  `packages/editor/src/markdown/md-plugins.ts`.
 
-- **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
-  in any flow container, a `:::` closing the innermost, and every tag is html,
-  the editor's own only where it is a bare `<u>` or a `<br/>` in a table cell
-  (A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS)
-  (`@repo/editor/markdown/remark-containers`). Rejected: jsx tags for the toggle,
+- **THE DIALECT HAS NO JSX, AND RAW HTML IS ITS TEXT**: its blocks are
+  remark-directive's containers, a container holding others written with a
+  longer fence than theirs, and a tag is the text it spells: the persisted set
+  holds no raw leaf, and a `<br>` reads as a line break (A `<br/>` IN A TABLE
+  CELL IS THE BOUNDARY BETWEEN ITS BLOCKS). Rejected: jsx tags for the toggle,
   columns, dates and embeds (an MDX tokenizer in the grammar, a jsx writer in
-  the serializer, and tags other markdown tools draw as raw html), and a date as
-  a `[[YYYY-MM-DD]]` link (it costs the chip and its calendar).
+  the serializer, and tags other markdown tools draw as raw html); a raw html
+  node (a second spelling of what the blocks hold, and markup the editor cannot
+  edit); and a date as a `[[YYYY-MM-DD]]` link (it costs the chip and its
+  calendar). `packages/editor/src/markdown/md-rules.ts`.
 
-- **THE ALERT IS THE ONLY CALLOUT** (owner decision): an `inteligir-callout`
-  fence is a plain code block and a `<callout>` tag is carried as its source,
-  both saved byte-exact. Rejected: reading either as a callout, a second grammar
-  with its own node and index pass for kinds the five alerts cannot spell.
+- **THE ALERT IS THE ONLY CALLOUT** (owner decision): a quote whose text
+  leads with `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]`,
+  in either case, reads and writes as that alert; a marker of any other kind is
+  escaped on the write, so it stays a quote's text. An `inteligir-callout`
+  fence is a plain code block and a `<callout>` tag its text. Rejected: reading
+  either as a callout, a second grammar with its own node and index pass for
+  kinds the five alerts cannot spell.
+  `packages/editor/src/markdown/md-alerts.test.ts`.
 
 - **AN ITEM'S PROPERTIES ARE ITS FIELDS, AND THE PANEL DRAWS ANY SOURCE OF
   ROWS**: an item opened by id reads and patches its own `properties` field,
@@ -132,7 +156,7 @@ alone, and no walk narrows structurally.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown
-  re-parses to a modeled construct and is its own fixpoint, and no two rows
+  escapes none of the constructs it inserts and is its own fixpoint, and no two rows
   write the same bytes, so a second name is a keyword on its row (`/day` finds
   Date). A soft keyboard has no chord and a finger no hover, so each touch
   toolbar button is a row of a table the desktop reads; only what no table holds
@@ -192,23 +216,12 @@ alone, and no walk narrows structurally.
   `packages/editor/src/heading-collapse.tsx`,
   `packages/editor/src/block-draggable.tsx`.
 
-- **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
-  An embed inside an embed stays a chip, the nesting stop, so the only cycle
-  left to refuse is a note embedding itself
-  (`packages/editor/src/transclusion-guard.ts`). An embed of a heading draws
-  its section, to the next heading of its level or above, an embed of a block
-  that block, and an anchor gone says so rather than drawing all of the item.
-  PlateStatic's default element draws a void empty or throws, so the static
-  table holds a row for every void (`packages/editor/src/transclusion.tsx`).
-
-- **A SAVE KEEPS EVERY LINE BREAK.** The rule table keeps the leading `"\n"`
-  (a soft break after an inline node) that Plate's default text rule drops. A
-  soft break saves as a hard break, since the model holds both as one `"\n"`;
-  the hard break is `\`, except after a bare url, which would read it as its
-  own. A save may split a line, never join two, and
-  `analyzeMarkdown` names one that would a loss
-  (`packages/editor/src/markdown-fixpoint.test.ts`).
-  `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
+- **A SAVE KEEPS EVERY LINE BREAK.** A soft break saves as a hard break,
+  since the model holds both as one `"\n"`, and the hard break is a backslash;
+  a link is always a link node, so a url before the break is written `<url>`
+  and never takes the backslash into its address. A save may split a line,
+  never join two. `packages/editor/src/markdown/md-stringify.test.ts`,
+  `packages/editor/src/markdown/md-rules.ts`.
 
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
@@ -292,40 +305,38 @@ alone, and no walk narrows structurally.
   `@repo/editor/codec/*` reaches no React, so it runs wherever the library
   does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
   item's fields and blocks over the rule table and writes one back as
-  markdown, a file under the item's name, so
-  `import(export(item))` is the item, ids aside, over every fixture, and a
-  canonical file exports its own body but for the changes the test names
-  (`packages/editor/src/codec/item-markdown.test.ts`); a value is settled
-  through the serializer before it is mapped, so an import is its own
-  fixpoint. The rule table reads and writes the library's own nodes, so the
-  codec only names what the dialect spells by words: a link's title to its
-  item's id on the way in (`read-blocks.ts`), and on the way out an id to the
-  name the caller spells it with and a sha to a path (`write-blocks.ts`).
-  Obsidian's `%%x%%` and `^ref` read in the note's section only, off its tree
-  ahead of the settle, where an escape still shows, so text a person typed that
-  looks like one comes back as text; a `ref` is a node of its own from there to
-  the block, written bare where typed text is escaped. Its `==mark==` is the
-  text it spells, since an item keeps no highlight. Rejected: reading them from
-  the settled value (an escape is gone there, so a written `50\%% or 60%%` came
-  back a comment), and from text a page wrote (the page keeps its words). `packages/editor/src/markdown/remark-obsidian.ts`.
-  A block no store takes is counted among what an import could not read, and
-  an edit, a note the agent writes or a save's note holding one is turned
-  down; a link or image with no address is its words or its source, so it
-  takes no block with it, and one with a title is its source, which keeps the
-  title (`packages/editor/src/markdown/remark-opaque.ts`). A list item is its
-  words: a list an item opens with nests under an empty line, and any other
-  block it opens with keeps its type and stands outside the list where the item
-  stood, a to-do's box on a line above it. Rejected: Plate's list rule (it made every such block a `p`, which
-  holds no address, fence or source, and laid a nested list over its parent's
-  line). What follows a `$$` on its line leads the expression, since an
-  equation holds no fence meta and a person who opens `$$ E = mc^2` wrote it
-  there. An agent's edit must match once, keep the article's own lines and nest
-  no deeper than the editor reads; only the blocks it spans are read again,
-  matched by content so the rest keep their ids. Rejected: a second markdown grammar for import
-  (two readings drift) and re-reading a whole item per edit (every block's id
-  would turn over).
-  `packages/editor/src/markdown/md-rules.ts`,
-  `packages/editor/src/codec/item-edit.ts`.
+  markdown, a file under the item's name, so `import(export(item))` means the
+  item, ids aside, over every fixture
+  (`packages/editor/src/codec/item-markdown.test.ts`). The rule table reads
+  and writes the library's own nodes, so the codec only names what the
+  dialect spells by words: a page link's id to an item the reader knows on the
+  way in, a link to no item it knows staying its words (`read-blocks.ts`), and
+  on the way out an id to the title the caller spells it with and a sha to a
+  path (`write-blocks.ts`). Obsidian's `[[Title]]`, `[[Title#Heading]]`,
+  `[[Title|alias]]` and `![[…]]` are read only where markdown comes in from
+  outside the library, an import and the agent's text, through the resolver
+  the caller hands in: a page it names is a page link, its anchor and alias
+  dropped, a file an embed names an image of that file, and anything it names
+  nothing for stays the text it was, never to become a link later
+  (`packages/editor/src/markdown/remark-wiki-import.ts`). `[[#Heading]]`,
+  `^ref`, `%%…%%` and `==…==` are the text they spell, since an item keeps no
+  anchor, block id, comment or highlight. A block no store takes is counted
+  among what an import could not read, and an edit, a note the agent writes or
+  a save's note holding one is turned down; a link or image with no address is
+  its words or its source, so it takes no block with it, and a definition
+  nothing uses is the line it was written as. A list item is its words, and a
+  block nested in one sits at the item's indent plus one; one the item opens
+  with nests under an empty line. Rejected: Plate's list rule alone (it made
+  every such block a `p`, which holds no address, fence or source). What
+  follows a `$$` on its line leads the expression, since an equation holds no
+  fence meta and a person who opens `$$ E = mc^2` wrote it there. An agent's
+  edit must match once, keep the article's own lines and nest no deeper than
+  the editor reads; only the blocks it spans are read again, matched by
+  content so the rest keep their ids. Rejected: a second markdown grammar for
+  import (two readings drift) and re-reading a whole item per edit (every
+  block's id would turn over). `packages/editor/src/markdown/md-rules.ts`,
+  `packages/editor/src/codec/item-edit.ts`,
+  `packages/editor/src/codec/library-links.ts`.
 
 - **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
   OPS.** `createItemSession` opens an item over its host's read, write and word
@@ -369,9 +380,10 @@ alone, and no walk narrows structurally.
   feed's `titleOf` is live, and `readFile(sha)` answers from the host's file
   source (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app
   alike; the phone's cache over the bridge). A media block holds `{sha}` (a file its
-  `name`) or a web `{url}`, its type the Blob's. A link reaches an item only by
-  `[[…]]`, by its id or by `titleKey`, the key the cell resolves a title by; a
-  markdown url resolves by path only in an import. Rejected: paths a host maps
+  `name`) or a web `{url}`, its type the Blob's. A page link reaches an item by
+  its id, the mention's key; a `[[Title]]` in an import or the agent's text
+  reaches one by `titleKey`, the key the cell resolves a title by; a markdown
+  url resolves by path only in an import. Rejected: paths a host maps
   to items (two titles share one); `mime` on the block (a second copy of the
   file's type). `packages/editor/src/host-io.ts`,
   `packages/editor/src/nodes/library-file.ts`.
@@ -397,28 +409,29 @@ alone, and no walk narrows structurally.
   phone's page keeps the ids and hashes, which name nothing, past a sign-out.
   `packages/editor/src/heading-collapse.tsx`.
 
-- **A SPAN HELD LITERALLY KEEPS ITS PIPES IN A TABLE CELL.** A wiki body and an
-  inline equation are read as source, so a row's `\|` reaches them: each drops
-  it on the read, as gfm does for inline code, and writes a bare pipe that way,
-  which is how Obsidian spells `[[Title\|alias]]`. TeX's own `\|` would read
-  back as a pipe, so in a cell it is written `\Vert`, the same bar. A code
-  span's own `\|` has no spelling in a cell, and gfm's handler would write it
-  as a divider, so it gains a backslash and the row stands. Rejected: `\vert`
-  for a bare pipe (it means nothing in `\begin{array}{c|c}` or `\text{a|b}`),
-  and escaping with no read (`|x|` would come back as `\|x\|`, a different
-  bar). `packages/editor/src/markdown/line-scan.ts`,
+- **A TABLE CELL KEEPS A CODE SPAN'S AND AN EQUATION'S PIPES.** gfm splits a
+  row at every bare pipe before any inline is read. An inline equation in a
+  row writes its pipes as `\|` and reads them back as gfm reads a code span's,
+  and TeX's own `\|` is written `\Vert`, the same double bar. A code span's
+  pipe is written after an odd run of backslashes, which gfm pairs back to the
+  span's own; an odd run the span held itself has no spelling, so it reads
+  back one backslash longer and from there holds. A pipe in a directive's
+  attribute, which has no backslash escape, is written as the character
+  reference the value decodes. Rejected: `\vert` for a bare pipe (it means
+  nothing in `\begin{array}{c|c}` or `\text{a|b}`), and gfm's own handler (a
+  span's `\|` would write a divider).
   `packages/editor/src/markdown/md-plugins.ts`.
 
 - **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
   writer joins a cell's blocks with that tag and has no other word for a cell's
-  second line, so the read cuts a cell at it. An image is a block wherever it
-  stands in a cell, so a tag beside one, a space between them or not, is the
-  edge it already has. A cell settles on its first write, and its two lines
-  stay two through an edit anywhere in the table. Only the writer's spelling is
-  the boundary: `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of the table
-  would turn a person's second line into a tag), an inline image in a cell (a
-  second image node for one place), and a writer that drops the tag beside an
-  image (it would filter Plate's private output).
+  second line, so the read cuts a cell at any `<br>` it holds. An image is a
+  block wherever it stands in a cell, so a tag beside one, a space between them
+  or not, is the edge it already has, and a line of spaces alone holds no words
+  of the cell's. A cell settles on its first write, and its two lines stay two
+  through an edit anywhere in the table. Rejected: holding the tag as source
+  (a re-read of the table would turn a person's second line into a tag), an
+  inline image in a cell (a second image node for one place), and a writer that
+  drops the tag beside an image (it would filter Plate's private output).
   `packages/editor/src/markdown/md-rules.ts`.
 
 - **WITH NO CONNECTION AN ITEM READS BUT TAKES NO EDIT, AND ONE TYPED BEFORE
@@ -453,30 +466,22 @@ alone, and no walk narrows structurally.
 
 ## The grammar, links and a file's facts
 
-- **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
-  of markdown, the codec, an import and the editor alike, parses through one
-  plugin list (`@repo/editor/markdown/md-plugins`), so what reads as prose is
-  what the editor draws as prose: no indented code, no flow html, and math as
-  latex, never a link. No input throws: with no jsx or expressions, `<` opens an
-  html tag, an autolink or text and `{` is prose, and a tag folds with its
-  closer as the tree compiles (`@repo/editor/markdown/remark-inline-html`), as
-  the editor pairs it, or stays an `html` literal. An escape stays on the text
-  it wrote even where GFM splits that text for a bare url
-  (`@repo/editor/markdown/text-escapes`). A reference reads as the link or image
-  it names and a definition one used goes, so every reader after the parse
-  meets a link; a definition nothing used stays its line, as source
-  (`@repo/editor/markdown/remark-references`,
-  `@repo/editor/markdown/remark-opaque`). A footnote reads as its text by the
-  time the parse ends: its call the `[^label]` it spells, and its definition
-  its own blocks where it stood, led by `[^label]: `, so its words are searched
-  like any others and an edit of a call's line alone reads it the same.
-  Rejected: a second, plain-markdown grammar for an import (it needed a bridge
-  to say where the two disagreed), a node for a reference in the library (a
-  second spelling of every link), holding a footnote as its source (its words
-  would go unsearched, and an edit would read a call apart from its
-  definition), and switching GFM's footnote constructs off (CommonMark would
-  read `[^a]: word` as a link definition, and the call as a link to its words).
-  `packages/editor/src/markdown/total-grammar.test.ts`.
+- **EVERY READER PARSES THROUGH ONE PLUGIN LIST, AND NO INPUT THROWS OUT OF
+  IT.** The codec, an import, a paste and the editor read through
+  `MD_REMARK_PLUGINS` (`@repo/editor/markdown/md-plugins`): frontmatter first,
+  so a leading `---` is claimed before the thematic break reads it, `$$` math,
+  GFM, the unused-definition pass and the dialect's directives. Every entry
+  normalizes CRLF to LF first, and deserialize's own normalization is proven
+  beside it (`packages/editor/src/markdown/md-read.test.ts`). A reference reads
+  as the link or image its label's first definition names, and a definition
+  nothing used, or a label's second, is the line it was written as, so no
+  words a person wrote go. A footnote reads as its text: its call the
+  `[^label]` it spells, and its definition a paragraph led by `[^label]: `
+  where it stood, so its words are searched like any others. Entities are
+  decoded. Rejected: a second, plain-markdown grammar for an import (two
+  readings drift), a node for a reference in the library (a second spelling of
+  every link), and holding a footnote as its source (its words would go
+  unsearched). `packages/editor/src/markdown/md-corpus.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An
   import reads a link's or an image's url through `mdLinkTarget`
@@ -485,48 +490,23 @@ alone, and no walk narrows structurally.
   become links by id and files by sha, and a file's path written as a url, by
   the codec or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
   a `#` or `%` in a name reads back. Past the import nothing is a path: the
-  editor reaches an item by `[[…]]` through the resolver its host feeds with
-  the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
-  by its sha, and only an http(s) url reaches the browser. Rejected: resolving
+  editor reaches an item by a page link's id, its `[[` picker ranking the
+  library's items its host feeds (`packages/editor/src/link-resolver-feed.ts`),
+  and a file by its sha, and only an http(s) url reaches the browser. Rejected: resolving
   a live note's relative url (no library item has a path to resolve it
   against).
   `packages/editor/src/codec/import-plan.ts`.
 
-- **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
-  PARSER WRITES IT.** `.md` is the one extension a file's link leaves off
-  (`wikiLinkName` in `@repo/contract/knowledge/doc-file`), and `buildResolver`,
-  which an import reads a zip's links by, keys that name, so a
-  `.txt` note links as `[[todo.txt]]`. Past the zip there are no files: the cell
-  and the editor reach an item by its id or by `titleKey`. Rejected: dropping
-  every doc extension (it loses Obsidian's reading and the pinned resolver).
-  The `[[` picker links an item by its id, with its title, so no rename breaks
-  it. Every writer's bytes come from `serializeWikiBody`
-  (`@repo/editor/markdown/remark-wiki-link`), and its null writes nothing.
+- **A `[[…]]` NAMES WHAT THE RESOLVER ANSWERS TO.** `.md` is the one
+  extension a file's link leaves off (`wikiLinkName` in
+  `@repo/contract/knowledge/doc-file`), and `buildResolver`, which an import
+  reads a zip's links by, keys that name, so a `.txt` note links as
+  `[[todo.txt]]`; a zip links only within itself. Past the zip there are no
+  files: the cell and the editor reach an item by its id or by `titleKey`.
+  Rejected: dropping every doc extension (it loses Obsidian's reading and the
+  pinned resolver). The `[[` picker inserts a page link to an item by its id,
+  with its title, so no rename breaks it.
   `packages/editor/src/knowledge/link-resolve.test.ts`.
-
-- **A LINK IS SPELLED BARE ONLY WHERE GFM READS IT BACK IN ITS PLACE.** A link
-  whose label is its own address writes no label, so a url written by hand stays
-  as typed. But gfm ends a literal short of trailing punctuation, runs it on to
-  the next space and wants no word before it, so the writer's link handler asks
-  gfm itself, over the literal and the bytes either side as they are about to be
-  written, and every other link keeps `[text](url)`, which always reads back.
-  A link touching a mark keeps its label, since the
-  writer may spell the character beside a mark as a reference, and a literal with
-  no space before the next link does too, as does a marked literal after a link,
-  whose closer it would join. So does a link in a mark's own node, which only a
-  held source holds, since a literal runs on through the closer into bytes the
-  writer cannot see, and a mark over a held link's label, which would read back
-  as that node. A mail address with a `>` after it does too, since only one
-  character before shows and a `<` further back would close on it as an angle
-  link to another address. Rejected: a copy of gfm's rules (it reads
-  a literal twice, in its tokenizer and over finished text, by two different
-  trails, and a copy of either drifts), deciding in the rule table (a rule sees
-  no neighbour), a pass over the tree ahead of the write (only the write knows
-  what it will escape), labelling every link in a held source (a url written
-  by hand in a tag would not stay as typed) and every link
-  writing all it looks past in full (each tag deep multiplied the writes).
-  `packages/editor/src/markdown/autolink-text.ts`,
-  `packages/editor/src/markdown-bare-links.test.ts`.
 
 - **A MARKDOWN FILE'S FACTS ARE ITS FRONTMATTER KEYS, AND ONE READER READS
   THEM.** An import, and the codec reading a file back, take a link's, a

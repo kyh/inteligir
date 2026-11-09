@@ -9,10 +9,8 @@ const leaf: [{ text: "" }] = [{ text: "" }];
 const linked: LibraryBlock = {
   children: [
     { text: "See " },
-    { children: leaf, itemId: "item-2", title: "Other", type: "wikiLink" },
-    { text: " and " },
-    { children: leaf, itemId: null, title: "Not Yet", type: "wikiLink", heading: "Part" },
-    { text: ", " },
+    { children: leaf, key: "item-2", type: "mention", value: "Other" },
+    { text: " and [[Not Yet]], " },
     { children: [{ text: "the site" }], type: "a", url: "https://www.example.com/a?utm_source=x" },
     { text: " #Work/plans marked" },
   ],
@@ -21,7 +19,7 @@ const linked: LibraryBlock = {
 };
 
 describe(deriveItem, () => {
-  it("reads links by id and url key, and a link to no item yet is none", () => {
+  it("reads a page link by its item's id and a url by its key, and a `[[…]]` the text it is", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
     expect(derived.links).toStrictEqual([
       { targetId: "item-2", targetKey: null },
@@ -29,29 +27,42 @@ describe(deriveItem, () => {
     ]);
   });
 
-  it("reads a link to a place in its own item as its heading's words and no link between items", () => {
-    const own: LibraryBlock = {
+  it("reads a page link as its title's words", () => {
+    const mentioned: LibraryBlock = {
       children: [
         { text: "See " },
-        { children: leaf, heading: "Rollback", itemId: null, title: "", type: "wikiLink" },
+        { children: leaf, key: "item-2", type: "mention", value: "Other" },
+        { text: " now." },
       ],
-      id: "p3",
+      id: "p5",
       type: "p",
     };
-    const derived = deriveItem(noteFields(), itemOf([own]).blocks);
-    expect(derived.links).toStrictEqual([]);
-    expect(derived.card.preview).toBe("See Rollback");
+    const derived = deriveItem(noteFields(), itemOf([mentioned]).blocks);
+    expect(derived.card.preview).toBe("See Other now.");
+    expect(derived.search.body).toBe("See Other now.");
   });
 
   it("reads a link to an untitled item by its id alone", () => {
     const untitled: LibraryBlock = {
-      children: [{ children: leaf, itemId: "item-2", title: "", type: "wikiLink" }],
+      children: [{ children: leaf, key: "item-2", type: "mention", value: "" }],
       id: "p4",
       type: "p",
     };
     expect(deriveItem(noteFields(), itemOf([untitled]).blocks).links).toMatchObject([
       { targetId: "item-2", targetKey: null },
     ]);
+  });
+
+  it("reads no word in the line markdown writes an empty paragraph as", () => {
+    const { blocks } = itemOf([
+      { children: [{ text: "​" }], id: "e", type: "p" },
+      { children: [{ text: "Words​ here" }], id: "w", type: "p" },
+    ]);
+    const derived = deriveItem(noteFields({ title: "" }), blocks);
+    expect(derived.blocks.get("e")).toStrictEqual({ text: "" });
+    expect(derived.card.preview).toBe("Words here");
+    expect(derived.card.title).toBe("Words here");
+    expect(derived.search.body).toBe("\nWords here");
   });
 
   it("joins the field's tags and the body's chips, each origin once, case folded", () => {
@@ -91,21 +102,10 @@ describe(deriveItem, () => {
     expect(deriveItem(noteFields(), article).tags).toStrictEqual([]);
   });
 
-  it("reads an embed by its item's id", () => {
-    const embed: LibraryBlock = {
-      children: [{ children: leaf, itemId: "item-3", title: "Later", type: "wikiEmbed" }],
-      id: "e1",
-      type: "p",
-    };
-    expect(deriveItem(noteFields(), itemOf([embed]).blocks).links).toStrictEqual([
-      { targetId: "item-3", targetKey: null },
-    ]);
-  });
-
   it("gives each block its text", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
     expect(derived.blocks.get("p2")).toStrictEqual({
-      text: "See Other and Not Yet, the site #Work/plans marked",
+      text: "See Other and [[Not Yet]], the site #Work/plans marked",
     });
   });
 

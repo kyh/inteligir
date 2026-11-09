@@ -6,23 +6,22 @@ one-off calculation; a name and an id make it something other pills can point at
 ## The Grammar
 
 ```text
-{{source|display}}
-{{source|display|key=value;key=value}}
+:formula[display]{source="source"}
+:formula[display]{meta="key=value;key=value" source="source"}
 ```
 
-`source` runs to the first `|`, `display` to the second, and optional
-semicolon-separated metadata follows. There is no escape form: a pipe cannot
-appear inside `source` or `display`.
+`display` sits in the brackets, `source` and the optional semicolon-separated
+`meta` in quoted attributes. A `"` cannot appear inside `source` or `meta`.
 
 `display` is what the reader sees. Keep it consistent with `source` — the app
 recomputes executable pills, but a stale display you wrote by hand is a lie
 until something recomputes it.
 
-| Kind                | Written as                             |
-| ------------------- | -------------------------------------- |
-| One-off calculation | `{{2+2\|4}}`                           |
-| Named value         | `{{16\|16\|id=<uuid>;name=base_size}}` |
-| Symbolic label      | `{{timeline\|6 weeks\|id=<uuid>}}`     |
+| Kind                | Written as                                                  |
+| ------------------- | ----------------------------------------------------------- |
+| One-off calculation | `:formula[4]{source="2+2"}`                                 |
+| Named value         | `:formula[16]{meta="id=<uuid>;name=base_size" source="16"}` |
+| Symbolic label      | `:formula[6 weeks]{meta="id=<uuid>" source="timeline"}`     |
 
 ## What Executes
 
@@ -46,8 +45,9 @@ A bound reference points at an exact pill:
 ```
 
 ```markdown
-{{16|16|id=3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5;name=base_size}}
-{{@(base_size#1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44#3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5)*2|32|id=9b8c7d6e-5f4a-4321-a098-76543210fedc;name=double_size}}
+:formula[16]{meta="id=3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5;name=base_size" source="16"}
+
+:formula[32]{meta="id=9b8c7d6e-5f4a-4321-a098-76543210fedc;name=double_size" source="@(base_size#1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44#3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5)*2"}
 ```
 
 That is the whole point of named pills: define an anchor once, derive from it,
@@ -76,12 +76,12 @@ Unknown keys are preserved.
 
 ## In Tables
 
-A pill can sit in a table cell, and its internal pipes stay pill syntax rather
-than becoming column separators. Write the pill's own pipes escaped as `\|`
-inside a cell so the row parses:
+A pill can sit in a table cell as it is written anywhere else:
 
 ```markdown
-| Monthly | {{1000\|1,000}} |
+| Plan    | Cost                           |
+| ------- | ------------------------------ |
+| Monthly | :formula[1,000]{source="1000"} |
 ```
 
 ## Before You Finish

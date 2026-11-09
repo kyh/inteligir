@@ -11,7 +11,7 @@ import type { SearchQueryTerm } from "./search-query";
 /** @internal */
 export const SEARCH_EXCERPT_SCAN_CHARS = 64 * 1024;
 
-// source-lines' terminators, found one at a time so a scan that stops early splits nothing more
+// every line terminator, found one at a time so a scan that stops early splits nothing more
 const LINE_TERMINATOR = /\r\n|\r|\n/gu;
 
 // stems on both sides and honours prefix, matching how the index matched the term; the literal

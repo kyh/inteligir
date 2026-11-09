@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { canonicalizeImported, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
 import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
@@ -272,7 +272,10 @@ describe("every corpus page", () => {
 
   it.each(names)("%s is the editor's fixpoint, kept whole or on a lower rung", (name) => {
     const result = extracted(name);
-    expect(analyzeMarkdown(result.article).kind).toBe("canonical");
+    expect(canonicalizeImported(result.article)).toStrictEqual({
+      kept: 1,
+      markdown: result.article,
+    });
     expect(result.kept >= KEPT_MIN || result.rung !== "rich").toBe(true);
   });
 });
@@ -290,7 +293,7 @@ describe("the body ladder", () => {
     );
     expect(result.rung).toBe("text");
     expect(result.article).toBe("deep words here\n\nafter them\n");
-    expect(analyzeMarkdown(result.article).kind).toBe("canonical");
+    expect(canonicalizeImported(result.article)?.markdown).toBe(result.article);
   });
 });
 
@@ -340,7 +343,6 @@ describe("the article as blocks", () => {
     );
     const stored = JSON.stringify(read.article.blocks);
     expect(stored).not.toContain('"tag"');
-    expect(stored).not.toContain('"opaque"');
     expect(stored).toContain("#rust");
   });
 });

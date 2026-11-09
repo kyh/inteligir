@@ -12,13 +12,12 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 
-const FIXTURES = fileURLToPath(
-  new URL("test-support/fixtures/roundtrip/canonical/", import.meta.url),
-);
+const FIXTURES = fileURLToPath(new URL("test-support/fixtures/corpus/", import.meta.url));
 
-// dropping any of these from a kit is silent corruption, the opaque inline most of all. Every
-// dialect key is in by construction; Plate's own nodes the dialect spells are named here.
+// dropping any of these from a kit is silent corruption. Every dialect key is in by construction;
+// Plate's own nodes the dialect spells are named here.
 const VOCABULARY_PLUGIN_KEYS = [
   KEYS.column,
   KEYS.columnGroup,
@@ -27,6 +26,7 @@ const VOCABULARY_PLUGIN_KEYS = [
   KEYS.file,
   KEYS.inlineEquation,
   KEYS.mediaEmbed,
+  KEYS.mention,
   KEYS.toggle,
   KEYS.underline,
   KEYS.video,
@@ -55,7 +55,7 @@ describe("kit parity (Base half)", () => {
     expect(optionsB.remarkPlugins).toBe(MD_REMARK_PLUGINS);
   });
 
-  it("serializes the canonical corpus identically across editor instances", () => {
+  it("serializes the corpus identically across editor instances, each write its own fixpoint", () => {
     const a = createSlateEditor({ plugins: BASE_KIT });
     const b = createSlateEditor({ plugins: BASE_KIT });
     for (const name of readdirSync(FIXTURES).toSorted()) {
@@ -68,7 +68,7 @@ describe("kit parity (Base half)", () => {
       const outA = serializeNote(a, parsed.value);
       const outB = serializeNote(b, parsed.value);
       expect(outA, `${name} must serialize deterministically`).toBe(outB);
-      expect(outA.trimEnd(), `${name} must match its canonical bytes`).toBe(src.trimEnd());
+      expect(rewrite(outA), `${name} must write its own fixpoint`).toBe(outA);
     }
   });
 });
@@ -116,10 +116,9 @@ describe("kit parity (live editor mirror)", () => {
   it("registers the inline voids as inline voids (normalization guard)", () => {
     for (const type of [
       KEYS.date,
-      DIALECT_NODE_KEYS.WIKI_LINK_KEY,
-      DIALECT_NODE_KEYS.WIKI_EMBED_KEY,
+      KEYS.mention,
       KEYS.inlineEquation,
-      DIALECT_NODE_KEYS.OPAQUE_KEY,
+      DIALECT_NODE_KEYS.FORMULA_PILL_KEY,
     ]) {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [
@@ -137,9 +136,15 @@ describe("kit parity (live editor mirror)", () => {
   it("answers every node either editor can hold with a rule that writes no jsx", () => {
     const answered = z.object({ type: z.string() });
     const jsx: string[] = [];
+    const plain = new Set(live.getOptions(MarkdownPlugin).plainMarks);
     for (const [key, fallback] of Object.entries(defaultRules)) {
       const rule = MD_RULES[key] ?? fallback;
-      if (!(key in live.plugins) || rule.serialize === undefined || rule.serialize === null) {
+      if (
+        !(key in live.plugins) ||
+        plain.has(key) ||
+        rule.serialize === undefined ||
+        rule.serialize === null
+      ) {
         continue;
       }
       const node =
@@ -152,16 +157,15 @@ describe("kit parity (live editor mirror)", () => {
     expect(jsx).toStrictEqual([]);
   });
 
-  it("the live editor serializes the canonical corpus to BASE_KIT's bytes", () => {
+  it("the live editor serializes the corpus to BASE_KIT's bytes", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
       const src = readFileSync(`${FIXTURES}${name}`, "utf-8");
       const parsed = parseMarkdown(src);
       if (!parsed.ok) {
         continue;
       }
-      const out = serializeNote(live, parsed.value);
-      expect(out.trimEnd(), `${name} must match its canonical bytes via the live editor`).toBe(
-        src.trimEnd(),
+      expect(serializeNote(live, parsed.value), `${name} must write alike in both editors`).toBe(
+        serializeNote(base, parsed.value),
       );
     }
   });

@@ -16,12 +16,11 @@ import { InlineConstructsBaseKit } from "./headless/inline-constructs-base";
 import { LinkBaseKit } from "./headless/link-base";
 import { ListBaseKit } from "./headless/list-base";
 import { MathBaseKit } from "./headless/math-base";
-import { OpaqueBaseKit } from "./headless/opaque-base";
+import { MentionBaseKit } from "./headless/mention-base";
 import { RichBlocksBaseKit } from "./headless/rich-blocks-base";
 import { TableBaseKit } from "./headless/table-base";
 import { TabsBaseKit } from "./headless/tabs-base";
 import { ToggleBaseKit } from "./headless/toggle-base";
-import { WikiLinkBaseKit } from "./headless/wiki-link-base";
 
 export const BASE_KIT = [
   ...BasicMarksBaseKit,
@@ -36,8 +35,7 @@ export const BASE_KIT = [
   ...ImageBaseKit,
   ...DateBaseKit,
   ...MathBaseKit,
-  ...OpaqueBaseKit,
-  ...WikiLinkBaseKit,
+  ...MentionBaseKit,
   ...InlineConstructsBaseKit,
   ...RichBlocksBaseKit,
   ...TabsBaseKit,

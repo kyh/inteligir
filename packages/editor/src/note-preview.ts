@@ -5,9 +5,9 @@
 import { ElementApi, TextApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
-import { FORMULA_PILL_KEY, WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { shownTitle } from "@repo/contract/items/item-name";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
-import { wikiFieldsOf, wikiLabelOf } from "@repo/editor/wiki/wiki-node";
 
 const PREVIEW_MAX_LINES = 20;
 
@@ -22,9 +22,8 @@ const textOf = (node: Descendant): string => {
     return "";
   }
   switch (node.type) {
-    case WIKI_LINK_KEY:
-    case WIKI_EMBED_KEY: {
-      return wikiLabelOf(wikiFieldsOf(node));
+    case "mention": {
+      return shownTitle(stringProp(node, "value") ?? "");
     }
     case "date": {
       return stringProp(node, "date") ?? "";

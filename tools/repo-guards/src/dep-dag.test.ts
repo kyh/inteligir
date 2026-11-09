@@ -524,10 +524,10 @@ describe("the contract", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
-  it("sees the parser behind the dialect's parse, so a clean walk is a real one", () => {
-    const parse = workspaceExportFile("@repo/editor/markdown/parse");
-    expect(parse).not.toBeNull();
-    expect(parse === null ? null : markdownParserReach(parse)?.specifier).toMatch(MARKDOWN_PARSER);
+  it("sees the parser behind the dialect's read, so a clean walk is a real one", () => {
+    const read = workspaceExportFile("@repo/editor/markdown/md-read");
+    expect(read).not.toBeNull();
+    expect(read === null ? null : markdownParserReach(read)?.specifier).toMatch(MARKDOWN_PARSER);
   });
 });
 

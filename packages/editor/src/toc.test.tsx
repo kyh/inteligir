@@ -46,7 +46,7 @@ describe("outline targets", () => {
 
   it("ignores heading elements the editor does not own", () => {
     const editor = mountValue([h("h2", "Mine"), p("body")]);
-    // models a transclusion's static render: a heading in the editable that is no node of the document.
+    // a heading in the editable that is no node of the document
     const editable = document.querySelector('[data-slate-editor="true"]');
     if (editable === null) {
       throw new Error("no editable mounted");

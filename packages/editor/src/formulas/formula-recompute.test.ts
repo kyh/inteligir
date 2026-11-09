@@ -69,7 +69,7 @@ const nextTurn = async (): Promise<void> => {
 describe("the recompute's display rewrite", () => {
   it("corrects a plain expression's display without adding an undo step", async () => {
     const { reads } = readsOver("A", {});
-    const editor = editorWith("Total {{2+2|5}}\n");
+    const editor = editorWith('Total :formula[5]{source="2+2"}\n');
 
     await recomputeFormulas(editor, reads);
 
@@ -79,7 +79,7 @@ describe("the recompute's display rewrite", () => {
 
   it("leaves one undo to revert the user's own edit, and one redo to bring it back", async () => {
     const { reads } = readsOver("A", {});
-    const editor = editorWith("Total {{2+2|5}} tail\n");
+    const editor = editorWith('Total :formula[5]{source="2+2"} tail\n');
     editor.tf.select(editor.api.end([0]));
     editor.tf.insertText("!");
     await nextTurn();
@@ -98,7 +98,9 @@ describe("the recompute's display rewrite", () => {
 describe("the item a bound ref names", () => {
   it("is this item when it names this item's id, so nothing is read", async () => {
     const { asked, reads } = readsOver("N1", {});
-    const editor = editorWith("{{5|5|id=F1;name=a}} and {{@(a#N1#F1)*2|0|id=F2;name=b}}\n");
+    const editor = editorWith(
+      ':formula[5]{source="5" meta="id=F1;name=a"} and :formula[0]{source="@(a#N1#F1)*2" meta="id=F2;name=b"}\n',
+    );
 
     await recomputeFormulas(editor, reads);
 
@@ -108,10 +110,10 @@ describe("the item a bound ref names", () => {
 
   it("resolves through a chain of items this one never names", async () => {
     const { asked, reads } = readsOver("A", {
-      B: "{{@(c#C#fc)+1|0|id=fb;name=b}}\n",
-      C: "{{40|40|id=fc;name=c}}\n",
+      B: ':formula[0]{source="@(c#C#fc)+1" meta="id=fb;name=b"}\n',
+      C: ':formula[40]{source="40" meta="id=fc;name=c"}\n',
     });
-    const editor = editorWith("{{@(b#B#fb)*2|0|id=fa;name=a}}\n");
+    const editor = editorWith(':formula[0]{source="@(b#B#fb)*2" meta="id=fa;name=a"}\n');
 
     await recomputeFormulas(editor, reads);
 
@@ -120,11 +122,11 @@ describe("the item a bound ref names", () => {
   });
 
   it("goes stale when its item cannot be found or read, keeping the last display", async () => {
-    const editor = editorWith("{{@(x#GONE#fx)+1|7|id=f1}}\n");
+    const editor = editorWith(':formula[7]{source="@(x#GONE#fx)+1" meta="id=f1"}\n');
     await recomputeFormulas(editor, readsOver("A", {}).reads);
     expect(lastPill(editor)).toStrictEqual({ display: "7", meta: "id=f1;stale=1" });
 
-    const failing = editorWith("{{@(x#B#fx)+1|7|id=f1}}\n");
+    const failing = editorWith(':formula[7]{source="@(x#B#fx)+1" meta="id=f1"}\n');
     await recomputeFormulas(failing, {
       read: async () => await Promise.reject(new Error("the store is closed")),
       selfId: "A",
@@ -134,7 +136,7 @@ describe("the item a bound ref names", () => {
 
   it("writes nothing when an edit lands during the read", async () => {
     const read = deferred<string>();
-    const editor = editorWith("{{@(b#B#fb)*2|0|id=fa;name=a}} tail\n");
+    const editor = editorWith(':formula[0]{source="@(b#B#fb)*2" meta="id=fa;name=a"} tail\n');
 
     const pass = recomputeFormulas(editor, {
       read: async () => formulasIn(await read.promise),
@@ -143,7 +145,7 @@ describe("the item a bound ref names", () => {
     await nextTurn();
     editor.tf.select(editor.api.end([0]));
     editor.tf.insertText("!");
-    read.resolve("{{21|21|id=fb;name=b}}\n");
+    read.resolve(':formula[21]{source="21" meta="id=fb;name=b"}\n');
     await pass;
 
     expect(lastPill(editor)).toStrictEqual({ display: "0", meta: "id=fa;name=a" });
@@ -215,7 +217,9 @@ describe("following an item's formulas", () => {
       ],
     ]);
     const { announce, asked, listeners, store } = storeOf(items);
-    const editor = editorWith("{{@(b#B#fb)+2|0|id=fa;name=a}} {{@(z#B#fz)|0|id=fy;name=y}}\n");
+    const editor = editorWith(
+      ':formula[0]{source="@(b#B#fb)+2" meta="id=fa;name=a"} :formula[0]{source="@(z#B#fz)" meta="id=fy;name=y"}\n',
+    );
 
     const stop = followItemFormulas(editor, "A", store);
     await vi.advanceTimersByTimeAsync(400);

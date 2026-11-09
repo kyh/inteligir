@@ -310,10 +310,15 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   through `@repo/editor/codec/*`, a saved link or a refresh lands pending for
   the cloud's fill, and every answer is parsed through its row's output schema,
   which strips what the cell did not mean to send (about 10 ms a MiB of plain
-  blocks, 45 for a table-dense one, measured). Rejected: a second markdown
-  reader in the Worker; skipping that parse for speed (a leaked column ships
-  unnoticed). `packages/service/src/library/library-router.ts`,
-  `library-engine.ts`.
+  blocks, 45 for a table-dense one, measured). What that markdown names, the
+  cell answers from its own rows (`libraryLinks`): a page link's id an item it
+  holds, a `[[Title]]` the one live item it names by title or alias, and an
+  `assets/<sha>` a file it holds; anything else stays the text it was, on a
+  create and an edit alike. Rejected: a second markdown reader in the Worker;
+  skipping that parse for speed (a leaked column ships unnoticed); linking a
+  title two items share to either (the agent's words would land on a guess).
+  `packages/service/src/library/library-router.ts`, `library-engine.ts`,
+  `cell-codec.ts`.
 
 - **A FILE'S BYTES ARE R2'S, ADDRESSED BY THEIR SHA, AND R2 CHECKS IT.** A
   `PUT /v1/blobs/<sha>` takes room in the cell at the length it declares, at

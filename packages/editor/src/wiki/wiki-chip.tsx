@@ -1,21 +1,17 @@
-// loaded via React.lazy from wiki-link-kit: this module reaches the editor host seam, so an
-// eager import from a kit file base-kit composes would close an import cycle.
+// loaded via React.lazy from mention-kit: this module reaches the editor host seam, so an eager
+// import from a kit file base-kit composes would close an import cycle.
 
 import { useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { FilePlusIcon } from "lucide-react";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
-import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/cn";
 
 import { useLinkResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 
-import { createLinkedNote } from "@repo/editor/wiki/wiki-insert";
-import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
-import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
+import { shownTitle } from "@repo/contract/items/item-name";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
@@ -39,30 +35,24 @@ const openItem = (itemId: string): void => {
   getEditorHostIo().openItem(itemId);
 };
 
-// a link by id reaches its item whatever title it was written with, and an anchor alone
-// (`[[#sec]]`) reaches none; with no title there is nothing to create
-const WikiChip = ({ link }: { link: WikiNodeFields }) => {
-  const { resolveWikiTarget, titleOf } = useLinkResolver();
-  const [createOpen, setCreateOpen] = useState(false);
+// a page link names its item by id, and shows the name the item goes by now; an item the host
+// does not feed (gone, or not yet listed) draws the title the link was written with, and opens
+// nothing
+const WikiChip = ({ itemId, title }: { itemId: string; title: string }) => {
+  const { titleOf } = useLinkResolver();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
-  const chipRef = useRef<HTMLButtonElement>(null);
-  // the item the open preview was read for; a read landing after a close or a re-resolve is dropped
+  // the item the open preview was read for; a read landing after a close is dropped
   const previewFor = useRef<string | null>(null);
 
-  // a link to an item by its id shows the name the item goes by now
-  const live = link.itemId === null ? null : titleOf(link.itemId);
-  const label = wikiLabelOf(live === null ? link : { ...link, title: live });
-  const resolved = resolveWikiTarget(link.title, link.itemId ?? link.alias);
-  const nameOf = (itemId: string): string => {
-    const name = titleOf(itemId);
-    return name === null || name === "" ? label : name;
-  };
+  const live = titleOf(itemId);
+  const label = shownTitle(live ?? title);
+  const resolved = live === null ? null : itemId;
 
-  const readPreview = async (itemId: string): Promise<void> => {
+  const readPreview = async (target: string): Promise<void> => {
     try {
-      const blocks = await getEditorHostIo().readItemBlocks(itemId);
-      if (previewFor.current !== itemId) {
+      const blocks = await getEditorHostIo().readItemBlocks(target);
+      if (previewFor.current !== target) {
         return;
       }
       if (blocks === null) {
@@ -71,7 +61,7 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
       }
       setPreviewText(notePreviewHead(blocks.map((block) => ({ ...block }))));
     } catch {
-      if (previewFor.current === itemId) {
+      if (previewFor.current === target) {
         setPreviewOpen(false);
       }
     }
@@ -101,15 +91,12 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
     closePreview();
     if (resolved !== null) {
       openItem(resolved);
-    } else if (link.title !== "") {
-      setCreateOpen(true);
     }
   };
 
   // no `title` on a previewable chip: the OS tooltip would land on top of the hover card
   const chip = (
     <button
-      ref={chipRef}
       type="button"
       contentEditable={false}
       onClick={onClick}
@@ -119,58 +106,29 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
     </button>
   );
 
-  if (resolved === null && link.title === "") {
+  if (resolved === null) {
     return chip;
   }
 
   return (
-    <>
-      <HoverCard open={previewOpen && !createOpen} onOpenChange={onPreviewOpenChange}>
-        <HoverCardTrigger delay={HOVER_PREVIEW_DELAY_MS} render={chip} />
-        <HoverCardContent className="max-h-72 overflow-y-auto p-0">
-          {resolved === null ? (
-            <p className="px-3 py-2.5 text-body text-muted-foreground">
-              Not created yet — click to create
-            </p>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="block w-full px-3 pt-2.5 pb-1 text-left text-body font-medium hover:underline"
-                onClick={() => {
-                  closePreview();
-                  openItem(resolved);
-                }}
-              >
-                {nameOf(resolved)}
-              </button>
-              <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
-                <PreviewBody text={previewText} />
-              </div>
-            </>
-          )}
-        </HoverCardContent>
-      </HoverCard>
-      {resolved === null && (
-        <Popover open={createOpen} onOpenChange={setCreateOpen}>
-          <PopoverContent anchor={chipRef} className="p-1">
-            <button
-              type="button"
-              onClick={() => {
-                setCreateOpen(false);
-                void createLinkedNote(link.title);
-              }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent hover:text-accent-foreground"
-            >
-              <FilePlusIcon className="size-4 text-muted-foreground" />
-              <span>
-                Create <span className="font-medium">{link.title}</span>
-              </span>
-            </button>
-          </PopoverContent>
-        </Popover>
-      )}
-    </>
+    <HoverCard open={previewOpen} onOpenChange={onPreviewOpenChange}>
+      <HoverCardTrigger delay={HOVER_PREVIEW_DELAY_MS} render={chip} />
+      <HoverCardContent className="max-h-72 overflow-y-auto p-0">
+        <button
+          type="button"
+          className="block w-full px-3 pt-2.5 pb-1 text-left text-body font-medium hover:underline"
+          onClick={() => {
+            closePreview();
+            openItem(resolved);
+          }}
+        >
+          {label}
+        </button>
+        <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
+          <PreviewBody text={previewText} />
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 };
 

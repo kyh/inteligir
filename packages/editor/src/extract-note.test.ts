@@ -1,6 +1,7 @@
 import { deferred } from "@repo/editor/deferred";
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
+import { KEYS } from "platejs";
 import type { TElement, Value } from "platejs";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -37,7 +38,7 @@ const texts = (editor: Editor): string[] =>
   editor.children.map((block) => editor.api.string(block));
 
 const linkAt = (editor: Editor, at: number[]) =>
-  editor.api.nodes<TElement>({ at, match: { type: "wikiLink" } }).next().value?.[0];
+  editor.api.nodes<TElement>({ at, match: { type: KEYS.mention } }).next().value?.[0];
 
 describe("what leaves", () => {
   it("is every top-level block the selection touches", () => {
@@ -81,7 +82,7 @@ describe("the extract", () => {
     const ords = note?.blocks.map(({ ord }) => ord) ?? [];
     expect(ords).toStrictEqual(ords.toSorted());
     expect(texts(editor)).toStrictEqual(["Plan", ""]);
-    expect(linkAt(editor, [1])).toMatchObject({ itemId: "note-1", title: "one", type: "wikiLink" });
+    expect(linkAt(editor, [1])).toMatchObject({ key: "note-1", type: KEYS.mention, value: "one" });
   });
 
   it("makes a note with no title of blocks with no words, and links it by id", async () => {
@@ -97,7 +98,7 @@ describe("the extract", () => {
     await extractBlocksToNote(editor, [[1]]);
 
     expect(made).toMatchObject([{ title: "" }]);
-    expect(linkAt(editor, [1])).toMatchObject({ itemId: "note-1", title: "", type: "wikiLink" });
+    expect(linkAt(editor, [1])).toMatchObject({ key: "note-1", type: KEYS.mention, value: "" });
   });
 
   it("undoes the removal and the link together", async () => {
@@ -132,7 +133,7 @@ describe("the extract", () => {
 
     await expect(extracting).resolves.toBe("made");
     expect(texts(editor)).toStrictEqual(["typed above", "Plan", ""]);
-    expect(linkAt(editor, [2])).toMatchObject({ itemId: "made", title: "one" });
+    expect(linkAt(editor, [2])).toMatchObject({ key: "made", value: "one" });
   });
 
   it("keeps the note but leaves the item alone when the blocks changed meanwhile", async () => {

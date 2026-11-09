@@ -1,126 +1,74 @@
-// Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so what the codec
-// exports reads back as the same bytes. Unmodelled constructs become opaque nodes rather than a
-// refusal.
-// Plate's deserializeMd is banned (`@repo/editor/kits/markdown-kit` says why).
+// Markdown in and out of an item's blocks, headless. Markdown is stock and lossy: a read keeps every
+// letter a person wrote, and a write keeps what the blocks mean, never the bytes they came from.
 
+import type { Root } from "mdast";
 import { ElementApi, createSlateEditor } from "platejs";
-import type { SlateEditor, Value } from "platejs";
-import { serializeMd } from "@platejs/markdown";
+import type { SlateEditor, TElement, Value } from "platejs";
+import { MarkdownPlugin } from "@platejs/markdown";
 
+import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { recordFlowSpans } from "@repo/editor/markdown/flow-spans";
 import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
 import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
-import { CELL_BREAK } from "@repo/editor/markdown/remark-inline-html";
+import { readMarkdown } from "@repo/editor/markdown/md-read";
+import type { MarkdownRead, ReadOptions } from "@repo/editor/markdown/md-read";
+import {
+  ARTICLE_SECTION_KEY,
+  markListNesting,
+  nestInLists,
+  pruneEmptyEquations,
+} from "@repo/editor/markdown/md-rules";
 
-import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
-import { mdToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
-import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
-
-// Why a value cannot stand for its markdown: never the bytes, which always parse, but the
-// editor's limits or its bugs.
-type RoundTripFailure =
-  | ConvertFailure
-  // re-serializing never settles on one set of bytes
-  | { kind: "unstable" }
-  // the file parses, but re-serializing drops content or joins its lines
-  | { kind: "roundtrip-loss" }
-  // the pipeline threw, or answered a document the editor cannot hold
-  | { kind: "pipeline-error" };
-
-// `normalizes`: the first write restyles markup and keeps every letter and line.
-/** @internal */
-export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | RoundTripFailure;
-
-const describeFailure = (reason: RoundTripFailure): string => {
-  switch (reason.kind) {
-    case "too-deep": {
-      return "the markdown nests deeper than the editor holds";
-    }
-    case "unstable": {
-      return "re-serializing the markdown never settles";
-    }
-    case "roundtrip-loss": {
-      return "re-serializing the markdown changes what it says";
-    }
-    case "pipeline-error": {
-      return "the markdown pipeline failed";
-    }
-    default: {
-      const exhaustive: never = reason;
-      return exhaustive;
-    }
-  }
-};
-
-/** @internal */
-export class RoundTripError extends Error {
-  readonly reason: RoundTripFailure;
-
-  constructor(reason: RoundTripFailure) {
-    super(describeFailure(reason));
-    this.name = "RoundTripError";
-    this.reason = reason;
-  }
-}
-
-// fresh per call: Slate editors carry mutable state.
+// fresh per call: Slate editors carry mutable state
 export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
-// the tag the table writer joins a cell's blocks with spells no word of the note
-const letters = (s: string): string =>
-  s
-    .replaceAll(CELL_BREAK, "")
-    .replaceAll(/[^\p{L}\p{N}]+/gu, "")
-    .toLowerCase();
+const isSection = (block: TElement): boolean => block.type === ARTICLE_SECTION_KEY;
 
-const lineEndOffsets = (lines: readonly string[]): number[] => {
-  const ends: number[] = [];
-  let at = 0;
-  for (const line of lines) {
-    at += line.length;
-    ends.push(at);
-  }
-  return ends;
+// the editor holds no section, so an `:::article` reads as the blocks inside it
+const flattenSections = (blocks: readonly TElement[]): TElement[] =>
+  blocks.flatMap((block) =>
+    isSection(block) ? block.children.filter((child) => ElementApi.isElement(child)) : [block],
+  );
+
+export const parseMarkdown = (
+  md: string,
+  editor: SlateEditor = headlessEditor(),
+  options: ReadOptions = {},
+): MarkdownRead => {
+  const read = readMarkdown(editor, md, options);
+  return read.ok ? { ok: true, value: flattenSections(read.value) } : read;
 };
 
-// A write may restyle markup or split a line (two date chips become two paragraphs), but joining
-// two lines changes what the note says without losing a letter: `[[A]]\n[[B]]` as `[[A]][[B]]`.
-// So every offset where a source line's letters end must still end a written line.
-const keepsText = (source: string, saved: string): boolean => {
-  const sourceLines = source.split("\n").map(letters);
-  const savedLines = saved.split("\n").map(letters);
-  if (sourceLines.join("") !== savedLines.join("")) {
-    return false;
+export interface MarkdownSections {
+  readonly note: TElement[];
+  // the page a fill read, which an export writes inside a top-level `:::article`
+  readonly article: TElement[] | null;
+}
+
+// an item's file: what stands outside a top-level `:::article` is the note, what it holds the page
+export const parseMarkdownSections = (
+  md: string,
+  editor: SlateEditor = headlessEditor(),
+  options: ReadOptions = {},
+): { ok: true; sections: MarkdownSections } | Extract<MarkdownRead, { ok: false }> => {
+  const read = readMarkdown(editor, md, options);
+  if (!read.ok) {
+    return read;
   }
-  const savedEnds = new Set([0, ...lineEndOffsets(savedLines)]);
-  return lineEndOffsets(sourceLines).every((end) => savedEnds.has(end));
+  const sections = read.value.filter(isSection);
+  return {
+    ok: true,
+    sections: {
+      article: sections.length === 0 ? null : flattenSections(sections),
+      note: read.value.filter((block) => !isSection(block)),
+    },
+  };
 };
 
-type Converted =
-  | { ok: true; value: Value; editor: SlateEditor }
-  | { ok: false; reason: RoundTripFailure };
-
-const convert = (md: string): Converted => {
-  const editor = headlessEditor();
-  const converted = mdToSlate(editor, md);
-  if (!converted.ok) {
-    return converted;
-  }
-  // mdast root children are flow content, so every rule yields a block; a text at the root would be
-  // a rule bug that Slate's normalizer drops, so it is refused rather than losing it
-  if (!ElementApi.isElementList(converted.nodes)) {
-    return { ok: false, reason: { kind: "pipeline-error" } };
-  }
-  return { editor, ok: true, value: converted.nodes };
-};
-
-type Serialized = { ok: true; out: string } | { ok: false; reason: RoundTripFailure };
-
-// The one way a value becomes bytes: the rules expect the pre-pass to have run, and Plate's own
-// serializeMd skips it.
 export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
+  editor
+    .getApi(MarkdownPlugin)
+    .markdown.serialize({ value: markListNesting(pruneEmptyEquations(value)) });
 
 export interface SpannedNote {
   readonly markdown: string;
@@ -132,129 +80,61 @@ export interface SpannedNote {
 // edit back to its blocks by
 export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNote => {
   const recorder = recordFlowSpans();
-  const markdown = serializeMd(editor, {
+  const markdown = editor.getApi(MarkdownPlugin).markdown.serialize({
     remarkStringifyOptions: {
       ...MD_STRINGIFY,
-      handlers: { ...MD_STRINGIFY.handlers, root: recorder.root },
+      handlers: {
+        ...MD_STRINGIFY.handlers,
+        root: (node: Root, parent, state, info) =>
+          recorder.root({ ...node, children: nestInLists(node.children) }, parent, state, info),
+      },
     },
-    value: pruneForMarkdown(value),
+    value: markListNesting(pruneEmptyEquations(value)),
   });
   return { markdown, spans: recorder.spans };
 };
 
-// stringify overflows the stack short of the depth the conversion reaches
-const serialize = (editor: SlateEditor, value: Value): Serialized => {
-  const out = withinStack(() => serializeNote(editor, value));
-  return out === null ? { ok: false, reason: { kind: "too-deep" } } : { ok: true, out };
-};
+const LETTER_RE = /[\p{L}\p{N}]/gu;
 
-const roundTripResult = (md: string): Serialized => {
-  const converted = convert(md);
-  if (!converted.ok) {
-    return converted;
+const letterCounts = (text: string): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const [letter] of text.toLowerCase().matchAll(LETTER_RE)) {
+    counts.set(letter, (counts.get(letter) ?? 0) + 1);
   }
-  return serialize(converted.editor, converted.value);
+  return counts;
 };
 
-// `out` is trusted only if re-serializing reproduces it byte-exactly; a third probe
-// distinguishes "stabilizes at pass 2" from "never settles".
-type Fixpoint = { stable: true; at: string } | { stable: false; reason: RoundTripFailure };
-
-const findFixpoint = (out: string): Fixpoint => {
-  let current = out;
-  for (let pass = 0; pass < 2; pass += 1) {
-    const next = roundTripResult(current);
-    if (!next.ok) {
-      return { reason: next.reason, stable: false };
-    }
-    if (next.out === current) {
-      return { at: current, stable: true };
-    }
-    current = next.out;
-  }
-  return { reason: { kind: "unstable" }, stable: false };
-};
-
+// the share of the source's letters and digits the written text still holds, as a multiset, so a
+// letter dropped is not paid back by one the writer added
 /** @internal */
-export const analyzeMarkdown = (md: string): DocAnalysis => {
-  if (md.trim() === "") {
-    return { kind: "canonical" };
+export const lettersKept = (source: string, written: string): number => {
+  const before = letterCounts(source);
+  const after = letterCounts(written);
+  let total = 0;
+  let kept = 0;
+  for (const [letter, count] of before) {
+    total += count;
+    kept += Math.min(count, after.get(letter) ?? 0);
   }
-  const serialized = roundTripResult(md);
-  if (!serialized.ok) {
-    return serialized.reason;
-  }
-  const { out } = serialized;
-  if (out === md) {
-    return { kind: "canonical" };
-  }
-  const fixpoint = findFixpoint(out);
-  if (!fixpoint.stable) {
-    return fixpoint.reason;
-  }
-  if (out.trimEnd() === md.trimEnd() && fixpoint.at === out) {
-    return { kind: "canonical" };
-  }
-  // a write leaves pass-1 bytes and each later one advances the chain, so all of it must keep the
-  // text.
-  return keepsText(md, out) && keepsText(md, fixpoint.at)
-    ? { kind: "normalizes" }
-    : { kind: "roundtrip-loss" };
+  return total === 0 ? 1 : kept / total;
 };
 
-/** @internal */
-export const parseMarkdown = (
-  md: string,
-): { ok: true; value: Value } | { ok: false; reason: RoundTripFailure } => {
-  const converted = convert(md);
-  if (!converted.ok) {
-    return converted;
-  }
-  return { ok: true, value: converted.value };
-};
-
-/** @internal */
-export const roundTrip = (md: string): string => {
-  const serialized = roundTripResult(md);
-  if (!serialized.ok) {
-    throw new RoundTripError(serialized.reason);
-  }
-  const fixpoint = findFixpoint(serialized.out);
-  if (!fixpoint.stable) {
-    throw new RoundTripError(fixpoint.reason);
-  }
-  return fixpoint.at;
-};
-
-/** @internal */
-export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
-
-// an imported page (the fill's article) written as the editor's own fixpoint: the bytes its
-// blocks export as.
+// an imported page (the fill's article) as the bytes its blocks write
 export interface ImportedDoc {
   markdown: string;
-  // the share of the source's letters and digits the fixpoint still holds, which the caller weighs
-  // against a plainer spelling of the same page (an entity decoded, a mailto link unwrapped)
   kept: number;
 }
 
-// null when the pipeline cannot settle the page (too deep, never stable, or a throw): a page is
-// hostile input, so no failure of the editor's own escapes the fill
+// null when the read refuses the page: a page is hostile input, so no failure escapes the fill
 export const canonicalizeImported = (md: string): ImportedDoc | null => {
-  const sourceLetters = letters(md).length;
   if (md.trim() === "") {
     return { kept: 1, markdown: "" };
   }
-  let markdown: string;
-  try {
-    markdown = toCanonical(md);
-    if (analyzeMarkdown(markdown).kind !== "canonical") {
-      return null;
-    }
-  } catch {
+  const editor = headlessEditor();
+  const read = parseMarkdown(md, editor);
+  if (!read.ok) {
     return null;
   }
-  const keptLetters = letters(markdown).length;
-  const kept = sourceLetters === 0 ? 1 : Math.min(keptLetters, sourceLetters) / sourceLetters;
-  return { kept, markdown };
+  const markdown = `${serializeNote(editor, read.value).trimEnd()}\n`;
+  return { kept: lettersKept(md, markdown), markdown };
 };

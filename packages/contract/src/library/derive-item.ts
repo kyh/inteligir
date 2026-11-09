@@ -22,7 +22,7 @@ const SHOWN_LINE_MAX = 100;
 // Durable Object caps at 2 MB, and a heading block may hold half a megabyte
 const OUTLINE_MAX = 200;
 
-// an item a link or an embed names, or a url's key, so an item saved from that address finds the
+// an item a page link names, or a url's key, so an item saved from that address finds the
 // notes that linked it
 type DerivedLink =
   | { readonly targetId: string; readonly targetKey: null }
@@ -89,35 +89,24 @@ export interface DerivedItem {
   readonly textBytes: number;
 }
 
-// what a wiki link's title resolves by: the key an item's title and aliases are filed under
+// what a `[[Title]]` resolves by: the key an item's title and aliases are filed under
 export const titleKey = (title: string): string => title.normalize("NFC").trim().toLowerCase();
 
 const isText = (node: LibraryNode): node is Extract<LibraryNode, { text: string }> =>
   "text" in node;
 
-const INLINE_TYPES = new Set<string>([
-  "a",
-  "date",
-  "formulaPill",
-  "inline_equation",
-  "opaque",
-  "wikiEmbed",
-  "wikiLink",
-]);
+const INLINE_TYPES = new Set<string>(["a", "date", "formulaPill", "inline_equation", "mention"]);
 
 const isInline = (node: LibraryNode): boolean => isText(node) || INLINE_TYPES.has(node.type);
 
-// the voids that read as nothing: an embed's text is its target's, a rich block's source is not
-// prose, and media has none
+// the voids that read as nothing: a rich block's source is not prose, and media has none
 const SILENT_TYPES = new Set<string>([
   "canvas_block",
   "chart_block",
   "hr",
   "html_block",
   "media_embed",
-  "opaque",
   "video",
-  "wikiEmbed",
 ]);
 
 // what a void element reads as, or null for an element its children's text speaks for
@@ -126,8 +115,8 @@ const standInText = (element: LibraryElement): string | null => {
     return "";
   }
   switch (element.type) {
-    case "wikiLink": {
-      return element.alias ?? (element.title || (element.heading ?? ""));
+    case "mention": {
+      return element.value;
     }
     case "date": {
       return element.date;
@@ -175,10 +164,13 @@ const joinChildren = (
   return lines.join("\n");
 };
 
+// the line markdown writes an empty paragraph as, which holds no word
+const ZWSP = /​/gu;
+
 // a table row's cells read tab-separated, a tab panel under its label
 const nodeText = (node: LibraryNode): string => {
   if (isText(node)) {
-    return node.text;
+    return node.text.replaceAll(ZWSP, "");
   }
   const standIn = standInText(node);
   if (standIn !== null) {
@@ -303,11 +295,8 @@ export const deriveItem = (
     }
     visitElements([block], (node) => {
       switch (node.type) {
-        case "wikiLink":
-        case "wikiEmbed": {
-          if (node.itemId !== null) {
-            links.push({ targetId: node.itemId, targetKey: null });
-          }
+        case "mention": {
+          links.push({ targetId: node.key, targetKey: null });
           break;
         }
         case "a": {

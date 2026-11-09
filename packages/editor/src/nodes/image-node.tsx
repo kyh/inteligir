@@ -60,7 +60,7 @@ const LibraryPicture = ({
   return <Missing label="This picture isn't on this device yet." selected={selected} />;
 };
 
-export const ImageFigure = ({ element, selected }: { element: TElement; selected: boolean }) => {
+const ImageFigure = ({ element, selected }: { element: TElement; selected: boolean }) => {
   const sha = stringProp(element, "sha") ?? null;
   const url = stringProp(element, "url") ?? "";
   const body = () => {
