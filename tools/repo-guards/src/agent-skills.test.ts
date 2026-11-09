@@ -1,7 +1,7 @@
 // The skills are the built-in agent's dialect, and its system prompt is built from them:
-// apps/web/scripts/agent-prompt.ts writes the prompt every conversation freezes as a module of the
-// Worker's, from this package in the order the hub's index names the skills. This holds the set and
-// the hub's index together, and the module to what the script writes.
+// packages/service/scripts/agent-prompt.ts writes the prompt every conversation freezes as a module
+// of the Worker's, from this package in the order the hub's index names the skills. This holds the
+// set and the hub's index together, and the module to what the script writes.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -21,7 +21,7 @@ const FENCE_LANGS = "packages/editor/src/markdown/fence-langs.ts";
 const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
 const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
 
-const AGENT_PROMPT_SCRIPT = "apps/web/scripts/agent-prompt.ts";
+const AGENT_PROMPT_SCRIPT = "packages/service/scripts/agent-prompt.ts";
 
 const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
 

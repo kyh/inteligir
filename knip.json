@@ -51,31 +51,33 @@
       "project": ["src/**/*.{ts,tsx,css}!", "vite/**/*.ts", "!src/**/test-support/**!"]
     },
     "apps/web": {
-      // cloudflare.config.ts is what `cf build` deploys, its entrypoint src/worker/server.ts, which
-      // mounts src/worker/index.ts, the suites' Worker; the type claims are vitest's
-      // `typecheck.include`, which knip's vitest plugin does not read; scripts/ is `pnpm
-      // og:cards`'s and `pnpm agent-prompt`'s, run by node outside the build
-      "entry": [
-        "cloudflare.config.ts!",
-        "src/worker/index.ts!",
-        "src/worker/**/*.test-d.ts",
-        "scripts/*.ts"
-      ],
+      // cloudflare.config.ts is what `cf build` deploys, its entrypoint src/worker/server.ts; the
+      // type claims are tsc's, over the Worker's program; scripts/ is `pnpm og:cards`'s, run by
+      // node outside the build
+      "entry": ["cloudflare.config.ts!", "src/worker/*.test-d.ts", "scripts/*.ts"],
       "project": ["src/**/*.{ts,tsx,css}!", "scripts/*.ts", "!src/**/test-support/**!"],
-      // a stub the Worker's program maps by `paths` (src/worker/tsconfig.json), which knip does not follow
-      "ignore": ["src/worker/types/highlight-js.d.ts"],
-      // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts reads
-      // @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow;
       // @repo/workspace is the library's page, never imported: vite.config.ts copies its build into
       // the Worker's assets, and the edge orders its build before the Worker's
-      "ignoreDependencies": ["@repo/agent-skills", "@repo/workspace", "cloudflare", "tailwindcss"]
+      "ignoreDependencies": ["@repo/workspace", "tailwindcss"]
     },
     "packages/agent-panel": { "project": ["src/**/*.ts!"] },
     "packages/contract": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
     "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
-    "packages/service": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
+    "packages/db": { "project": ["src/**/*.ts!"] },
+    "packages/service": {
+      // cloudflare.config.ts is the suites' Worker, never deployed, its entrypoint
+      // src/test-support/test-worker.ts; the type claims are vitest's `typecheck.include`, which
+      // knip's vitest plugin does not read; scripts/ is `pnpm agent-prompt`'s, run by node
+      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
+      "project": ["src/**/*.ts!", "scripts/*.ts", "!src/**/test-support/**!"],
+      // a stub the program maps by `paths` (tsconfig.json), which knip does not follow
+      "ignore": ["src/types/highlight-js.d.ts"],
+      // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts
+      // reads @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow
+      "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
+    },
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"]
     },
