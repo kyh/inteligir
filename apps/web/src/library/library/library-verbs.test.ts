@@ -1,28 +1,30 @@
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
 
-import { heldItem, listedItem } from "../test-support/cell-rows";
 import { organizedOverlay } from "./library-verbs";
 
 describe(organizedOverlay, () => {
   it("lays a tag change over a row as the cell makes it, case by case", () => {
-    const row = listedItem("a", { tags: ["Spring", "trips"] });
+    const cell = createFakeCell();
+    const id = cell.seed.item({ tags: ["Spring", "trips"] });
     const laid = organizedOverlay({
       addTags: ["SPRING", "plans"],
-      ids: ["a"],
+      ids: [id],
       removeTags: ["TRIPS"],
-    }).row(row);
+    }).row(cell.listed(id));
     expect(laid?.fields.tags).toStrictEqual(["Spring", "plans"]);
     expect(laid?.tags).toStrictEqual(["Spring", "plans"]);
   });
 
   it("pins, moves and retitles the item and its card", () => {
-    const item = heldItem("a", { folderId: "f1", title: "Plans" });
+    const cell = createFakeCell();
+    const id = cell.seed.item({ folderId: cell.seed.folder("Trips"), title: "Plans" });
     const laid = organizedOverlay({
       folder: null,
-      ids: ["a"],
+      ids: [id],
       pinned: true,
       title: "Trip",
-    }).item(item);
+    }).item(cell.held(id));
     expect(laid.fields.folderId).toBeNull();
     expect(laid.fields.pinnedAt).not.toBeNull();
     expect(laid.fields.title).toBe("Trip");
@@ -30,8 +32,10 @@ describe(organizedOverlay, () => {
   });
 
   it("keeps what the write leaves alone, and an unpinned item's pin goes", () => {
-    const row = listedItem("a", { folderId: "f1", pinnedAt: 5, title: "Plans" });
-    const laid = organizedOverlay({ ids: ["a"], pinned: false }).row(row);
+    const cell = createFakeCell();
+    const id = cell.seed.item({ folderId: cell.seed.folder("Trips"), pinnedAt: 5, title: "Plans" });
+    const row = cell.listed(id);
+    const laid = organizedOverlay({ ids: [id], pinned: false }).row(row);
     expect(laid?.fields).toStrictEqual({ ...row.fields, pinnedAt: null });
     expect(laid?.card).toBe(row.card);
   });

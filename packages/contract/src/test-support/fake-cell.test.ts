@@ -1,9 +1,11 @@
 // What a client's suites read of the fake cell, each case the one the cell's own suite holds the
 // Worker to (`packages/service/src/library/cell-listing.test.ts`): an item whole, a listing's pages,
-// the rail's counts and every title.
+// the rail's counts and every title; then the writes a screen makes beyond its own ops, and the
+// rows a suite seeds and reads back.
 
 import { describe, expect, it } from "vitest";
 
+import { newIdSchema } from "../library/library-wire";
 import { ordsBetween } from "../library/order-key";
 import { isOrpcError } from "../v1-errors";
 import { createFakeCell } from "./fake-cell";
@@ -221,5 +223,109 @@ describe("what a client reads of the fake cell", () => {
         { id: untitled, title: "Groceries" },
       ],
     });
+  });
+});
+
+describe("what a screen writes of the fake cell beyond its ops", () => {
+  it("mints an id as a device does for a link saved without one", async () => {
+    const { library } = laptop();
+    const { created, item } = await library.items.saveLink({ url: "https://example.com/a" });
+    expect(created).toBe(true);
+    expect(newIdSchema.safeParse(item.id).success).toBe(true);
+    const again = await library.items.saveLink({ url: "https://example.com/b" });
+    expect(again.item.id).not.toBe(item.id);
+  });
+
+  it("organizes as the cell does: tags case by case, a folder by its id, a pin and a title", async () => {
+    const { library, newId, note } = laptop();
+    const reading = newId();
+    await library.folders.write({
+      ops: [{ id: reading, name: "Reading", op: "create", parentId: null, sort: "a0" }],
+    });
+    const id = await note(["Plans."], { tags: ["Spring", "trips"], title: "Plans" });
+
+    const { items } = await library.items.organize({
+      addTags: ["SPRING", "plans"],
+      folder: { id: reading },
+      ids: [id],
+      pinned: true,
+      removeTags: ["TRIPS"],
+      title: "Trip",
+    });
+
+    expect(items).toMatchObject([
+      { folderId: reading, id, pinned: true, tags: ["Spring", "plans"], title: "Trip" },
+    ]);
+    await expect(library.items.get({ id })).resolves.toMatchObject({
+      fields: { folderId: reading, tags: ["Spring", "plans"], title: "Trip" },
+    });
+  });
+
+  it("refuses an organize naming an item or a folder it lacks, landing none of it", async () => {
+    const { library, newId, note } = laptop();
+    const id = await note(["Kept."], { title: "Kept" });
+
+    await expect(
+      codeOf(library.items.organize({ ids: [id, newId()], pinned: true })),
+    ).resolves.toBe("NOT_FOUND");
+    await expect(
+      codeOf(library.items.organize({ folder: { id: newId() }, ids: [id] })),
+    ).resolves.toBe("NOT_FOUND");
+    await expect(library.items.get({ id })).resolves.toMatchObject({
+      fields: { folderId: null, pinnedAt: null },
+    });
+  });
+
+  it("empties Deleted for good, and counts any other id missing", async () => {
+    const { library, newId, note } = laptop();
+    const gone = await note(["Gone."]);
+    const kept = await note(["Kept."]);
+    await library.items.delete({ ids: [gone] });
+    const stranger = newId();
+
+    await expect(library.items.purge({ ids: [gone, kept, stranger] })).resolves.toStrictEqual({
+      missing: [kept, stranger],
+      purged: [gone],
+    });
+    await expect(codeOf(library.items.get({ id: gone }))).resolves.toBe("NOT_FOUND");
+    await expect(library.listing.scopes()).resolves.toMatchObject({ deleted: 0, total: 1 });
+  });
+
+  it("reads a link's page again, and has no page to read for a note", async () => {
+    const { library, note } = laptop();
+    const { item } = await library.items.saveLink({ url: "https://example.com/page" });
+    const id = await note(["Mine."]);
+
+    await expect(library.items.refresh({ id: item.id })).resolves.toMatchObject({
+      item: { fields: { fetchError: null, fetchState: "pending" }, id: item.id },
+    });
+    await expect(codeOf(library.items.refresh({ id }))).resolves.toBe("NOT_FOUND");
+  });
+});
+
+describe("the rows a suite seeds in the fake cell", () => {
+  it("lands each without a call, and reads it back as the listing and items.get answer it", async () => {
+    const cell = createFakeCell();
+    const { library } = cell.device("laptop").client;
+    const reading = cell.seed.folder("Reading");
+    const id = cell.seed.item({ folderId: reading, tags: ["spring"], title: "Plans" });
+    const gone = cell.seed.item({ deletedAt: 1 });
+
+    const page = await library.listing.page({
+      limit: 10,
+      query: { deleted: false, sort: "saved" },
+    });
+    expect(page.items).toStrictEqual([cell.listed(id)]);
+    await expect(library.items.get({ id })).resolves.toStrictEqual(cell.held(id));
+    await expect(library.listing.scopes()).resolves.toMatchObject({
+      deleted: 1,
+      folders: [{ id: reading, items: 1, name: "Reading" }],
+    });
+    expect(cell.held(gone).fields.deletedAt).toBe(1);
+    expect(cell.calls).toStrictEqual([
+      "laptop library/listing/page",
+      "laptop library/items/get",
+      "laptop library/listing/scopes",
+    ]);
   });
 });

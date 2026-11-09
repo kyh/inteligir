@@ -1,12 +1,9 @@
-import { createORPCClient, createORPCErrorFromJson } from "@orpc/client";
-import type { V1Client } from "@repo/contract/v1";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { fileSha } from "@repo/contract/library/file-sha";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import type { ItemsMoved } from "../cloud/use-library-socket";
-import { heldItem } from "../test-support/cell-rows";
 import { installPageEditorHost } from "./page-editor-host";
 
 const PLANS = "0199a4c2-0000-7000-8000-0000000000c1";
@@ -15,25 +12,7 @@ const ORIGIN = "https://library.test";
 
 const paragraph = { children: [{ text: "Held by the cell." }], id: "p1", type: "p" };
 
-const client = createORPCClient<V1Client>({
-  call: async (path, input) => {
-    if (path.join(".") !== "library.items.get") {
-      throw new Error(`the suite answers no ${path.join(".")}`);
-    }
-    if (z.object({ id: z.string() }).parse(input).id === PLANS) {
-      return await Promise.resolve({
-        ...heldItem(PLANS, { title: "Plans" }),
-        blocks: [{ block: paragraph, hash: "h1", ord: "a0", section: "note" }],
-      });
-    }
-    throw createORPCErrorFromJson({
-      code: "NOT_FOUND",
-      data: undefined,
-      defined: true,
-      message: "No such item.",
-    });
-  },
-});
+const { client } = createFakeCell().device("page");
 
 const nothing = (): void => {
   // the suite's page has no item view, panel or composer to answer with
@@ -68,6 +47,14 @@ const refused = async (): Promise<Response> =>
 
 describe("the page's editor host", () => {
   it("answers an embedded item's blocks as the cell holds them, and none for an item it lacks", async () => {
+    await client.library.items.create({
+      blocks: [{ block: paragraph, ord: "a0", section: "note" }],
+      folderId: null,
+      id: PLANS,
+      savedAt: 1_700_000_000_000,
+      tags: [],
+      title: "Plans",
+    });
     install(refused);
 
     await expect(getEditorHostIo().readItemBlocks(PLANS)).resolves.toStrictEqual([paragraph]);

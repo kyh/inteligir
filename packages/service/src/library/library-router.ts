@@ -52,7 +52,7 @@ import {
   setDeleted,
 } from "./cell-items";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { itemWhole, listingPage, listingScopes, listingTitles } from "./cell-listing";
+import { itemWhole, listingOf, listingPage } from "./cell-listing";
 import {
   listChangeSets,
   listItems,
@@ -438,10 +438,10 @@ export const libraryRouter = os.router({
       answer(context.library.read((storage) => listingPage(storage, input))),
     ),
     scopes: os.listing.scopes.handler(({ context }) =>
-      answer(context.library.read((storage) => listingScopes(storage.db))),
+      answer(context.library.read((storage) => listingOf(storage.db).scopes())),
     ),
     titles: os.listing.titles.handler(({ context }) =>
-      answer(context.library.read((storage) => listingTitles(storage.db))),
+      answer(context.library.read((storage) => listingOf(storage.db).titles())),
     ),
   },
   organize: {
