@@ -62,7 +62,7 @@ src/
   library-scope.ts     # the library's scopes, one spelling every listing and view context reads
   client-build.ts      # the build every request names, and the floor it is held to
   cloud-origin.ts      # the production origin a client falls back to
-  library-page.ts      # where the Worker serves the library's page
+  library-page.ts      # where the site serves the library's page
   connector.ts         # the connector's path, which an assistant is pointed at
   bytes.ts             # the byte primitives, on globals every target has
   extension/           # the extension's key, id, origin and store link, and the connect page's messages
@@ -75,7 +75,7 @@ src/
 - **apps/web** SERVES every row, the account's on its own handler and the
   library's in each account's cell, and decorates the library's rows as the
   connector's tools, the one place MCP and OpenAPI meta are written.
-- **apps/workspace** (the browser tab, and the Mac app's window on it) reaches
+- **apps/web/src/library** (the browser tab, and the Mac app's window on it) reaches
   the library and the account through `v1`, each read a query under
   oRPC's own key that the account's socket invalidates
   (`library/library-socket`). **apps/mobile** reaches them the same way,
@@ -122,7 +122,7 @@ src/
 - **One spelling per route path.** `tools/repo-guards/src/route-paths.test.ts`
   sweeps the repo for the literal strings behind `V1_RPC_PATH` and
   `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
-  it, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
+  it, but for a route the site's router types, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
   `docs/privacy.md`.
 - **The socket's `moved` frame is a hint, never state.** It says what a write
   moved, and a client reads that again over `/v1`. A `thread` frame carries the

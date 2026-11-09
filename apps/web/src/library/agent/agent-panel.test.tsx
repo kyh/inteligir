@@ -392,7 +392,7 @@ describe("the agent panel's conversation", () => {
     expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
   });
 
-  it("waits offline under the root's notice, and goes once back online", async () => {
+  it("waits offline under the layout's notice, and goes once back online", async () => {
     const said = vi.spyOn(toast, "error");
     const { calls, library } = fakePageLibrary({
       // with no connection a call rejects, as fetch does

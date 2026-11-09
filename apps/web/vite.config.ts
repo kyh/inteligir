@@ -89,7 +89,7 @@ export default defineConfig({
   environments: {
     client: {
       build: {
-        // the library's chunk is about 4.4 MB on purpose (above), so the ceiling (kB) is there to
+        // the library's chunk is about 3.1 MB on purpose (above), so the ceiling (kB) is there to
         // catch a dependency that doubles it
         chunkSizeWarningLimit: 6000,
         rolldownOptions: {

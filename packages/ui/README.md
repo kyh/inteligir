@@ -8,7 +8,7 @@ attribution header on each file.
 
 ## Consumers
 
-- `apps/workspace` — the product's page
+- `apps/web/src/library` — the product's page
 - `packages/editor` — note editor
 - `apps/mobile-editor` — the phone's editor page
 - `apps/web` — the site and the auth pages

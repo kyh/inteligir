@@ -15,7 +15,7 @@ class UnreadableDrawingError extends Error {
   override name = "UnreadableDrawingError";
 }
 
-// nothing remote draws in an item (packages/service/src/library/library-page.ts): a diagram's links
+// nothing remote draws in an item (apps/web/src/lib/document-policy.ts): a diagram's links
 // and images are dropped, and no icon set is handed over, since Pele inserts an icon's markup
 // unfiltered. Its colours and faces are the host's --pele-* variables (styles.css), so a theme
 // change needs no redraw.

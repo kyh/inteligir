@@ -26,7 +26,6 @@ const SURFACES = [
   "@repo/service",
   "@repo/ui",
   "@repo/web",
-  "@repo/workspace",
 ] as const;
 
 const RUST_UI_DIR = "apps/desktop/src-tauri/src";

@@ -133,8 +133,7 @@ this guide wins.
 ## Map
 
 ```
-apps/web                @repo/web — ONE Cloudflare Worker: the site, and the entry that serves @repo/service's doors and exports its Durable Objects
-apps/workspace          @repo/workspace — the SPA the Worker serves at /library, which the Mac app's window shows
+apps/web                @repo/web — ONE Cloudflare Worker: the site, the library's page at /library (src/library, which the Mac app's window shows), and the entry that serves @repo/service's doors and exports its Durable Objects
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
 apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
@@ -336,7 +335,7 @@ is in the file named.
   is guarded, applied and logged by the account's library cell; a device reads
   and writes it through `/v1`, its reads cached by TanStack Query and asked
   again when the account's socket says what moved (`apps/web/CLAUDE.md`,
-  `apps/workspace/CLAUDE.md`, `apps/mobile/CLAUDE.md`).
+  `apps/web/src/library/CLAUDE.md`, `apps/mobile/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
 - **Only a save waits offline**: the extension's queue and the phone's share
@@ -352,14 +351,14 @@ is in the file named.
   React Compiler on for every bundle (`tools/repo-guards/CLAUDE.md`).
 - **A value has one spelling**: a key binding comes from the table its listener
   reads (`packages/editor/CLAUDE.md`), a page preference is a `PREFS` row
-  (`apps/workspace/CLAUDE.md`).
+  (`apps/web/src/library/CLAUDE.md`).
 - **The extension is a `/v1` client on the browser's own session**: it sends
   the site's signed session cookie as its bearer and ships on the Web Store's
   cadence, so the build floor holds it as it holds every client
   (`apps/extension/CLAUDE.md`).
 - **A library scope has one spelling**: `@repo/contract/library-scope`, read by
   the page's pref, the items listing and the view context
-  (`apps/workspace/CLAUDE.md`).
+  (`apps/web/src/library/CLAUDE.md`).
 
 ## Decisions
 
@@ -377,10 +376,10 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sessions and accounts
+- [`apps/web/src/library/CLAUDE.md`](apps/web/src/library/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: whose sign-in it rides, its saves and its queue
-- [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling
 
 A citation of `CLAUDE.md § X` names the bullet or group titled X in whichever

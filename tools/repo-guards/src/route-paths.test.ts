@@ -43,10 +43,15 @@ const GUARDED = NAMESPACES.flatMap((namespace) =>
 // a caller that cannot import the contract, keyed by file, with why it cannot
 const ELSEWHERE = new Map([
   [
-    "apps/web/cloudflare.config.ts",
-    "its runWorkerFirst patterns: the dev server cannot load a module the config and the Worker both load (oxlint.config.ts, CONFIG_MODULES)",
+    "apps/web/src/routeTree.gen.ts",
+    "the site router's route tree, generated from apps/web/src/routes, which every typed route spelling is checked against",
   ],
 ]);
+
+// a route the site's router types (its file route, a match's `from`, a navigation's `to`) fails
+// the typecheck once its file moves, so it is no second spelling
+const TYPED_ROUTE =
+  /\b(?:createFileRoute|getRouteApi)\(\s*["'`]\/[^"'`]*["'`]|\b(?:from|to):\s*["'`]\/[^"'`]*["'`]/gu;
 
 interface Spelled {
   path: string;
@@ -63,8 +68,10 @@ interface Hit extends Spelled {
 const spells = (source: string, { path, quoted }: Pick<Spelled, "path" | "quoted">): boolean =>
   new RegExp(`${quoted ? "[\"'`!]" : ""}${path}(?![\\w-])`, "u").test(source);
 
-const spellings = (source: string): Spelled[] =>
-  GUARDED.filter((row) => spells(source, row)).slice(0, 1);
+const spellings = (source: string): Spelled[] => {
+  const untyped = source.replaceAll(TYPED_ROUTE, "");
+  return GUARDED.filter((row) => spells(untyped, row)).slice(0, 1);
+};
 
 const sweptFiles = (): string[] =>
   workspaces()

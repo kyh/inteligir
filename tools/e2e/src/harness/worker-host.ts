@@ -78,8 +78,8 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
   const { assets, manifest, ...rest } = z
     .looseObject({ assets: z.looseObject({}).optional(), manifest: ManifestSchema })
     .parse(raw);
-  // the config's own routing (the library page's paths run the Worker first), over the output's
-  // directory, which the build names by where it wrote it rather than in the config
+  // the config's own routing, over the output's directory, which the build names by where it wrote
+  // it rather than in the config
   const config = MiniflareWorkerConfigBaseSchema.parse({
     ...rest,
     assets: { ...assets, directory: path.join(args.outputDir, "assets"), hasUserWorker: true },

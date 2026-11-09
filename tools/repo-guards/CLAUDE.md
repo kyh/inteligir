@@ -41,12 +41,12 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **THE REACT COMPILER IS ON FOR EVERY BUNDLE, THROUGH react.dev's VITE PATH**
   (owner decision): `@vitejs/plugin-react`'s `reactCompilerPreset` run by
-  `@rolldown/plugin-babel` in the workspace's, the web's, the phone editor
-  page's and the gallery's vite configs and the extension's WXT config
+  `@rolldown/plugin-babel` in the web's, the phone editor page's and the
+  gallery's vite configs and the extension's WXT config
   (`apps/extension/wxt.config.ts`), and `reactCompiler: true` in
-  `apps/mobile/app.config.js`; the workspace's build says each component the
-  compiler skipped (`apps/workspace/vite.config.ts`). The suites run what
-  ships: the workspace's, `@repo/editor`'s, `@repo/ui`'s, the phone page's and
+  `apps/mobile/app.config.js`; the web's build says each component the
+  compiler skipped (`apps/web/vite.config.ts`). The suites run what
+  ships: the library's, `@repo/editor`'s, `@repo/ui`'s, the phone page's and
   the extension's DOM tests compile their sources the same way (not test files,
   where a fixture hook minted in a factory is hoisted with no diagnostic), and
   a `compiled-under-test` case in each fails without the preset (the phone
@@ -86,8 +86,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit replays
   the output with no error, and the e2e suite and `package:*` ship what it
   replays. Another workspace's files enter a key only through a `^` edge, and
-  no task names another workspace's: the Worker's build reaches
-  `@repo/workspace#build` through its own dependency. A
+  no task names another workspace's: the Worker's build reaches the editor's
+  and the ui's files through its own `^build` edge. A
   file in no workspace is a named input, and a followed file a named output
   (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
   holds the `^` edges and a bundled import's input (`/privacy` renders
@@ -160,8 +160,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   its suite. Those two names are all a config reads to tell a test from a
   source: every suite's React Compiler skips `/\.test\.tsx?$/` and
   `/\/test-support\//`, as do oxlint's test overrides (`oxlint.config.ts`),
-  `isTestFile` (`tools/repo-guards/src/repo.ts`) and the page's own program
-  (`apps/workspace/src/tsconfig.page.json`). Rejected: `__tests__/` folders (a
+  `isTestFile` (`tools/repo-guards/src/repo.ts`) and the pages' own program
+  (`apps/web/tsconfig.page.json`). Rejected: `__tests__/` folders (a
   second place to look, drifting from its module; kyh/init puts a test beside
   its module). `tools/repo-guards/src/tests-beside-source.test.ts`.
 

@@ -1,4 +1,4 @@
-# Decisions: @repo/workspace
+# Decisions: the library's page
 
 The library's page: the account's library read and written online, the rail,
 the grid, the open item, the panel, the palette, Settings and the page's own
@@ -6,18 +6,21 @@ preferences. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-`src/main.tsx` opens the account's library (the session, then the account's
-socket) and mounts the router; `src/router.tsx` makes the router and the
-QueryClient it carries. `app/cloud/` holds the `/v1` client and its query utils,
-the library's queries, the account's socket and the page's library context;
-`app/workspace.tsx` owns the rail, the grid or the open item, the panel and the
-palette; `app/library/` the grid, its scope, selection, Quick Look, the verbs
-over items and what a paste or a drop saves; `app/item/` the open item, its
-store over the cell, its stages and the editor's host; `app/panel/` Info;
-`app/agent/` the built-in agent's conversations and Tidy; `app/palette/` ⌘P;
-`app/sidebar/` the rail; `app/settings/` the Settings layer. The Mac app's
-update, the one thing the page asks its shell, is parsed in
-`src/shell/desktop-bridge.ts`.
+The page is the site's `/library` route (`apps/web/src/routes/library.tsx`),
+its children the workspace and Settings, and its code this folder.
+`library-tab.ts` opens the tab once a document (the session, the wire, the
+account's socket and the QueryClient), in the route's `beforeLoad`, and
+`library-layout.tsx` draws the layout every library route shares over what it
+opened. `cloud/` holds the `/v1` client and its query utils, the library's
+queries, the account's socket and the page's library context; `workspace.tsx`
+owns the rail, the grid or the open item, the panel and the palette;
+`library/` the grid, its scope, selection, Quick Look, the verbs over items
+and what a paste or a drop saves; `item/` the open item, its store over the
+cell, its stages and the editor's host; `panel/` Info; `agent/` the built-in
+agent's conversations and Tidy; `palette/` ⌘P; `sidebar/` the rail;
+`settings/` the Settings layer; `styles/` the page's stylesheet, which only
+its route links. The Mac app's update, the one thing the page asks its shell,
+is parsed in `shell/desktop-bridge.ts`.
 
 ## The page over the cell
 
@@ -32,28 +35,31 @@ update, the one thing the page asks its shell, is parsed in
   the tab (a second copy of the library to keep right, for a page that cannot
   edit offline anyway); a server on the device (a second writer beside the
   cell); a fault of the site's read as signed out (a password asked of someone
-  signed in). `apps/workspace/src/main.tsx`,
-  `apps/workspace/src/app/cloud/library-queries.ts`.
+  signed in). `apps/web/src/library/library-tab.ts`,
+  `apps/web/src/library/cloud/library-queries.ts`.
 
-- **THE QUERY CLIENT IS THE ROUTER'S, AND ITS KEYS ARE oRPC'S.** One
-  `QueryClient` is made with the router and handed to it as context, its
-  provider the router's `Wrap`, so a loader and a component share one cache; a
-  loader seeds what its screen reads with
-  `queryClient.query({ ..., staleTime: "static" })`, once, over the options its
-  screen reads with their own freshness, waiting for one answer and not the
-  retries the screen's query makes itself. Every read is oRPC's TanStack utils
-  over the same client, under the key oRPC gives it, so the socket and a
-  mutation reach a family by its key alone. Rejected: a module-level client (a
-  test and a second router share it); keys of the page's own (a second spelling
-  of every procedure); `ensureQueryData`, `fetchQuery` and `prefetchQuery`
-  (deprecated for `query`). `apps/workspace/src/router.tsx`,
-  `apps/workspace/src/app/cloud/library-queries.ts`.
+- **THE QUERY CLIENT IS THE TAB'S, AND ITS KEYS ARE oRPC'S.** One
+  `QueryClient` is made as the tab opens and handed to the library's routes in
+  the context their `beforeLoad` returns, its provider the library's layout, so
+  a loader and a component share one cache; a loader seeds what its screen
+  reads with `queryClient.query({ ..., staleTime: "static" })`, once, over the
+  options its screen reads with their own freshness, waiting for one answer and
+  not the retries the screen's query makes itself. Every read is oRPC's
+  TanStack utils over the same client, under the key oRPC gives it, so the
+  socket and a mutation reach a family by its key alone. Rejected: a client in
+  the router's own context (every site page would make one it never reads);
+  keys of the page's own (a second spelling of every procedure);
+  `ensureQueryData`, `fetchQuery` and `prefetchQuery` (deprecated for
+  `query`). `apps/web/src/library/library-tab.ts`,
+  `apps/web/src/routes/library.tsx`,
+  `apps/web/src/library/cloud/library-queries.ts`.
 
 - **A CELL CALL PAUSES OFFLINE AND SAYS SO.** A call only the cell answers is a
   TanStack query or mutation run online (`networkMode: "online"`), so with no
   connection it waits rather than fails: a read says "Needs a connection" where
   it would draw, and a write, whether asked from a card's menu, a button or
-  Settings, in one notice the root keeps up while any waits offline. A refusal
+  Settings, in one notice the library's layout keeps up while any waits
+  offline. A refusal
   the contract declares says its own sentence; any other failure says the
   screen's fallback, never an error's own words. The one retry rule never
   retries a declared refusal, so no screen turns retries off itself. A write
@@ -62,22 +68,26 @@ update, the one thing the page asks its shell, is parsed in
   too, so it waits under that notice and in that scope, retried as a query is.
   Rejected: a call outside TanStack (it fails at once offline); a note per
   button (a menu's verb has none).
-  `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/cloud/needs-connection.tsx`, over
+  `apps/web/src/library/cloud/v1.ts`,
+  `apps/web/src/library/cloud/needs-connection.tsx`, over
   `packages/contract/src/refusal-text.ts`, which the phone says too.
 
-- **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The
-  build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
-  nodes (KaTeX, Mermaid, the calendar, the wiki chip) with the routes, so after
-  the page loads nothing is fetched but calls and files: a chunk first asked for
-  by a tab that lost its connection fails, and the crash screen offers a reload.
-  The account's socket dials again the moment the browser says it is online,
+- **THE LIBRARY IS ONE CHUNK, AND CATCHES UP AS ITS CONNECTION RETURNS.**
+  Every module only the library's routes reach, the tab's open and the
+  editor's lazy nodes (KaTeX, Mermaid, the calendar, the wiki chip) among them,
+  is one chunk group, so a site page preloads none of it and, once the page
+  loads, nothing is fetched but calls and files: a chunk first asked for by a
+  tab that lost its connection fails, and the crash screen offers a reload. The
+  account's socket dials again the moment the browser says it is online,
   rather than at its next wait, and every time it opens every query is read
-  again. Rejected: route splitting alone (the lazy nodes still split); warming
-  each chunk at boot (a tab offline before they land still fails); a boundary
-  per lazy node (nothing is left to fail to load).
-  `apps/workspace/vite.config.ts`,
-  `apps/workspace/src/app/cloud/use-library-socket.ts`.
+  again. Residual: a lazy module reached through a shared barrel (lucide-react,
+  Base UI) keeps a chunk of its own of under a kilobyte, the calendar's and
+  Settings' among them, fetched on first use. Rejected: no splitting at all
+  (the site would load the library); route splitting alone (the lazy nodes
+  split into chunks of their own); warming each chunk at boot (a tab offline
+  before they land still fails); a boundary per lazy node (the group leaves
+  almost nothing to fail to load). `apps/web/vite.config.ts`,
+  `apps/web/src/library/cloud/use-library-socket.ts`.
 
 - **THE ACCOUNT'S SOCKET SAYS WHAT MOVED, AND THE PAGE READS THAT AGAIN.** A
   moved frame invalidates the listings and the rail's counts for any item it
@@ -91,8 +101,8 @@ update, the one thing the page asks its shell, is parsed in
   its typing writes.
   Rejected: state in the frames (a dropped frame would be a lost write);
   partysocket (the contract's hint already redials, pings and backs off).
-  `apps/workspace/src/app/cloud/use-library-socket.ts`,
-  `apps/workspace/src/app/item/cell-item-store.ts`.
+  `apps/web/src/library/cloud/use-library-socket.ts`,
+  `apps/web/src/library/item/cell-item-store.ts`.
 
 - **THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT.** The one thing the tab
   holds that the cell has not is the open item's edit before its pause writes
@@ -100,11 +110,11 @@ update, the one thing the page asks its shell, is parsed in
   while it holds one the browser asks before the tab closes, reloads or leaves,
   its listener there only then; a session that ended asks nothing, since
   nothing can go. An open item that will not write asks before the page leaves
-  it, saying why (`apps/workspace/src/app/item/leave-item.ts`). Residual: the
+  it, saying why (`apps/web/src/library/item/leave-item.ts`). Residual: the
   Mac app's ⌘Q right after typing can lose the pause, since a window's quit
   runs no `pagehide` the page can wait on. Rejected: a listener always armed (it
-  bars the back-forward cache). `apps/workspace/src/app/cloud/leave-guard.ts`,
-  `apps/workspace/src/app/workspace.tsx`.
+  bars the back-forward cache). `apps/web/src/library/cloud/leave-guard.ts`,
+  `apps/web/src/library/workspace.tsx`.
 
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** Every call goes
   through the wire's interceptor, and a file sent up reads its upload's 401,
@@ -115,36 +125,38 @@ update, the one thing the page asks its shell, is parsed in
   Rejected: waiting for a wire call alone (an idle page makes none); an upload's
   end said as a failed file (the tab stayed on a library it could no longer
   reach); the refused tab sent to sign in (the sign-in sends a signed-in tab
-  straight back, for good). `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/cloud/library-files.ts`,
-  `apps/workspace/src/app/cloud/session-keeper.ts`,
-  `apps/workspace/src/main.tsx`, over `packages/service/src/client-floor.ts`.
+  straight back, for good). `apps/web/src/library/cloud/v1.ts`,
+  `apps/web/src/library/cloud/library-files.ts`,
+  `apps/web/src/lib/auth-client.ts`, `apps/web/src/library/library-tab.ts`,
+  over `packages/service/src/client-floor.ts`.
 
 ## Surfaces
 
-- **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
-  and the one `TooltipProvider` live in `apps/workspace/src/routes/__root.tsx`;
-  a host mounted by one route leaves another route's `confirm()` parked on a
-  dialog that never opens.
+- **WINDOW-LEVEL HOSTS MOUNT IN THE LIBRARY'S LAYOUT.** `ConfirmDialogHost`,
+  `Toaster`, the one `TooltipProvider`, the theme and the notices live in the
+  layout above every library route; a host mounted by one route leaves another
+  route's `confirm()` parked on a dialog that never opens. Rejected: the root
+  route (every site page would carry the library's hosts).
+  `apps/web/src/library/library-layout.tsx`.
 
 - **THE RAIL CHOOSES THE LIBRARY'S SCOPE.** A header (Library, Search), then
   the groups Library (All items, Unsorted), Folders, Tags (folding) and Deleted,
   each row a scope with the count the cell answers for it
   (`library.listing.scopes`), and Settings at its foot. The footer says nothing
-  of where the library stands: a call waiting for a connection is the root's
-  one notice. Each row sets the grid's scope (`libraryScope`) and goes back to
+  of where the library stands: a call waiting for a connection is the
+  layout's one notice. Each row sets the grid's scope (`libraryScope`) and goes back to
   the library; a folder's other verbs are its right-click and its More button.
   Rejected: a window-wide strip (a second bar under the rail); a sync line (an
   online page has nothing queued to report).
-  `apps/workspace/src/app/sidebar/rail.tsx`.
+  `apps/web/src/library/sidebar/rail.tsx`.
 
 - **A FOLDER SCOPE EXISTS, BY THE FOLDER'S ID.** A folder row narrows the grid
   to the folder; nested folders indent under their parents, and a save from the
   folder's grid lands in it. A remembered folder no longer listed reads as All
   items, on the phone as here (`listedScope` in
   `packages/contract/src/library-scope.ts`).
-  `apps/workspace/src/app/library/listing.ts`,
-  `apps/workspace/src/app/sidebar/folder-paths.ts`.
+  `apps/web/src/library/library/listing.ts`,
+  `apps/web/src/library/sidebar/folder-paths.ts`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** One field searches the
   cell's full-text index (titles, notes and saved articles) through
@@ -157,51 +169,57 @@ update, the one thing the page asks its shell, is parsed in
   `packages/ui/CLAUDE.md`). ⌘F IS NOT ONE OF THEM: it searches the open item,
   with its own chord and bar. Residual: each word typed waits on a call.
   Rejected: an index of the page's own (a second copy of the library); a search
-  field of the grid's own. `apps/workspace/src/app/palette/command-palette.tsx`.
+  field of the grid's own. `apps/web/src/library/palette/command-palette.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
   on its tab. The tabs are Info, about the open item or else the one card
   selected, and the Agent, about the whole library. The width
-  persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
-  Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
-  `apps/workspace/src/app/workspace.tsx`.
+  persists through the rail's own resize handle (`panelWidth` in `prefs.ts`).
+  Rejected: a second resize mechanism. `apps/web/src/library/panel/panel.tsx`,
+  `apps/web/src/library/workspace.tsx`.
 
 - **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
   MOUNTED.** `?item=<id>` is the open item: every open is a history entry, so
   the browser's Back leaves the item and Forward reopens it, and a link or a
-  reload opens it as the cell answers it. Settings is a layer in the
-  pathless `_workspace` layout: the covered workspace is `inert`, its
-  `GLOBAL_SHORTCUTS` listener detached, and the way in flushes the open item.
-  Rejected: a back/forward stack of the page's own (the tab has the browser's);
-  a sibling Settings route (it unmounted the item).
-  `apps/workspace/src/routes/_workspace.tsx`.
+  reload opens it as the cell answers it. Settings is a child of the
+  library's layout, drawn in a full-window layer over the workspace the layout
+  keeps mounted: the covered workspace is `inert`, its `GLOBAL_SHORTCUTS`
+  listener detached, and the way in flushes the open item. Rejected: a
+  back/forward stack of the page's own (the tab has the browser's); a sibling
+  Settings route (it unmounted the item).
+  `apps/web/src/library/library-layout.tsx`.
 
 - **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the page
   remembers across a reload is one `PREFS` row (key, a zod schema decoding the
   stored string and encoding the value, fallback), read and written only
   through `readPref` / `writePref` / `usePref`; bytes a row cannot decode read
-  as its fallback (`apps/workspace/src/app/prefs.ts`). An appearance dial is
+  as its fallback (`apps/web/src/library/prefs.ts`). An appearance dial is
   one `dial()` row naming its `--editor-*` token
-  (`apps/workspace/src/app/appearance-options.ts`). Labels and layout stay out:
-  Settings is laid out by hand. Rejected: a preference kept in the cell (a
-  theme is the device's, not the account's).
-  `tools/repo-guards/src/page-prefs.test.ts` refuses a keyed read outside it.
+  (`apps/web/src/library/appearance-options.ts`). Labels and layout stay out:
+  Settings is laid out by hand. The site's theme is the page's `PREFS.theme`,
+  which the document's no-flash script reads before any module loads, so the
+  site's toggle and Settings › Appearance are one choice
+  (`apps/web/src/components/theme-provider.tsx`). Rejected: a preference kept
+  in the cell (a theme is the device's, not the account's); a theme key of the
+  site's own (two choices for one document, the page painted by the one it did
+  not make). `tools/repo-guards/src/page-prefs.test.ts` refuses a keyed read
+  outside it.
 
-- **THE PAGE'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body` is
-  `user-select: none`, fields and the editor's editing hosts are `text`, and
-  what a person would copy (a conversation, an error) opts
-  in with `select-text`
-  (`apps/workspace/src/styles/globals.css`). Rejected: selectable by default
-  with `select-none` on the chrome (every new button, label and row would have
-  to remember it).
+- **THE PAGE'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** The
+  `body` holding the library's root (`[data-library]`) is `user-select: none`,
+  so the site's pages keep theirs, fields and the editor's editing hosts are
+  `text`, and what a person would copy (a conversation, an error) opts in with
+  `select-text` (`apps/web/src/library/styles/globals.css`). Rejected:
+  selectable by default with `select-none` on the chrome (every new button,
+  label and row would have to remember it).
 
 - **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/contract/library-scope`.** Which
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
   Deleted) is one set of zod arms (`packages/contract/src/library-scope.ts`), a
   folder named by its id as the cell keeps it, read by the page's `PREFS` row
-  (`apps/workspace/src/app/prefs.ts`), the grid's listing query
-  (`apps/workspace/src/app/library/listing.ts`) and a view context's `scope`
+  (`apps/web/src/library/prefs.ts`), the grid's listing query
+  (`apps/web/src/library/library/listing.ts`) and a view context's `scope`
   (`agentViewContextSchema` in
   `packages/contract/src/library/library-wire.ts`), which names any of
   them but Deleted. Rejected: a scope per surface or per wire, spellings that
@@ -211,12 +229,12 @@ update, the one thing the page asks its shell, is parsed in
 - **THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND.** With nothing open
   the page is the grid of the rail's scope, one card per item; an empty scope
   says why and offers a next step
-  (`apps/workspace/src/app/library/library-view.tsx`). An item opens full size
+  (`apps/web/src/library/library/library-view.tsx`). An item opens full size
   in its place and takes the keyboard unless something holds it, so Escape goes
-  back (`apps/workspace/src/app/item/item-view.tsx`): a file's viewer over its
+  back (`apps/web/src/library/item/item-view.tsx`): a file's viewer over its
   bytes (`/v1/blobs/<sha>`), a saved page's source above its text, a link not
   yet read saying so, and the item's blocks in the editor over the cell
-  (`apps/workspace/src/app/item/item-stages.tsx`), which turns read-only and
+  (`apps/web/src/library/item/item-stages.tsx`), which turns read-only and
   says "Needs a connection" while the browser is offline, an edit typed before
   the drop written once it returns. A long scope reads its next page as the grid
   scrolls near its end. Rejected: a list beside an always-open item (saved
@@ -226,9 +244,9 @@ update, the one thing the page asks its shell, is parsed in
   Finder's grammar by item id: a click selects, ⌘-click toggles, ⇧-click
   extends from the anchor, arrows follow the columns, ⌘A takes the listing,
   Space is Quick Look, Return opens
-  (`apps/workspace/src/app/library/library-selection.ts`). A double-click opens
+  (`apps/web/src/library/library/library-selection.ts`). A double-click opens
   on the click whose `detail` is 2, never the `dblclick`
-  (`apps/workspace/src/app/library/item-card.tsx`). The store is the
+  (`apps/web/src/library/library/item-card.tsx`). The store is the
   workspace's, so it outlives an open item, and the panel's Info and the
   agent's view context follow it; an item that left the listing leaves the
   selection. Rejected: click-to-open (the selection is the panel's subject and
@@ -238,7 +256,7 @@ update, the one thing the page asks its shell, is parsed in
   a purge of many items calls the cell once per chunk its route takes,
   sequentially; a chunk that fails stops the run and says how far it got, the
   closing sentence says only what landed, and a run where none landed says that
-  in place of a count (`apps/workspace/src/app/library/bulk-actions.ts`). A
+  in place of a count (`apps/web/src/library/library/bulk-actions.ts`). A
   delete of more than fifty asks first; any delete toasts its Undo.
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
@@ -251,7 +269,7 @@ update, the one thing the page asks its shell, is parsed in
   store's 100 MB is
   refused before a byte is queued, the file picker held to the same cap.
   Rejected: a save field of the grid's own.
-  `apps/workspace/src/app/library/capture/window-capture.ts`,
+  `apps/web/src/library/library/capture/window-capture.ts`,
   `capture-payload.ts`.
 
 - **AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS.** Info
@@ -262,8 +280,8 @@ update, the one thing the page asks its shell, is parsed in
   asked, rolled back if the cell refuses it, and read again once it settles; a
   delete, a restore and a purge are laid over the same way, all of them in one
   queue so they land in the order asked
-  (`apps/workspace/src/app/panel/info-tab.tsx`,
-  `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a form over the
+  (`apps/web/src/library/panel/info-tab.tsx`,
+  `apps/web/src/library/library/library-verbs.ts`). Rejected: a form over the
   item's markdown (a second reader of what the cell already parsed); waiting for
   the cell before a card moves (a pin would lag the press by a round trip).
 
@@ -286,9 +304,9 @@ update, the one thing the page asks its shell, is parsed in
   behind what waits (a long conversation's undos join a batch at a time, so its
   read ran ahead of the next batch and named it); writing the open item before
   joining the queue (a file still being kept let a later press overtake it).
-  `apps/workspace/src/app/cloud/change-set-pages.ts`,
-  `apps/workspace/src/app/agent/undo-answer.ts`,
-  `apps/workspace/src/app/agent/agent-panel.tsx`.
+  `apps/web/src/library/cloud/change-set-pages.ts`,
+  `apps/web/src/library/agent/undo-answer.ts`,
+  `apps/web/src/library/agent/agent-panel.tsx`.
 
 - **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the cell's
   thread rows and stored events, read as queries the account's socket keeps
@@ -314,7 +332,7 @@ update, the one thing the page asks its shell, is parsed in
   socket of the page's own to the conversation's object; one page of sets (a
   long conversation's oldest turns lost their Undo); the list on screen at the
   press (it can be a turn short of the cell, or hold what another device took
-  back). `apps/workspace/src/app/agent/agent-panel.tsx`, over
+  back). `apps/web/src/library/agent/agent-panel.tsx`, over
   `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.
 
 - **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
@@ -327,7 +345,7 @@ update, the one thing the page asks its shell, is parsed in
   request typed into the field (a person could edit it away); rules in the
   request (a second read beside the turn's).
   `packages/agent-panel/src/tidy-library.ts`,
-  `apps/workspace/src/app/settings/filing-rules.ts`.
+  `apps/web/src/library/settings/filing-rules.ts`.
 
 - **A FILE IN A NOTE IS READ WHERE THE PAGE DRAWS ITS FILES, AND ONE PASTED
   THERE GOES UP BEFORE ITS BLOCK.** The editor's host reads a note's picture or
@@ -337,33 +355,38 @@ update, the one thing the page asks its shell, is parsed in
   editor write the block naming it, so the cell never meets a sha it does not
   hold. Rejected: a cache of the page's own (the browser's already holds the
   answer); the bytes held for a later send (the page keeps nothing).
-  `apps/workspace/src/app/item/page-editor-host.ts`,
-  `apps/workspace/src/app/cloud/library-files.ts`.
+  `apps/web/src/library/item/page-editor-host.ts`,
+  `apps/web/src/library/cloud/library-files.ts`.
 
 - **THE MAC APP'S WINDOW KEEPS THE SYSTEM'S TITLE BAR, SO THE PAGE DRAWS THE
   SAME IN EVERY HOST.** macOS draws the window's title bar above the page and
   drags the window by it, so the page reserves no corner and marks nothing to
   drag by, and the Mac app shows the page a tab shows. The one thing the page
   asks its shell is the update: an in-page notice and Settings' Updates row,
-  over three commands and one event (`apps/workspace/src/shell/desktop-bridge.ts`,
+  over three commands and one event (`apps/web/src/library/shell/desktop-bridge.ts`,
   `apps/desktop/src-tauri/src/updater.rs`). Rejected: an overlay title bar the
   page draws around (drag strips, an inset top bar and a branch per host for a
-  few pixels of chrome). `apps/workspace/src/app/update-notice.tsx`,
-  `apps/workspace/src/app/top-bar.tsx`.
+  few pixels of chrome). `apps/web/src/library/update-notice.tsx`,
+  `apps/web/src/library/top-bar.tsx`.
 
 ## Repo guards, vendoring and tooling
 
-- **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState
+- **A LIBRARY TEST THAT LOGS A console.error FAILS.** React reports a setState
   during another component's render, a missing key or an update outside `act`
   only as a console.error, so a suite that just logs it stays green over a real
-  defect (`apps/workspace/src/app/test-support/console-error-gate.ts`). A test
+  defect (`apps/web/src/library/test-support/console-error-gate.ts`). A test
   that provokes one on purpose silences it with its own spy.
 
-- **THE PAGE IS ITS OWN WORKSPACE, AND THE WORKER SERVES ITS BUILD** (owner
-  decision). `@repo/workspace` depends on neither app: the Worker copies its
-  build into its assets through `^build` and answers it at `/library` (THE
-  LIBRARY'S PAGE IS THE WORKER'S, in `apps/web/CLAUDE.md`), and the Mac app's
-  window loads it from there. Only the page reaches `@tauri-apps/*`
-  (`SHELL_API_CLIENTS` in `tools/repo-guards/src/dep-dag.test.ts`), and its
-  loop is `pnpm dev:web`, which rebuilds it as it changes. Rejected: a dev
-  server of the page's own (a second origin, its calls cross-site).
+- **THE PAGE IS A ROUTE OF THE SITE, AND ITS SUITES RUN BESIDE THE SITE'S**
+  (owner decision). The Worker serves it as it serves the site (THE LIBRARY'S
+  PAGE IS A ROUTE OF THE SITE, in `apps/web/CLAUDE.md`), and the Mac app's
+  window loads it from there. Only this folder reaches `@tauri-apps/*`
+  (`SHELL_API_PAGE` in `tools/repo-guards/src/dep-dag.test.ts`). Its suites run
+  under jsdom, compiled as they ship (`apps/web/vitest.config.ts`), over a
+  memory router holding the library's routes alone
+  (`apps/web/src/library/test-support/library-router.tsx`), and
+  `apps/web/tsconfig.page.json` holds what ships to the stdlib of the Mac app's
+  WebKit. Its loop is `pnpm dev:web`. Rejected: a workspace of its own whose
+  build the Worker copies (a second build, and a door and a policy of its
+  own); a dev server of the page's own (a second origin, its calls
+  cross-site).

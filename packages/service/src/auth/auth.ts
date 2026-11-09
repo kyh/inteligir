@@ -102,7 +102,7 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
       revokeSessionsOnPasswordReset: true,
       // the forgot-password page requests with redirectTo /app/reset-password and any way back the
       // person came with, so the URL's GET leg lands on the site's route
-      // (apps/web/src/routes/app/reset-password.tsx)
+      // (apps/web/src/routes/_site/app/reset-password.tsx)
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },

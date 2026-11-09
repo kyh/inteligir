@@ -138,7 +138,7 @@ src/
   a link's Create makes, `items.createNote`), every one required, so a host
   that leaves one out fails to typecheck rather than drawing a button that does
   nothing. Each host installs it once, through `installEditorHost`, ahead of
-  the first render (`apps/workspace/src/app/item/page-editor-host.ts`, over the
+  the first render (`apps/web/src/library/item/page-editor-host.ts`, over the
   account's cell in a tab and the Mac app's window, and the phone's over its
   WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver
   store through `link-resolver-feed.ts`, and `host.ts` is React's door

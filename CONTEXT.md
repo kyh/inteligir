@@ -216,9 +216,9 @@ item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
 **Library** — the page's home: the account's LIBRARY CELL as the person sees
 it, every item one card in one grid
-(`apps/workspace/src/app/library/library-view.tsx`), read from the LIBRARY
+(`apps/web/src/library/library/library-view.tsx`), read from the LIBRARY
 CELL through `/v1`, a query per screen that the account's socket invalidates
-(`apps/workspace/src/app/cloud/library-queries.ts`). The browser tab opens it
+(`apps/web/src/library/cloud/library-queries.ts`). The browser tab opens it
 at `/library` once signed in.
 
 **Items** — the cards the library lists, one per item row, a note, a saved
@@ -234,7 +234,7 @@ answers (the open item's typing, ⌘P's search, the agent and its Undo, import,
 the account) while the device is offline: the open item reads but takes no
 edit (`packages/editor/src/item/item-editor.tsx`), and on the library's page a
 call waits rather than fails
-(`apps/workspace/src/app/cloud/needs-connection.tsx`); the iPhone says it of a
+(`apps/web/src/library/cloud/needs-connection.tsx`); the iPhone says it of a
 save, a photo and a delete, and keeps only a share
 (**share outbox**).
 
@@ -277,11 +277,11 @@ inteligir account (Better Auth, `packages/service/src/auth/auth.ts`), its
 **sessions**, each listed by the device its user agent names (Chrome on Mac,
 iPhone) with This device marked, and the assistants a person let into the
 library through the **connector**
-(`apps/workspace/src/app/settings/account-section.tsx`). Every other device
+(`apps/web/src/library/settings/account-section.tsx`). Every other device
 can be signed out from there and every assistant disconnected; this device
 leaves by Sign out.
 
 **Built-in agent** — Settings › Account's switch and the panel's **Agent** tab:
 the account's conversations with the BUILT-IN AGENT, the same on every device
-(`apps/workspace/src/app/agent/agent-panel.tsx`). "The agent has used today's
+(`apps/web/src/library/agent/agent-panel.tsx`). "The agent has used today's
 allowance" is its `AGENT_BUDGET` refusal.

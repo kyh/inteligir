@@ -61,14 +61,13 @@ only, points any build at another Worker on this machine
 (`apps/desktop/src-tauri/src/window.rs`). Its first run is the site's sign-in
 with an account of that Worker (`AGENTS.md` § There is no seeded login). An
 edit to the shell's Rust rebuilds and relaunches it; an edit to the page
-reaches the window once `pnpm dev:web` has rebuilt it and you press ⌘R.
+reaches the window as `pnpm dev:web` serves it.
 
-Iterating on the PAGE needs no Rust: `pnpm dev:web` rebuilds `@repo/workspace`
-as it changes (`vite build --watch`) and the local Worker serves that build at
-`localhost:5174/library`, through the same route and policy a deploy runs
-(`packages/service/src/library/library-page.ts`); sign in at `/app/sign-in` and
-reload the tab after an edit. Only the updater needs the shell; a tab's
-Settings says updates come with the Mac app.
+Iterating on the PAGE needs no Rust: `pnpm dev:web` serves the library at
+`localhost:5174/library` as it serves the site, through the same route and
+policy a deploy runs (`apps/web/src/routes/library.tsx`,
+`apps/web/src/start.ts`); sign in at `/app/sign-in`. Only the updater needs the
+shell; a tab's Settings says updates come with the Mac app.
 
 `pnpm package:desktop` builds the .app, the shell alone, around the site's
 URL, signed when the keychain holds a Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`

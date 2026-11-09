@@ -1,4 +1,4 @@
-// Settings, drawn over the workspace it leaves mounted (`routes/_workspace.tsx`): the account and
+// Settings, drawn over the workspace it leaves mounted (`library-layout.tsx`): the account and
 // what reaches it, bringing a library in, and how the editor reads. A section
 // the cloud answers waits for a connection and says so; the editor's are this page's own.
 

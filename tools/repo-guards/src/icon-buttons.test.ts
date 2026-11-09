@@ -98,7 +98,7 @@ describe("icon-only buttons", () => {
         .filter(({ source }) => iconButtonTags(source).length > 0)
         .map(({ file }) => file.split("/").slice(0, 2).join("/")),
     );
-    for (const bundle of ["apps/workspace", "packages/editor", "packages/ui", "tools/ui-gallery"]) {
+    for (const bundle of ["apps/web", "packages/editor", "packages/ui", "tools/ui-gallery"]) {
       expect(
         seen,
         `no icon-size Button under ${bundle}: the guard reads a tree it no longer finds`,

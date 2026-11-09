@@ -83,22 +83,26 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/ui": [],
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
-    // the site and the Worker's entry: the @repo/service edge is the cloud's code its entry serves
-    // and exports, the @repo/contract edge the wire its account pages call, and the shared
-    // component kit draws its pages
-    "@repo/web": ["@repo/contract", "@repo/service", "@repo/ui"],
-    // the library's page, which the Worker serves to a tab and the Mac app's window alike: the
-    // agent's panel every device reads (@repo/agent-panel) and `/v1`'s wire and the library model
-    // (@repo/contract) to the account's cell, which it reads online; it reaches no shell source,
-    // only the shell's update commands (SHELL_API_CLIENTS below)
-    "@repo/workspace": ["@repo/agent-panel", "@repo/contract", "@repo/editor", "@repo/ui"],
+    // the site, the library's page and the Worker's entry: the @repo/service edge is the cloud's
+    // code its entry serves and exports, the @repo/contract edge `/v1`'s wire and the library model
+    // its pages read online, the @repo/agent-panel edge the built-in agent's conversation as every
+    // device reads it, the @repo/editor edge the library's editor, and the shared component kit
+    // draws its pages; it reaches no shell source, only the shell's update commands (SHELL_API_PAGE
+    // below)
+    "@repo/web": [
+      "@repo/agent-panel",
+      "@repo/contract",
+      "@repo/editor",
+      "@repo/service",
+      "@repo/ui",
+    ],
   }),
 );
 
 // the desktop shell's own API, which answers only inside the shell's window: only the page that
 // window shows may reach it, so the rule is who may, not a row per package that may not
 const SHELL_API = "@tauri-apps/";
-const SHELL_API_CLIENTS = new Set(["@repo/workspace"]);
+const SHELL_API_PAGE = "apps/web/src/library/";
 
 // The phone's editor page is DOM React built by Vite; a native client that hosts it loads the page
 // as a built bundle and speaks its wire, @repo/editor-bridge. Any import of the page itself would
@@ -260,11 +264,11 @@ describe("the package dependency DAG", () => {
   });
 
   it("sees a relative path into the gallery, so a clean sweep is a real one", () => {
-    const importer = "apps/web/src/routes/index.tsx";
+    const importer = "apps/web/src/routes/_site/index.tsx";
     const intoGallery = `${path.posix.relative(path.posix.dirname(importer), GALLERY_DIR)}/src/gallery-page`;
     expect(pathIntoAnotherWorkspace(importer, intoGallery)?.name).toBe("@repo/ui-gallery");
-    expect(pathIntoAnotherWorkspace(importer, "../../../../docs/privacy.md?raw")).toBeNull();
-    expect(pathIntoAnotherWorkspace(importer, "../router")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "../../../../../docs/privacy.md?raw")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "../../router")).toBeNull();
     expect(pathIntoAnotherWorkspace(importer, "@repo/ui/components/button")).toBeNull();
   });
 
@@ -302,16 +306,16 @@ describe("platform purity", () => {
   it("only the page the shell shows reaches the shell's API", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      if (SHELL_API_CLIENTS.has(workspace.name)) {
-        continue;
-      }
       const files = workspaceFiles(workspace);
       for (const file of [...files.shipped, ...files.test]) {
+        if (file.startsWith(SHELL_API_PAGE)) {
+          continue;
+        }
         for (const specifier of importsOf(file)) {
           if (specifier.startsWith(SHELL_API)) {
             violations.push(
               `SHELL API OUTSIDE THE PAGE  ${file} imports "${specifier}"\n` +
-                `  rule: Tauri answers only inside the desktop shell's window, so only ${[...SHELL_API_CLIENTS].join(", ")}, the page it shows, reaches it`,
+                `  rule: Tauri answers only inside the desktop shell's window, so only ${SHELL_API_PAGE}, the page it shows, reaches it`,
             );
           }
         }

@@ -20,10 +20,6 @@
       "entry": ["scripts/*.ts"],
       "project": ["scripts/*.ts"]
     },
-    "apps/workspace": {
-      "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"],
-      "ignoreDependencies": ["tailwindcss"]
-    },
     "apps/mobile": {
       // expo reads fingerprint.config.js by its name when it fingerprints the native build, and
       // its `module.exports` is what expo reads, which knip can neither see used nor be told of
@@ -56,9 +52,8 @@
       // node outside the build
       "entry": ["cloudflare.config.ts!", "src/worker/*.test-d.ts", "scripts/*.ts"],
       "project": ["src/**/*.{ts,tsx,css}!", "scripts/*.ts", "!src/**/test-support/**!"],
-      // @repo/workspace is the library's page, never imported: vite.config.ts copies its build into
-      // the Worker's assets, and the edge orders its build before the Worker's
-      "ignoreDependencies": ["@repo/workspace", "tailwindcss"]
+      // tailwindcss is @repo/ui's globals.css import, which knip does not follow
+      "ignoreDependencies": ["tailwindcss"]
     },
     "packages/agent-panel": { "project": ["src/**/*.ts!"] },
     "packages/contract": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },

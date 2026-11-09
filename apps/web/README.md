@@ -15,25 +15,41 @@ them.
 
 ```
 src/
-  routes/            TanStack Start file routes (SSR)
-    index.tsx        The marketing page
-    privacy.tsx      docs/privacy.md itself, rendered
-    terms.tsx        docs/terms.md itself, rendered
-    about, contact   lib/site-content.ts's markdown, rendered or answered as-is
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password and
+  start.ts           Start's request middleware: a nonce a request, and the
+                     page policy (lib/document-policy.ts) on every document
+  router.tsx         The one router, handing the nonce to Start's scripts
+  routes/            TanStack Start file routes
+    __root.tsx       The bare document every page shares: head, theme script
+    _site.tsx        The site's layout (SSR): providers, head, header, 404
+    _site/
+      index.tsx      The marketing page
+      privacy.tsx    docs/privacy.md itself, rendered
+      terms.tsx      docs/terms.md itself, rendered
+      about, contact lib/site-content.ts's markdown, rendered or answered as-is
+      app/           /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/reset-password (the last client-only)
-    connect/         /connect/extension, which tells the browser extension
+      connect/       /connect/extension, which tells the browser extension
                      where the site is and which account this browser is
                      signed in to (client-only)
+    library.tsx      The library's layout (ssr: false): opens the tab once a
+                     document (library/library-tab.ts), then draws the page
+    library/         /library and /library/settings
+  library/           The library's page: its code, styles and decisions
+                     (library/CLAUDE.md), suites under jsdom
   components/        The site's own components (auth card, header, theme, orb)
-  lib/               Better Auth client, session guard, site config (the
-                     Download button's fixed dmg link among it), page markdown
+  lib/               Better Auth client and the tab's session read, session
+                     guard, document policy, site config (the Download
+                     button's fixed dmg link among it), page markdown
   worker/            The deployed entry: its OWN tsconfig program (no DOM)
     server.ts        Splits @repo/service's doors from the site's SSR, and
                      exports the Durable Objects and the fill queue's consumer
     service-exports.test-d.ts  the deployed exports held to the service's classes
-  **/*.test.ts       the site's own suites, under node
+  **/*.test.ts       the site's suites under node, the library's under jsdom
 ```
+
+Three programs check `src/`: `tsconfig.page.json` the pages as they ship
+(ES2023 and the DOM, the Mac app's floor), `tsconfig.json` the suites beside
+them, and `src/worker/tsconfig.json` the Worker.
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
 declare `BufferSource`/`BodyInit` globally with different bounds, so one
@@ -113,7 +129,7 @@ own (`.dev.vars.example`).
 | `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                              |
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                               |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                   |
-| `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in                                           |
+| `/library`, `/library/*`    | —               | The library in a tab (`src/library`), drawn in the browser; a signed-out visit goes to sign-in                        |
 | `/api/auth/*`               | —               | Better Auth (email+password; the session cookie, signed as the extension's bearer, under `expo-origin` for the phone) |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form and the phone's                                |
 | `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable           |
@@ -240,7 +256,7 @@ and end them, and the account's deletion revokes every one.
   expired one), and that page posts the new password through the Better Auth
   client. Its URL carries a live single-use token, so the route is
   `ssr: false`, answers `Cache-Control: no-store` and sets a `no-referrer`
-  meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
+  meta (`src/routes/_site/app/reset-password.tsx`). It works with no app installed,
   since an email client opens a browser. A `next` the person came with rides
   the request, the mail's link and the page's links back to sign-in.
 - **Every device signs in on Better Auth's own route, and its devices are the

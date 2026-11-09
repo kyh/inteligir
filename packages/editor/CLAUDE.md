@@ -62,7 +62,7 @@ alone, and no walk narrows structurally.
   import, and every hook is spelled once and pinned both ways and to each
   import, since a missing sheet fails no other test
   (`packages/editor/src/style-hooks.ts`). The tokens are declared once in
-  `apps/workspace/src/styles/globals.css` and read with no fallback; the phone
+  `apps/web/src/library/styles/globals.css` and read with no fallback; the phone
   page writes its own value for each, with no dials and `--editor-size` at 16px
   or more, since iOS zooms into smaller text
   (`tools/repo-guards/src/appearance-tokens.test.ts`). Rejected: an accent axis
@@ -146,17 +146,17 @@ alone, and no walk narrows structurally.
   would run), and a row claims shift explicitly, so an unshifted one never fires
   shifted. The rail's `[` and the panel's `]` are BARE rows, live only with
   focus outside a field. The grid and the item view read the library's table
-  (`apps/workspace/src/app/library/library-keys.ts`), so Escape to the library
+  (`apps/web/src/library/library/library-keys.ts`), so Escape to the library
   is the item view's, never the window's, and a field keeps its own.
   `packages/editor/src/mark-shortcuts.ts`,
-  `apps/workspace/src/app/global-shortcuts.ts`.
+  `apps/web/src/library/global-shortcuts.ts`.
 
 - **A PIN IS THE ITEM'S `pinnedAt` FIELD, AND THE CELL SETS IT.** It is the
   item's, so every device and the agent agree, and a pinned item leads the grid
   in every scope and sort; unpinning sets it null. A press asks the cell to pin
   or unpin (`items.organize`), which sets what was asked over whatever another
   device left, so there is nothing to merge (`pin` in
-  `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a Pinned
+  `apps/web/src/library/library/library-verbs.ts`). Rejected: a Pinned
   heading (more height than it explains).
 
 - **AN EXTRACT IS ONE HISTORY BATCH, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
@@ -251,8 +251,8 @@ alone, and no walk narrows structurally.
 
 - **A DIAGRAM LOADS NOTHING, AND ITS MARKUP BECOMES NODES ONLY THROUGH THE
   INERT-SVG PARSE.** A diagram draws no link and no image and is handed no icon
-  set, as nothing remote draws in an item (THE LIBRARY'S PAGE IS THE WORKER'S,
-  in `apps/web/CLAUDE.md`).
+  set, as nothing remote draws in an item (THE LIBRARY'S PAGE IS A ROUTE OF THE
+  SITE, in `apps/web/CLAUDE.md`).
   `packages/editor/src/lib/inert-svg.ts` parses Pele's markup as XML and keeps
   only the svg namespace's elements, less every script, handler and reference
   that leaves the drawing.
@@ -265,7 +265,7 @@ alone, and no walk narrows structurally.
   its last, height (`EditorChunk` in `packages/editor/src/editor-chrome.tsx`),
   overhanging the column by the gutter for the handles that hang left; what
   hangs below sits in its block's box, and a drag unclips its runs. Print draws
-  every run (`apps/workspace/src/styles/print.css`). Rejected: virtualization
+  every run (`apps/web/src/library/styles/print.css`). Rejected: virtualization
   (Slate needs the DOM of every node a selection, find or far link reaches) and
   a ProseMirror rewrite (it redoes the markdown conversion, the hard part).
   `packages/editor/src/long-note-chunks.test.tsx`.
@@ -388,7 +388,7 @@ alone, and no walk narrows structurally.
   Which headings an item has folded sits in the page's local storage, each by a
   hash of its rank, text and ordinal, since that storage is out of the phone's
   wipe and in its device backup. The Mac and the tab drop it on leaving the
-  account (`apps/workspace/src/app/cloud/account-storage.ts`). Rejected: a fold
+  account (`apps/web/src/library/cloud/account-storage.ts`). Rejected: a fold
   in the cell (it is one device's view, and every fold a write); the heading's
   text as the key (it stayed on the phone after a sign-out). Residual: the
   phone's page keeps the ids and hashes, which name nothing, past a sign-out.

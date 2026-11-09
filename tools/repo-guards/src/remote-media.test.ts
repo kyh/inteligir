@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { sourceOf } from "./repo";
 
-const POLICIES = ["apps/mobile-editor/index.html", "packages/service/src/library/library-page.ts"];
+const POLICIES = ["apps/mobile-editor/index.html", "apps/web/src/lib/document-policy.ts"];
 
 const DIRECTIVES = /(?<name>default|font|frame|img|media)-src"?:?\s*"?(?<sources>[^;",]*)/gu;
 const LOCAL_SOURCES = new Set(["'none'", "'self'", "blob:", "data:"]);

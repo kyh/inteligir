@@ -312,7 +312,7 @@ const Conversation = ({
   const whole = hasNextPage ? null : conversationUndo(changeSets);
   // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
   // so that list can be a turn short of the conversation, or hold what another device took back. A
-  // mutation though it writes nothing, so the press waits offline under the root's notice and in
+  // mutation though it writes nothing, so the press waits offline under the layout's notice and in
   // the undos' queue. Keyed by the conversation, since one that waits can outlast this component:
   // the key keeps it to the conversation it was pressed in
   const undoConversation = useMutation({

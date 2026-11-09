@@ -30,7 +30,7 @@ nobody, and git keeps it (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
   `packages/editor/src/find-bar.tsx`); the
   wiki-link preview is a HoverCard, since Popover has no hover
   (`packages/editor/src/wiki/wiki-chip.tsx`); Quick Look is a `Dialog`
-  (`apps/workspace/src/app/library/quick-look.tsx`). The one exception is the
+  (`apps/web/src/library/library/quick-look.tsx`). The one exception is the
   selection toolbar (`packages/editor/src/selection-toolbar.tsx`): with no
   open/dismiss lifecycle, a Popover would still need its selection-driven `open`
   and its `frozen` hold. Not a popup: the drop layer, which has no anchor or
