@@ -4,6 +4,9 @@ import {
   H1Plugin,
   H2Plugin,
   H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
   HorizontalRulePlugin,
 } from "@platejs/basic-nodes/react";
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
@@ -67,7 +70,8 @@ const ParagraphElement = (props: PlateElementProps) => (
   />
 );
 
-const heading = (as: "h1" | "h2" | "h3") => blockElement(as, "relative px-0.5");
+const heading = (as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
+  blockElement(as, "relative px-0.5");
 
 const CalloutMarkerLeaf = (props: PlateLeafProps) => (
   <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />
@@ -119,6 +123,10 @@ export const BasicBlocksKit = [
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),
+  // read from markdown and stored, though the editor offers none to write
+  H4Plugin.withComponent(heading("h4")),
+  H5Plugin.withComponent(heading("h5")),
+  H6Plugin.withComponent(heading("h6")),
   BlockquotePlugin.configure({ inputRules: [BlockquoteRules.markdown()] }).withComponent(
     BlockquoteElement,
   ),

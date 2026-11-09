@@ -113,9 +113,46 @@ describe("a body change applied through the note's editor", () => {
     if (read === undefined) {
       throw new Error("a block");
     }
-    const heading = stored({ children: [{ text: "Words" }], id: "one", type: "h2" });
-    applyBodyChanges(object, [{ base: read.block, block: heading, blockId: "one", kind: "put" }]);
-    expect(readBlocks(seeded)).toStrictEqual([{ block: heading, section: "article" }]);
+    const code = stored({
+      children: [{ children: [{ text: "words" }], type: "code_line" }],
+      id: "one",
+      type: "code_block",
+    });
+    applyBodyChanges(object, [{ base: read.block, block: code, blockId: "one", kind: "put" }]);
+    expect(readBlocks(seeded)).toStrictEqual([{ block: code, section: "article" }]);
+  });
+
+  it("sets a text block's type in place, so what a person typed in it meanwhile stays", () => {
+    const { base, device, object, read, settleBoth } = note([p("one", "a title")]);
+    const was = base("one");
+    device.tf.insertText("!", { at: { offset: 7, path: [0, 0] } });
+    const heading = stored({ children: [{ text: "A title" }], id: "one", type: "h2" });
+    applyBodyChanges(object, [{ base: was, block: heading, blockId: "one", kind: "put" }]);
+    settleBoth();
+    expect(read().map(({ block }) => block)).toStrictEqual([
+      stored({ children: [{ text: "A title!" }], id: "one", type: "h2" }),
+    ]);
+  });
+
+  it("edits a block around a picker someone has open in it, and leaves the picker open", () => {
+    const { base, device, object, read, settleBoth } = note([p("one", "before after")]);
+    device.tf.insertNodes(
+      { children: [{ text: "" }], trigger: "/", type: "slash_input" },
+      { at: { offset: 7, path: [0, 0] } },
+    );
+    device.tf.insertText("que", { at: [0, 1, 0], voids: true });
+    settleBoth();
+    expect(base("one")).toStrictEqual(p("one", "before after"));
+    applyBodyChanges(object, [
+      { base: base("one"), block: p("one", "so before and after"), blockId: "one", kind: "put" },
+    ]);
+    settleBoth();
+    expect(read().map(({ block }) => block)).toStrictEqual([p("one", "so before and after")]);
+    expect(device.children[0]?.children).toMatchObject([
+      { text: "so before and " },
+      { children: [{ text: "que" }], type: "slash_input" },
+      { text: "after" },
+    ]);
   });
 
   it("inserts, drops and moves blocks by id, a batch naming a block it inserted", () => {

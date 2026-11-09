@@ -8,7 +8,9 @@ import * as Y from "yjs";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
-import { blockOfElement, readBlocks, seedDoc, sectioned } from "@repo/editor/live/note-blocks";
+import { blockOfElement } from "@repo/editor/live/element-block";
+import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
+import { sectioned } from "@repo/editor/live/note-section";
 import type { NoteBlock } from "@repo/editor/live/note-blocks";
 import { noteRoot } from "@repo/editor/live/yjs-binding";
 import { schemaPairs, usedPairs } from "../test-support/library-node-pairs";
@@ -51,6 +53,9 @@ const UNSPELLED: TElement[] = [
     ],
     type: "column_group",
   },
+  { children: [{ text: "four" }], type: "h4" },
+  { children: [{ text: "five" }], type: "h5" },
+  { children: [{ text: "six" }], type: "h6" },
 ];
 
 // the indent list's props, which markdown spells only on a paragraph
@@ -149,6 +154,14 @@ describe("a note's live document", () => {
   it("reads back every block an editor holds as it was seeded, in order and section", () => {
     expect(HELD.length).toBeGreaterThan(CORPUS.length / 2);
     expect(readBlocks(seeded(HELD))).toStrictEqual(HELD);
+  });
+
+  it("seeds a block of every type with all the model lets it carry, and reads it back unchanged", () => {
+    const listed = stored(withListProps([...FILES, ...GENERATED, ...UNSPELLED]), "listed").map(
+      (block): NoteBlock => ({ block, section: "note" }),
+    );
+    expect(new Set(listed.map(({ block }) => block.type)).size).toBe(listed.length);
+    expect(readBlocks(seeded(listed))).toStrictEqual(listed);
   });
 
   it("seeds a block an editor would rewrite as the editor holds it", () => {

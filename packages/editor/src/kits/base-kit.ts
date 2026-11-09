@@ -4,6 +4,7 @@
 // with it, and nothing it reaches imports React, a stylesheet or a node built-in.
 
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
+import { NoteSectionPlugin } from "@repo/editor/live/note-section";
 
 import { BasicBlocksBaseKit } from "./headless/basic-blocks-base";
 import { BasicMarksBaseKit } from "./headless/basic-marks-base";
@@ -42,4 +43,5 @@ export const BASE_KIT = [
   ...RichBlocksBaseKit,
   ...TabsBaseKit,
   ...MarkdownKit,
+  NoteSectionPlugin,
 ];
