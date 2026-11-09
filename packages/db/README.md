@@ -5,7 +5,8 @@ tables, the invite codes and the connector's revoked grants, the client the
 Worker opens over its binding, and the drizzle-kit configs that push the
 schema. Each account's library cell: its SQLite tables and the migrations
 drizzle-kit generates from them, which the cell runs when it wakes. The
-Worker's code (`@repo/service`) imports both; nothing else ships them.
+Worker's code (`@repo/service`) imports both, and the cell's columns are held
+to `@repo/contract`'s vocabularies; nothing else ships them.
 
 ## Layout
 
@@ -36,7 +37,17 @@ drizzle.config.cell.ts   # the cell's migrations, for the durable-sqlite driver
 > PRODUCTION D1.
 
 D1 has no migration files: its schema ships by `drizzle-kit push`, and a
-unique is a named unique index, never `.unique()` (`apps/web/CLAUDE.md`, The
-D1 auth schema ships via `drizzle-kit push`). A cell's schema ships as
+unique is a named unique index, never `.unique()`. A cell's schema ships as
 migrations, since a Durable Object has no push: `@repo/service` runs them in
-the cell (`packages/service/src/library/cell-db.ts`).
+the cell as it wakes (`packages/service/src/library/cell-db.ts`). Why each is
+so is this package's [`CLAUDE.md`](CLAUDE.md).
+
+## Testing
+
+The package has no suites of its own: its schemas run where they are read.
+`@repo/service`'s workerd suites apply the D1 DDL `export` prints and open
+every cell through the migrations, so a schema change is tested by
+`pnpm --filter @repo/service test`, and the e2e harness applies the same DDL
+to each Worker it boots. `tools/repo-guards/src/d1-unique-index.test.ts`
+refuses a `.unique()` in the D1 schema. `pnpm --filter @repo/db typecheck`
+checks the schemas and the configs.

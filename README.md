@@ -46,7 +46,10 @@ What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 Each account's library is one SQLite Durable Object, its library cell, on the
 one Cloudflare Worker [`apps/web`](./apps/web/README.md), which also serves the
 site, the accounts, the library's files in R2, the reading of saved pages and
-the connector a person's own assistant reaches the library through. The iPhone
+the connector a person's own assistant reaches the library through. Its code is
+[`packages/service`](./packages/service/README.md), over the wire and library
+model of [`packages/contract`](./packages/contract/README.md) and the schemas
+of [`packages/db`](./packages/db/README.md). The iPhone
 app ([`apps/mobile`](./apps/mobile/README.md)) and the library's page, in a
 browser tab or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md)),
 each read and write the library online through one `/v1` wire, their reads

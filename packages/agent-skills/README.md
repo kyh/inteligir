@@ -56,8 +56,8 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 ## Invariants
 
 - **Files, never imports.** Nothing imports this package's files as modules; the script reads them
-  through the `exports` map, and `apps/web` declares the dependency so a change here marks the
-  Worker changed.
+  through the `exports` map, and `@repo/service` declares the dependency so a change here marks
+  the Worker changed.
 - **Written for the library's tools alone.** The agent has no shell, no files and no web: a skill
   names a tool, never a command, a path on disk or a CLI verb.
 - **The spec is the parser's.** A construct a skill teaches is one the editor round-trips; every

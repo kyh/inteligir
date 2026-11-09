@@ -298,7 +298,7 @@ and the reviewer needs a sign-in into an account that already holds items,
 which lasts 60 days from its last use: the reviewer signs in, never signs up.
 
 1. Mint a production invite with a fresh code, the recipe in
-   `apps/web/README.md` § Auth:
+   `apps/web/README.md` § Invites:
    ```bash
    pnpm --filter @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
      --sql "INSERT INTO invite_code (code) VALUES ('<fresh code>')"
@@ -349,7 +349,7 @@ published, 4 to 6 once the Mac app and the extension are out.
 
 5. **Invite.** Per-tester email invites or one public link, the owner's call at
    this step. Either way a tester needs an account first, which takes an
-   invite code (`apps/web/README.md` § Auth): the phone signs in, never signs
+   invite code (`apps/web/README.md` § Invites): the phone signs in, never signs
    up.
 6. **Upkeep.** A build expires 90 days after upload, so a cohort still testing
    then needs a new build of the same version (`pnpm testflight:mobile` from a

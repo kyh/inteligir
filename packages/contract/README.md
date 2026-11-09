@@ -8,7 +8,8 @@ are the plain-HTTP routes it names (a file's bytes, the account's socket), the
 build every request names, `extension/`, the browser extension's identity and
 the messages the site's connect page tells it where the site is with, and the
 model: an item's fields and blocks, their ops, order and hashes, a url's key and
-what a page's reading keeps.
+what a page's reading keeps. Its decisions are this package's
+[`CLAUDE.md`](CLAUDE.md).
 
 ## Why it exists
 
@@ -30,9 +31,12 @@ The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the Mac's and the browser's page, on
 node, on workerd and in React Native, and `oxlint.config.ts` refuses a node or
 react import here, and the `crypto` and `URL` globals in the model,
-`tools/repo-guards` a `@tauri-apps` one and a markdown parser
-(`tools/repo-guards/src/dep-dag.test.ts`). Callers supply the clock, the random
-bytes and every fresh id.
+`tools/repo-guards` a `@tauri-apps` one, a markdown parser and any workspace
+edge at all (`tools/repo-guards/src/dep-dag.test.ts`), so no client bundles
+the service's code or `@repo/db`'s drizzle. Callers supply the clock, the
+random bytes and every fresh id. It is kyh/init's contract package, but for
+one edge: init's reads its db, and here `@repo/db` reads this one
+(`apps/web/CLAUDE.md`).
 
 ## Layout
 
@@ -72,9 +76,12 @@ src/
 
 ## Who consumes it
 
-- **apps/web** SERVES every row, the account's on its own handler and the
-  library's in each account's cell, and decorates the library's rows as the
-  connector's tools, the one place MCP and OpenAPI meta are written.
+- **packages/service** SERVES every row, the account's on the Worker's own
+  handler and the library's in each account's cell, and decorates the
+  library's rows as the connector's tools, the one place MCP and OpenAPI meta
+  are written; `apps/web`'s entry deploys it. **packages/db** holds the cell's
+  columns to the model's vocabularies, and **packages/editor** reads and
+  writes the model's blocks.
 - **apps/web/src/library** (the browser tab, and the Mac app's window on it) reaches
   the library and the account through `v1`, each read a query under
   oRPC's own key that the account's socket invalidates
@@ -140,3 +147,14 @@ refusals are exercised in process, over a real `RPCHandler` and `RPCLink`
 seeded generator (`test-support/seeded-random.ts`), and the suites run under a
 512MB heap ceiling (`vitest.config.ts`), so an allocation that grows with a
 note's size fails here rather than passing on a default heap.
+
+## Loop
+
+```bash
+pnpm --filter @repo/contract test        # vitest, no platform
+pnpm --filter @repo/contract typecheck
+```
+
+A change to a row reaches every client and the Worker at once: run the
+service's suites (`pnpm --filter @repo/service test`) and the e2e scenarios
+that drive the row, since the contract's own suites answer it only in process.
