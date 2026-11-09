@@ -151,7 +151,8 @@ const itemsContract = {
     )
     .output(landed),
 
-  // a note from markdown, as an agent writes one
+  // a note from markdown, as an agent writes one: a page link `[Title](mention:<id>)`, or
+  // `[[Title]]` for the one item so titled
   createNote: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,
@@ -250,7 +251,8 @@ const itemsContract = {
     )
     .output(saved),
 
-  // exact passages of the item's markdown view replaced, against the sequence it was read at
+  // exact passages of the item's markdown view replaced, against the sequence it was read at; the
+  // new text names items as `createNote`'s does
   edit: signedBase
     .errors({
       [ConflictError.code]: ConflictError,

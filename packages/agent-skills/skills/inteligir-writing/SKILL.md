@@ -25,6 +25,7 @@ Detail is not the enemy; front-loaded detail is. Move derivations down, do not d
 | Peer views read one at a time                     | Tabs        |
 | Context, caution, or priority worth setting apart | A callout   |
 | A numeric trend                                   | A chart     |
+| A flow or a sequence of steps between parts       | A diagram   |
 
 Two rules that save the most rework: keep block content out of table cells (a cell holds inline
 content only), and give every fact exactly one home — a requirement restated in a table, a

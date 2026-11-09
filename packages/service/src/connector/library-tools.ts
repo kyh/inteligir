@@ -48,7 +48,7 @@ export const libraryTools = {
     edit: items.edit.meta(
       openapi({
         description:
-          "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages are left as they are.",
+          "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages are left as they are. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
         method: "PATCH",
         operationId: "edit_item",
         summary: "Edit an item",

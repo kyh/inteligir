@@ -2,7 +2,7 @@
 
 The built-in agent's system prompt, as the files it is built from: `built-in-agent.md`, the
 agent's own instructions (who it works for, the library's tools it calls, what it must not
-trust), and nine `SKILL.md` documents — one hub and eight focused contracts — that state exactly
+trust), and eight `SKILL.md` documents — one hub and seven focused contracts — that state exactly
 which markdown the library reads and writes, so what the agent writes is what the app keeps. No
 code, no scripts, no build; the package is markdown and an `exports` map.
 
@@ -10,9 +10,11 @@ code, no scripts, no build; the package is markdown and an `exports` map.
 
 The agent reads and edits the library only through the library's own procedures, the tools the
 connector serves (`read_item` answers an item's text in this dialect, `edit_item` and
-`create_note` take it back), and the dialect — `[Title](mention:<id>)` links, `:formula[…]{…}`
-pills, the `inteligir-*` fences, the `:::article` section — is not something a model guesses right. The agent has no shell and no files, so nothing here is read at
-run time: every word is inlined into the system prompt, in a fixed order, the same bytes for every
+`create_note` take it back), and the dialect — `[Title](mention:<id>)` and `[[Title]]` links,
+`:date[…]` and `:formula[…]{…}` pills, the colon blocks, the `inteligir-*` fences, the
+`:::article` section, and what markdown cannot hold — is not something a model guesses right.
+The agent has no shell and no files, so nothing here is read at run time: every word is inlined
+into the system prompt, in a fixed order, the same bytes for every
 conversation of every account, so all of them read one cached prefix. Each conversation freezes the
 prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
 start of the conversation's next turn, never mid-turn (`packages/service/src/agent/thread-loop.ts`).
@@ -60,9 +62,10 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
   the Worker changed.
 - **Written for the library's tools alone.** The agent has no shell, no files and no web: a skill
   names a tool, never a command, a path on disk or a CLI verb.
-- **The spec is the parser's.** A construct a skill teaches is one the editor round-trips; every
-  fence's one spelling is `@repo/editor/markdown/fence-langs`, and a skill that disagrees with it
-  teaches the agent to write bytes a save rewrites.
+- **The spec is the parser's.** A construct a skill teaches reads back as the node it shows, and
+  its example is a write's own fixpoint; every fence's one spelling is
+  `@repo/editor/markdown/fence-langs`, and a skill that disagrees with it teaches the agent to
+  write a block nobody sees.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
   turn; what a turn needs rides its messages: the view context the person's message, and the
   filing rules a system message after it.
@@ -78,5 +81,7 @@ No suite of its own — `package.json` has no scripts. `tools/repo-guards/src/ag
 pins the set (every directory holds a `SKILL.md`, the hub names every focused skill and no
 phantom), holds every `inteligir-*` fence an example opens to `@repo/editor/markdown/fence-langs`,
 runs the script's `--check` against the committed module, which the script holds under 100,000
-characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache. `packages/editor/src/skill-examples.test.ts` opens each
-example through the editor.
+characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache.
+`packages/editor/src/skill-examples.test.ts` reads every `markdown` example through the codec:
+each must read, keep its letters, write its own fixpoint, and leave no construct it spells as
+text, and together they show every construct only the dialect spells.
