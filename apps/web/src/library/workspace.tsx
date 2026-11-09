@@ -270,7 +270,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const openSettings = (): void => {
     void (async () => {
       await sessionRef.current?.flush();
-      await navigate({ search: true, to: "/settings" });
+      await navigate({ search: true, to: "/library/settings" });
     })();
   };
 

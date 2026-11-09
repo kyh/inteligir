@@ -22,13 +22,6 @@ const worker = defineWorker({
   compatibilityDate,
   compatibilityFlags,
   workersDev: true,
-  // the library's page (@repo/workspace): every path under its prefix reaches the Worker first,
-  // which answers the page's document from these assets, so a deep link loads the page and no
-  // other path falls back to it; its hashed files go straight to the assets
-  // (packages/service/src/library/library-page.ts). The prefix is LIBRARY_PAGE_PATH, written out
-  // since the dev server cannot load a module the Worker loads too
-  // (tools/repo-guards/src/route-paths.test.ts)
-  assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
   // the log and the traces keep every request's path for up to seven days, so no route carries a
   // library's name for anything in one, and drop the query string, which carries sign-in codes and
   // tickets (docs/privacy.md)
@@ -63,7 +56,7 @@ const MIN_CLIENT_BUILD = "0.6.0";
 
 // what both modes bind alike
 const shared = {
-  // the site's and the library page's built files (vite.config.ts copies the page's in)
+  // the site's built files, the library's among them
   ASSETS: bindings.assets(),
   // Better Auth's signing key: `cf workers secrets update` in production, a preview base-config
   // secret (.github/workflows/preview.yml), .dev.vars locally

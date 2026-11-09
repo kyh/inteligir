@@ -13,7 +13,6 @@ import { handleConnector } from "./connector/connector-route";
 import { handleConsent } from "./connector/consent-route";
 import { handleLibrarySocket } from "./library/socket-routes";
 import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
-import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
@@ -27,9 +26,7 @@ const isConnectorRoute = (pathname: string): boolean =>
   isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
 
 export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
-  isConnectorRoute(pathname) ||
-  isLibraryPagePath(pathname);
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
 
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
@@ -39,8 +36,7 @@ interface FrontDoor {
 }
 
 // the doors answered whole before any floor: an assistant's, which names no build and takes no
-// session (the token its OAuth endpoints minted, asked for on its consent page), and the library's
-// page, its document from the assets for every path under its prefix
+// session (the token its OAuth endpoints minted, asked for on its consent page)
 const FRONT_DOORS: readonly FrontDoor[] = [
   { answer: handleConnector, owns: isConnectorPath },
   {
@@ -49,10 +45,6 @@ const FRONT_DOORS: readonly FrontDoor[] = [
     owns: isAuthorizationServerPath,
   },
   { answer: handleConsent, owns: (pathname) => pathname === CONSENT_PATH },
-  {
-    answer: async (request, env) => await handleLibraryPage(request, env.ASSETS),
-    owns: isLibraryPagePath,
-  },
 ];
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {

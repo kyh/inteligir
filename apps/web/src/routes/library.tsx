@@ -1,55 +1,38 @@
-// CLAUDE.md § THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS MOUNTED.
-// The child draws in a full-window layer here rather than in its own component, so its crash
-// boundary lands in the layer too instead of below a workspace it left inert.
+import { createFileRoute } from "@tanstack/react-router";
 
-import { onlineManager } from "@tanstack/react-query";
-import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
-import { z } from "zod";
+import { LibraryLayout, seedScopes } from "#library/library-layout";
+import { librarySearchSchema } from "#library/library-search";
+import { RenderCrash } from "#library/render-crash";
 
-import { libraryQueries } from "../library/cloud/library-queries";
-import { Workspace } from "../library/workspace";
+import libraryCss from "../library/styles/globals.css?url";
 
-const workspaceSearchSchema = z.object({
-  // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
-  item: z.catch(z.uuid().optional(), undefined),
-});
-
-const WorkspaceLayout = () => {
-  const { item } = Route.useSearch();
-  const navigate = useNavigate();
-  // any child but the index draws over the workspace
-  const covered = useMatch({ from: "/_workspace/", shouldThrow: false }) === undefined;
-  return (
-    <>
-      <Workspace
-        openItem={item ?? null}
-        covered={covered}
-        onOpenItem={(itemId) => {
-          // on the current route: an open that lands while Settings covers the workspace keeps it
-          void navigate({ search: (prior) => ({ ...prior, item: itemId ?? undefined }), to: "." });
-        }}
-      />
-      {covered ? (
-        <div className="fixed inset-0 bg-surface text-ink">
-          <Outlet />
-        </div>
-      ) : null}
-    </>
-  );
-};
-
-export const Route = createFileRoute("/_workspace")({
-  component: WorkspaceLayout,
-  // the rail's scopes are read before the grid draws, once, the rail asking again itself after a
-  // failure; with no connection nothing is awaited, and the rail says it needs one
-  loader: async ({ context }) => {
-    if (!onlineManager.isOnline()) {
-      return;
-    }
-    const { scopes } = libraryQueries(context.library.wire);
-    await Promise.allSettled([
-      context.queryClient.query({ ...scopes(), retry: 0, staleTime: "static" }),
-    ]);
+// The library: drawn in the browser alone, over the account's cell, so the Worker serves its
+// document as a shell. The tab opens once a document, in its beforeLoad, which no split takes, so
+// the open is imported lazily and lands in the library's chunk with every other module only its
+// routes reach (src/library/CLAUDE.md § THE LIBRARY IS ONE CHUNK).
+export const Route = createFileRoute("/library")({
+  ssr: false,
+  headers: () => ({
+    // a deploy replaces the page, so its document is asked again every load
+    "cache-control": "no-cache",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    // the site links the page, and its document is an empty shell until someone signed in opens it
+    "x-robots-tag": "noindex, nofollow",
+  }),
+  head: () => ({
+    meta: [{ title: "inteligir" }],
+    links: [{ rel: "stylesheet", href: libraryCss }],
+  }),
+  validateSearch: librarySearchSchema,
+  beforeLoad: async () => {
+    const { openTab } = await import("#library/library-tab");
+    return { opening: await openTab() };
   },
-  validateSearch: workspaceSearchSchema,
+  loader: seedScopes,
+  // the QueryClient decides what is fresh: a preload never caches a loader's answer of its own
+  preloadStaleTime: 0,
+  component: LibraryLayout,
+  errorComponent: RenderCrash,
+  codeSplitGroupings: [["loader", "component", "errorComponent"]],
 });

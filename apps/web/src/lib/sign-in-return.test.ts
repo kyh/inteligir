@@ -56,7 +56,7 @@ describe("signing in from a page that needs a session", () => {
   it("drops a next that is not a path rather than failing the sign-in page", async () => {
     const { matches } = await land("/app/sign-in?next=5");
     const signIn = matches.at(-1);
-    expect(signIn?.routeId).toBe("/app/sign-in");
+    expect(signIn?.routeId).toBe("/_site/app/sign-in");
     expect(signIn?.status).toBe("success");
     expect({ ...signIn?.search }).toStrictEqual({ next: undefined });
   });

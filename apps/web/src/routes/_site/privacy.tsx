@@ -8,7 +8,7 @@ import { PAGES } from "#lib/page-meta";
 // the doc itself rather than a copy, so the page cannot say something docs/privacy.md does not
 import privacy from "../../../../../docs/privacy.md?raw";
 
-export const Route = createFileRoute("/privacy")({
+export const Route = createFileRoute("/_site/privacy")({
   head: () => legalHead(PAGES.privacy, privacy),
   headers: varyHeaders,
   component: () => <MarkdownPage markdown={privacy} />,

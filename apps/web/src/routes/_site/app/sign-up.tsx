@@ -92,7 +92,7 @@ const SignUpPage = () => {
   );
 };
 
-export const Route = createFileRoute("/app/sign-up")({
+export const Route = createFileRoute("/_site/app/sign-up")({
   ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
   beforeLoad: async ({ search }) => {

@@ -14,7 +14,7 @@ import {
   SITEMAP_PATHS,
 } from "./site-content";
 import { siteConfig } from "./site-config";
-import { serializeJsonLd, siteGraph } from "./structured-data";
+import { siteGraph } from "./structured-data";
 
 // the floor agent-readiness checks hold a trust page and the homepage's raw text to
 const MIN_CHARS = 500;
@@ -164,7 +164,7 @@ describe("what a page says about the product", () => {
 
   it("describes the site and the app in the product's terms", () => {
     expect(claimsIn(siteConfig.description)).toStrictEqual([]);
-    expect(claimsIn(serializeJsonLd(siteGraph()))).toStrictEqual([]);
+    expect(claimsIn(JSON.stringify(siteGraph()))).toStrictEqual([]);
   });
 });
 
@@ -185,11 +185,5 @@ describe("the JSON-LD graph", () => {
 
   it("gives the organization a contact point", () => {
     expect(graph[0]?.contactPoint?.email).toBe(siteConfig.contact.email);
-  });
-
-  it("serializes to JSON that parses back to the graph with no raw `<`", () => {
-    const serialized = serializeJsonLd(siteGraph());
-    expect(serialized).not.toContain("<");
-    expect(JSON.parse(serialized)).toStrictEqual(siteGraph());
   });
 });

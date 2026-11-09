@@ -47,7 +47,3 @@ yarn-error.log*
 .claude/scheduled_tasks.lock
 .claude/worktrees
 .playwright-mcp
-
-# the library page's build, linked into the public directory under `vite dev`
-# (apps/web/vite.config.ts)
-apps/web/public/library

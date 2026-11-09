@@ -57,7 +57,7 @@ const ForgotPasswordPage = () => {
   );
 };
 
-export const Route = createFileRoute("/app/forgot-password")({
+export const Route = createFileRoute("/_site/app/forgot-password")({
   validateSearch: authPageSearchSchema,
   component: ForgotPasswordPage,
 });

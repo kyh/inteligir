@@ -49,9 +49,8 @@ src/
                        # (cell-moved.ts), the upgrade routes with the ticket a
                        # browser's socket opens on, the files' bytes in R2
                        # (blob-routes.ts), the readings it sends to the fill
-                       # queue (cell-fills.ts) and its imports (cell-imports.ts);
-                       # beside the cell, the library's page, answered from the
-                       # assets (library-page.ts). The library's SQL and undo:
+                       # queue (cell-fills.ts) and its imports (cell-imports.ts).
+                       # The library's SQL and undo:
     library-schema.ts  # the ONE DDL, versioned by `meta.schema`
     library-sql.ts     # the ports, plans as generators, statement chunking
     sql-value.ts       # a SQL value and row as zod

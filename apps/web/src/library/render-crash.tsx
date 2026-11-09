@@ -1,6 +1,6 @@
-// Wired as the router's `defaultErrorComponent`, not the root route's `errorComponent`: a route's
-// boundary is its own `errorComponent ?? default`, so the root route alone would leave every child
-// unguarded. It says what the crash left as it was: whatever reached the library is safe there.
+// Every library route's own `errorComponent`: a route's boundary is its own `errorComponent ??
+// default`, so the layout's alone would leave each child unguarded, and the site's default is no
+// library's. It says what the crash left as it was: whatever reached the library is safe there.
 
 import type { ErrorComponentProps } from "@tanstack/react-router";
 

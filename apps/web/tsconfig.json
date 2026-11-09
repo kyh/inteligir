@@ -1,9 +1,13 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "dom", "dom.iterable"],
+    // ES2024 and node for the suites and the configs, which run on node and read sources off
+    // disk. The pages' own ceiling is tsconfig.page.json's ES2023, the stdlib of the Mac app's
+    // WebKit.
+    "lib": ["ES2024", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client", "node"],
+    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.suites.json"
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"],
   // `src/worker` is its OWN program (src/worker/tsconfig.json), not a stylistic
@@ -12,6 +16,6 @@
   // against a stdlib it never runs on. Keeping the two halves in separate
   // DIRECTORIES is what lets every tool that resolves a file's config by
   // walking up (tsc, the editor, oxlint's type-aware pass) find the right one.
-  // `pnpm typecheck` runs both.
+  // `pnpm typecheck` runs every program.
   "exclude": ["node_modules", "dist", ".wrangler", ".tanstack", "src/worker"]
 }

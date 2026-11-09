@@ -6,7 +6,7 @@
 @source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
-  /* The only place each appearance default is written: app/appearance.tsx
+  /* The only place each appearance default is written: appearance.tsx
      sets an inline property for a chosen option and clears it back to here
      otherwise. */
   --editor-font: var(--font-body);
@@ -30,14 +30,14 @@
 @layer base {
   /* An app, not a page: chrome is not text to drag across. Fields and the
      editor stay selectable; anything a user would copy (a message, a path,
-     an error) opts back in with `select-text`. */
-  body {
+     an error) opts back in with `select-text`. Held on the body while the
+     library's root is in it, since its popups portal into the body, and the
+     site's pages a tab moves on to keep their own text. */
+  body:has([data-library]) {
     -webkit-user-select: none;
     user-select: none;
   }
-  input,
-  textarea,
-  [contenteditable]:not([contenteditable="false"]) {
+  body:has([data-library]) :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
     -webkit-user-select: text;
     user-select: text;
   }

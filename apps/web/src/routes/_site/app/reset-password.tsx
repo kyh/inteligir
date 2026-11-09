@@ -152,7 +152,7 @@ const ResetPasswordPage = () => {
 
 // The URL carries a live single-use token: client-only so no server render works from it,
 // no-store so no cache keeps it, and no-referrer so no request the page makes repeats it.
-export const Route = createFileRoute("/app/reset-password")({
+export const Route = createFileRoute("/_site/app/reset-password")({
   ssr: false,
   validateSearch: resetSearchSchema,
   headers: () => ({ "Cache-Control": "no-store" }),

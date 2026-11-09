@@ -9,56 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/_site/index'
-import { Route as SplatRouteImport } from './routes/_site/$'
-import { Route as AboutRouteImport } from './routes/_site/about'
-import { Route as AppRouteImport } from './routes/_site/app'
-import { Route as ContactRouteImport } from './routes/_site/contact'
+import { Route as SiteRouteImport } from './routes/_site'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
-import { Route as PrivacyRouteImport } from './routes/_site/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as TermsRouteImport } from './routes/_site/terms'
-import { Route as AppIndexRouteImport } from './routes/_site/app/index'
-import { Route as AppForgotPasswordRouteImport } from './routes/_site/app/forgot-password'
-import { Route as AppResetPasswordRouteImport } from './routes/_site/app/reset-password'
-import { Route as AppSignInRouteImport } from './routes/_site/app/sign-in'
-import { Route as AppSignUpRouteImport } from './routes/_site/app/sign-up'
-import { Route as ConnectExtensionRouteImport } from './routes/_site/connect/extension'
+import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as SiteSplatRouteImport } from './routes/_site/$'
+import { Route as SiteAboutRouteImport } from './routes/_site/about'
+import { Route as SiteAppRouteImport } from './routes/_site/app'
+import { Route as SiteContactRouteImport } from './routes/_site/contact'
+import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
+import { Route as SiteTermsRouteImport } from './routes/_site/terms'
+import { Route as LibraryIndexRouteImport } from './routes/library/index'
+import { Route as LibrarySettingsRouteImport } from './routes/library/settings'
+import { Route as SiteAppIndexRouteImport } from './routes/_site/app/index'
+import { Route as SiteAppForgotPasswordRouteImport } from './routes/_site/app/forgot-password'
+import { Route as SiteAppResetPasswordRouteImport } from './routes/_site/app/reset-password'
+import { Route as SiteAppSignInRouteImport } from './routes/_site/app/sign-in'
+import { Route as SiteAppSignUpRouteImport } from './routes/_site/app/sign-up'
+import { Route as SiteConnectExtensionRouteImport } from './routes/_site/connect/extension'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SiteRoute = SiteRouteImport.update({
+  id: '/_site',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SplatRoute = SplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppRoute = AppRouteImport.update({
-  id: '/app',
-  path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
   path: '/llms.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -71,109 +54,161 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppIndexRoute = AppIndexRouteImport.update({
+const SiteIndexRoute = SiteIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => SiteRoute,
 } as any)
-const AppForgotPasswordRoute = AppForgotPasswordRouteImport.update({
+const SiteSplatRoute = SiteSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SiteAboutRoute = SiteAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SiteAppRoute = SiteAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SiteContactRoute = SiteContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SitePrivacyRoute = SitePrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SiteRoute,
+} as any)
+const SiteTermsRoute = SiteTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => SiteRoute,
+} as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LibraryRoute,
+} as any)
+const LibrarySettingsRoute = LibrarySettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => LibraryRoute,
+} as any)
+const SiteAppIndexRoute = SiteAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SiteAppRoute,
+} as any)
+const SiteAppForgotPasswordRoute = SiteAppForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => SiteAppRoute,
 } as any)
-const AppResetPasswordRoute = AppResetPasswordRouteImport.update({
+const SiteAppResetPasswordRoute = SiteAppResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => SiteAppRoute,
 } as any)
-const AppSignInRoute = AppSignInRouteImport.update({
+const SiteAppSignInRoute = SiteAppSignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => SiteAppRoute,
 } as any)
-const AppSignUpRoute = AppSignUpRouteImport.update({
+const SiteAppSignUpRoute = SiteAppSignUpRouteImport.update({
   id: '/sign-up',
   path: '/sign-up',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => SiteAppRoute,
 } as any)
-const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
+const SiteConnectExtensionRoute = SiteConnectExtensionRouteImport.update({
   id: '/connect/extension',
   path: '/connect/extension',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => SiteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/about': typeof AboutRoute
-  '/app': typeof AppRouteWithChildren
-  '/contact': typeof ContactRoute
+  '/': typeof SiteIndexRoute
+  '/library': typeof LibraryRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
-  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/terms': typeof TermsRoute
-  '/app/forgot-password': typeof AppForgotPasswordRoute
-  '/app/reset-password': typeof AppResetPasswordRoute
-  '/app/sign-in': typeof AppSignInRoute
-  '/app/sign-up': typeof AppSignUpRoute
-  '/connect/extension': typeof ConnectExtensionRoute
-  '/app/': typeof AppIndexRoute
+  '/$': typeof SiteSplatRoute
+  '/about': typeof SiteAboutRoute
+  '/app': typeof SiteAppRouteWithChildren
+  '/contact': typeof SiteContactRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/terms': typeof SiteTermsRoute
+  '/library/settings': typeof LibrarySettingsRoute
+  '/library/': typeof LibraryIndexRoute
+  '/app/forgot-password': typeof SiteAppForgotPasswordRoute
+  '/app/reset-password': typeof SiteAppResetPasswordRoute
+  '/app/sign-in': typeof SiteAppSignInRoute
+  '/app/sign-up': typeof SiteAppSignUpRoute
+  '/connect/extension': typeof SiteConnectExtensionRoute
+  '/app/': typeof SiteAppIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/about': typeof AboutRoute
-  '/contact': typeof ContactRoute
   '/llms.txt': typeof LlmsDottxtRoute
-  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/terms': typeof TermsRoute
-  '/app/forgot-password': typeof AppForgotPasswordRoute
-  '/app/reset-password': typeof AppResetPasswordRoute
-  '/app/sign-in': typeof AppSignInRoute
-  '/app/sign-up': typeof AppSignUpRoute
-  '/connect/extension': typeof ConnectExtensionRoute
-  '/app': typeof AppIndexRoute
+  '/$': typeof SiteSplatRoute
+  '/about': typeof SiteAboutRoute
+  '/contact': typeof SiteContactRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/terms': typeof SiteTermsRoute
+  '/library/settings': typeof LibrarySettingsRoute
+  '/': typeof SiteIndexRoute
+  '/library': typeof LibraryIndexRoute
+  '/app/forgot-password': typeof SiteAppForgotPasswordRoute
+  '/app/reset-password': typeof SiteAppResetPasswordRoute
+  '/app/sign-in': typeof SiteAppSignInRoute
+  '/app/sign-up': typeof SiteAppSignUpRoute
+  '/connect/extension': typeof SiteConnectExtensionRoute
+  '/app': typeof SiteAppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/$': typeof SplatRoute
-  '/about': typeof AboutRoute
-  '/app': typeof AppRouteWithChildren
-  '/contact': typeof ContactRoute
+  '/_site': typeof SiteRouteWithChildren
+  '/library': typeof LibraryRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
-  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/terms': typeof TermsRoute
-  '/app/forgot-password': typeof AppForgotPasswordRoute
-  '/app/reset-password': typeof AppResetPasswordRoute
-  '/app/sign-in': typeof AppSignInRoute
-  '/app/sign-up': typeof AppSignUpRoute
-  '/connect/extension': typeof ConnectExtensionRoute
-  '/app/': typeof AppIndexRoute
+  '/_site/$': typeof SiteSplatRoute
+  '/_site/about': typeof SiteAboutRoute
+  '/_site/app': typeof SiteAppRouteWithChildren
+  '/_site/contact': typeof SiteContactRoute
+  '/_site/privacy': typeof SitePrivacyRoute
+  '/_site/terms': typeof SiteTermsRoute
+  '/library/settings': typeof LibrarySettingsRoute
+  '/_site/': typeof SiteIndexRoute
+  '/library/': typeof LibraryIndexRoute
+  '/_site/app/forgot-password': typeof SiteAppForgotPasswordRoute
+  '/_site/app/reset-password': typeof SiteAppResetPasswordRoute
+  '/_site/app/sign-in': typeof SiteAppSignInRoute
+  '/_site/app/sign-up': typeof SiteAppSignUpRoute
+  '/_site/connect/extension': typeof SiteConnectExtensionRoute
+  '/_site/app/': typeof SiteAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/library'
+    | '/llms.txt'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/$'
     | '/about'
     | '/app'
     | '/contact'
-    | '/llms.txt'
     | '/privacy'
-    | '/robots.txt'
-    | '/sitemap.xml'
     | '/terms'
+    | '/library/settings'
+    | '/library/'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
@@ -182,15 +217,17 @@ export interface FileRouteTypes {
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/llms.txt'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/$'
     | '/about'
     | '/contact'
-    | '/llms.txt'
     | '/privacy'
-    | '/robots.txt'
-    | '/sitemap.xml'
     | '/terms'
+    | '/library/settings'
+    | '/'
+    | '/library'
     | '/app/forgot-password'
     | '/app/reset-password'
     | '/app/sign-in'
@@ -199,73 +236,50 @@ export interface FileRouteTypes {
     | '/app'
   id:
     | '__root__'
-    | '/'
-    | '/$'
-    | '/about'
-    | '/app'
-    | '/contact'
+    | '/_site'
+    | '/library'
     | '/llms.txt'
-    | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/terms'
-    | '/app/forgot-password'
-    | '/app/reset-password'
-    | '/app/sign-in'
-    | '/app/sign-up'
-    | '/connect/extension'
-    | '/app/'
+    | '/_site/$'
+    | '/_site/about'
+    | '/_site/app'
+    | '/_site/contact'
+    | '/_site/privacy'
+    | '/_site/terms'
+    | '/library/settings'
+    | '/_site/'
+    | '/library/'
+    | '/_site/app/forgot-password'
+    | '/_site/app/reset-password'
+    | '/_site/app/sign-in'
+    | '/_site/app/sign-up'
+    | '/_site/connect/extension'
+    | '/_site/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  SplatRoute: typeof SplatRoute
-  AboutRoute: typeof AboutRoute
-  AppRoute: typeof AppRouteWithChildren
-  ContactRoute: typeof ContactRoute
+  SiteRoute: typeof SiteRouteWithChildren
+  LibraryRoute: typeof LibraryRouteWithChildren
   LlmsDottxtRoute: typeof LlmsDottxtRoute
-  PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  TermsRoute: typeof TermsRoute
-  ConnectExtensionRoute: typeof ConnectExtensionRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_site': {
+      id: '/_site'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof SiteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$': {
-      id: '/$'
-      path: '/$'
-      fullPath: '/$'
-      preLoaderRoute: typeof SplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app': {
-      id: '/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/llms.txt': {
@@ -273,13 +287,6 @@ declare module '@tanstack/react-router' {
       path: '/llms.txt'
       fullPath: '/llms.txt'
       preLoaderRoute: typeof LlmsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -296,98 +303,187 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/terms': {
-      id: '/terms'
+    '/_site/': {
+      id: '/_site/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof SiteIndexRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/$': {
+      id: '/_site/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SiteSplatRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/about': {
+      id: '/_site/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof SiteAboutRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/app': {
+      id: '/_site/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof SiteAppRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/contact': {
+      id: '/_site/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof SiteContactRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/privacy': {
+      id: '/_site/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof SitePrivacyRouteImport
+      parentRoute: typeof SiteRoute
+    }
+    '/_site/terms': {
+      id: '/_site/terms'
       path: '/terms'
       fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof SiteTermsRouteImport
+      parentRoute: typeof SiteRoute
     }
-    '/app/': {
-      id: '/app/'
+    '/library/': {
+      id: '/library/'
+      path: '/'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof LibraryRoute
+    }
+    '/library/settings': {
+      id: '/library/settings'
+      path: '/settings'
+      fullPath: '/library/settings'
+      preLoaderRoute: typeof LibrarySettingsRouteImport
+      parentRoute: typeof LibraryRoute
+    }
+    '/_site/app/': {
+      id: '/_site/app/'
       path: '/'
       fullPath: '/app/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof SiteAppIndexRouteImport
+      parentRoute: typeof SiteAppRoute
     }
-    '/app/forgot-password': {
-      id: '/app/forgot-password'
+    '/_site/app/forgot-password': {
+      id: '/_site/app/forgot-password'
       path: '/forgot-password'
       fullPath: '/app/forgot-password'
-      preLoaderRoute: typeof AppForgotPasswordRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof SiteAppForgotPasswordRouteImport
+      parentRoute: typeof SiteAppRoute
     }
-    '/app/reset-password': {
-      id: '/app/reset-password'
+    '/_site/app/reset-password': {
+      id: '/_site/app/reset-password'
       path: '/reset-password'
       fullPath: '/app/reset-password'
-      preLoaderRoute: typeof AppResetPasswordRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof SiteAppResetPasswordRouteImport
+      parentRoute: typeof SiteAppRoute
     }
-    '/app/sign-in': {
-      id: '/app/sign-in'
+    '/_site/app/sign-in': {
+      id: '/_site/app/sign-in'
       path: '/sign-in'
       fullPath: '/app/sign-in'
-      preLoaderRoute: typeof AppSignInRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof SiteAppSignInRouteImport
+      parentRoute: typeof SiteAppRoute
     }
-    '/app/sign-up': {
-      id: '/app/sign-up'
+    '/_site/app/sign-up': {
+      id: '/_site/app/sign-up'
       path: '/sign-up'
       fullPath: '/app/sign-up'
-      preLoaderRoute: typeof AppSignUpRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof SiteAppSignUpRouteImport
+      parentRoute: typeof SiteAppRoute
     }
-    '/connect/extension': {
-      id: '/connect/extension'
+    '/_site/connect/extension': {
+      id: '/_site/connect/extension'
       path: '/connect/extension'
       fullPath: '/connect/extension'
-      preLoaderRoute: typeof ConnectExtensionRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof SiteConnectExtensionRouteImport
+      parentRoute: typeof SiteRoute
     }
   }
 }
 
-interface AppRouteChildren {
-  AppForgotPasswordRoute: typeof AppForgotPasswordRoute
-  AppResetPasswordRoute: typeof AppResetPasswordRoute
-  AppSignInRoute: typeof AppSignInRoute
-  AppSignUpRoute: typeof AppSignUpRoute
-  AppIndexRoute: typeof AppIndexRoute
+interface SiteAppRouteChildren {
+  SiteAppForgotPasswordRoute: typeof SiteAppForgotPasswordRoute
+  SiteAppResetPasswordRoute: typeof SiteAppResetPasswordRoute
+  SiteAppSignInRoute: typeof SiteAppSignInRoute
+  SiteAppSignUpRoute: typeof SiteAppSignUpRoute
+  SiteAppIndexRoute: typeof SiteAppIndexRoute
 }
 
-const AppRouteChildren: AppRouteChildren = {
-  AppForgotPasswordRoute: AppForgotPasswordRoute,
-  AppResetPasswordRoute: AppResetPasswordRoute,
-  AppSignInRoute: AppSignInRoute,
-  AppSignUpRoute: AppSignUpRoute,
-  AppIndexRoute: AppIndexRoute,
+const SiteAppRouteChildren: SiteAppRouteChildren = {
+  SiteAppForgotPasswordRoute: SiteAppForgotPasswordRoute,
+  SiteAppResetPasswordRoute: SiteAppResetPasswordRoute,
+  SiteAppSignInRoute: SiteAppSignInRoute,
+  SiteAppSignUpRoute: SiteAppSignUpRoute,
+  SiteAppIndexRoute: SiteAppIndexRoute,
 }
 
-const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+const SiteAppRouteWithChildren =
+  SiteAppRoute._addFileChildren(SiteAppRouteChildren)
+
+interface SiteRouteChildren {
+  SiteSplatRoute: typeof SiteSplatRoute
+  SiteAboutRoute: typeof SiteAboutRoute
+  SiteAppRoute: typeof SiteAppRouteWithChildren
+  SiteContactRoute: typeof SiteContactRoute
+  SitePrivacyRoute: typeof SitePrivacyRoute
+  SiteTermsRoute: typeof SiteTermsRoute
+  SiteIndexRoute: typeof SiteIndexRoute
+  SiteConnectExtensionRoute: typeof SiteConnectExtensionRoute
+}
+
+const SiteRouteChildren: SiteRouteChildren = {
+  SiteSplatRoute: SiteSplatRoute,
+  SiteAboutRoute: SiteAboutRoute,
+  SiteAppRoute: SiteAppRouteWithChildren,
+  SiteContactRoute: SiteContactRoute,
+  SitePrivacyRoute: SitePrivacyRoute,
+  SiteTermsRoute: SiteTermsRoute,
+  SiteIndexRoute: SiteIndexRoute,
+  SiteConnectExtensionRoute: SiteConnectExtensionRoute,
+}
+
+const SiteRouteWithChildren = SiteRoute._addFileChildren(SiteRouteChildren)
+
+interface LibraryRouteChildren {
+  LibrarySettingsRoute: typeof LibrarySettingsRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
+}
+
+const LibraryRouteChildren: LibraryRouteChildren = {
+  LibrarySettingsRoute: LibrarySettingsRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
+}
+
+const LibraryRouteWithChildren =
+  LibraryRoute._addFileChildren(LibraryRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  SplatRoute: SplatRoute,
-  AboutRoute: AboutRoute,
-  AppRoute: AppRouteWithChildren,
-  ContactRoute: ContactRoute,
+  SiteRoute: SiteRouteWithChildren,
+  LibraryRoute: LibraryRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
-  PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  TermsRoute: TermsRoute,
-  ConnectExtensionRoute: ConnectExtensionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

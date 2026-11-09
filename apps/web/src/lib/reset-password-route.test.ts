@@ -23,8 +23,9 @@ const drawnPage = async (path: string): Promise<string> => {
     throw new Error("the reset-password route draws no page");
   }
   const rootRoute = createRootRoute();
+  const site = createRoute({ getParentRoute: () => rootRoute, id: "_site" });
   const page = createRoute({
-    getParentRoute: () => rootRoute,
+    getParentRoute: () => site,
     path: "/app/reset-password",
     validateSearch,
     component,
@@ -33,7 +34,7 @@ const drawnPage = async (path: string): Promise<string> => {
     history: createMemoryHistory({ initialEntries: [path] }),
     isServer: false,
     origin: "http://localhost",
-    routeTree: rootRoute.addChildren([page]),
+    routeTree: rootRoute.addChildren([site.addChildren([page])]),
   });
   await router.load();
   return renderToString(createElement(RouterProvider, { router }));
@@ -49,7 +50,7 @@ describe("the page the emailed reset link lands on", () => {
     });
     await router.load();
     const page = router.state.matches.at(-1);
-    expect(page?.routeId).toBe("/app/reset-password");
+    expect(page?.routeId).toBe("/_site/app/reset-password");
     expect(page?.headers).toStrictEqual({ "Cache-Control": "no-store" });
     expect(page?.meta).toContainEqual({ name: "referrer", content: "no-referrer" });
   });

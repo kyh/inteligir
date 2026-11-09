@@ -8,7 +8,7 @@ import { PAGES } from "#lib/page-meta";
 // the doc itself rather than a copy, so the page cannot say something docs/terms.md does not
 import terms from "../../../../../docs/terms.md?raw";
 
-export const Route = createFileRoute("/terms")({
+export const Route = createFileRoute("/_site/terms")({
   head: () => legalHead(PAGES.terms, terms),
   headers: varyHeaders,
   component: () => <MarkdownPage markdown={terms} />,

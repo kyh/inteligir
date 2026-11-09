@@ -3,13 +3,12 @@
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { toast } from "@repo/ui/components/sonner";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { createAppRouter } from "./test-support/library-router";
-import { createPageQueryClient } from "./cloud/v1";
+import { createLibraryRouter, openedOver } from "./test-support/library-router";
 import { forgetPref, PREFS } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
@@ -31,10 +30,7 @@ const pageAt = (
 ) => {
   forgetPref(PREFS.libraryScope);
   const { calls, library } = fakePageLibrary({ answer });
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [entry] }), {
-    library,
-    queryClient: createPageQueryClient(),
-  });
+  const router = createLibraryRouter(entry, openedOver(library));
   render(<RouterProvider router={router} />);
   return { calls, router };
 };

@@ -6,7 +6,7 @@ import { PAGES } from "#lib/page-meta";
 import { pageHead } from "#lib/page-head";
 import { aboutMarkdown } from "#lib/site-content";
 
-export const Route = createFileRoute("/about")({
+export const Route = createFileRoute("/_site/about")({
   head: () => pageHead(PAGES.about),
   headers: varyHeaders,
   component: () => <MarkdownPage markdown={aboutMarkdown} />,

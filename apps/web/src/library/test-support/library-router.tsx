@@ -1,45 +1,55 @@
-// CLAUDE.md § THE QUERY CLIENT IS THE ROUTER'S, AND ITS KEYS ARE oRPC'S. The page's router, made
-// with the one QueryClient and the page's library as its context, so a loader seeds what a screen
-// reads through the same client the screen reads it from, and wraps every route in both providers.
+// The library's routes over memory, for a screen's suite: the routes' own pieces under a bare root,
+// opened by what the suite hands in place of the tab's open, so a screen runs under the router, the
+// QueryClient and the library it runs under in the tab.
 
-import { QueryClientProvider } from "@tanstack/react-query";
-import type { QueryClient } from "@tanstack/react-query";
-import { createRouter } from "@tanstack/react-router";
-import type { RouterHistory } from "@tanstack/react-router";
-import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
 
-import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
+import { createPageQueryClient } from "../cloud/v1";
+import { LibraryLayout, seedScopes } from "../library-layout";
+import { librarySearchSchema } from "../library-search";
+import type { FloorRefusal, TabOpening } from "../library-tab";
 import { RenderCrash } from "../render-crash";
-import { routeTree } from "../../../../workspace/src/routeTree.gen";
+import { seedSettings, SettingsRoute } from "../settings/settings-route";
 
-export interface PageContext {
-  readonly queryClient: QueryClient;
-  readonly library: PageLibrary;
-}
-
-// the page's router over the browser's history, and a suite's over memory, under the Worker's prefix
-export const createAppRouter = (history: RouterHistory, context: PageContext) =>
-  createRouter({
-    Wrap: ({ children }) => (
-      <QueryClientProvider client={context.queryClient}>
-        <PageLibraryProvider library={context.library}>{children}</PageLibraryProvider>
-      </QueryClientProvider>
-    ),
-    basepath: LIBRARY_PAGE_PATH,
-    context,
-    // Router-level, not the root route's errorComponent, which would leave every child route
-    // unguarded.
-    defaultErrorComponent: RenderCrash,
-    defaultPreload: "intent",
-    // the QueryClient decides what is fresh: a preload never caches a loader's answer of its own
-    defaultPreloadStaleTime: 0,
-    history,
-    routeTree,
+export const createLibraryRouter = (entry: string, open: () => Promise<TabOpening>) => {
+  const root = createRootRoute();
+  const library = createRoute({
+    beforeLoad: async () => ({ opening: await open() }),
+    component: LibraryLayout,
+    errorComponent: RenderCrash,
+    getParentRoute: () => root,
+    loader: seedScopes,
+    path: "library",
+    validateSearch: librarySearchSchema,
   });
+  const index = createRoute({ getParentRoute: () => library, path: "/" });
+  const settings = createRoute({
+    component: SettingsRoute,
+    errorComponent: RenderCrash,
+    getParentRoute: () => library,
+    loader: seedSettings,
+    path: "settings",
+  });
+  return createRouter({
+    defaultPreloadStaleTime: 0,
+    history: createMemoryHistory({ initialEntries: [entry] }),
+    routeTree: root.addChildren([library.addChildren([index, settings])]),
+  });
+};
 
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: ReturnType<typeof createAppRouter>;
-  }
-}
+const neverRefused: FloorRefusal = {
+  refused: () => false,
+  subscribe: () => () => {},
+};
+
+// a tab opened over a suite's library
+export const openedOver = (library: PageLibrary) => async (): Promise<TabOpening> => {
+  await Promise.resolve();
+  return { floor: neverRefused, kind: "open", library, queryClient: createPageQueryClient() };
+};

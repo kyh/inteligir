@@ -10,7 +10,7 @@ import type { LeaveGuard } from "./leave-guard";
 import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
-import type { SignedIn } from "./page-session";
+import type { SignedIn } from "#lib/auth-client";
 import { useLibrarySocket } from "./use-library-socket";
 import type { LibrarySocket } from "./use-library-socket";
 import type { CloudWire } from "./v1";

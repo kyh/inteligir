@@ -91,7 +91,7 @@ const Page = () => (
   </>
 );
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_site/")({
   head: () => pageHead(PAGES.home),
   headers: varyHeaders,
   component: Page,

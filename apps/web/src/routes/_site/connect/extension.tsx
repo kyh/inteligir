@@ -79,7 +79,7 @@ const ConnectExtensionPage = () => {
   );
 };
 
-export const Route = createFileRoute("/connect/extension")({
+export const Route = createFileRoute("/_site/connect/extension")({
   ssr: false,
   // a page for the person already signed in, never a search result
   head: () => ({ meta: [{ content: "noindex, nofollow", name: "robots" }] }),

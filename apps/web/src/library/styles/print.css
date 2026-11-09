@@ -3,31 +3,26 @@
     margin: 18mm 16mm;
   }
 
-  html,
-  body,
-  #root {
+  html:has([data-library]),
+  body:has([data-library]),
+  [data-library] {
     height: auto !important;
     overflow: visible !important;
     background: #fff !important;
   }
 
   /* WebKit prints nothing a run off screen skipped, so every run of a long note draws. */
-  [data-slate-chunk] {
+  [data-library] [data-slate-chunk] {
     content-visibility: visible !important;
   }
 
   /* A dialog left open must not print over the note. */
-  [role="dialog"],
-  [data-sonner-toaster] {
+  body:has([data-library]) :is([role="dialog"], [data-sonner-toaster]) {
     display: none !important;
   }
 
   /* A card split across a page boundary reads as two broken cards. */
-  pre,
-  table,
-  figure,
-  [data-tab-group],
-  [data-tab-panel] {
+  [data-library] :is(pre, table, figure, [data-tab-group], [data-tab-panel]) {
     break-inside: avoid;
   }
 }

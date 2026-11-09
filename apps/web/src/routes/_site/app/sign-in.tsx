@@ -70,7 +70,7 @@ const SignInPage = () => {
   );
 };
 
-export const Route = createFileRoute("/app/sign-in")({
+export const Route = createFileRoute("/_site/app/sign-in")({
   ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
   beforeLoad: async ({ search }) => {

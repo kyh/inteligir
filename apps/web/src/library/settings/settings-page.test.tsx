@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAppRouter } from "../test-support/library-router";
-import { createPageQueryClient } from "../cloud/v1";
+import { createLibraryRouter, openedOver } from "../test-support/library-router";
 import { fakePageLibrary } from "../test-support/fake-page-library";
 
 afterEach(() => {
@@ -16,10 +15,7 @@ afterEach(() => {
 // the whole page, over a cell's wire
 const openedAtSettings = async () => {
   const { library } = fakePageLibrary({ answer: () => ({ assistants: [], devices: [] }) });
-  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/library/settings"] }), {
-    library,
-    queryClient: createPageQueryClient(),
-  });
+  const router = createLibraryRouter("/library/settings", openedOver(library));
   render(<RouterProvider router={router} />);
   await screen.findByRole("heading", { name: "Settings" });
   return router;
