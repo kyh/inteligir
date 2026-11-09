@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { wikiFieldsOfBody } from "@repo/editor/wiki/wiki-node";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -14,31 +13,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("the wiki chip's hover preview", () => {
-  it("opens after the hover delay and names an unresolved target as not created", () => {
-    installFakeEditorHost({});
-    render(<WikiChip link={wikiFieldsOfBody("Someday")} />);
-    const chip = screen.getByRole("button", { name: "Someday" });
-    fireEvent.pointerEnter(chip, { pointerType: "mouse" });
-    fireEvent.mouseEnter(chip);
-    fireEvent.mouseMove(chip);
-    expect(screen.queryByText(/Not created yet/u)).toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(400);
-    });
-    expect(screen.getByText(/Not created yet/u)).toBeDefined();
-  });
-});
+const hover = (chip: HTMLElement): void => {
+  fireEvent.pointerEnter(chip, { pointerType: "mouse" });
+  fireEvent.mouseEnter(chip);
+  fireEvent.mouseMove(chip);
+};
 
-describe("a wiki chip that names its item by id", () => {
+describe("a page link's chip", () => {
   it("shows the name the item goes by now, not the one it was written with", () => {
     const id = "0190a000-0000-7000-8000-000000000001";
     installFakeEditorHost({ linkTargets: [{ id, title: "Renamed" }] });
-    render(<WikiChip link={wikiFieldsOfBody(`Old name|${id}`)} />);
+    render(<WikiChip itemId={id} title="Old name" />);
     expect(screen.getByRole("button", { name: "Renamed" })).toBeDefined();
   });
 
-  it("previews the item's first lines and opens it by its id", async () => {
+  it("previews the item's first lines after the hover delay and opens it by its id", async () => {
     const id = "0190a000-0000-7000-8000-000000000002";
     const { calls } = installFakeEditorHost({
       itemBlocks: (itemId) =>
@@ -47,16 +36,26 @@ describe("a wiki chip that names its item by id", () => {
           : null,
       linkTargets: [{ id, title: "Plan" }],
     });
-    render(<WikiChip link={wikiFieldsOfBody("Plan")} />);
+    render(<WikiChip itemId={id} title="Plan" />);
     const chip = screen.getByRole("button", { name: "Plan" });
-    fireEvent.pointerEnter(chip, { pointerType: "mouse" });
-    fireEvent.mouseEnter(chip);
-    fireEvent.mouseMove(chip);
+    hover(chip);
+    expect(screen.queryByText("The plan, in short.")).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400);
     });
     expect(screen.getByText("The plan, in short.")).toBeDefined();
     fireEvent.click(chip);
     expect(calls).toStrictEqual([{ action: "openItem", args: [id] }]);
+  });
+
+  it("previews nothing for an item the host does not feed", async () => {
+    installFakeEditorHost({});
+    render(<WikiChip itemId="0190a000-0000-7000-8000-000000000003" title="Gone" />);
+    hover(screen.getByRole("button", { name: "Gone" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.queryByRole("button", { name: "Gone" })).not.toBeNull();
+    expect(screen.queryAllByRole("button")).toHaveLength(1);
   });
 });

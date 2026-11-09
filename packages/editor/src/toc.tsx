@@ -95,7 +95,7 @@ export const collectHeadings = (editor: SlateEditor): HeadingItem[] =>
   );
 
 // resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
-// also holds headings the outline skips (empty ones) and never listed (a transclusion's).
+// also holds headings the outline skips (empty ones) and ones no node of the document draws.
 /** @internal */
 export const headingElement = (editor: SlateEditor, heading: HeadingItem): HTMLElement | null => {
   const entry = editor.api.node<TElement>(heading.path);

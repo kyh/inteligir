@@ -21,8 +21,8 @@ export interface DiffLinesOptions {
 // about four million entries here, where two notes this far apart read as a rewrite anyway.
 const DEFAULT_MAX_EDIT_DISTANCE = 2000;
 
-// lf alone, not every terminator source-lines splits at: the merge joins segments back into the
-// file's bytes, so a `\r` must stay inside a line's content rather than become a terminator.
+// lf alone, not every line terminator: the merge joins segments back into the file's bytes, so a
+// `\r` must stay inside a line's content rather than become a terminator.
 export const splitLinesLf = (text: string): string[] => text.split("\n");
 
 // round d's snapshot holds diagonals -d..d, so diagonal k sits at `k + d`.

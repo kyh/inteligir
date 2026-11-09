@@ -12,7 +12,8 @@ import {
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const makeEditor = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -116,7 +117,7 @@ describe("turnIntoAt round-trips", () => {
       const editor = makeEditor("hello world\n");
       turnIntoAt(editor, [0], target);
       const md = out(editor);
-      expect(roundTrip(md), `${target.label} output must be canonical`).toBe(md);
+      expect(rewrite(md), `${target.label} output must be canonical`).toBe(md);
     }
   });
 });

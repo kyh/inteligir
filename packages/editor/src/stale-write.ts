@@ -26,12 +26,10 @@ interface MergedBlock {
 // a block both sides changed, merged as the editor lays a change from elsewhere in, and as the
 // replica settles a CONFLICT: the lines each side changed both land and an overlap keeps mine; a
 // side whose markdown does not read back as itself, or a merge that reads back as no one block,
-// keeps mine whole over theirs, an overlap too. The answer keeps theirs' id, and the `ref`
-// whichever side moved it.
+// keeps mine whole over theirs, an overlap too. The answer keeps theirs' id.
 export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => {
-  const ref = mine.ref === base.ref ? theirs.ref : mine.ref;
   const kept = (block: LibraryBlock, overlapped: boolean): MergedBlock => ({
-    block: renamedBlock(block, theirs.id, ref),
+    block: renamedBlock(block, theirs.id),
     overlapped,
   });
   const files = filesIn([base, mine, theirs]);

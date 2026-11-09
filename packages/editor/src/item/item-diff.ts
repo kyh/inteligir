@@ -57,10 +57,7 @@ export const readElement = (element: TElement, reads?: ElementReads): ReadElemen
   let read: ReadElement = { id, kind: "refused" };
   if (id !== null) {
     const parsed = storableBlockSchema.safeParse(
-      namedBlockJson(
-        { element: tidyBlock(withoutPickers(element)), ref: validId(stringProp(element, "ref")) },
-        id,
-      ),
+      namedBlockJson({ element: tidyBlock(withoutPickers(element)) }, id),
     );
     if (parsed.success) {
       read = { block: parsed.data, hash: blockHash(parsed.data), kind: "block" };

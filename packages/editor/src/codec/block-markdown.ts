@@ -9,10 +9,8 @@ import type { FileKind } from "@repo/contract/items/item-kind";
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
-import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
 
-import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import { headlessEditor, parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 import { viewFileAt, viewFilePath } from "./item-view";
 import { namedBlockJson, readBlocks } from "./read-blocks";
@@ -29,7 +27,7 @@ interface HeldFile {
 // the files blocks name by their bytes, so an address their markdown writes names one back
 export type HeldFiles = ReadonlyMap<string, HeldFile>;
 
-const WRITE_PORTS: WritePorts = { path: viewFilePath, target: () => null, withIds: true };
+const WRITE_PORTS: WritePorts = { path: viewFilePath, target: () => null };
 
 const fileOf = (node: LibraryNode): readonly [string, HeldFile] | null => {
   if ("text" in node) {
@@ -80,18 +78,12 @@ const readPorts = (files: HeldFiles): ReadPorts => ({
       ? null
       : { kind: held.kind, name: at.name ?? held.name, path: url, sha: at.sha };
   },
-  wiki: (link) =>
-    link.alias !== undefined && isUuidWikiAlias(link.alias)
-      ? { itemId: link.alias, kind: "item", title: link.target }
-      : { kind: "title", title: link.target },
+  // a merge reads back the link the block held, under the title it showed
+  item: (key, shown) => ({ itemId: key, title: shown }),
 });
 
-// a block under another id and `ref`
-export const renamedBlock = (block: LibraryBlock, id: string, ref?: string): LibraryBlock => ({
-  ...block,
-  id,
-  ref,
-});
+// a block under another id
+export const renamedBlock = (block: LibraryBlock, id: string): LibraryBlock => ({ ...block, id });
 
 /** @internal */
 export const blockMarkdown = (block: LibraryBlock): string =>
@@ -103,26 +95,21 @@ export const blockFromMarkdown = (
   id: string,
   files: HeldFiles,
 ): LibraryBlock | null => {
-  const converted = mdToSlate(headlessEditor(), markdown);
+  const converted = parseMarkdown(markdown);
   if (!converted.ok) {
     return null;
   }
-  const [only, ...rest] = readBlocks(elementsOf(converted.nodes), readPorts(files));
+  const [only, ...rest] = readBlocks(elementsOf(converted.value), readPorts(files));
   if (only === undefined || rest.length > 0) {
     return null;
   }
-  const parsed = storableBlockSchema.safeParse(
-    namedBlockJson({ element: only.element, ref: null }, id),
-  );
+  const parsed = storableBlockSchema.safeParse(namedBlockJson({ element: only.element }, id));
   return parsed.success ? parsed.data : null;
 };
 
-// a block's content, its `ref` aside; canonical JSON leaves an undefined member out
-const contentKey = (block: LibraryBlock): string => canonicalJson({ ...block, ref: undefined });
-
-// the block's markdown when it reads back as the block it is, its `ref` aside
+// the block's markdown when it reads back as the block it is
 export const faithfulMarkdown = (block: LibraryBlock, files: HeldFiles): string | null => {
   const markdown = blockMarkdown(block);
   const back = blockFromMarkdown(markdown, block.id, files);
-  return back !== null && contentKey(back) === contentKey(block) ? markdown : null;
+  return back !== null && canonicalJson(back) === canonicalJson(block) ? markdown : null;
 };

@@ -13,9 +13,6 @@ import type {
 import { landed, noteFields, paragraph } from "@repo/contract/test-support/library-items";
 import { mulberry32 } from "@repo/contract/test-support/seeded-random";
 
-import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
-import { wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
-
 import { diffValue, readElement } from "./item-diff";
 import { elementOf } from "./item-session";
 
@@ -90,9 +87,9 @@ describe("an item's value as the ops it writes", () => {
   it("reads a block in its one spelling, so the empty texts Slate keeps around a link write nothing", () => {
     const link: LibraryNode = {
       children: [{ text: "" }],
-      itemId: null,
-      title: "Plan",
-      type: "wikiLink",
+      key: "item-2",
+      type: "mention",
+      value: "Plan",
     };
     const stored: LibraryBlock = { children: [{ text: "see " }, link], id: "p1", type: "p" };
     const item = {
@@ -128,39 +125,19 @@ describe("an item's value as the ops it writes", () => {
     expect(diff.heldBack).toStrictEqual(["n0"]);
   });
 
-  it.each(["#Rollback", "#^r1", "#Rollback|the plan"])(
-    "stores a link to a place in its own item, [[%s]]",
-    (body) => {
-      const item = itemOf(1, 0);
-      const link = wikiNodeOfBody(WIKI_LINK_KEY, body);
-      const value = [{ children: [{ text: "see " }, link, { text: "" }], id: "n0", type: "p" }];
-      const diff = diffValue(item.blocks, value);
-      expect(diff.heldBack).toStrictEqual([]);
-      expect(diff.ops).toMatchObject([{ op: "put" }]);
-    },
-  );
-
-  it.each(["|the plan", " "])(
-    "keeps a body that reaches nothing, [[%s]], as its source",
-    (body) => {
-      const item = itemOf(1, 0);
-      const value = [
-        {
-          children: [{ text: "" }, wikiNodeOfBody(WIKI_LINK_KEY, body), { text: "" }],
-          id: "n0",
-          type: "p",
-        },
-      ];
-      const diff = diffValue(item.blocks, value);
-      expect(diff.heldBack).toStrictEqual([]);
-      expect(diff.ops).toMatchObject([
-        {
-          block: { children: [{ source: `[[${body}]]`, type: "opaque" }] },
-          op: "put",
-        },
-      ]);
-    },
-  );
+  it("stores a page link marked as the text around it is", () => {
+    const item = itemOf(1, 0);
+    const link = {
+      children: [{ bold: true, text: "" }],
+      key: "item-2",
+      type: "mention",
+      value: "",
+    };
+    const value = [{ children: [{ text: "see " }, link, { text: "" }], id: "n0", type: "p" }];
+    const diff = diffValue(item.blocks, value);
+    expect(diff.heldBack).toStrictEqual([]);
+    expect(diff.ops).toMatchObject([{ op: "put" }]);
+  });
 
   it("reads a block around a picker still open in it, whose query nobody has written yet", () => {
     const item = itemOf(1, 0);

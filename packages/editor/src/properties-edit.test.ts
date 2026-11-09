@@ -5,9 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { parseProperties } from "@repo/editor/markdown/frontmatter";
 
-const FIXTURES = fileURLToPath(
-  new URL("test-support/fixtures/roundtrip/frontmatter/", import.meta.url),
-);
+const FIXTURES = fileURLToPath(new URL("test-support/fixtures/frontmatter/", import.meta.url));
 const fixtureProps = (name: string) => {
   const text = readFileSync(`${FIXTURES}${name}`, "utf-8");
   const match = /^---[ \t]*\r?\n(?<body>[\s\S]*?)\r?\n---/u.exec(text);

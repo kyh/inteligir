@@ -8,12 +8,7 @@ import { createSlateEditor } from "platejs";
 import { describe, expect, it } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import {
-  RoundTripError,
-  analyzeMarkdown,
-  parseMarkdown,
-  serializeNote,
-} from "@repo/editor/markdown/markdown-doc";
+import { lettersKept, parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const SKILLS_DIR = fileURLToPath(new URL("../../agent-skills/skills", import.meta.url));
 
@@ -64,7 +59,7 @@ const EXAMPLES = readdirSync(SKILLS_DIR, { withFileTypes: true })
 const saveOnce = (md: string): string => {
   const parsed = parseMarkdown(md);
   if (!parsed.ok) {
-    throw new RoundTripError(parsed.reason);
+    throw new Error(`the example did not read: ${parsed.reason.kind}`);
   }
   return serializeNote(createSlateEditor({ plugins: BASE_KIT }), parsed.value);
 };
@@ -74,11 +69,9 @@ describe("the skills' markdown examples", () => {
     expect(EXAMPLES.length).toBeGreaterThan(5);
   });
 
-  it.each(EXAMPLES)("$site keeps what it says and settles after one save", (example) => {
-    expect(["canonical", "normalizes"], `${example.site} loses what it says on a save`).toContain(
-      analyzeMarkdown(example.body).kind,
-    );
+  it.each(EXAMPLES)("$site keeps every letter and settles after one save", (example) => {
     const saved = saveOnce(example.body);
+    expect(lettersKept(example.body, saved), `${example.site} loses words on a save`).toBe(1);
     expect(saveOnce(saved), `${example.site} still moves on its second save`).toBe(saved);
   });
 });

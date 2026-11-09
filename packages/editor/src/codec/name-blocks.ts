@@ -82,7 +82,7 @@ const cutElement = (element: TElement): TElement[] => {
   return parts;
 };
 
-// every draft named and parsed; one past the cap cut first, its `ref` kept by its first part
+// every draft named and parsed; one past the cap cut first
 export const nameDrafts = (
   drafts: readonly DraftBlock[],
   newBlockId: () => string,
@@ -91,8 +91,8 @@ export const nameDrafts = (
   let refused = 0;
   for (const draft of drafts) {
     const parts = bytesOf(draft.element) > CUT_BUDGET ? cutElement(draft.element) : [draft.element];
-    for (const [index, element] of parts.entries()) {
-      const json = namedBlockJson({ element, ref: index === 0 ? draft.ref : null }, newBlockId());
+    for (const element of parts) {
+      const json = namedBlockJson({ element }, newBlockId());
       const parsed = storableBlockSchema.safeParse(json);
       if (parsed.success) {
         blocks.push(parsed.data);

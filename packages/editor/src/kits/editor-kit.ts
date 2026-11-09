@@ -13,7 +13,7 @@ import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
 import { MathKit } from "@repo/editor/kits/math-kit";
-import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
+import { MentionKit } from "@repo/editor/kits/mention-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
@@ -23,7 +23,6 @@ import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
 import { InlineConstructsKit } from "@repo/editor/kits/inline-constructs-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
-import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
@@ -44,8 +43,7 @@ export const CONTENT_KIT = [
   ...ImageKit,
   ...DateKit,
   ...MathKit,
-  ...OpaqueKit,
-  ...WikiLinkKit,
+  ...MentionKit,
   ...InlineConstructsKit,
   ...RichBlocksKit,
   ...TabsKit,

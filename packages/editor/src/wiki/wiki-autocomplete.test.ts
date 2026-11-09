@@ -5,7 +5,7 @@ import type { TElement } from "platejs";
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
+import { insertPageLink } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 const makeEditor = (text: string) =>
@@ -61,45 +61,33 @@ describe("[[ trigger", () => {
   });
 });
 
+const PLAN = "0190a000-0000-7000-8000-000000000001";
+
 describe("picker completion", () => {
-  it("completes a wikiLink chip, consuming the literal [", () => {
+  it("links a picked item by its id, with the title it goes by, consuming the literal [", () => {
     const editor = makeEditor("see ");
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "target note");
-    expect(findByType(editor, "wikiLink")?.title).toBe("target note");
-    expect(out(editor)).toBe("see [[target note]]\n");
+    insertPageLink(editor, { id: PLAN, title: "Plan" });
+    expect(findByType(editor, "mention")).toMatchObject({ key: PLAN, value: "Plan" });
+    expect(out(editor)).toBe(`see [Plan](mention:${PLAN})\n`);
   });
 
-  it("upgrades ![[ to a wikiEmbed chip, consuming the bang", () => {
+  it("leaves a `!` before the `[[` the text it is", () => {
     const editor = makeEditor("see !");
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "target note");
-    expect(findByType(editor, "wikiEmbed")?.title).toBe("target note");
-    expect(findByType(editor, "wikiLink")).toBeNull();
-    expect(out(editor)).toBe("see ![[target note]]\n");
-  });
-
-  it("links a picked item by its id, with the title it goes by", () => {
-    const editor = makeEditor("see ");
-    const element = openWikiPicker(editor);
-    commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "Plan|0190a000-0000-7000-8000-000000000001");
-    expect(findByType(editor, "wikiLink")).toMatchObject({
-      itemId: "0190a000-0000-7000-8000-000000000001",
-      title: "Plan",
-    });
-    expect(out(editor)).toBe("see [[Plan|0190a000-0000-7000-8000-000000000001]]\n");
+    insertPageLink(editor, { id: PLAN, title: "Plan" });
+    expect(out(editor)).toBe(`see \\![Plan](mention:${PLAN})\n`);
   });
 
   it("keeps typing after completion in the text flow (caret escaped the void)", () => {
     const editor = makeEditor("");
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "note");
+    insertPageLink(editor, { id: PLAN, title: "note" });
     editor.tf.insertText(" after");
-    expect(out(editor)).toBe("[[note]] after\n");
+    expect(out(editor)).toBe(`[note](mention:${PLAN}) after\n`);
   });
 
   it("cancel restores the typed query as plain text", () => {

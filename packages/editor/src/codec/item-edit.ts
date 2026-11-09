@@ -18,20 +18,19 @@ import type {
   LibrarySection,
 } from "@repo/contract/library/library-nodes";
 import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
-import { readObsidian } from "@repo/editor/markdown/remark-obsidian";
-import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 import { diffLines } from "@repo/editor/text/line-diff";
 
-import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
-import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 import { itemView, viewFileAt } from "./item-view";
 import type { ItemView, ViewBlock, ViewPorts } from "./item-view";
+import { libraryLinks } from "./library-links";
+import type { LibraryLinks } from "./library-links";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
-import type { LibraryFile, ReadPorts, Reached } from "./read-blocks";
-import { elementsOf, embedFiles, settled } from "./read-markdown";
+import type { LibraryFile, LinkedItem, ReadPorts } from "./read-blocks";
+import { elementsOf } from "./read-markdown";
 
 export interface ViewEdit {
   readonly oldText: string;
@@ -173,20 +172,16 @@ type Cut =
 
 const failed = (reason: CutFailure): Cut => ({ ok: false, reason });
 
-// a note's Obsidian spellings are read out of it; a page's text stays as the page wrote it
-const obsidianOf = (section: LibrarySection): typeof readObsidian | undefined =>
-  section === "note" ? readObsidian : undefined;
-
-// the value a stretch's edited text reads as in its section; null when it nests deeper than the
-// conversion reaches
-const editedAs = (text: string, section: LibrarySection, edit: number): Edited | null => {
-  const converted = mdToSlate(headlessEditor(), text, obsidianOf(section));
-  return converted.ok ? { edit, value: elementsOf(converted.nodes) } : null;
+// the value a stretch's edited text reads as, the agent's `[[Title]]` read by the library's
+// titles; null when it nests deeper than the conversion reaches
+const editedAs = (text: string, edit: number, wiki: WikiResolve): Edited | null => {
+  const read = parseMarkdown(text, undefined, { wiki });
+  return read.ok ? { edit, value: elementsOf(read.value) } : null;
 };
 
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
 // between two lines one edited piece in its own section, read as it is cut
-const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
+const cutAtLines = (run: readonly Piece[], text: string, edit: number, wiki: WikiResolve): Cut => {
   const out: Piece[] = [];
   let cursor = 0;
   let blocks: ViewBlock[] = [];
@@ -199,7 +194,7 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
     if (at === null) {
       return "section";
     }
-    const edited = editedAs(part, at, edit);
+    const edited = editedAs(part, edit, wiki);
     if (edited === null) {
       return "too-deep";
     }
@@ -237,7 +232,7 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
 
 // one range of the current text replaced: the pieces it touches, and a block on either side of
 // the lines it starts or ends in, read again as one
-const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
+const replaceRange = (pieces: readonly Piece[], range: Range, wiki: WikiResolve): Cut => {
   let at = 0;
   const spans = pieces.map((piece) => {
     const span = { end: at + piece.text.length, start: at };
@@ -264,30 +259,26 @@ const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
   const run = pieces.slice(first, last + 1);
   const whole = run.map((piece) => piece.text).join("");
   const text = whole.slice(0, range.start - from) + range.text + whole.slice(range.end - from);
-  const cut = cutAtLines(run, text, range.edit);
+  const cut = cutAtLines(run, text, range.edit, wiki);
   return cut.ok
     ? { ok: true, pieces: [...pieces.slice(0, first), ...cut.pieces, ...pieces.slice(last + 1)] }
     : cut;
 };
 
-// what a link the agent kept or wrote names: the id after its last pipe, the item (or the
-// nothing) the same link named before the edit, or the one item its title names
-const readPortsFor = (replaced: readonly ViewBlock[], ports: EditPorts): ReadPorts => {
-  const before = new Map<string, string | null>();
-  const ids = new Set<string>();
+// what a page link the agent kept or wrote names: an item a replaced block linked (its title
+// live, or the one it showed when the item is gone), or one the library holds
+const readPortsFor = (
+  replaced: readonly ViewBlock[],
+  ports: EditPorts,
+  links: LibraryLinks,
+): ReadPorts => {
+  const before = new Map<string, string>();
   const visit = (node: LibraryNode): void => {
     if ("text" in node) {
       return;
     }
-    if (node.type === "wikiLink") {
-      const title = (node.itemId === null ? null : ports.title(node.itemId)) ?? node.title;
-      before.set(
-        `${title}\n${node.heading ?? node.blockRef ?? ""}\n${node.alias ?? ""}`,
-        node.itemId,
-      );
-      if (node.itemId !== null) {
-        ids.add(node.itemId);
-      }
+    if (node.type === "mention") {
+      before.set(node.key, node.value);
     }
     for (const child of node.children) {
       visit(child);
@@ -296,18 +287,11 @@ const readPortsFor = (replaced: readonly ViewBlock[], ports: EditPorts): ReadPor
   for (const { block } of replaced) {
     visit(block);
   }
-  const itemReached = (itemId: string | null, fallback: string): Reached =>
-    itemId === null ? null : { itemId, kind: "item", title: ports.title(itemId) ?? fallback };
-  const wiki = (link: WikiBody): Reached => {
-    const byId = link.alias !== undefined && isUuidWikiAlias(link.alias) ? link.alias : null;
-    if (byId !== null && (ids.has(byId) || ports.title(byId) !== null)) {
-      return itemReached(byId, link.target);
-    }
-    const anchor = link.anchor?.replace(/^\^/u, "") ?? "";
-    const key = `${link.target}\n${anchor}\n${byId === null ? (link.alias ?? "") : ""}`;
-    return before.has(key)
-      ? itemReached(before.get(key) ?? null, link.target)
-      : itemReached(ports.itemByTitle(link.target), link.target);
+  const item = (key: string): LinkedItem | null => {
+    const shown = before.get(key);
+    return shown === undefined
+      ? links.item(key)
+      : { itemId: key, title: ports.title(key) ?? shown };
   };
   const image = (url: string): LibraryFile | null => {
     const file = viewFileAt(url);
@@ -316,7 +300,7 @@ const readPortsFor = (replaced: readonly ViewBlock[], ports: EditPorts): ReadPor
       ? null
       : { kind, name: file.name ?? file.sha, path: url, sha: file.sha };
   };
-  return { image, wiki };
+  return { image, item };
 };
 
 const contentKey = (block: LibraryBlock): string => {
@@ -333,11 +317,11 @@ interface PieceChange extends Lined {
 }
 
 // an edited piece's value as the blocks it reads as, in its section
-const readPiece = (piece: EditedStretch, ports: EditPorts) => {
-  const read = readPortsFor(piece.blocks, ports);
-  const value = elementsOf(embedFiles(piece.edited.value, read));
-  return nameDrafts(readBlocks(settled(value, obsidianOf(piece.section)), read), ports.newBlockId);
-};
+const readPiece = (piece: EditedStretch, ports: EditPorts, links: LibraryLinks) =>
+  nameDrafts(
+    readBlocks(piece.edited.value, readPortsFor(piece.blocks, ports, links)),
+    ports.newBlockId,
+  );
 
 interface Lined {
   readonly ops: LibraryOp[];
@@ -390,8 +374,8 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
 };
 
 // the blocks an edited piece's text reads as, lined up with the ones it replaced
-const changeOf = (piece: EditedStretch, ports: EditPorts): PieceChange => {
-  const named = readPiece(piece, ports);
+const changeOf = (piece: EditedStretch, ports: EditPorts, links: LibraryLinks): PieceChange => {
+  const named = readPiece(piece, ports, links);
   return {
     ...lineUp(piece.blocks, named.blocks),
     blocks: named.blocks,
@@ -440,9 +424,10 @@ const changesOf = (
   pieces: readonly Piece[],
   view: ItemView,
   ports: EditPorts,
+  links: LibraryLinks,
 ): ViewChange | Unstorable => {
   const edited = pieces.filter(isEdited);
-  const byPiece = new Map(edited.map((piece) => [piece, changeOf(piece, ports)] as const));
+  const byPiece = new Map(edited.map((piece) => [piece, changeOf(piece, ports, links)] as const));
   const changes = [...byPiece.values()];
   const refused = changes.find((change) => change.refused > 0);
   if (refused !== undefined) {
@@ -469,6 +454,7 @@ export const editItemView = (
   ports: EditPorts,
 ): EditOutcome => {
   const view = itemView(blocks, ports);
+  const links = libraryLinks(ports);
   let pieces = piecesOf(view);
   for (const [index, edit] of edits.entries()) {
     if (edit.oldText === "") {
@@ -483,17 +469,16 @@ export const editItemView = (
     if (found.length > 1) {
       return { kind: "refused", refusal: { count: found.length, edit: index, kind: "ambiguous" } };
     }
-    const next = replaceRange(pieces, {
-      edit: index,
-      end: start + edit.oldText.length,
-      start,
-      text: edit.newText,
-    });
+    const next = replaceRange(
+      pieces,
+      { edit: index, end: start + edit.oldText.length, start, text: edit.newText },
+      links.wiki,
+    );
     if (!next.ok) {
       return { kind: "refused", refusal: { edit: index, kind: next.reason } };
     }
     ({ pieces } = next);
   }
-  const change = changesOf(pieces, view, ports);
+  const change = changesOf(pieces, view, ports, links);
   return change.kind === "changed" ? change : { kind: "refused", refusal: change };
 };

@@ -1,4 +1,4 @@
-// a picked item is linked by its id, with the title it goes by now, so a rename never breaks it.
+// a picked item is linked by its id, with the title it goes by now, so a rename never breaks it
 
 import { useCallback, useState } from "react";
 import { FilePlusIcon, FileTextIcon } from "lucide-react";
@@ -18,13 +18,12 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
-import { createLinkedNote, insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
+import { createAndLink, insertPageLink } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import { useLinkResolver, useLinkTargets } from "@repo/editor/host";
 import type { LinkTarget } from "@repo/editor/host-io";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { rankWikiTargets } from "@repo/editor/knowledge/rank-wiki-targets";
-import { parseWikiBody, serializeWikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 
@@ -35,61 +34,47 @@ export const WIKI_PICKER_MAX_ROWS = 50;
 
 const WikiInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
-  const { resolveWikiTarget } = useLinkResolver();
+  const { resolveWikiTarget, titleOf } = useLinkResolver();
   const targets = useLinkTargets();
   const [value, setValue] = useState("");
 
-  const typed = parseWikiBody(value);
+  const typed = value.trim();
 
-  const complete = useCallback(
-    (body: string) => {
-      insertWikiChipFromPicker(editor, body);
-    },
-    [editor],
-  );
-
-  // typing `]]` completes verbatim, matching the editor-level input rule.
+  // typing `]]` links the item the words name, or leaves them the text they are
   const onValueChange = useCallback(
     (next: string) => {
-      if (next.endsWith("]]") && next.slice(0, -2) !== "") {
-        commitComboboxInput(editor, element, true);
-        complete(next.slice(0, -2));
+      const words = next.endsWith("]]") ? next.slice(0, -2).trim() : "";
+      if (words === "") {
+        setValue(next);
         return;
       }
-      setValue(next);
+      commitComboboxInput(editor, element, true);
+      const itemId = resolveWikiTarget(words);
+      if (itemId === null) {
+        editor.tf.insertText(`[${words}]]`);
+        return;
+      }
+      insertPageLink(editor, { id: itemId, title: titleOf(itemId) ?? words });
     },
-    [editor, element, complete],
+    [editor, element, resolveWikiTarget, titleOf],
   );
 
-  const createBody =
-    typed.target === "" || resolveWikiTarget(typed.target) !== null
-      ? null
-      : serializeWikiBody(typed);
+  const createTitle = typed === "" || resolveWikiTarget(typed) !== null ? null : typed;
 
-  // alias/anchor tails are passthrough, not search terms.
-  const shown = rankWikiTargets(targets, typed.target).slice(0, WIKI_PICKER_MAX_ROWS);
+  const shown = rankWikiTargets(targets, typed).slice(0, WIKI_PICKER_MAX_ROWS);
 
-  // by its id after the pipe, unless the person typed an alias there; a title holding a bracket
-  // has no wiki spelling, so it is not offered
-  const itemFor = (target: LinkTarget) => {
-    const body = serializeWikiBody({
-      ...typed,
-      alias: typed.alias ?? target.id,
-      target: target.title,
-    });
-    return body === null ? null : (
-      <InlineComboboxItem
-        key={target.id}
-        value={target.id}
-        onClick={() => {
-          complete(body);
-        }}
-      >
-        <FileTextIcon className="mr-2 text-muted-foreground" />
-        <span className="truncate">{shownTitle(target.title)}</span>
-      </InlineComboboxItem>
-    );
-  };
+  const itemFor = (target: LinkTarget) => (
+    <InlineComboboxItem
+      key={target.id}
+      value={target.id}
+      onClick={() => {
+        insertPageLink(editor, target);
+      }}
+    >
+      <FileTextIcon className="mr-2 text-muted-foreground" />
+      <span className="truncate">{shownTitle(target.title)}</span>
+    </InlineComboboxItem>
+  );
 
   return (
     <PlateElement {...props} as="span">
@@ -105,17 +90,16 @@ const WikiInputElement = (props: PlateElementProps) => {
           <InlineComboboxEmpty>Nothing found</InlineComboboxEmpty>
           <InlineComboboxGroup>
             {shown.map(itemFor)}
-            {createBody !== null && (
+            {createTitle !== null && (
               <InlineComboboxItem
                 value={CREATE_VALUE}
                 onClick={() => {
-                  void createLinkedNote(typed.target);
-                  complete(createBody);
+                  void createAndLink(editor, createTitle);
                 }}
               >
                 <FilePlusIcon className="mr-2 text-muted-foreground" />
                 <span>
-                  Create <span className="font-medium">{typed.target}</span>
+                  Create <span className="font-medium">{createTitle}</span>
                 </span>
               </InlineComboboxItem>
             )}

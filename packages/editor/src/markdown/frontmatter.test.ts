@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { frontmatterYaml, yamlScalarText } from "@repo/editor/markdown/frontmatter";
 
-import { parseBare } from "./bare-parse";
+import { mdastOf } from "../test-support/mdast-of";
 
 const NOTE_HEADERS = {
   "a BOM": "\uFEFF---\ntitle: t\n---\nbody\n",
@@ -15,7 +15,7 @@ const NOTE_HEADERS = {
 
 describe("the frontmatter block is the one the scan reads", () => {
   it.each(Object.entries(NOTE_HEADERS))("%s: its yaml is the scan's yaml node", (_, src) => {
-    const [first] = parseBare(src).children;
+    const [first] = mdastOf(src).children;
     expect(frontmatterYaml(src)).toBe(first?.type === "yaml" ? first.value : null);
   });
 });

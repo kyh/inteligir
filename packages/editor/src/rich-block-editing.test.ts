@@ -16,7 +16,7 @@ import {
   emitChartPayload,
 } from "@repo/editor/nodes/chart-grid";
 import { parseChartPayload } from "@repo/editor/nodes/chart-node";
-import { roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const chartOf = (payload: string) => {
   const parsed = parseChartPayload(payload);
@@ -194,6 +194,6 @@ describe("untouched blocks stay byte-exact through the pipeline", () => {
   it("chart and canvas fences round-trip unchanged", () => {
     const md =
       '```inteligir-chart\n{"type":"bar","data":[{"label":"Mon","value":12}]}\n```\n\n```inteligir-canvas\n[inteligir:grid:v2]\nab.\n.x.\n```\n';
-    expect(roundTrip(md)).toBe(md);
+    expect(rewrite(md)).toBe(md);
   });
 });

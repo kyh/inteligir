@@ -9,7 +9,9 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
-import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { insertPageLink } from "@repo/editor/wiki/wiki-insert";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 const makeEditor = (md = "") => {
@@ -43,17 +45,17 @@ describe("a list's depth", () => {
 
 describe("column normalizer (suppressed width writer)", () => {
   it("keeps bare columns bare through a forced normalize + edit", () => {
-    const src = ":::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n:::\n";
+    const src = "::::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n::::\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     editor.tf.insertText("+", { at: { offset: 0, path: [0, 0, 0, 0] } });
     const output = out(editor);
-    expect(output).toBe(":::columns\n:::column\n+left\n:::\n\n:::column\nright\n:::\n:::\n");
-    expect(roundTrip(output)).toBe(output);
+    expect(output).toBe("::::columns\n:::column\n+left\n:::\n\n:::column\nright\n:::\n::::\n");
+    expect(rewrite(output)).toBe(output);
   });
 
   it("keeps three bare columns bare (the 33.333…% hazard)", () => {
-    const src = ":::columns\n:::column\na\n:::\n\n:::column\nb\n:::\n\n:::column\nc\n:::\n:::\n";
+    const src = "::::columns\n:::column\na\n:::\n\n:::column\nb\n:::\n\n:::column\nc\n:::\n::::\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     expect(out(editor)).toBe(src);
@@ -61,14 +63,15 @@ describe("column normalizer (suppressed width writer)", () => {
 
   it("preserves authored widths without rebalancing to 100", () => {
     // 70 + 40 ≠ 100, which the stock normalizer would rebalance
-    const src = ":::columns\n:::column 70%\na\n:::\n\n:::column 40%\nb\n:::\n:::\n";
+    const src =
+      '::::columns\n:::column{width="70%"}\na\n:::\n\n:::column{width="40%"}\nb\n:::\n::::\n';
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     expect(out(editor)).toBe(src);
   });
 
   it("still dissolves a group left with a single column", () => {
-    const editor = makeEditor(":::columns\n:::column\nkeep\n:::\n\n:::column\ndrop\n:::\n:::\n");
+    const editor = makeEditor("::::columns\n:::column\nkeep\n:::\n\n:::column\ndrop\n:::\n::::\n");
     editor.tf.removeNodes({ at: [0, 1] });
     expect(out(editor)).toBe("keep\n");
   });
@@ -80,8 +83,8 @@ describe(insertColumnGroup, () => {
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 2);
     const output = out(editor);
-    expect(output).toBe("seed\n\n:::columns\n:::column\n:::\n\n:::column\n:::\n:::\n");
-    expect(roundTrip(output)).toBe(output);
+    expect(output).toBe("seed\n\n::::columns\n:::column\n:::\n\n:::column\n:::\n::::\n");
+    expect(rewrite(output)).toBe(output);
   });
 
   it("a half-filled group stays canonical (one filled, one still empty)", () => {
@@ -90,8 +93,8 @@ describe(insertColumnGroup, () => {
     insertColumnGroup(editor, 2);
     editor.tf.insertText("left cell");
     const output = out(editor);
-    expect(output).toBe("seed\n\n:::columns\n:::column\nleft cell\n:::\n\n:::column\n:::\n:::\n");
-    expect(roundTrip(output)).toBe(output);
+    expect(output).toBe("seed\n\n::::columns\n:::column\nleft cell\n:::\n\n:::column\n:::\n::::\n");
+    expect(rewrite(output)).toBe(output);
   });
 
   it("inserts three bare columns for count 3", () => {
@@ -108,21 +111,20 @@ const type = (editor: ReturnType<typeof makeEditor>, text: string) => {
   }
 };
 
-// The trigger fires only on a single typed `[`, so these bulk-insert the body
-// (the paste / cancel-restore path the `]]` rule serves) and type the closers.
-describe("wiki `]]` completion rule", () => {
-  it("completes [[Note]] into a wikiLink chip whose bytes round-trip", () => {
+const PAGE = "0190a000-0000-7000-8000-000000000001";
+
+// The picker opens only on a single typed `[`, so these bulk-insert the body, as a paste or a
+// cancelled picker does, and type the closers.
+describe("a page link typed outside the picker", () => {
+  it("stays the text it is, which a save keeps as text", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     editor.tf.insertText(" see [[Some Note");
     type(editor, "]]");
-    const wiki = el(editor.children[0]).children.find(
-      (child) => ElementApi.isElement(child) && child.type === "wikiLink",
-    );
-    expect(wiki).toMatchObject({ itemId: null, title: "Some Note", type: "wikiLink" });
+    expect(JSON.stringify(editor.children)).not.toContain(KEYS.mention);
     const output = out(editor);
-    expect(output).toContain("[[Some Note]]");
-    expect(roundTrip(output)).toBe(output);
+    expect(output).toBe("x see \\[\\[Some Note]]\n");
+    expect(rewrite(output)).toBe(output);
   });
 
   it("typing [[ char-by-char opens the autocomplete picker instead", () => {
@@ -132,33 +134,12 @@ describe("wiki `]]` completion rule", () => {
     expect(JSON.stringify(editor.children)).toContain("wiki_input");
   });
 
-  it("completes ![[img.png]] into a wikiEmbed chip", () => {
-    const editor = makeEditor("x\n");
-    editor.tf.select(editor.api.end([0]));
-    editor.tf.insertText(" ![[img.png");
-    type(editor, "]]");
-    expect(out(editor)).toContain("![[img.png]]");
-    expect(
-      el(editor.children[0]).children.some(
-        (c) => ElementApi.isElement(c) && c.type === "wikiEmbed",
-      ),
-    ).toBe(true);
-  });
-
-  it("keeps alias/anchor bodies verbatim", () => {
-    const editor = makeEditor("x\n");
-    editor.tf.select(editor.api.end([0]));
-    editor.tf.insertText(" [[target#sec|alias");
-    type(editor, "]]");
-    expect(out(editor)).toContain("[[target#sec|alias]]");
-  });
-
   it("does not fire inside code blocks", () => {
     const editor = makeEditor("```\ncode\n```\n");
     editor.tf.select(editor.api.end([0, 0]));
     type(editor, " [[not a link]]");
     expect(out(editor)).toContain("[[not a link]]");
-    expect(JSON.stringify(el(editor.children[0]))).not.toContain("wikiLink");
+    expect(JSON.stringify(el(editor.children[0]))).not.toContain(KEYS.mention);
   });
 
   it("leaves a lone ] alone", () => {
@@ -168,18 +149,17 @@ describe("wiki `]]` completion rule", () => {
     expect(editor.api.string([0])).toBe("x [TODO]");
   });
 
-  it("never leaks zero-width spaces around live-typed inline voids", () => {
+  it("never leaks zero-width spaces around page links", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
-    editor.tf.insertText(" [[a");
-    type(editor, "]]");
-    editor.tf.insertText("![[b");
-    type(editor, "]]");
+    editor.tf.insertText(" ");
+    insertPageLink(editor, { id: PAGE, title: "a" });
+    insertPageLink(editor, { id: PAGE, title: "b" });
     type(editor, " tail");
     const output = out(editor);
-    expect(output).toBe("x [[a]]![[b]] tail\n");
+    expect(output).toBe(`x [a](mention:${PAGE})[b](mention:${PAGE}) tail\n`);
     expect(output).not.toContain("​");
-    expect(roundTrip(output)).toBe(output);
+    expect(rewrite(output)).toBe(output);
   });
 
   it("still preserves a deliberately empty paragraph (ZWSP placeholder)", () => {
@@ -187,7 +167,7 @@ describe("wiki `]]` completion rule", () => {
     editor.tf.insertNodes({ children: [{ text: "" }], type: "p" }, { at: [1] });
     const output = out(editor);
     expect(output).toContain("​");
-    expect(roundTrip(output)).toBe(output);
+    expect(rewrite(output)).toBe(output);
   });
 });
 
@@ -198,7 +178,7 @@ describe(insertToggle, () => {
     insertToggle(editor);
     const output = out(editor);
     expect(output).toBe(":::toggle\nSummary line\n:::\n");
-    expect(roundTrip(output)).toBe(output);
+    expect(rewrite(output)).toBe(output);
   });
 
   it("Enter on the summary splits INSIDE the toggle (body block)", () => {
@@ -245,8 +225,8 @@ describe("insert transforms serialize canonically", () => {
     editor.tf.select(editor.api.end([0]));
     insertDate(editor);
     const output = out(editor);
-    expect(output).toMatch(/^x@\d{4}-\d{2}-\d{2}/u);
-    expect(roundTrip(output)).toBe(output);
+    expect(output).toMatch(/^x:date\[\d{4}\\-\d{2}\\-\d{2}\]/u);
+    expect(rewrite(output)).toBe(output);
   });
 
   it("insertEquation / insertInlineEquation create texExpression nodes", () => {
@@ -310,7 +290,7 @@ describe("insert transforms serialize canonically", () => {
     editor.tf.setNodes({ texExpression: "E = mc^2" }, { at: [at] });
     const output = out(editor);
     expect(output).toContain("$$\nE = mc^2\n$$");
-    expect(roundTrip(output)).toBe(output);
+    expect(rewrite(output)).toBe(output);
   });
 
   it("insertEmbedFromUrl routes youtube/tweet/pdf/generic to the nodes the url reads back as", () => {
@@ -330,7 +310,7 @@ describe("insert transforms serialize canonically", () => {
       ).toBe(true);
       const output = out(editor);
       expect(output, url).toContain(`![](${url})`);
-      expect(roundTrip(output), url).toBe(output);
+      expect(rewrite(output), url).toBe(output);
       const reread = parseMarkdown(output);
       expect(reread.ok && reread.value.some((node) => node.type === embedType), url).toBe(true);
     }

@@ -29,15 +29,17 @@ const NOTE = [
   "<p>hello</p>",
   "```",
   "",
-  ":::tabs",
-  "=== One",
+  "::::tabs",
+  ":::tab[One]",
   "inside the first tab",
-  "",
-  "=== Two",
-  "inside the second tab",
   ":::",
   "",
-  ":::columns",
+  ":::tab[Two]",
+  "inside the second tab",
+  ":::",
+  "::::",
+  "",
+  "::::columns",
   ":::column",
   "left column",
   ":::",
@@ -45,7 +47,7 @@ const NOTE = [
   ":::column",
   "right column",
   ":::",
-  ":::",
+  "::::",
   "",
   "after",
   "",
@@ -140,10 +142,10 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 
   // Slate merges the paragraph into the group's last block, a move and a merge inside the lock
   it.each([
-    ["tab group", "before\n\n:::tabs\n=== One\ninside\n:::\n\nafter\n"],
+    ["tab group", "before\n\n::::tabs\n:::tab[One]\ninside\n:::\n::::\n\nafter\n"],
     [
       "column group",
-      "before\n\n:::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n:::\n\nafter\n",
+      "before\n\n::::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n::::\n\nafter\n",
     ],
   ])("a backspace from the paragraph after a %s leaves the group whole", (_group, md) => {
     const editor = touchEditor(md);

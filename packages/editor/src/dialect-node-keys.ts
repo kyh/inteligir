@@ -8,12 +8,9 @@ import type { RICH_FENCE_LANGS } from "@repo/editor/markdown/fence-langs";
 // the fence map names the rich blocks too; `satisfies` holds the two spellings together
 type RichFenceBlockKey = NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>;
 
-export const WIKI_LINK_KEY = "wikiLink";
-export const WIKI_EMBED_KEY = "wikiEmbed";
 export const FORMULA_PILL_KEY = "formulaPill";
 export const TAB_GROUP_KEY = "tab_group";
 export const TAB_PANEL_KEY = "tab_panel";
-export const OPAQUE_KEY = "opaque";
 export const CHART_BLOCK_KEY = "chart_block" satisfies RichFenceBlockKey;
 export const CANVAS_BLOCK_KEY = "canvas_block" satisfies RichFenceBlockKey;
 export const HTML_BLOCK_KEY = "html_block" satisfies RichFenceBlockKey;

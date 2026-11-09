@@ -13,10 +13,9 @@ import { ordsBetween } from "@repo/contract/library/block-order";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 
-import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
-import { wikiNode } from "@repo/editor/wiki/wiki-node";
+import { pageLinkNode } from "@repo/editor/wiki/wiki-insert";
 
 import { readElement } from "./item/item-diff";
 
@@ -69,17 +68,7 @@ const signatureOf = (elements: readonly TElement[]): string =>
     .join(" ");
 
 const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
-  children: [
-    { text: "" },
-    wikiNode(WIKI_LINK_KEY, {
-      alias: undefined,
-      blockRef: undefined,
-      heading: undefined,
-      itemId,
-      title,
-    }),
-    { text: "" },
-  ],
+  children: [{ text: "" }, pageLinkNode({ id: itemId, title }), { text: "" }],
   type: editor.getType(KEYS.p),
 });
 

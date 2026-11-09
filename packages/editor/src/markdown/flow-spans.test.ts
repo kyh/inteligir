@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowSpan } from "./flow-spans";
 import { recordFlowSpans } from "./flow-spans";
-import { MD_PROCESSOR, MD_STRINGIFY } from "./md-plugins";
-import { parseMdast } from "./parse";
+import { MD_STRINGIFY } from "./md-plugins";
+import { mdastOf, writerExtensions } from "../test-support/mdast-of";
 
 const DOCS = [
   "# Title\n\nA paragraph.\n\n- one\n- two\n\n1. first\n2. second\n\n> quote\n",
@@ -19,11 +19,11 @@ interface Written {
 }
 
 const write = (md: string, spans: boolean): Written => {
-  const { root } = parseMdast(md);
+  const root = mdastOf(md);
   const recorder = recordFlowSpans();
   const options = {
     ...MD_STRINGIFY,
-    extensions: MD_PROCESSOR.data("toMarkdownExtensions") ?? [],
+    extensions: writerExtensions(),
     handlers: spans ? { ...MD_STRINGIFY.handlers, root: recorder.root } : MD_STRINGIFY.handlers,
   };
   return { spans: recorder.spans, text: toMarkdown(root, options) };
@@ -36,7 +36,7 @@ describe("a root written with its children's spans", () => {
 
   it.each(DOCS)("spans each child, in order, with only joins between: %j", (md) => {
     const { spans, text } = write(md, true);
-    const { root } = parseMdast(md);
+    const root = mdastOf(md);
     expect(spans).toHaveLength(root.children.length);
     for (const span of spans) {
       expect(text.slice(span.start, span.end).trim()).not.toBe("");

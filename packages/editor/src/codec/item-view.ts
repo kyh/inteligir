@@ -41,8 +41,17 @@ export interface ItemView {
   readonly article: { readonly open: FlowSpan; readonly close: FlowSpan } | null;
 }
 
-const ARTICLE_OPEN = ":::article";
-const ARTICLE_CLOSE = ":::";
+const COLON_FENCE_RE = /^[\t >]*(?<colons>:{3,})/gmu;
+
+// the article's fence outgrows every container fence its page holds, as the writer's own fences
+// do, since a `:::` inside a `:::article` closes the article
+const articleFence = (page: string): string => {
+  let longest = 2;
+  for (const match of page.matchAll(COLON_FENCE_RE)) {
+    longest = Math.max(longest, match.groups?.colons?.length ?? 0);
+  }
+  return ":".repeat(longest + 1);
+};
 
 // where the view writes a file the library holds by its bytes
 export const viewFilePath = (file: WrittenFile): string =>
@@ -144,7 +153,6 @@ const placed = (
 const viewPorts = (ports: ViewPorts): WritePorts => ({
   path: viewFilePath,
   target: ports.title,
-  withIds: true,
 });
 
 // the item's markdown and where each of its blocks sits in it
@@ -159,16 +167,18 @@ export const itemView = (blocks: ReadonlyMap<string, StoredBlock>, ports: ViewPo
     return { article: null, blocks: placed(notes, note, 0, 0), markdown: `${note.markdown}\n` };
   }
   const lead = note.markdown === "" ? "" : `${note.markdown}\n\n`;
-  const open: FlowSpan = { end: lead.length + ARTICLE_OPEN.length, start: lead.length };
+  const fence = articleFence(page.markdown);
+  const opening = `${fence}article`;
+  const open: FlowSpan = { end: lead.length + opening.length, start: lead.length };
   const pageStart = open.end + 2;
   const close: FlowSpan = {
-    end: pageStart + page.markdown.length + 2 + ARTICLE_CLOSE.length,
+    end: pageStart + page.markdown.length + 2 + fence.length,
     start: pageStart + page.markdown.length + 2,
   };
   return {
     article: { close, open },
     blocks: [...placed(notes, note, 0, 0), ...placed(pages, page, pageStart, note.groups)],
-    markdown: `${lead}${ARTICLE_OPEN}\n\n${page.markdown}\n\n${ARTICLE_CLOSE}\n`,
+    markdown: `${lead}${opening}\n\n${page.markdown}\n\n${fence}\n`,
   };
 };
 
@@ -200,8 +210,10 @@ export const viewPage = (view: ItemView, from: number, count: number): ViewPage 
     return { from: first, markdown: "", to: first, total };
   }
   const text = view.markdown.slice(head.start, tail.end);
-  const opens = head.section === "article" ? `${ARTICLE_OPEN}\n\n` : "";
-  const closes = tail.section === "article" ? `\n\n${ARTICLE_CLOSE}` : "";
+  const lineOf = (span: FlowSpan | undefined): string =>
+    span === undefined ? "" : view.markdown.slice(span.start, span.end);
+  const opens = head.section === "article" ? `${lineOf(view.article?.open)}\n\n` : "";
+  const closes = tail.section === "article" ? `\n\n${lineOf(view.article?.close)}` : "";
   const crosses = head.section === "note" && tail.section === "article";
   const markdown = crosses
     ? view.markdown.slice(head.start, tail.end) + closes

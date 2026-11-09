@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeMarkdown, canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
+import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
+import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const settled = (md: string) => {
   const imported = canonicalizeImported(md);
@@ -16,11 +17,11 @@ describe(canonicalizeImported, () => {
     expect(settled(md)).toStrictEqual({ kept: 1, markdown: md });
   });
 
-  it("writes a page in the editor's own spelling, a fixpoint analysis calls canonical", () => {
+  it("writes a page in the editor's own spelling, its own fixpoint", () => {
     const imported = settled("Title\n=====\n\n* one\n* two\n\n\n");
     expect(imported.markdown).toBe("# Title\n\n- one\n- two\n");
     expect(imported.kept).toBe(1);
-    expect(analyzeMarkdown(imported.markdown)).toStrictEqual({ kind: "canonical" });
+    expect(rewrite(imported.markdown)).toBe(imported.markdown);
     expect(settled(imported.markdown).markdown).toBe(imported.markdown);
   });
 

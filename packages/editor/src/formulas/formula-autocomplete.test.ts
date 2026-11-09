@@ -48,14 +48,14 @@ describe("formula picker completion", () => {
     openAndCommitFormulaPicker(editor, 7);
     completeFormulaFromPicker(editor, "2");
     expect(findByType(editor, "formulaPill")).toMatchObject({ display: "2", source: "2" });
-    expect(out(editor)).toBe("before {{2|2}}after\n");
+    expect(out(editor)).toBe('before :formula[2]{source="2"}after\n');
   });
 
   it("completes a piped body verbatim", () => {
     const editor = makeEditor("before after");
     openAndCommitFormulaPicker(editor, 7);
     completeFormulaFromPicker(editor, "2+2|4");
-    expect(out(editor)).toBe("before {{2+2|4}}after\n");
+    expect(out(editor)).toBe('before :formula[4]{source="2+2"}after\n');
   });
 
   it("a picked variable replaces the whole {{", () => {
@@ -70,7 +70,9 @@ describe("formula picker completion", () => {
         source: "5000",
       }),
     );
-    expect(out(editor)).toBe("before {{5000|5,000|id=abc;name=budget}}after\n");
+    expect(out(editor)).toBe(
+      `${String.raw`before :formula[5\,000]{meta="id=abc;name=budget" source="5000"}after`}\n`,
+    );
   });
 
   it("a body that is not a formula lands as the typed text, with one {{", () => {
@@ -86,7 +88,7 @@ describe("formula picker completion", () => {
     openAndCommitFormulaPicker(editor, 0);
     completeFormulaFromPicker(editor, "2+2");
     editor.tf.insertText(" after");
-    expect(out(editor)).toBe("{{2+2|4}} after\n");
+    expect(out(editor)).toBe(':formula[4]{source="2+2"} after\n');
   });
 });
 

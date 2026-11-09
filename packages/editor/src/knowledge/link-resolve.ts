@@ -3,7 +3,6 @@
 // so the answer is independent of insertion order. Md urls are literal paths:
 // file-relative, then root-relative, no alias tiers.
 
-import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { IMPLIED_LINK_EXTENSION, wikiLinkName } from "@repo/contract/knowledge/doc-file";
 import {
   basenamePath,
@@ -14,7 +13,7 @@ import {
 } from "@repo/contract/knowledge/folder-path";
 
 export interface TargetResolver {
-  resolveWiki: (target: string, alias?: string) => string | null;
+  resolveWiki: (target: string) => string | null;
   resolveMd: (target: string, fromPath: string) => string | null;
 }
 
@@ -62,7 +61,6 @@ const ownersOf = (map: Map<string, Set<string>>, key: string): Iterable<string> 
 const filedResolver = (): TargetResolver & {
   addPath: (path: string) => void;
   addAlias: (path: string, alias: string) => void;
-  addNoteId: (path: string, id: string) => void;
 } => {
   const exact = new Set<string>();
   const exactLower = new Map<string, Set<string>>();
@@ -70,7 +68,6 @@ const filedResolver = (): TargetResolver & {
   const byNameLower = new Map<string, Set<string>>();
   const aliasCs = new Map<string, Set<string>>();
   const aliasCi = new Map<string, Set<string>>();
-  const idOwners = new Map<string, Set<string>>();
 
   const addPath = (raw: string): void => {
     const path = normalizePath(raw);
@@ -93,15 +90,6 @@ const filedResolver = (): TargetResolver & {
     }
     add(aliasCs, key, owner);
     add(aliasCi, key.toLowerCase(), owner);
-  };
-
-  // a copy carries its original's id, and an owner listed under two ids answers to both
-  const addNoteId = (raw: string, id: string): void => {
-    const owner = normalizePath(raw);
-    if (owner === "" || id === "") {
-      return;
-    }
-    add(idOwners, id, owner);
   };
 
   const lookupExact = (candidate: string): string | null => {
@@ -138,17 +126,7 @@ const filedResolver = (): TargetResolver & {
     return pickBest(ownersOf(byNameLower, clean.toLowerCase()));
   };
 
-  // a copied file carries its original's `id`, so it breaks like every other tier
-  const resolveNoteId = (id: string): string | null => pickBest(ownersOf(idOwners, id));
-
-  const resolveWiki = (target: string, alias?: string): string | null => {
-    // a uuid-shaped alias names the target by frontmatter id; a display alias never does
-    if (alias !== undefined && isUuidWikiAlias(alias)) {
-      const owned = resolveNoteId(alias);
-      if (owned !== null) {
-        return owned;
-      }
-    }
+  const resolveWiki = (target: string): string | null => {
     const clean = normalizePath(target);
     if (clean === "" || clean.startsWith("..")) {
       return null;
@@ -200,13 +178,12 @@ const filedResolver = (): TargetResolver & {
     return null;
   };
 
-  return { addAlias, addNoteId, addPath, resolveMd, resolveWiki };
+  return { addAlias, addPath, resolveMd, resolveWiki };
 };
 
 export const buildResolver = (
   paths: Iterable<string>,
   aliasEntries?: Iterable<readonly [alias: string, path: string]>,
-  idEntries?: Iterable<readonly [id: string, path: string]>,
 ): TargetResolver => {
   const filed = filedResolver();
   for (const path of paths) {
@@ -214,9 +191,6 @@ export const buildResolver = (
   }
   for (const [alias, owner] of aliasEntries ?? []) {
     filed.addAlias(owner, alias);
-  }
-  for (const [id, owner] of idEntries ?? []) {
-    filed.addNoteId(owner, id);
   }
   const { resolveMd, resolveWiki } = filed;
   return { resolveMd, resolveWiki };

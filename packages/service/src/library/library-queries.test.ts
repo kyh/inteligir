@@ -102,8 +102,16 @@ const put = (storage: CellStorage, id: string, state: ItemState, seq = 1) => {
   return derived;
 };
 
+// a page link is a mention of its item; one that reached no item is the words it was written in
 const linkTo = (itemId: string | null, title: string): LibraryBlock => ({
-  children: [{ text: "see " }, { children: leaf, itemId, title, type: "wikiLink" }],
+  children:
+    itemId === null
+      ? [{ text: `see [[${title}]]` }]
+      : [
+          { text: "see " },
+          { children: leaf, key: itemId, type: "mention", value: title },
+          { text: "" },
+        ],
   id: `to-${title.replaceAll(" ", "-")}`,
   type: "p",
 });

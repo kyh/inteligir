@@ -467,9 +467,9 @@ describe("an item open in the editor", () => {
   it("keeps a link to an item by its id through the item's rename", async () => {
     const link: LibraryNode = {
       children: [{ text: "" }],
-      itemId: TARGET,
-      title: "Target",
-      type: "wikiLink",
+      key: TARGET,
+      type: "mention",
+      value: "Target",
     };
     const library = libraryWith([{ children: [{ text: "see " }, link], id: "l1", type: "p" }]);
     const { memory } = library;
@@ -483,7 +483,7 @@ describe("an item open in the editor", () => {
     const view = itemView(memory.item(ITEM)?.blocks ?? new Map(), {
       title: (itemId) => memory.item(itemId)?.fields.title ?? null,
     });
-    expect(view.markdown).toBe(`Look: see [[Renamed|${TARGET}]]\n`);
+    expect(view.markdown).toBe(`Look: see [Renamed](mention:${TARGET})\n`);
   });
 
   it("patches a field at once, over the value the item holds", async () => {

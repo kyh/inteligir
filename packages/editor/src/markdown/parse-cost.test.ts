@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMdast } from "./parse";
+import { mdastOf } from "../test-support/mdast-of";
 
 const LONG_LINES = 20_000;
 const SHORT_LINES = LONG_LINES / 8;
@@ -14,7 +14,7 @@ const paragraph = (lines: number): string => "Entry about quokkas.\n".repeat(lin
 
 const parseMs = (content: string): number => {
   const began = performance.now();
-  parseMdast(content);
+  mdastOf(content);
   return performance.now() - began;
 };
 

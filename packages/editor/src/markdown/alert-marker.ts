@@ -29,6 +29,14 @@ const matchMarker = (
   return match && variant ? { length: match[0].length, variant } : null;
 };
 
+// the marker that opens a quote's text, as written: what the writer leaves unescaped
+const ALERT_OPEN_RE = new RegExp(String.raw`^\[!${VARIANT_GROUP}\]`, "iu");
+
+export const writtenAlertMarker = (text: string): string | null => {
+  const marker = matchMarker(ALERT_OPEN_RE, text);
+  return marker === null ? null : text.slice(0, marker.length);
+};
+
 // `hidden` is what the live editor may hide behind the badge: every byte of the marker line.
 export const alertMarkerPrefix = (
   text: string,

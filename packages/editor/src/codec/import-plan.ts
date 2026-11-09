@@ -20,7 +20,7 @@ import {
   isDotEntryPath,
   isOsLitterPath,
 } from "@repo/contract/knowledge/doc-file";
-import { mdLinkTarget } from "@repo/editor/knowledge/link-extract";
+import { mdLinkTarget, mdLinkUrl } from "@repo/editor/knowledge/link-extract";
 import { buildResolver } from "@repo/editor/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/editor/knowledge/link-resolve";
 import {
@@ -31,12 +31,13 @@ import {
   relativePath,
 } from "@repo/contract/knowledge/folder-path";
 import { frontmatterYaml } from "@repo/editor/markdown/frontmatter";
-import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import { lfOnly } from "@repo/editor/markdown/md-read";
+import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
 import { readFrontmatter } from "./item-fields";
 import { importItem } from "./item-markdown";
 import type { FoundFile, ImportedFields, ImportedItem } from "./item-markdown";
-import type { Reached } from "./read-blocks";
+import type { LinkedItem } from "./read-blocks";
 
 // what a path in the folder is to an import
 export type ImportPathKind = "doc" | "file" | "skipped";
@@ -131,7 +132,7 @@ interface DocFront {
 }
 
 const docFront = (path: string, text: string): DocFront => {
-  const yaml = frontmatterYaml(text);
+  const yaml = frontmatterYaml(lfOnly(text));
   const read = readFrontmatter(yaml, docStem(path), 0);
   return {
     aliases: read.fields.aliases,
@@ -182,18 +183,27 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
 export interface PlanReader {
   readonly resolver: TargetResolver;
   readonly docs: ReadonlyMap<string, PlannedDoc>;
+  // each doc by the item id the plan gave it and by the `id:` its file carries, lower-cased
+  readonly byId: ReadonlyMap<string, PlannedDoc>;
   readonly files: ReadonlyMap<string, PlannedFile>;
 }
 
 export const openPlan = (plan: ImportPlan): PlanReader => ({
+  byId: new Map(
+    plan.docs.flatMap((doc): [string, PlannedDoc][] =>
+      doc.fileId === null
+        ? [[doc.itemId, doc]]
+        : [
+            [doc.fileId.toLowerCase(), doc],
+            [doc.itemId, doc],
+          ],
+    ),
+  ),
   docs: new Map(plan.docs.map((doc) => [doc.path, doc])),
   files: new Map(plan.files.map((file) => [file.path, file])),
   resolver: buildResolver(
     [...plan.docs.map((doc) => doc.path), ...plan.files.map((file) => file.path)],
     plan.docs.flatMap((doc) => doc.aliases.map((alias): [string, string] => [alias, doc.path])),
-    plan.docs.flatMap((doc): [string, string][] =>
-      doc.fileId === null ? [] : [[doc.fileId, doc.path]],
-    ),
   ),
 });
 
@@ -233,18 +243,23 @@ export const importPlannedDoc = (
       sha: file.sha,
     };
   };
-  const reachedAt = (path: string | null, embed: boolean): Reached => {
+  const reachedAt = (path: string | null, embed: boolean): WikiReach => {
     const target = path === null ? undefined : docs.get(path);
     if (target !== undefined) {
       return { itemId: target.itemId, kind: "item", title: target.title };
     }
     const file = path === null || !embed ? null : fileAt(path);
-    return file === null ? null : { file, kind: "file" };
+    return file === null ? null : { kind: "file", url: mdLinkUrl(file.path) };
   };
-  const wiki = (link: WikiBody, embed: boolean): Reached =>
-    link.target === ""
-      ? { itemId: doc.itemId, kind: "item", title: doc.title }
-      : reachedAt(reader.resolver.resolveWiki(link.target, link.alias), embed);
+  // an anchor alone names a place in this note, which a page link cannot
+  const wiki = (link: WikiTarget, embed: boolean): WikiReach =>
+    link.target === "" ? null : reachedAt(reader.resolver.resolveWiki(link.target), embed);
+  // a page link names a planned item by its id: one a `[[…]]` resolved to, or the one this app's
+  // export wrote, which its file carries
+  const item = (key: string): LinkedItem | null => {
+    const target = reader.byId.get(key) ?? reader.byId.get(key.toLowerCase());
+    return target === undefined ? null : { itemId: target.itemId, title: target.title };
+  };
   const file = (url: string): FoundFile | null => {
     const target = mdLinkTarget(url);
     const path = target === null ? null : reader.resolver.resolveMd(target, doc.path);
@@ -252,7 +267,7 @@ export const importPlannedDoc = (
   };
   const read = importItem(
     { name: docStem(doc.path), text },
-    { file, newBlockId: ports.newBlockId, now: ports.now, wiki },
+    { file, item, newBlockId: ports.newBlockId, now: ports.now, wiki },
   );
   return read.ok
     ? { ok: true, read: { doc, item: read.item } }
