@@ -5,22 +5,12 @@
 // Snapshots in, ops out: the caller lands them through the same guarded apply every write takes.
 
 import { diff3 } from "@repo/editor/text/diff3";
-import {
-  applyOps,
-  libraryOpSchema,
-  orderedBlocks,
-  SCALAR_FIELDS,
-  sameList,
-  sameOptionalJson,
-} from "@repo/contract/library/block-ops";
-import type {
-  ItemState,
-  LibraryOp,
-  ScalarField,
-  StoredBlock,
-} from "@repo/contract/library/block-ops";
+import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState, LibraryOp, StoredBlock } from "@repo/contract/library/block-ops";
 import { compareBlockPlaces, placeInOrder } from "@repo/contract/library/block-order";
 import { sameJson } from "@repo/contract/library/canonical-json";
+import { SCALAR_FIELDS, sameList, sameOptionalJson } from "@repo/contract/library/field-ops";
+import type { ScalarField } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";

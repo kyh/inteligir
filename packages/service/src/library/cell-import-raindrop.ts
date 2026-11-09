@@ -14,7 +14,7 @@ import {
 import type { PlannedItem } from "../imports/raindrop";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { kindForUrl } from "@repo/contract/items/item-url";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";

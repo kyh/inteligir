@@ -5,7 +5,7 @@
 // checks its own reading by the same schema first, so one the door would refuse is said in its item.
 
 import { TEXT_NOT_SAVED } from "../items/fill-sentences";
-import { ordSchema } from "@repo/contract/library/block-order";
+import { ordSchema } from "@repo/contract/library/order-key";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import { z } from "zod";

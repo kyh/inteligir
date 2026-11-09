@@ -9,7 +9,7 @@
 import { z } from "zod";
 
 import { libraryOpSchema } from "./block-ops";
-import { ordSchema } from "./block-order";
+import { ordSchema } from "./order-key";
 import { libraryItemFieldsSchema } from "./library-item";
 import { storableBlockSchema } from "./library-nodes";
 

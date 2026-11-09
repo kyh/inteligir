@@ -5,7 +5,7 @@
 
 import type { ItemKind } from "../items/item-kind";
 import { siteMatches, urlHost } from "../items/item-url";
-import { compareText } from "./block-order";
+import { compareText } from "./order-key";
 
 // what the listing reads of an item; a host's row type adds whatever its cards draw
 export interface ListingRow {

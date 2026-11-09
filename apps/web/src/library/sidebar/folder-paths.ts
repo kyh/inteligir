@@ -3,7 +3,7 @@
 // folder two parents hold under one name reads apart.
 
 import type { ListingFolder } from "@repo/contract/library/library-index";
-import { compareText } from "@repo/contract/library/block-order";
+import { compareText } from "@repo/contract/library/order-key";
 
 export interface FolderRow {
   readonly id: string;

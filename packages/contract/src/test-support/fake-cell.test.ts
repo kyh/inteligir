@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { ordsBetween } from "../library/block-order";
+import { ordsBetween } from "../library/order-key";
 import { isOrpcError } from "../v1-errors";
 import { createFakeCell } from "./fake-cell";
 import { paragraph } from "./library-items";

@@ -4,10 +4,10 @@
 // is capped well inside a Durable Object's 2 MB row, which is what bounds an item's blocks: a
 // write past the cap is refused as too large.
 
-import { contentHash } from "@repo/contract/library/block-hash";
+import { contentHash } from "@repo/contract/library/content-hash";
 import { blockHashSchema, orderedBlocks } from "@repo/contract/library/block-ops";
 import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
-import { ordSchema } from "@repo/contract/library/block-order";
+import { ordSchema } from "@repo/contract/library/order-key";
 import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import {

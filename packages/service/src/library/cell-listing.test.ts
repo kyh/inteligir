@@ -2,7 +2,7 @@
 // it: an item whole, a listing's pages, the rail's counts and every title.
 
 import { isOrpcError } from "@repo/contract/v1/errors";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";

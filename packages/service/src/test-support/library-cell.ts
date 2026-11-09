@@ -3,7 +3,7 @@
 // Object, so every statement meets a SQLite Durable Object's own limits.
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import { readBlocks, readItem } from "../library/library-queries";
@@ -97,10 +97,10 @@ export const inCell = async <T>(
 ): Promise<T> =>
   await runInDurableObject(stub, async (cell: LibraryDO, state) => await run(state, cell));
 
-export const person = (deviceId = "laptop"): CellActor => ({
-  deviceId,
+export const person = (sessionId = "laptop"): CellActor => ({
   kind: "person",
-  label: `You on ${deviceId}`,
+  label: `You on ${sessionId}`,
+  sessionId,
 });
 
 // a new item, landed as the library's own procedures land one
