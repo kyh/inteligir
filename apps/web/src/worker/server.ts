@@ -1,7 +1,7 @@
 import site from "@tanstack/react-start/server-entry";
-import type { FillJob } from "./fill/fill-job";
-import { consumeFills } from "./fill/fill-consumer";
-import api, { ownsPath } from "./index";
+import type { FillJob } from "@repo/service/fill/fill-job";
+import { consumeFills } from "@repo/service/fill/fill-consumer";
+import api, { ownsPath } from "@repo/service/doors";
 
 // A plain ExportedHandler rather than Start's createServerEntry: Cloudflare calls fetch with the
 // bindings, and a ServerEntry's (request, opts?) has nowhere to put them. cloudflare.config.ts's
@@ -9,8 +9,8 @@ import api, { ownsPath } from "./index";
 
 // the runtime instantiates Durable Objects from the deployed entry's exports, each under the name
 // cloudflare.config.ts declares it by
-export { AgentThreadDO } from "./agent/agent-thread";
-export { LibraryDO } from "./library/library-do";
+export { AgentThreadDO } from "@repo/service/agent/agent-thread";
+export { LibraryDO } from "@repo/service/library/library-do";
 
 export default {
   async fetch(request, env, ctx) {

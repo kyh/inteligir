@@ -1,15 +1,15 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
 import { z } from "zod";
-import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
-import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
-import type { FillJob } from "./src/worker/fill/fill-job.ts";
+import { AGENT_ALLOWANCE, AGENT_PRICES } from "@repo/service/agent-limits";
+import { compatibilityDate, compatibilityFlags } from "@repo/service/compatibility";
+import type { FillJob } from "@repo/service/fill/fill-job";
 import {
   FILL_BATCH_SIZE,
   FILL_FAILED_QUEUE,
   FILL_PREVIEW_QUEUE,
   FILL_QUEUE,
   FILL_RETRIES,
-} from "./fill-queues.ts";
+} from "@repo/service/fill-queues";
 
 // the file path, not `@tanstack/react-start/server-entry`: the package export builds Start's
 // default entry and drops the API routes (cloudflare/workers-sdk#11100). Imported, not named by
