@@ -1,6 +1,6 @@
-// `pnpm --filter @repo/web agent-prompt`: writes the built-in agent's system prompt into
-// src/worker/agent/agent-prompt.ts, the module every thread freezes its system from
-// (src/worker/agent/thread-request.ts). The prompt is @repo/agent-skills as it stands, the agent's
+// `pnpm --filter @repo/service agent-prompt`: writes the built-in agent's system prompt into
+// src/agent/agent-prompt.ts, the module every thread freezes its system from
+// (src/agent/thread-request.ts). The prompt is @repo/agent-skills as it stands, the agent's
 // own instructions and then every skill in the order the hub lists them, with nothing of an account
 // or a request in it, so its bytes change only with those files and every conversation of every
 // account reads one cached prefix. Run it after editing the skills and commit what it writes;
@@ -18,9 +18,9 @@ const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
-const MODULE = "src/worker/agent/agent-prompt.ts";
+const MODULE = "src/agent/agent-prompt.ts";
 
-const webRoot = path.resolve(import.meta.dirname, "..");
+const serviceRoot = path.resolve(import.meta.dirname, "..");
 
 const skillsFile = (relative: string): string =>
   readFileSync(fileURLToPath(import.meta.resolve(`@repo/agent-skills/${relative}`)), "utf-8");
@@ -55,9 +55,9 @@ const systemPrompt = (): string => {
 // the module as the formatter leaves it: one string literal, on the line after its name
 const moduleText = (system: string): string =>
   [
-    "// Written by apps/web/scripts/agent-prompt.ts from @repo/agent-skills: edit the skills or that",
-    "// script, then run `pnpm --filter @repo/web agent-prompt`. The built-in agent's system prompt,",
-    "// the same bytes for every account and every turn.",
+    "// Written by packages/service/scripts/agent-prompt.ts from @repo/agent-skills: edit the skills",
+    "// or that script, then run `pnpm --filter @repo/service agent-prompt`. The built-in agent's",
+    "// system prompt, the same bytes for every account and every turn.",
     "",
     "export const AGENT_SYSTEM_PROMPT =",
     `  ${JSON.stringify(system)};`,
@@ -72,16 +72,16 @@ const readOrNull = (file: string): string | null => {
   }
 };
 
-const file = path.join(webRoot, MODULE);
+const file = path.join(serviceRoot, MODULE);
 const text = moduleText(systemPrompt());
 if (readOrNull(file) !== text) {
   if (process.argv.includes("--check")) {
     console.error(
-      `apps/web/${MODULE} differs from what scripts/agent-prompt.ts writes: run \`pnpm --filter @repo/web agent-prompt\``,
+      `packages/service/${MODULE} differs from what scripts/agent-prompt.ts writes: run \`pnpm --filter @repo/service agent-prompt\``,
     );
     process.exitCode = 1;
   } else {
     writeFileSync(file, text);
-    console.log(`wrote apps/web/${MODULE}`);
+    console.log(`wrote packages/service/${MODULE}`);
   }
 }

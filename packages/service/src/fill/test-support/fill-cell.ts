@@ -10,7 +10,7 @@ import { createExecutionContext, createMessageBatch, getQueueResult } from "clou
 import { env } from "cloudflare:workers";
 import { vi } from "vitest";
 
-import worker from "../../doors";
+import worker from "../../test-support/test-worker";
 import { openCellLibrary } from "../../library/cell-library";
 import { cellStorageOf } from "../../library/cell-storage";
 import type { LibraryEngine } from "../../library/library-engine";

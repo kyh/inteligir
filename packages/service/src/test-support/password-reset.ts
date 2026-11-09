@@ -6,7 +6,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
 
-import worker from "../doors";
+import worker from "./test-worker";
 import { drained, ORIGIN } from "./cloud-helpers";
 
 // the site's /app/reset-password route, which the forgot-password page names as its redirectTo;

@@ -1,7 +1,7 @@
 // A drawing's markup becomes nodes only through here. Pele escapes a diagram's text and filters
 // its links and styles already; this keeps the guarantee local, so a renderer bug can neither run
 // code nor fetch anything, as nothing remote draws in an item (the library page's policy,
-// apps/web/src/worker/library/library-page.ts). XML parsing builds
+// packages/service/src/library/library-page.ts). XML parsing builds
 // inert nodes in a document of their own, and every element outside the svg namespace, and every
 // element or attribute that could run a script or reach outside the drawing, is taken out before
 // the nodes are adopted.

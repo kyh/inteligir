@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeAll } from "vitest";
 // the module `exports.default` serves, which the plugin otherwise loads on its first fetch: loaded
 // here, its cold import is the setup's cost rather than the first test's timeout
-import "../doors";
+import "./test-worker";
 
 // the DDL's statements, split on `;`, which holds only while no string literal in it holds one
 const statements = (): string[] =>

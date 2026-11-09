@@ -75,18 +75,19 @@ const buildWorker = async (args: LaunchCloudWorkerArgs): Promise<void> => {
 // the schema's own DDL, derived once per run: it is a function of the checkout
 let exportedSchema: Promise<string> | null = null;
 
-const exportSchema = async (webDir: string): Promise<string> => {
-  const ddl = await exec("pnpm", ["run", "--silent", "db:export"], {
-    cwd: webDir,
+// the script the service's suites run too, since two spellings of the DDL drift
+const exportSchema = async (repoRoot: string): Promise<string> => {
+  const ddl = await exec("pnpm", ["--filter", "@repo/db", "run", "--silent", "export"], {
+    cwd: repoRoot,
     env: hermeticProcessEnv(),
     timeoutMs: SCHEMA_EXPORT_TIMEOUT_MS,
   });
   return ddl.stdout;
 };
 
-const writeSchema = async (webDir: string, args: LaunchCloudWorkerArgs): Promise<string> => {
-  args.onLog("deriving the D1 auth schema (apps/web db:export, once per run)");
-  exportedSchema ??= exportSchema(webDir);
+const writeSchema = async (args: LaunchCloudWorkerArgs): Promise<string> => {
+  args.onLog("deriving the D1 auth schema (@repo/db's export, once per run)");
+  exportedSchema ??= exportSchema(args.repoRoot);
   let ddl: string;
   try {
     ddl = await exportedSchema;
@@ -111,7 +112,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
   await mkdir(stateDir, { recursive: true });
 
   await buildWorker(args);
-  const schemaFile = await writeSchema(webDir, args);
+  const schemaFile = await writeSchema(args);
   // the built-in agent's Claude, a scripted Messages API with no model and no account, in this
   // process: each conversation's object reaches it by ANTHROPIC_FAKE_URL (tools/messages-fake)
   const messages = await serveMessagesFake(0);

@@ -1,7 +1,7 @@
 // What the built-in agent may spend and what Claude costs, spelled once for the configs that bind
-// them (`cloudflare.config.ts`, `vitest.config.ts`): data, not code. The Worker's own code never
-// imports it, since the dev server cannot load a module the config also loads; it reads
-// `AGENT_ALLOWANCE` and `AGENT_PRICES` from its bindings (`src/worker/agent/agent-allowance.ts`).
+// them (apps/web's and the suites' `cloudflare.config.ts`): data, not code. The Worker's own code
+// never imports it, since the dev server cannot load a module the config also loads; it reads
+// `AGENT_ALLOWANCE` and `AGENT_PRICES` from its bindings (`src/agent/agent-allowance.ts`).
 
 // about fifty free turns a month, held first as a UTC day's two turns and a dollar of list cost,
 // the fifty cents one turn may cost, and the two turns an account may run at once (owner decision)

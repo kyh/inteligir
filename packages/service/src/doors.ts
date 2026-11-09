@@ -11,8 +11,6 @@ import {
 } from "./connector/connector-auth";
 import { handleConnector } from "./connector/connector-route";
 import { handleConsent } from "./connector/consent-route";
-import { consumeFills } from "./fill/fill-consumer";
-import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket } from "./library/socket-routes";
 import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
 import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
@@ -20,15 +18,8 @@ import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
 
-// Durable Object classes must be exported from the entry the runtime loads: this file for tests
-// (vitest.config.ts's `main`), ./server.ts for deploy
-// the suites' workerd instantiates each from this entry's exports
-/** @public */
-export { AgentThreadDO } from "./agent/agent-thread";
-/** @public */
-export { LibraryDO } from "./library/library-do";
-
-// ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
+// the app's server.ts splits on these, so a route added below must be reachable through one or it
+// never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
 
 // the connector, its OAuth endpoints and its consent page, which no prefix of their own holds
@@ -99,7 +90,11 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   return new Response("not found", { status: 404 });
 };
 
-const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
+export const answerDoor = async (
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> => {
   try {
     return await route(request, env, ctx);
   } catch (error) {
@@ -108,12 +103,3 @@ const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promis
     return isRpc(pathname) ? rpcFault() : new Response("internal error", { status: 500 });
   }
 };
-
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    return await answer(request, env, ctx);
-  },
-  async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
-    await consumeFills(batch, env, ctx);
-  },
-} satisfies ExportedHandler<Env, FillJob>;

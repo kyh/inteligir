@@ -299,7 +299,7 @@ describe("a saved link's reading", () => {
 
   it("reads a page of this app's own site through the platform's public route", async () => {
     // the runtime reads its own zone through the public internet, under the flag the deployed
-    // Worker and these suites share (apps/web/compatibility.ts)
+    // Worker and these suites share (packages/service/compatibility.ts)
     expect(Cloudflare.compatibilityFlags.global_fetch_strictly_public).toBe(true);
     const url = "https://inteligir.com/blog/files-over-apps";
     const { accountId, itemId, job } = await savedLink(url);

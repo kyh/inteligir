@@ -25,8 +25,9 @@ const worker = defineWorker({
   // the library's page (@repo/workspace): every path under its prefix reaches the Worker first,
   // which answers the page's document from these assets, so a deep link loads the page and no
   // other path falls back to it; its hashed files go straight to the assets
-  // (src/worker/library/library-page.ts). The prefix is LIBRARY_PAGE_PATH, written out since the
-  // dev server cannot load a module the Worker loads too (tools/repo-guards/src/route-paths.test.ts)
+  // (packages/service/src/library/library-page.ts). The prefix is LIBRARY_PAGE_PATH, written out
+  // since the dev server cannot load a module the Worker loads too
+  // (tools/repo-guards/src/route-paths.test.ts)
   assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
   // the log and the traces keep every request's path for up to seven days, so no route carries a
   // library's name for anything in one, and drop the query string, which carries sign-in codes and
@@ -39,10 +40,10 @@ const worker = defineWorker({
   // a live class is reached through `ctx.exports`, with no env binding, and each preview gets its
   // own namespace of it (developers.cloudflare.com/cf/projects/cloudflare-config/)
   exports: {
-    // each account's library cell (src/worker/library/library-do.ts)
+    // each account's library cell (packages/service/src/library/library-do.ts)
     LibraryDO: exports.durableObject({ storage: "sqlite" }),
     // each conversation with the built-in agent, which only its account's cell names
-    // (src/worker/agent/agent-thread.ts)
+    // (packages/service/src/agent/agent-thread.ts)
     AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
     // deleted classes: each namespace is a tombstone, its class in no entry, until a deploy's
     // response names it safe to drop from this map (docs/releasing.md § 5)
@@ -52,11 +53,11 @@ const worker = defineWorker({
   },
 });
 
-// the oldest build /v1 answers (src/worker/client-floor.ts): a request naming no build, or one
-// below this, is refused as outdated, so the build is told to update rather than meeting a wire it
-// does not speak. A change that drops a /v1 shape an older build reads owes the floor, and the
-// release after it raises this to its own version (docs/releasing.md § 1, step 3); every checkout
-// reports the last release's version, so the floor never passes one before then.
+// the oldest build /v1 answers (packages/service/src/client-floor.ts): a request naming no build,
+// or one below this, is refused as outdated, so the build is told to update rather than meeting a
+// wire it does not speak. A change that drops a /v1 shape an older build reads owes the floor, and
+// the release after it raises this to its own version (docs/releasing.md § 1, step 3); every
+// checkout reports the last release's version, so the floor never passes one before then.
 // The next release owes the floor: this Worker answers no wire a 0.6.0 build speaks.
 const MIN_CLIENT_BUILD = "0.6.0";
 
@@ -74,15 +75,17 @@ const shared = {
   // suites, the e2e harness, a local script's .dev.vars
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
-  // dev server cannot load a module this file also loads (fill-queues.ts)
+  // dev server cannot load a module this file also loads (@repo/service/fill-queues)
   FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
   // the token of the target's AI Gateway, whose Authenticated Gateway admits only requests that
-  // carry it (src/worker/agent/anthropic-client.ts): `cf workers secrets update` in production, a
-  // preview base-config secret (.github/workflows/preview.yml), .dev.vars for a gateway of a
-  // developer's own. The Worker holds no Anthropic key: each gateway stores its target's
+  // carry it (packages/service/src/agent/anthropic-client.ts): `cf workers secrets update` in
+  // production, a preview base-config secret (.github/workflows/preview.yml), .dev.vars for a
+  // gateway of a developer's own. The Worker holds no Anthropic key: each gateway stores its
+  // target's
   AI_GATEWAY_TOKEN: bindings.secret(),
   // what the built-in agent may spend for one account, and the list prices its calls are booked
-  // at, a fallback model's included (agent-limits.ts, read by src/worker/agent/agent-allowance.ts)
+  // at, a fallback model's included (@repo/service/agent-limits, read by
+  // packages/service/src/agent/agent-allowance.ts)
   AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
   AGENT_PRICES: bindings.json(AGENT_PRICES),
 };
@@ -136,7 +139,7 @@ const previewDeploy = () =>
 // assistants. A preview consumes no queue
 // (developers.cloudflare.com/workers/previews/resources/), so a link saved there stays unread. No
 // EMAIL or sender: a preview must not mail real inboxes from the production domain, and
-// src/worker/auth/reset-email.ts logs instead.
+// packages/service/src/auth/reset-email.ts logs instead.
 const previewWorker = () => {
   const deploy = previewDeploy();
   return {
@@ -161,7 +164,7 @@ const productionWorker = (mode: string | undefined) => ({
   triggers: [
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
     triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
-    // the pages the cloud reads, consumed by this Worker (fill-queues.ts)
+    // the pages the cloud reads, consumed by this Worker (@repo/service/fill-queues)
     triggers.queue({
       deadLetterQueue: FILL_FAILED_QUEUE,
       maxBatchSize: FILL_BATCH_SIZE,
@@ -182,7 +185,7 @@ const productionWorker = (mode: string | undefined) => ({
     // the scripted Messages API the local Worker's .dev.vars names (tools/messages-fake), declared
     // by `vite dev` alone, so no deployed Worker can be pointed at one
     ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
-    // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
+    // schema is packages/db/src/d1/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // the library's files, under acct/<userId>/
     BLOBS: bindings.r2({ name: "inteligir-vault" }),
@@ -191,8 +194,9 @@ const productionWorker = (mode: string | undefined) => ({
     EMAIL: bindings.sendEmail({}),
     // the reset email's sender, on the domain onboarded for Email Sending
     RESET_FROM_ADDRESS: bindings.text("no-reply@inteligir.app"),
-    // the connector's OAuth clients, grants and tokens, and nothing else (src/worker/connector):
-    // no id, so the first deploy provisions the namespace and every later one keeps it linked
+    // the connector's OAuth clients, grants and tokens, and nothing else
+    // (packages/service/src/connector): no id, so the first deploy provisions the namespace and
+    // every later one keeps it linked
     // (developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning)
     OAUTH_KV: bindings.kv(),
     // this deployment's own origin, the connector's OAuth issuer and the root of its resource,

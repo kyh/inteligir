@@ -1,7 +1,7 @@
-// What the built-in agent may spend for one account, and what each call cost (owner decision:
-// about fifty free turns a month, held first as a day's share). The numbers are the deployment's
-// own data, `AGENT_ALLOWANCE` and `AGENT_PRICES` in cloudflare.config.ts, never code. A send is
-// counted as a turn when it is let in; each model call is reserved before it is sent, its
+// What the built-in agent may spend for one account, and what each call cost (owner decision: about
+// fifty free turns a month, held first as a day's share). The numbers are the deployment's own
+// data, `AGENT_ALLOWANCE` and `AGENT_PRICES` in apps/web/cloudflare.config.ts, never code. A send
+// is counted as a turn when it is let in; each model call is reserved before it is sent, its
 // `max_tokens` what the turn's ceiling and the day's remainder buy after its input, the input
 // priced as the cache will most likely bill it, and a call whose prompt may reach the compaction
 // trigger priced with the summarizing pass that may run first; and each reply settles at its exact

@@ -1,11 +1,11 @@
-// A conversation's object over the scripted Messages API (apps/web/messages-service.ts), driven by
-// its account's real cell: a turn's model calls and tool calls replayed as Claude returned them,
-// its progress notes, its recovery when its instance dies mid-call or mid-tool, its approvals, its
-// cancel, two conversations at once, Claude refusing or failing, a compaction on the server, and a
-// deploy's definition taken up between turns. Every case ends with the fake having dropped no
-// replayed thinking block, the proof that what the thread replays is what Claude sent. The loop's
-// retries, which a deployed thread waits seconds for, and a deploy's new definition are stepped by
-// hand (`../test-support/thread-host`).
+// A conversation's object over the scripted Messages API (packages/service/messages-service.ts),
+// driven by its account's real cell: a turn's model calls and tool calls replayed as Claude
+// returned them, its progress notes, its recovery when its instance dies mid-call or mid-tool, its
+// approvals, its cancel, two conversations at once, Claude refusing or failing, a compaction on the
+// server, and a deploy's definition taken up between turns. Every case ends with the fake having
+// dropped no replayed thinking block, the proof that what the thread replays is what Claude sent.
+// The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
+// stepped by hand (`../test-support/thread-host`).
 
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";

@@ -1,7 +1,7 @@
 import site from "@tanstack/react-start/server-entry";
 import type { FillJob } from "@repo/service/fill/fill-job";
 import { consumeFills } from "@repo/service/fill/fill-consumer";
-import api, { ownsPath } from "@repo/service/doors";
+import { answerDoor, ownsPath } from "@repo/service/doors";
 
 // A plain ExportedHandler rather than Start's createServerEntry: Cloudflare calls fetch with the
 // bindings, and a ServerEntry's (request, opts?) has nowhere to put them. cloudflare.config.ts's
@@ -15,10 +15,11 @@ export { LibraryDO } from "@repo/service/library/library-do";
 export default {
   async fetch(request, env, ctx) {
     return ownsPath(new URL(request.url).pathname)
-      ? await api.fetch(request, env, ctx)
+      ? await answerDoor(request, env, ctx)
       : await site.fetch(request);
   },
-  // the pages the cloud reads, and the ones its retries could not (./fill/fill-consumer.ts)
+  // the pages the cloud reads, and the ones its retries could not
+  // (@repo/service/fill/fill-consumer)
   async queue(batch, env, ctx) {
     await consumeFills(batch, env, ctx);
   },

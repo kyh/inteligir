@@ -1,9 +1,9 @@
 // The built-in agent under test, end to end: an account's real cell and its conversations' real
 // objects, each thread running its loop against the scripted Messages API the suites' outbound
-// service answers (apps/web/messages-service.ts), so every call a turn makes is the one it makes
-// deployed. A suite sends as the account's laptop would, inside the cell, then waits from outside
-// it for the turn to come to rest, since the thread's own calls back into the cell are what move
-// the turn.
+// service answers (packages/service/messages-service.ts), so every call a turn makes is the one it
+// makes deployed. A suite sends as the account's laptop would, inside the cell, then waits from
+// outside it for the turn to come to rest, since the thread's own calls back into the cell are what
+// move the turn.
 
 import type { FakeStats } from "@repo/messages-fake/messages-fake";
 import { createRouterClient } from "@orpc/server";

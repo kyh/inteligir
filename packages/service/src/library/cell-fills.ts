@@ -1,13 +1,13 @@
 // The cloud's reading of the pages the library saved unread. A write that lands a link waiting for
 // its page queues the reading in the same transaction, as a `fill` row of the jobs table, so a
 // reading is never asked for a write that did not land and never lost by one that did; once the
-// write commits the cell sends it to the fill queue (`apps/web/fill-queues.ts`), and the alarm sends
-// again any row still waiting a minute later, a send that failed or a cell evicted before it sent.
-// The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
-// change set of its own: only the article and the facts a fill owns, so the person's note and
-// fields are never touched, and only on an item still waiting for that reading at that address,
-// so a message met twice lands once. A page whose redirects end at another address is read into
-// the item that waited for it, which keeps the address it was saved at.
+// write commits the cell sends it to the fill queue (`packages/service/fill-queues.ts`), and the
+// alarm sends again any row still waiting a minute later, a send that failed or a cell evicted
+// before it sent. The consumer reads the page and hands it back (`../fill/fill-consumer`), and it
+// lands here as a change set of its own: only the article and the facts a fill owns, so the
+// person's note and fields are never touched, and only on an item still waiting for that reading at
+// that address, so a message met twice lands once. A page whose redirects end at another address is
+// read into the item that waited for it, which keeps the address it was saved at.
 
 import type { LibraryOp, ItemState } from "@repo/contract/library/block-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";

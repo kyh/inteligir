@@ -101,7 +101,7 @@ describe("the Worker's windows on Better Auth's table", () => {
     for (const [family, window] of Object.entries(RATE_WINDOWS)) {
       expect(
         window.windowMs,
-        `RATE_WINDOWS.${family} in src/worker/rate-limit.ts is ${String(window.windowMs)}ms, past ` +
+        `RATE_WINDOWS.${family} in src/rate-limit.ts is ${String(window.windowMs)}ms, past ` +
           `Better Auth's ${String(AUTH_RATE_WINDOW_SECONDS)}s: its prune drops a rate_limit row ` +
           "that old, so this window would reset early. Shorten it or give the Worker its own table.",
       ).toBeLessThanOrEqual(AUTH_RATE_WINDOW_SECONDS * 1000);

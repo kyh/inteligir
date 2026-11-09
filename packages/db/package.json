@@ -1,0 +1,29 @@
+{
+  "name": "@repo/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The D1 accounts database's drizzle schema and client, and the drizzle-kit configs that push it.",
+  "type": "module",
+  "exports": {
+    "./d1/client": "./src/d1/client.ts",
+    "./d1/schema": "./src/d1/schema.ts"
+  },
+  "scripts": {
+    "export": "drizzle-kit export --dialect=sqlite --schema=./src/d1/schema.ts",
+    "push": "drizzle-kit push --config drizzle.config.local.ts --force",
+    "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
+    "studio": "drizzle-kit studio --config drizzle.config.local.ts",
+    "studio:remote": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
+    "@libsql/client": "^0.18.0",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:"
+  }
+}

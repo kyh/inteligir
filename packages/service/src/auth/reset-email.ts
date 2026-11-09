@@ -30,7 +30,8 @@ const composeResetEmail = (url: string): ResetEmail => ({
   ].join("\n"),
 });
 
-// what the send reads of Env: the two bindings only production declares (cloudflare.config.ts)
+// what the send reads of Env: the two bindings only production declares
+// (apps/web/cloudflare.config.ts)
 export interface ResetEmailEnv {
   readonly EMAIL?: SendEmail;
   readonly RESET_FROM_ADDRESS?: string;

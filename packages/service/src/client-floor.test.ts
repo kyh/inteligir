@@ -17,7 +17,7 @@ import {
   v1Link,
 } from "./test-support/cloud-helpers";
 
-// one minor under the floor vitest.config.ts sets, whatever the patch, and one major over it
+// one minor under the floor cloudflare.config.ts sets, whatever the patch, and one major over it
 const versionAround = (majorStep: number, minorStep: number): string => {
   const [major = "0", minor = "0"] = env.MIN_CLIENT_BUILD.split(".");
   return `${String(Number(major) + majorStep)}.${String(Number(minor) + minorStep)}.99`;

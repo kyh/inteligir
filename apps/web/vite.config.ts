@@ -12,7 +12,8 @@ import type { Plugin } from "vite";
 
 // the library's page, `@repo/workspace`'s build, which turbo builds first (`^build`): it lays its
 // files under LIBRARY_PAGE_PATH already, so they go into the site's own assets as they are, where
-// the Worker answers the page's document for every path under it (src/worker/library/library-page.ts)
+// the Worker answers the page's document for every path under it
+// (packages/service/src/library/library-page.ts)
 const LIBRARY_PAGE_BUILD = fileURLToPath(new URL("../workspace/dist", import.meta.url));
 // the prefix without its leading slash, as a directory of the assets
 const LIBRARY_PAGE_DIR = LIBRARY_PAGE_PATH.slice(1);

@@ -1,9 +1,10 @@
-// The fills' queues, spelled once for the configs that declare them (`cloudflare.config.ts`,
-// `vitest.config.ts`) and the suites that deliver to them. The Worker's own code never imports it:
-// the dev server cannot load a module the config also loads, so the consumer reads its dead-letter
-// queue and retries from the `FILL_DELIVERY` binding the config derives from these.
+// The fills' queues, spelled once for the configs that declare them (apps/web's and the suites'
+// `cloudflare.config.ts`) and the suites that deliver to them. The Worker's own code never imports
+// it: the dev server cannot load a module the config also loads, so the consumer reads its
+// dead-letter queue and retries from the `FILL_DELIVERY` binding the config derives from these.
 
-// the pages the cloud reads wait here for the consumer the Worker exports (`src/worker/fill/fill-consumer.ts`)
+// the pages the cloud reads wait here for the consumer the Worker exports
+// (`src/fill/fill-consumer.ts`)
 export const FILL_QUEUE = "inteligir-fill";
 // what the first queue's retries could not read lands here, and its consumer says the failure in
 // the item, so no link waits unread for good

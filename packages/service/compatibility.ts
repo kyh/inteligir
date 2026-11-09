@@ -1,5 +1,5 @@
-// shared by cloudflare.config.ts and vitest.config.ts, so the deployed Worker and the tests run
-// on the same workerd behaviour.
+// shared by the deployed Worker's config (apps/web/cloudflare.config.ts) and the suites'
+// (cloudflare.config.ts), so the deployed Worker and the tests run on the same workerd behaviour.
 
 // the oldest workerd the lockfile resolves, which a guard holds it to. 2026-10-01 or later, so a
 // Durable Object's pending I/O keeps it from eviction; past 2026-08-04, from which the Node.js APIs

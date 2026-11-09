@@ -1,7 +1,7 @@
 // A Raindrop.io CSV export read into library items: the header by name in any order and case,
 // a row per bookmark, folded by url key, every cell treated as hostile text. A bookmark's highlights
 // land in its note, each passage quoted with its own note under it. Pure: the library cell's import
-// job does the writing (apps/web/src/worker/library/cell-import-raindrop.ts).
+// job does the writing (packages/service/src/library/cell-import-raindrop.ts).
 //
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.

@@ -7,8 +7,8 @@
 
 import { messagesFake } from "@repo/messages-fake/messages-fake";
 
-// the address the suites bind as `ANTHROPIC_FAKE_URL` (vitest.config.ts), on this machine alone, as
-// the client requires
+// the address the suites bind as `ANTHROPIC_FAKE_URL` (cloudflare.config.ts), on this machine
+// alone, as the client requires
 export const MESSAGES_FAKE_ORIGIN = "http://127.0.0.1:5177";
 
 const fake = messagesFake();

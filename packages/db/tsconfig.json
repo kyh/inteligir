@@ -1,0 +1,9 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // drizzle-kit loads the configs under node; the schema and the client name no platform
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src", "drizzle.config.ts", "drizzle.config.local.ts"]
+}
