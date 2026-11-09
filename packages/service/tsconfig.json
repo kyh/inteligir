@@ -1,0 +1,10 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // WebWorker, not DOM: the cell runs this on workerd, whose Web Crypto and
+    // TextDecoder it reaches, and no document is there.
+    "lib": ["ES2023", "WebWorker"],
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}

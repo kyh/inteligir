@@ -5,8 +5,8 @@
 // and nothing it needs later is held in memory: the account and the queue are storage's, the
 // session the browser's jar.
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";

@@ -1,5 +1,5 @@
 import { createORPCErrorFromJson } from "@orpc/client";
-import type { threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
+import type { threadEventRowSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 import { describe, expect, it } from "vitest";
 

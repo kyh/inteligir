@@ -12,12 +12,12 @@ import {
   collectBoundRefs,
   evaluateExpression,
   parseExpression,
-} from "@repo/notes/formulas/expression";
-import { formatResult } from "@repo/notes/formulas/format-result";
-import { formulasInBlocks } from "@repo/notes/formulas/collect-formulas";
-import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import { loadFormulaGraph, resolveExpression } from "@repo/notes/formulas/resolve-graph";
-import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
+} from "@repo/editor/formulas/expression";
+import { formatResult } from "@repo/editor/formulas/format-result";
+import { formulasInBlocks } from "@repo/editor/formulas/collect-formulas";
+import type { CollectedFormula } from "@repo/editor/formulas/collect-formulas";
+import { loadFormulaGraph, resolveExpression } from "@repo/editor/formulas/resolve-graph";
+import { parseFormulaMeta, serializeFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { isFormulaPill, setFormulaPill } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";

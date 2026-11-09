@@ -4,10 +4,10 @@
 // older deploy that sends another shape is refused there rather than half landed, and the consumer
 // checks its own reading by the same schema first, so one the door would refuse is said in its item.
 
-import { TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
-import { ordSchema } from "@repo/notes/library/block-order";
-import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
-import { storableBlockSchema } from "@repo/notes/library/library-nodes";
+import { TEXT_NOT_SAVED } from "@repo/service/items/fill-sentences";
+import { ordSchema } from "@repo/contract/library/block-order";
+import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/contract/library/library-item";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import { z } from "zod";
 
 import type { FillJob } from "./fill-job";

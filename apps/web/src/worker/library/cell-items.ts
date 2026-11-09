@@ -6,13 +6,13 @@
 import type { EditOutcome } from "@repo/editor/codec/item-edit";
 import { editItemView } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
-import { blankItemFields, fileFields } from "@repo/notes/library/item-makes";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
-import { readItem, readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { ItemState, LibraryOp } from "@repo/contract/library/block-ops";
+import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { readItem, readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 
 import { readBlobRow } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { toast } from "@repo/ui/components/sonner";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";

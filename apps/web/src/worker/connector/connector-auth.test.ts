@@ -4,9 +4,9 @@
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
+import { V1_RPC_PATH } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

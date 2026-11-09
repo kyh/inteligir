@@ -19,9 +19,6 @@ const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
 const PANEL_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
-const NOTES_PURITY =
-  "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities";
-
 // The connector's tool decoration is the Worker's alone (apps/web/src/worker/connector): a client
 // that reached it would bundle the MCP SDK, whose shims import node:process, and the OpenAPI codec,
 // neither of which Metro tree-shakes away.
@@ -215,11 +212,6 @@ export default defineConfig({
       "@repo/contract is what both ends compile against: it loads in the library's page, the extension, the phone's React Native, on workerd and in node's suites, so a platform import is a package that stops loading somewhere",
     ),
     platformPurity(
-      "packages/domain",
-      NODE_OR_REACT,
-      "@repo/domain is a zod-only leaf: its vocabulary is parsed on both sides of every wire",
-    ),
-    platformPurity(
       "packages/editor",
       NODE,
       "@repo/editor imports no node module: it runs in the page, in the phone's WebView, and headless in the Worker, whose cell reads and writes markdown through its codec",
@@ -245,6 +237,11 @@ export default defineConfig({
       "@repo/mobile-editor is a page in the phone's WebView, loaded from file://: nothing but the browser is there",
     ),
     platformPurity(
+      "packages/service",
+      NODE_OR_REACT,
+      "@repo/service is the account's cell's rules: it runs on workerd and its suites under node over wasm SQLite, so the cell hands it the platform through its ports",
+    ),
+    platformPurity(
       "packages/ui",
       NODE,
       "@repo/ui is browser-only: the library's page, the extension's pages and the site's server-rendered pages draw it",
@@ -254,15 +251,6 @@ export default defineConfig({
       NODE,
       "@repo/workspace is the library's page: it runs in the Mac app's WebKit or a browser tab, where no node module loads",
     ),
-    {
-      files: ["packages/notes/src/**"],
-      rules: {
-        "no-restricted-imports": restrictedImports([
-          { message: NOTES_PURITY, regex: NODE_OR_REACT },
-          { message: NOTES_PURITY, regex: "^@repo/ui(?:/|$)" },
-        ]),
-      },
-    },
     {
       // the one place the library's rows become the connector's tools
       files: ["apps/web/src/worker/**"],
@@ -306,7 +294,23 @@ export default defineConfig({
     {
       // A test is one of the callers, so it may hand the code under test the platform's bytes.
       excludeFiles: tests,
-      files: ["packages/notes/src/**"],
+      files: [
+        "packages/contract/src/iso-date.ts",
+        "packages/contract/src/items/**",
+        "packages/contract/src/knowledge/**",
+        "packages/contract/src/library/**",
+        "packages/contract/src/text/**",
+        "packages/editor/src/formulas/collect-formulas.ts",
+        "packages/editor/src/formulas/expression.ts",
+        "packages/editor/src/formulas/format-result.ts",
+        "packages/editor/src/formulas/formula-meta.ts",
+        "packages/editor/src/formulas/resolve-graph.ts",
+        "packages/editor/src/items/**",
+        "packages/editor/src/knowledge/**",
+        "packages/editor/src/markdown/**",
+        "packages/editor/src/text/**",
+        "packages/service/src/**",
+      ],
       rules: {
         "no-restricted-globals": [
           "error",
@@ -315,11 +319,12 @@ export default defineConfig({
             globals: [
               {
                 message:
-                  "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
+                  "the library's model names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
                 name: "crypto",
               },
               {
-                message: "React Native's URL is not WHATWG; parse with @repo/notes/items/item-url",
+                message:
+                  "React Native's URL is not WHATWG; parse with @repo/contract/items/item-url",
                 name: "URL",
               },
             ],
@@ -365,7 +370,7 @@ export default defineConfig({
     "typescript/no-unsafe-enum-assignment": "error",
     // it asks every parameter's type to be deeply readonly, which the types a library hands a
     // callback are not (React's events, DOM nodes, Plate's editor, zod's outputs): hundreds of
-    // findings in notes and the page alone, nearly all on a library's type
+    // findings in the library's model and the page alone, nearly all on a library's type
     "typescript/prefer-readonly-parameter-types": "off",
     // the typed rule in place of the base one, which reports the same functions untyped
     "require-await": "off",

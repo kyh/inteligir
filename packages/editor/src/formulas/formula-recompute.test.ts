@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
-import { noteFields } from "@repo/notes/test-support/library-items";
-import { formulasIn } from "@repo/notes/test-support/formulas-in";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { noteFields } from "@repo/contract/test-support/library-items";
+import { formulasIn } from "@repo/editor/test-support/formulas-in";
 import {
   followItemFormulas,
   recomputeFormulas,

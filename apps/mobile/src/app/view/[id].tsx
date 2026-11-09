@@ -3,7 +3,7 @@
 // cloud the first time and keeps it after, until iOS clears its cache. A file of another kind says
 // so.
 
-import { shownTitle } from "@repo/notes/items/item-name";
+import { shownTitle } from "@repo/contract/items/item-name";
 import { Stack, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,

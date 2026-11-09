@@ -8,19 +8,19 @@ import type {
   itemReadSchema,
   itemSummarySchema,
   searchHitSchema,
-} from "@repo/contract/cloud/library/library-wire";
+} from "@repo/contract/library/library-wire";
 import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { compareText } from "@repo/notes/library/block-order";
-import { itemCardSchema } from "@repo/notes/library/derive-item";
-import type { ItemCard } from "@repo/notes/library/derive-item";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
-import { linksTo, linksToUrl, readBlocks, readItem } from "@repo/notes/library/library-queries";
-import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { compareText } from "@repo/contract/library/block-order";
+import { itemCardSchema } from "@repo/contract/library/derive-item";
+import type { ItemCard } from "@repo/contract/library/derive-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
+import { linksTo, linksToUrl, readBlocks, readItem } from "@repo/service/library/library-queries";
+import { chunkStatement, runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
 import { z } from "zod";
 
 import type { CellCodec } from "./cell-codec";

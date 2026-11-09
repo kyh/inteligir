@@ -6,7 +6,7 @@
 // made in the open item's folder.
 
 import { safe } from "@orpc/client";
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, LinkTarget } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";

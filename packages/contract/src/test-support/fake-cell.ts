@@ -2,7 +2,7 @@
 // own handler over the rows a client writes through, and `/v1/blobs/<sha>`, each device reaching
 // it through a transport of its own whose network a suite can take down or whose next answers it
 // can lose after the cell acted. It keeps the rules a client leans on: a write lands only on the
-// bases it names (`@repo/notes/library/block-ops`) and answers CONFLICT with what moved, an op id
+// bases it names (`@repo/contract/library/block-ops`) and answers CONFLICT with what moved, an op id
 // is answered once, a file must be uploaded before a write names it, and every write takes the
 // library's next sequence.
 
@@ -10,11 +10,11 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { V1_BLOBS_PATH } from "../cloud/library/library-blobs";
-import type { conflictCurrentSchema, folderOpSchema } from "../cloud/library/library-wire";
-import { folderRowSchema, liveItemRowSchema } from "../cloud/library/library-wire";
-import { v1Contract, V1_RPC_PATH } from "../cloud/v1-contract";
-import type { V1Client } from "../cloud/v1-contract";
+import { V1_BLOBS_PATH } from "../library/library-blobs";
+import type { conflictCurrentSchema, folderOpSchema } from "../library/library-wire";
+import { folderRowSchema, liveItemRowSchema } from "../library/library-wire";
+import { v1Contract, V1_RPC_PATH } from "../v1-contract";
+import type { V1Client } from "../v1-contract";
 import {
   BlobMissingError,
   ConflictError,
@@ -22,21 +22,21 @@ import {
   PayloadTooLargeError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
-} from "../cloud/v1-errors";
-import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
-import { urlKey } from "@repo/notes/items/item-url";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { applyOps } from "@repo/notes/library/block-ops";
-import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
-import { fileSha } from "@repo/notes/library/file-sha";
-import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+} from "../v1-errors";
+import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
+import { urlKey } from "../items/item-url";
+import { blockHash } from "../library/block-hash";
+import { applyOps } from "../library/block-ops";
+import type { LibraryOp, StoredBlock } from "../library/block-ops";
+import { ordsBetween } from "../library/block-order";
+import { deriveItem, titleKey } from "../library/derive-item";
+import { fileSha } from "../library/file-sha";
+import { fileFields, noteFields, pageFields, stubFields } from "../library/item-makes";
+import type { LibraryItemFields } from "../library/library-item";
+import type { LibraryBlock, LibrarySection } from "../library/library-nodes";
 import { z } from "zod";
 
-import type { V1Transport } from "../cloud/library/call-outcome";
+import type { V1Transport } from "../library/call-outcome";
 
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;

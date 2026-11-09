@@ -104,7 +104,7 @@ both.
 
 Two limits, stated. A reference is checked only if it is a `@repo/<name>` (the
 subpath after the name is not resolved) or a path anchored on a workspace group
-(`packages/notes/src/library/block-ops.ts` is checked; a relative
+(`packages/contract/src/library/block-ops.ts` is checked; a relative
 `src/block-ops.ts` in a Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
 `.gitignore` and this guard cannot disagree with it. A name is no path: the

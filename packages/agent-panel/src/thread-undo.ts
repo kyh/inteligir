@@ -4,8 +4,8 @@
 // newest first, in one undo of its own, or in as few as the cell takes when the conversation made
 // more sets than one undo names.
 
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
-import type { changeSetSchema } from "@repo/contract/cloud/library/library-wire";
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
+import type { changeSetSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
 export type ChangeSet = z.infer<typeof changeSetSchema>;

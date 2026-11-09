@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 // where a sign-in or sign-up lands when nothing asked to come back
 export const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;

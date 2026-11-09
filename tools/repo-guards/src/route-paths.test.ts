@@ -2,12 +2,12 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { V1_RPC_PATH } from "@repo/contract/v1";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-// a `quoted` path is a word module paths hold too (`@repo/notes/library/…`), so it counts only
+// a `quoted` path is a word module paths hold too (`@repo/contract/library/…`), so it counts only
 // where a string or a route pattern starts with it.
 interface Namespace {
   readonly home: string;
@@ -18,15 +18,15 @@ interface Namespace {
 
 const NAMESPACES: readonly Namespace[] = [
   {
-    home: "packages/contract/src/cloud/v1-contract.ts",
+    home: "packages/contract/src/v1-contract.ts",
     paths: [V1_RPC_PATH],
-    use: "V1_RPC_PATH from @repo/contract/cloud/v1",
+    use: "V1_RPC_PATH from @repo/contract/v1",
   },
   {
-    home: "packages/contract/src/cloud/library-page.ts",
+    home: "packages/contract/src/library-page.ts",
     paths: [LIBRARY_PAGE_PATH],
     quoted: true,
-    use: "LIBRARY_PAGE_PATH from @repo/contract/cloud/library-page",
+    use: "LIBRARY_PAGE_PATH from @repo/contract/library-page",
   },
 ];
 

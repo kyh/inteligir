@@ -7,8 +7,8 @@
 // no item names becomes an item of its own. Every run reads the zip where it lies in R2, a range
 // at a time.
 
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
+import { hexFromBytes } from "@repo/contract/bytes";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import {
   importPathKind,
   importPlannedDoc,
@@ -27,14 +27,14 @@ import {
   LIBRARY_RULES_PATH,
   mediaTypeOfName,
   UNKNOWN_FILE_TYPE,
-} from "@repo/notes/items/item-kind";
-import { urlKey } from "@repo/notes/items/item-url";
-import { dirnamePath, normalizePath } from "@repo/notes/knowledge/folder-path";
-import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
-import { readItem } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { frontmatterEnd } from "@repo/notes/markdown/frontmatter";
+} from "@repo/contract/items/item-kind";
+import { urlKey } from "@repo/contract/items/item-url";
+import { dirnamePath, normalizePath } from "@repo/contract/knowledge/folder-path";
+import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { readItem } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import { frontmatterEnd } from "@repo/editor/markdown/frontmatter";
 import { z } from "zod";
 
 import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "../zip/zip-read";

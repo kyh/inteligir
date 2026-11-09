@@ -11,7 +11,7 @@ import Defuddle from "defuddle";
 import { articleBlocks } from "@repo/editor/codec/item-markdown";
 import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
-import { FILL_LIMITS } from "@repo/notes/items/link-fill";
+import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
 import { escapeText, htmlToMarkdown } from "./html-to-markdown";
 import type { ExtractedPage, PageArgs, Rung } from "./page-facts";

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { FILL_LIMITS } from "@repo/notes/items/link-fill";
+import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
 import { extractPageBlocks } from "./extract-page";
 import { parsePage } from "./linkedom-page";

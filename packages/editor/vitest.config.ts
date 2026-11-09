@@ -56,7 +56,13 @@ export default defineConfig({
       {
         // no compiler: it would be inert, since it skips the ssr transform a node project runs
         extends: true,
-        test: { include: ["src/**/*.test.ts"], name: "editor" },
+        test: {
+          // the markdown grammar runs in the phone's WebView and the cell's isolate, so a quadratic
+          // allocation must fail its suite rather than pass on a multi-gigabyte default heap.
+          execArgv: ["--max-old-space-size=512"],
+          include: ["src/**/*.test.ts"],
+          name: "editor",
+        },
       },
       {
         extends: true,

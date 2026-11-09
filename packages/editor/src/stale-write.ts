@@ -3,8 +3,8 @@
 // (`codec/block-markdown.ts`), as the open item's session lays a change from elsewhere in and as
 // the replica settles every block a CONFLICT names (`mergeBlocks`).
 
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { diff3 } from "@repo/notes/text/diff3";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { diff3 } from "@repo/editor/text/diff3";
 
 import { blockFromMarkdown, faithfulMarkdown, filesIn, renamedBlock } from "./codec/block-markdown";
 

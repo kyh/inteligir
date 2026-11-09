@@ -1,13 +1,10 @@
 // The account's conversations with the built-in agent, as the cell keeps them: a thread row and
 // the final events of its turns. Listing and paging read them; deleting a thread removes its rows.
 
-import type {
-  threadEventRowSchema,
-  threadRowSchema,
-} from "@repo/contract/cloud/library/library-wire";
-import { THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
-import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
+import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
+import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
+import type { SqlRow, SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
 import { z } from "zod";
 
 import type { LandingScope } from "./cell-landing";

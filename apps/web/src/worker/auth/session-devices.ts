@@ -3,7 +3,7 @@
 // the cap ends the longest unused. A session's token never leaves this module: a list selects
 // none, and an end looks it up only to hand Better Auth.
 
-import type { Device } from "@repo/contract/cloud/device/device-schema";
+import type { Device } from "@repo/contract/device/device-schema";
 import type { InternalAdapter } from "better-auth";
 import { and, eq, gt } from "drizzle-orm";
 

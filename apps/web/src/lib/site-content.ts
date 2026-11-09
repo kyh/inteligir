@@ -1,5 +1,5 @@
-import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-identity";
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { PAGES } from "#lib/page-meta";
 import { siteConfig } from "#lib/site-config";
 

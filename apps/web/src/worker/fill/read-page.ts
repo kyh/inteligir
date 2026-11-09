@@ -1,20 +1,21 @@
 // One page read for the cell, by the rules every device that fills a link reads it by
-// (`@repo/notes/items/link-fill`'s limits, `@repo/page-reader` over linkedom, `@repo/notes/items`'
-// oEmbed and sniffing): the page asked for through the guarded fetch (`./page-fetch`), a file the
-// address answered with kept as the item's original, a page's article and facts read, a media
-// host's oEmbed asked, and the first candidate that is really a picture of a cover's size kept as
-// the cover, whole: no picture is decoded here, since a Worker's heap holds the reading already
+// (`@repo/contract/items/link-fill`'s limits, `@repo/page-reader` over linkedom,
+// `@repo/service/items/oembed` and `@repo/contract/items/sniff-media`): the page asked for through
+// the guarded fetch (`./page-fetch`), a file the address answered with kept as the item's
+// original, a page's article and facts read, a media host's oEmbed asked, and the first candidate
+// that is really a picture of a cover's size kept as the cover, whole: no picture is decoded here,
+// since a Worker's heap holds the reading already
 // (`packages/page-reader/src/extract-page.heap.test.ts`), so a device draws its own thumbnail. Every
 // byte kept goes to R2 as a library file before the reading lands (`./store-file`). The reader and
 // the DOM it reads over load with the first page a consumer reads, never with the Worker's start,
 // which every request waits on.
 
-import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
+import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 import type { ReadHtml } from "@repo/page-reader/read-html";
-import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
-import { originalFileName } from "@repo/notes/items/item-name";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/service/items/fill-sentences";
+import { originalFileName } from "@repo/contract/items/item-name";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import {
   coverPicture,
   FILL_LIMITS,
@@ -22,17 +23,17 @@ import {
   isPage,
   playableKindOf,
   preferredText,
-} from "@repo/notes/items/link-fill";
+} from "@repo/contract/items/link-fill";
 import {
   OEMBED_MAX_BYTES,
   oembedEndpoint,
   parseOEmbed,
   youTubeStills,
-} from "@repo/notes/items/oembed";
-import type { OEmbed } from "@repo/notes/items/oembed";
-import type { FetchedPage } from "@repo/notes/items/page-fetch";
-import { sniffMedia } from "@repo/notes/items/sniff-media";
-import { decodeText } from "@repo/notes/text/decode-text";
+} from "@repo/service/items/oembed";
+import type { OEmbed } from "@repo/service/items/oembed";
+import type { FetchedPage } from "@repo/service/items/page-fetch";
+import { sniffMedia } from "@repo/contract/items/sniff-media";
+import { decodeText } from "@repo/service/text/decode-text";
 
 import type { FillJob } from "./fill-job";
 import type { FillLanding } from "./fill-landing";

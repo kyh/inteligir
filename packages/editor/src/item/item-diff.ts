@@ -15,11 +15,11 @@
 import { ElementApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { placeInOrder } from "@repo/notes/library/block-order";
-import { blockIdSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { LibraryOp, StoredBlock } from "@repo/contract/library/block-ops";
+import { placeInOrder } from "@repo/contract/library/block-order";
+import { blockIdSchema, storableBlockSchema } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
 import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import { stringProp } from "@repo/editor/node-props";

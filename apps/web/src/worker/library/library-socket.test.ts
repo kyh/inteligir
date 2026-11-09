@@ -4,10 +4,10 @@ import {
   SOCKET_KEEPALIVE_PONG,
   SOCKET_REVOKED_CLOSE_CODE,
   V1_SOCKET_PATH,
-} from "@repo/contract/cloud/library/library-socket";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+} from "@repo/contract/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+import { RAINDROP_EXPORT } from "@repo/service/imports/test-support/raindrop-export";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";

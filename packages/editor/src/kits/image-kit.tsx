@@ -10,7 +10,7 @@ import { KEYS, PathApi } from "platejs";
 import type { PathRef, SlateEditor, TElement, TRange } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
-import { keptFileType } from "@repo/notes/items/item-kind";
+import { keptFileType } from "@repo/contract/items/item-kind";
 import { toast } from "@repo/ui/components/sonner";
 
 import { announceFileKeep } from "@repo/editor/file-keeps";

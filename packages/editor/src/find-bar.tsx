@@ -23,8 +23,8 @@ import type { PlateLeafProps } from "platejs/react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-import { findTextOffsets } from "@repo/notes/knowledge/text-matches";
-import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { findTextOffsets } from "@repo/editor/knowledge/text-matches";
+import type { TextMatchOptions } from "@repo/editor/knowledge/text-matches";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";

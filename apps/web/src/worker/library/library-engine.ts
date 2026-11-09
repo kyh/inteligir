@@ -5,17 +5,17 @@
 // with it, joins its actor's change set, and keeps its answer under its `opId` for 30 days, so a
 // client resending after a lost answer is told what landed.
 
-import { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
+import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import {
   nextHead,
   readItem,
   readMeta,
   storeTombstone,
   writeMeta,
-} from "@repo/notes/library/library-queries";
-import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
+} from "@repo/service/library/library-queries";
+import { LibraryRowError, runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
 import { z } from "zod";
 
 import { fillLandedSchema } from "../fill/fill-landing";

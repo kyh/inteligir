@@ -5,7 +5,7 @@
 // (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/); its signature is compared
 // as hashes with `timingSafeEqual`, so the comparison takes the same time whatever was presented.
 
-import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
+import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { z } from "zod";
 
 import { holderSchema } from "./cell-sockets";

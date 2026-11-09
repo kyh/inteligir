@@ -28,7 +28,7 @@ import type {
   BetaTextBlockParam,
   BetaTool,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { sha256Hex } from "@repo/contract/cloud/bytes";
+import { sha256Hex } from "@repo/contract/bytes";
 import { z } from "zod";
 
 import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";

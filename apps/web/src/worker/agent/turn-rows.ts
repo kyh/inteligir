@@ -4,9 +4,9 @@
 // library's sequence number, as items do, and each write of one tells the sockets the thread moved;
 // the rest are the cell's alone.
 
-import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
-import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
+import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
+import type { SqlRow, SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";

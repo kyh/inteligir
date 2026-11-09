@@ -2,9 +2,9 @@
 // message for it, the web the consumer reads served by a stand-in for the platform's fetch, and
 // the item read back as the cell holds it.
 
-import type { ItemState } from "@repo/notes/library/block-ops";
-import { readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import type { ItemState } from "@repo/contract/library/block-ops";
+import { readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 import { createRouterClient } from "@orpc/server";
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
 import { env } from "cloudflare:workers";

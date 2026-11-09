@@ -6,9 +6,9 @@
 
 import type { Descendant, TElement } from "platejs";
 
-import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
-import { BLOCK_MAX_BYTES, storableBlockSchema } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { BLOCK_MAX_BYTES, storableBlockSchema } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { libraryJsonOf, namedBlockJson } from "./read-blocks";
 import type { DraftBlock } from "./read-blocks";

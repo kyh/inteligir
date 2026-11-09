@@ -5,11 +5,11 @@
 // changed it, written down when the set seals or another set is about to change the item, so a
 // set's after is the item as that set left it however its sets' seals interleave.
 
-import { deriveItem } from "@repo/notes/library/derive-item";
-import { readItemState, storeSearchRow } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import type { ItemNow } from "@repo/notes/library/revert-change";
+import { deriveItem } from "@repo/contract/library/derive-item";
+import { readItemState, storeSearchRow } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import type { ItemNow } from "@repo/service/library/revert-change";
 import { z } from "zod";
 
 import { SEAL_POLICIES } from "./cell-actor";

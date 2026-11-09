@@ -4,12 +4,12 @@
 
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
-import { v1Contract, V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { NotFoundError, V1_ERROR_STATUS_MAP } from "@repo/contract/cloud/v1/errors";
+import type { V1Transport } from "@repo/contract/library/call-outcome";
+import { v1Contract, V1_RPC_PATH } from "@repo/contract/v1";
+import { NotFoundError, V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
-import { orderedBlocks } from "@repo/notes/library/block-ops";
-import { deriveItem } from "@repo/notes/library/derive-item";
+import { orderedBlocks } from "@repo/contract/library/block-ops";
+import { deriveItem } from "@repo/contract/library/derive-item";
 
 const os = implement(v1Contract);
 

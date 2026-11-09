@@ -1,4 +1,4 @@
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 
 const isWebOrigin = (url: URL): boolean =>
   (url.protocol === "https:" || url.protocol === "http:") && url.origin !== "";

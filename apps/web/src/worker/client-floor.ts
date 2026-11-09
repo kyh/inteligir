@@ -3,8 +3,8 @@ import {
   meetsBuildFloor,
   parseClientBuildHeader,
   parseReleaseVersion,
-} from "@repo/contract/cloud/client-build";
-import type { BuildVersion } from "@repo/contract/cloud/client-build";
+} from "@repo/contract/client-build";
+import type { BuildVersion } from "@repo/contract/client-build";
 
 // the oldest build /v1 answers. a wire shape retires by raising it past every build that reads the
 // shape, so what may change under an install is held to the builds above it

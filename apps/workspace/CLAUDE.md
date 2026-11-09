@@ -64,7 +64,7 @@ update, the one thing the page asks its shell, is parsed in
   button (a menu's verb has none).
   `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`, over
-  `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
+  `packages/contract/src/refusal-text.ts`, which the phone says too.
 
 - **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The
   build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
@@ -142,7 +142,7 @@ update, the one thing the page asks its shell, is parsed in
   to the folder; nested folders indent under their parents, and a save from the
   folder's grid lands in it. A remembered folder no longer listed reads as All
   items, on the phone as here (`listedScope` in
-  `packages/domain/src/library-scope.ts`).
+  `packages/contract/src/library-scope.ts`).
   `apps/workspace/src/app/library/listing.ts`,
   `apps/workspace/src/app/sidebar/folder-paths.ts`.
 
@@ -196,14 +196,14 @@ update, the one thing the page asks its shell, is parsed in
   with `select-none` on the chrome (every new button, label and row would have
   to remember it).
 
-- **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
+- **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/contract/library-scope`.** Which
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
-  Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`), a
+  Deleted) is one set of zod arms (`packages/contract/src/library-scope.ts`), a
   folder named by its id as the cell keeps it, read by the page's `PREFS` row
   (`apps/workspace/src/app/prefs.ts`), the grid's listing query
   (`apps/workspace/src/app/library/listing.ts`) and a view context's `scope`
   (`agentViewContextSchema` in
-  `packages/contract/src/cloud/library/library-wire.ts`), which names any of
+  `packages/contract/src/library/library-wire.ts`), which names any of
   them but Deleted. Rejected: a scope per surface or per wire, spellings that
   drift the first time a scope gains a kind; a folder by its path (a rename
   would move it out of every remembered scope).

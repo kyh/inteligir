@@ -4,7 +4,7 @@
 // entity, a strikethrough or a wiki link), and nothing but text, links, pictures, code, lists,
 // quotes and tables is ever written.
 
-import { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
+import { RICH_FENCE_LANGS } from "@repo/editor/markdown/fence-langs";
 import TurndownService from "turndown";
 
 import type { Rung } from "./page-facts";

@@ -2,9 +2,9 @@
 // (`library.listing.page`) and the whole item (`library.items.get`).
 
 import type { InferClientOutputs } from "@orpc/client";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { blankItemFields } from "@repo/notes/library/item-makes";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { V1Client } from "@repo/contract/v1";
+import { blankItemFields } from "@repo/contract/library/item-makes";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 
 import type { ListedItem } from "../library/listing";
 

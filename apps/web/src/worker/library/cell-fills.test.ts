@@ -3,8 +3,8 @@
 // the reading's ask kept as a job row, sent once the write commits and sent again until the queue
 // took it.
 
-import { ordsBetween } from "@repo/notes/library/block-order";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -22,8 +22,8 @@ import {
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";
-import { readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import { readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 import { cellStorageOf } from "./cell-storage";
 
 const read = (

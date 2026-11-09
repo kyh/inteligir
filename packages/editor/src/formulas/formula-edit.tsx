@@ -5,7 +5,7 @@ import { useEditorRef } from "platejs/react";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import {
   entryTextOf,
   formulaPropsFromEntry,

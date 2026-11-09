@@ -9,8 +9,8 @@
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
-} from "@repo/contract/cloud/library/library-socket";
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+} from "@repo/contract/library/library-socket";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 

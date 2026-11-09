@@ -1,5 +1,5 @@
-import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity";
-import type { JsonValue } from "@repo/notes/library/canonical-json";
+import { EXTENSION_ID } from "@repo/contract/extension/extension-identity";
+import type { JsonValue } from "@repo/contract/library/canonical-json";
 import { describe, expect, it } from "vitest";
 
 import { tellExtension } from "./extension-connect";

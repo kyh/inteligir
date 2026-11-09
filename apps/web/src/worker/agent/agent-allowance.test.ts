@@ -6,7 +6,7 @@
 // trigger; usage is priced by the model that answered each part of a reply, and a model the table
 // does not price at its dearest row.
 
-import { mulberry32 } from "@repo/notes/test-support/seeded-random";
+import { mulberry32 } from "@repo/contract/test-support/seeded-random";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";

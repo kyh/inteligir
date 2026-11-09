@@ -3,7 +3,7 @@
 // page. `label` is the set's words for them, which the caller supplies, since the cell knows no
 // device name or assistant; an undo is a set of its own, by whoever asked.
 
-import type { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
+import type { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 
 export type CellActor =
   | { readonly kind: "person"; readonly deviceId: string; readonly label: string }

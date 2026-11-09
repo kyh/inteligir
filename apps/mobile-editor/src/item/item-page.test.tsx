@@ -11,11 +11,11 @@ import {
 import { NEEDS_CONNECTION } from "@repo/editor/item/item-editor";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { ItemState } from "@repo/notes/library/block-ops";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { ItemState } from "@repo/contract/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { connectPageBridge } from "../bridge/page-bridge";
 import { createFakePhone, PHONE_NONCE } from "../test-support/fake-phone";

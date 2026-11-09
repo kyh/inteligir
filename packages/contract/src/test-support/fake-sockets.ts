@@ -1,7 +1,7 @@
 // The account's socket as the suites dial it: every socket a dial made, which a suite opens,
 // writes frames into or drops by hand, and the pings the engine sent on each.
 
-import type { AccountSocket, SocketDial } from "../cloud/library/account-socket";
+import type { AccountSocket, SocketDial } from "../library/account-socket";
 
 // what any of a socket's events carries
 interface SocketEvent {

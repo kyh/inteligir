@@ -2,7 +2,7 @@
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
 // doc at a time against the whole plan, resolving its links by the resolver's tiers (path, name,
-// alias, then the `[[Title|uuid]]` id, `@repo/notes/knowledge/link-resolve`). Last, every file no
+// alias, then the `[[Title|uuid]]` id, `@repo/editor/knowledge/link-resolve`). Last, every file no
 // item names becomes an item of its own, so a bare file is a card of its own. A zip's paths reach
 // all this with the folder an unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
 // every other dot-folder and what an operating system left are skipped, and a `.canvas` or a
@@ -10,23 +10,28 @@
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
 // person's own instructions, so only the person writes them, and a zip is anyone's text.
 
-import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/notes/items/item-kind";
-import type { FileKind } from "@repo/notes/items/item-kind";
-import { urlKey } from "@repo/notes/items/item-url";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
-import { docStem, isDocPath, isDotEntryPath, isOsLitterPath } from "@repo/notes/knowledge/doc-file";
-import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
+import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/contract/items/item-kind";
+import type { FileKind } from "@repo/contract/items/item-kind";
+import { urlKey } from "@repo/contract/items/item-url";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/contract/knowledge/asset-name";
+import {
+  docStem,
+  isDocPath,
+  isDotEntryPath,
+  isOsLitterPath,
+} from "@repo/contract/knowledge/doc-file";
+import { mdLinkTarget } from "@repo/editor/knowledge/link-extract";
+import { buildResolver } from "@repo/editor/knowledge/link-resolve";
+import type { TargetResolver } from "@repo/editor/knowledge/link-resolve";
 import {
   basenamePath,
   dirnamePath,
   extnamePath,
   normalizePath,
   relativePath,
-} from "@repo/notes/knowledge/folder-path";
-import { frontmatterYaml } from "@repo/notes/markdown/frontmatter";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+} from "@repo/contract/knowledge/folder-path";
+import { frontmatterYaml } from "@repo/editor/markdown/frontmatter";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 import { readFrontmatter } from "./item-fields";
 import { importItem } from "./item-markdown";

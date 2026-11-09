@@ -2,7 +2,7 @@
 // and a cover candidate's bytes fetched as this browser fetches a picture, with no cookie, so the
 // site sees no session of the person's in it.
 
-import { FILL_LIMITS } from "@repo/notes/items/link-fill";
+import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 import { browser } from "wxt/browser";
 import type { PublicPath } from "wxt/browser";
 

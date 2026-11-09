@@ -1,4 +1,4 @@
-import type { SessionEnd } from "@repo/contract/cloud/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { describe, expect, it } from "vitest";
 
 import { FileRefusedError, uploadFile } from "./library-files";

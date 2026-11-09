@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { libraryTextSchema } from "@repo/notes/library/library-nodes";
+import { libraryTextSchema } from "@repo/contract/library/library-nodes";
 
 import { leaf, MARK_KEYS, marksOf, tidyInlines } from "./slate-leaves";
 

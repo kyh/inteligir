@@ -1,14 +1,11 @@
 // What the library cell answers a write it cannot land: a plain value, so it crosses RPC and the
 // procedures over the cell (`/v1/rpc/library`, the connector) answer each as its declared error
-// (`@repo/contract/cloud/v1/errors`). Inside a transaction a refusal is thrown, so everything the
+// (`@repo/contract/v1/errors`). Inside a transaction a refusal is thrown, so everything the
 // write did so far rolls back; it is caught at the transaction's edge and never leaves the cell as
 // an exception.
 
-import type { MovedFrame } from "@repo/contract/cloud/library/library-socket";
-import type {
-  conflictCurrentSchema,
-  editRefusalSchema,
-} from "@repo/contract/cloud/library/library-wire";
+import type { MovedFrame } from "@repo/contract/library/library-socket";
+import type { conflictCurrentSchema, editRefusalSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
 export type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;

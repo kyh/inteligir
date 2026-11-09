@@ -25,7 +25,7 @@ import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
 import { isHttpUrl } from "@repo/editor/lib/url";
-import { alertMarkerPrefix, parseAlertVariant } from "@repo/notes/markdown/alert-marker";
+import { alertMarkerPrefix, parseAlertVariant } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_ALERT } from "@repo/editor/style-hooks";
 import { alertPresentation } from "@repo/editor/nodes/blockquote-node";

@@ -27,7 +27,7 @@ import {
   insertFormulaFromPicker,
 } from "@repo/editor/formulas/formula-insert";
 import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
-import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 
 interface NamedVariable {
   name: string;

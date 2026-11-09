@@ -1,4 +1,4 @@
-// A Raindrop export read into the library (`@repo/notes/imports/raindrop`): the first run reads
+// A Raindrop export read into the library (`@repo/service/imports/raindrop`): the first run reads
 // the CSV into its plan, one row per bookmark, keyed once by its address; each later run lands a
 // page of them. A bookmark lands as an unread link, its tags and folder Raindrop's, its note and its
 // highlights the item's note, its page read by the cloud after it (`./cell-fills`), Raindrop's own
@@ -9,12 +9,12 @@ import {
   parseRaindropCsv,
   planRaindropImport,
   plannedItemSchema,
-} from "@repo/notes/imports/raindrop";
-import type { PlannedItem } from "@repo/notes/imports/raindrop";
-import { itemNameFromUrl } from "@repo/notes/items/item-name";
-import { kindForUrl } from "@repo/notes/items/item-url";
-import { blankItemFields } from "@repo/notes/library/item-makes";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+} from "@repo/service/imports/raindrop";
+import type { PlannedItem } from "@repo/service/imports/raindrop";
+import { itemNameFromUrl } from "@repo/contract/items/item-name";
+import { kindForUrl } from "@repo/contract/items/item-url";
+import { blankItemFields } from "@repo/contract/library/item-makes";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
 import { blobKey } from "./cell-blobs";

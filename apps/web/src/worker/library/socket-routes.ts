@@ -5,7 +5,7 @@
 // The holder's standing is checked at the upgrade alone, before the cell accepts and again after,
 // so whatever ends its session later closes its sockets here (`severSockets`).
 
-import { SOCKET_TICKET_PARAM } from "@repo/contract/cloud/library/library-socket";
+import { SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
 import { and, eq, gt } from "drizzle-orm";
 
 import { createDb } from "../db/client";

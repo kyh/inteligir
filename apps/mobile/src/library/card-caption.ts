@@ -1,7 +1,7 @@
 // The line under a Library row's title: where the cloud's read of a link stands while it is not
 // read, else the site and the day it was saved.
 
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 
 // a link the cloud has not read yet: its title and cover come with that read
 const PENDING_LINE = "Waiting to be read";

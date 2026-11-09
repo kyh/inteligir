@@ -1,4 +1,4 @@
-// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/cloud/v1`): the build floor first, before anything
+// `/v1`'s one wire, `/v1/rpc` (`@repo/contract/v1`): the build floor first, before anything
 // reads the request; then `account.*` on the Worker's own handler (`./account-router`), and
 // `library.*` forwarded whole to the account's library cell, which serves it
 // (`../library/library-rpc`). A forwarded call carries the principal its credential verified, and

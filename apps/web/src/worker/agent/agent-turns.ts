@@ -11,14 +11,14 @@
 // given back, the links it saved read, and the next waiting send let in. A watch job asks after a
 // turn whose object it has not heard from in five minutes.
 
-import { agentEventSchema, agentPreviewSchema } from "@repo/contract/cloud/library/agent-events";
-import type { AgentEvent } from "@repo/contract/cloud/library/agent-events";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
+import { agentEventSchema, agentPreviewSchema } from "@repo/contract/library/agent-events";
+import type { AgentEvent } from "@repo/contract/library/agent-events";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { ORPCError } from "@orpc/server";
-import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
+import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";

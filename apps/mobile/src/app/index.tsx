@@ -28,12 +28,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { UNREACHABLE } from "@repo/contract/cloud/library/call-outcome";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
-import { listedScope } from "@repo/domain/library-scope";
-import type { LibraryScope } from "@repo/domain/library-scope";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { shownTitle } from "@repo/notes/items/item-name";
+import { UNREACHABLE } from "@repo/contract/library/call-outcome";
+import { refusalText } from "@repo/contract/refusal-text";
+import { listedScope } from "@repo/contract/library-scope";
+import type { LibraryScope } from "@repo/contract/library-scope";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { shownTitle } from "@repo/contract/items/item-name";
 import { ingestPhoto } from "@/items/photo-ingest";
 import type { SaveOutcome } from "@/items/phone-saves";
 import { useLibrary } from "@/lib/library-hooks";

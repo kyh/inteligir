@@ -16,8 +16,8 @@ const HUB_INDEX_HEADING = "## Focused Contracts";
 
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
-// read as text: @repo/notes is no dependency of this package, and the constants are plain literals.
-const FENCE_LANGS = "packages/notes/src/markdown/fence-langs.ts";
+// read as text: @repo/editor is no dependency of this package, and the constants are plain literals.
+const FENCE_LANGS = "packages/editor/src/markdown/fence-langs.ts";
 const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
 const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
 

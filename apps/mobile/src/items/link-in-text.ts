@@ -5,7 +5,7 @@
 // and a full-width keyboard its own brackets and stops. Pure: `phone-saves.ts`, `share-payload.ts`
 // and the tests read it.
 
-import { isWebUrl, urlKey } from "@repo/notes/items/item-url";
+import { isWebUrl, urlKey } from "@repo/contract/items/item-url";
 
 // letters of any script, numbers, the ASCII an address spells and the full-width brackets it can
 // hold. A quote, an emoji, a dash or a full-width stop never sits inside a link someone typed, and

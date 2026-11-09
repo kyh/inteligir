@@ -4,7 +4,7 @@
 // item moved into it, an open item following a rename made on another device, and a link pasted
 // and a file dropped onto the grid each saved as an item.
 
-import { ordBetween } from "@repo/notes/library/block-order";
+import { ordBetween } from "@repo/contract/library/block-order";
 import { z } from "zod";
 import {
   clickButtonIn,

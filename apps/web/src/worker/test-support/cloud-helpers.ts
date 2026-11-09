@@ -1,17 +1,17 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import type { ClientBuild } from "@repo/contract/cloud/client-build";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import { clientBuildHeaders } from "@repo/contract/client-build";
+import type { ClientBuild } from "@repo/contract/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import {
   librarySocketFrameSchema,
   SOCKET_TICKET_PARAM,
   V1_SOCKET_PATH,
-} from "@repo/contract/cloud/library/library-socket";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
+} from "@repo/contract/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+import { V1_RPC_PATH } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { applySetCookies } from "better-auth/cookies";
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
@@ -19,7 +19,7 @@ import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { ORIGIN } from "./test-origin";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 export { ORIGIN } from "./test-origin";
 export const PASSWORD = "test-password-1234";

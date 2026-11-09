@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
-import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
+import type { ExtensionConnectAnswer } from "@repo/contract/extension/extension-connect";
 import type { ExtensionRequest, WorkerAnswer } from "../messages";
 import { connectPageListener, ownPagesListener } from "./listeners";
 import { SESSION, SIGNED_IN } from "./test-support/fake-cloud";

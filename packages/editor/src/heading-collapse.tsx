@@ -22,7 +22,7 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
 import { useOpenItemId } from "@repo/editor/open-item";
-import { contentHash } from "@repo/notes/library/block-hash";
+import { contentHash } from "@repo/contract/library/block-hash";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 

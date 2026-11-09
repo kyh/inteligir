@@ -20,7 +20,7 @@ A saved page read into an item: its facts and its article.
   letters kept is written, so its blocks export as those same bytes; a page's
   `{{x}}`, `@2026-01-02`, `%%`, `:::`, `$$`, `[[x]]` and raw tags are escaped so
   they stay text, and a code block that names one of
-  the dialect's own fences (`@repo/notes/markdown/fence-langs`) as its language
+  the dialect's own fences (`@repo/editor/markdown/fence-langs`) as its language
   keeps its code and loses the name, so a page never writes a runnable block.
   Rejected: defuddle's markdown, Plate's `deserializeHtml`, and canonicalizing
   on first open. `packages/page-reader/src/html-to-markdown.ts`.
@@ -56,4 +56,4 @@ A saved page read into an item: its facts and its article.
   Rejected: the fill's rule on a device (a titled shell lands blank and is never
   read again); a device's rule in the fill (it would fail a page it can name);
   a copy of either per host (two readings of one address).
-  `packages/notes/src/items/link-fill.ts`.
+  `packages/contract/src/items/link-fill.ts`.

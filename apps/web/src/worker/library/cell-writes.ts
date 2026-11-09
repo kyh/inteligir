@@ -1,13 +1,13 @@
 // One item's ops landed inside a write's transaction: guarded block by block and field by field
-// (`@repo/notes/library/block-ops`), every conflict answered together, and the item laid only when
+// (`@repo/contract/library/block-ops`), every conflict answered together, and the item laid only when
 // something changed. Every write the cell's procedures make of an existing item by ops
 // comes through here: a device's own ops, an agent's edit, a reading, an organize. An undo
 // (`./cell-undo`) lands a state it merged, and a purge (`./library-engine`) a tombstone.
 
-import { applyOps } from "@repo/notes/library/block-ops";
-import type { LibraryOp } from "@repo/notes/library/block-ops";
-import { readItem, readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import { applyOps } from "@repo/contract/library/block-ops";
+import type { LibraryOp } from "@repo/contract/library/block-ops";
+import { readItem, readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { landItem } from "./cell-landing";

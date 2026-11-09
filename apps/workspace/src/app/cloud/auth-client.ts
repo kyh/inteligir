@@ -2,7 +2,7 @@
 // is Better Auth's, so its end is too. `/api/auth/sign-out` deletes the row, which closes its
 // sockets, and clears the cookie, which nothing of the page's own could.
 
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
+import type { V1Transport } from "@repo/contract/library/call-outcome";
 import { createAuthClient } from "better-auth/client";
 
 export const createPageAuth = (cloud: V1Transport) => {

@@ -7,8 +7,8 @@
 // script without a click.
 
 import path from "node:path";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
-import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
+import { EXTENSION_ID } from "@repo/contract/extension/extension-identity";
 import { z } from "zod";
 import { clickButtonIn, parseEval, untilBodyHolds } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";

@@ -10,7 +10,7 @@
 // sequence it has seen without reading the push again; a turn the cell holds open that the object
 // no longer does, the cell hands it again (`./agent-turns`).
 
-import type { SqlPort } from "@repo/notes/library/library-sql";
+import type { SqlPort } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 const THREAD_SCHEMA_VERSION = 4;

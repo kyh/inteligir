@@ -72,11 +72,10 @@
     },
     "packages/agent-panel": { "project": ["src/**/*.ts!"] },
     "packages/contract": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
-    "packages/domain": { "project": ["src/**/*.ts!"] },
     "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
     "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
-    "packages/notes": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
+    "packages/service": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"]
     },

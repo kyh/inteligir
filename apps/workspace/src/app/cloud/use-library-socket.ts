@@ -1,12 +1,12 @@
-// The account's socket as this page hears it (`@repo/contract/cloud/library/account-socket`): a
+// The account's socket as this page hears it (`@repo/contract/library/account-socket`): a
 // hint, never the state. A moved frame invalidates the queries over what it names, an item only when
 // the copy held is older than the sequence it names, and every time the socket opens everything is
 // invalidated, since a drop or a deploy may have hidden a write meanwhile. The open item and the
 // editor's embeds hear which items moved, and the agent panel every thread frame.
 
-import { createSocketHint } from "@repo/contract/cloud/library/account-socket";
-import type { Clock, SocketDial } from "@repo/contract/cloud/library/account-socket";
-import type { MovedFrame } from "@repo/contract/cloud/library/library-socket";
+import { createSocketHint } from "@repo/contract/library/account-socket";
+import type { Clock, SocketDial } from "@repo/contract/library/account-socket";
+import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";

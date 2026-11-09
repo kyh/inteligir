@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
 import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";

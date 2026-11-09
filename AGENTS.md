@@ -139,10 +139,9 @@ apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the s
 apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
-packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/contract       @repo/contract — ONE client-safe contract for /v1: the library and the account
-packages/notes          @repo/notes — the pure, platform-neutral domain: the library model, its SQL, search and links
-packages/editor         @repo/editor — the Plate WYSIWYG, and the markdown codec over its headless kits
+packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
+packages/service        @repo/service — the account's library cell's own rules: its SQL, search, undo, the imports and the fill's modules
+packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's markdown grammar, and the codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends
@@ -307,9 +306,10 @@ runs it bare.
   comment; `as const` and `satisfies` are fine): parse at the boundary or
   narrow with a guard. Kebab-case filenames. Make illegal states
   unrepresentable.
-- **`@repo/notes` is pure and platform-neutral**: no node, react or ui imports
-  and no `crypto` global (lint-enforced); callers inject the SQL driver, the
-  clock, random bytes and fresh ids.
+- **The library model is pure and platform-neutral**: `@repo/contract`'s
+  model, the editor's grammar and `@repo/service` take no node or react import
+  and no `crypto` or `URL` global (lint-enforced); callers inject the SQL
+  driver, the clock, random bytes and fresh ids.
 - **knip is a CI gate**, `verify`'s `//#knip` task, which
   `pnpm turbo run //#knip` runs alone after the extension's `generate`
   (`docs/development.md` § Quality gates): a new file must be reachable from
@@ -355,7 +355,7 @@ is in the file named.
   the site's signed session cookie as its bearer and ships on the Web Store's
   cadence, so the build floor holds it as it holds every client
   (`apps/extension/CLAUDE.md`).
-- **A library scope has one spelling**: `@repo/domain/library-scope`, read by
+- **A library scope has one spelling**: `@repo/contract/library-scope`, read by
   the page's pref, the items listing and the view context
   (`apps/workspace/CLAUDE.md`).
 
@@ -371,7 +371,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, and the open item's merge
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
+- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sessions and accounts

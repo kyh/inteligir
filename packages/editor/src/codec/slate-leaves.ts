@@ -6,7 +6,7 @@
 import { TextApi } from "platejs";
 import type { Descendant, TText } from "platejs";
 
-import type { LibraryNode } from "@repo/notes/library/library-nodes";
+import type { LibraryNode } from "@repo/contract/library/library-nodes";
 
 type LibraryText = Extract<LibraryNode, { text: string }>;
 

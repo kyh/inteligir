@@ -2,8 +2,8 @@
 // Expo client in the app (`../lib/app-runtime.ts`), which keeps the session cookie in the Keychain,
 // and through a stand-in the scenario suite runs under node. Nothing here names a platform.
 
-import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import type { SignUpRequest } from "@repo/contract/account/account-schema";
 
 // a refusal carries the cloud's status and the sentence it sent, if any; the sign-in screen
 // decides what it says

@@ -4,9 +4,9 @@
 // folder by its id as the cell keeps it.
 
 import type { z } from "zod";
-import type { LibraryScope } from "@repo/domain/library-scope";
-import type { listingQuerySchema } from "@repo/contract/cloud/library/library-wire";
-import type { ItemKind } from "@repo/notes/items/item-kind";
+import type { LibraryScope } from "@repo/contract/library-scope";
+import type { listingQuerySchema } from "@repo/contract/library/library-wire";
+import type { ItemKind } from "@repo/contract/items/item-kind";
 
 type ListingQuery = z.infer<typeof listingQuerySchema>;
 

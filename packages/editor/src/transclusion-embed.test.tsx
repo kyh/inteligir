@@ -5,7 +5,7 @@ import { act } from "react";
 import type { Value } from "platejs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { EMBED_PART_GONE } from "@repo/editor/transclusion-guard";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";

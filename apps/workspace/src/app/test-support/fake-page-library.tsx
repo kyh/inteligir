@@ -6,11 +6,8 @@
 import { createORPCClient } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import type {
-  threadEventRowSchema,
-  threadRowSchema,
-} from "@repo/contract/cloud/library/library-wire";
+import type { V1Client } from "@repo/contract/v1";
+import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";

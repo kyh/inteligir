@@ -10,7 +10,7 @@ import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
+import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import { clientBuildHeaders } from "@repo/contract/client-build";
+import { V1_RPC_PATH } from "@repo/contract/v1";
 import { expect, expectEq } from "../harness/assert";
 import { PHONE_BUILD } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";

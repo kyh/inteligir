@@ -10,7 +10,7 @@ import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { fakeClock } from "@repo/contract/test-support/fake-clock";
 import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
 import type { FakeSockets } from "@repo/contract/test-support/fake-sockets";
-import { paragraph } from "@repo/notes/test-support/library-items";
+import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
 import { withAppReads } from "../test-support/app-reads";
 import type { AppReadsDevice } from "../test-support/app-reads";

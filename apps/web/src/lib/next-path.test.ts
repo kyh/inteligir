@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 import { authPageSearchSchema, internalNextPath, resetLanding, signedInLanding } from "./next-path";
 

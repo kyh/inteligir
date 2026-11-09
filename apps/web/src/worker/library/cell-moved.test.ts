@@ -1,4 +1,4 @@
-import { MOVED_IDS_MAX } from "@repo/contract/cloud/library/library-socket";
+import { MOVED_IDS_MAX } from "@repo/contract/library/library-socket";
 import { describe, expect, it } from "vitest";
 
 import { collectMoved } from "./cell-moved";

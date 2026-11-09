@@ -2,10 +2,10 @@ import type { Nodes } from "mdast";
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
-import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { StoredBlock } from "@repo/contract/library/block-ops";
+import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
+import { MD_PROCESSOR } from "@repo/editor/markdown/md-plugins";
 
 import { exportItem, importItem } from "./codec/item-markdown";
 import type { ExportedItem, ImportedItem } from "./codec/item-markdown";

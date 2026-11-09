@@ -5,7 +5,7 @@ one origin: the TanStack Start pages, the library's page at `/library`, Better
 Auth on D1 and every device's session, each account's library cell (a SQLite
 Durable Object holding the library and its devices' sockets), the connector a
 person's own assistant reaches the library through. The wire contract is
-`@repo/contract/cloud` — the Worker implements it; the library's page (the Mac
+`@repo/contract/v1` — the Worker implements it; the library's page (the Mac
 app's window and the browser tab), the phone and the extension consume it.
 
 ## Layout
@@ -209,7 +209,7 @@ ask, 416 for a range past the end, and 304/412 for its preconditions, under a
 script-less sandbox but for a PDF (`src/worker/library/blob-routes.ts`).
 
 Every `/v1` request an install sends names its build in
-`x-inteligir-build: <semver>+<platform>` (`@repo/contract/cloud/client-build`),
+`x-inteligir-build: <semver>+<platform>` (`@repo/contract/client-build`),
 and before any route reads it `src/worker/client-floor.ts` refuses one that
 names none, or a version below `MIN_CLIENT_BUILD` (`cloudflare.config.ts`):
 426, as `CLIENT_OUTDATED` on `/v1/rpc` and in plain text on a file or an
@@ -257,7 +257,7 @@ and end them, and the account's deletion revokes every one.
   with the cookie a slid row needs.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /api/sign-up` parses its body with
-  `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
+  `signUpRequestSchema` (`@repo/contract/account/account-schema`, which the
   page, the gate and the e2e harness share with `AUTH_API_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic

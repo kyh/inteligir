@@ -2,7 +2,7 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";

@@ -2,7 +2,7 @@ import { KEYS } from "platejs";
 import { BaseIndentPlugin } from "@platejs/indent";
 import { BaseListPlugin } from "@platejs/list";
 
-import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
+import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 // toggle is indentable so list/indent props survive on blocks nested inside a toggle body.
 export const INDENTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.toggle];

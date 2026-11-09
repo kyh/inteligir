@@ -9,13 +9,13 @@
 // so a message met twice lands once. A page whose redirects end at another address is read into
 // the item that waited for it, which keeps the address it was saved at.
 
-import type { LibraryOp, ItemState } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { jsonTextSchema } from "@repo/notes/library/sql-value";
-import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
+import type { LibraryOp, ItemState } from "@repo/contract/library/block-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
+import { jsonTextSchema } from "@repo/service/library/sql-value";
+import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 import { z } from "zod";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";

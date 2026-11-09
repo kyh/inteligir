@@ -25,9 +25,9 @@ import type {
 } from "@platejs/markdown";
 import { z } from "zod";
 
-import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
-import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import { isContainerContent } from "@repo/notes/markdown/remark-containers";
+import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
+import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
+import { isContainerContent } from "@repo/editor/markdown/remark-containers";
 import type {
   ArticleSection,
   Column,
@@ -36,20 +36,20 @@ import type {
   TabGroup,
   TabPanel,
   Toggle,
-} from "@repo/notes/markdown/remark-containers";
-import type { BlockRef } from "@repo/notes/markdown/remark-obsidian";
-import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
-import { formulaRawOf, parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
-import type { DateChip, FormulaPill } from "@repo/notes/markdown/remark-inline-constructs";
-import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
-import type { Underline } from "@repo/notes/markdown/remark-inline-html";
+} from "@repo/editor/markdown/remark-containers";
+import type { BlockRef } from "@repo/editor/markdown/remark-obsidian";
+import type { OpaqueInline } from "@repo/editor/markdown/remark-opaque";
+import { formulaRawOf, parseFormulaRaw } from "@repo/editor/markdown/remark-inline-constructs";
+import type { DateChip, FormulaPill } from "@repo/editor/markdown/remark-inline-constructs";
+import { CELL_BREAK } from "@repo/editor/markdown/remark-inline-html";
+import type { Underline } from "@repo/editor/markdown/remark-inline-html";
 import {
   CANVAS_LANG,
   CHART_LANG,
   HTML_LANG,
   RICH_FENCE_LANGS,
-} from "@repo/notes/markdown/fence-langs";
-import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
+} from "@repo/editor/markdown/fence-langs";
+import type { WikiEmbed, WikiLink } from "@repo/editor/markdown/remark-wiki-link";
 
 import {
   CANVAS_BLOCK_KEY,
@@ -63,7 +63,7 @@ import {
   WIKI_LINK_KEY,
 } from "@repo/editor/dialect-node-keys";
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
-import { leadingAlertMarker } from "@repo/notes/markdown/alert-marker";
+import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 import { wikiBodyOf, wikiFieldsOf, wikiLabelOf, wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeType } from "@repo/editor/wiki/wiki-node";

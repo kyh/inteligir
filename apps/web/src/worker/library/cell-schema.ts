@@ -3,9 +3,9 @@
 // one `meta.schema` read, and the library's DDL on an empty database. There are no users, so a
 // schema of another version is not migrated: the cell deletes everything and starts over.
 
-import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
-import type { SchemaVerdict } from "@repo/notes/library/library-schema";
-import { runPlan } from "@repo/notes/library/library-sql";
+import { ensureLibrarySchema } from "@repo/service/library/library-schema";
+import type { SchemaVerdict } from "@repo/service/library/library-schema";
+import { runPlan } from "@repo/service/library/library-sql";
 
 import { cellStorageOf } from "./cell-storage";
 

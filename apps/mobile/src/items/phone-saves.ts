@@ -6,13 +6,13 @@
 // by its sha the same way, before the write naming it. A save never throws: it answers what became
 // of it. Platform-free: the suites and the scenario suite run it under node.
 
-import { CHANGE_REFUSED, sharedFailure } from "@repo/contract/cloud/library/call-outcome";
-import type { UploadOutcome } from "@repo/contract/cloud/library/call-outcome";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { WEB_URL_RULE } from "@repo/notes/items/item-kind";
-import { isWebUrl } from "@repo/notes/items/item-url";
-import { ordsBetween } from "@repo/notes/library/block-order";
+import { CHANGE_REFUSED, sharedFailure } from "@repo/contract/library/call-outcome";
+import type { UploadOutcome } from "@repo/contract/library/call-outcome";
+import { refusalText } from "@repo/contract/refusal-text";
+import type { V1Client } from "@repo/contract/v1";
+import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
+import { isWebUrl } from "@repo/contract/items/item-url";
+import { ordsBetween } from "@repo/contract/library/block-order";
 import type { FileCache, HeldFile } from "../files/file-cache";
 import { linkInText } from "./link-in-text";
 

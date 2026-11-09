@@ -1,31 +1,28 @@
 // What the apps read of the library, inside one read transaction: an item whole, and the listing
-// through the in-memory index (`@repo/notes/library/library-index`), built over the cell's rows for
+// through the in-memory index (`@repo/contract/library/library-index`), built over the cell's rows for
 // the one call, for a screen's pages, the rail's counts and the titles a note's links resolve
 // against. An agent's lists and searches read the same index and the same search (`./cell-reads`).
 
-import type {
-  listedItemSchema,
-  listingQuerySchema,
-} from "@repo/contract/cloud/library/library-wire";
+import type { listedItemSchema, listingQuerySchema } from "@repo/contract/library/library-wire";
 import {
   excerptAround,
   findTextOffsets,
   isPrintableAscii,
-} from "@repo/notes/knowledge/text-matches";
-import type { ItemCard } from "@repo/notes/library/derive-item";
-import { LibraryIndex } from "@repo/notes/library/library-index";
-import type { ListingRow } from "@repo/notes/library/library-index";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+} from "@repo/editor/knowledge/text-matches";
+import type { ItemCard } from "@repo/contract/library/derive-item";
+import { LibraryIndex } from "@repo/contract/library/library-index";
+import type { ListingRow } from "@repo/contract/library/library-index";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import {
   literalMatches,
   readBlocks,
   readItem,
   readLiveItems,
   searchLibrary,
-} from "@repo/notes/library/library-queries";
-import type { LiteralMatch, SearchSide } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+} from "@repo/service/library/library-queries";
+import type { LiteralMatch, SearchSide } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { liveFolders } from "./cell-folders";

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
 
 import { caretToEndOf, parseEval } from "../harness/agent-browser";

@@ -9,7 +9,7 @@ rows, words and sends. It names no platform and no UI.
 ## Layout
 
 - `src/thread-entries.ts` — a thread's stored events parsed by the contract's
-  own union (`@repo/contract/cloud/library/agent-events`), folded into what a
+  own union (`@repo/contract/library/agent-events`), folded into what a
   conversation draws (messages, runs of work, answered approvals, each turn's
   ending), the approval still waiting and what its card says, and the person's
   words for a tool, an ending, a refused send and a thread's state.

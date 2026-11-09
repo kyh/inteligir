@@ -2,10 +2,10 @@
 // it stamps on what it forwards, one account's cell out of another's reach, and the status every
 // refusal answers under.
 
-import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { V1_RPC_PATH } from "@repo/contract/v1";
 import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

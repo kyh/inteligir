@@ -8,8 +8,8 @@
 // person's words, a new item's note. Only punctuation left is no note.
 // Pure: the share inbox and the tests read it.
 
-import { isWebUrl } from "@repo/notes/items/item-url";
-import { fieldLine } from "@repo/notes/items/saved-facts";
+import { isWebUrl } from "@repo/contract/items/item-url";
+import { fieldLine } from "@repo/contract/items/saved-facts";
 import { linkInText, withoutLink } from "./link-in-text";
 
 interface SharedLink {

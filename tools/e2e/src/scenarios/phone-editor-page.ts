@@ -9,9 +9,9 @@ import { z } from "zod";
 
 import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type { NativeFrame, PageFrame, RequestResult } from "@repo/editor-bridge/protocol";
-import { blockHash } from "@repo/notes/library/block-hash";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { blockHash } from "@repo/contract/library/block-hash";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { parseEval } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";

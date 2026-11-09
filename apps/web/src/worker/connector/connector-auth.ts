@@ -7,7 +7,7 @@
 // request's Host, so a Preview's tokens are its own; KV holds the clients, grants and tokens, and
 // each consent request for its ten minutes. The consent page is this Worker's (`./consent-route`).
 
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import {
   OAuthAuthorizationServer,
   OAuthError,

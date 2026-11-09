@@ -15,10 +15,10 @@
 import { NodeApi, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
 
-import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/notes/library/block-ops";
-import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState, LibraryOp, StoredBlock } from "@repo/contract/library/block-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
 import { watchFileKeeps } from "@repo/editor/file-keeps";
 import { blockId } from "@repo/editor/node-props";

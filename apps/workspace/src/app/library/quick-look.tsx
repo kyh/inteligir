@@ -2,7 +2,7 @@
 // and its outline, as the cell lists them. The arrows step through the grid's order, Space or
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
-import { shownTitle } from "@repo/notes/items/item-name";
+import { shownTitle } from "@repo/contract/items/item-name";
 import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";

@@ -2,7 +2,7 @@
 // it: the page shaped what came back, so it is parsed before anything reads it. zod stays out of
 // the script itself, which imports this file for its types alone and is handed the caps.
 
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
 // the rendered page's html past which the capture answers none and the save is the page's link,

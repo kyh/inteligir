@@ -3,10 +3,10 @@
 // only on the bases they name, as the account's cell does) a case can replace, and delivers
 // native frames through the receiver the page installed.
 
-import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
-import type { ItemState } from "@repo/notes/library/block-ops";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState } from "@repo/contract/library/block-ops";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { noteFields } from "@repo/contract/test-support/library-items";
 
 import type { BridgeTransport } from "../bridge/page-bridge";
 import { pageFrameSchema } from "@repo/editor-bridge/protocol";

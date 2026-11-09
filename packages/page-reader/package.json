@@ -20,8 +20,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
-    "@repo/notes": "workspace:*",
     "defuddle": "catalog:",
     "linkedom": "0.18.13",
     "turndown": "^7.2.4",

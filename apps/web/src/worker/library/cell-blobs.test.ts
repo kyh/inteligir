@@ -2,7 +2,7 @@
 // it stays while an item or any change set names it, and once nothing does it leaves the library,
 // the quota and R2.
 
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 

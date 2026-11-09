@@ -11,10 +11,10 @@
 import { act, render } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 
-import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
-import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState, LibraryOp } from "@repo/contract/library/block-ops";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { importItem } from "../codec/item-markdown";
 import type { Deferred } from "../deferred";

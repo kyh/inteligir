@@ -1,9 +1,9 @@
 // What the apps read of the library, through the cell's own router as oRPC's router client calls
 // it: an item whole, a listing's pages, the rail's counts and every title.
 
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { isOrpcError } from "@repo/contract/v1/errors";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 

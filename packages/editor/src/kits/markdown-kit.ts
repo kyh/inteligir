@@ -4,7 +4,7 @@
 
 import { MarkdownPlugin } from "@platejs/markdown";
 
-import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
+import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 

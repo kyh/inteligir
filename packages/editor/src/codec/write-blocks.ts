@@ -7,7 +7,7 @@
 
 import type { Descendant, TElement, TText } from "platejs";
 
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { BLOCK_REF_KEY } from "@repo/editor/markdown/md-rules";

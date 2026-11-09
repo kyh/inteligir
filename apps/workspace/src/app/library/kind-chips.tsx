@@ -1,8 +1,8 @@
 // One kind at a time over the grid, offered only when the scope holds two or more. The counts are
 // the scope's with the chip ignored, so the row never shrinks to the one chip that is pressed.
 
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { isItemKind } from "@repo/notes/items/item-kind";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { isItemKind } from "@repo/contract/items/item-kind";
 import { ToggleChip, ToggleGroup } from "@repo/ui/components/toggle-group";
 
 import { CHIP_ORDER, KIND_CHIP_LABELS } from "./item-labels";

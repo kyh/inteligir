@@ -2,11 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+import type { StoredBlock } from "@repo/contract/library/block-ops";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
 import { generateDoc } from "../test-support/markdown-doc-generator";
 import { CODEC_NOW, pretendLibrary, withoutId } from "../test-support/codec-ports";

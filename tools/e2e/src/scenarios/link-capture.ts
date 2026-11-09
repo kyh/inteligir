@@ -18,7 +18,7 @@ import { solidPng } from "../harness/png-pixels";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
 import { asPhone, itemFieldsOf, readFile, v1Client } from "../harness/v1-wire";
 import type { V1Caller } from "../harness/v1-wire";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
 
 const TITLE = "Keeping notes in plain files";
 const COVER = solidPng(640, 400, [40, 90, 160, 255]);

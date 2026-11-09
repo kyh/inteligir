@@ -135,7 +135,7 @@ look, and how it ships.
 - **A PHONE SAVE IS ONE CREATE WHERE THE LIBRARY'S SCOPE SAVES.** A link is
   saved for the cloud's fill to read, and a save of an address the library
   holds answers that item; a thought is a note named by its first line; a
-  non-web link is refused in `@repo/notes/items/item-kind`'s words
+  non-web link is refused in `@repo/contract/items/item-kind`'s words
   (`apps/mobile/src/items/phone-saves.ts`). A save, a new note and a move to
   Deleted need a connection and say so rather than wait; only a share waits.
   `tools/e2e/src/scenarios/phone-file-ops-hosted.ts`.
@@ -253,7 +253,7 @@ look, and how it ships.
   and submits, iPhone only (owner decision); signing credentials live on EAS,
   never in the repo, and build numbers are EAS's (`appVersionSource: remote` in
   `apps/mobile/eas.json`), so no commit bumps one.
-  `PRODUCTION_CLOUD_ORIGIN` (`@repo/contract/cloud/origin`) is the one fallback
+  `PRODUCTION_CLOUD_ORIGIN` (`@repo/contract/origin`) is the one fallback
   of the phone's `getCloudUrl` and the extension's connection; the phone reads
   `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a malformed one. Rejected:
   per-profile env in `eas.json` (a second spelling of the origin); a fallback to

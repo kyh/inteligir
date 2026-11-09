@@ -3,7 +3,7 @@
 // an app does, and a browser signed in through the site's own sign-in, which comes back to the page.
 // What the tab shows it read from the cell; what the cell holds is read through that client.
 
-import type { V1Client } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { pollUntil } from "./poll";
 import type { OpenLibraryOptions, ScenarioBrowser } from "./agent-browser";
 import { signUp } from "./cloud-account";

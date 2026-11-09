@@ -3,8 +3,8 @@
 // with the files only they held. The job drops a page of entries per alarm run, again at once while
 // more wait, and otherwise once a day.
 
-import { chunkStatement } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { chunkStatement } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { dropHistoryFiles } from "./cell-blobs";

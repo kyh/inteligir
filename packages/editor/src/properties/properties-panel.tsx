@@ -2,8 +2,8 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 
-import { typeNewProperty } from "@repo/notes/markdown/frontmatter";
-import type { PropertyType, TypedProperty } from "@repo/notes/markdown/frontmatter";
+import { typeNewProperty } from "@repo/editor/markdown/frontmatter";
+import type { PropertyType, TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
 

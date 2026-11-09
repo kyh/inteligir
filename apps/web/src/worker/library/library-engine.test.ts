@@ -1,5 +1,5 @@
-import type { LibraryOp } from "@repo/notes/library/block-ops";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryOp } from "@repo/contract/library/block-ops";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { describe, expect, it } from "vitest";
 
 import {

@@ -1,17 +1,17 @@
 // Undo takes change sets back in one write of its own: newest set first, each item run backwards
-// by `@repo/notes/library/revert-change` against the item as the newer sets' undo left it, so an
+// by `@repo/service/library/revert-change` against the item as the newer sets' undo left it, so an
 // item someone changed since stays whole and is named. An item whose way back a rule refuses (its
 // url now another live item's, a file gone, the quota) is named apart and the rest land, and its
 // set stays undoable, since room or the address can come back; when nothing lands the rule's
 // refusal is the answer. A set of which only kept items remain stays undoable too, since the edit
 // since can go, and when no set moved no write of its own is made.
 
-import { compareText } from "@repo/notes/library/block-order";
-import { revertChangeSets } from "@repo/notes/library/revert-change";
-import type { FillChange, ItemChange, ItemNow } from "@repo/notes/library/revert-change";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { chunkStatement } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { compareText } from "@repo/contract/library/block-order";
+import { revertChangeSets } from "@repo/service/library/revert-change";
+import type { FillChange, ItemChange, ItemNow } from "@repo/service/library/revert-change";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { chunkStatement } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { askFill } from "./cell-fills";

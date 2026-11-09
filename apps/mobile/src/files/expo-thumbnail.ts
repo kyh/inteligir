@@ -7,7 +7,7 @@
 
 import { File, Paths } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import { decodable } from "@repo/notes/items/link-fill";
+import { decodable } from "@repo/contract/items/link-fill";
 import { thumbFormatOf } from "./file-cache";
 import type { HeldFile } from "./file-cache";
 

@@ -1,5 +1,5 @@
-import type { V1Transport } from "@repo/contract/cloud/library/call-outcome";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import type { V1Transport } from "@repo/contract/library/call-outcome";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { describe, expect, it } from "vitest";
 import { downloadBlob, phoneTransport } from "./phone-transport";
 

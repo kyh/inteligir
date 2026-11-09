@@ -9,7 +9,7 @@ import { getMcpToolMeta, mcp } from "@orpc/mcp";
 import type { AnyProcedureContract } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
-import { libraryContract } from "@repo/contract/cloud/library/library-contract";
+import { libraryContract } from "@repo/contract/library/library-contract";
 
 const { items, organize, search } = libraryContract;
 

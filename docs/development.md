@@ -110,7 +110,7 @@ reloads it in the browser; load that folder once with Load unpacked on
 `chrome://extensions` (Developer mode on). `pnpm --filter @repo/extension
 build` writes the same flavor, without the dev server, to `.output/chrome-mv3`,
 which the e2e loads. Its committed key gives the unpacked build the id
-`EXTENSION_ID` (`packages/contract/src/cloud/extension/extension-identity.ts`),
+`EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`),
 the one extension origin the cloud's sign-in trusts.
 
 THE DEV BUILD SAVES TO `pnpm dev:web`'S WORKER, AS WHOEVER IS SIGNED IN THERE:

@@ -6,11 +6,11 @@
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/cloud/v1/errors";
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { clientBuildHeaders } from "@repo/contract/client-build";
+import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { V1_RPC_PATH } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/v1";
 
 import type { Session } from "./sign-in";
 

@@ -4,8 +4,8 @@
 
 import { Image, Pressable, Text, View } from "react-native";
 import type { z } from "zod";
-import type { listedItemSchema } from "@repo/contract/cloud/library/library-wire";
-import { shownTitle } from "@repo/notes/items/item-name";
+import type { listedItemSchema } from "@repo/contract/library/library-wire";
+import { shownTitle } from "@repo/contract/items/item-name";
 import { useFileUri } from "@/lib/library-hooks";
 import { cardCaption } from "./card-caption";
 

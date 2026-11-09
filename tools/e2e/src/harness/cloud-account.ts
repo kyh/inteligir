@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
-import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
-import type { ClientBuild } from "@repo/contract/cloud/client-build";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import type { SignUpRequest } from "@repo/contract/account/account-schema";
+import type { ClientBuild } from "@repo/contract/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { z } from "zod";
 import { expect } from "./assert";
 import { E2E_INVITE_CODE } from "./cloud-worker";

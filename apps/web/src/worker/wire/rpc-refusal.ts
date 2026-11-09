@@ -8,7 +8,7 @@ import {
   TooManyRequestsError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
-} from "@repo/contract/cloud/v1/errors";
+} from "@repo/contract/v1/errors";
 import { ORPCError, reconcileORPCError, RPCSerializer } from "@orpc/server";
 
 const TRANSPORT_ERRORS = {

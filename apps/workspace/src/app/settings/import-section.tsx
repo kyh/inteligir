@@ -4,8 +4,8 @@
 // page it is on, keeping what it added. It waits for a connection, and reaches `/v1` under the
 // page's session cookie.
 
-import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
-import { keptFileType } from "@repo/notes/items/item-kind";
+import type { importJobSchema } from "@repo/contract/library/library-wire";
+import { keptFileType } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import type { z } from "zod";
 
 import { useCloud, useWire } from "../cloud/library-context";
 import { FileRefusedError, uploadFile } from "../cloud/library-files";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { formatCount } from "../library/item-labels";
 import { Row, SectionHeading } from "./settings-chrome";

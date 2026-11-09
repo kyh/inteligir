@@ -5,7 +5,7 @@ import type {
 } from "@orpc/contract";
 import { expectTypeOf, test } from "vitest";
 
-import type { libraryContract } from "@repo/contract/cloud/library/library-contract";
+import type { libraryContract } from "@repo/contract/library/library-contract";
 
 import type { libraryTools } from "./library-tools";
 

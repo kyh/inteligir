@@ -7,13 +7,13 @@
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
-import { listedScope } from "@repo/domain/library-scope";
-import type { LibraryScope } from "@repo/domain/library-scope";
+import { listedScope } from "@repo/contract/library-scope";
+import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { isWebUrl } from "@repo/notes/items/item-url";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { isWebUrl } from "@repo/contract/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
@@ -33,7 +33,7 @@ import {
   useSocket,
   useWire,
 } from "./cloud/library-context";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
 import { leaveItem } from "./item/leave-item";

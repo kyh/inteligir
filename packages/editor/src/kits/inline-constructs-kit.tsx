@@ -4,7 +4,7 @@ import type { SlateEditor, TElement } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";

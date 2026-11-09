@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 
 import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 

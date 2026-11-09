@@ -7,10 +7,10 @@
 
 import type { TElement } from "platejs";
 
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { orderedBlocks } from "@repo/notes/library/block-ops";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
-import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
+import type { StoredBlock } from "@repo/contract/library/block-ops";
+import { orderedBlocks } from "@repo/contract/library/block-ops";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
 
 import { headlessEditor, serializeNoteSpans } from "@repo/editor/markdown/markdown-doc";
 

@@ -1,5 +1,5 @@
 import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { fakeClock } from "@repo/contract/test-support/fake-clock";
 import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
 import type { QueryKey } from "@tanstack/react-query";
