@@ -113,7 +113,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   superlinear upstream, and not patched.
 
 - **THE EDITOR'S SAVE AND ITS COMMITS EACH CARRY A PATCH.**
-  `patches/@platejs__core@53.3.15.patch`: Plate resolves a throwaway plugin to
+  `patches/@platejs__core@53.5.2.patch`: Plate resolves a throwaway plugin to
   answer the type of a key no plugin registers, and the markdown serializer
   asks that of every mark rule on every text node, four fifths of a long note's
   save; `packages/editor/src/typing-budget.test.tsx` fails on a save that

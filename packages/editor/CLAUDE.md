@@ -425,14 +425,19 @@ alone, and no walk narrows structurally.
   THE CONNECTION WENT IS WRITTEN WHEN IT IS BACK.** The host says it is offline
   (`offline` on the item editor), and the surface goes read-only under Plate's
   `readOnly` and says "Needs a connection" above the text, the words every
-  screen says of what only the cloud answers. Read-only keeps out typing, a
-  paste and a drop in slate itself, and what edits around it reads the same
-  flag: the find bar offers no replace, the touch toolbar draws nothing and no
-  formula recomputes. An edit the drop caught stays unsaved and said, and goes
-  the moment the host is back rather than a pause later. Rejected: queueing an
-  edit offline (the cloud is the truth, and a queue that outlives the tab is a
-  second writer); a read-only flag of the editor's own (every node and toolbar
-  already reads Plate's). `packages/editor/src/item/item-editor.tsx`.
+  screen says of what only the cloud answers. Slate keeps typing out of a
+  read-only editor but hands its paste, drop and keys on to Plate's plugins, so
+  every plugin whose DOM handler could write is `editOnly`, Plate's own keydown
+  among them (its Tab indents), and each left live is named with why it writes
+  nothing (`packages/editor/src/read-only-handlers.test.ts`). What edits around
+  the editor reads the same flag: the find bar offers no replace, the touch
+  toolbar draws nothing and no formula recomputes. An edit the drop caught
+  stays unsaved and said, and goes the moment the host is back rather than a
+  pause later. Rejected: queueing an edit offline (the cloud is the truth, and
+  a queue that outlives the tab is a second writer); a read-only flag of the
+  editor's own (every node and toolbar already reads Plate's); a read-only
+  check inside each handler (a new plugin would miss it, where `editOnly` is
+  Plate's own gate). `packages/editor/src/item/item-editor.tsx`.
 
 ## The open item's merge
 

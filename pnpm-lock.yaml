@@ -391,7 +391,7 @@ overrides:
   expo: ~57.0.27
 
 patchedDependencies:
-  '@platejs/core@53.3.15': 45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8
+  '@platejs/core@53.5.2': 45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8
   micromark@4.0.3: 4fd25dcd78bd0afef468f79c13ebee4a0ce255cbce124348891a444d0c8fd022
   react-dom@19.2.8: 4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877
 
@@ -971,46 +971,46 @@ importers:
         version: 3.2.2(react@19.2.8)
       '@platejs/basic-nodes':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/code-block':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/combobox':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/date':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/floating':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/indent':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/link':
         specifier: ^53.3.5
-        version: 53.3.5(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.3.5(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/list':
         specifier: ^53.3.13
-        version: 53.3.13(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.3.13(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/markdown':
-        specifier: ^53.3.15
-        version: 53.3.15(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)
+        specifier: ^53.5.3
+        version: 53.5.3(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)
       '@platejs/media':
         specifier: ^53.1.4
-        version: 53.1.4(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.1.4(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/selection':
         specifier: ^53.1.6
-        version: 53.1.6(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.1.6(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/slash-command':
         specifier: ^53.0.0
-        version: 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/table':
         specifier: ^53.0.9
-        version: 53.0.9(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.9(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@platejs/toggle':
         specifier: ^53.0.0
-        version: 53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+        version: 53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@repo/contract':
         specifier: workspace:*
         version: link:../contract
@@ -1051,8 +1051,8 @@ importers:
         specifier: ^1.5.2
         version: 1.5.2
       platejs:
-        specifier: ^53.3.15
-        version: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+        specifier: ^53.5.2
+        version: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -1450,7 +1450,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1))
       yaml:
         specifier: 'catalog:'
         version: 2.9.1
@@ -4259,8 +4259,8 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  '@platejs/core@53.3.15':
-    resolution: {integrity: sha512-Id9sZUz0h03ljBBS7WAUoRWWxmlK1hhPc9S9UKvbIH1yYnzO1gHwAKCOUoeSyNJNgLgtWtEKXpqQM+J/xWZaRA==}
+  '@platejs/core@53.5.2':
+    resolution: {integrity: sha512-6RSx0IHP9vvL1NWy7kXM68AgOCH7CqLcYAJbfaaf2/NNSc9FWNlj1J1ep3OOdQ5ySMTOzQzmlUqIPgdlvzivkw==}
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -4300,10 +4300,10 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  '@platejs/markdown@53.3.15':
-    resolution: {integrity: sha512-OkkJS4w+DfFLs23EVuaPgXo5pg0GnozsAXPZL5Xk2PktFWEfm1iY/+kpOdn7plSGeimWGhEGgNDlO47j6SSyfw==}
+  '@platejs/markdown@53.5.3':
+    resolution: {integrity: sha512-K5e+2sUDjyQx+CG3POAzgLVvnlF/V8rvGLMf9YdDxzKtN4TPwnQhKOVBJan83xVPw9c3WPi9HRE5AHkdNbTmhw==}
     peerDependencies:
-      platejs: '>=53.3.15'
+      platejs: '>=53.3.18'
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
@@ -4335,8 +4335,8 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  '@platejs/slate@53.3.15':
-    resolution: {integrity: sha512-gYgenSruH87z3zG+Llt//U65kRrLwEtw90hCn+5gfimhaZDi6YxJQ4vOui6Da6XVcgzY4WjwGP9DEmgmIrWjVA==}
+  '@platejs/slate@53.3.18':
+    resolution: {integrity: sha512-VbU+ptjWTVMCTJUWFmFoTUn2sNMF+HyAYmoRauZaoM7u9K5nHb4Dofi8Sov2wssgzBW3WmjosEUvW0iVf3MzSQ==}
 
   '@platejs/table@53.0.9':
     resolution: {integrity: sha512-fie96c0AE8bShfog+SA767rbf/1i5YYAxZFndETCNkXxT+nzc0GKaVyEOkSaVBtwq9OBqHfD/t4ITpadbrTa0Q==}
@@ -4352,8 +4352,8 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  '@platejs/utils@53.3.15':
-    resolution: {integrity: sha512-mYWOeUrvc8m0N6B6Cca1iYQW8KmLerE2vl+S7t6ciYu8+4iR8/+5SWV1ySMqsas4HFjrXapgZKIbrXIth0RYzg==}
+  '@platejs/utils@53.5.2':
+    resolution: {integrity: sha512-wUWPcii6RST1SaH0ild+BnzRQziaPXFt/J8apPy3RSH4bTLjVQ09sxRxCeK2cY7nW9pH7fRoGwarCYNuEzQxLQ==}
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -9567,8 +9567,8 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
-  platejs@53.3.15:
-    resolution: {integrity: sha512-i+K+wiI2ytBZ4ZJ2QiSamNkc0sAMQ2kRr11XJijGapeA00OUKNp+RtWh5yc+LNm7k+1eWF0O1QNwEP0x/mOXuA==}
+  platejs@53.5.2:
+    resolution: {integrity: sha512-gzTELah0D5kZN2ahVo/4ohLX8xw6AoJWwFwmSgeKAeH/6UMnQ/lAyFQHbqMnTuKYTCXPvsj2CLWoPATudVqZNA==}
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -10204,33 +10204,33 @@ packages:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
     engines: {node: '>=8'}
 
-  slate-dom@0.126.0:
-    resolution: {integrity: sha512-FdRlaKh0xksnymiRiv8/8c6dYhybwTg1QJIjmvEyeOUKHfdJI55YA4gGKv4vQj4ZKklau2aHY6uX/npJu5jYMA==}
+  slate-dom@0.146.0:
+    resolution: {integrity: sha512-ZIrdJ9YKRSMIgSdtQYsU8lpdsK3JLKdyzRT81vMjkZVHoDo4Pn8cSwLaEQ2uy4bOiRmCs7pOci3aiN16GNi71w==}
     peerDependencies:
       slate: '>=0.121.0'
 
-  slate-hyperscript@0.127.0:
-    resolution: {integrity: sha512-siQu4q4irgKKIpPcFz4xuzLTxzfdQ00MfPAg+NFOEBwUcz2ybvlRgozd+J3CqonZgpzPR2VID3LsQyqJ0GgQpQ==}
+  slate-hyperscript@0.138.3:
+    resolution: {integrity: sha512-rsKTeNQ+eu99nxo7a3eBOW0mhG0v3yYCMDwyURNXl+wmS0xv+SIci0un1j2DTcjWJ184ubCEF7d3ySIJB40KFw==}
     peerDependencies:
       slate: '>=0.114.3'
 
-  slate-react@0.127.1:
-    resolution: {integrity: sha512-ZiLJEEfKeAuRCOK7M7NAEA/lwhoCecikDWMQj6zbOJCKmZtIv4+7wdwmB2w3gZfrjVNmZWKbaP4zHORILVvc5g==}
+  slate-react@0.145.1:
+    resolution: {integrity: sha512-4NlIssiDQcTgVww0NVNiJuQU9KDa/tyF1FahQ7f3f/AqWzI92du+rGWNcOrKX6QBBZJjMNW1s8wJbN6mTQ7mGw==}
     peerDependencies:
       '@types/lodash': ^4.14.0
       '@types/react': 19.2.17
       react: '>=18.2.0'
       react-dom: '>=18.2.0'
       slate: '>=0.121.0'
-      slate-dom: '>=0.119.1'
+      slate-dom: '>=0.141.0'
     peerDependenciesMeta:
       '@types/lodash':
         optional: true
       '@types/react':
         optional: true
 
-  slate@0.126.2:
-    resolution: {integrity: sha512-38C8GU9awiEbroZm+DzXEFUWKptb1QV9xcgcUjseas4PtqQdBnEPITocosYzFHXEVrlkafjZEv8KH8pjhe0esQ==}
+  slate@0.146.0:
+    resolution: {integrity: sha512-MWu3mbJdnY71IdXoh4xSm9WG64Ytn+WFR7MeMCpfEe4XdGNiN4bpOyqq4p6mAKTCWrA/PbwJ0YhSmlKmcErkew==}
 
   slice-ansi@4.0.0:
     resolution: {integrity: sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ==}
@@ -15254,30 +15254,30 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@platejs/basic-nodes@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/basic-nodes@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/code-block@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/code-block@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/combobox@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/combobox@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/core@53.3.15(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))':
+  '@platejs/core@53.5.2(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))':
     dependencies:
-      '@platejs/slate': 53.3.15
+      '@platejs/slate': 53.3.18
       '@udecode/react-hotkeys': 52.0.11(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@udecode/react-utils': 52.3.4(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@udecode/utils': 52.3.4
@@ -15292,10 +15292,10 @@ snapshots:
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
-      slate: 0.126.2
-      slate-dom: 0.126.0(slate@0.126.2)
-      slate-hyperscript: 0.127.0(slate@0.126.2)
-      slate-react: 0.127.1(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(slate-dom@0.126.0(slate@0.126.2))(slate@0.126.2)
+      slate: 0.146.0
+      slate-dom: 0.146.0(slate@0.146.0)
+      slate-hyperscript: 0.138.3(slate@0.146.0)
+      slate-react: 0.145.1(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(slate-dom@0.146.0(slate@0.146.0))(slate@0.146.0)
       use-deep-compare: 1.3.0(react@19.2.8)
       zustand: 5.0.16(@types/react@19.2.17)(immer@10.2.0)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8))
       zustand-x: 6.2.1(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(zustand@5.0.16(@types/react@19.2.17)(immer@10.2.0)(react@19.2.8)(use-sync-external-store@1.7.0(react@19.2.8)))
@@ -15307,55 +15307,63 @@ snapshots:
       - scheduler
       - use-sync-external-store
 
-  '@platejs/date@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/date@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/floating@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/floating@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@floating-ui/core': 1.8.0
       '@floating-ui/react': 0.26.28(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/indent@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/indent@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/link@53.3.5(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/link@53.3.5(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@platejs/floating': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      '@platejs/floating': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/list@53.3.13(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/list@53.3.13(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@platejs/indent': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      '@platejs/indent': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       clsx: 2.1.1
       lodash: 4.18.1
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/markdown@53.3.15(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)':
+  '@platejs/markdown@53.5.3(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
-      '@platejs/date': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      '@platejs/date': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      acorn: 8.19.0
+      acorn-jsx: 5.3.2(acorn@8.19.0)
       lodash: 4.18.1
       marked: 15.0.12
       mdast-util-math: 3.0.0(supports-color@10.2.2)
       mdast-util-mdx: 3.0.0(supports-color@10.2.2)
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      micromark: 4.0.3(patch_hash=4fd25dcd78bd0afef468f79c13ebee4a0ce255cbce124348891a444d0c8fd022)(supports-color@10.2.2)
+      micromark-core-commonmark: 2.0.4
+      micromark-extension-mdxjs: 3.0.0
+      micromark-util-character: 2.1.1
+      micromark-util-events-to-acorn: 2.0.3
+      micromark-util-types: 2.0.3
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
@@ -15369,60 +15377,60 @@ snapshots:
       - supports-color
       - typescript
 
-  '@platejs/media@53.1.4(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/media@53.1.4(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/resizable@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/resizable@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/selection@53.1.6(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/selection@53.1.6(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
       copy-to-clipboard: 3.3.3
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/slash-command@53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/slash-command@53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@platejs/combobox': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      '@platejs/combobox': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/slate@53.3.15':
+  '@platejs/slate@53.3.18':
     dependencies:
       '@udecode/utils': 52.3.4
       is-plain-object: 5.1.0
       lodash: 4.18.1
       scroll-into-view-if-needed: 3.1.0
-      slate: 0.126.2
-      slate-dom: 0.126.0(slate@0.126.2)
+      slate: 0.146.0
+      slate-dom: 0.146.0(slate@0.146.0)
 
-  '@platejs/table@53.0.9(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/table@53.0.9(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@platejs/resizable': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      '@platejs/resizable': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       lodash: 4.18.1
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
 
-  '@platejs/toggle@53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
+  '@platejs/toggle@53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@platejs/indent': 53.0.0(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      '@platejs/indent': 53.0.0(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       jotai: 2.20.3(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(react@19.2.8)
       lodash: 4.18.1
-      platejs: 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      platejs: 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       react: 19.2.8
       react-compiler-runtime: 1.0.0(react@19.2.8)
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
@@ -15431,10 +15439,10 @@ snapshots:
       - '@babel/template'
       - '@types/react'
 
-  '@platejs/utils@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))':
+  '@platejs/utils@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))':
     dependencies:
-      '@platejs/core': 53.3.15(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
-      '@platejs/slate': 53.3.15
+      '@platejs/core': 53.5.2(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      '@platejs/slate': 53.3.18
       '@udecode/react-utils': 52.3.4(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@udecode/utils': 52.3.4
       clsx: 2.1.1
@@ -16088,6 +16096,21 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  '@react-native/community-cli-plugin@0.86.3(supports-color@10.2.2)':
+    dependencies:
+      '@react-native/dev-middleware': 0.86.3(supports-color@10.2.2)
+      debug: 4.4.3(supports-color@10.2.2)
+      invariant: 2.2.4
+      metro: 0.84.6(supports-color@10.2.2)
+      metro-config: 0.84.6(supports-color@10.2.2)
+      metro-core: 0.84.6
+      semver: 7.8.5
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+    optional: true
 
   '@react-native/debugger-frontend@0.86.3': {}
 
@@ -16746,7 +16769,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.3)
     optionalDependencies:
-      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -16915,7 +16938,7 @@ snapshots:
       zod: 4.6.7
     optionalDependencies:
       '@tanstack/react-router': 1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.3))(react@19.2.3)
-      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -16936,7 +16959,7 @@ snapshots:
       '@tanstack/router-generator': 1.167.46(supports-color@10.2.2)
       '@tanstack/router-utils': 1.162.4(supports-color@10.2.2)
       chokidar: 5.0.0
-      unplugin: 3.4.0(esbuild@0.28.1)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))
+      unplugin: 3.4.0(esbuild@0.28.1)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       zod: 4.6.7
     optionalDependencies:
       '@tanstack/react-router': 1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
@@ -16961,6 +16984,31 @@ snapshots:
       '@tanstack/router-utils': 1.162.4(supports-color@10.2.2)
       chokidar: 5.0.0
       unplugin: 3.4.0(esbuild@0.28.2)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      zod: 4.6.7
+    optionalDependencies:
+      '@tanstack/react-router': 1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - '@farmfe/core'
+      - '@rspack/core'
+      - bun-types-no-globals
+      - esbuild
+      - rolldown
+      - rollup
+      - supports-color
+      - unloader
+    optional: true
+
+  '@tanstack/router-plugin@1.168.48(@tanstack/react-router@1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8))(esbuild@0.28.2)(supports-color@10.2.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
+    dependencies:
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@babel/template': 7.29.7
+      '@babel/types': 7.29.8
+      '@tanstack/router-core': 1.171.39
+      '@tanstack/router-generator': 1.167.46(supports-color@10.2.2)
+      '@tanstack/router-utils': 1.162.4(supports-color@10.2.2)
+      chokidar: 5.0.0
+      unplugin: 3.4.0(esbuild@0.28.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       zod: 4.6.7
     optionalDependencies:
       '@tanstack/react-router': 1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
@@ -17036,7 +17084,7 @@ snapshots:
       xmlbuilder2: 4.0.3
       zod: 4.6.7
     optionalDependencies:
-      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -17071,7 +17119,7 @@ snapshots:
       srvx: 1.0.8
       tinyglobby: 0.2.17
       ufo: 1.6.4
-      vitefu: 1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))
+      vitefu: 1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       xmlbuilder2: 4.0.3
       zod: 4.6.7
     optionalDependencies:
@@ -17136,7 +17184,7 @@ snapshots:
       '@jridgewell/remapping': 2.3.5
       '@tanstack/router-core': 1.171.39
       '@tanstack/router-generator': 1.167.46(supports-color@10.2.2)
-      '@tanstack/router-plugin': 1.168.48(@tanstack/react-router@1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8))(esbuild@0.28.2)(rolldown@1.2.15)(supports-color@10.2.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@tanstack/router-plugin': 1.168.48(@tanstack/react-router@1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8))(esbuild@0.28.2)(supports-color@10.2.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/router-utils': 1.162.4(supports-color@10.2.2)
       '@tanstack/start-server-core': 1.169.45
       exsolve: 1.1.3
@@ -17606,13 +17654,29 @@ snapshots:
       chai: 6.3.0
       tinyrainbow: 3.2.0
 
-  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+
+  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1))':
+    dependencies:
+      '@vitest/spy': 4.1.12
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1)
+
+  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))':
+    dependencies:
+      '@vitest/spy': 4.1.12
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
 
   '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
@@ -23254,11 +23318,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)):
+  platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)):
     dependencies:
-      '@platejs/core': 53.3.15(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
-      '@platejs/slate': 53.3.15
-      '@platejs/utils': 53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      '@platejs/core': 53.5.2(patch_hash=45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8)(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
+      '@platejs/slate': 53.3.18
+      '@platejs/utils': 53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8))
       '@udecode/react-hotkeys': 52.0.11(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@udecode/react-utils': 52.3.4(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@udecode/utils': 52.3.4
@@ -23708,7 +23772,7 @@ snapshots:
     dependencies:
       '@react-native/assets-registry': 0.86.3
       '@react-native/codegen': 0.86.3(@babel/core@7.29.7(supports-color@10.2.2))
-      '@react-native/community-cli-plugin': 0.86.3(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(supports-color@10.2.2)
+      '@react-native/community-cli-plugin': 0.86.3(supports-color@10.2.2)
       '@react-native/gradle-plugin': 0.86.3
       '@react-native/js-polyfills': 0.86.3
       '@react-native/normalize-colors': 0.86.3
@@ -23754,7 +23818,7 @@ snapshots:
     dependencies:
       '@react-native/assets-registry': 0.86.3
       '@react-native/codegen': 0.86.3(@babel/core@7.29.7(supports-color@10.2.2))
-      '@react-native/community-cli-plugin': 0.86.3(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(supports-color@10.2.2)
+      '@react-native/community-cli-plugin': 0.86.3(supports-color@10.2.2)
       '@react-native/gradle-plugin': 0.86.3
       '@react-native/js-polyfills': 0.86.3
       '@react-native/normalize-colors': 0.86.3
@@ -24374,7 +24438,7 @@ snapshots:
 
   slash@3.0.0: {}
 
-  slate-dom@0.126.0(slate@0.126.2):
+  slate-dom@0.146.0(slate@0.146.0):
     dependencies:
       '@juggle/resize-observer': 3.4.0
       direction: 1.0.4
@@ -24382,14 +24446,14 @@ snapshots:
       is-plain-object: 5.1.0
       lodash: 4.18.1
       scroll-into-view-if-needed: 3.1.0
-      slate: 0.126.2
+      slate: 0.146.0
       tiny-invariant: 1.3.1
 
-  slate-hyperscript@0.127.0(slate@0.126.2):
+  slate-hyperscript@0.138.3(slate@0.146.0):
     dependencies:
-      slate: 0.126.2
+      slate: 0.146.0
 
-  slate-react@0.127.1(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(slate-dom@0.126.0(slate@0.126.2))(slate@0.126.2):
+  slate-react@0.145.1(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)(slate-dom@0.146.0(slate@0.146.0))(slate@0.146.0):
     dependencies:
       '@juggle/resize-observer': 3.4.0
       direction: 1.0.4
@@ -24398,13 +24462,13 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
       scroll-into-view-if-needed: 3.1.0
-      slate: 0.126.2
-      slate-dom: 0.126.0(slate@0.126.2)
+      slate: 0.146.0
+      slate-dom: 0.146.0(slate@0.146.0)
       tiny-invariant: 1.3.1
     optionalDependencies:
       '@types/react': 19.2.17
 
-  slate@0.126.2: {}
+  slate@0.146.0: {}
 
   slice-ansi@4.0.0:
     dependencies:
@@ -24993,7 +25057,7 @@ snapshots:
       pathe: 2.0.3
       picomatch: 4.0.7
 
-  unplugin@3.4.0(esbuild@0.28.1)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)):
+  unplugin@3.4.0(esbuild@0.28.1)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
       picomatch: 4.0.7
@@ -25002,6 +25066,17 @@ snapshots:
       esbuild: 0.28.1
       rolldown: 1.2.15
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+
+  unplugin@3.4.0(esbuild@0.28.1)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)):
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      picomatch: 4.0.7
+      webpack-virtual-modules: 0.6.2
+    optionalDependencies:
+      esbuild: 0.28.1
+      rolldown: 1.2.15
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
+    optional: true
 
   unplugin@3.4.0(esbuild@0.28.2)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
@@ -25012,6 +25087,16 @@ snapshots:
       esbuild: 0.28.2
       rolldown: 1.2.15
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+
+  unplugin@3.4.0(esbuild@0.28.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      picomatch: 4.0.7
+      webpack-virtual-modules: 0.6.2
+    optionalDependencies:
+      esbuild: 0.28.2
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+    optional: true
 
   untildify@4.0.0: {}
 
@@ -25139,6 +25224,19 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
+  vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.32
+      rolldown: 1.2.15
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.19.2
+      esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 2.7.0
+
   vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
@@ -25153,6 +25251,20 @@ snapshots:
       jiti: 2.7.0
       terser: 5.51.2
       tsx: 4.23.15
+      yaml: 2.9.1
+
+  vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.32
+      rolldown: 1.2.15
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.19.2
+      esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 2.7.0
       yaml: 2.9.1
 
   vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
@@ -25187,14 +25299,48 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.1
 
-  vitefu@1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)):
+  vitefu@1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     optionalDependencies:
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+
+  vitefu@1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)):
+    optionalDependencies:
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
+    optional: true
 
   vitefu@1.1.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     optionalDependencies:
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
     optional: true
+
+  vitest@4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1)):
+    dependencies:
+      '@vitest/expect': 4.1.12
+      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1))
+      '@vitest/pretty-format': 4.1.12
+      '@vitest/runner': 4.1.12
+      '@vitest/snapshot': 4.1.12
+      '@vitest/spy': 4.1.12
+      '@vitest/utils': 4.1.12
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 0.30.21
+      obug: 2.2.1
+      pathe: 2.0.3
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 2.9.0
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      tinyrainbow: 3.2.0
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.10.0
+      '@types/node': 24.19.2
+      jsdom: 30.1.2(@noble/hashes@2.4.0)
+    transitivePeerDependencies:
+      - msw
 
   vitest@4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)):
     dependencies:
@@ -25216,7 +25362,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.2.0
-      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.10.0
@@ -25228,7 +25374,7 @@ snapshots:
   vitest@4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@vitest/expect': 4.1.12
-      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0))
+      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/pretty-format': 4.1.12
       '@vitest/runner': 4.1.12
       '@vitest/snapshot': 4.1.12

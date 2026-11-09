@@ -42,7 +42,7 @@ const CLOSING_BLOCK = "The end.";
 // Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded: a
 // keystroke costs 25ms in the long note against 10ms in the short one, 2.6x for eight times the
 // lines, and 0.013 of a 1,860ms parse of the note; the settle costs 470ms, a quarter of that parse,
-// and without patches/@platejs__core@53.3.15.patch three times it. A pass quadratic in the note is
+// and without patches/@platejs__core@53.5.2.patch three times it. A pass quadratic in the note is
 // 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
 // navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse. A
 // memory-starved CI runner's garbage collection pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
@@ -440,7 +440,7 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
 });
 
 describe("the codec's serializer", () => {
-  // patches/@platejs__core@53.3.15.patch: the serializer asks the type of every mark rule on every
+  // patches/@platejs__core@53.5.2.patch: the serializer asks the type of every mark rule on every
   // text node, most of them marks no plugin registers, and unpatched each such answer resolves one
   it("resolves no plugin for a mark the editor does not register", () => {
     const parsed = parseMarkdown(generateLongNote(SEED, 200));
@@ -457,7 +457,7 @@ describe("the codec's serializer", () => {
     ];
     expect(
       unregistered,
-      `serializing resolved a plugin for ${unregistered.join(", ")}, keys no plugin registers; each is two deep merges per text node (patches/@platejs__core@53.3.15.patch)`,
+      `serializing resolved a plugin for ${unregistered.join(", ")}, keys no plugin registers; each is two deep merges per text node (patches/@platejs__core@53.5.2.patch)`,
     ).toStrictEqual([]);
   });
 });
