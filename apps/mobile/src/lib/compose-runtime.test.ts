@@ -100,7 +100,7 @@ const sharesKept = (storage: MemoryKv): string[] =>
 // a note the account holds, written by another device
 const noteOnTheMac = async (cell: FakeCell): Promise<void> => {
   await cell.device("mac").client.library.items.create({
-    blocks: [{ block: paragraph("p1", "first"), ord: "a0", section: "note" }],
+    blocks: [{ block: paragraph("p1", "first"), section: "note" }],
     folderId: null,
     id: NOTE,
     opId: "0190a000-0000-7000-8000-0000000000b1",

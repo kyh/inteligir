@@ -14,6 +14,7 @@ import type { SlateEditor } from "platejs";
 import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
 import type { ItemState, LibraryOp } from "@repo/contract/library/block-ops";
 import { blockHash } from "@repo/contract/library/block-hash";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { importItem } from "../codec/item-markdown";
@@ -133,11 +134,12 @@ const itemOfMarkdown = (markdown: string): ItemState => {
   if (!read.ok) {
     throw new Error("the item reads in");
   }
+  const ords = ordsBetween(null, null, read.item.blocks.length);
   return {
     blocks: new Map(
-      read.item.blocks.map(({ block, ord, section }) => [
+      read.item.blocks.map(({ block, section }, index) => [
         block.id,
-        { block, hash: blockHash(block), ord, section },
+        { block, hash: blockHash(block), ord: ords[index] ?? "a0", section },
       ]),
     ),
     fields: noteFields({ title: read.item.fields.title }),

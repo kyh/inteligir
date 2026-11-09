@@ -12,7 +12,6 @@ import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { ordsBetween } from "@repo/contract/library/order-key";
 import type { FileCache, HeldFile } from "../files/file-cache";
 import { linkInText } from "./link-in-text";
 
@@ -216,15 +215,13 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
           ids,
         );
       }
-      const blocks = paragraphsOf(trimmed, args.newBlockId);
-      const ords = ordsBetween(null, null, blocks.length);
       return await answered(
         async () =>
           await library.items.create({
-            blocks: blocks.flatMap((block, index) => {
-              const ord = ords[index];
-              return ord === undefined ? [] : [{ block, ord, section: "note" as const }];
-            }),
+            blocks: paragraphsOf(trimmed, args.newBlockId).map((block) => ({
+              block,
+              section: "note" as const,
+            })),
             folderId: target.folderId,
             id: ids.id,
             opId: ids.opId,

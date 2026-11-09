@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 
-import type { StoredBlock } from "@repo/contract/library/block-ops";
-import { blockHash } from "@repo/contract/library/block-hash";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type {
   LibraryBlock,
   LibraryNode,
@@ -46,11 +45,7 @@ const columns = (id: string, inner: LibraryNode[]): LibraryBlock => ({
   type: "column_group",
 });
 
-const stored = (
-  block: LibraryBlock,
-  ord: string,
-  section: LibrarySection,
-): [string, StoredBlock] => [block.id, { block, hash: blockHash(block), ord, section }];
+const stored = (block: LibraryBlock, section: LibrarySection): BodyBlock => ({ block, section });
 
 const VIEW_PORTS = { title: () => null };
 
@@ -78,12 +73,11 @@ const sectionsOf = (md: string) => {
   return { article: words(read.sections.article), note: words(read.sections.note) };
 };
 
-const withPage = (page: LibraryBlock): Map<string, StoredBlock> =>
-  new Map([
-    stored(paragraph("n1", "my note"), "a0", "note"),
-    stored(page, "a1", "article"),
-    stored(paragraph("a2", "after it"), "a2", "article"),
-  ]);
+const withPage = (page: LibraryBlock): BodyBlock[] => [
+  stored(paragraph("n1", "my note"), "note"),
+  stored(page, "article"),
+  stored(paragraph("a2", "after it"), "article"),
+];
 
 describe("the article's fence", () => {
   it.each([
@@ -106,7 +100,7 @@ describe("the article's fence", () => {
   });
 
   it("holds a page with no note before it", () => {
-    const view = itemView(new Map([stored(toggle("a1"), "a1", "article")]), VIEW_PORTS);
+    const view = itemView([stored(toggle("a1"), "article")], VIEW_PORTS);
     expect(view.markdown.startsWith("::::article\n")).toBe(true);
     expect(sectionsOf(view.markdown)).toStrictEqual({
       article: ["toggle:Summaryhidden"],
@@ -133,7 +127,7 @@ describe("the article's fence", () => {
     );
     expect(outcome).toMatchObject({
       kind: "changed",
-      ops: [{ block: { id: "a1", type: "toggle" }, op: "put" }],
+      changes: [{ block: { id: "a1", type: "toggle" }, kind: "put" }],
     });
     expect(JSON.stringify(outcome)).toContain("hidden, edited");
   });
@@ -142,8 +136,8 @@ describe("the article's fence", () => {
 describe("a list run", () => {
   it.each([1, 2])("holds a block nested under it at indent %i as one group", (indent) => {
     const view = itemView(
-      new Map([
-        stored(bullet("a1", "one"), "a1", "note"),
+      [
+        stored(bullet("a1", "one"), "note"),
         stored(
           {
             children: [{ children: [{ text: "x" }], type: "code_line" }],
@@ -151,11 +145,10 @@ describe("a list run", () => {
             indent,
             type: "code_block",
           },
-          "a2",
           "note",
         ),
-        stored(bullet("a3", "two"), "a3", "note"),
-      ]),
+        stored(bullet("a3", "two"), "note"),
+      ],
       VIEW_PORTS,
     );
     expect(new Set(view.blocks.map((block) => block.group)).size).toBe(1);

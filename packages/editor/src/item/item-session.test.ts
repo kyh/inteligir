@@ -8,6 +8,7 @@ import { createSlateEditor, ElementApi, NodeApi } from "platejs";
 import type { Path, SlateEditor } from "platejs";
 import { describe, expect, it, vi } from "vitest";
 
+import { orderedBlocks } from "@repo/contract/library/block-ops";
 import type { LibraryOp } from "@repo/contract/library/block-ops";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type {
@@ -480,7 +481,7 @@ describe("an item open in the editor", () => {
     session.edited();
     await pause(library, session);
     expect(blockIn(memory, "l1")?.children).toContainEqual(link);
-    const view = itemView(memory.item(ITEM)?.blocks ?? new Map(), {
+    const view = itemView(orderedBlocks(memory.item(ITEM)?.blocks ?? new Map()), {
       title: (itemId) => memory.item(itemId)?.fields.title ?? null,
     });
     expect(view.markdown).toBe(`Look: see [Renamed](mention:${TARGET})\n`);

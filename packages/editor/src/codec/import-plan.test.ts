@@ -115,7 +115,7 @@ interface LibraryItem {
   readonly itemId: string;
   readonly folderPath: string;
   readonly fields: ImportedFields;
-  readonly blocks: readonly { block: LibraryBlock; ord: string; section: "note" | "article" }[];
+  readonly blocks: readonly { block: LibraryBlock; section: "note" | "article" }[];
 }
 
 interface Folder {

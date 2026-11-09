@@ -319,12 +319,11 @@ describe("the article as blocks", () => {
       counter(),
     );
     const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
-    expect(read.article.blocks.every((placed) => placed.section === "article")).toBe(true);
-    expect(read.article.blocks.map((placed) => placed.block.id)).toStrictEqual(
+    expect(read.article.blocks.map((block) => block.id)).toStrictEqual(
       read.article.blocks.map((_, index) => `page${String(index + 1)}`),
     );
     // the blocks hold the article's words: each text the markdown read as, found in the blocks
-    const stored = JSON.stringify(read.article.blocks.map((placed) => placed.block));
+    const stored = JSON.stringify(read.article.blocks);
     const words = nodesOf(article).flatMap((node) =>
       (node.text ?? "").split(/\W+/u).filter((word) => word !== ""),
     );

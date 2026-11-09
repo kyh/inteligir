@@ -2,11 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { applyOps } from "@repo/contract/library/block-ops";
-import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
-import { blockHash } from "@repo/contract/library/block-hash";
-import { compareBlockPlaces } from "@repo/contract/library/block-order";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
@@ -16,6 +12,7 @@ import type { EditPorts } from "./item-edit";
 import { importItem } from "./item-markdown";
 import { libraryLinks } from "./library-links";
 import { itemView, viewPage } from "./item-view";
+import type { BodyChange } from "../live/body-change";
 
 const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
 
@@ -35,7 +32,7 @@ const portsWith = (): EditPorts => {
 };
 
 // an import whose links reach the items `titles` holds, by title, and nothing else
-const storedOf = (text: string): Map<string, StoredBlock> => {
+const storedOf = (text: string): BodyBlock[] => {
   const read = importItem(
     { name: "Item", text },
     { ...pretendLibrary().importPorts(), ...libraryLinks(portsWith()) },
@@ -43,55 +40,56 @@ const storedOf = (text: string): Map<string, StoredBlock> => {
   if (!read.ok) {
     throw new Error(read.reason);
   }
-  return new Map(
-    read.item.blocks.map((placed): [string, StoredBlock] => [
-      placed.block.id,
-      { ...placed, hash: blockHash(placed.block) },
-    ]),
+  return [...read.item.blocks];
+};
+
+const placeAfter = (blocks: BodyBlock[], afterId: string | null, body: BodyBlock): void => {
+  blocks.splice(
+    afterId === null ? 0 : blocks.findIndex(({ block }) => block.id === afterId) + 1,
+    0,
+    body,
   );
 };
 
-const FIELDS: LibraryItemFields = {
-  aliases: [],
-  author: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt: 0,
-  site: null,
-  tags: [],
-  title: "Item",
-  url: null,
-};
-
-// the item's blocks after the ops, as an applied write leaves them
-const landed = (
-  blocks: Map<string, StoredBlock>,
-  ops: Parameters<typeof applyOps>[1],
-): Map<string, StoredBlock> => {
-  const state: ItemState = { blocks, fields: FIELDS };
-  const outcome = applyOps(state, ops);
-  if (outcome.kind !== "applied") {
-    throw new Error(`the ops did not land: ${outcome.kind}`);
+// the item's blocks after the changes, as its note lands them on a body nobody else touched
+const landed = (blocks: readonly BodyBlock[], changes: readonly BodyChange[]): BodyBlock[] => {
+  const after = [...blocks];
+  const at = (id: string): number => after.findIndex(({ block }) => block.id === id);
+  for (const change of changes) {
+    switch (change.kind) {
+      case "put": {
+        const index = at(change.blockId);
+        const held = after[index];
+        if (held !== undefined) {
+          after[index] = { ...held, block: change.block };
+        }
+        break;
+      }
+      case "drop": {
+        after.splice(at(change.blockId), 1);
+        break;
+      }
+      case "insertAfter": {
+        placeAfter(after, change.afterId, { block: change.block, section: change.section });
+        break;
+      }
+      case "move": {
+        const [held] = after.splice(at(change.blockId), 1);
+        if (held !== undefined) {
+          placeAfter(after, change.afterId, held);
+        }
+        break;
+      }
+      // no default
+    }
   }
-  return new Map(outcome.state.blocks);
+  return after;
 };
 
-const textOf = (blocks: Map<string, StoredBlock>): string => itemView(blocks, portsWith()).markdown;
+const textOf = (blocks: readonly BodyBlock[]): string => itemView(blocks, portsWith()).markdown;
 
 // each block's text, in reading order
-const textBlocks = (blocks: Map<string, StoredBlock>): string[] =>
+const textBlocks = (blocks: readonly BodyBlock[]): string[] =>
   itemView(blocks, portsWith()).blocks.map(({ block }) =>
     block.children.map((child) => ("text" in child ? child.text : "")).join(""),
   );
@@ -112,21 +110,17 @@ const NOTE = [
 ].join("\n");
 
 // the blocks after one edit of the view, which has to land
-const editedTo = (
-  blocks: Map<string, StoredBlock>,
-  oldText: string,
-  newText: string,
-): Map<string, StoredBlock> => {
+const editedTo = (blocks: readonly BodyBlock[], oldText: string, newText: string): BodyBlock[] => {
   const edited = editItemView(blocks, [{ newText, oldText }], portsWith());
   if (edited.kind !== "changed") {
     throw new Error(`the edit did not land: ${JSON.stringify(edited)}`);
   }
-  return landed(blocks, edited.ops);
+  return landed(blocks, edited.changes);
 };
 
 // a table's row, read back: how many cells it holds, and what each one reads as
-const cellsOf = (blocks: Map<string, StoredBlock>) => {
-  const table = [...blocks.values()].find(({ block }) => block.type === "table");
+const cellsOf = (blocks: readonly BodyBlock[]) => {
+  const table = blocks.find(({ block }) => block.type === "table");
   if (table === undefined || !("children" in table.block)) {
     throw new Error("no table landed");
   }
@@ -168,7 +162,7 @@ describe("the agent's view of an item", () => {
         [{ newText: view.markdown, oldText: view.markdown }],
         portsWith(),
       );
-      expect(whole.kind === "changed" ? whole.ops : whole, file).toStrictEqual([]);
+      expect(whole.kind === "changed" ? whole.changes : whole, file).toStrictEqual([]);
     }
   });
 
@@ -218,18 +212,16 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       return;
     }
-    const last = [...blocks.values()].find((stored) =>
-      JSON.stringify(stored.block).includes("Last line"),
-    );
-    expect(outcome.ops).toStrictEqual([
-      expect.objectContaining({ baseHash: last?.hash, op: "put" }),
+    const last = blocks.find((stored) => JSON.stringify(stored.block).includes("Last line"));
+    expect(outcome.changes).toStrictEqual([
+      expect.objectContaining({ base: last?.block, kind: "put" }),
     ]);
-    const after = landed(blocks, outcome.ops);
-    expect([...after.keys()]).toStrictEqual([...blocks.keys()]);
+    const after = landed(blocks, outcome.changes);
+    expect(after.map(({ block }) => block.id)).toStrictEqual(blocks.map(({ block }) => block.id));
     expect(textOf(after)).toContain("Last line, edited.");
   });
 
-  it("inserts a new block between its neighbours, ordered between their keys", () => {
+  it("inserts a new block after the one it follows", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(
       blocks,
@@ -239,61 +231,21 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["insert"]);
-    const after = landed(blocks, outcome.ops);
-    const order = [...after.values()]
-      .toSorted((a, b) =>
-        compareBlockPlaces(
-          { blockId: a.block.id, ord: a.ord, section: a.section },
-          { blockId: b.block.id, ord: b.ord, section: b.section },
-        ),
-      )
-      .map((stored) => JSON.stringify(stored.block.children).slice(0, 30));
+    expect(outcome.changes).toStrictEqual([
+      expect.objectContaining({ afterId: blocks[1]?.block.id, kind: "insertAfter" }),
+    ]);
+    const after = landed(blocks, outcome.changes);
+    const order = after.map((stored) => JSON.stringify(stored.block.children).slice(0, 30));
     expect(order[2]).toContain("A new paragraph.");
     expect(textOf(after)).toContain("and stays.\n\nA new paragraph.\n\nSecond");
-  });
-
-  it("lands a new block between two blocks that hold one key, moving one of them", () => {
-    const blocks = storedOf("Before.\n\nAlpha.\n\nBeta.\n\nAfter.\n");
-    const [, alpha, beta] = [...blocks.values()];
-    if (alpha === undefined || beta === undefined) {
-      throw new Error("the item holds fewer blocks than it was written with");
-    }
-    // two devices that added after one block mint one key
-    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
-    const outcome = editItemView(
-      blocks,
-      [{ newText: "Alpha.\n\nBetween.", oldText: "Alpha." }],
-      portsWith(),
-    );
-    if (outcome.kind !== "changed") {
-      throw new Error(`the edit was refused: ${JSON.stringify(outcome)}`);
-    }
-    expect(outcome.ops.filter((op) => op.op === "move")).toHaveLength(1);
-    expect(textOf(landed(blocks, outcome.ops))).toBe(
-      "Before.\n\nAlpha.\n\nBetween.\n\nBeta.\n\nAfter.\n",
-    );
-  });
-
-  it("moves no block an edit that adds none had no need of", () => {
-    const blocks = storedOf("Alpha.\n\nBeta.\n\nAfter.\n");
-    const [alpha, beta] = [...blocks.values()];
-    if (alpha === undefined || beta === undefined) {
-      throw new Error("the item holds fewer blocks than it was written with");
-    }
-    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
-    const outcome = editItemView(blocks, [{ newText: "Later.", oldText: "After." }], portsWith());
-    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toStrictEqual([
-      "put",
-    ]);
   });
 
   it("drops a block it deleted", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(blocks, [{ newText: "", oldText: "\n\nLast line." }], portsWith());
-    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toStrictEqual([
-      "drop",
-    ]);
+    expect(
+      outcome.kind === "changed" ? outcome.changes.map((change) => change.kind) : outcome,
+    ).toStrictEqual(["drop"]);
   });
 
   it("reads a list again whole, and puts only the item it changed", () => {
@@ -302,8 +254,8 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops).toHaveLength(1);
-    expect(JSON.stringify(outcome.ops[0])).toContain("TWO");
+    expect(outcome.changes).toHaveLength(1);
+    expect(JSON.stringify(outcome.changes[0])).toContain("TWO");
   });
 
   it("refuses new text that nests deeper than the editor reads, losing no block", () => {
@@ -341,7 +293,8 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    const links = JSON.stringify(outcome.ops).match(new RegExp(OTHER_ID, "gu")) ?? [];
+    const written = outcome.changes.map((change) => ("block" in change ? change.block : null));
+    const links = JSON.stringify(written).match(new RegExp(OTHER_ID, "gu")) ?? [];
     expect(links).toHaveLength(2);
   });
 
@@ -361,7 +314,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(textBlocks(landed(blocks, outcome.ops))).toStrictEqual([
+    expect(textBlocks(landed(blocks, outcome.changes))).toStrictEqual([
       "The area is r ^2 and x==1==y and 50%% or 60%%",
       "Ending on r ^2",
       "^kept",
@@ -378,7 +331,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(JSON.stringify(outcome.ops)).toContain("==x== literal");
+    expect(JSON.stringify(outcome.changes)).toContain("==x== literal");
   });
 
   it("lands a web image an edit writes in a list as the embed it is", () => {
@@ -391,7 +344,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(JSON.stringify(outcome.ops)).toContain('"url":"https://a.b/c.png"');
+    expect(JSON.stringify(outcome.changes)).toContain('"url":"https://a.b/c.png"');
   });
 
   it("keeps the spellings an edit writes the text they are, the last edit's alone", () => {
@@ -410,8 +363,8 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops).toHaveLength(1);
-    expect(JSON.stringify(outcome.ops[0])).toContain(
+    expect(outcome.changes).toHaveLength(1);
+    expect(JSON.stringify(outcome.changes[0])).toContain(
       '"text":" and ==stays== twice %%hidden%% here. ^named"',
     );
   });
@@ -426,7 +379,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(textBlocks(landed(blocks, outcome.ops)).at(-1)).toBe("The ==page== %%says%% so. ^x");
+    expect(textBlocks(landed(blocks, outcome.changes)).at(-1)).toBe("The ==page== %%says%% so. ^x");
   });
 
   it("refuses an old text it cannot place once", () => {
@@ -453,8 +406,8 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["put"]);
-    expect(textOf(landed(blocks, outcome.ops))).toBe(
+    expect(outcome.changes.map((change) => change.kind)).toStrictEqual(["put"]);
+    expect(textOf(landed(blocks, outcome.changes))).toBe(
       textOf(blocks).replace("Last line.", "Last line, edited."),
     );
   });
@@ -483,8 +436,12 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops).toStrictEqual([expect.objectContaining({ op: "insert", section: "note" })]);
-    expect(textOf(landed(blocks, outcome.ops))).toBe("My summary.\n\n:::article\n\nPage.\n\n:::\n");
+    expect(outcome.changes).toStrictEqual([
+      expect.objectContaining({ kind: "insertAfter", section: "note" }),
+    ]);
+    expect(textOf(landed(blocks, outcome.changes))).toBe(
+      "My summary.\n\n:::article\n\nPage.\n\n:::\n",
+    );
   });
 
   it("reads an edit across the article's line in each section it reaches", () => {
@@ -502,8 +459,8 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["put", "put"]);
-    expect(textOf(landed(blocks, outcome.ops))).toBe(
+    expect(outcome.changes.map((change) => change.kind)).toStrictEqual(["put", "put"]);
+    expect(textOf(landed(blocks, outcome.changes))).toBe(
       "Note, edited.\n\n:::article\n\nPage, edited.\n\n:::\n",
     );
   });
@@ -539,7 +496,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(textOf(landed(blocks, outcome.ops))).toContain("Final words.");
+    expect(textOf(landed(blocks, outcome.changes))).toContain("Final words.");
   });
 });
 
@@ -610,9 +567,7 @@ describe("a link or an equation in a table cell", () => {
       id: "t",
       type: "table",
     };
-    const blocks = new Map<string, StoredBlock>([
-      ["t", { block: table, hash: blockHash(table), ord: "a0", section: "note" }],
-    ]);
+    const blocks: BodyBlock[] = [{ block: table, section: "note" }];
     const row = cellsOf(editedTo(blocks, "word", "changed"));
     expect(row.match(/"type":"t[dh]"/gu)).toHaveLength(2);
     expect(row).toContain('"code":true');

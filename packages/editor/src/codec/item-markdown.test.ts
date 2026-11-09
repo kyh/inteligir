@@ -2,9 +2,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import type { StoredBlock } from "@repo/contract/library/block-ops";
-import { blockHash } from "@repo/contract/library/block-hash";
-import { ordsBetween } from "@repo/contract/library/order-key";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
@@ -38,12 +35,7 @@ const imported = (text: string, name = "Fixture"): ImportedItem => {
 const exported = (item: ImportedItem): { text: string } =>
   exportItem(
     {
-      blocks: new Map(
-        item.blocks.map((placed): [string, StoredBlock] => [
-          placed.block.id,
-          { ...placed, hash: blockHash(placed.block) },
-        ]),
-      ),
+      blocks: item.blocks,
       fields: { ...item.fields, deletedAt: null, folderId: null },
       id: "0195f3a0-5c1e-7000-8000-000000000001",
     },
@@ -69,14 +61,11 @@ const FRONTMATTER_RE = /^---\n(?<yaml>[\s\S]*?)\n---\n(?:\n|$)/u;
 const bodyOf = (text: string): string => text.replace(FRONTMATTER_RE, "");
 
 // an item as the editor stores it, each block what a person typed, whatever its text spells
-const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => {
-  const ords = ordsBetween(null, null, blocks.length);
-  return {
-    blocks: blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section })),
-    fields: { ...imported("").fields, title: "Typed" },
-    leftOut: 0,
-  };
-};
+const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => ({
+  blocks: blocks.map((block) => ({ block, section })),
+  fields: { ...imported("").fields, title: "Typed" },
+  leftOut: 0,
+});
 
 const typedLine = (text: string, id = "typed"): LibraryBlock => ({
   children: [{ text }],

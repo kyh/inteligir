@@ -7,8 +7,7 @@
 
 import type { TElement } from "platejs";
 
-import type { StoredBlock } from "@repo/contract/library/block-ops";
-import { orderedBlocks } from "@repo/contract/library/block-ops";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
 
@@ -25,8 +24,6 @@ export interface ViewPorts {
 // one block's place in the view: its own, or the list it is an item of
 export interface ViewBlock {
   readonly block: LibraryBlock;
-  readonly hash: string;
-  readonly ord: string;
   readonly section: LibrarySection;
   // the run of blocks it is written with, numbered from the view's first
   readonly group: number;
@@ -102,7 +99,7 @@ interface WrittenSection {
   readonly groups: number;
 }
 
-const writeSection = (blocks: readonly StoredBlock[], ports: WritePorts): WrittenSection => {
+const writeSection = (blocks: readonly BodyBlock[], ports: WritePorts): WrittenSection => {
   const elements: TElement[] = [];
   const owners: number[] = [];
   for (const [index, stored] of blocks.entries()) {
@@ -135,7 +132,7 @@ const writeSection = (blocks: readonly StoredBlock[], ports: WritePorts): Writte
 
 // a section's blocks at their places in the whole view
 const placed = (
-  stored: readonly StoredBlock[],
+  stored: readonly BodyBlock[],
   section: WrittenSection,
   offset: number,
   firstGroup: number,
@@ -155,12 +152,11 @@ const viewPorts = (ports: ViewPorts): WritePorts => ({
   target: ports.title,
 });
 
-// the item's markdown and where each of its blocks sits in it
-export const itemView = (blocks: ReadonlyMap<string, StoredBlock>, ports: ViewPorts): ItemView => {
-  const ordered = orderedBlocks(blocks);
+// the item's markdown and where each of its blocks, in reading order, sits in it
+export const itemView = (blocks: readonly BodyBlock[], ports: ViewPorts): ItemView => {
   const write = viewPorts(ports);
-  const notes = ordered.filter((stored) => stored.section === "note");
-  const pages = ordered.filter((stored) => stored.section === "article");
+  const notes = blocks.filter((body) => body.section === "note");
+  const pages = blocks.filter((body) => body.section === "article");
   const note = writeSection(notes, write);
   const page = writeSection(pages, write);
   if (pages.length === 0) {
