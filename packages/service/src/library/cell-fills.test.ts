@@ -3,7 +3,7 @@
 // the reading's ask kept as a job row, sent once the write commits and sent again until the queue
 // took it.
 
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -107,7 +107,7 @@ describe("a page's reading, landed", () => {
       const [stored] = [...(stateOf(state, id)?.blocks.values() ?? [])];
       const engine = openCellLibrary(state, env);
       const edited = engine.write(
-        { deviceId: "phone", kind: "person", label: "You on phone" },
+        { kind: "person", label: "You on phone", sessionId: "phone" },
         {
           itemId: id,
           ops: [
@@ -379,7 +379,7 @@ const undoSave = async (library: ReturnType<typeof libraryIn>, itemId: string) =
   await library.history.undo({ changeSetIds: [await madeSetOf(library, itemId)] });
 
 describe("Undo of a saved link, once its page is read", () => {
-  const PHONE = { deviceId: "phone", kind: "person", label: "You on phone" } as const;
+  const PHONE = { kind: "person", label: "You on phone", sessionId: "phone" } as const;
   const HOUR = 3_600_000;
 
   it("takes a link the reading named to Deleted, a fill being no person", async () => {

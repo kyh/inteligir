@@ -151,7 +151,7 @@ export const cellActorOf = (principal: NamedPrincipal): CellActor => {
   const { actor } = principal;
   switch (actor.kind) {
     case "session": {
-      return { deviceId: actor.sessionId, kind: "person", label: SESSION_LABELS[actor.door] };
+      return { kind: "person", label: SESSION_LABELS[actor.door], sessionId: actor.sessionId };
     }
     // every call under one grant joins one set, sealed after its quiet (`./cell-actor`)
     case "assistant": {

@@ -38,7 +38,7 @@ export interface OpenSet {
 interface ActorKeys {
   readonly actorId: string | null;
   readonly clientId: string | null;
-  readonly deviceId: string | null;
+  readonly sessionId: string | null;
   readonly threadId: string | null;
   readonly turn: number | null;
 }
@@ -46,7 +46,7 @@ interface ActorKeys {
 const NO_KEYS: ActorKeys = {
   actorId: null,
   clientId: null,
-  deviceId: null,
+  sessionId: null,
   threadId: null,
   turn: null,
 };
@@ -54,7 +54,7 @@ const NO_KEYS: ActorKeys = {
 const keysOf = (actor: CellActor): ActorKeys => {
   switch (actor.kind) {
     case "person": {
-      return { ...NO_KEYS, deviceId: actor.deviceId };
+      return { ...NO_KEYS, sessionId: actor.sessionId };
     }
     case "assistant": {
       return { ...NO_KEYS, actorId: actor.grantId, clientId: actor.clientId };
@@ -97,7 +97,7 @@ const findOpen = (sql: SqlStatements, actor: ChangeSetActor, keys: ActorKeys) =>
      WHERE actor = ? AND sealed_at IS NULL AND actor_id IS ? AND client_id IS ? AND device_id IS ?
        AND thread_id IS ? AND turn IS ?
      ORDER BY opened_at DESC LIMIT 1`,
-    [actor, keys.actorId, keys.clientId, keys.deviceId, keys.threadId, keys.turn],
+    [actor, keys.actorId, keys.clientId, keys.sessionId, keys.threadId, keys.turn],
   );
   return row === undefined ? null : openRowSchema.parse(row);
 };
@@ -117,7 +117,7 @@ const insertSet = (
       set.actor,
       keys.actorId,
       set.label,
-      keys.deviceId,
+      keys.sessionId,
       keys.threadId,
       keys.turn,
       keys.clientId,

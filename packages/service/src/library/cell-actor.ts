@@ -1,4 +1,4 @@
-// Who a write is by, and so which change set it joins: the person on one device, a connected
+// Who a write is by, and so which change set it joins: the person in one session, a connected
 // assistant under one grant, the built-in agent in one turn, one import, or the cloud reading one
 // page. `label` is the set's words for them, which the caller supplies, since the cell knows no
 // device name or assistant; an undo is a set of its own, by whoever asked.
@@ -6,7 +6,7 @@
 import type { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 
 export type CellActor =
-  | { readonly kind: "person"; readonly deviceId: string; readonly label: string }
+  | { readonly kind: "person"; readonly sessionId: string; readonly label: string }
   | {
       readonly kind: "assistant";
       readonly grantId: string;

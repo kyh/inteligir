@@ -207,7 +207,7 @@ export const changeSets = sqliteTable(
     actor: text({ enum: CHANGE_SET_ACTORS }).notNull(),
     actorId: text("actor_id"),
     label: text().notNull(),
-    deviceId: text("device_id"),
+    sessionId: text("device_id"),
     threadId: text("thread_id"),
     turn: integer(),
     clientId: text("client_id"),
