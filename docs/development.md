@@ -4,9 +4,10 @@ How to run, verify, and change inteligir — the ONE home for the commands, the
 ports, where state lives and the gate; `README.md` and `AGENTS.md` link here
 rather than restating them. `AGENTS.md` is the coding agents' root: the
 premises, the quickstart and the index of the decisions, each workspace's
-`CLAUDE.md` its own; `apps/web/README.md` has the Worker's own routes and
-deploy, and `docs/releasing.md` the release: every step and check that is the
-owner's.
+`CLAUDE.md` its own; `apps/web/README.md` has the Worker's routes, doors and
+deploy, `packages/service/README.md` the cloud's code and its suites,
+`packages/db/README.md` the schemas, and `docs/releasing.md` the release:
+every step and check that is the owner's.
 
 ## Prerequisites
 
@@ -33,9 +34,9 @@ pnpm dev                # The Mac app's window on the local Worker's library pag
 pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one)
-pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the library's
-                        #   page at /library rebuilt on change, and the scripted Messages API on
-                        #   :5177 its built-in agent talks to
+pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the site and
+                        #   the library's page at /library off vite's dev server, and the scripted
+                        #   Messages API on :5177 its built-in agent talks to
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
@@ -48,8 +49,21 @@ pnpm typecheck          # Type check all
 pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
 pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify             # The static gate (CI adds the e2e suite on top)
-pnpm e2e                # The scenario suite (one mode — the SPA is a static build)
+pnpm e2e                # The scenario suite, over the built Worker
 ```
+
+The databases' commands are `@repo/db`'s (`packages/db/README.md`), run
+against the local Worker's files:
+
+```bash
+pnpm --filter @repo/db push                     # the D1 schema into pnpm dev:web's local D1
+pnpm --filter @repo/db studio                   # browse it (mint an invite here)
+pnpm --filter @repo/db generate:cell --name <x> # the next cell migration, from src/cell/schema.ts
+pnpm --filter @repo/db run --silent export      # the D1 schema's DDL, as the suites apply it
+```
+
+Never `push:remote` or `studio:remote`: both reach the PRODUCTION D1
+(`AGENTS.md` § There is no seeded login).
 
 ## Running
 
@@ -96,7 +110,7 @@ The built-in agent's system prompt, `packages/service/src/agent/agent-prompt.ts`
 is written, never edited by hand: `pnpm --filter @repo/service agent-prompt`
 (`packages/service/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`, and
 `tools/repo-guards` fails a tree whose module differs from what it would write
-(`apps/web/README.md` § The built-in agent).
+(`packages/service/README.md` § The built-in agent).
 
 ## Browser extension
 
@@ -138,7 +152,7 @@ which is how the e2e points the dev build at the Worker it boots
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
-| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                                                       |
+| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables migrated from `packages/db/src/cell/migrations` as it wakes                                       |
 | Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates
@@ -167,10 +181,9 @@ them.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 (pinned by hand) and runs the scenario suite, in two lanes, half its four
-cores. ONE run, because there
-is one build —
-the workspace is a plain SPA served as files, so the suite drives the same
-bytes and the same policy a user gets. So a green `verify` is not a green CI;
+cores. ONE run, because there is one build: the library's page is a route of
+the built Worker, so the suite drives the same bytes and the same document
+policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
 app ships: `pnpm test` again, since the shell's macOS code compiles and runs
 only there, and `pnpm smoke:desktop` on an ad-hoc pack
@@ -184,7 +197,12 @@ carries the reason `verify` cannot run it as a comment beside it in
 Every workspace answers `pnpm --filter <name> test`; each suite's own file
 header says what it pins, and `tools/repo-guards` holds the invariants that
 span workspaces (the dep DAG, turbo's cache keys, dangling references, the
-per-export orphan guard over `@repo/ui`).
+per-export orphan guard over `@repo/ui`). The cloud's suites are
+`@repo/service`'s, inside workerd on its own never-deployed Worker, with the
+model's pure suites under node (`packages/service/README.md` § Testing);
+`@repo/web`'s are the site's under node and the library's under jsdom. A
+suite that reads generated types (the Worker's, the service's and the
+extension's) needs its workspace's `generate` first, which `turbo run` does.
 
 End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
 own with its state in a scratch dir, and drives it the way a person or an
