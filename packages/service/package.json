@@ -28,6 +28,7 @@
     "@better-auth/expo": "catalog:",
     "@cloudflare/workers-oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@noble/hashes": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/mcp": "catalog:",
     "@orpc/openapi": "catalog:",
@@ -40,6 +41,7 @@
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "stemmer": "^2.0.1",
+    "yjs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

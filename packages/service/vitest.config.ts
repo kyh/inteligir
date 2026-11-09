@@ -16,6 +16,7 @@ const TEST_SCHEMA = execFileSync("pnpm", ["--filter", "@repo/db", "run", "--sile
 const MODEL_SUITES = [
   "src/{imports,items,knowledge,text}/**/*.test.ts",
   "src/library/revert-change.test.ts",
+  "src/note/turn-log.test.ts",
   "src/test-support/revert-edit.test.ts",
 ];
 

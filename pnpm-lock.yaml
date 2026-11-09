@@ -1225,6 +1225,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
         version: 2.4.0
+      '@noble/hashes':
+        specifier: 'catalog:'
+        version: 2.4.0
       '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
@@ -1261,6 +1264,9 @@ importers:
       stemmer:
         specifier: ^2.0.1
         version: 2.0.1
+      yjs:
+        specifier: 'catalog:'
+        version: 13.6.33
       zod:
         specifier: 'catalog:'
         version: 4.6.7

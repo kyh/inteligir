@@ -154,8 +154,9 @@ catalog:
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   yaml: ^2.9.1
-  # exact, and one copy: a note's live document is this encoding on every device and in its object,
-  # and a second copy breaks yjs's own constructor checks; 14 is a beta @slate-yjs/core predates
+  # exact, on 13, and one copy: a note's live document, its stored state and its turn log are this
+  # encoding on every device and in its object, a second copy breaks yjs's own constructor checks,
+  # and @slate-yjs/core 1.0.2 binds against 13's types; 14 is a beta it predates
   yjs: 13.6.33
   zod: ^4.6.7
   zustand: ^5.0.16

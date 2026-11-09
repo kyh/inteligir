@@ -71,12 +71,20 @@
       // src/test-support/test-worker.ts; the type claims are vitest's `typecheck.include`, which
       // knip's vitest plugin does not read; scripts/ is `pnpm agent-prompt`'s, run by node
       "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
-      "project": ["src/**/*.ts!", "scripts/*.ts", "!src/**/test-support/**!"],
+      // src/note/turn-log.ts is a note's object's to call, and until one does only its suite imports
+      // the file and the two packages only the file imports, so the production run leaves out all
+      // three by the `!` rows here and in `ignoreDependencies`
+      "project": [
+        "src/**/*.ts!",
+        "scripts/*.ts",
+        "!src/**/test-support/**!",
+        "!src/note/turn-log.ts!"
+      ],
       // a stub the program maps by `paths` (tsconfig.json), which knip does not follow
       "ignore": ["src/types/highlight-js.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts
       // reads @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow
-      "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
+      "ignoreDependencies": ["@repo/agent-skills", "cloudflare", "@noble/hashes!", "yjs!"]
     },
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"]
