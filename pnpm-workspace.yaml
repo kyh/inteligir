@@ -236,3 +236,8 @@ patchedDependencies:
   # contenteditable walks every node of the open note; the editor keeps its own selection, so the
   # patch reads none there, dropped once a release stops walking it
   react-dom@19.2.8: patches/react-dom@19.2.8.patch
+  # on a selectionchange with the caret outside Slate's text, slate-react puts the page's selection
+  # back on the editor's, though an input inside a void holds the focus, so a picker's query or a
+  # rich block's field stops taking typing a moment after it opens; the patch restores only while
+  # the editor itself is focused, dropped once a release does
+  slate-react@0.145.1: patches/slate-react@0.145.1.patch

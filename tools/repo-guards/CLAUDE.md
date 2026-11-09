@@ -205,3 +205,14 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `x === null || x.y === null` as `x?.y === null`); `vi.mock(import(…))` for a
   partial stub (it types the factory against the whole module).
   `oxlint.config.ts`.
+
+- **AN INPUT INSIDE A VOID KEEPS ITS CARET, SO slate-react CARRIES A PATCH.**
+  `patches/slate-react@0.145.1.patch`: on a selectionchange whose caret sits
+  outside Slate's text, slate-react puts the page's selection back on the
+  editor's even while an input inside a void holds the focus, so a picker's
+  query stops taking keys a moment after the picker opens; the patch restores
+  only while the editor element itself is focused, and is dropped once a
+  release does. `tools/e2e/src/scenarios/slash-menu-browser.ts` types its
+  query after that moment and fails without it. Rejected: holding the caret
+  from the input's side (the restore runs on slate's own document listener,
+  after every selection change, and would be fought on each one).

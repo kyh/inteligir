@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { caretToEndOf, parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
@@ -14,6 +15,10 @@ ${PARAGRAPH}
 `;
 
 const HEADING = "Slash heading";
+
+// slate-react answers a selectionchange on a 100ms throttle, and a person reads the menu before
+// typing, so the query is typed after that answer has run
+const READS_THE_MENU_MS = 500;
 const RACED_HEADING = "Raced heading";
 
 const rowsNow = `JSON.stringify([...document.querySelectorAll('${OPTION}')].map((n) => n.textContent))`;
@@ -55,7 +60,8 @@ export const slashMenuBrowser: Scenario = {
       { deadlineMs: 15_000, describe: () => "the slash menu never opened" },
     );
 
-    ctx.log("narrowing to one row by its query");
+    ctx.log("narrowing to one row by its query, typed once the menu has been read");
+    await delay(READS_THE_MENU_MS);
     await agentBrowser(["press", "h"]);
     await agentBrowser(["press", "2"]);
     // narrowing re-renders the portal'd rows; one settle tick is not a bound under full-suite
