@@ -12,7 +12,7 @@ import { z } from "zod";
 import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "../library-scope";
 import { ITEM_KINDS } from "../items/item-kind";
 import { blockHashSchema } from "./block-ops";
-import { ordSchema } from "./block-order";
+import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
 import { libraryItemFieldsSchema, propertyKeySchema, SHA256_HEX_RE } from "./library-item";
 import {

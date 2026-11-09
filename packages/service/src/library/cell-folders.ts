@@ -10,7 +10,7 @@ import type { z } from "zod";
 import { folders } from "@repo/db/cell/schema";
 import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/library/library-wire";
 import type { folderOpSchema } from "@repo/contract/library/library-wire";
-import { compareText, ordBetween } from "@repo/contract/library/block-order";
+import { compareText, ordBetween } from "@repo/contract/library/order-key";
 import { titleKey } from "@repo/contract/library/derive-item";
 
 import { excluded } from "./cell-db";

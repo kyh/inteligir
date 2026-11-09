@@ -34,7 +34,7 @@ import { urlKey } from "../items/item-url";
 import { blockHash } from "../library/block-hash";
 import { applyOps, orderedBlocks } from "../library/block-ops";
 import type { LibraryOp, StoredBlock } from "../library/block-ops";
-import { compareText, ordsBetween } from "../library/block-order";
+import { compareText, ordsBetween } from "../library/order-key";
 import { deriveItem, titleKey } from "../library/derive-item";
 import type { ItemCard } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";

@@ -4,7 +4,7 @@ import { bearer } from "better-auth/plugins/bearer";
 // relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/device/device-schema";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { createDb } from "@repo/db/d1/client";
 import { authTables } from "@repo/db/d1/schema";

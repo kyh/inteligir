@@ -45,16 +45,20 @@ src/
   v1-contract.ts       # /v1's one oRPC wire: account.* and library.*, and the client type over it
   v1-errors.ts         # every refusal /v1 answers, declared once, and the status map every handler uses
   refusal-text.ts      # what a screen says of a failed call: a declared refusal's own sentence, else its fallback
-  account/             # the account's rows (account-contract.ts), its deletion and the sign-up form (account-schema.ts)
-  device/              # the password's bounds and the account's devices, each a signed-in session
+  account/             # the account's rows (account-contract.ts) and what they carry (account-schema.ts):
+                       #   the password's bounds, its devices, each a signed-in session, its deletion and
+                       #   the sign-up form
   library/             # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
                        #   the agent's events, a file's route, the socket's frames, the socket client
                        #   every app dials (account-socket.ts) and what a failed call means (call-outcome.ts);
                        #   and the model: the persisted node set (library-nodes.ts), an item's capped fields
                        #   (library-item.ts), what each make's fields are (item-makes.ts), the block ops
-                       #   each naming its base (block-ops.ts), order keys, hashes and one spelling of a
-                       #   JSON value, the card, text and links derived from an item (derive-item.ts), the
-                       #   listing over the cell's rows in memory (library-index.ts) and a sortable id
+                       #   each naming its base (block-ops.ts), a field's merge and sameness
+                       #   (field-ops.ts), a block's place (block-order.ts) over the order keys folders
+                       #   share (order-key.ts), a block's hash (block-hash.ts) over the content hash
+                       #   (content-hash.ts), one spelling of a JSON value, the card, text and links
+                       #   derived from an item (derive-item.ts), the listing over the cell's rows in
+                       #   memory (library-index.ts) and a sortable id
   items/               # what an item is on every device: its kinds, a url's ONE key with no platform URL
                        #   (item-url.ts), a page's title as a name, a host's spelling, a read page's facts,
                        #   how much of a page a fill reads and which picture is its cover, a file's type by

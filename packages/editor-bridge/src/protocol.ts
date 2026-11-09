@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import { blockHashSchema, libraryOpSchema } from "@repo/contract/library/block-ops";
-import { ordSchema } from "@repo/contract/library/block-order";
+import { ordSchema } from "@repo/contract/library/order-key";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { librarySectionSchema, storableBlockSchema } from "@repo/contract/library/library-nodes";
 

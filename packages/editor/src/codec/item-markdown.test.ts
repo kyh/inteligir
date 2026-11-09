@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { StoredBlock } from "@repo/contract/library/block-ops";
 import { blockHash } from "@repo/contract/library/block-hash";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 

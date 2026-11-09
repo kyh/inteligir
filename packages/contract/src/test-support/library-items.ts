@@ -4,7 +4,7 @@
 import { blockHash } from "../library/block-hash";
 import { applyOps, orderedBlocks } from "../library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "../library/block-ops";
-import { ordBetween, ordsBetween } from "../library/block-order";
+import { ordBetween, ordsBetween } from "../library/order-key";
 import type { LibraryItemFields } from "../library/library-item";
 import type { LibraryBlock, LibrarySection } from "../library/library-nodes";
 import { pick } from "./seeded-random";

@@ -2,7 +2,7 @@
 // calls it, so every input and output meets the contract's own schemas and every refusal arrives
 // as the error its row declares.
 
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createRouterClient } from "@orpc/server";

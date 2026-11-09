@@ -9,7 +9,7 @@ import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { orderedBlocks } from "@repo/contract/library/block-ops";
 import type { StoredBlock } from "@repo/contract/library/block-ops";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";

@@ -4,7 +4,7 @@ import type { TElement } from "platejs";
 import { blockHash } from "@repo/contract/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
 import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type {
   LibraryBlock,
   LibraryNode,

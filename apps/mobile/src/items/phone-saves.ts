@@ -12,7 +12,7 @@ import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type { FileCache, HeldFile } from "../files/file-cache";
 import { linkInText } from "./link-in-text";
 

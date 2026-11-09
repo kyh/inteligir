@@ -12,7 +12,7 @@ import type {
 import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import { compareText } from "@repo/contract/library/block-order";
+import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";

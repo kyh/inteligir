@@ -57,24 +57,28 @@ the service's (`packages/service/CLAUDE.md`).
 - **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
   VALUE.** `@repo/contract/library/block-ops`: insert, put, drop, move and the
   field patches each name their base; a batch lands whole or answers every
-  conflict, an op already true is satisfied, a list field merges as a set, so
-  two devices tagging at once both land, a tag respelled takes its new spelling
-  where it stands, and a batch whose landed fields break a cap (a merge past
-  the list's length) lands none and answers `invalid`.
+  conflict, an op already true is satisfied, a list field merges as a set
+  (`@repo/contract/library/field-ops`), so two devices tagging at once both
+  land, a tag respelled takes its new spelling where it stands, and a batch
+  whose landed fields break a cap (a merge past the list's length) lands none
+  and answers `invalid`.
   The hash is SHA-256 over canonical JSON (`@noble/hashes`, synchronous for
-  the cell's transaction) cut to 128 bits. Rejected: one version per item
-  (two blocks would conflict) and the platform's crypto (async in a Durable
-  Object, absent from Hermes).
-  `packages/contract/src/library/block-ops.test.ts`.
+  the cell's transaction) cut to 128 bits, `@repo/contract/library/content-hash`
+  over the JSON's text. Rejected: one version per item (two blocks would
+  conflict) and the platform's crypto (async in a Durable Object, absent from
+  Hermes).
+  `packages/contract/src/library/block-ops.test.ts`,
+  `packages/contract/src/library/field-ops.test.ts`.
 
 - **A BLOCK'S PLACE IS A FRACTIONAL KEY, READ NOTE BEFORE ARTICLE.**
-  `@repo/contract/library/block-order` mints keys with `fractional-indexing`;
-  equal keys from two devices order by block id, and `isOrdKey` holds a key to
-  the whole format, since the library checks only its head and its last digit.
-  `placeInOrder` restores every old key when they all still fit, else moves
-  the fewest blocks. Rejected: integer positions (an insert renumbers, and two
-  renumberings conflict) and interleaving the sections (a fill's keys would
-  thread through the person's).
+  `@repo/contract/library/order-key` mints keys with `fractional-indexing`, a
+  folder's sort among its siblings too, and `isOrdKey` holds a key to the
+  whole format, since the library checks only its head and its last digit.
+  `@repo/contract/library/block-order` reads a block's place: equal keys from
+  two devices order by block id, and `placeInOrder` restores every old key
+  when they all still fit, else moves the fewest blocks. Rejected: integer
+  positions (an insert renumbers, and two renumberings conflict) and
+  interleaving the sections (a fill's keys would thread through the person's).
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
   `@repo/contract/library/library-index` holds the cell's listing rows, typed by

@@ -6,7 +6,7 @@
 // refusal is the answer. A set of which only kept items remain stays undoable too, since the edit
 // since can go, and when no set moved no write of its own is made.
 
-import { compareText } from "@repo/contract/library/block-order";
+import { compareText } from "@repo/contract/library/order-key";
 import { revertChangeSets } from "./revert-change";
 import type { FillChange, ItemChange, ItemNow } from "./revert-change";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";

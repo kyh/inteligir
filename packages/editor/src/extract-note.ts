@@ -9,7 +9,7 @@ import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
 import { shownTitle } from "@repo/contract/items/item-name";
-import { ordsBetween } from "@repo/contract/library/block-order";
+import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 

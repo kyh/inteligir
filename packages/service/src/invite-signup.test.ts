@@ -1,5 +1,8 @@
-import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/device/device-schema";
+import {
+  AUTH_API_PATHS,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/account/account-schema";
 import { eq } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
