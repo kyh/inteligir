@@ -15,14 +15,14 @@ import { call, getRouter, ORPCError, Procedure, walkProcedureContractsSync } fro
 import type { AnyProcedure, AnyRouter, Context, ProcedureClientInterceptor } from "@orpc/server";
 import type { AnySchema, ErrorMap } from "@orpc/contract";
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { sha256Hex } from "@repo/contract/cloud/bytes";
-import { PAGE_MAX } from "@repo/contract/cloud/library/library-wire";
+import { sha256Hex } from "@repo/contract/bytes";
+import { PAGE_MAX } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import { isLibraryTool, libraryTools } from "../connector/library-tools";
 import { AGENT_TOOL_POLICIES, isAgentToolName } from "./library-agent";
 import type { AgentToolName } from "./library-agent";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 // what one result may carry: its JSON as the tool_result's text
 /** @internal */

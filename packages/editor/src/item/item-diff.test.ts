@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { TElement } from "platejs";
 
-import { blockHash } from "@repo/notes/library/block-hash";
-import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
-import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
-import { landed, noteFields, paragraph } from "@repo/notes/test-support/library-items";
-import { mulberry32 } from "@repo/notes/test-support/seeded-random";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import type {
+  LibraryBlock,
+  LibraryNode,
+  LibrarySection,
+} from "@repo/contract/library/library-nodes";
+import { landed, noteFields, paragraph } from "@repo/contract/test-support/library-items";
+import { mulberry32 } from "@repo/contract/test-support/seeded-random";
 
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";

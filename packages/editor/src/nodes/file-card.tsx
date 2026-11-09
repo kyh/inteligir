@@ -20,8 +20,8 @@ import { cn } from "@repo/ui/lib/cn";
 import { saveBlob } from "@repo/ui/lib/save-blob";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { fileKindOf } from "@repo/notes/items/item-kind";
-import type { FileKind } from "@repo/notes/items/item-kind";
+import { fileKindOf } from "@repo/contract/items/item-kind";
+import type { FileKind } from "@repo/contract/items/item-kind";
 
 // the glyph a file's kind is drawn with; a name of no known kind gets the plain one
 export const FileKindIcon = ({ name, ...props }: { name: string } & LucideProps) => {

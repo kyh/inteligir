@@ -6,8 +6,8 @@
 // done, so the listener returns true to keep the channel open for it, and a work that failed (a
 // storage fault) is answered too, as a failure, so no page waits on an answer that never comes.
 
-import { extensionConnectRequestSchema } from "@repo/contract/cloud/extension/extension-connect";
-import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
+import { extensionConnectRequestSchema } from "@repo/contract/extension/extension-connect";
+import type { ExtensionConnectAnswer } from "@repo/contract/extension/extension-connect";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 

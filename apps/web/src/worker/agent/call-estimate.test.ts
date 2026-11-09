@@ -3,7 +3,7 @@
 // carries it; and after a call under the same definition, that call's billed prompt and reply and
 // what was added since, a reply's thinking left out, unless the whole request counts fewer.
 
-import { mulberry32 } from "@repo/notes/test-support/seeded-random";
+import { mulberry32 } from "@repo/contract/test-support/seeded-random";
 import { describe, expect, it } from "vitest";
 
 import { textOf } from "../test-support/scripts-text";

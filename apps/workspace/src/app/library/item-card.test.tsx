@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

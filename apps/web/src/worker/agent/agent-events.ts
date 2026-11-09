@@ -1,11 +1,11 @@
 // A conversation's events as the cell keeps them: each one of the contract's own union
-// (`@repo/contract/cloud/library/agent-events`), stored once as a row of the thread, which a read of
+// (`@repo/contract/library/agent-events`), stored once as a row of the thread, which a read of
 // the thread's events answers, and told to the account's sockets once it commits. An event a
 // thread's object pushed is named by that push's sequence and its place in it, the person's
 // message that opened a turn by the turn.
 
-import type { AgentEvent } from "@repo/contract/cloud/library/agent-events";
-import type { threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
+import type { AgentEvent } from "@repo/contract/library/agent-events";
+import type { threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import type { LandingScope } from "../library/cell-landing";

@@ -11,9 +11,9 @@
 // between its download and its landing, so a file of an account this phone left never lands
 // after the wipe.
 
-import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
-import { decodable } from "@repo/notes/items/link-fill";
-import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
+import { decodable } from "@repo/contract/items/link-fill";
+import { pixelSize, sniffMedia } from "@repo/contract/items/sniff-media";
 import { serialLock } from "../lib/serial-lock";
 
 // the one folder the files are kept in, each by its name

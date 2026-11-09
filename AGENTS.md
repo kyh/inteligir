@@ -355,7 +355,7 @@ is in the file named.
   the site's signed session cookie as its bearer and ships on the Web Store's
   cadence, so the build floor holds it as it holds every client
   (`apps/extension/CLAUDE.md`).
-- **A library scope has one spelling**: `@repo/domain/library-scope`, read by
+- **A library scope has one spelling**: `@repo/contract/library-scope`, read by
   the page's pref, the items listing and the view context
   (`apps/workspace/CLAUDE.md`).
 
@@ -371,7 +371,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, and the open item's merge
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
+- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sessions and accounts

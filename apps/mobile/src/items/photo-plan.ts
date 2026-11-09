@@ -2,7 +2,7 @@
 // its size (a phone camera's 12 MP frame is megabytes an item never needs), its type and its
 // file's name.
 
-import { formatIsoDate } from "@repo/notes/iso-date";
+import { formatIsoDate } from "@repo/contract/iso-date";
 
 const PHOTO_MAX_EDGE = 2048;
 

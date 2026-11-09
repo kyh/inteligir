@@ -1,4 +1,4 @@
-import type { V1Client } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { signInPhone, signUp } from "../harness/cloud-account";

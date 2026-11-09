@@ -23,10 +23,10 @@
 import type { APIError } from "@anthropic-ai/sdk";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { AgentEvent, TurnEndReason } from "@repo/contract/cloud/library/agent-events";
-import { TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/cloud/library/agent-events";
-import { sha256Hex } from "@repo/contract/cloud/bytes";
-import type { SqlPort, SqlStatements } from "@repo/notes/library/library-sql";
+import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
+import { TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/library/agent-events";
+import { sha256Hex } from "@repo/contract/bytes";
+import type { SqlPort, SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { asksFirst } from "./agent-tools";

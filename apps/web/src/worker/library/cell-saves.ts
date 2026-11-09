@@ -5,14 +5,14 @@
 // read; one saved to read later lands at once as an unread stub, `pending`, which the cloud reads
 // afterwards. The words saved with it go in the new item's note.
 
-import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { pageFields, stubFields } from "@repo/notes/library/item-makes";
-import { readItemState } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import { itemNameFromUrl } from "@repo/notes/items/item-name";
-import { urlKey } from "@repo/notes/items/item-url";
+import type { ItemState, LibraryOp } from "@repo/contract/library/block-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { pageFields, stubFields } from "@repo/contract/library/item-makes";
+import { readItemState } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import { itemNameFromUrl } from "@repo/contract/items/item-name";
+import { urlKey } from "@repo/contract/items/item-url";
 
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";

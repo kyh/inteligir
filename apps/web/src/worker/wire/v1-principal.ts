@@ -12,7 +12,7 @@
 //   keeps: a page cannot send that header without a preflight, which no route of the Worker's
 //   answers.
 
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 
 import { readSession } from "../auth/auth";
 import type { AppPrincipal, SessionDoor } from "../library/library-principal";

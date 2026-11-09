@@ -4,7 +4,7 @@
 // each waits for a connection; a revoke or a switch refetches only the list it changed, once it
 // has landed.
 
-import { FILING_RULES_MAX } from "@repo/contract/cloud/library/library-wire";
+import { FILING_RULES_MAX } from "@repo/contract/library/library-wire";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
@@ -15,7 +15,7 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useState } from "react";
 
 import { useAccount, useLeft, usePageAuth, useWire } from "../cloud/library-context";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
 import { relativeTimeLabel, useNow } from "../relative-time";

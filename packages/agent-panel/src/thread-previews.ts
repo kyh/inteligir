@@ -3,8 +3,8 @@
 // it go once a stored event of that thread arrives (the reply landed, or the turn moved on). A
 // preview this build cannot parse changes nothing.
 
-import { agentPreviewSchema } from "@repo/contract/cloud/library/agent-events";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import { agentPreviewSchema } from "@repo/contract/library/agent-events";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 
 export type ThreadFrame = Extract<LibrarySocketFrame, { type: "thread" }>;
 

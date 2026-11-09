@@ -1,4 +1,4 @@
-import { EXTENSION_PUBLIC_KEY } from "@repo/contract/cloud/extension/extension-identity";
+import { EXTENSION_PUBLIC_KEY } from "@repo/contract/extension/extension-identity";
 import { describe, expect, it } from "vitest";
 
 import { connectPagePattern, extensionManifest, flavorOfMode } from "./manifest";

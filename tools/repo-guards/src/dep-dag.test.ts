@@ -572,7 +572,7 @@ describe("the contract's @repo/notes edge", () => {
   });
 
   it("sees the parser behind the dialect's parse, so a clean walk is a real one", () => {
-    const parse = notesExportFile("@repo/notes/markdown/parse");
+    const parse = notesExportFile("@repo/editor/markdown/parse");
     expect(parse).not.toBeNull();
     expect(parse === null ? null : markdownParserReach(parse)?.specifier).toMatch(MARKDOWN_PARSER);
   });
@@ -580,9 +580,9 @@ describe("the contract's @repo/notes edge", () => {
 
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
-    expect(isTestFile("packages/notes/src/library/block-ops.test.ts")).toBe(true);
+    expect(isTestFile("packages/contract/src/library/block-ops.test.ts")).toBe(true);
     expect(isTestFile("apps/web/src/worker/test-support/library-cell.ts")).toBe(true);
     expect(isTestFile("tools/e2e/src/scenarios/agent-cell.ts")).toBe(false);
-    expect(isTestFile("packages/notes/src/library/block-ops.ts")).toBe(false);
+    expect(isTestFile("packages/contract/src/library/block-ops.ts")).toBe(false);
   });
 });

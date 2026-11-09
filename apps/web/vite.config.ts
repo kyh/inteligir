@@ -2,7 +2,7 @@ import { cp, readlink, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";

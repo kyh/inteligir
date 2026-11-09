@@ -2,9 +2,9 @@
 // address with a file's extension a file whose sha the address names, ids from counters and one
 // fixed instant, so an import twice over the same text answers the same item.
 
-import { fileKindOf } from "@repo/notes/items/item-kind";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { fileKindOf } from "@repo/contract/items/item-kind";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 import type { ExportPorts, FoundFile, HeldFile, ImportPorts } from "../codec/item-markdown";
 import type { Reached } from "../codec/read-blocks";

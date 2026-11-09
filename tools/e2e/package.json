@@ -17,7 +17,6 @@
     "@repo/editor-bridge": "workspace:*",
     "@repo/messages-fake": "workspace:*",
     "@repo/mobile": "workspace:*",
-    "@repo/notes": "workspace:*",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
     "tsx": "catalog:",

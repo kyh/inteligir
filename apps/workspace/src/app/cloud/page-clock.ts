@@ -1,4 +1,4 @@
-import type { Clock } from "@repo/contract/cloud/library/account-socket";
+import type { Clock } from "@repo/contract/library/account-socket";
 
 export const pageClock: Clock = {
   after: (ms, run) => {

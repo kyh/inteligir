@@ -9,7 +9,7 @@ import { z } from "zod";
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
+import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 

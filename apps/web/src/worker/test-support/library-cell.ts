@@ -2,13 +2,13 @@
 // storage with a clock the test moves, and items built by hand. The cell is the real Durable
 // Object, so every statement meets a SQLite Durable Object's own limits.
 
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
-import { readBlocks, readItem } from "@repo/notes/library/library-queries";
-import type { StoredItem } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { readBlocks, readItem } from "@repo/service/library/library-queries";
+import type { StoredItem } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 
@@ -29,7 +29,7 @@ import { landedSchema, openLibraryEngine } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
 import { libraryRouter } from "../library/library-router";
 
-export { blockHash as hashOf } from "@repo/notes/library/block-hash";
+export { blockHash as hashOf } from "@repo/contract/library/block-hash";
 
 const GiB = 1024 * 1024 * 1024;
 

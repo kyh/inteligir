@@ -4,11 +4,11 @@
 // folder lists as unsorted. A folder is no item, so its writes join no change set; each is stamped
 // with the write's sequence number, as an item is.
 
-import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/cloud/library/library-wire";
-import type { folderOpSchema } from "@repo/contract/cloud/library/library-wire";
-import { compareText, ordBetween } from "@repo/notes/library/block-order";
-import { titleKey } from "@repo/notes/library/derive-item";
-import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/library/library-wire";
+import type { folderOpSchema } from "@repo/contract/library/library-wire";
+import { compareText, ordBetween } from "@repo/contract/library/block-order";
+import { titleKey } from "@repo/contract/library/derive-item";
+import type { SqlRow, SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import type { LandingScope } from "./cell-landing";

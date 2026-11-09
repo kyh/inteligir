@@ -2,7 +2,7 @@
 // take off, and a name (a new folder's, a renamed one's). Each answers its caller once and closes;
 // what the answer writes is the caller's.
 
-import type { ListingFolder } from "@repo/notes/library/library-index";
+import type { ListingFolder } from "@repo/contract/library/library-index";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";

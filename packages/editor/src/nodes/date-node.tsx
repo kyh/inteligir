@@ -5,7 +5,7 @@ import { Suspense, lazy, useState } from "react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { formatIsoDate, parseIsoDate } from "@repo/notes/iso-date";
+import { formatIsoDate, parseIsoDate } from "@repo/contract/iso-date";
 
 import { stringProp } from "@repo/editor/node-props";
 

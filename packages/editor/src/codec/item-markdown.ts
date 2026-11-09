@@ -6,16 +6,16 @@
 import type { Root, RootContent } from "mdast";
 import type { TElement } from "platejs";
 
-import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { orderedBlocks } from "@repo/notes/library/block-ops";
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { ordsBetween } from "@repo/notes/library/block-order";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
-import { parseMdast } from "@repo/notes/markdown/parse";
-import { readObsidian } from "@repo/notes/markdown/remark-obsidian";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { orderedBlocks } from "@repo/contract/library/block-ops";
+import type { StoredBlock } from "@repo/contract/library/block-ops";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { parseMdast } from "@repo/editor/markdown/parse";
+import { readObsidian } from "@repo/editor/markdown/remark-obsidian";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";

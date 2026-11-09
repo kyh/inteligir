@@ -5,10 +5,10 @@
 
 import { z } from "zod";
 
-import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
-import { ordSchema } from "@repo/notes/library/block-order";
-import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
-import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
+import { blockHashSchema, libraryOpSchema } from "@repo/contract/library/block-ops";
+import { ordSchema } from "@repo/contract/library/block-order";
+import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/contract/library/library-item";
+import { librarySectionSchema, storableBlockSchema } from "@repo/contract/library/library-nodes";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.

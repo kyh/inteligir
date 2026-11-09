@@ -4,9 +4,9 @@
 // agent never reads). Tidy my library is a send of its own: a new conversation on its request,
 // from Unsorted, whatever the screen shows.
 
-import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
-import type { LibraryScope } from "@repo/domain/library-scope";
-import { LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
+import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
+import type { LibraryScope } from "@repo/contract/library-scope";
+import { LIBRARY_SELECTION_MAX } from "@repo/contract/library-scope";
 import type { z } from "zod";
 
 import { TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";

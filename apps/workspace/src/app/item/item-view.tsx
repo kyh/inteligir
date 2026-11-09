@@ -7,7 +7,7 @@ import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
 import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
-import { shownTitle, UNTITLED } from "@repo/notes/items/item-name";
+import { shownTitle, UNTITLED } from "@repo/contract/items/item-name";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";

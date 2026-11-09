@@ -1,4 +1,4 @@
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { sql } from "drizzle-orm";

@@ -3,15 +3,15 @@
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
+import { V1_RPC_PATH } from "@repo/contract/v1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 const ORIGIN = "https://cell.test";
 

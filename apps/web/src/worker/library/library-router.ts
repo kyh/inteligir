@@ -3,7 +3,7 @@
 // runs those for the built-in agent (`../agent/agent-tools`), each call by the actor its principal
 // resolves to. Every write lands through the engine in one transaction, joins its actor's change
 // set, and is settled after it commits (the sockets told, the alarm set); every refusal answers as
-// the error its row declares (`@repo/contract/cloud/v1/errors`). The built-in agent's turns are
+// the error its row declares (`@repo/contract/v1/errors`). The built-in agent's turns are
 // `../agent/agent-turns`'.
 
 import {
@@ -17,14 +17,14 @@ import {
   NotFoundError,
   PayloadTooLargeError,
   QuotaError,
-} from "@repo/contract/cloud/v1/errors";
+} from "@repo/contract/v1/errors";
 import {
   folderRowSchema,
   importJobSchema,
   liveItemRowSchema,
-} from "@repo/contract/cloud/library/library-wire";
+} from "@repo/contract/library/library-wire";
 import { ORPCError, implement } from "@orpc/server";
-import { noteFields } from "@repo/notes/library/item-makes";
+import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
 import { setAgentEnabled } from "../agent/agent-switch";

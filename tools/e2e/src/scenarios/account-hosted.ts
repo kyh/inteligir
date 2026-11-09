@@ -12,7 +12,7 @@ import {
   uploadFile,
   v1Client,
 } from "../harness/v1-wire";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 // a one-pixel PNG, the file the phone keeps in the library
 const PIXEL = new Uint8Array(

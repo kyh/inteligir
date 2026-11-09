@@ -7,13 +7,13 @@
 import {
   extensionConnectAnswerSchema,
   extensionConnectRequestSchema,
-} from "@repo/contract/cloud/extension/extension-connect";
+} from "@repo/contract/extension/extension-connect";
 import type {
   ExtensionConnectAnswer,
   ExtensionConnectRequest,
-} from "@repo/contract/cloud/extension/extension-connect";
-import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity";
-import type { JsonValue } from "@repo/notes/library/canonical-json";
+} from "@repo/contract/extension/extension-connect";
+import { EXTENSION_ID } from "@repo/contract/extension/extension-identity";
+import type { JsonValue } from "@repo/contract/library/canonical-json";
 
 // the messaging Chrome gives a page that an installed extension's `externally_connectable` names:
 // a message crosses as JSON, and an answer of none as undefined; what the extension answers is

@@ -2,10 +2,10 @@
 // cookie, which the browser keeps as long as the cloud says a file under its sha never changes, and
 // sent up there by their SHA-256 before anything names them.
 
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { uploadBlob } from "@repo/contract/cloud/library/call-outcome";
-import type { SessionEnd, V1Transport } from "@repo/contract/cloud/library/call-outcome";
-import { fileSha } from "@repo/notes/library/file-sha";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { uploadBlob } from "@repo/contract/library/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
+import { fileSha } from "@repo/contract/library/file-sha";
 
 // `/v1` for the bytes the wire does not carry, and the page's answer to a session's end met there,
 // which the wire's own calls answer the same way (`./v1.ts`)

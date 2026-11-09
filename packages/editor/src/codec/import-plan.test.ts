@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
-import { collectFileShas } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { collectFileShas } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
-import { basenamePath, dirnamePath } from "@repo/notes/knowledge/folder-path";
+import { basenamePath, dirnamePath } from "@repo/contract/knowledge/folder-path";
 
 import {
   importPathKind,

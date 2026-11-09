@@ -5,7 +5,7 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { libraryScopeSchema } from "@repo/domain/library-scope";
+import { libraryScopeSchema } from "@repo/contract/library-scope";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
 
 export interface PagePref<Value, Fallback> {

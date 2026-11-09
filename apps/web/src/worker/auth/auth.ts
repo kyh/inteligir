@@ -3,12 +3,9 @@ import { betterAuth } from "better-auth";
 import { bearer } from "better-auth/plugins/bearer";
 // relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import {
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from "@repo/contract/cloud/device/device-schema";
-import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/device/device-schema";
+import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { createDb } from "../db/client";
 import { authTables } from "../db/schema";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_ADDRESS } from "../rate-limit";

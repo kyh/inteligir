@@ -2,7 +2,7 @@
 // download the file, from the library's files (the cloud's own route under the page's cookie); and
 // what a saved page shows before its text arrives.
 
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";

@@ -2,7 +2,7 @@
 // the item's own fields and the folders the library lists.
 
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { SPACE } from "@/lib/theme";
 
 const KIND_LABELS: Record<LibraryItemFields["kind"], string> = {

@@ -9,12 +9,12 @@
 // landed or an item stopped naming it otherwise, but never while an import runs, whose plan may
 // name it.
 
-import type { ItemState } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
-import { collectFileShas } from "@repo/notes/library/library-nodes";
-import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type { ItemState } from "@repo/contract/library/block-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { readMeta, writeMeta } from "@repo/service/library/library-queries";
+import { collectFileShas } from "@repo/contract/library/library-nodes";
+import { chunkStatement, runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";

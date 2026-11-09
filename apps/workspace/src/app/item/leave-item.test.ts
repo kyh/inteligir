@@ -1,5 +1,5 @@
 import type { ItemSessionStatus } from "@repo/editor/item/item-session";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { noteFields } from "@repo/contract/test-support/library-items";
 import { describe, expect, it, vi } from "vitest";
 
 import { leaveItem } from "./leave-item";

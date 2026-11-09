@@ -3,7 +3,7 @@
 // would lose its cookie seven days after its sign-in, however much it was used (`apps/web/CLAUDE.md`
 // § ONLY BETTER AUTH'S OWN READ SLIDES A SESSION).
 
-import type { Clock } from "@repo/contract/cloud/library/account-socket";
+import type { Clock } from "@repo/contract/library/account-socket";
 
 // well inside the day a session waits before it slides
 /** @internal */

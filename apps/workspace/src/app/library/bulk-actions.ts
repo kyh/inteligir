@@ -4,7 +4,7 @@
 // got. Each chunk answers how many of it landed, and only those are counted in the closing
 // sentence, so a run where none landed says that, a failure among them, rather than a count of 0.
 
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
 
 import { formatCount } from "./item-labels";

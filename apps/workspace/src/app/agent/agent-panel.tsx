@@ -54,7 +54,7 @@ import {
 } from "../cloud/change-set-pages";
 import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { announceUndo } from "./undo-answer";
 

@@ -2,8 +2,8 @@
 // the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
 // an empty scope says why and offers a next step.
 
-import { refusalText } from "@repo/contract/cloud/refusal-text";
-import type { ItemKind } from "@repo/notes/items/item-kind";
+import { refusalText } from "@repo/contract/refusal-text";
+import type { ItemKind } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import type { LibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/contract/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";

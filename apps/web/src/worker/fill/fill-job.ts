@@ -7,8 +7,8 @@
 
 import { z } from "zod";
 
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
-import { isWebUrl } from "@repo/notes/items/item-url";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { isWebUrl } from "@repo/contract/items/item-url";
 
 const webUrl = z
   .string()

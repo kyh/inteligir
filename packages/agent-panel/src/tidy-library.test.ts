@@ -1,4 +1,4 @@
-import { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
+import { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { describe, expect, it } from "vitest";
 
 import { TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";

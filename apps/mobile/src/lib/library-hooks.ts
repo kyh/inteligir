@@ -6,8 +6,8 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createContext, use, useEffect, useSyncExternalStore } from "react";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import type { V1Client } from "@repo/contract/v1";
+import { isOrpcError } from "@repo/contract/v1/errors";
 import type { PhoneLibrary } from "./compose-runtime";
 
 export const LibraryContext = createContext<PhoneLibrary | null>(null);

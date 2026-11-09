@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { describe, expect, it } from "vitest";
 
 import {

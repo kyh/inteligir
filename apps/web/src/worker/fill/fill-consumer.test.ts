@@ -3,7 +3,7 @@
 // runs, its files kept in R2, and the reading landed in the account's cell; a page a later try may
 // get past asked again later each time, then said in the item; the dead letters said too.
 
-import { oembedEndpoint } from "@repo/notes/items/oembed";
+import { oembedEndpoint } from "@repo/service/items/oembed";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

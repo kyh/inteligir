@@ -4,8 +4,8 @@
 // A write that adds words past the cap, in a block or a field, is refused, and one
 // that frees or keeps them never is, so a full library can still be tidied.
 
-import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
+import { readMeta, writeMeta } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import type { CellStorage } from "./cell-storage";

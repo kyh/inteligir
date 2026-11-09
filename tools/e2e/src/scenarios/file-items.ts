@@ -7,10 +7,10 @@
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { request } from "node:http";
-import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { clientBuildHeaders } from "@repo/contract/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import type { V1Client } from "@repo/contract/v1";
 import { expect, expectEq } from "../harness/assert";
 import { PHONE_BUILD, signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";

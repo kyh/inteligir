@@ -1,5 +1,5 @@
 // An item's fields as the frontmatter of an exported file: the keys an item's file carries
-// (`@repo/notes/items/item-kind`'s ITEM_KEYS beside `id`, `tags`, `aliases` and `pinned`), the
+// (`@repo/contract/items/item-kind`'s ITEM_KEYS beside `id`, `tags`, `aliases` and `pinned`), the
 // cloud's own `title` (only where a file name cannot carry it) and `lang`, and every other key as a
 // typed property. What of a key's value no field reads stays a property under its own name, so a
 // `published: true`, a `kind: book` or a `pinned: yes` round-trips, and so do the entries of
@@ -11,19 +11,19 @@
 import { parseDocument, stringify } from "yaml";
 import { z } from "zod";
 
-import { isItemKind, URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { readItemFacts } from "@repo/notes/items/item-frontmatter";
-import { formatItemTime } from "@repo/notes/items/item-time";
-import { frontmatterAliases, frontmatterTags } from "@repo/notes/knowledge/link-extract";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
-import type { LibraryItemFields, PropertyValue } from "@repo/notes/library/library-item";
+import { isItemKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { readItemFacts } from "@repo/editor/items/item-frontmatter";
+import { formatItemTime } from "@repo/editor/items/item-time";
+import { frontmatterAliases, frontmatterTags } from "@repo/editor/knowledge/link-extract";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import {
   noteIdOfProperties,
   parseProperties,
   yamlScalarText,
-} from "@repo/notes/markdown/frontmatter";
-import type { ParsedProperties, TypedProperty } from "@repo/notes/markdown/frontmatter";
+} from "@repo/editor/markdown/frontmatter";
+import type { ParsedProperties, TypedProperty } from "@repo/editor/markdown/frontmatter";
 
 // the fields a file says: all but where the item sits, which files it holds and whether it is
 // deleted, which the import sets from the folder and the body

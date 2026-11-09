@@ -3,13 +3,10 @@
 // folder, a folder and what is under it, a tag and its children, or what was deleted. The cell
 // answers it a page at a time, and the grid draws the pages read so far.
 
-import type {
-  listedItemSchema,
-  listingQuerySchema,
-} from "@repo/contract/cloud/library/library-wire";
-import type { LibraryScope } from "@repo/domain/library-scope";
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import type { ListingFolder } from "@repo/notes/library/library-index";
+import type { listedItemSchema, listingQuerySchema } from "@repo/contract/library/library-wire";
+import type { LibraryScope } from "@repo/contract/library-scope";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import type { ListingFolder } from "@repo/contract/library/library-index";
 import type { z } from "zod";
 
 import type { LibrarySort } from "../prefs";

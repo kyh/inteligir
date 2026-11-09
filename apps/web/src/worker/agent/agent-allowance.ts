@@ -8,7 +8,7 @@
 // usage at list price. Money is integer micro-cents throughout: a price of two decimals in dollars
 // a million tokens is a whole number of micro-cents a token, so nothing rounds.
 
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 import { AGENT_MAX_TOKENS } from "./library-agent";

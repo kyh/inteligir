@@ -456,9 +456,6 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       '@repo/page-reader':
         specifier: workspace:*
         version: link:../../packages/page-reader
@@ -550,18 +547,12 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
-      '@repo/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       '@repo/editor-bridge':
         specifier: workspace:*
         version: link:../../packages/editor-bridge
       '@repo/mobile-editor':
         specifier: workspace:*
         version: link:../mobile-editor
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       '@tanstack/query-async-storage-persister':
         specifier: 'catalog:'
         version: 5.105.0
@@ -708,9 +699,9 @@ importers:
       '@kyh/tsconfig':
         specifier: 'catalog:'
         version: 1.3.0
-      '@repo/notes':
+      '@repo/contract':
         specifier: workspace:*
-        version: link:../../packages/notes
+        version: link:../../packages/contract
       '@rolldown/plugin-babel':
         specifier: 'catalog:'
         version: 0.2.4(@babel/core@7.29.7(supports-color@10.2.2))(@babel/plugin-transform-runtime@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@babel/runtime@8.0.7)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -789,12 +780,12 @@ importers:
       '@repo/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       '@repo/page-reader':
         specifier: workspace:*
         version: link:../../packages/page-reader
+      '@repo/service':
+        specifier: workspace:*
+        version: link:../../packages/service
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -943,15 +934,9 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
-      '@repo/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       '@repo/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -1036,12 +1021,6 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../contract
-      '@repo/domain':
-        specifier: workspace:*
-        version: link:../domain
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../notes
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1063,18 +1042,18 @@ importers:
 
   packages/contract:
     dependencies:
+      '@noble/hashes':
+        specifier: 'catalog:'
+        version: 2.4.0
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
       '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
-      '@repo/domain':
-        specifier: workspace:*
-        version: link:../domain
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../notes
+      fractional-indexing:
+        specifier: 'catalog:'
+        version: 4.0.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1091,22 +1070,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/domain:
-    dependencies:
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@kyh/tsconfig':
-        specifier: 'catalog:'
-        version: 1.3.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.5)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/editor:
     dependencies:
@@ -1167,9 +1130,9 @@ importers:
       '@platejs/toggle':
         specifier: ^53.0.0
         version: 53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.3.15(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
-      '@repo/notes':
+      '@repo/contract':
         specifier: workspace:*
-        version: link:../notes
+        version: link:../contract
       '@repo/ui':
         specifier: workspace:*
         version: link:../ui
@@ -1182,6 +1145,27 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.62.0(@types/react@19.2.17)(react@19.2.8)
+      mdast-util-from-markdown:
+        specifier: ^2.1.0
+        version: 2.1.0(supports-color@10.2.2)
+      mdast-util-gfm-task-list-item:
+        specifier: ^2.0.0
+        version: 2.0.0(supports-color@10.2.2)
+      mdast-util-math:
+        specifier: ^3.0.0
+        version: 3.0.0(supports-color@10.2.2)
+      mdast-util-to-markdown:
+        specifier: ^2.2.0
+        version: 2.2.0
+      micromark-util-character:
+        specifier: ^2.1.1
+        version: 2.1.1
+      micromark-util-symbol:
+        specifier: ^2.0.1
+        version: 2.0.1
+      micromark-util-types:
+        specifier: ^2.0.3
+        version: 2.0.3
       pele:
         specifier: ^1.5.2
         version: 1.5.2
@@ -1197,6 +1181,24 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
+      remark-frontmatter:
+        specifier: 'catalog:'
+        version: 5.0.0(supports-color@10.2.2)
+      remark-gfm:
+        specifier: 'catalog:'
+        version: 4.0.1(supports-color@10.2.2)
+      remark-math:
+        specifier: ^6.0.0
+        version: 6.0.0(supports-color@10.2.2)
+      remark-parse:
+        specifier: 'catalog:'
+        version: 11.0.0(supports-color@10.2.2)
+      unified:
+        specifier: 'catalog:'
+        version: 11.0.5
+      unist-util-visit:
+        specifier: ^5.1.0
+        version: 5.1.0
       yaml:
         specifier: 'catalog:'
         version: 2.9.1
@@ -1246,6 +1248,9 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3(@noble/hashes@2.4.0)
+      remark-stringify:
+        specifier: ^11.0.0
+        version: 11.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1255,9 +1260,9 @@ importers:
 
   packages/editor-bridge:
     dependencies:
-      '@repo/notes':
+      '@repo/contract':
         specifier: workspace:*
-        version: link:../notes
+        version: link:../contract
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1268,91 +1273,15 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-
-  packages/notes:
-    dependencies:
-      '@noble/hashes':
-        specifier: 'catalog:'
-        version: 2.4.0
-      fractional-indexing:
-        specifier: 'catalog:'
-        version: 4.0.0
-      mdast-util-from-markdown:
-        specifier: ^2.1.0
-        version: 2.1.0(supports-color@10.2.2)
-      mdast-util-gfm-task-list-item:
-        specifier: ^2.0.0
-        version: 2.0.0(supports-color@10.2.2)
-      mdast-util-math:
-        specifier: ^3.0.0
-        version: 3.0.0(supports-color@10.2.2)
-      mdast-util-to-markdown:
-        specifier: ^2.2.0
-        version: 2.2.0
-      micromark-util-character:
-        specifier: ^2.1.1
-        version: 2.1.1
-      micromark-util-symbol:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-types:
-        specifier: ^2.0.3
-        version: 2.0.3
-      remark-frontmatter:
-        specifier: 'catalog:'
-        version: 5.0.0(supports-color@10.2.2)
-      remark-gfm:
-        specifier: 'catalog:'
-        version: 4.0.1(supports-color@10.2.2)
-      remark-math:
-        specifier: ^6.0.0
-        version: 6.0.0(supports-color@10.2.2)
-      remark-parse:
-        specifier: 'catalog:'
-        version: 11.0.0(supports-color@10.2.2)
-      stemmer:
-        specifier: ^2.0.1
-        version: 2.0.1
-      unified:
-        specifier: 'catalog:'
-        version: 11.0.5
-      unist-util-visit:
-        specifier: ^5.1.0
-        version: 5.1.0
-      yaml:
-        specifier: 'catalog:'
-        version: 2.9.1
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@kyh/tsconfig':
-        specifier: 'catalog:'
-        version: 1.3.0
-      '@sqlite.org/sqlite-wasm':
-        specifier: 'catalog:'
-        version: 3.54.1-build1
-      '@types/mdast':
-        specifier: 'catalog:'
-        version: 4.0.4
-      remark-stringify:
-        specifier: ^11.0.0
-        version: 11.0.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.5)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/page-reader:
     dependencies:
+      '@repo/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@repo/editor':
         specifier: workspace:*
         version: link:../editor
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../notes
       defuddle:
         specifier: 'catalog:'
         version: 0.19.5
@@ -1381,6 +1310,40 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@types/node@24.19.2)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/service:
+    dependencies:
+      '@repo/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@repo/editor':
+        specifier: workspace:*
+        version: link:../editor
+      mdast-util-to-markdown:
+        specifier: ^2.2.0
+        version: 2.2.0
+      stemmer:
+        specifier: ^2.0.1
+        version: 2.0.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@kyh/tsconfig':
+        specifier: 'catalog:'
+        version: 1.3.0
+      '@sqlite.org/sqlite-wasm':
+        specifier: 'catalog:'
+        version: 3.54.1-build1
+      '@types/mdast':
+        specifier: 'catalog:'
+        version: 4.0.4
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/ui:
     dependencies:
@@ -1487,9 +1450,6 @@ importers:
       '@repo/mobile':
         specifier: workspace:*
         version: link:../../apps/mobile
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -17651,14 +17611,6 @@ snapshots:
     optionalDependencies:
       vite: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
-  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
-    dependencies:
-      '@vitest/spy': 4.1.12
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-
   '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.12
@@ -25025,7 +24977,7 @@ snapshots:
   unist-util-remove-position@5.0.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-visit: 5.0.0
+      unist-util-visit: 5.1.0
 
   unist-util-stringify-position@4.0.0:
     dependencies:
@@ -25267,22 +25219,6 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.19.2
       esbuild: 0.28.2
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      terser: 5.51.2
-      tsx: 4.23.15
-      yaml: 2.9.1
-
-  vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
-    dependencies:
-      lightningcss: 1.33.0
-      picomatch: 4.0.7
-      postcss: 8.5.32
-      rolldown: 1.2.15
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 26.6.5
-      esbuild: 0.28.1
       fsevents: 2.3.3
       jiti: 2.7.0
       terser: 5.51.2
@@ -25546,34 +25482,6 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.19.2
-      jsdom: 30.1.2(@noble/hashes@2.4.0)
-    transitivePeerDependencies:
-      - msw
-
-  vitest@4.1.12(@types/node@26.6.5)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
-    dependencies:
-      '@vitest/expect': 4.1.12
-      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-      '@vitest/pretty-format': 4.1.12
-      '@vitest/runner': 4.1.12
-      '@vitest/snapshot': 4.1.12
-      '@vitest/spy': 4.1.12
-      '@vitest/utils': 4.1.12
-      es-module-lexer: 2.3.2
-      expect-type: 1.4.0
-      magic-string: 0.30.21
-      obug: 2.2.1
-      pathe: 2.0.3
-      picomatch: 4.0.7
-      std-env: 4.3.0
-      tinybench: 2.9.0
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.2.0
-      vite: 8.3.5(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@types/node': 26.6.5
       jsdom: 30.1.2(@noble/hashes@2.4.0)
     transitivePeerDependencies:
       - msw

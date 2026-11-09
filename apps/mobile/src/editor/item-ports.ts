@@ -8,9 +8,9 @@
 // sign-in's library, and the suite drives it over a fake cell.
 
 import type { QueryClient } from "@tanstack/react-query";
-import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
+import type { V1Client } from "@repo/contract/v1";
+import { isOrpcError } from "@repo/contract/v1/errors";
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { PhoneLibrary } from "../lib/compose-runtime";
 import type { EditorRequestPorts } from "./editor-host";

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { parseProperties } from "@repo/notes/markdown/frontmatter";
+import { parseProperties } from "@repo/editor/markdown/frontmatter";
 
 const FIXTURES = fileURLToPath(
   new URL("test-support/fixtures/roundtrip/frontmatter/", import.meta.url),

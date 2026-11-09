@@ -4,10 +4,10 @@
 // the blocks the write touched, a dropped block's row gone and its content kept for Undo, the
 // derived rows and the index row when the body or the fields moved.
 
-import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
-import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
-import { deriveItem } from "@repo/notes/library/derive-item";
-import type { ItemCard } from "@repo/notes/library/derive-item";
+import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
+import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { deriveItem } from "@repo/contract/library/derive-item";
+import type { ItemCard } from "@repo/contract/library/derive-item";
 import {
   blockWritesOf,
   dropBlocks,
@@ -15,10 +15,10 @@ import {
   storeDerived,
   storeItemRow,
   storeSearchRow,
-} from "@repo/notes/library/library-queries";
-import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
-import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
+} from "@repo/service/library/library-queries";
+import { LibraryRowError, runPlan } from "@repo/service/library/library-sql";
+import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";

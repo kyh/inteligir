@@ -6,11 +6,8 @@
 // address that is none, a password too short) is said here and never sent; a sign-up's fields are
 // the invite gate's to judge, in its own sentences.
 
-import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
-import {
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from "@repo/contract/cloud/device/device-schema";
+import type { SignUpRequest } from "@repo/contract/account/account-schema";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/device/device-schema";
 import { z } from "zod";
 import type { AuthAnswer, PhoneAuth } from "../auth/phone-auth";
 import { messageOf } from "../lib/error-message";

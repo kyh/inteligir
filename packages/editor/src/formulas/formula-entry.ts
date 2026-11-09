@@ -4,11 +4,11 @@
 import { ElementApi } from "platejs";
 import type { Path, SlateEditor, TElement, TNode } from "platejs";
 
-import { parseExpression, evaluateExpression } from "@repo/notes/formulas/expression";
-import { formatResult } from "@repo/notes/formulas/format-result";
-import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import type { FormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
+import { parseExpression, evaluateExpression } from "@repo/editor/formulas/expression";
+import { formatResult } from "@repo/editor/formulas/format-result";
+import { parseFormulaMeta, serializeFormulaMeta } from "@repo/editor/formulas/formula-meta";
+import type { FormulaMeta } from "@repo/editor/formulas/formula-meta";
+import { parseFormulaRaw } from "@repo/editor/markdown/remark-inline-constructs";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 

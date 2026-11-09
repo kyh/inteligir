@@ -122,8 +122,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   retires only once the floor passes every build reading it, and a field that
   changes what a row MEANS reaches only clients declaring it. Rejected: a wire
   final at birth behind strict readers (every addition a new row); per-row
-  versions (every old shape kept). `packages/contract/src/cloud/v1-errors.ts`,
-  `packages/contract/src/cloud/library/call-outcome.ts`.
+  versions (every old shape kept). `packages/contract/src/v1-errors.ts`,
+  `packages/contract/src/library/call-outcome.ts`.
 
 - **EVERY INSTALL'S REQUEST NAMES ITS BUILD, AND THE WORKER REFUSES ONE BELOW
   THE FLOOR** (owner decision). The tolerant reader is forward negotiation only,
@@ -132,7 +132,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   in; a page the Worker served needs none, since it ships in the same
   deploy, and neither does a socket opened by ticket, since a browser socket
   sends no header and its ticket came from a call that met the floor.
-  `packages/contract/src/cloud/client-build.ts`,
+  `packages/contract/src/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
@@ -161,7 +161,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   under `/v1`, and the site's sign-up form posts beside Better Auth, under
   `/api`. Rejected: REST beside RPC (two serializers, two error vocabularies)
   and oRPC's default statuses (an unmapped code answers 400).
-  `packages/contract/src/cloud/v1-errors.ts`,
+  `packages/contract/src/v1-errors.ts`,
   `apps/web/src/worker/wire/rpc-refusal.ts`, `apps/web/src/worker/index.ts`.
 
 - **THE LIBRARY'S ROWS BECOME THE CONNECTOR'S TOOLS IN THE WORKER, BY META
@@ -405,7 +405,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   isolate whose heap the reading already uses; not measured); the Images
   binding (it bills every picture); a
   thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
-  `packages/notes/src/items/link-fill.ts`.
+  `packages/contract/src/items/link-fill.ts`.
 
 - **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
   item names it or any change set does, and `history_blobs` keeps which files
@@ -567,7 +567,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the account's); Anthropic's event shapes (a vendor's union on every device); an
   epoch a push (a fence that resets, which a late push of the old one moves
   back). `apps/web/src/worker/agent/agent-turns.ts`, `thread-schema.ts`,
-  `packages/contract/src/cloud/library/agent-events.ts`.
+  `packages/contract/src/library/agent-events.ts`.
 
 - **A LINK THE AGENT SAVES IS READ ONLY ONCE ITS TURN SEALS** (owner
   decision). Its fill row names the turn's change set and waits for the seal.
@@ -749,7 +749,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Deleted included; `library.listing.page` a page of a screen's listing,
   `scopes` the rail's counts and `titles` every live item a note's links resolve
   against, each over the in-memory listing
-  (`@repo/notes/library/library-index`), built over the cell's rows for the one
+  (`@repo/contract/library/library-index`), built over the cell's rows for the one
   read. A listing's words search the query's side, the library or Deleted,
   through the agent's own search: the ranked index, then the live items holding
   the exact text it misses, a person's typing its set has not sealed into the

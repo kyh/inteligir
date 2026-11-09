@@ -1,17 +1,17 @@
 // The dialect's value, already the library's vocabulary as the rule table writes it
 // (`md-rules.ts`), with its names resolved: a wiki link or an embed by the title or path the writer
 // gave to the item that answers to it, a file the library holds by its bytes to its sha. A `ref`
-// the note's reader found (`@repo/notes/markdown/remark-obsidian`) moves off its line onto the
+// the note's reader found (`@repo/editor/markdown/remark-obsidian`) moves off its line onto the
 // block. A `#tag` is the text it is. Every block leaves through the vocabulary's own parse, so a
 // prop it does not name is dropped here and never stored.
 
 import { ElementApi } from "platejs";
 import type { Descendant, TElement, TText } from "platejs";
 
-import type { FileKind } from "@repo/notes/items/item-kind";
-import type { JsonValue } from "@repo/notes/library/canonical-json";
-import { libraryNodeSchema } from "@repo/notes/library/library-nodes";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import type { FileKind } from "@repo/contract/items/item-kind";
+import type { JsonValue } from "@repo/contract/library/canonical-json";
+import { libraryNodeSchema } from "@repo/contract/library/library-nodes";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 import { z } from "zod";
 

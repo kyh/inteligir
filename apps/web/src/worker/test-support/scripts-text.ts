@@ -6,7 +6,7 @@
 // 0.95, digits 0.57, CJK and Hangul 1.3, an emoji 1.93 a UTF-16 unit. A space between pieces is
 // counted at half a token.
 
-import { pick } from "@repo/notes/test-support/seeded-random";
+import { pick } from "@repo/contract/test-support/seeded-random";
 
 // what a piece of text is billed at most, a token a character
 const RATIOS = {

@@ -3,7 +3,7 @@
 // kits, the rule table and the walks all reach it without closing a cycle around the kits.
 // Plate's own nodes are spelled by its KEYS.
 
-import type { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
+import type { RICH_FENCE_LANGS } from "@repo/editor/markdown/fence-langs";
 
 // the fence map names the rich blocks too; `satisfies` holds the two spellings together
 type RichFenceBlockKey = NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>;

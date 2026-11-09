@@ -10,7 +10,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { openCellLibrary } from "../library/cell-library";
 import { cellStorageOf } from "../library/cell-storage";
 import { ACCOUNT_PURGE_STEPS } from "../library/account-purge";
@@ -36,7 +36,7 @@ import type { AgentThreadDO } from "./agent-thread";
 import { landPush, reserveForCall, runAgentJobs, showPreview } from "./agent-turns";
 import { AGENT_MODEL } from "./library-agent";
 import type { PushRequest } from "./thread-wire";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;

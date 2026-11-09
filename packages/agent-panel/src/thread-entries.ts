@@ -1,20 +1,17 @@
 // A conversation with the built-in agent as every device's panel reads it: the thread's stored
 // events, each parsed by the one union every device reads
-// (`@repo/contract/cloud/library/agent-events`), and what they say together (the approval still
+// (`@repo/contract/library/agent-events`), and what they say together (the approval still
 // waiting, how each turn ended, the runs of work between two messages). An event this build cannot
 // parse is skipped, so a newer cell may add kinds. The words for each refusal, each ending and each
 // thread's state are the person's, never the wire's; each device draws them its own way.
 
-import { agentEventSchema } from "@repo/contract/cloud/library/agent-events";
-import type { AgentEvent, TurnEndReason } from "@repo/contract/cloud/library/agent-events";
-import type {
-  THREAD_STATUSES,
-  threadEventRowSchema,
-} from "@repo/contract/cloud/library/library-wire";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
-import { cleanUrl, urlHost } from "@repo/notes/items/item-url";
+import { agentEventSchema } from "@repo/contract/library/agent-events";
+import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
+import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
+import { refusalText } from "@repo/contract/refusal-text";
+import { cleanUrl, urlHost } from "@repo/contract/items/item-url";
 import { z } from "zod";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];

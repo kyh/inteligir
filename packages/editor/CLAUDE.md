@@ -80,7 +80,7 @@ alone, and no walk narrows structurally.
   article through the codec alone (the live editor holds no section). Only a
   web url embeds (`![](path)` is a file the import resolves to its bytes; alt
   text or a title keeps a web image an image). Every spelling lives in
-  `@repo/notes/markdown/fence-langs`, which
+  `@repo/editor/markdown/fence-langs`, which
   `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. The codec
   writes plain `.md`: no bundles, no meta.json.
 
@@ -96,15 +96,15 @@ alone, and no walk narrows structurally.
   Rejected: reading a construct in a label (a label is a string, with no inline
   to hold it). Obsidian's spellings in a note hold to the same rule (MARKDOWN
   IS A CODEC BESIDE THE LIBRARY).
-  `packages/notes/src/markdown/text-escapes.ts`,
-  `packages/notes/src/markdown/remark-inline-constructs.ts`,
-  `packages/notes/src/markdown/remark-containers.ts`.
+  `packages/editor/src/markdown/text-escapes.ts`,
+  `packages/editor/src/markdown/remark-inline-constructs.ts`,
+  `packages/editor/src/markdown/remark-containers.ts`.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
   in any flow container, a `:::` closing the innermost, and every tag is html,
   the editor's own only where it is a bare `<u>` or a `<br/>` in a table cell
   (A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS)
-  (`@repo/notes/markdown/remark-containers`). Rejected: jsx tags for the toggle,
+  (`@repo/editor/markdown/remark-containers`). Rejected: jsx tags for the toggle,
   columns, dates and embeds (an MDX tokenizer in the grammar, a jsx writer in
   the serializer, and tags other markdown tools draw as raw html), and a date as
   a `[[YYYY-MM-DD]]` link (it costs the chip and its calendar).
@@ -304,12 +304,12 @@ alone, and no walk narrows structurally.
   the block, written bare where typed text is escaped. Its `==mark==` is the
   text it spells, since an item keeps no highlight. Rejected: reading them from
   the settled value (an escape is gone there, so a written `50\%% or 60%%` came
-  back a comment), and from text a page wrote (the page keeps its words). `packages/notes/src/markdown/remark-obsidian.ts`.
+  back a comment), and from text a page wrote (the page keeps its words). `packages/editor/src/markdown/remark-obsidian.ts`.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
   takes no block with it, and one with a title is its source, which keeps the
-  title (`packages/notes/src/markdown/remark-opaque.ts`). A list item is its
+  title (`packages/editor/src/markdown/remark-opaque.ts`). A list item is its
   words: a list an item opens with nests under an empty line, and any other
   block it opens with keeps its type and stands outside the list where the item
   stood, a to-do's box on a line above it. Rejected: Plate's list rule (it made every such block a `p`, which
@@ -403,8 +403,8 @@ alone, and no walk narrows structurally.
   as a divider, so it gains a backslash and the row stands. Rejected: `\vert`
   for a bare pipe (it means nothing in `\begin{array}{c|c}` or `\text{a|b}`),
   and escaping with no read (`|x|` would come back as `\|x\|`, a different
-  bar). `packages/notes/src/markdown/line-scan.ts`,
-  `packages/notes/src/markdown/md-plugins.ts`.
+  bar). `packages/editor/src/markdown/line-scan.ts`,
+  `packages/editor/src/markdown/md-plugins.ts`.
 
 - **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
   writer joins a cell's blocks with that tag and has no other word for a cell's
@@ -440,5 +440,5 @@ alone, and no walk narrows structurally.
   Rejected: conflicting on every over-budget merge (it warns when nothing was
   lost). The merge answers its overlap, which the session's landing of a
   CONFLICT's settle hands its host's `notifyOverlap`, said in the item's
-  words. `@repo/notes/text/line-diff`,
+  words. `@repo/editor/text/line-diff`,
   `packages/editor/src/stale-write.ts`.

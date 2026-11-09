@@ -2,9 +2,9 @@
 // below `MIN_CLIENT_BUILD`, is refused before anything reads it, its session left live; a page
 // this Worker served, which ships in the same deploy, names none.
 
-import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { CLIENT_BUILD_HEADER } from "@repo/contract/client-build";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {

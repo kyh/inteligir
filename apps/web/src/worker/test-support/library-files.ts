@@ -2,7 +2,7 @@
 // and its row settled; an import of it started and run, by the cell's alarm or a run at a time;
 // and a folder zipped, an Obsidian vault in small among them.
 
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
+import { hexFromBytes } from "@repo/contract/bytes";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { zipSync } from "fflate";

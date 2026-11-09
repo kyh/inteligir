@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 
 const JOB_KINDS = [
   "seal",

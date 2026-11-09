@@ -1,5 +1,5 @@
 // A wiki link or embed as the editor holds it, in the library's own vocabulary
-// (`@repo/notes/library/library-nodes`): the target by id when the writer named one, the title the
+// (`@repo/contract/library/library-nodes`): the target by id when the writer named one, the title the
 // writer saw, and the anchor and alias beside them. The dialect writes one as `[[…]]`, and this is
 // the one place a body becomes a node and a node a body again: the uuid after the last pipe
 // (`[[Title|uuid]]`) is the id, never an alias, and a node with an id writes it back there. Headless:
@@ -7,14 +7,14 @@
 
 import type { TElement, TText } from "platejs";
 
-import { blockIdSchema } from "@repo/notes/library/library-nodes";
+import { blockIdSchema } from "@repo/contract/library/library-nodes";
 import {
   isUuidWikiAlias,
   parseWikiBody,
   serializeWikiBody,
-} from "@repo/notes/markdown/remark-wiki-link";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
-import { shownTitle } from "@repo/notes/items/item-name";
+} from "@repo/editor/markdown/remark-wiki-link";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import { shownTitle } from "@repo/contract/items/item-name";
 
 import { OPAQUE_KEY, WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import type { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";

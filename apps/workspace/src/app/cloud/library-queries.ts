@@ -3,8 +3,8 @@
 // what a screen shows by the same keys.
 
 import type { InferClientOutputs } from "@orpc/client";
-import { PAGE_MAX } from "@repo/contract/cloud/library/library-wire";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { PAGE_MAX } from "@repo/contract/library/library-wire";
+import type { V1Client } from "@repo/contract/v1";
 import { keepPreviousData, queryOptions, skipToken } from "@tanstack/react-query";
 
 import type { ListingQuery } from "../library/listing";

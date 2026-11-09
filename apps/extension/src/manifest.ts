@@ -5,9 +5,9 @@
 // whose session cookie the worker reads from the browser's jar. wxt.config.ts hands it to WXT and
 // refuses a build whose manifest.json says anything else.
 
-import { EXTENSION_PUBLIC_KEY } from "@repo/contract/cloud/extension/extension-identity";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { EXTENSION_PUBLIC_KEY } from "@repo/contract/extension/extension-identity";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 
 const EXTENSION_FLAVORS = ["dev", "store", "store-unpacked"] as const;
 export type ExtensionFlavor = (typeof EXTENSION_FLAVORS)[number];

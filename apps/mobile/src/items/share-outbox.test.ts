@@ -1,9 +1,9 @@
-import { uploadBlob } from "@repo/contract/cloud/library/call-outcome";
-import type { SessionEnd } from "@repo/contract/cloud/library/call-outcome";
+import { uploadBlob } from "@repo/contract/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
-import { WEB_URL_RULE } from "@repo/notes/items/item-kind";
-import { fileSha } from "@repo/notes/library/file-sha";
+import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
+import { fileSha } from "@repo/contract/library/file-sha";
 import { describe, expect, it } from "vitest";
 import { v1ClientOver } from "../lib/phone-transport";
 import { memoryKv } from "../test-support/memory-kv";

@@ -1,5 +1,5 @@
 import { createORPCClient, createORPCErrorFromJson } from "@orpc/client";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
 import type { ItemStoreChange } from "@repo/editor/item/item-session";
 import { describe, expect, it } from "vitest";
 

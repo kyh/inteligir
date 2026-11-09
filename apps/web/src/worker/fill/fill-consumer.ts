@@ -9,7 +9,7 @@
 // could not handle reaches the dead-letter queue, whose consumer says the failure in the item, so
 // no link waits unread for good.
 
-import { failureOf, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
+import { failureOf, TEXT_NOT_SAVED } from "@repo/service/items/fill-sentences";
 
 import { libraryCell } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";

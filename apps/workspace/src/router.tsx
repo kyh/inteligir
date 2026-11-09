@@ -6,7 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 import { PageLibraryProvider } from "./app/cloud/library-context";
 import type { PageLibrary } from "./app/cloud/library-context";

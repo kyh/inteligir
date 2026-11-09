@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/notes": "workspace:*",
+    "@repo/contract": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

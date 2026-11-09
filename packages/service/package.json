@@ -1,0 +1,38 @@
+{
+  "name": "@repo/service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The account's library cell's rules: its one SQL schema and plans, search, undo, the imports and the fill's own modules.",
+  "type": "module",
+  "exports": {
+    "./imports/raindrop": "./src/imports/raindrop.ts",
+    "./imports/test-support/raindrop-export": "./src/imports/test-support/raindrop-export.ts",
+    "./items/fill-sentences": "./src/items/fill-sentences.ts",
+    "./items/oembed": "./src/items/oembed.ts",
+    "./items/page-fetch": "./src/items/page-fetch.ts",
+    "./library/library-queries": "./src/library/library-queries.ts",
+    "./library/library-schema": "./src/library/library-schema.ts",
+    "./library/library-sql": "./src/library/library-sql.ts",
+    "./library/revert-change": "./src/library/revert-change.ts",
+    "./library/sql-value": "./src/library/sql-value.ts",
+    "./text/decode-text": "./src/text/decode-text.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/contract": "workspace:*",
+    "@repo/editor": "workspace:*",
+    "mdast-util-to-markdown": "^2.2.0",
+    "stemmer": "^2.0.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
+    "@sqlite.org/sqlite-wasm": "catalog:",
+    "@types/mdast": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

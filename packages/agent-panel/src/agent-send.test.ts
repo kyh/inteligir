@@ -1,5 +1,5 @@
-import { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
-import { LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
+import { agentViewContextSchema } from "@repo/contract/library/library-wire";
+import { LIBRARY_SELECTION_MAX } from "@repo/contract/library-scope";
 import { describe, expect, it } from "vitest";
 
 import { composerPlaceholder, quotePassage, sendInput, viewContextOf } from "./agent-send";

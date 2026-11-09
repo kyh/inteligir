@@ -6,7 +6,7 @@
 // refuses a thread it does not hold, which purges itself, and a turn that is not open, whose call
 // lands nothing.
 
-import { agentEventSchema } from "@repo/contract/cloud/library/agent-events";
+import { agentEventSchema } from "@repo/contract/library/agent-events";
 import { z } from "zod";
 
 const idSchema = z.string().min(1).max(128);

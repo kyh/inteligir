@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TagsField } from "@repo/editor/properties/property-fields";
-import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
+import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 
 const mount = (key: string, value: string[]) => {
   const onChange = vi.fn<(next: TypedProperty) => void>();

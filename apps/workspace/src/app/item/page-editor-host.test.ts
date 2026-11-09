@@ -1,7 +1,7 @@
 import { createORPCClient, createORPCErrorFromJson } from "@orpc/client";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { fileSha } from "@repo/notes/library/file-sha";
+import { fileSha } from "@repo/contract/library/file-sha";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 

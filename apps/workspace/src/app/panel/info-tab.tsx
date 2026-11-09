@@ -4,11 +4,11 @@
 // lands. Every part of it is the cell's, so it waits for a connection.
 
 import { isDefinedError } from "@orpc/client";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { refusalText } from "@repo/contract/refusal-text";
 import { itemProperties } from "@repo/editor/item/item-properties";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
-import type { PropertyValue } from "@repo/notes/library/library-item";
+import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";

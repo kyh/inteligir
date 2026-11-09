@@ -1,12 +1,12 @@
-// The library cell's SQLite behind the port `@repo/notes/library` runs its plans over: `sql.exec`
+// The library cell's SQLite behind the port `@repo/service/library/library-sql` runs its plans over: `sql.exec`
 // is synchronous and runs one statement a call, and a transaction is `transactionSync`, which
 // commits when its work returns and rolls back when it throws
 // (https://developers.cloudflare.com/durable-objects/api/sql-storage/). Every cursor is read to the
 // end before the call returns, so none is held across an await.
 
-import { LibraryRowError } from "@repo/notes/library/library-sql";
-import { sqlRowSchema } from "@repo/notes/library/sql-value";
-import type { SqlPort, SqlRow } from "@repo/notes/library/library-sql";
+import { LibraryRowError } from "@repo/service/library/library-sql";
+import { sqlRowSchema } from "@repo/service/library/sql-value";
+import type { SqlPort, SqlRow } from "@repo/service/library/library-sql";
 
 export interface CellStorage extends SqlPort {
   // what the cell's SQLite holds, its change sets included: one half of what the quota counts

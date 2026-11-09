@@ -1,18 +1,18 @@
 // An account's library cell in memory, for a suite that draws the whole page: it keeps items and
 // folders and answers the page's reads and writes over them by procedure, as `fakePageLibrary`'s
 // `answer` takes them. It keeps only what the page leans on: a write lands on the bases it names
-// (`@repo/notes/library/block-ops`) or answers CONFLICT, the card is derived as the cell derives it,
+// (`@repo/contract/library/block-ops`) or answers CONFLICT, the card is derived as the cell derives it,
 // and a listing answers its scope in one page.
 
 import { createORPCErrorFromJson } from "@orpc/client";
-import { listingQuerySchema } from "@repo/contract/cloud/library/library-wire";
-import { applyOps, libraryOpSchema } from "@repo/notes/library/block-ops";
-import type { StoredBlock } from "@repo/notes/library/block-ops";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { deriveItem } from "@repo/notes/library/derive-item";
-import { noteFields, stubFields } from "@repo/notes/library/item-makes";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { storableBlockSchema } from "@repo/notes/library/library-nodes";
+import { listingQuerySchema } from "@repo/contract/library/library-wire";
+import { applyOps, libraryOpSchema } from "@repo/contract/library/block-ops";
+import type { StoredBlock } from "@repo/contract/library/block-ops";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { deriveItem } from "@repo/contract/library/derive-item";
+import { noteFields, stubFields } from "@repo/contract/library/item-makes";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import { z } from "zod";
 
 import type { ListedItem, ListingQuery } from "../library/listing";

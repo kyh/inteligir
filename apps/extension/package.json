@@ -14,7 +14,6 @@
   "dependencies": {
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
-    "@repo/notes": "workspace:*",
     "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "better-auth": "catalog:",

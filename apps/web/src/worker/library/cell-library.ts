@@ -5,7 +5,7 @@
 // file's removal from R2 and a reading's send. The router the cell serves and a test running
 // inside the cell open it the same way.
 
-import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
+import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";

@@ -80,12 +80,12 @@ src/
   impossible, and `touch-kit.test.ts` holds the touch kit to the same.
 - **Every file reads rich.** The parse is total: no jsx and no expressions, and
   every tag is html, folded with its closer
-  (`@repo/notes/markdown/remark-inline-html`), so every file the codec reads
+  (`@repo/editor/markdown/remark-inline-html`), so every file the codec reads
   becomes blocks, settled through the serializer as it comes in. Constructs
   with no editor node — a tag that cannot pair, any pair but a bare `<u>`, raw
   HTML but a `<br/>` in a table cell, which is that cell's next line, a
   definition nothing used, a title on a link or image with no address — are
-  opaque inline nodes (`@repo/notes/markdown/remark-opaque`): shown as inert
+  opaque inline nodes (`@repo/editor/markdown/remark-opaque`): shown as inert
   literal text and written back as their source, which the read re-serialized
   (a tag keeps its bytes), a footnote is the text it spells, and `{` is
   prose. Only a nesting deeper than the conversion or the writer holds is

@@ -1,7 +1,7 @@
 // A clock the suites move by hand: `now` stands still until `advance` moves it, running each timer
 // that comes due on the way, in the order they come due.
 
-import type { Clock } from "../cloud/library/account-socket";
+import type { Clock } from "../library/account-socket";
 
 interface Timer {
   readonly at: number;

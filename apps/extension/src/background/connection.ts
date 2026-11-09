@@ -4,9 +4,9 @@
 // holds no credential: the session is the browser's own (./sign-in). The site's connect page names
 // the cloud (`answerConnectPage`), its sender checked and its message parsed by the listener first.
 
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
-import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
+import type { ExtensionConnectAnswer } from "@repo/contract/extension/extension-connect";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 

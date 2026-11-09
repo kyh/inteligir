@@ -1,5 +1,5 @@
 import type { LinkResolver, LinkResolverStore, LinkTarget } from "@repo/editor/host-io";
-import { titleKey } from "@repo/notes/library/derive-item";
+import { titleKey } from "@repo/contract/library/derive-item";
 import { createStore } from "zustand/vanilla";
 
 // What a host installs as `EditorHostIo.linkResolver`, and the one input it feeds: the items a

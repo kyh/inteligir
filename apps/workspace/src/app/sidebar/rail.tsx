@@ -2,7 +2,7 @@
 // its folders, its tags, Deleted), each row a scope with the count the cell answers for it, and
 // Settings at its foot.
 
-import type { LibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/contract/library-scope";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,

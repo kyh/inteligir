@@ -3,7 +3,7 @@
 // lands, applied to the properties as they stand when it lands rather than to the list the render
 // drew.
 
-import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
+import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 
 // one row's change: a pin, an undo or the previous edit may have moved the rows since it was drawn
 export type PropertyEdit =

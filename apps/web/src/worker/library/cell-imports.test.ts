@@ -6,8 +6,8 @@
 import { evictDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { FOLDER_NAME_MAX } from "@repo/contract/cloud/library/library-wire";
-import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
+import { FOLDER_NAME_MAX } from "@repo/contract/library/library-wire";
+import { RAINDROP_EXPORT } from "@repo/service/imports/test-support/raindrop-export";
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import {
   ended,

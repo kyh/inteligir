@@ -319,7 +319,8 @@ export default defineConfig({
                 name: "crypto",
               },
               {
-                message: "React Native's URL is not WHATWG; parse with @repo/notes/items/item-url",
+                message:
+                  "React Native's URL is not WHATWG; parse with @repo/contract/items/item-url",
                 name: "URL",
               },
             ],

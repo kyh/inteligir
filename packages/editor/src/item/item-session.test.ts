@@ -8,10 +8,14 @@ import { createSlateEditor, ElementApi, NodeApi } from "platejs";
 import type { Path, SlateEditor } from "platejs";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LibraryOp } from "@repo/notes/library/block-ops";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
-import { itemOf, noteFields, paragraph } from "@repo/notes/test-support/library-items";
+import type { LibraryOp } from "@repo/contract/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
+import type {
+  LibraryBlock,
+  LibraryNode,
+  LibrarySection,
+} from "@repo/contract/library/library-nodes";
+import { itemOf, noteFields, paragraph } from "@repo/contract/test-support/library-items";
 
 import { itemView } from "@repo/editor/codec/item-view";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";

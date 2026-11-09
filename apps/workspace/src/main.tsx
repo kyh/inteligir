@@ -3,7 +3,7 @@
 // browser to the site's sign-in, which brings it back here. Sign-in is the first run: there is
 // nothing to choose before it.
 
-import type { SessionEnd } from "@repo/contract/cloud/library/call-outcome";
+import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { createBrowserHistory, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

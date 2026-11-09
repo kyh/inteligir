@@ -1,5 +1,5 @@
 import type { Client } from "@modelcontextprotocol/client";
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { z } from "zod";
 import { untilBodyHolds } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";

@@ -1,18 +1,18 @@
 // How the cloud reads a page it fills: the Workers runtime's own fetch, every hop of it judged before
 // it is asked. Only http and https on their own ports, as a page is served; never a host whose
 // spelling names a place off the public internet: this machine or a name no public resolver
-// answers (`@repo/notes/items/host-names`), or an address written out in private or reserved space
+// answers (`@repo/contract/items/host-names`), or an address written out in private or reserved space
 // (`./address-space`), since the platform reaches a host by its name alone
 // (https://developers.cloudflare.com/workers/platform/known-issues/) and from the public internet
 // (`global_fetch_strictly_public`, so even this Worker's own zone is asked through its front door);
 // a public address written out is asked like any name. Redirects and the byte cap are every host's
-// (`@repo/notes/items/page-fetch`); no cookie or credential is sent, and the whole read has a
-// deadline (20 s). A refusal is said in the fill's own words (`@repo/notes/items/fill-sentences`).
+// (`@repo/service/items/page-fetch`); no cookie or credential is sent, and the whole read has a
+// deadline (20 s). A refusal is said in the fill's own words (`@repo/service/items/fill-sentences`).
 
-import type { FetchFailure } from "@repo/notes/items/fill-sentences";
-import { isLoopbackName, isPrivateUseName } from "@repo/notes/items/host-names";
-import { followRedirects } from "@repo/notes/items/page-fetch";
-import type { PageFetchResult, PageHop, PageRequest } from "@repo/notes/items/page-fetch";
+import type { FetchFailure } from "@repo/service/items/fill-sentences";
+import { isLoopbackName, isPrivateUseName } from "@repo/contract/items/host-names";
+import { followRedirects } from "@repo/service/items/page-fetch";
+import type { PageFetchResult, PageHop, PageRequest } from "@repo/service/items/page-fetch";
 
 import { addressSpace } from "./address-space";
 import type { AddressSpace } from "./address-space";

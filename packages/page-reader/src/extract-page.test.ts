@@ -9,7 +9,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { FILL_LIMITS } from "@repo/notes/items/link-fill";
+import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
 import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
 import type { ParsePage } from "./extract-page";

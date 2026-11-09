@@ -15,10 +15,10 @@ import {
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
-import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import { parseMdast } from "@repo/notes/markdown/parse";
-import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
+import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
+import { parseMdast } from "@repo/editor/markdown/parse";
+import { parseWikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 const LIST_PROPS = new Set([
   "checked",

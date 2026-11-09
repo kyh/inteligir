@@ -10,12 +10,12 @@ import type { SlateEditor } from "platejs";
 import type * as PlateReact from "platejs/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { blockHash } from "@repo/notes/library/block-hash";
-import { orderedBlocks } from "@repo/notes/library/block-ops";
-import type { ItemState } from "@repo/notes/library/block-ops";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { noteFields } from "@repo/notes/test-support/library-items";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { orderedBlocks } from "@repo/contract/library/block-ops";
+import type { ItemState } from "@repo/contract/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { deferred } from "@repo/editor/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";

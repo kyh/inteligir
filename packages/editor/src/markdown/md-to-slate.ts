@@ -6,7 +6,7 @@ import { getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";
 import type { Root, RootContent } from "mdast";
 import type { Descendant, SlateEditor } from "platejs";
 
-import { parseMdast } from "@repo/notes/markdown/parse";
+import { parseMdast } from "@repo/editor/markdown/parse";
 
 // the parse is total, so nesting is the one thing a conversion can refuse
 export interface ConvertFailure {

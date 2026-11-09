@@ -24,7 +24,7 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { TOAST_TEXT } from "../harness/selectors";
 import { asPhone, v1Client } from "../harness/v1-wire";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 // what the cloud names a session the phone's runtime signed in, from the system's networking stack
 // its native requests carry

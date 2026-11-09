@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-identity";
+import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthShell } from "#components/auth-shell";

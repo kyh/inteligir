@@ -4,7 +4,7 @@
 // the wire answers 4xx) is a warning; and only a throw that is no client's error, or a server
 // fault, is an error, so Workers Logs reads nothing but those as an outage.
 
-import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
 
 import { errorFields } from "../log";
 

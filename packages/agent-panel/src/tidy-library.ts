@@ -3,7 +3,7 @@
 // run; the person's filing rules are no part of it, since every turn carries the rules the cell
 // read for it, so the request never says whether the library has any.
 
-import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
+import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
 type LibraryViewContext = Extract<z.infer<typeof agentViewContextSchema>, { surface: "library" }>;

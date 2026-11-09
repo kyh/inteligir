@@ -2,7 +2,7 @@
 // S256 challenge, both base64url. The provider refuses a public client's authorization without
 // one, so the suites' assistant makes a pair as every assistant does.
 
-import { base64UrlFromBytes } from "@repo/contract/cloud/bytes";
+import { base64UrlFromBytes } from "@repo/contract/bytes";
 
 export interface PkcePair {
   readonly verifier: string;

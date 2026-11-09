@@ -3,8 +3,8 @@
 // folder moved, and which threads. A list past `MOVED_IDS_MAX` says "all", so a frame stays small
 // whatever an undo or a purge moved.
 
-import { MOVED_IDS_MAX } from "@repo/contract/cloud/library/library-socket";
-import type { MovedFrame } from "@repo/contract/cloud/library/library-socket";
+import { MOVED_IDS_MAX } from "@repo/contract/library/library-socket";
+import type { MovedFrame } from "@repo/contract/library/library-socket";
 
 export interface MovedCollector {
   readonly item: (id: string, seq: number) => void;

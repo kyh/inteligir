@@ -1,8 +1,8 @@
 // What a card and Info say about an item, spelled once: the kind's word, a size, the meta line.
 
-import type { ItemKind } from "@repo/notes/items/item-kind";
-import { URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
-import { urlHost } from "@repo/notes/items/item-url";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import { URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
+import { urlHost } from "@repo/contract/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
 import type { ListedItem } from "./listing";
 

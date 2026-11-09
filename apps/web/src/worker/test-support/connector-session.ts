@@ -4,7 +4,7 @@
 // goes to the Worker in process (`exports.default.fetch`).
 
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { z } from "zod";

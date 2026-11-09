@@ -5,8 +5,8 @@
 // Nothing the cell needs later lives in memory, so a hibernated or evicted cell finds every socket
 // again.
 
-import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { z } from "zod";
 
 import { credentialIdSchema } from "./library-principal";

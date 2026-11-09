@@ -8,11 +8,11 @@ import {
   TooManyRequestsError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
-} from "@repo/contract/cloud/v1/errors";
+} from "@repo/contract/v1/errors";
 import { implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
-import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/v1";
 
 import { createAuth } from "../auth/auth";
 import { deleteAccountUnderSession } from "../auth/delete-account";

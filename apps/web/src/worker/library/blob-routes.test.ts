@@ -2,8 +2,8 @@
 // range and by revalidation, under the policy its kind is served with, and out of every other
 // account's reach.
 
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { hexFromBytes } from "@repo/contract/bytes";
+import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 

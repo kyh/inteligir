@@ -4,9 +4,9 @@
 // (`library.agent.setRules`); an export writes it out, and an import passes over that file while
 // it says what the row says, and reads it as a note otherwise.
 
-import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
-import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { readMeta, writeMeta } from "@repo/service/library/library-queries";
+import { runPlan } from "@repo/service/library/library-sql";
+import type { SqlStatements } from "@repo/service/library/library-sql";
 import { z } from "zod";
 
 const LIBRARY_RULES_META = "library_rules";

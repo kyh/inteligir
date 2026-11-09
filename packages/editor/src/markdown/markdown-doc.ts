@@ -7,10 +7,10 @@ import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, Value } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
-import { recordFlowSpans } from "@repo/notes/markdown/flow-spans";
-import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
-import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
+import { recordFlowSpans } from "@repo/editor/markdown/flow-spans";
+import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
+import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
+import { CELL_BREAK } from "@repo/editor/markdown/remark-inline-html";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";

@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 import { routeTree } from "../routeTree.gen";
 

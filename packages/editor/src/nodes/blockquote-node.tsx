@@ -16,8 +16,8 @@ import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { alertMarkerPrefix, leadingAlertMarker } from "@repo/notes/markdown/alert-marker";
-import type { AlertVariant } from "@repo/notes/markdown/alert-marker";
+import { alertMarkerPrefix, leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
+import type { AlertVariant } from "@repo/editor/markdown/alert-marker";
 import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
 
 interface AlertPresentation {

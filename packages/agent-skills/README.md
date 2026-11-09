@@ -61,7 +61,7 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 - **Written for the library's tools alone.** The agent has no shell, no files and no web: a skill
   names a tool, never a command, a path on disk or a CLI verb.
 - **The spec is the parser's.** A construct a skill teaches is one the editor round-trips; every
-  fence's one spelling is `@repo/notes/markdown/fence-langs`, and a skill that disagrees with it
+  fence's one spelling is `@repo/editor/markdown/fence-langs`, and a skill that disagrees with it
   teaches the agent to write bytes a save rewrites.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
   turn; what a turn needs rides its messages: the view context the person's message, and the
@@ -76,7 +76,7 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 
 No suite of its own — `package.json` has no scripts. `tools/repo-guards/src/agent-skills.test.ts`
 pins the set (every directory holds a `SKILL.md`, the hub names every focused skill and no
-phantom), holds every `inteligir-*` fence an example opens to `@repo/notes/markdown/fence-langs`,
+phantom), holds every `inteligir-*` fence an example opens to `@repo/editor/markdown/fence-langs`,
 runs the script's `--check` against the committed module, which the script holds under 100,000
 characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache. `packages/editor/src/skill-examples.test.ts` opens each
 example through the editor.

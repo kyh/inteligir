@@ -9,7 +9,7 @@
 // origin alone; nothing remote drawn in an item, so a saved page cannot beacon on open; no frame,
 // no worker.
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
 export const isLibraryPagePath = (pathname: string): boolean =>
   pathname === LIBRARY_PAGE_PATH || pathname.startsWith(`${LIBRARY_PAGE_PATH}/`);

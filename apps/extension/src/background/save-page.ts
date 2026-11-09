@@ -8,14 +8,14 @@
 // its account is signed out, once it signs in again. A link or a picture a right-click names is
 // saved by its address, and a picture a page drew from its own bytes as a file of its own.
 
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
-import { coverPicture, deviceKeepsReading, preferredText } from "@repo/notes/items/link-fill";
-import { namesPrivateSpace } from "@repo/notes/items/host-names";
-import { originalFileName } from "@repo/notes/items/item-name";
-import { isWebUrl } from "@repo/notes/items/item-url";
-import { sniffMedia } from "@repo/notes/items/sniff-media";
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
+import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
+import { coverPicture, deviceKeepsReading, preferredText } from "@repo/contract/items/link-fill";
+import { namesPrivateSpace } from "@repo/contract/items/host-names";
+import { originalFileName } from "@repo/contract/items/item-name";
+import { isWebUrl } from "@repo/contract/items/item-url";
+import { sniffMedia } from "@repo/contract/items/sniff-media";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { readHtml } from "@repo/page-reader/read-html";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 

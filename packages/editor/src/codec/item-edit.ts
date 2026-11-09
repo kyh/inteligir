@@ -8,16 +8,20 @@
 
 import type { TElement } from "platejs";
 
-import type { FileKind } from "@repo/notes/items/item-kind";
-import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { placeInOrder } from "@repo/notes/library/block-order";
-import { canonicalJson } from "@repo/notes/library/canonical-json";
-import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
-import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
-import { readObsidian } from "@repo/notes/markdown/remark-obsidian";
-import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
-import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
-import { diffLines } from "@repo/notes/text/line-diff";
+import type { FileKind } from "@repo/contract/items/item-kind";
+import type { LibraryOp, StoredBlock } from "@repo/contract/library/block-ops";
+import { placeInOrder } from "@repo/contract/library/block-order";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import type {
+  LibraryBlock,
+  LibraryNode,
+  LibrarySection,
+} from "@repo/contract/library/library-nodes";
+import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
+import { readObsidian } from "@repo/editor/markdown/remark-obsidian";
+import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
+import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import { diffLines } from "@repo/editor/text/line-diff";
 
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";

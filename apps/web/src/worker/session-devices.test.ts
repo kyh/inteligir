@@ -2,11 +2,11 @@
 // routes it signs in and out on, the devices it lists and ends, the cap a new sign-in keeps the
 // account under, and its deletion with the password asked again.
 
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { hexFromBytes } from "@repo/contract/bytes";
+import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/library/library-socket";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { env, exports } from "cloudflare:workers";
 import { and, eq, gt } from "drizzle-orm";
 import { describe, expect, it } from "vitest";

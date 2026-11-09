@@ -1,5 +1,5 @@
-import { fileSha } from "@repo/notes/library/file-sha";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { fileSha } from "@repo/contract/library/file-sha";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type {

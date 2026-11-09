@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import type { AgentThreadDO } from "../agent/agent-thread";
 import { threadStub } from "../agent/thread-stub";
-import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { openCellLibrary } from "../library/cell-library";
 import type { CellResult } from "../library/cell-refusal";
 import type { LibraryDO } from "../library/library-do";

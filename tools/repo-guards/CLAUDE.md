@@ -10,7 +10,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   each package may reach (`tools/repo-guards`), each package's node and react
   rule and the MCP and OpenAPI imports only the Worker makes
   (`oxlint.config.ts`), every `/v1` refusal mapped to a status
-  (`packages/contract/src/cloud/v1-contract.test.ts`), `@repo/ui`'s per-export
+  (`packages/contract/src/v1-contract.test.ts`), `@repo/ui`'s per-export
   orphans and type roles, the editor's buffer invariant, and the words on
   every surface a person reads, the changelog aside, where neither "vault" nor
   an engine's word appears (`tools/repo-guards/src/product-words.test.ts`, a
@@ -106,7 +106,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   dropped. `patches/micromark@4.0.3.patch` is upstream's own open fix
   (micromark/micromark#233): one splice per line, with GFM's email autolink
   splitting at every word, parses a long paragraph in time quadratic in its
-  lines; `packages/notes/src/markdown/parse-cost.test.ts` compares a 20k-line
+  lines; `packages/editor/src/markdown/parse-cost.test.ts` compares a 20k-line
   paragraph's parse with an eighth of it. Rejected: a workaround
   in `@repo/notes` (splitting the paragraph changes what it parses to).
   Residual: a paragraph dense with emphasis or inline nodes is still

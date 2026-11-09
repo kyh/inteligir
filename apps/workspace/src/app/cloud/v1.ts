@@ -7,10 +7,10 @@
 import { createORPCClient, isDefinedError, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { sharedFailure } from "@repo/contract/cloud/library/call-outcome";
-import type { SessionEnd, V1Transport } from "@repo/contract/cloud/library/call-outcome";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
+import { sharedFailure } from "@repo/contract/library/call-outcome";
+import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
+import { V1_RPC_PATH } from "@repo/contract/v1";
+import type { V1Client } from "@repo/contract/v1";
 import { QueryClient } from "@tanstack/react-query";
 
 export type V1Queries = ReturnType<typeof createTanstackQueryUtils<V1Client>>;

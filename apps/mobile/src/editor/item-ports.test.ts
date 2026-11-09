@@ -1,11 +1,11 @@
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/react-query";
-import { uploadBlob } from "@repo/contract/cloud/library/call-outcome";
+import { uploadBlob } from "@repo/contract/library/call-outcome";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
-import { blockHash } from "@repo/notes/library/block-hash";
-import { fileSha } from "@repo/notes/library/file-sha";
-import { paragraph } from "@repo/notes/test-support/library-items";
+import { blockHash } from "@repo/contract/library/block-hash";
+import { fileSha } from "@repo/contract/library/file-sha";
+import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
 import { createFileCache } from "../files/file-cache";
 import { createPhoneSaves } from "../items/phone-saves";

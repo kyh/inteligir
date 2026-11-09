@@ -3,8 +3,8 @@
 // each over the value the item holds. A value the panel cannot edit (an object, a list that is not
 // all words) is drawn as it is and never written.
 
-import type { PropertyValue } from "@repo/notes/library/library-item";
-import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
+import type { PropertyValue } from "@repo/contract/library/library-item";
+import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { z } from "zod";
 
 import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";

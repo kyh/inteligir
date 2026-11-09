@@ -2,9 +2,9 @@
 // calls it, so every input and output meets the contract's own schemas and every refusal arrives
 // as the error its row declares.
 
-import { ordsBetween } from "@repo/notes/library/block-order";
-import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { ordsBetween } from "@repo/contract/library/block-order";
+import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createRouterClient } from "@orpc/server";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -21,14 +21,14 @@ import {
   paragraph,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { FILL_ACTOR } from "./cell-fills";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { libraryRouter } from "./library-router";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError } from "@repo/contract/v1/errors";
 
 const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;

@@ -1,5 +1,5 @@
 import { mergeBlocks } from "@repo/editor/stale-write";
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 import { describe, expect, it } from "vitest";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({

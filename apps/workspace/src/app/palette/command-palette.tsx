@@ -4,8 +4,8 @@
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs
 // that need no item: a new note, a link, the agent and Tidy my library, Settings.
 
-import { shownTitle } from "@repo/notes/items/item-name";
-import { isWebUrl } from "@repo/notes/items/item-url";
+import { shownTitle } from "@repo/contract/items/item-name";
+import { isWebUrl } from "@repo/contract/items/item-url";
 import {
   CommandDialog,
   CommandFooter,

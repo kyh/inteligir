@@ -3,7 +3,7 @@
 // selection, the focus and the menu.
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
-import { shownTitle } from "@repo/notes/items/item-name";
+import { shownTitle } from "@repo/contract/items/item-name";
 import {
   MediaCard,
   MediaCardBadge,

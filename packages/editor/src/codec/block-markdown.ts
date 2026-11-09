@@ -5,11 +5,11 @@
 // it was written, so no Obsidian spelling is read out of it, and a block's `ref` stands beside its
 // text rather than in it. A block whose markdown does not read back as itself has none.
 
-import type { FileKind } from "@repo/notes/items/item-kind";
-import { canonicalJson } from "@repo/notes/library/canonical-json";
-import { storableBlockSchema } from "@repo/notes/library/library-nodes";
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
-import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
+import type { FileKind } from "@repo/contract/items/item-kind";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
+import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
 
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";

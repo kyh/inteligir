@@ -6,7 +6,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import plist from "@expo/plist";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -236,7 +236,7 @@ describe("the phone's store config", () => {
     expect(
       `${config.scheme}://`,
       "rule: Better Auth's Expo client names the app's scheme as the phone's origin, which the Worker trusts and reads the phone's cookie under, by PHONE_ORIGIN\n" +
-        "fix: app.config.js's scheme and PHONE_ORIGIN in packages/contract/src/cloud/cloud-origin.ts are one name",
+        "fix: app.config.js's scheme and PHONE_ORIGIN in packages/contract/src/cloud-origin.ts are one name",
     ).toBe(PHONE_ORIGIN);
   });
 

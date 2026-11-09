@@ -22,9 +22,9 @@ import { createLinkedNote, insertWikiChipFromPicker } from "@repo/editor/wiki/wi
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import { useLinkResolver, useLinkTargets } from "@repo/editor/host";
 import type { LinkTarget } from "@repo/editor/host-io";
-import { shownTitle } from "@repo/notes/items/item-name";
-import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
-import { parseWikiBody, serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { shownTitle } from "@repo/contract/items/item-name";
+import { rankWikiTargets } from "@repo/editor/knowledge/rank-wiki-targets";
+import { parseWikiBody, serializeWikiBody } from "@repo/editor/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 

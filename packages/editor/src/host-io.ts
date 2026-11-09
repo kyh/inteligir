@@ -1,4 +1,4 @@
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep

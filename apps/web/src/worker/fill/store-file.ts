@@ -3,7 +3,7 @@
 // at its length, the bytes put in R2 under their SHA-256, which R2 checks, and the row settled at
 // the size R2 holds. A file the library already holds is not sent again.
 
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
+import { hexFromBytes } from "@repo/contract/bytes";
 
 import { blobKey } from "../library/cell-blobs";
 import type { LibraryDO } from "../library/library-do";

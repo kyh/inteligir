@@ -4,8 +4,8 @@
 // both, plain text whose every line is a web link. A file past what the library's store takes
 // and a folder are refused here, before any byte is queued.
 
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import { isWebUrl } from "@repo/notes/items/item-url";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
+import { isWebUrl } from "@repo/contract/items/item-url";
 
 export interface CapturedLink {
   readonly url: string;

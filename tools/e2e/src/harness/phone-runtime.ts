@@ -7,17 +7,17 @@
 // `expo-origin` and the session cookie the answer set kept in the Keychain.
 
 import { createHash, randomBytes } from "node:crypto";
-import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
+import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
+import type { V1Client } from "@repo/contract/v1";
+import { isOrpcError } from "@repo/contract/v1/errors";
 import type { AuthAnswer, PhoneAuth } from "@repo/mobile/auth/phone-auth";
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "@repo/mobile/lib/compose-runtime";
 import { memoryFolder } from "@repo/mobile/test-support/memory-folder";
 import { memoryKv } from "@repo/mobile/test-support/memory-kv";
 import type { MemoryKv } from "@repo/mobile/test-support/memory-kv";
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { z } from "zod";
 import { expect, expectEq } from "./assert";
 import { OWNER, PHONE_BUILD } from "./cloud-account";

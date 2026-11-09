@@ -5,7 +5,7 @@
 // is any unique id the vocabulary takes; a change set's, and a send waiting for the agent's turn, is
 // a random UUID.
 
-import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
 
 export interface CellIds {
   readonly item: () => string;

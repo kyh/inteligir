@@ -1,6 +1,6 @@
-import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
+import { V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
+import { V1_RPC_PATH } from "@repo/contract/v1";
 import { createAuth, withoutAuthToken } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import {

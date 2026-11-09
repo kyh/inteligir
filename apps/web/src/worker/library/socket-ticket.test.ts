@@ -1,4 +1,4 @@
-import { base64FromBytes } from "@repo/contract/cloud/bytes";
+import { base64FromBytes } from "@repo/contract/bytes";
 import { describe, expect, it } from "vitest";
 
 import { mintSocketTicket, readSocketTicket, SOCKET_TICKET_TTL_MS } from "./socket-ticket";

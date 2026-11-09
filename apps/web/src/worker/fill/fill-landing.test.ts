@@ -4,8 +4,8 @@
 // reading it makes (`./read-page`), so no page served to the consumer breaks a cap; a reading is
 // built here instead.
 
-import { TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { TEXT_NOT_SAVED } from "@repo/service/items/fill-sentences";
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { FillJob } from "./fill-job";

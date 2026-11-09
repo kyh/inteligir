@@ -4,7 +4,7 @@
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
-import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
+import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
 import type {
   ItemInit,

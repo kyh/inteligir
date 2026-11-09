@@ -106,7 +106,7 @@ says how a bullet is written and cited.
   cloud trusts and the id the connect page sends to. The zip carries
   no key, since the Web Store signs the item with its own, whose public half
   the owner commits once in its place (`docs/releasing.md`).
-  `packages/contract/src/cloud/extension/extension-identity.ts`,
+  `packages/contract/src/extension/extension-identity.ts`,
   `apps/extension/wxt.config.ts`.
 
 - **WXT BUILDS IT, AS kyh/init BUILDS ITS EXTENSION** (owner decision).
