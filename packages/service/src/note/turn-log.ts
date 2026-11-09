@@ -114,8 +114,10 @@ const logOf = (rows: readonly TurnLogRow[]) => {
 
 // The undo writes as a client its change set names, so a note holding that client's writes has
 // had this undo: replayed again, it would restore the turn's deletes a second time.
-const undoClient = (changeSetId: string): number =>
-  new DataView(sha256(utf8ToBytes(changeSetId)).buffer).getUint32(0);
+const undoClient = (changeSetId: string): number => {
+  const hash = sha256(utf8ToBytes(changeSetId));
+  return new DataView(hash.buffer, hash.byteOffset, hash.byteLength).getUint32(0);
+};
 
 export const undoTurn = (rows: readonly TurnLogRow[], live: Y.Doc): TurnUndo => {
   const log = logOf(rows);
