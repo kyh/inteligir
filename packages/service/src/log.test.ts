@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { errorFields } from "./log";
@@ -30,6 +31,20 @@ describe("an error's logged fields", () => {
     expect(fields.message).toHaveLength(301);
     expect(fields.message.endsWith("…")).toBe(true);
     expect(fields.causes[0]?.length).toBe(301);
+  });
+
+  it("names a failed query by its statement alone, never its parameters", () => {
+    const failed = new DrizzleQueryError(
+      "select * from items where url_key = ?",
+      ["example.com/private-page"],
+      new Error("D1_ERROR: database is locked"),
+    );
+    const fields = errorFields(new Error("items.save", { cause: failed }));
+    expect(fields.causes[0]).toBe(
+      "DrizzleQueryError: Failed query: select * from items where url_key = ?",
+    );
+    expect(errorFields(failed).message).toBe("Failed query: select * from items where url_key = ?");
+    expect(JSON.stringify(fields)).not.toContain("private-page");
   });
 
   it("keeps a stack's frames alone, since a stack opens with the whole message", () => {

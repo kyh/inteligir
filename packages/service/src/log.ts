@@ -1,3 +1,5 @@
+import { DrizzleQueryError } from "drizzle-orm";
+
 interface ErrorFields {
   name: string | undefined;
   message: string;
@@ -11,7 +13,7 @@ interface ErrorFields {
 const CAUSE_DEPTH = 8;
 
 // the log keeps a week of what it is given, and a message may quote its input (JSON.parse names the
-// text it failed on, a failed query its parameters), so each message keeps only its opening
+// text it failed on), so each message keeps only its opening
 const MESSAGE_MAX = 300;
 
 const clipped = (text: string): string =>
@@ -20,17 +22,22 @@ const clipped = (text: string): string =>
 // a stack opens with the whole message, so only its frames are kept
 const STACK_FRAME = /^\s+at .+$/gmu;
 
+// a failed query's message ends with its parameters, which are the library's own words (a title,
+// a url, a block's text); the statement alone says which query failed
+const messageOf = (error: Error): string =>
+  error instanceof DrizzleQueryError ? `Failed query: ${error.query}` : error.message;
+
 export const errorFields = (cause: unknown): ErrorFields => {
   const causes: string[] = [];
   let next = cause instanceof Error ? cause.cause : undefined;
   while (next !== undefined && causes.length < CAUSE_DEPTH) {
     // oxlint-disable-next-line typescript/no-base-to-string -- a cause that is no Error is logged as whatever it spells; nothing narrower is known of it
-    causes.push(clipped(next instanceof Error ? `${next.name}: ${next.message}` : String(next)));
+    causes.push(clipped(next instanceof Error ? `${next.name}: ${messageOf(next)}` : String(next)));
     next = next instanceof Error ? next.cause : undefined;
   }
   return {
     name: cause instanceof Error ? cause.name : undefined,
-    message: clipped(cause instanceof Error ? cause.message : String(cause)),
+    message: clipped(cause instanceof Error ? messageOf(cause) : String(cause)),
     stack: cause instanceof Error ? cause.stack?.match(STACK_FRAME)?.join("\n") : undefined,
     causes,
   };
