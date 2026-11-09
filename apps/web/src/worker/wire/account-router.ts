@@ -1,11 +1,8 @@
-// The account's procedures, which the Worker answers itself on `/v1/rpc/account`: a device
-// credential's sign-in and sign-up, signing out, the browser extension's credential, the account's
-// devices, its sessions beside its device credentials, its deletion with the password asked again,
-// the socket's ticket, and the assistants let in through the connector. A signed row meets its
-// credential in one middleware, verified lazily from the request's context (`./v1-principal`); a
-// sign-in or sign-up spends its caller's window. The sessions' cores are `../auth/session-devices`
-// and `../auth/delete-account`; the device credentials', which mint, verify and revoke them,
-// `../device/*`.
+// The account's procedures, which the Worker answers itself on `/v1/rpc/account`: the account's
+// devices, each one of its sessions, its deletion with the password asked again, the socket's
+// ticket, and the assistants let in through the connector. Every row meets its session in one
+// middleware, verified lazily from the request's context (`./v1-principal`). Their cores are
+// `../auth/session-devices` and `../auth/delete-account`; signing in and out is Better Auth's own.
 
 import {
   TooManyRequestsError,
@@ -16,22 +13,16 @@ import { implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
-import { eq } from "drizzle-orm";
 
-import { createAuth, createSignUpAuth } from "../auth/auth";
+import { createAuth } from "../auth/auth";
 import { deleteAccountUnderSession } from "../auth/delete-account";
 import { listSessionDevices, revokeSessionDevice } from "../auth/session-devices";
 import { listAssistants, revokeAssistant } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
-import { user } from "../db/schema";
-import { deleteAccountWithPassword } from "../device/account";
-import { listDevices, revokeDevice } from "../device/devices";
-import { loginDevice, mintDeviceCredential } from "../device/login";
-import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
 import { mintSocketTicket } from "../library/socket-ticket";
-import { spendCallerBudget, spendHolderBudget } from "../rate-limit";
+import { spendHolderBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
 import { holderIdOf } from "./v1-principal";
 
@@ -44,8 +35,8 @@ export interface AccountContext {
 
 const os = implement(v1Contract.account).$context<AccountContext>();
 
-// a signed row's caller: the principal its credential verifies to, within its window; thrown as
-// the error factories, since every signed row declares both and this middleware serves them all
+// a row's caller: the principal its session verifies to, within its window; thrown as the error
+// factories, since every row declares both and this middleware serves them all
 const signedIn = os.middleware(async ({ context, next }) => {
   const principal = await context.principal();
   if (principal === null) {
@@ -89,51 +80,18 @@ const accountRouter = os.router({
       return { revoked: true as const };
     }),
   },
-  // the site's own page alone mints the extension its credential, on its session: a device's, the
-  // phone's or the extension's could otherwise mint credentials that outlive its own end. The
-  // session stays, the site's own
-  connectExtension: os.connectExtension
-    .use(signedIn)
-    .handler(async ({ context, errors, input }) => {
-      const { db, signedIn: principal } = context;
-      if (principal.actor.kind !== "session" || principal.actor.door !== "page") {
-        throw errors.UNAUTHORIZED();
-      }
-      const owner = await db
-        .select({ email: user.email, id: user.id })
-        .from(user)
-        .where(eq(user.id, principal.accountId))
-        .get();
-      if (owner === undefined) {
-        throw errors.GONE();
-      }
-      const minted = await mintDeviceCredential(db, {
-        deviceName: input.deviceName,
-        sessionToken: null,
-        user: owner,
-      });
-      if (minted === null) {
-        throw errors.DEVICE_LIMIT();
-      }
-      return minted;
-    }),
   delete: os.delete.use(signedIn).handler(async ({ context, errors, input }) => {
     const { db, env, signedIn: principal } = context;
     if (!(await spendHolderBudget(env, db, "accountDelete", holderIdOf(principal)))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const deletion =
-      principal.actor.kind === "session"
-        ? await deleteAccountUnderSession(env, context.ctx, context.request, input.password)
-        : await deleteAccountWithPassword(env, context.ctx, db, {
-            origin: originOf(context.request),
-            password: input.password,
-            userId: principal.accountId,
-          });
+    const deletion = await deleteAccountUnderSession(
+      env,
+      context.ctx,
+      context.request,
+      input.password,
+    );
     switch (deletion) {
-      case "gone": {
-        throw errors.GONE();
-      }
       case "signed-out": {
         throw errors.UNAUTHORIZED();
       }
@@ -149,92 +107,32 @@ const accountRouter = os.router({
   devices: {
     list: os.devices.list.use(signedIn).handler(async ({ context }) => {
       const { accountId, actor } = context.signedIn;
-      const [sessions, credentials] = await Promise.all([
-        listSessionDevices(
-          context.db,
-          accountId,
-          actor.kind === "session" ? actor.sessionId : null,
-        ),
-        listDevices(context.db, accountId, actor.kind === "device" ? actor.deviceId : null),
-      ]);
-      return {
-        devices: [...sessions, ...credentials].toSorted((a, b) => a.createdAt - b.createdAt),
-      };
+      return { devices: await listSessionDevices(context.db, accountId, actor.sessionId) };
     }),
-    // the session or the device credential by that id, among the account's own alone
+    // the session by that id, among the account's own alone
     revoke: os.devices.revoke.use(signedIn).handler(async ({ context, errors, input }) => {
-      const id = "id" in input ? input.id : input.deviceId;
-      const userId = context.signedIn.accountId;
-      const revoked =
-        (await revokeSessionDevice(await internalAdapterOf(context), context.db, { id, userId })) ||
-        (await revokeDevice(context.ctx, context.db, { deviceId: id, userId }));
+      const revoked = await revokeSessionDevice(await internalAdapterOf(context), context.db, {
+        id: input.id,
+        userId: context.signedIn.accountId,
+      });
       if (!revoked) {
         throw errors.NOT_FOUND();
       }
       return { revoked: true as const };
     }),
   },
-  signIn: os.signIn.handler(async ({ context, errors, input }) => {
-    const { env, request } = context;
-    const db = createDb(env.DB);
-    if (!(await spendCallerBudget(env, db, "login", request))) {
-      throw errors.TOO_MANY_REQUESTS();
-    }
-    const result = await loginDevice(db, createAuth(env, context.ctx, originOf(request)), input);
-    if (!result.loggedIn) {
-      throw result.failure === "device-limit"
-        ? errors.DEVICE_LIMIT()
-        : errors.INVALID_CREDENTIALS();
-    }
-    return result.response;
-  }),
-  // the credential that asks: a device's is revoked, and a session ends, its sockets with it
-  signOut: os.signOut.use(signedIn).handler(async ({ context }) => {
-    const { actor, accountId } = context.signedIn;
-    await (actor.kind === "device"
-      ? revokeDevice(context.ctx, context.db, { deviceId: actor.deviceId, userId: accountId })
-      : revokeSessionDevice(await internalAdapterOf(context), context.db, {
-          id: actor.sessionId,
-          userId: accountId,
-        }));
-    return { revoked: true as const };
-  }),
-  signUp: os.signUp.handler(async ({ context, errors, input }) => {
-    const { env, request } = context;
-    const db = createDb(env.DB);
-    // the site's invite gate spends this window too, so two doors are not twice the guesses
-    if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
-      throw errors.TOO_MANY_REQUESTS();
-    }
-    const result = await signUpDevice(
-      db,
-      createSignUpAuth(env, context.ctx, originOf(request)),
-      input,
-    );
-    if (result.signedUp) {
-      return result.response;
-    }
-    throw result.failure === "invite-refused" ? errors.FORBIDDEN() : errors.ACCOUNT_EXISTS();
-  }),
-  // a minute's ticket the account's socket opens with (`/v1/socket`), naming this credential
+  // a minute's ticket the account's socket opens with (`/v1/socket`), naming this session
   socketTicket: os.socketTicket.use(signedIn).handler(async ({ context }) => {
-    const principal = context.signedIn;
-    const { actor } = principal;
+    const { accountId, actor } = context.signedIn;
     return await mintSocketTicket(
       context.env.BETTER_AUTH_SECRET,
-      {
-        accountId: principal.accountId,
-        holder:
-          actor.kind === "device"
-            ? { id: actor.deviceId, kind: "device" }
-            : { id: actor.sessionId, kind: "session" },
-      },
+      { accountId, holder: { id: actor.sessionId, kind: "session" } },
       Date.now(),
     );
   }),
 });
 
-// an account call is a few fields: a password, a name, an invite code
+// an account call is a few fields: a password, an id
 const ACCOUNT_RPC_MAX_BODY_BYTES = 64 * 1024;
 
 const handler = new RPCHandler(accountRouter, {

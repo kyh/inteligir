@@ -184,7 +184,6 @@ const holdings = async (accountId: string) => {
     cell: cellSchema.parse(state),
     files,
     rows: {
-      devices: await count("SELECT COUNT(*) AS n FROM device WHERE user_id = ?"),
       sessions: await count("SELECT COUNT(*) AS n FROM session WHERE user_id = ?"),
       users: await count("SELECT COUNT(*) AS n FROM user WHERE id = ?"),
     },

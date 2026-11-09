@@ -23,7 +23,7 @@ import { FILL_QUEUE } from "../../../../fill-queues";
 
 const laptop = (accountId: string): NamedPrincipal => ({
   accountId,
-  actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
 });
 
 // the account's library as the apps call it, over its own cell

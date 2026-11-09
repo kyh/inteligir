@@ -11,13 +11,12 @@ import { z } from "zod";
 
 import { credentialIdSchema } from "./library-principal";
 
-// who a socket answers to: a session, whichever door it came by, or a device by its credential;
-// the Worker verifies it and stamps it on the upgrade, over any copy the request carried, and the
-// ticket it opens with names the same holder (`./socket-ticket`)
-const HOLDER_KINDS = ["device", "session"] as const;
+// who a socket answers to: a session, whichever door it came by; the Worker verifies it and stamps
+// it on the upgrade, over any copy the request carried, and the ticket it opens with names the same
+// holder (`./socket-ticket`)
 export const holderSchema = z.strictObject({
   id: credentialIdSchema,
-  kind: z.enum(HOLDER_KINDS),
+  kind: z.literal("session"),
 });
 export type SocketHolder = z.infer<typeof holderSchema>;
 

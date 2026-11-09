@@ -1,13 +1,12 @@
 import { getIP } from "better-auth/api";
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, `/v1`'s holders on the session or device
-// credential that signed in, and an assistant on its grant; the kill switch is read here, not per
-// caller.
+// Unauthenticated callers are keyed on their address, `/v1`'s holders on the session that signed
+// in, and an assistant on its grant; the kill switch is read here, not per caller.
 
 /** @internal */
 export interface RateWindow {
@@ -48,8 +47,9 @@ const allowInWindow = async (
   return settled === undefined || settled.count <= window.max;
 };
 
-// what `holderIdOf` keys: named here because eviction must spend the same spellings the routes do;
-// the table has no foreign key
+// what `holderIdOf` keys; the table has no foreign key, so a session's or a grant's window waits for
+// Better Auth's prune: a session also ends by lapsing, which nothing announces, and a revoked
+// grant's token may answer for a minute more and write its row again
 const HOLDER_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
   blobs: "blobs:",
@@ -65,26 +65,12 @@ export const holderRateKey = (family: HolderRateFamily, holderId: string): strin
 /** @internal */
 export const grantRateKey = (grantId: string): string => `connector:${grantId}`;
 
-// Better Auth's prune reaches a row only after its window lapsed, and only when one of Better
-// Auth's own windows rolls over; a revoked device's budget names nobody, so it goes at once. A
-// session's and a grant's wait for the prune: a session also ends by lapsing, which nothing
-// announces, and a revoked grant's token may answer for a minute more and write its row again
-export const forgetDeviceBudgets = async (db: Db, deviceIds: readonly string[]): Promise<void> => {
-  const keys = deviceIds.flatMap((deviceId) =>
-    Object.values(HOLDER_RATE_KEY_PREFIXES).map((prefix) => `${prefix}${deviceId}`),
-  );
-  if (keys.length === 0) {
-    return;
-  }
-  await db.delete(rateLimit).where(inArray(rateLimit.key, keys));
-};
-
-// the unauthenticated routes, keyed on the caller's address: nothing else about the caller is
-// known yet, a login with no throttle is a password oracle, and a registration with none fills KV
+// the unauthenticated routes of the Worker's own, keyed on the caller's address: nothing else about
+// the caller is known yet, an invite code with no throttle is guessed at volume, and a registration
+// with none fills KV; a sign-in is Better Auth's route, under its own limiter (./auth/auth.ts)
 const CALLER_RATE_KEY_PREFIXES = {
   clientRegistration: "client-registration:",
   inviteSignUp: "invite-signup:",
-  login: "device-login:",
 } as const;
 
 type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
@@ -106,22 +92,21 @@ export const callerRateKey = (family: CallerRateFamily, request: Request): strin
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
 /** @internal */
 export const RATE_WINDOWS = {
-  // a password check behind a device credential, so a stolen one guesses here rather than at
-  // login's per-address window; a person mistypes a few times, never dozens
+  // a password check behind a session, so a stolen one guesses here rather than at the sign-in's
+  // per-address window; a person mistypes a few times, never dozens
   accountDelete: { max: 5, windowMs: 60_000 },
   // an assistant registering itself with the connector's OAuth: each one is a client record KV
   // keeps 90 days, and a person connects an assistant or two at a time, never dozens a minute
   clientRegistration: { max: 10, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
-  login: { max: 10, windowMs: 60_000 },
   // a library's files, read and written: a grid of covers and a video read range by range are the
   // legitimate bursts
   blobs: { max: 3000, windowMs: 60_000 },
   // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
   // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
   connector: { max: 300, windowMs: 60_000 },
-  // every signed call on /v1/rpc, keyed on the session or the device credential: a screen reads its
+  // every signed call on /v1/rpc, keyed on the session: a screen reads its
   // pages again on each socket frame, and a phone back online lands its waiting saves a write a
   // call, which a few hundred calls cover, so a ceiling past that is a loop
   rpc: { max: 1200, windowMs: 60_000 },

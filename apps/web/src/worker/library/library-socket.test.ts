@@ -14,11 +14,14 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
-  deviceHeaders,
   drained,
-  loginDevice,
+  extensionHeaders,
   ORIGIN,
+  phoneHeaders,
   sessionHeaders,
+  sessionIdOf,
+  signInPhone,
+  signOutPhone,
   signUpUser,
   userIdOf,
   v1Link,
@@ -100,17 +103,18 @@ const openWithTicket = async (ticket: string): Promise<OpenSocket> => {
   return listen(socket);
 };
 
-// a signed-in device and the ticket its socket opens with
-const signedInDevice = async (email: string) => {
+// a phone signed in beside the site's sign-up, its session's id and the ticket its socket opens with
+const signedInPhone = async (email: string) => {
   const { cookie } = await signUpUser(email);
-  const login = await loginDevice(cookie, "Laptop");
+  const phone = await signInPhone(email);
   const accountId = await userIdOf(cookie);
+  const sessionId = await sessionIdOf(phone);
   const { ticket } = await mintSocketTicket(
     env.BETTER_AUTH_SECRET,
-    { accountId, holder: { id: login.deviceId, kind: "device" } },
+    { accountId, holder: { id: sessionId, kind: "session" } },
     Date.now(),
   );
-  return { accountId, login, ticket };
+  return { accountId, cookie, phone, sessionId, ticket };
 };
 
 // a browser tab signed in to the site, and the socket it opened on its session's ticket
@@ -158,7 +162,7 @@ const until = async (check: () => boolean): Promise<void> => {
 
 describe("the account's socket", () => {
   it("opens with a ticket, hears each committed write, and answers its keepalive", async () => {
-    const { accountId, ticket } = await signedInDevice("socket-ticket@example.test");
+    const { accountId, ticket } = await signedInPhone("socket-ticket@example.test");
     const first = await openWithTicket(ticket);
     const second = await openWithTicket(ticket);
     const written = await writeInCell(accountId);
@@ -170,8 +174,8 @@ describe("the account's socket", () => {
   });
 
   it("keeps an account's frames to its own sockets", async () => {
-    const mine = await signedInDevice("socket-mine@example.test");
-    const theirs = await signedInDevice("socket-theirs@example.test");
+    const mine = await signedInPhone("socket-mine@example.test");
+    const theirs = await signedInPhone("socket-theirs@example.test");
     const mineSocket = await openWithTicket(mine.ticket);
     const theirSocket = await openWithTicket(theirs.ticket);
     const mineWritten = await writeInCell(mine.accountId);
@@ -183,16 +187,18 @@ describe("the account's socket", () => {
   });
 
   it("refuses a forged, expired or revoked ticket before naming any cell", async () => {
-    const { accountId, login, ticket } = await signedInDevice("socket-refused@example.test");
+    const { accountId, phone, sessionId, ticket } = await signedInPhone(
+      "socket-refused@example.test",
+    );
     const victim = crypto.randomUUID();
     const forged = await mintSocketTicket(
       "not the Worker's secret",
-      { accountId: victim, holder: { id: login.deviceId, kind: "device" } },
+      { accountId: victim, holder: { id: sessionId, kind: "session" } },
       Date.now(),
     );
     const expired = await mintSocketTicket(
       env.BETTER_AUTH_SECRET,
-      { accountId, holder: { id: login.deviceId, kind: "device" } },
+      { accountId, holder: { id: sessionId, kind: "session" } },
       Date.now() - 120_000,
     );
     const victimCell = exports.LibraryDO.idFromName(libraryCellName(victim));
@@ -207,10 +213,8 @@ describe("the account's socket", () => {
     );
     expect(notAnUpgrade.status).toBe(400);
 
-    // signing out revokes the credential, and a ticket it minted before no longer opens
-    await expect(v1Link(deviceHeaders(login.credential)).account.signOut()).resolves.toStrictEqual({
-      revoked: true,
-    });
+    // signing out ends the session, and a ticket it minted before no longer opens
+    await signOutPhone(phone);
     const revoked = await drained(upgrade(`${V1_SOCKET_PATH}?ticket=${ticket}`));
     expect(revoked.status).toBe(401);
 
@@ -221,15 +225,25 @@ describe("the account's socket", () => {
     expect(ids.some((id) => id.equals(victimCell))).toBe(false);
   });
 
+  it("opens on a ticket alone, never on a session's cookie or bearer", async () => {
+    const { cookie } = await signUpUser("socket-ticket-alone@example.test");
+    const phone = await signInPhone("socket-ticket-alone@example.test");
+    for (const headers of [sessionHeaders(cookie), phoneHeaders(phone), extensionHeaders(cookie)]) {
+      const response = await drained(upgrade(V1_SOCKET_PATH, headers));
+      expect(response.status).toBe(401);
+    }
+  });
+
   it("stamps the holder the ticket verified over one the request names", async () => {
-    const { cookie } = await signUpUser("socket-stamped@example.test");
-    const laptop = await loginDevice(cookie, "Laptop");
-    const phone = await loginDevice(cookie, "Phone");
+    const email = "socket-stamped@example.test";
+    const { cookie } = await signUpUser(email);
     const accountId = await userIdOf(cookie);
-    const { ticket } = await v1Link(deviceHeaders(laptop.credential)).account.socketTicket();
-    // the laptop's ticket, claiming to be the phone's socket
+    const tabId = await sessionIdOf(cookie);
+    const phoneId = await sessionIdOf(await signInPhone(email));
+    const { ticket } = await v1Link(sessionHeaders(cookie)).account.socketTicket();
+    // the tab's ticket, claiming to be the phone's socket
     const response = await upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`, {
-      [SOCKET_HOLDER_HEADER]: `device:${phone.deviceId}`,
+      [SOCKET_HOLDER_HEADER]: `session:${phoneId}`,
     });
     expect(response.status).toBe(101);
     const socket = response.webSocket;
@@ -237,23 +251,23 @@ describe("the account's socket", () => {
       throw new Error("no websocket on the 101");
     }
     const opened = listen(socket);
-    // the phone's revocation leaves the socket the laptop opened, whatever it claimed
-    await cellOf(accountId).sever({ id: phone.deviceId, kind: "device" });
+    // the phone's end leaves the socket the tab opened, whatever it claimed
+    await cellOf(accountId).sever({ id: phoneId, kind: "session" });
     await expect(closedWithin(opened, 300)).resolves.toBe("open");
-    await cellOf(accountId).sever({ id: laptop.deviceId, kind: "device" });
+    await cellOf(accountId).sever({ id: tabId, kind: "session" });
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
-  it("closes a socket whose device was revoked while its upgrade was on the way", async () => {
-    const { login, ticket } = await signedInDevice("socket-race@example.test");
-    await v1Link(deviceHeaders(login.credential)).account.signOut();
-    // the upgrade's own check read the device before the revocation, whose sever then found no
-    // socket to close
+  it("closes a socket whose session ended while its upgrade was on the way", async () => {
+    const { phone, ticket } = await signedInPhone("socket-race@example.test");
+    await signOutPhone(phone);
+    // the upgrade's own check read the session before its end, whose sever then found no socket to
+    // close: read here as the account's other session, the sign-up's, which still stands
     const prepare = env.DB.prepare.bind(env.DB);
     const staleRead = vi
       .spyOn(env.DB, "prepare")
       .mockImplementationOnce((query) =>
-        prepare(query.replace('"device"."revoked_at" is null', "1 = 1")),
+        prepare(query.replace('"session"."id" = ?', '"session"."id" <> ?')),
       );
     const opened = await openWithTicket(ticket);
     staleRead.mockRestore();
@@ -263,12 +277,11 @@ describe("the account's socket", () => {
   it("opens for no assistant's token, on any path under the connector, under any holder", async () => {
     const { cookie } = await signUpUser("socket-connector@example.test");
     const accountId = await userIdOf(cookie);
-    const login = await loginDevice(cookie, "Laptop");
     const assistant = await connectAssistant(cookie, { readOnly: true });
     const response = await workerFetch(`${CONNECTOR_URL}/anything`, {
       headers: {
         authorization: `Bearer ${assistant.access_token}`,
-        [SOCKET_HOLDER_HEADER]: `device:${login.deviceId}`,
+        [SOCKET_HOLDER_HEADER]: `session:${await sessionIdOf(cookie)}`,
         upgrade: "websocket",
       },
     });
@@ -282,7 +295,7 @@ describe("the account's socket", () => {
 
   it("is taken by the cell on its own path alone", async () => {
     const accountId = crypto.randomUUID();
-    const headers = { [SOCKET_HOLDER_HEADER]: "device:laptop-1", upgrade: "websocket" };
+    const headers = { [SOCKET_HOLDER_HEADER]: "session:laptop-1", upgrade: "websocket" };
     for (const path of ["/connector/anything", "/socket/anything", "/"]) {
       const answer = await drained(
         cellOf(accountId).fetch(`https://cell.test${path}`, { headers }),
@@ -300,7 +313,7 @@ describe("the account's socket", () => {
       forwardAsPrincipal(
         exports,
         new Request(`https://cell.test${CELL_SOCKET_PATH}`, {
-          headers: { [SOCKET_HOLDER_HEADER]: "device:laptop-1", upgrade: "websocket" },
+          headers: { [SOCKET_HOLDER_HEADER]: "session:laptop-1", upgrade: "websocket" },
         }),
         {
           accountId,
@@ -317,12 +330,13 @@ describe("the account's socket", () => {
     expect(answer.status).toBe(400);
   });
 
-  it("closes a tab's socket once the app signs its session out", async () => {
-    const tab = await signedInTab("socket-session-app@example.test");
-    await expect(v1Link(sessionHeaders(tab.cookie)).account.signOut()).resolves.toStrictEqual({
-      revoked: true,
-    });
-    await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  it("closes a phone's socket once another device ends its session", async () => {
+    const { cookie, sessionId, ticket } = await signedInPhone("socket-session-ended@example.test");
+    const opened = await openWithTicket(ticket);
+    await expect(
+      v1Link(sessionHeaders(cookie)).account.devices.revoke({ id: sessionId }),
+    ).resolves.toStrictEqual({ revoked: true });
+    await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("closes a tab's socket once the site signs its session out", async () => {
@@ -337,17 +351,11 @@ describe("the account's socket", () => {
     await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
-  it("closes every tab's socket at a password reset, and leaves a device's open", async () => {
+  it("closes every session's socket at a password reset", async () => {
     const email = "socket-session-reset@example.test";
     const tab = await signedInTab(email);
-    const accountId = await userIdOf(tab.cookie);
-    const login = await loginDevice(tab.cookie, "Laptop");
-    const { ticket } = await mintSocketTicket(
-      env.BETTER_AUTH_SECRET,
-      { accountId, holder: { id: login.deviceId, kind: "device" } },
-      Date.now(),
-    );
-    const laptop = await openWithTicket(ticket);
+    const { ticket } = await v1Link(phoneHeaders(await signInPhone(email))).account.socketTicket();
+    const phone = await openWithTicket(ticket);
     const reset = await drained(
       exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
         body: JSON.stringify({ newPassword: "new-password-5678", token: await issueToken(email) }),
@@ -357,12 +365,11 @@ describe("the account's socket", () => {
     );
     expect(reset.status).toBe(200);
     await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
-    // a reset revokes sessions only, never a device's credential (`../auth/auth.ts`)
-    await expect(closedWithin(laptop, 300)).resolves.toBe("open");
+    await expect(phone.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
-  it("closes its sockets at a deletion's tombstone, and refuses another while a credential still verifies", async () => {
-    const { accountId, ticket } = await signedInDevice("socket-deleted@example.test");
+  it("closes its sockets at a deletion's tombstone, and refuses another while a session still stands", async () => {
+    const { accountId, ticket } = await signedInPhone("socket-deleted@example.test");
     const opened = await openWithTicket(ticket);
     await inCell(cellOf(accountId), async (state) => {
       const tombstone = ACCOUNT_PURGE_STEPS.find((step) => step.name === "tombstone");
@@ -376,7 +383,7 @@ describe("the account's socket", () => {
   });
 
   it("keeps its sockets through an eviction, hibernated, and still sends them each write", async () => {
-    const { accountId, ticket } = await signedInDevice("socket-evicted@example.test");
+    const { accountId, ticket } = await signedInPhone("socket-evicted@example.test");
     const opened = await openWithTicket(ticket);
     await evictDurableObject(cellOf(accountId), { webSockets: "hibernate" });
     const written = await writeInCell(accountId);
@@ -391,9 +398,9 @@ const itemRowSchema = z.object({ id: z.string(), seq: z.number() });
 
 describe("the moved frame", () => {
   it("names what a person's write moved, once a write, and nothing for an answer given again", async () => {
-    const { login, ticket } = await signedInDevice("moved-person@example.test");
+    const { phone, ticket } = await signedInPhone("moved-person@example.test");
     const opened = await openWithTicket(ticket);
-    const { library } = v1Link(deviceHeaders(login.credential));
+    const { library } = v1Link(phoneHeaders(phone));
     const opId = crypto.randomUUID();
     const { item } = await library.items.createNote({ markdown: "Paris.", opId });
     await until(() => movedOf(opened).length === 1);
@@ -418,8 +425,7 @@ describe("the moved frame", () => {
   it("names what an assistant's tool moved", async () => {
     const { cookie } = await signUpUser("moved-connector@example.test");
     const accountId = await userIdOf(cookie);
-    const login = await loginDevice(cookie, "Laptop");
-    const { ticket } = await v1Link(deviceHeaders(login.credential)).account.socketTicket();
+    const { ticket } = await v1Link(sessionHeaders(cookie)).account.socketTicket();
     const opened = await openWithTicket(ticket);
     const assistant = await connectAssistant(cookie);
     const client = await connectorClient(assistant.access_token);
@@ -438,7 +444,7 @@ describe("the moved frame", () => {
     "names the thread a turn of the built-in agent moved, and the items its tools wrote",
     { timeout: 30_000 },
     async () => {
-      const { accountId, ticket } = await signedInDevice("moved-agent@example.test");
+      const { accountId, ticket } = await signedInPhone("moved-agent@example.test");
       const opened = await openWithTicket(ticket);
       const account = { accountId, cell: cellOf(accountId) };
       const sent = await asLaptop(
@@ -463,10 +469,10 @@ describe("the moved frame", () => {
   );
 
   it("names the item a reading of its page landed on", async () => {
-    const { accountId, login, ticket } = await signedInDevice("moved-fill@example.test");
+    const { accountId, phone, ticket } = await signedInPhone("moved-fill@example.test");
     const opened = await openWithTicket(ticket);
     const url = "https://pages.example/moved";
-    const { library } = v1Link(deviceHeaders(login.credential));
+    const { library } = v1Link(phoneHeaders(phone));
     const saved = await library.items.saveLink({ url });
     await until(() => movedOf(opened).length === 1);
     await cellOf(accountId).landFill({
@@ -486,9 +492,9 @@ describe("the moved frame", () => {
   });
 
   it("names what an undo took back", async () => {
-    const { login, ticket } = await signedInDevice("moved-undo@example.test");
+    const { phone, ticket } = await signedInPhone("moved-undo@example.test");
     const opened = await openWithTicket(ticket);
-    const { library } = v1Link(deviceHeaders(login.credential));
+    const { library } = v1Link(phoneHeaders(phone));
     const { item } = await library.items.createNote({ markdown: "Before." });
     const { changeSets } = await library.history.list({});
     await library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
@@ -499,7 +505,7 @@ describe("the moved frame", () => {
   });
 
   it("says everything moved once the alarm's import landed its pages", async () => {
-    const { accountId, ticket } = await signedInDevice("moved-import@example.test");
+    const { accountId, ticket } = await signedInPhone("moved-import@example.test");
     const opened = await openWithTicket(ticket);
     const started = await startImport(
       accountId,

@@ -58,7 +58,7 @@ const DevicesRow = () => {
               <li key={device.id} className="flex items-center gap-2">
                 <span className="truncate">{device.name}</span>
                 <span className="text-caption text-muted-foreground">
-                  {device.lastSeenAt === null ? "" : relativeTimeLabel(device.lastSeenAt, nowMs)}
+                  {relativeTimeLabel(device.lastSeenAt, nowMs)}
                 </span>
                 {device.current ? (
                   <span className="ml-auto text-caption text-muted-foreground">This device</span>

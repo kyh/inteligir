@@ -14,16 +14,16 @@ import { inviteCode } from "../db/schema";
 
 import { spendCallerBudget } from "../rate-limit";
 
-// Two front doors, one claim: the site's page (below) and the app's `account.signUp`
-// (../device/sign-up.ts). The invite is claimed before the account exists: one UPDATE … WHERE
-// redeemed_at IS NULL is the only atomic step, so it settles two simultaneous sign-ups on one code.
+// Every sign-up's one door, the site's page and the phone's alike. The invite is claimed before the
+// account exists: one UPDATE … WHERE redeemed_at IS NULL is the only atomic step, so it settles two
+// simultaneous sign-ups on one code.
 // A failed sign-up releases the claim; an isolate dying between the two burns a code, and the
 // owner mints another.
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/u;
 
 // false when the code will not work: malformed, unknown, or already claimed
-export const claimInvite = async (db: Db, code: string, email: string): Promise<boolean> => {
+const claimInvite = async (db: Db, code: string, email: string): Promise<boolean> => {
   if (!CODE_PATTERN.test(code)) {
     return false;
   }
@@ -46,7 +46,7 @@ export const forgetInviteRedeemer = async (db: Db, email: string): Promise<void>
 };
 
 // scoped to the email this request claimed with, so a loser never releases a concurrent winner's claim
-export const releaseInvite = async (db: Db, code: string, email: string): Promise<void> => {
+const releaseInvite = async (db: Db, code: string, email: string): Promise<void> => {
   await db
     .update(inviteCode)
     .set({ redeemedAt: null, redeemedBy: null })

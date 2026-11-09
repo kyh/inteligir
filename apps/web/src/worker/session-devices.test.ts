@@ -139,22 +139,6 @@ describe("a session's doors to /v1", () => {
     const tab = await drained(exports.default.fetch(url, { headers: sessionHeaders(cookie) }));
     expect(tab.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
   });
-
-  it("mints the extension its credential on the site's own page alone", async () => {
-    const email = "door-connect@example.test";
-    const { cookie } = await signUpUser(email);
-    const phoneCookie = await signInPhone(email);
-    for (const headers of [phoneHeaders(phoneCookie), extensionHeaders(cookie)]) {
-      const elsewhere = v1Link(headers);
-      await expect(
-        elsewhere.refusalOf(
-          elsewhere.account.connectExtension({ deviceName: "Browser extension" }),
-        ),
-      ).resolves.toMatchObject(UNAUTHORIZED);
-    }
-    const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(devices.map(({ name }) => name)).toStrictEqual(["Chrome on Mac", "iPhone"]);
-  });
 });
 
 describe("Better Auth's routes for every device", () => {
@@ -254,7 +238,6 @@ describe("the account's devices, its sessions", () => {
         "id",
         "lastSeenAt",
         "name",
-        "revokedAt",
       ]);
     }
     const listed = JSON.stringify(devices);

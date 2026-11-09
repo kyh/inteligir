@@ -316,9 +316,9 @@ already holds items: the phone signs in, never signs up.
    > phone last read opens offline; saving, editing and the agent need a
    > connection. A link shared from another app while offline waits on the
    > phone until it is back online, and the page is then read in the cloud.
-5. Each review signs in as a new device, and an account holds 20: revoke the
-   old review devices at `https://inteligir.com/app/devices` before the next
-   submission.
+5. Each review signs in as a new session. An account keeps 20, a sign-in
+   past that ending the one used longest ago, so old review sessions need no
+   clearing before the next submission.
 
 ### Per release (owner)
 

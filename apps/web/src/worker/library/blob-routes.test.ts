@@ -9,11 +9,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildHeaders,
-  deviceHeaders,
   drained,
-  loginDevice,
   ORIGIN,
+  phoneHeaders,
   sessionHeaders,
+  signInPhone,
   signUpUser,
   userIdOf,
 } from "../test-support/cloud-helpers";
@@ -33,10 +33,11 @@ const fileOf = async (text: string) => {
 
 const urlOf = (sha: string): string => `${ORIGIN}${V1_BLOBS_PATH}/${sha}`;
 
+// the site's sign-up, and the phone signed in beside it, whose calls are `auth`
 const signedIn = async (email: string) => {
   const { cookie } = await signUpUser(email);
-  const laptop = await loginDevice(cookie, "Laptop");
-  return { accountId: await userIdOf(cookie), auth: deviceHeaders(laptop.credential), cookie };
+  const phone = await signInPhone(email);
+  return { accountId: await userIdOf(cookie), auth: phoneHeaders(phone), cookie };
 };
 
 // an upload's status: its body is read to the end, so nothing of it is held open
@@ -264,11 +265,13 @@ describe("a file's bytes", () => {
     expect(held.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("refuses an old build, no credential, a name that is no sha and any other method", async () => {
+  it("refuses an old build, no session, a name that is no sha and any other method", async () => {
     const { auth } = await signedIn("blob-refusals@example.test");
     const { sha } = await fileOf(TEN);
     await expect(
-      statusOf(urlOf(sha), { headers: { authorization: auth.authorization ?? "" } }),
+      statusOf(urlOf(sha), {
+        headers: { cookie: auth.cookie, "expo-origin": auth["expo-origin"] },
+      }),
     ).resolves.toBe(426);
     await expect(statusOf(urlOf(sha), { headers: buildHeaders() })).resolves.toBe(401);
     await expect(statusOf(urlOf("not-a-sha"), { headers: auth })).resolves.toBe(404);

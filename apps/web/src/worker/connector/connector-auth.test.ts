@@ -17,10 +17,9 @@ import { connectorAuth, isConnectorPath } from "./connector-auth";
 import { rateLimit, session } from "../db/schema";
 import { CALLER_IP_HEADER, callerRateKey, grantRateKey } from "../rate-limit";
 import {
-  deviceHeaders,
   drained,
-  loginDevice,
   ORIGIN,
+  sessionHeaders,
   sessionTokenOf,
   signUpUser,
   userIdOf,
@@ -70,11 +69,12 @@ const refresh = async (clientId: string, refreshToken: string): Promise<Response
     method: "POST",
   });
 
-const accountClient = (credential: string): V1Client =>
+// the account's procedures as the library's own tab calls them, on its session cookie
+const accountClient = (cookie: string): V1Client =>
   createORPCClient<V1Client>(
     new RPCLink({
       fetch: async (url, init) => await workerFetch(url, init),
-      headers: deviceHeaders(credential),
+      headers: sessionHeaders(cookie),
       origin: ORIGIN,
       url: V1_RPC_PATH,
     }),
@@ -126,14 +126,17 @@ describe("the connector's sign-in", () => {
     expect(isConnectorPath(`${CONNECTOR_PATH}/anything`)).toBe(false);
   });
 
-  it("takes no app's credential: the connector is an assistant's door alone", async () => {
+  it("takes no app's session: the connector is an assistant's door alone", async () => {
     const { cookie } = await signUpUser("connector-device@example.test");
-    const device = await loginDevice(cookie, "Laptop");
-    for (const credential of [device.credential, sessionTokenOf(cookie)]) {
-      const refused = await drained(initialize({ authorization: `Bearer ${credential}` }));
+    const signed = decodeURIComponent(sessionTokenOf(cookie));
+    const [token = ""] = signed.split(".");
+    for (const bearer of [signed, token]) {
+      const refused = await drained(initialize({ authorization: `Bearer ${bearer}` }));
       expect(refused.status).toBe(401);
       expect(refused.headers.get("www-authenticate")).toContain('error="invalid_token"');
     }
+    const byCookie = await drained(initialize({ cookie }));
+    expect(byCookie.status).toBe(401);
   });
 
   it("sends a person who is not signed in to sign in, and back to the page", async () => {
@@ -283,8 +286,7 @@ describe("the connector's sign-in", () => {
     });
     expect(allowed.status).toBe(403);
     await expect(allowed.text()).resolves.toContain("signed in to a different account");
-    const device = await loginDevice(other.cookie, "Laptop");
-    const listed = await accountClient(device.credential).account.assistants.list();
+    const listed = await accountClient(other.cookie).account.assistants.list();
     expect(listed.assistants).toStrictEqual([]);
 
     // refusing lets nobody in, so that answer counts from whoever gives it
@@ -333,8 +335,7 @@ describe("the connector's sign-in", () => {
 describe("the account's assistants", () => {
   it("lists each assistant let in and revokes one, whose token is then challenged", async () => {
     const { cookie } = await signUpUser("connector-revoke@example.test");
-    const device = await loginDevice(cookie, "Laptop");
-    const { account } = accountClient(device.credential);
+    const { account } = accountClient(cookie);
     const kept = await connectAssistant(cookie, { clientName: "ChatGPT", readOnly: true });
     const revoked = await connectAssistant(cookie);
 
@@ -367,8 +368,7 @@ describe("the account's assistants", () => {
 
   it("ends an assistant's access though a renewal was writing its grant back as it was disconnected", async () => {
     const { cookie } = await signUpUser("connector-race@example.test");
-    const device = await loginDevice(cookie, "Laptop");
-    const { account } = accountClient(device.credential);
+    const { account } = accountClient(cookie);
     const minted = await connectAssistant(cookie);
     const { assistants } = await account.assistants.list();
 
@@ -417,12 +417,10 @@ describe("the account's assistants", () => {
     const mine = await signUpUser("connector-mine@example.test");
     const theirs = await signUpUser("connector-theirs@example.test");
     await connectAssistant(theirs.cookie);
-    const device = await loginDevice(theirs.cookie, "Phone");
-    const listed = await accountClient(device.credential).account.assistants.list();
+    const listed = await accountClient(theirs.cookie).account.assistants.list();
     const [grant] = listed.assistants;
-    const myDevice = await loginDevice(mine.cookie, "Laptop");
     await expect(
-      accountClient(myDevice.credential).account.assistants.revoke({
+      accountClient(mine.cookie).account.assistants.revoke({
         grantId: grant?.grantId ?? "",
       }),
     ).rejects.toThrow(expect.objectContaining({ code: "NOT_FOUND" }));
@@ -443,8 +441,7 @@ describe("the connector's budgets", () => {
   it("refuses a grant's calls once its minute is spent, with when to try again", async () => {
     const { cookie } = await signUpUser("connector-budget@example.test");
     const minted = await connectAssistant(cookie);
-    const device = await loginDevice(cookie, "Laptop");
-    const listed = await accountClient(device.credential).account.assistants.list();
+    const listed = await accountClient(cookie).account.assistants.list();
     const [grant] = listed.assistants;
     const spent = { count: 1_000_000, lastRequest: Date.now() };
     await createDb(env.DB)

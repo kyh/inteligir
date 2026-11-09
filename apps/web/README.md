@@ -2,9 +2,9 @@
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, the library's page at `/library`, Better
-Auth on D1, device login, each account's library cell (a SQLite Durable Object
-holding the library and its devices' sockets), the connector a person's own
-assistant reaches the library through. The wire contract is
+Auth on D1 and every device's session, each account's library cell (a SQLite
+Durable Object holding the library and its devices' sockets), the connector a
+person's own assistant reaches the library through. The wire contract is
 `@repo/contract/cloud` — the Worker implements it; the library's page (the Mac
 app's window and the browser tab), the phone and the extension consume it.
 
@@ -17,21 +17,19 @@ src/
     privacy.tsx      docs/privacy.md itself, rendered
     terms.tsx        docs/terms.md itself, rendered
     about, contact   lib/site-content.ts's markdown, rendered or answered as-is
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password,
-                     /app/reset-password and /app/devices (the last two
-                     client-only)
-    connect/         /connect/extension, which hands the browser extension a
-                     credential of its own (client-only)
+    app/             /app/sign-in, /app/sign-up, /app/forgot-password and
+                     /app/reset-password (the last client-only)
+    connect/         /connect/extension, which tells the browser extension
+                     where the site is (client-only)
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
-    auth/            Better Auth factory, invite gate, reset email
-    device/          Device login and sign-up, credential verification,
-                     the account's devices, account deletion
-    wire/            /v1's one wire: the floor, the principal a credential verifies
+    auth/            Better Auth factory, invite gate, reset email, the
+                     account's sessions as its devices, account deletion
+    wire/            /v1's one wire: the floor, the principal a session verifies
                      to (v1-principal.ts), the account's rows on the Worker's
                      own handler (account-router.ts), and the library's
                      forwarded to its cell (v1-rpc.ts)
@@ -159,32 +157,32 @@ own (`.dev.vars.example`).
 | `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                    |
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                     |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                         |
-| `/app/devices`              | session         | The device table: list and revoke                                                                           |
 | `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in                                 |
 | `/api/auth/*`               | —               | Better Auth (email+password, session cookie)                                                                |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form                                      |
 | `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable |
-| `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension                                  |
-| `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell                                            |
-| `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                            |
+| `POST /v1/rpc/account/*`    | session         | The account's oRPC rows: devices, delete, the socket's ticket, assistants                                   |
+| `POST /v1/rpc/library/*`    | session         | The library's oRPC rows, forwarded to the account's library cell                                            |
+| `/v1/blobs/:sha`            | session         | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                            |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                         |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                            |
-| `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own                                    |
+| `/connect/extension`        | session         | The site's page that tells the browser extension where the site is                                          |
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                     |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                               |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                         |
 
-"device" auth is the `igd_…` credential a login minted, verified per request by
-hash compare against D1 — never cached, so revocation is immediate; its
-`last_seen_at` is written at most every five minutes
-(`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
-VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the socket upgrade to that user's own library cell, `LibraryDO`
-named `library:<userId>` (on the cell's own socket path, carrying the verified
-holder; a revoke and a deletion call the cell by RPC), and the account
-deletion reads D1 directly. `/v1/rpc` answers every refusal, an unhandled
-fault included, in its own protocol, and `/v1/blobs` and the socket's upgrade
-in HTTP's statuses alone, with a sentence for a person.
+"session" is Better Auth's own, read once a request by the door it came
+through (`src/worker/wire/v1-principal.ts`): the site's page sends its cookie
+same-origin, the phone its cookie under `expo-origin` naming `PHONE_ORIGIN`,
+and the browser extension the browser's signed cookie value as a bearer. Every
+read is of the row in D1, with no cookie cache, so an ended session is refused
+at once. The VERIFIED session's userId — never a path or a body — names the
+state it reaches: the socket upgrade to that user's own library cell,
+`LibraryDO` named `library:<userId>` (on the cell's own socket path, carrying
+the verified holder; a session's end and a deletion call the cell by RPC), and
+the account deletion reads D1 directly. `/v1/rpc` answers every refusal, an
+unhandled fault included, in its own protocol, and `/v1/blobs` and the socket's
+upgrade in HTTP's statuses alone, with a sentence for a person.
 
 A link the library holds unread (a `saveLink`, a `refresh`, an import's) is
 read by the Worker's own queue consumer: the cell writes the reading's ask as a
@@ -196,12 +194,12 @@ says the failure in the item. A preview binds `inteligir-fill-preview`, which
 nothing consumes, so its links stay unread.
 
 `/v1/rpc` is oRPC's RPC protocol: POST only, every refusal a declared code at
-the status `V1_ERROR_STATUS_MAP` gives it, the floor, the credential and the
+the status `V1_ERROR_STATUS_MAP` gives it, the floor, the session and the
 budget answered in the same protocol before any procedure runs
-(`src/worker/wire/rpc-refusal.ts`). "device or tab" is a device's bearer or, on a
-request the site's own page made (`Sec-Fetch-Site: same-origin`), its session
-cookie; a bearer that does not verify is refused, never retried as the cookie.
-A library call reaches the cell with the principal the credential verified, in
+(`src/worker/wire/rpc-refusal.ts`). A request carrying `Authorization` is read
+from its bearer alone, so one that does not verify is refused, never retried as
+the cookie. A library call reaches the cell with the principal the session
+verified, in
 `x-library-principal`, and nothing the caller sent in its place
 (`src/worker/wire/v1-rpc.ts`). A file is PUT with its `Content-Length` (at most
 100 MB, room held in the cell first) and kept only if its bytes hash to its
@@ -225,7 +223,7 @@ assistants' registrations, grants and tokens, and its issuer and resource are
 named from `SITE_ORIGIN`, one value per deployment, never the request's Host.
 A call to `/connector` is refused 403 for a Host or Origin not this
 deployment's, challenged 401 with its `resource_metadata` without a token this
-Worker minted for it (a device credential is none), and forwarded into the
+Worker minted for it (a session of the person's is none), and forwarded into the
 account's cell with an `assistant` principal once its grant's budget (300
 calls a minute) holds (`src/worker/connector/connector-route.ts`). A grant is
 `library` (read and change) or `library:read`, as the person chose on the
@@ -237,17 +235,23 @@ and end them, and the account's deletion revokes every one.
 - `src/worker/auth/auth.ts::createAuth(env, ctx, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
-  config). No plugins: a browser holds Better Auth's session cookie and
-  nothing else, and the apps hold the `igd_…` device credential, which never
-  reaches Better Auth. `disabledPaths` shuts every Better Auth route no client
-  calls (the site uses sign-in, `get-session`, the reset pair and, through the
-  invite gate, sign-up). That includes its own `/delete-user`, so
+  config). Two plugins: `bearer({ requireSignature: true })`, so the
+  extension's bearer is the browser's signed cookie value and a session row's
+  token alone opens nothing, and `expo()`, which reads the phone's
+  `expo-origin` as its origin. Every answer drops `set-auth-token`
+  (`withoutAuthToken`), since no client reads one. A session lasts 60 days,
+  slid a day at a time, and a sign-in past twenty live sessions ends the one
+  used longest ago (`src/worker/auth/session-devices.ts`); a password reset
+  ends every one. `disabledPaths` shuts every Better Auth route no client calls
+  (the clients use sign-in, sign-out, `get-session`, the reset pair and,
+  through the invite gate, sign-up). That includes its own `/delete-user`, so
   `account.delete` is the one way to delete an account;
   `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP.
   Only `/callback/:id` stays open: an exact list cannot name it, and with no
-  social provider it has nothing to sign in with. Better Auth reads
-  `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
-  request's ever need trusting. `readSession` is a route of the Worker's own
+  social provider it has nothing to sign in with. `trustedOrigins` spells out
+  the extension's origin and the phone's scheme beside the request's own, and
+  Better Auth reads `BETTER_AUTH_TRUSTED_ORIGINS` itself, should another ever
+  need trusting. `readSession` is a route of the Worker's own
   reading a session, which never slides it: only `/api/auth/get-session` answers
   with the cookie a slid row needs.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
@@ -259,30 +263,21 @@ and end them, and the account's deletion revokes every one.
   `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
   with sign-up enabled — so the response (cookie, Better Auth's own refusals)
   is Better Auth's, untouched. Better Auth is configured with those same two
-  bounds (`src/worker/auth/auth.ts`), which the reset-password page and device
-  login hold too. Every other caller's instance carries `disableSignUp`, which
-  shuts
-  `/api/auth/sign-up/email` and `auth.api.signUpEmail` together. The gate
-  has TWO front doors over that one claim (`claimInvite` / `releaseInvite`):
-  this page's, which forwards so the browser keeps Better Auth's cookie, and
-  the app's, `account.signUp` (`src/worker/device/sign-up.ts`), which calls
-  `signUpEmail` on the sign-up instance, releases the claim on any refusal
-  (`ACCOUNT_EXISTS` 409 for a taken address, `FORBIDDEN` 403 for a code that
-  will not work), deletes the session the sign-up minted and answers the
-  device credential a sign-in would. Both spend one per-address
-  window, so two doors are not twice the guesses.
-- **The site's pages ask for a session in the route, and remember the way
-  back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
-  visit to `/app/sign-in?next=<the page>`, and its loader does the same when
-  the list answers `UNAUTHORIZED`. Sign-in and sign-up follow `next` through
-  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), each
-  handing it to the other, else land in the library, `SIGNED_IN_HOME`, as bare
-  `/app` does, each by a document load. The list loads in
-  the route's loader through `account.devices` on the session's cookie, and a
-  refusal is said in its declared words (`refusalText`), so a failure is the
-  route's error view with a retry, never a page stuck on Loading. The auth forms submit
-  through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
-  request that never left into a message rather than a button stuck busy.
+  bounds (`src/worker/auth/auth.ts`), which the reset-password page and the
+  apps' sign-in forms hold too. Every other caller's instance carries
+  `disableSignUp`, which shuts `/api/auth/sign-up/email` and
+  `auth.api.signUpEmail` together. The site's form and the phone's first run
+  both post here, so the browser keeps Better Auth's cookie and the phone the
+  one its Expo client stores; a refused sign-up releases the claim
+  (`claimInvite` / `releaseInvite`), and every attempt spends one per-address
+  window first.
+- **The site's pages remember the way back.** Sign-in and sign-up follow
+  `next` through `internalNextPath` (`src/lib/next-path.ts`, the
+  open-redirect guard), each handing it to the other, else land in the
+  library, `SIGNED_IN_HOME`, as bare `/app` does, each by a document load. The
+  auth forms submit through one `useAuthSubmit`
+  (`src/components/auth-shell.tsx`), which turns a request that never left
+  into a message rather than a button stuck busy.
 - **The emailed reset link lands on a site page, not a Worker route.**
   `/app/forgot-password` asks Better Auth for a link whose GET leg redirects
   to `/app/reset-password?token=…` (or `?error=INVALID_TOKEN` for a spent or
@@ -292,33 +287,21 @@ and end them, and the account's deletion revokes every one.
   meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
   since an email client opens a browser. A `next` the person came with rides
   the request, the mail's link and the page's links back to sign-in.
-- **A device signs in with the account's own email and password**
-  (`src/worker/device/login.ts`, the Obsidian Sync model). `account.signIn`
-  verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
-  under the twenty-device cap, and DELETES the browser session that sign-in
-  created — the device holds its credential and nothing else, and a session
-  nobody sees is a bearer nobody revokes. The answer names the account beside
-  the credential (`{ credential, deviceId, userId, email }`), so a device knows
-  whose library it holds from its first request. A wrong password and an
-  unknown address answer one `INVALID_CREDENTIALS`, throttled per address. A
-  credential is revoked from `/app/devices` or from Settings › Account on any
-  signed-in device or the library's tab: `account.devices.list` and
-  `account.devices.revoke` take a session or a live device credential of the
-  same account (`src/worker/wire/account-router.ts`), an `Authorization`
-  header deciding which, so a device credential never reaches Better Auth and
-  a revoked one is refused rather than tried as a session.
-- **A signing-out device revokes itself** (`account.signOut`, which revokes
-  the device a credential names, and ends the session a browser tab signs out
-  with). It is the dashboard's revoke — the row's `revoked_at`, the device's
-  limiter rows, its live sockets — so the account's twenty-device cap counts
-  only devices still signed in. It answers `{ revoked: true }` even when a
-  dashboard revoke lands mid-request, and `UNAUTHORIZED` to a credential
-  already revoked. The Mac, the phone and the browser extension send it
-  best-effort as they drop the credential; a sign-out the cloud never hears
-  leaves the row for another device's Settings › Account or `/app/devices`.
+- **Every device signs in on Better Auth's own route, and its devices are the
+  account's sessions.** The site, the Mac app's window and the phone post
+  `/api/auth/sign-in/email`; the extension signs in nowhere, riding the
+  browser's sign-in to the site. A wrong password and an unknown address
+  answer one refusal, under Better Auth's per-address limiter.
+  `account.devices.list` names each live session from the user agent it
+  signed in with, marks the one asking and selects no token;
+  `account.devices.revoke` ends one by its id through Better Auth's adapter,
+  whose `session.delete.after` closes its sockets
+  (`src/worker/wire/account-router.ts`, `src/worker/auth/session-devices.ts`).
+  Signing out is Better Auth's `/api/auth/sign-out`, which ends the session the
+  request names and clears its cookie.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
-  limiter on the auth routes, and the same table behind the invite gate's and
-  the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
+  limiter on the auth routes, and the same table behind the invite gate's
+  10/60s-per-IP window (`src/worker/rate-limit.ts`). The
   window is one upsert that RETURNS the count it settled on — a read-then-write
   limiter lets N concurrent requests all read the same count and all decide
   they are under the cap, which is the burst it exists to stop. Every window
@@ -328,24 +311,20 @@ and end them, and the account's deletion revokes every one.
   which one host holds whole. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
-  (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
-  that failed to load, as its message and a retry
-  (`src/routes/app/devices.tsx`). `/v1/rpc` and `/v1/blobs` spend the same
-  table keyed on the HOLDER, the device or the browser session, never the
-  address: a stolen credential moves between addresses, and the device row is
-  what `/app/devices` revokes. The connector spends it keyed on the assistant's
-  grant. Each family is its own, so a drained budget never takes another down.
-  Revoking a device and deleting the account drop that device's rows; a
-  session's and a grant's wait for the prune. Better Auth prunes the shared
+  (`src/lib/auth-client.ts`). `/v1/rpc` and `/v1/blobs` spend the same table
+  keyed on the HOLDER, the session, never the address: a stolen session moves
+  between addresses, and the session is what Settings › Account ends. The
+  connector spends it keyed on the assistant's grant. Each family is its own,
+  so a drained budget never takes another down. An ended session's rows and a
+  grant's wait for the prune. Better Auth prunes the shared
   table on its own writes, every row past its 60s window with it, so every
   Worker window is declared in `RATE_WINDOWS` and a guard holds each to 60s or
   less.
-- **CORS for one origin alone** (`src/worker/cors.ts`): the browser extension's
-  worker, on the routes it calls and by its exact origin, never a reflected
-  one. Every other browser client, the Mac app's window among them, is served
-  by this Worker from this origin. `access-control-allow-credentials` stays
-  absent: the extension sends a device credential as a bearer, and the auth
-  surface is cookie-bearing.
+- **No CORS.** Every page that calls `/v1` is served by this Worker from this
+  origin, the Mac app's window among them, and the browser extension's worker
+  calls the site under its host permission, which needs none. CORS added
+  later lets no `expo-origin` through: that header names the phone's door, and
+  a page allowed to send it would read what the phone's cookie opens.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
   so a failed step aborts the deletion rather than orphaning data, and the
   retry runs every step again. THE ORDER IS LOAD-BEARING
@@ -354,18 +333,17 @@ and end them, and the account's deletion revokes every one.
   sockets closed, then every conversation's object, while the cell's rows that
   alone name them are still there, then the cell's storage with the tombstone
   written back at once, then the account's files in R2, then every assistant's
-  grant with its tokens, before the credentials that could let one in again,
-  then its device rows and the deleted email off the invite it spent
-  (`redeemed_at` stays set, so the code stays burned), the credentials last so
-  a failure leaves one to retry with. The tombstone stays, so a request that
-  verified a moment before the credentials went founds no library.
-  A device or the library's tab asks it through `account.delete`
-  (`src/worker/device/account.ts`): the credential or the tab's session, a
-  window of 5 a minute, the password checked again through `signInEmail`, then
-  `auth.api.deleteUser` under the cookie of the session that sign-in minted, so this hook
-  stays the one purge path. The credential alone deletes nothing: whoever held a
-  stolen one could end the account. `docs/privacy.md` is the user-facing
-  statement of all of it.
+  grant with its tokens, before the sessions that could let one in again, then
+  the deleted email off the invite it spent (`redeemed_at` stays set, so the
+  code stays burned); Better Auth deletes the sessions with the user, after
+  the hook, so a failure leaves one to retry with. The tombstone stays, so a
+  request that verified a moment before the sessions went founds no library.
+  Any signed-in device asks it through `account.delete`
+  (`src/worker/auth/delete-account.ts`): the session's own call, a window of 5
+  a minute, and `auth.api.deleteUser` handed the password in its body, which
+  it checks in place of the session's freshness, so this hook stays the one
+  purge path. A session alone deletes nothing: whoever stole one could end the
+  account. `docs/privacy.md` is the user-facing statement of all of it.
 
 Minting invites is a raw insert, deliberately — no admin UI, no self-serve
 issuance. Locally, add an `invite_code` row in `pnpm --filter @repo/web

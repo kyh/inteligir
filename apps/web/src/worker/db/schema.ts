@@ -136,28 +136,6 @@ export const inviteCode = sqliteTable("invite_code", {
   redeemedAt: integer("redeemed_at", { mode: "timestamp_ms" }),
 });
 
-// credentialHash is SHA-256 of the minted credential, whose plaintext is never stored;
-// rows survive revocation as the dashboard's audit surface and die with the account
-export const device = sqliteTable(
-  "device",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    credentialHash: text("credential_hash").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
-    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
-  },
-  // revoked_at too: every login counts the account's active rows against the cap
-  (table) => [
-    uniqueIndex("device_credential_hash_unique").on(table.credentialHash),
-    index("device_user_id_idx").on(table.userId, table.revokedAt),
-  ],
-);
-
 // a grant its account disconnected, which outlives the grant's own record in KV and dies with the
 // account (`../connector/revoked-grants`)
 export const revokedGrant = sqliteTable(

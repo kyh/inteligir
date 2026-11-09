@@ -5,7 +5,7 @@ import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-id
 import { Button } from "@repo/ui/components/button";
 
 import { AuthShell } from "#components/auth-shell";
-import { connectExtension } from "#lib/extension-connect";
+import { tellExtension } from "#lib/extension-connect";
 import type { ConnectOutcome } from "#lib/extension-connect";
 import { currentSession } from "#lib/session-guard";
 
@@ -51,7 +51,7 @@ const ConnectExtensionPage = () => {
 
   const connect = async () => {
     setPending(true);
-    setOutcome(await connectExtension(window.chrome?.runtime));
+    setOutcome(await tellExtension(window.chrome?.runtime));
     setPending(false);
   };
 

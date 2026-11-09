@@ -17,7 +17,7 @@ const ORIGIN = "https://cell.test";
 
 const PRINCIPAL: NamedPrincipal = {
   accountId: "account",
-  actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
 };
 
 // the library's rows over the cell's handler, with a cap on what the library may hold

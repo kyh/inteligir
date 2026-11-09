@@ -1,84 +1,63 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, their sessions and the device credential, `/v1`'s one wire, the connector with its OAuth
+Accounts and their sessions, `/v1`'s one wire, the connector with its OAuth
 and its tools, the account's library cell and its sockets, and each
 conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
-## Cloud, sync and accounts
+## Cloud, sessions and accounts
 
-- **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
-  device credential** (owner decision, the Obsidian model). The login mints the
-  credential, deletes its session and names the account, so a device holds one
-  secret and the cross-account fence and account label hold at once; a device
-  that names the account keeps it beside its bearer. The route is throttled
-  per caller address, else it is a password oracle. No social providers: an
-  in-app login can only be a password. Rejected: a second call to learn the
-  account (a pending state readers must fail closed on); a browser approve
-  page with one-time code, PKCE and loopback callback (a ceremony to keep the
-  password out of the app). Residual: the password crosses the app once, over
-  HTTPS. `apps/web/src/worker/device/login.ts`,
-  `apps/web/src/worker/wire/account-router.ts`.
-
-- **A DEVICE CAN ALSO CREATE THE ACCOUNT** (owner decision: sign up in the app,
-  with the invite code). The sign-up answers the same credential and deletes the
-  session it created, so a person never signs in twice in a row. The site's
-  sign-up page stays, and the phone stays sign-in only.
-  `apps/web/src/worker/device/sign-up.ts`.
-
-- **THE ACCOUNT'S DEVICES ARE ITS SESSIONS, BESIDE ITS DEVICE CREDENTIALS, IN
-  ONE LIST ANY OF THEM READS AND ENDS**, so Settings › Account, in the
-  library's page, a browser tab or the Mac app's window, removes a lost phone
-  with no password asked, as a sign-out asks none. A session is listed from
-  Better Auth's own row, named at read time from the user agent it signed in
-  with, its token never selected; ending one by its id goes through Better
-  Auth's adapter, so its `session.delete.after` closes its sockets, and an id
-  the account does not hold is `NOT_FOUND`. The list marks the session or
-  credential asking as This device, and that row offers no Sign out: this
-  device leaves through a sign-out, which asks before it drops what it has not
-  sent. Rejected: Better Auth's own list and revoke routes (each hands a
-  session's token to the page); a device-name column (a second spelling of what
-  the user agent already says); a devices page on the site beside Settings (a
-  second list of one account's devices). `apps/web/src/worker/wire/account-router.ts`,
+- **THE ACCOUNT'S DEVICES ARE ITS SESSIONS, IN ONE LIST ANY OF THEM READS AND
+  ENDS**, so Settings › Account, in the library's page, a browser tab or the
+  Mac app's window, removes a lost phone with no password asked, as a sign-out
+  asks none. A session is listed from Better Auth's own row, named at read
+  time from the user agent it signed in with, its token never selected; ending
+  one by its id goes through Better Auth's adapter, so its
+  `session.delete.after` closes its sockets, and an id the account does not
+  hold is `NOT_FOUND`. The list marks the session asking as This device, and
+  that row offers no Sign out: this device leaves through a sign-out, which
+  on the phone asks before it drops a save still waiting. Rejected: Better
+  Auth's own list and revoke routes (each hands a session's token to the
+  page); a device-name column (a second spelling of what the user agent
+  already says); a devices page on the site beside Settings (a second list of
+  one account's devices).
+  `apps/web/src/worker/wire/account-router.ts`,
   `apps/web/src/worker/auth/session-devices.ts`,
-  `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
-- **A CREDENTIAL THIS DEVICE DROPS LOCALLY IS REVOKED BY THIS DEVICE,
-  best-effort, and no unreachable cloud holds that sign-out open.** The phone's
-  sign-out takes its copy away first and only then revokes, unawaited, and a
-  phone whose copy would not go opens it again, still the account's; a sign-in
-  it could not keep or open lets that device go the same way. Settings › Account
-  in a tab, the Mac app's window among them, goes the other way, since a tab
-  holds no credential to drop: it signs out through Better Auth's own
-  `/api/auth/sign-out` first, which ends the session and clears its cookie, so
-  it needs a connection, and wipes once the cloud has answered; a wipe that
-  fails meets the cloud's refusal at the next call, which ends the session as
-  any revocation does. Rejected: forgetting the credential
-  alone (the row stays active against the twenty-device cap, so repeated
-  sign-ins lock the account out); revoking before the wipe on a local drop (a
-  failed wipe left a library on a dead credential, whose edits nothing could
-  send). `apps/mobile/src/lib/compose-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`,
+- **A DEVICE SIGNS OUT THROUGH BETTER AUTH'S OWN `/api/auth/sign-out`, AND NO
+  UNREACHABLE CLOUD HOLDS THAT SIGN-OUT OPEN.** The phone takes its copy away
+  first and only then signs out, unawaited once its Expo client has let the
+  Keychain's session go, and a phone whose copy would not go keeps the
+  session, still the account's; a sign-in it could not keep is signed out the
+  same way. Settings › Account in a tab, the Mac app's window among them, goes
+  the other way, since a tab holds nothing to drop: the sign-out ends the
+  session and clears its cookie first, so it needs a connection, and the tab
+  wipes once the cloud has answered. A session no sign-out reached stays
+  listed until another device ends it, the cap retires it or it lapses.
+  Rejected: forgetting the session alone (its row stays live in the list and
+  against the cap, a bearer nobody ends); signing out before the wipe on a
+  local drop (a failed wipe left a library on a dead session, whose edits
+  nothing could send). `apps/mobile/src/lib/compose-runtime.ts`,
+  `apps/mobile/src/login/login-store.ts`, `apps/mobile/src/auth/phone-auth.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`,
   `apps/workspace/src/app/cloud/auth-client.ts`.
 
-- **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
-  AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
-  Mac). A session's call hands `deleteUser` the password in its body, which it
-  checks against the account in place of the session's freshness, under the
-  credential the call came with; a device credential's password check mints the
-  session `deleteUser` runs under. Either keeps its `beforeDelete` order and
-  tombstone the ONE purge path; Better Auth's delete routes, which settle for a
-  fresh session, are shut. Success drops what this device holds of the library
-  and forgets the sign-in; after an unanswered deletion, a retry meeting only
-  the kept credential's refusal means the account is gone. Rejected: a second
-  purge path (it drifts); deleting by credential alone (a stolen one ends the
-  account). `apps/web/src/worker/auth/delete-account.ts`,
-  `apps/web/src/worker/device/account.ts`.
+- **AN ACCOUNT IS DELETED FROM ANY SIGNED-IN DEVICE, THE PASSWORD ASKED AGAIN,
+  THROUGH BETTER AUTH'S `deleteUser`** (owner decision: whoever lost their Mac
+  deletes from any Mac). The call hands `deleteUser` the password in its body,
+  which it checks against the account in place of the session's freshness,
+  under the session the call came with, by whichever door; its `beforeDelete`
+  and tombstone are the ONE purge path, and Better Auth's delete routes, which
+  settle for a fresh session, are shut. Success drops what this device holds of
+  the library and forgets the sign-in; after an unanswered deletion, a retry
+  meeting only its session's refusal means the account is gone. Rejected: a
+  second purge path (it drifts); deleting by session alone (a stolen one ends
+  the account). `apps/web/src/worker/auth/delete-account.ts`,
+  `apps/web/src/worker/wire/account-router.ts`.
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
-  session or device credential the Worker stamps on the upgrade, on one exact path
+  session the Worker stamps on the upgrade, on one exact path
   only `socket-routes.ts` forwards to; every other forwarded call has any holder
   header dropped, and a path the cell does not know is a 404, so no other
   credential reaches that door. A committed write sends every socket a `moved`
@@ -89,10 +68,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   is gone. Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
   `/v1` call minted, since a browser's sends no header, its holder checked in D1
   again; that check is the upgrade's alone, read before the cell accepts and
-  once more after, since a sever closes only sockets already accepted, so a
-  device's revocation and every session's end (a sign-out, a password reset)
-  close that holder's sockets, a revocation's sever coming first after its
-  update, since a retry meets a row already revoked.
+  once more after, since a sever closes only sockets already accepted, so
+  every session's end (a sign-out, another device's end of it, the cap, a
+  password reset) closes that holder's sockets.
   Rejected: a socket object beside the cell (every ping crossing to it); the
   bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
   for the clients that can send one (a second door to keep); the upgrade as the
@@ -107,9 +85,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   reaching this Worker is the deployment's own
   (`apps/web/src/worker/auth/auth.ts`); revisit if one it does not control
   arrives. Rejected: a fixed fallback (it mints reset links at the wrong
-  deployment). The gate's two front doors, the site's page and the app's
-  sign-up, share one atomic claim either releases when no account came of it;
-  every other auth instance keeps sign-up off.
+  deployment). The gate is one door, `POST /api/sign-up`, which the site's form
+  and the phone's first run both post: one atomic claim, behind a per-address
+  window, that a sign-up making no account releases; every other auth instance
+  keeps sign-up off.
   `apps/web/src/worker/auth/invite.ts`, `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
@@ -137,7 +116,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Worker parses every answer through its row's output schema, which strips
   what the row did not declare, and a client reads only the fields it names; a
   refusal is narrowed by its code, one a build does not know is no verdict on
-  its credential, and an error no row declares is a fault to retry, but for
+  its session, and an error no row declares is a fault to retry, but for
   `BAD_REQUEST`, which says the call can never land as it is. Requests stay
   `z.strictObject`, since only the newest Worker reads them. A shape
   retires only once the floor passes every build reading it, and a field that
@@ -149,8 +128,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **EVERY INSTALL'S REQUEST NAMES ITS BUILD, AND THE WORKER REFUSES ONE BELOW
   THE FLOOR** (owner decision). The tolerant reader is forward negotiation only,
   so a request with no build or one below `MIN_CLIENT_BUILD` is refused,
-  terminally and with the credential left live, so the next build resumes as the
-  same device; a page the Worker served needs none, since it ships in the same
+  terminally and with the session left live, so the next build resumes signed
+  in; a page the Worker served needs none, since it ships in the same
   deploy, and neither does a socket opened by ticket, since a browser socket
   sends no header and its ticket came from a call that met the floor.
   `packages/contract/src/cloud/client-build.ts`,
@@ -272,12 +251,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `change-set-prune.ts`.
 
 - **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
-  CREDENTIALS LAST.** Better Auth's `beforeDelete` asks the cell to purge, step
+  SESSIONS LAST.** Better Auth's `beforeDelete` asks the cell to purge, step
   by step, each step idempotent, so a failure aborts the deletion and the retry
-  runs from the top on a credential still live. The tombstone outlives the deletion, so a
-  call verified a moment before meets it rather than founding a library nobody
-  reaches. Rejected: credentials first (a failed step leaves no device to retry
-  from); a bare `deleteAll` (an in-flight write rebuilds the cell).
+  runs from the top on a session still live; Better Auth deletes the sessions
+  with the user once the purge is done. The tombstone outlives the deletion, so
+  a call verified a moment before meets it rather than founding a library
+  nobody reaches. Rejected: sessions first (a failed step leaves no device to
+  retry from); a bare `deleteAll` (an in-flight write rebuilds the cell).
   `apps/web/src/worker/library/account-purge.ts`,
   `apps/web/src/worker/auth/auth.ts`.
 
@@ -293,13 +273,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A LIBRARY CALL REACHES ITS CELL WITH THE PRINCIPAL THE WORKER VERIFIED,
   AND NOTHING THE CALLER SENT IN ITS PLACE.** The Worker reads the session
   once a request, by the door it came through (EVERY DEVICE SIGNS IN WITH
-  BETTER AUTH'S OWN SESSION), and a bearer no session signed meets the device
-  credential's verifier in D1; a bearer that fails is refused, never retried as
-  the cookie. It
-  drops the request's `x-library-principal`, `authorization` and `cookie`,
+  BETTER AUTH'S OWN SESSION), and a bearer that fails is refused, never retried
+  as the cookie. It drops the request's `x-library-principal`, `authorization` and `cookie`,
   stamps the principal and forwards the request whole by `stub.fetch()`; the
   cell refuses one naming another account. Rejected: the cell verifying the
-  credential (a second verifier, a D1 read inside every cell call); a stub
+  session (a second verifier, a D1 read inside every cell call); a stub
   method per procedure (oRPC's handler takes a request).
   `apps/web/src/worker/wire/v1-rpc.ts`, `v1-principal.ts`,
   `apps/web/src/worker/library/library-principal.ts`, `library-do.ts`.
@@ -488,8 +466,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   and it advertises no `listChanged`, since a grant's tools never change and a
   `subscriptions/listen` would hold the cell open. A JSON-RPC batch is refused,
   so a budget slot is one call. Rejected: a session object per client (state
-  nothing needs); a registrar per request (it rebuilds the same schemas); a
-  device credential here (the door is an assistant's); a slot per message of a
+  nothing needs); a registrar per request (it rebuilds the same schemas); an
+  app's session here (the door is an assistant's); a slot per message of a
   batch (the Worker would read every body to count it); scopes on every
   principal (only a grant has a limit, and a read-only device would parse and
   still write).
@@ -585,8 +563,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   frames each on the sockets after it commits; previews ride the sockets
   alone. An object that starts over on tables of another version keeps its seq
   going, and the cell's watch hands it again a turn it lost. Rejected: the
-  Agents SDK's client socket to the thread (a second socket and auth, nothing
-  offline); Anthropic's event shapes (a vendor's union on every device); an
+  Agents SDK's client socket to the thread (a second socket and auth beside
+  the account's); Anthropic's event shapes (a vendor's union on every device); an
   epoch a push (a fence that resets, which a late push of the old one moves
   back). `apps/web/src/worker/agent/agent-turns.ts`, `thread-schema.ts`,
   `packages/contract/src/cloud/library/agent-events.ts`.
@@ -657,20 +635,18 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   of its own (a second sign-in, CORS on every call).
   `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
 
-- **ONE PAGE THE WORKER NEVER SERVED CALLS `/v1` ACROSS ORIGINS, AND IT ANSWERS
-  CORS FOR THAT ORIGIN ALONE.** The browser extension's worker calls from its
-  own id's origin (`EXTENSION_ORIGIN`), so each call is cross-origin; the
-  Worker answers the preflight and lets that exact origin read the routes it
-  calls (`/v1/rpc` and `/v1/blobs`), with no credentials, since it sends a
-  device credential as a bearer and never a cookie, and it lets no
-  `expo-origin` through, the header the phone's cookie is read under: CORS that
-  allowed it would hand any page that header's door. The Mac app's window shows
-  the site's own page, so it calls on its own origin. The socket opens on a
-  ticket and asks no CORS, and every other origin meets none; `vite dev`
-  answers no preflight of its own, so the Worker answers as deployed. Rejected:
-  host permissions for the extension (an install warning, and the store
-  build's activeTab alone); a reflected origin (any page could read what a
-  cookie opened). `apps/web/src/worker/cors.ts`, `apps/web/vite.config.ts`.
+- **EVERY PAGE THAT CALLS `/v1` IS ONE THE WORKER SERVED, SO IT ANSWERS NO
+  CORS.** The site's page and the Mac app's window call on their own
+  origin, the phone is no browser, and the browser extension's worker calls
+  the site under its host permission, which needs none (ACTIVETAB AND THE
+  CLOUD'S SITE, in `apps/extension/CLAUDE.md`); the socket opens on a ticket.
+  CORS added later lets no `expo-origin` through: the phone's cookie is read
+  under that header, so a page allowed to send it would hold the phone's door.
+  `vite dev` answers no preflight of its own, so the Worker answers as
+  deployed. Rejected: CORS for the extension's origin (its host permission
+  already reaches the site, and an allowed origin is one more door to keep); a
+  reflected origin (any page could read what a cookie opened).
+  `apps/web/src/worker/wire/v1-principal.ts`, `apps/web/vite.config.ts`.
 
 - **THE CONNECT PAGE TELLS THE EXTENSION WHERE THE SITE IS, AND HANDS IT
   NOTHING.** `/connect/extension` is a site route for the person signed in
@@ -742,8 +718,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   is the last: a sign-in past it ends the one used longest ago, in
   `session.create.before`, so its sockets close. Better Auth's answers never
   carry `set-auth-token`, since no client reads one, and a password reset signs
-  every session out. Rejected: the bearer plugin unsigned (a leaked row's token
-  would be a credential); `trustedOrigins` by pattern (a custom scheme matches
+  every session out. Rejected: a credential of our own beside the session (a
+  second secret, verifier, cap and list, which outlived the browser's
+  sign-out); the bearer plugin unsigned (a leaked row's token would be a
+  credential); `trustedOrigins` by pattern (a custom scheme matches
   by its authority, so the two exact origins are spelled out); a cookie cache
   (a revoked session would live on to its expiry); refusing the twenty-first
   sign-in (a lost phone would lock its person out).

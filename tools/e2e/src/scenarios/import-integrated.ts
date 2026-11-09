@@ -5,14 +5,14 @@
 // picture takes the CSV's. A link whose page is gone says why and keeps its quoted note.
 
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { startPageFixture } from "../harness/page-fixture";
 import type { PageRoute } from "../harness/page-fixture";
 import { solidPng } from "../harness/png-pixels";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { itemFieldsOf, readFile, uploadFile, v1Client } from "../harness/v1-wire";
+import { asPhone, itemFieldsOf, readFile, uploadFile, v1Client } from "../harness/v1-wire";
 
 const HEADER = "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite";
 const FILL_DEADLINE_MS = 90_000;
@@ -103,12 +103,9 @@ export const importIntegrated: Scenario = {
     try {
       const worker = await ctx.cloudWorker({ pages: pages.pages });
       await signUp(worker.origin);
-      const { credential } = await v1Client(worker, null).account.signIn({
-        ...OWNER,
-        deviceName: "E2E Phone",
-      });
-      const { library } = v1Client(worker, credential);
-      const upload = await uploadFile(worker, credential, {
+      const phone = asPhone(await signInPhone(worker.origin));
+      const { library } = v1Client(worker, phone);
+      const upload = await uploadFile(worker, phone, {
         bytes: new TextEncoder().encode(backupOf(pages.publicUrl)),
         type: "text/csv",
       });
@@ -163,7 +160,7 @@ export const importIntegrated: Scenario = {
       const liveFields = await itemFieldsOf(library, live.id);
       const coverSha = liveFields?.coverSha ?? null;
       expect(coverSha !== null, "the live link holds a cover");
-      const cover = await readFile(worker, credential, coverSha);
+      const cover = await readFile(worker, phone, coverSha);
       expectEq(
         Buffer.compare(Buffer.from(await cover.arrayBuffer()), Buffer.from(LIVE_COVER)),
         0,

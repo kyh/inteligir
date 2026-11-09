@@ -1,27 +1,13 @@
 // The account's procedures, which the Worker answers itself on `/v1/rpc/account` (the library's go
-// on to the account's cell): a device's credential and its sign-in, the browser extension's
-// credential, the account's devices (its signed-in sessions and its device credentials), its
-// deletion, the ticket its socket opens with and the assistants it has let in.
+// on to the account's cell): the account's devices, each a signed-in session, its deletion, the
+// ticket its socket opens with and the assistants it has let in. Signing in and out is Better
+// Auth's own, on `/api/auth`.
 
 import { z } from "zod";
 
+import { InvalidCredentialsError, NotFoundError, signedBase } from "../v1-errors";
+import { deleteAccountRequestSchema, deleteAccountResponseSchema } from "./account-schema";
 import {
-  AccountExistsError,
-  DeviceLimitError,
-  InvalidCredentialsError,
-  InviteRefusedError,
-  NotFoundError,
-  publicBase,
-  signedBase,
-} from "../v1-errors";
-import {
-  deleteAccountRequestSchema,
-  deleteAccountResponseSchema,
-  deviceSignUpRequestSchema,
-} from "./account-schema";
-import {
-  deviceLoginRequestSchema,
-  deviceLoginResponseSchema,
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
   revokeDeviceResponseSchema,
@@ -37,34 +23,6 @@ const assistantSchema = z.object({
 });
 
 export const accountContract = {
-  // email and password for this device's own credential
-  signIn: publicBase
-    .errors({
-      [DeviceLimitError.code]: DeviceLimitError,
-      [InvalidCredentialsError.code]: InvalidCredentialsError,
-    })
-    .input(deviceLoginRequestSchema)
-    .output(deviceLoginResponseSchema),
-
-  // the account made with an invite code, answering this device's credential as a sign-in does
-  signUp: publicBase
-    .errors({
-      [AccountExistsError.code]: AccountExistsError,
-      [InviteRefusedError.code]: InviteRefusedError,
-    })
-    .input(deviceSignUpRequestSchema)
-    .output(deviceLoginResponseSchema),
-
-  // revokes the credential that asks
-  signOut: signedBase.output(revokeDeviceResponseSchema),
-
-  // the browser extension's own credential, minted for the site's signed-in session alone, which
-  // the site's /connect/extension page hands the extension
-  connectExtension: signedBase
-    .errors({ [DeviceLimitError.code]: DeviceLimitError })
-    .input(deviceLoginRequestSchema.pick({ deviceName: true }))
-    .output(deviceLoginResponseSchema),
-
   devices: {
     list: signedBase.output(listDevicesResponseSchema),
     revoke: signedBase
@@ -73,14 +31,14 @@ export const accountContract = {
       .output(revokeDeviceResponseSchema),
   },
 
-  // the password is asked again: a stolen credential alone must not end the account
+  // the password is asked again: a stolen session alone must not end the account
   delete: signedBase
     .errors({ [InvalidCredentialsError.code]: InvalidCredentialsError })
     .input(deleteAccountRequestSchema)
     .output(deleteAccountResponseSchema),
 
   // a short-lived ticket the account's socket opens with, since a browser's socket carries no
-  // header the credential could ride
+  // header the session could ride
   socketTicket: signedBase.output(
     z.object({ expiresAt: z.number().int().nonnegative(), ticket: z.string().min(1) }),
   ),

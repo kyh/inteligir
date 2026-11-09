@@ -79,7 +79,7 @@ export const deviceNameOf = (userAgent: string | null): string => {
 export const listSessionDevices = async (
   db: Db,
   userId: string,
-  currentSessionId: string | null,
+  currentSessionId: string,
 ): Promise<Device[]> => {
   const rows = await db
     .select({
@@ -98,7 +98,6 @@ export const listSessionDevices = async (
     id: row.id,
     lastSeenAt: row.updatedAt.getTime(),
     name: deviceNameOf(row.userAgent),
-    revokedAt: null,
   }));
 };
 

@@ -3,10 +3,11 @@
 // (Better Auth's `beforeDelete`, `../auth/auth.ts`). First the tombstone, so every write, read and
 // socket that races the rest is refused; then the built-in agent's conversations, each in an object
 // of its own that only the cell's rows name; then what the cell holds, the tombstone written back
-// at once; then the account's files in R2; then the grants its assistants hold in KV; last its
-// credentials in D1, which until then still verify only to meet the tombstone. The
-// tombstone outlives the deletion, so a request that verified before the credentials went meets it
-// too rather than founding a library nobody can reach, and an upload that took its room before the
+// at once; then the account's files in R2; then the grants its assistants hold in KV; last the
+// invite it was made with, let go of its address. Its sessions go with the account's row once the
+// purge has run, and until then still verify only to meet the tombstone. The tombstone outlives
+// the deletion, so a request that verified before the sessions went meets it too rather than
+// founding a library nobody can reach, and an upload that took its room before the
 // tombstone and reaches R2 after the files went is taken out by its own settle (`settleStored`). A
 // later step joins the list where its order says.
 
@@ -15,7 +16,6 @@ import { revokeEveryGrant } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
 import { forgetInviteRedeemer } from "../auth/invite";
-import { purgeDeviceRows } from "../device/login";
 import { accountBlobPrefix } from "./cell-blobs";
 import { openCellSchema } from "./cell-schema";
 import { closeEverySocket } from "./cell-sockets";
@@ -90,19 +90,17 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     },
   },
   {
-    // every assistant let in through the connector, its tokens with it, before the credentials
-    // that could let one in again
+    // every assistant let in through the connector, its tokens with it, before the sessions that
+    // could let one in again
     name: "grants",
     run: async ({ accountId, env }) => {
       await revokeEveryGrant(connectorAuth(env).helpers, accountId);
     },
   },
   {
-    name: "credentials",
-    run: async ({ accountId, email, env }) => {
-      const db = createDb(env.DB);
-      await purgeDeviceRows(db, accountId);
-      await forgetInviteRedeemer(db, email);
+    name: "invite",
+    run: async ({ email, env }) => {
+      await forgetInviteRedeemer(createDb(env.DB), email);
     },
   },
 ];

@@ -1,7 +1,7 @@
 // The library's bytes, the route beside `/v1/rpc` that carries bytes rather than calls: its files,
 // `/v1/blobs/<sha>`. A device PUTs a file under its SHA-256 before it names the sha in a write, and
-// GETs one it does not hold, a range of it if it asks; each carries the device's credential or the
-// browser's session, as `/v1/rpc` does.
+// GETs one it does not hold, a range of it if it asks; each carries its session by its own door,
+// as `/v1/rpc` does.
 
 export const V1_BLOBS_PATH = "/v1/blobs";
 

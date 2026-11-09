@@ -1,12 +1,12 @@
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signInPhone, signUp } from "../harness/cloud-account";
 import type { CloudWorker } from "../harness/cloud-worker";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { v1Client } from "../harness/v1-wire";
+import { asPhone, v1Client } from "../harness/v1-wire";
 
 const DEADLINE_MS = 60_000;
 
@@ -103,11 +103,7 @@ export const agentCell: Scenario = {
   async run(ctx) {
     const worker = await ctx.cloudWorker({ json: { AGENT_ALLOWANCE: ALLOWANCE } });
     await signUp(worker.origin);
-    const phone = await v1Client(worker, null).account.signIn({
-      ...OWNER,
-      deviceName: "E2E Phone",
-    });
-    const { library } = v1Client(worker, phone.credential);
+    const { library } = v1Client(worker, asPhone(await signInPhone(worker.origin)));
 
     ctx.log("the agent is on from the start: there is nothing to make for it");
     const before = await library.agent.status();

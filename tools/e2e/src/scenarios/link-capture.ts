@@ -8,7 +8,7 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { CloudWorker } from "../harness/cloud-worker";
 import { startPageFixture } from "../harness/page-fixture";
@@ -16,7 +16,8 @@ import type { PageFixture, PageRoute } from "../harness/page-fixture";
 import { pollUntil } from "../harness/poll";
 import { solidPng } from "../harness/png-pixels";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
-import { itemFieldsOf, readFile, v1Client } from "../harness/v1-wire";
+import { asPhone, itemFieldsOf, readFile, v1Client } from "../harness/v1-wire";
+import type { V1Caller } from "../harness/v1-wire";
 import type { V1Client } from "@repo/contract/cloud/v1";
 
 const TITLE = "Keeping notes in plain files";
@@ -75,10 +76,10 @@ const refusedWith = async (library: Library, url: string, sentence: string, labe
 const articleFills = async (
   ctx: ScenarioContext,
   worker: CloudWorker,
-  credential: string,
+  phone: V1Caller,
   pages: PageFixture,
 ) => {
-  const { library } = v1Client(worker, credential);
+  const { library } = v1Client(worker, phone);
   ctx.log("a saved page is read by the cloud: its facts, its cover, its article and its title");
   const url = pages.publicUrl("/essay");
   const { created, item } = await library.items.saveLink({ url });
@@ -126,7 +127,7 @@ const articleFills = async (
   expect(fields?.fetchedAt !== null, `the item holds when it was read: ${JSON.stringify(fields)}`);
   const coverSha = fields?.coverSha ?? null;
   expect(coverSha !== null, `the item holds the page's cover: ${JSON.stringify(fields)}`);
-  const cover = await readFile(worker, credential, coverSha);
+  const cover = await readFile(worker, phone, coverSha);
   expectEq(cover.status, 200, "the cover's read");
   expectEq(
     Buffer.compare(Buffer.from(await cover.arrayBuffer()), Buffer.from(COVER)),
@@ -171,12 +172,9 @@ export const linkCapture: Scenario = {
     try {
       const worker = await ctx.cloudWorker({ pages: pages.pages });
       await signUp(worker.origin);
-      const { credential } = await v1Client(worker, null).account.signIn({
-        ...OWNER,
-        deviceName: "E2E Phone",
-      });
-      const { library } = v1Client(worker, credential);
-      await articleFills(ctx, worker, credential, pages);
+      const phone = asPhone(await signInPhone(worker.origin));
+      const { library } = v1Client(worker, phone);
+      await articleFills(ctx, worker, phone, pages);
       await loopbackRefused(ctx, library);
       ctx.log("a redirect to the cloud's metadata address and a missing page keep their items");
       await refusedWith(
