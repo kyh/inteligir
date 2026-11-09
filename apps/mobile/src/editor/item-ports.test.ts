@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 import { createFileCache } from "../files/file-cache";
 import { createPhoneSaves } from "../items/phone-saves";
 import { downloadBlob, v1ClientOver } from "../lib/phone-transport";
-import { withAppReads } from "../test-support/app-reads";
 import { memoryFolder } from "../test-support/memory-folder";
 import { createItemPorts, renamedTargets } from "./item-ports";
 
@@ -29,7 +28,7 @@ const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
 
 // an item page's ports over a phone of the cell's: its client, its cache of files and its saves
 const portsOver = (cell: FakeCell, name = "phone") => {
-  const device = withAppReads(cell, cell.device(name));
+  const device = cell.device(name);
   const client = v1ClientOver(device.transport, () => {
     // a sign-in's end is the runtime's, which no suite here reaches
   });

@@ -6,14 +6,12 @@ import { createHash } from "node:crypto";
 import { dehydrate } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import type { FakeCell } from "@repo/contract/test-support/fake-cell";
+import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { fakeClock } from "@repo/contract/test-support/fake-clock";
 import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
 import type { FakeSockets } from "@repo/contract/test-support/fake-sockets";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
-import { withAppReads } from "../test-support/app-reads";
-import type { AppReadsDevice } from "../test-support/app-reads";
 import { deferred } from "../test-support/async";
 import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
@@ -68,7 +66,7 @@ interface PhoneOptions {
 }
 
 const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
-  const network: AppReadsDevice = withAppReads(cell, cell.device("phone"));
+  const network = cell.device("phone");
   const storage = options.storage ?? memoryKv();
   const runtime = composeRuntime({
     auth: options.keys.auth,
@@ -113,7 +111,7 @@ const noteOnTheMac = async (cell: FakeCell): Promise<void> => {
 };
 
 // a share kept while the cloud cannot be reached, so it waits
-const shareWaiting = async (library: PhoneLibrary, network: AppReadsDevice): Promise<void> => {
+const shareWaiting = async (library: PhoneLibrary, network: FakeDevice): Promise<void> => {
   network.setOffline(true);
   const kept = await library.shares.keep({ kind: "link", note: null, title: null, url: PAGE });
   if (kept === null) {
