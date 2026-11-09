@@ -74,4 +74,9 @@ describe("the skills' markdown examples", () => {
     expect(lettersKept(example.body, saved), `${example.site} loses words on a save`).toBe(1);
     expect(saveOnce(saved), `${example.site} still moves on its second save`).toBe(saved);
   });
+
+  // a construct spelled wrong stays text, and the writer escapes what would read as one
+  it.each(EXAMPLES)("$site spells every construct so it reads as one", (example) => {
+    expect(saveOnce(example.body)).not.toMatch(/\\:|\\\[\\\[/u);
+  });
 });

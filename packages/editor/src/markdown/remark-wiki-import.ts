@@ -36,7 +36,6 @@ const WIDTH_RE = /^\d{1,5}(?:x\d{1,5})?$/u;
 
 const MENTION_SCHEME = "mention:";
 
-/** @internal */
 const wikiTarget = (body: string): WikiTarget => {
   const pipe = body.indexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);

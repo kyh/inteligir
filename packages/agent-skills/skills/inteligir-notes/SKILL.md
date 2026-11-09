@@ -25,7 +25,8 @@ are listed at the end of this section.
 
 `read_item` answers a page of the item's text, from a block position, and the position the next
 page starts at. A saved link's text has two parts: the person's own note first, then the page the
-library read, between a `:::article` line and a closing `:::` line:
+library read, between a line of colons followed by `article` and a closing line of as many
+colons:
 
 ```text
 For Tuesday: the part about owning your files.
@@ -35,8 +36,10 @@ File over app is a philosophy: if you want to create digital artifacts that last
 :::
 ```
 
-The note is the person's; the article is the page as it was read, and reading the page again
-replaces it. Write in the note, never in the article, and never move or remove either line.
+The article's fence is one colon longer than any tab, toggle or column fence inside it, so it may
+read `::::article` and close with `::::`. The note is the person's; the article is the page as it
+was read, and reading the page again replaces it. Write in the note, never in the article, and
+never move or remove either line.
 
 ## Choosing A Block
 
@@ -77,19 +80,18 @@ We are moving the queue first and the store after.
 
 ### Tables
 
-One row per line, a consistent column count, and inline content only — links, wiki links,
-emphasis, inline code, images, formula pills. Block content (lists, fences, callouts) cannot live
-in a cell; put it after the table.
+One row per line, a consistent column count, and inline content only — links, links to items,
+emphasis, inline code, images, dates, formula pills. Block content (lists, fences, callouts)
+cannot live in a cell; put it after the table.
 
 ```markdown
-| Stage | Owner | Note             |
-| ----- | ----- | ---------------- |
-| Queue | Ana   | [[Queue Design]] |
+| Stage | Owner | Note                                                         |
+| ----- | ----- | ------------------------------------------------------------ |
+| Queue | Ana   | [Queue Design](mention:9e64c3df-c1e2-4a4d-8c07-91528f422413) |
 ```
 
-A literal pipe in a cell is `\|`, and so is the pipe in a wiki link there (`[[Title\|id]]`).
-Inside a table cell, escape a pill's own pipes as `\|` (see inteligir Formulas And Variables, In
-Tables). A second line in a cell is `<br/>`.
+A literal pipe in a cell is `\|`. A second line in a cell is `<br/>`. Columns are never aligned:
+a `:---:` row reads as a plain one.
 
 ### Code
 
@@ -104,7 +106,7 @@ its paragraphs.
 
 ```markdown
 > [!WARNING]
-> Confirm the rollback path before [[Queue Design]] moves.
+> Confirm the rollback path before [Queue Design](mention:9e64c3df-c1e2-4a4d-8c07-91528f422413) moves.
 ```
 
 Pick the marker by what the reader must do with it:
@@ -137,19 +139,20 @@ you guess at the shape.
 ### Tabs
 
 ```markdown
-:::tabs
-=== Draft
+::::tabs
+:::tab[Draft]
 What we have now.
+:::
 
-=== Shipped
+:::tab[Shipped]
 What changed.
 :::
+::::
 ```
 
-The first thing inside `:::tabs` must be a `=== Label` line; content before it keeps the whole
-block as plain text. A label is plain words: a date, a link, `**bold**` or a pill in one keeps the
-whole block as plain text too, and a backslash keeps such text a label (`=== \@2026-08-22`). Panels
-hold ordinary markdown. Reach for a table instead when the reader needs to see all panels at once.
+Each panel is a `:::tab[Label]` block inside a `::::tabs` block. A label is plain words: marks,
+links and pills in one are kept as their words alone. Panels hold ordinary markdown. Reach for a
+table instead when the reader needs to see all panels at once.
 
 ### Toggles
 
@@ -166,46 +169,45 @@ The first block is the summary; everything after it folds under it.
 ### Columns
 
 ```markdown
-:::columns
+::::columns
 :::column
 The left column.
 :::
 
-:::column 40%
+:::column{width="40%"}
 The right column, resized.
 :::
-
-:::
+::::
 ```
 
-Only `:::column` blocks sit inside `:::columns`. A width appears only after someone resizes a
+Only `:::column` blocks sit inside `::::columns`. A width appears only after someone resizes a
 column; never invent one.
 
-### How `:::` Blocks Close
+### How Colon Blocks Close
 
-Tabs, toggles and columns nest inside each other, a callout, a quote or a list, and each `:::`
-closes the innermost one still open. A block that never closes, or holds something its kind does
-not allow, stays plain text. Leave a blank line before a `:::` that follows a list, a quote or a
-table, which would otherwise read the marker as one of its own lines, and after a marker that a
-`---` rule follows, which would otherwise underline the marker into a heading.
+A colon block opens with a line of three or more colons and its name, and closes at the next line
+of at least as many colons, so a block holding others takes a longer fence than they do, as
+`::::tabs` holds `:::tab` blocks; a toggle in a column in a group of columns is `:::toggle` in
+`::::column` in `:::::columns`. A block never closed runs to the end of the text, so close every
+one, and an unknown name (`:::note`) stays its own text.
 
 ### Inline
 
-| Form         | Syntax                                  |
-| ------------ | --------------------------------------- |
-| Wiki link    | `[[Note Title]]`                        |
-| Date         | `@2026-08-22`                           |
-| Highlight    | `<mark data-color="yellow">text</mark>` |
-| Underline    | `<u>text</u>`                           |
-| Tag          | `#tag`                                  |
-| Formula pill | `{{2+2\|4}}`                            |
+| Form            | Syntax                       |
+| --------------- | ---------------------------- |
+| Link to an item | `[Note Title](mention:<id>)` |
+| Date            | `:date[2026-08-22]`          |
+| Tag             | `#tag`                       |
+| Formula pill    | `:formula[4]{source="2+2"}`  |
+| Strikethrough   | `~~text~~`                   |
+| Inline math     | `$$E = mc^2$$`               |
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct, which is how you
-write an example of any syntax on this page. In prose, a backslash before a date, a pill or a
-`:::` line keeps it plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
+write an example of any syntax on this page. In prose, a backslash before the colon keeps a date
+or a pill plain text: `\:date[2026-08-22]`. A date that is no day of the calendar stays text.
 
-Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>` belongs in an
-`inteligir-html` fence.
+There is no underline or highlight: either is kept as its plain words. Raw HTML reads as its own
+text, so a styled layout belongs in an `inteligir-html` fence.
 
 ## Focused Contracts
 
