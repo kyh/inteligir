@@ -1,19 +1,17 @@
 // @vitest-environment jsdom
 
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { listedItem } from "../test-support/cell-rows";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall } from "../test-support/fake-page-library";
 import { CommandPalette } from "./command-palette";
 import type { PaletteActions } from "./command-palette";
 
 afterEach(cleanup);
-
-const PLANS = "0199a4c2-0000-7000-8000-0000000000c1";
 
 const spyActions = () =>
   ({
@@ -43,27 +41,33 @@ const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => 
   );
 };
 
-const HITS = new Map([
-  ["#todo", [listedItem(PLANS)]],
-  ["spring", [{ ...listedItem(PLANS, { title: "Plans" }), snippet: "a trip in spring" }]],
-]);
-
 const WORDS = z.object({ words: z.string() });
 
-// the cell's full-text search, which answers a listing's page for the words asked
+// the cell's full-text search, which answers a listing's page for the words asked: an untitled
+// item for one, a titled one with the passage that matched for another
 const drawPalette = () => {
+  const cell = createFakeCell();
+  const plans = cell.seed.item({ title: "Plans" });
+  const hits = new Map([
+    ["#todo", [cell.listed(cell.seed.item())]],
+    ["spring", [{ ...cell.listed(plans), snippet: "a trip in spring" }]],
+  ]);
   const { calls, library } = fakePageLibrary({
-    answer: (call) => ({
-      items: HITS.get(WORDS.parse(call.input).words) ?? [],
-      kindCounts: {},
-      nextCursor: null,
-      total: 0,
-    }),
+    answer: (call) =>
+      call.path === "library.listing.page"
+        ? {
+            items: hits.get(WORDS.parse(call.input).words) ?? [],
+            kindCounts: {},
+            nextCursor: null,
+            total: 0,
+          }
+        : undefined,
+    cell,
   });
   const actions = spyActions();
   const onClose = vi.fn<() => void>();
   renderOnLibrary(<Opened actions={actions} onClose={onClose} />, library);
-  return { actions, calls, onClose };
+  return { actions, calls, onClose, plans };
 };
 
 const searches = (calls: readonly CellCall[]): unknown[] =>
@@ -121,13 +125,13 @@ describe("the palette", () => {
   });
 
   it("searches the cell as the field changes, and opens a hit on the words it was found by", async () => {
-    const { actions, calls } = drawPalette();
+    const { actions, calls, plans } = drawPalette();
     fireEvent.change(field(), { target: { value: "spring" } });
     const hit = await screen.findByRole("option", { name: /Plans/u });
     expect(searches(calls)).toStrictEqual([
       { limit: 20, query: { deleted: false, sort: "relevance" }, words: "spring" },
     ]);
-    expect(hit.dataset.searchHit).toBe(PLANS);
+    expect(hit.dataset.searchHit).toBe(plans);
     expect(within(hit).getByText("a trip in spring")).toBeDefined();
     // the hits come first, so the light lands on the first of them
     await waitFor(() => {
@@ -135,7 +139,7 @@ describe("the palette", () => {
     });
     expect(screen.getByText("Open")).toBeDefined();
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(actions.openHit).toHaveBeenCalledWith(PLANS, "spring");
+    expect(actions.openHit).toHaveBeenCalledWith(plans, "spring");
   });
 
   it("calls a hit with no title Untitled", async () => {

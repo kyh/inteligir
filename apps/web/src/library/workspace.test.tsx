@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { toast } from "@repo/ui/components/sonner";
 import { RouterProvider } from "@tanstack/react-router";
@@ -12,7 +14,6 @@ import { createLibraryRouter, openedOver } from "./test-support/library-router";
 import { forgetPref, PREFS } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
-import { memoryCell } from "./test-support/memory-cell";
 
 afterEach(() => {
   cleanup();
@@ -22,14 +23,10 @@ afterEach(() => {
 const ADDRESS = "The page's address";
 const NOTE = "Field notes";
 
-// the whole page at an address, over a cell in memory
-const pageAt = (
-  entry: string,
-  cell: ReturnType<typeof memoryCell>,
-  answer: (call: CellCall) => object = cell.answer,
-) => {
+// the whole page at an address, over the fake cell, unless the suite answers a call itself
+const pageAt = (entry: string, cell: FakeCell, answer?: (call: CellCall) => object | undefined) => {
   forgetPref(PREFS.libraryScope);
-  const { calls, library } = fakePageLibrary({ answer });
+  const { calls, library } = fakePageLibrary({ answer, cell });
   const router = createLibraryRouter(entry, openedOver(library));
   render(<RouterProvider router={router} />);
   return { calls, router };
@@ -40,14 +37,13 @@ const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
 
 // the whole page with a note open
 const pageOverANote = (): void => {
-  const cell = memoryCell();
-  pageAt(`/library?item=${cell.note(NOTE)}`, cell);
+  const cell = createFakeCell();
+  pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
 };
 
 // the whole page at the library, with Save a link's dialog open
-const askedToSaveALink = async (answer?: (call: CellCall) => object) => {
-  const cell = memoryCell();
-  const { calls } = pageAt("/library", cell, answer);
+const askedToSaveALink = async (answer?: (call: CellCall) => object | undefined) => {
+  const { calls } = pageAt("/library", createFakeCell(), answer);
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Save a link…" }));
   await screen.findByRole("textbox", { name: ADDRESS });
@@ -88,12 +84,10 @@ describe("Save a link", () => {
   });
 
   it("says so when the save itself fails", async () => {
-    const cell = memoryCell();
     await askedToSaveALink((call) => {
       if (call.path === "library.items.saveLink") {
         throw new Error("the cell is down");
       }
-      return cell.answer(call);
     });
     const failed = vi.spyOn(toast, "error");
 
@@ -107,9 +101,9 @@ describe("Save a link", () => {
 
 describe("Empty Deleted", () => {
   it("goes in the chunks the route takes, under one toast with Stop", async () => {
-    const cell = memoryCell();
+    const cell = createFakeCell();
     for (let at = 0; at <= BULK_ITEMS_MAX; at += 1) {
-      cell.note(`Deleted ${String(at)}`, { deletedAt: 1 });
+      cell.seed.item({ deletedAt: 1, title: `Deleted ${String(at)}` });
     }
     const purge = z.object({ ids: z.array(z.string()) });
     const running = vi.spyOn(toast, "loading");
@@ -127,6 +121,7 @@ describe("Empty Deleted", () => {
       (input) => purge.parse(input).ids.length,
     );
     expect(chunks).toStrictEqual([BULK_ITEMS_MAX, 1]);
+    expect(cell.items().size).toBe(0);
     expect(running.mock.calls[0]?.[1]?.action).toMatchObject({ label: "Stop" });
   });
 });
@@ -143,7 +138,7 @@ describe("an open item's title", () => {
 
 // the whole page at the library, with New note chosen from the Add menu and its item open
 const madeANote = async () => {
-  const cell = memoryCell();
+  const cell = createFakeCell();
   const { router } = pageAt("/library", cell);
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
@@ -177,10 +172,9 @@ describe("a new note", () => {
 
 describe("what the editor asks of the page", () => {
   it("makes a note in the open item's folder", async () => {
-    const cell = memoryCell();
-    const folderId = "0199a4c2-0000-7000-8000-0000000000f1";
-    cell.folder({ id: folderId, name: "Reading", parentId: null, sort: "a0" });
-    pageAt(`/library?item=${cell.note("An article", { folderId })}`, cell);
+    const cell = createFakeCell();
+    const folderId = cell.seed.folder("Reading");
+    pageAt(`/library?item=${cell.seed.item({ folderId, title: "An article" })}`, cell);
     await screen.findByRole("textbox", { name: "Title" });
 
     const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Extract" });

@@ -1,40 +1,22 @@
-import { createORPCClient, createORPCErrorFromJson } from "@orpc/client";
-import type { V1Client } from "@repo/contract/v1";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { ItemStoreChange } from "@repo/editor/item/item-session";
 import { describe, expect, it } from "vitest";
 
 import type { ItemsMoved } from "../cloud/use-library-socket";
-import { heldItem } from "../test-support/cell-rows";
 import { createCellItemStore } from "./cell-item-store";
-
-const NOTE = "0199a4c2-0000-7000-8000-0000000000d1";
-
-const refusal = (code: "CONFLICT" | "NOT_FOUND") =>
-  createORPCErrorFromJson({ code, data: undefined, defined: true, message: code });
 
 const nothing = (): void => {
   // the suite's socket closes nothing
 };
 
-// the store over a cell whose item stands at a sequence from `start`, and whose writes answer as
-// `write` says, moving that sequence if it likes
-const storeOver = (write: (seq: { now: number }) => object, start = 1) => {
-  const seq = { now: start };
-  const client = createORPCClient<V1Client>({
-    call: async (path) => {
-      const asked = path.join(".");
-      if (asked === "library.items.get") {
-        return await Promise.resolve(heldItem(NOTE, { title: "Plans" }, seq.now));
-      }
-      if (asked === "library.write") {
-        return await Promise.resolve(write(seq));
-      }
-      throw new Error(`the suite answers no ${asked}`);
-    },
-  });
+// the store over the fake cell, through the page's device, with a note titled Plans
+const storeOver = () => {
+  const cell = createFakeCell();
+  const id = cell.seed.item({ title: "Plans" });
+  const page = cell.device("page");
   const listeners: ((moved: ItemsMoved) => void)[] = [];
   const store = createCellItemStore(
-    { client },
+    { client: page.client },
     {
       onItems: (listener) => {
         listeners.push(listener);
@@ -47,12 +29,17 @@ const storeOver = (write: (seq: { now: number }) => object, start = 1) => {
     heard.push(change);
   });
   return {
+    cell,
     heard,
+    id,
     moved: (moved: ItemsMoved) => {
       for (const listener of listeners) {
         listener(moved);
       }
     },
+    page,
+    // another device's client on the same cell
+    phone: cell.device("phone").client.library,
     store,
   };
 };
@@ -61,28 +48,31 @@ const RETITLE = [{ base: "Plans", field: "title", op: "set", value: "Trip" }] as
 
 describe("the open item's store over the cell", () => {
   it("hears another writer's move of the item, and not its own write's", async () => {
-    const { heard, moved, store } = storeOver(() => ({ item: heldItem(NOTE, {}, 2) }));
-    await store.item(NOTE);
+    const { cell, heard, id, moved, store } = storeOver();
+    await store.item(id);
 
-    await expect(store.write(NOTE, { ops: RETITLE })).resolves.toStrictEqual({ kind: "queued" });
-    moved(new Map([[NOTE, 2]]));
+    await expect(store.write(id, { ops: RETITLE })).resolves.toStrictEqual({ kind: "queued" });
+    const wrote = cell.held(id).seq;
+    moved(new Map([[id, wrote]]));
     expect(heard).toStrictEqual([]);
 
-    moved(new Map([[NOTE, 3]]));
-    expect(heard).toMatchObject([{ ids: new Set([NOTE]), reset: false }]);
+    moved(new Map([[id, wrote + 1]]));
+    expect(heard).toMatchObject([{ ids: new Set([id]), reset: false }]);
   });
 
   it("hears nothing of a move it already read past", async () => {
-    const { heard, moved, store } = storeOver(() => ({}), 5);
-    await store.item(NOTE);
+    const { cell, heard, id, moved, phone, store } = storeOver();
+    const before = cell.held(id).seq;
+    await phone.write({ itemId: id, ops: [...RETITLE] });
+    await store.item(id);
 
-    moved(new Map([[NOTE, 4]]));
+    moved(new Map([[id, before]]));
 
     expect(heard).toStrictEqual([]);
   });
 
   it("starts every item over when the socket opens again", () => {
-    const { heard, moved } = storeOver(() => ({}));
+    const { heard, moved } = storeOver();
 
     moved(null);
 
@@ -90,30 +80,30 @@ describe("the open item's store over the cell", () => {
   });
 
   it("answers a conflict with the item as the cell holds it now, for the session to merge", async () => {
-    const { store } = storeOver((seq) => {
-      seq.now = 7;
-      throw refusal("CONFLICT");
+    const { id, phone, store } = storeOver();
+    await phone.write({
+      itemId: id,
+      ops: [{ base: "Plans", field: "title", op: "set", value: "Spring plans" }],
     });
 
-    await expect(store.write(NOTE, { ops: RETITLE })).resolves.toMatchObject({
-      item: { bodyHeld: true, fields: { title: "Plans" } },
+    await expect(store.write(id, { ops: RETITLE })).resolves.toMatchObject({
+      item: { bodyHeld: true, fields: { title: "Spring plans" } },
       kind: "changed",
     });
   });
 
   it("answers an item the cell no longer holds as missing", async () => {
-    const { store } = storeOver(() => {
-      throw refusal("NOT_FOUND");
-    });
+    const { id, phone, store } = storeOver();
+    await phone.items.delete({ ids: [id] });
+    await phone.items.purge({ ids: [id] });
 
-    await expect(store.write(NOTE, { ops: RETITLE })).resolves.toStrictEqual({ kind: "missing" });
+    await expect(store.write(id, { ops: RETITLE })).resolves.toStrictEqual({ kind: "missing" });
   });
 
   it("throws any other failure, so the session keeps the edit and tries again", async () => {
-    const { store } = storeOver(() => {
-      throw new TypeError("Failed to fetch");
-    });
+    const { id, page, store } = storeOver();
+    page.setOffline(true);
 
-    await expect(store.write(NOTE, { ops: RETITLE })).rejects.toThrow("Failed to fetch");
+    await expect(store.write(id, { ops: RETITLE })).rejects.toThrow("the network is down");
   });
 });
