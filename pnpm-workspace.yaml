@@ -109,10 +109,15 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
   jsdom: ^30.1.3
+  # the note object reads a sync frame's header with yjs's own decoder; one copy, the one yjs resolves
+  lib0: 0.2.119
   lucide-react: ^1.61.0
   mdast-util-to-markdown: ^2.2.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
+  # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
+  # what a note's object inherits
+  partyserver: 0.5.10
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0
@@ -153,6 +158,8 @@ catalog:
   # the one cf resolves; tools/e2e reads `cf build` output with it
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
+  # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it overrides
+  y-partyserver: 2.2.0
   yaml: ^2.9.1
   # exact, on 13, and one copy: a note's live document, its stored state and its turn log are this
   # encoding on every device and in its object, a second copy breaks yjs's own constructor checks,
@@ -232,6 +239,19 @@ overrides:
   # as optional peers, which would otherwise resolve to the newest of each beside the phone's
   react-native: "catalog:"
   expo: "catalog:"
+
+# partyserver and y-partyserver peer @cloudflare/workers-types for their declarations, which the
+# runtime types `cf workers types` generates already supply; a required peer would be installed and
+# threaded through every package that names it optionally (drizzle-orm, wrangler)
+packageExtensions:
+  partyserver:
+    peerDependenciesMeta:
+      "@cloudflare/workers-types":
+        optional: true
+  y-partyserver:
+    peerDependenciesMeta:
+      "@cloudflare/workers-types":
+        optional: true
 
 patchedDependencies:
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
