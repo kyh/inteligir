@@ -14,10 +14,10 @@ const STAYS = "This paragraph stays where it is.";
 const EXTRACT = 'button[aria-label="Extract to new note"]';
 
 // the item a bound formula reads, by its pill's id
-const SIZES = "{{40|40|id=fb;name=base}}\n";
+const SIZES = ':formula[40]{meta="id=fb;name=base" source="40"}\n';
 
 const source = (sizesId: string): string =>
-  `# Field notes\n\nDouble it: {{@(base#${sizesId}#fb)+2|0|id=fa;name=bigger}}\n\n${PASSAGE}\n\n${STAYS}\n`;
+  `# Field notes\n\nDouble it: :formula[0]{meta="id=fa;name=bigger" source="@(base#${sizesId}#fb)+2"}\n\n${PASSAGE}\n\n${STAYS}\n`;
 
 export const noteLinksBrowser: Scenario = {
   description:
@@ -47,7 +47,7 @@ export const noteLinksBrowser: Scenario = {
     await untilItemText(
       library,
       sourceId,
-      (markdown) => markdown.includes("+2|42|"),
+      (markdown) => markdown.includes(':formula[42]{meta="id=fa;name=bigger"'),
       "the bound formula never read 42",
     );
 
@@ -78,7 +78,7 @@ export const noteLinksBrowser: Scenario = {
     const left = await untilItemText(
       library,
       sourceId,
-      (markdown) => markdown.includes(`|${made.id}]]`),
+      (markdown) => markdown.includes(`(mention:${made.id})`),
       "the source never linked the extracted note",
     );
     expect(!left.includes(`\n${PASSAGE}\n`), `the passage stayed in the source as well:\n${left}`);

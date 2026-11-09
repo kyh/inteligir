@@ -28,7 +28,7 @@ export const libraryTools = {
     createNote: items.createNote.meta(
       openapi({
         description:
-          "Creates a note from markdown, optionally titled, tagged and filed in a folder. Links to other items are written [[Title]] or [[Title|id]].",
+          "Creates a note from markdown, optionally titled, tagged and filed in a folder. A link to another item is written [Title](mention:id), or [[Title]] for the one item so titled.",
         method: "POST",
         operationId: "create_note",
         summary: "Create a note",
@@ -78,7 +78,7 @@ export const libraryTools = {
     read: items.read.meta(
       openapi({
         description:
-          "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [[Title|id]].",
+          "Reads an item: its fields, a page of its text as markdown from a block position, and the items it links to and from. Links to other items are written [Title](mention:id).",
         method: "GET",
         operationId: "read_item",
         summary: "Read an item",

@@ -299,7 +299,7 @@ export const itemReadSchema = z.object({
   links: z.object({ in: z.array(linkedItemSchema), out: z.array(linkedItemSchema) }),
   // the sequence an edit names as its base
   seq: seqSchema,
-  // a run of the item's blocks as dialect markdown, its links written `[[Title|id]]`; `from` and
+  // a run of the item's blocks as dialect markdown, its links written `[Title](mention:<id>)`; `from` and
   // `to` are block positions in reading order, so the next page starts at `to`
   view: z.object({
     from: z.number().int().nonnegative(),

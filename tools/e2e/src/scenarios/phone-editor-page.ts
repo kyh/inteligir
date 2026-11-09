@@ -60,7 +60,7 @@ const TYPED_BLOCK = paragraphBlock("p1", `${ITEM_PARAGRAPH} Typed.`);
 const LINK_BLOCK: LibraryBlock = {
   children: [
     { text: "See " },
-    { children: [{ text: "" }], itemId: OTHER_ID, title: "Old name", type: "wikiLink" },
+    { children: [{ text: "" }], key: OTHER_ID, type: "mention", value: "Old name" },
     { text: "." },
   ],
   id: "p2",
