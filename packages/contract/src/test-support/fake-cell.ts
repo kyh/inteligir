@@ -1,17 +1,23 @@
 // An account's library cell as a client's suites need it, in memory: `/v1/rpc` served by oRPC's
-// own handler over the rows a client writes through, and `/v1/blobs/<sha>`, each device reaching
-// it through a transport of its own whose network a suite can take down or whose next answers it
-// can lose after the cell acted. It keeps the rules a client leans on: a write lands only on the
-// bases it names (`@repo/contract/library/block-ops`) and answers CONFLICT with what moved, an op id
-// is answered once, a file must be uploaded before a write names it, and every write takes the
-// library's next sequence.
+// own handler over the rows a client writes through and the reads its screens make (an item whole,
+// a listing's pages, the rail's counts and every title), and `/v1/blobs/<sha>`, each device
+// reaching it through a transport of its own whose network a suite can take down or whose next
+// answers it can lose after the cell acted. It keeps the rules a client leans on: a write lands
+// only on the bases it names (`@repo/contract/library/block-ops`) and answers CONFLICT with what
+// moved, an op id is answered once, a file must be uploaded before a write names it, every write
+// takes the library's next sequence, and a read answers through the cell's own derivation and
+// listing (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`).
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
-import type { conflictCurrentSchema, folderOpSchema } from "../library/library-wire";
+import type {
+  conflictCurrentSchema,
+  folderOpSchema,
+  listedItemSchema,
+} from "../library/library-wire";
 import { folderRowSchema, liveItemRowSchema } from "../library/library-wire";
 import { v1Contract, V1_RPC_PATH } from "../v1-contract";
 import type { V1Client } from "../v1-contract";
@@ -26,19 +32,24 @@ import {
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
 import { blockHash } from "../library/block-hash";
-import { applyOps } from "../library/block-ops";
+import { applyOps, orderedBlocks } from "../library/block-ops";
 import type { LibraryOp, StoredBlock } from "../library/block-ops";
-import { ordsBetween } from "../library/block-order";
+import { compareText, ordsBetween } from "../library/block-order";
 import { deriveItem, titleKey } from "../library/derive-item";
+import type { ItemCard } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import { fileFields, noteFields, pageFields, stubFields } from "../library/item-makes";
+import { LibraryIndex } from "../library/library-index";
+import type { ListingRow } from "../library/library-index";
 import type { LibraryItemFields } from "../library/library-item";
 import type { LibraryBlock, LibrarySection } from "../library/library-nodes";
+import { clipSnippet } from "../text/clip-text";
 import { z } from "zod";
 
 import type { V1Transport } from "../library/call-outcome";
 
 type LiveRow = z.infer<typeof liveItemRowSchema>;
+type ListedItem = z.infer<typeof listedItemSchema>;
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
@@ -48,6 +59,12 @@ interface CellItem {
   readonly blocks: ReadonlyMap<string, StoredBlock>;
   readonly seq: number;
   readonly updatedAt: number;
+}
+
+interface ItemListing extends ListingRow {
+  readonly card: ItemCard;
+  readonly fields: LibraryItemFields;
+  readonly seq: number;
 }
 
 /** @internal */
@@ -74,6 +91,10 @@ export interface FakeCell {
 
 const NOW = 1_700_000_100_000;
 const ORIGIN = "https://cell.test";
+const EVERY_ROW = Number.MAX_SAFE_INTEGER;
+
+// a card as an answer carries it, its outline a list of its own
+const answerCard = (card: ItemCard) => ({ ...card, outline: [...card.outline] });
 
 const placed = (block: LibraryBlock, ord: string, section: LibrarySection): StoredBlock => ({
   block,
@@ -176,13 +197,59 @@ export const createFakeCell = (): FakeCell => {
   const liveRow = (id: string, item: CellItem): LiveRow => {
     const { card } = deriveItem(item.fields, item.blocks);
     return {
-      card: { ...card, outline: [...card.outline] },
+      card: answerCard(card),
       fields: item.fields,
       id,
       kind: "live",
       seq: item.seq,
       updatedAt: item.updatedAt,
     };
+  };
+
+  // the cell's listing over every item and the live folders, built for the one read that asks; an
+  // item lists each tag it carries, its field's and its body's, once a spelling, as the cell's tag
+  // rows hold them
+  const listing = (): LibraryIndex<ItemListing> => {
+    const index = new LibraryIndex<ItemListing>();
+    for (const [id, item] of items) {
+      const { fields } = item;
+      const { card, tags } = deriveItem(fields, item.blocks);
+      index.upsert({
+        card,
+        deletedAt: fields.deletedAt,
+        fields,
+        folderId: fields.folderId,
+        id,
+        kind: fields.kind,
+        pinnedAt: fields.pinnedAt,
+        savedAt: fields.savedAt,
+        seq: item.seq,
+        tags: [...new Set(tags.map(({ tag }) => tag))].toSorted(compareText),
+        title: card.title,
+        updatedAt: item.updatedAt,
+        url: fields.url,
+      });
+    }
+    index.setFolders([...folders.values()].filter(({ deletedAt }) => deletedAt === null));
+    return index;
+  };
+
+  // a search's hits on one side, each with the line holding its words. Only their exact text is
+  // searched, ignoring case, and every hit ranks alike, so relevance lists them pinned first, then
+  // newest saved: the ranked index, its stems and its weights are the Worker's suites' to hold
+  const searchHits = (words: string, deleted: boolean): Map<string, string> => {
+    const needle = words.toLowerCase();
+    const hits = new Map<string, string>();
+    for (const [id, item] of items) {
+      const { search } = deriveItem(item.fields, item.blocks);
+      const line = [search.title, search.headings, search.meta, search.body]
+        .flatMap((text) => text.split("\n"))
+        .find((text) => text.toLowerCase().includes(needle));
+      if ((item.fields.deletedAt !== null) === deleted && line !== undefined) {
+        hits.set(id, clipSnippet(line.trim()));
+      }
+    }
+    return hits;
   };
 
   const land = (
@@ -404,6 +471,10 @@ export const createFakeCell = (): FakeCell => {
           }
           return { deleted, missing: input.ids.filter((id) => !deleted.includes(id)) };
         }),
+        get: os.library.items.get.handler(({ input }) => {
+          const item = held(input.id);
+          return { ...liveRow(input.id, item), blocks: orderedBlocks(item.blocks) };
+        }),
         restore: os.library.items.restore.handler(({ input }) =>
           once(input.opId, restoredSchema, () => {
             const known = input.ids.filter((id) => items.has(id));
@@ -476,6 +547,75 @@ export const createFakeCell = (): FakeCell => {
             };
           }),
         ),
+      },
+      listing: {
+        page: os.library.listing.page.handler(({ input }) => {
+          const offset = input.cursor ?? 0;
+          const hits =
+            input.words === undefined ? null : searchHits(input.words, input.query.deleted);
+          const page = listing().items({
+            ...input.query,
+            limit: input.limit,
+            offset,
+            within: hits === null ? undefined : new Map([...hits.keys()].map((id) => [id, 0])),
+          });
+          const end = offset + page.items.length;
+          return {
+            items: page.items.map((row): ListedItem => ({
+              card: answerCard(row.card),
+              fields: row.fields,
+              id: row.id,
+              seq: row.seq,
+              snippet: hits?.get(row.id),
+              tags: [...row.tags],
+              updatedAt: row.updatedAt,
+            })),
+            kindCounts: page.kindCounts,
+            nextCursor: end < page.total ? end : null,
+            total: page.total,
+          };
+        }),
+        scopes: os.library.listing.scopes.handler(() => {
+          const index = listing();
+          const scopes = index.scopes();
+          const tags = new Map<string, { tag: string; items: number }>();
+          const live = index.items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "saved" });
+          for (const row of live.items) {
+            for (const tag of row.tags) {
+              const key = tag.toLowerCase();
+              const counted = tags.get(key);
+              tags.set(key, { items: (counted?.items ?? 0) + 1, tag: counted?.tag ?? tag });
+            }
+          }
+          return {
+            deleted: index.items({ deleted: true, limit: 0, offset: 0, sort: "saved" }).total,
+            folders: scopes.folders.flatMap(({ id, items: count }) => {
+              const folder = folders.get(id);
+              return folder === undefined
+                ? []
+                : [
+                    {
+                      id,
+                      items: count,
+                      name: folder.name,
+                      parentId: folder.parentId,
+                      sort: folder.sort,
+                    },
+                  ];
+            }),
+            tags: [...tags.values()].toSorted(
+              (a, b) => b.items - a.items || a.tag.localeCompare(b.tag),
+            ),
+            total: scopes.total,
+            unsorted: scopes.unsorted,
+            untagged: scopes.untagged,
+          };
+        }),
+        titles: os.library.listing.titles.handler(() => ({
+          targets: listing()
+            .items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "title" })
+            .items.map((row) => ({ id: row.id, title: row.title })),
+        })),
       },
       write: os.library.write.handler(({ input }) =>
         once(input.opId, landedSchema, () => write(input)),
