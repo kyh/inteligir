@@ -302,7 +302,8 @@ the owner's account; a spare macOS user keeps your own WebKit store out of it.
   selection; each recording plays, seeks and scrubs. A file item's Download
   lands in Downloads under its own name, and the window stays on the item.
 - **An update.** On a build one behind the latest, open the app. Passing: the
-  notice offers Download, then Restart, and the app reopens on the new version;
+  card at the window's bottom right offers Download, fills its bar while it
+  downloads, then offers Restart, and the app reopens on the new version;
   Check for Updates… and Settings › About then say it's up to date.
 - **The window has the system title bar.** Passing: it drags the window, a
   double-click zooms it and a second returns it, and the page draws no inset
@@ -696,9 +697,13 @@ account whose library holds about 2,000 items gives the timing check its load.
   leave the map; one it clears is deleted from the map in the next change.
 - **A new library schema.** When the cell's migrations
   (`packages/db/src/cell/migrations`) moved since the last
-  deploy, open the library on the preview and then in production. Passing: it
-  opens on an empty library with no error, and the Worker's log shows one
-  `cell-schema-reset` for the account. No suite deploys over a cell.
+  deploy, open the library on the preview and then in production. Passing, for
+  an added migration: the library opens as it was, with no error and no
+  `cell-schema-reset` in the Worker's log. Passing, for a regenerated baseline
+  or a cell still holding tables no migration made (every cell, on the first
+  deploy of drizzle's schema): it opens on an empty library with no error, and
+  the log shows one `cell-schema-reset` for the account. No suite deploys over
+  a cell.
 
 - **A link the cloud reads.** On the production deploy, have a connected
   assistant save a long public article's link (`save_link`), and another's to a
@@ -709,7 +714,7 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **An import in the cloud.** Signed in as the phone (the session cookie under
   `expo-origin`, as above), upload a Raindrop CSV
   and an Obsidian vault's zip to `/v1/blobs/<sha>` and start each with
-  `library.imports.start` (`apps/web/README.md` § Routes). Passing: each import
+  `library.imports.start` (`packages/contract/src/library/library-contract.ts`). Passing: each import
   ends `done` with its counts, its links filled as above, and the Worker's logs
   show each alarm run inside its CPU, none exceeded.
 - **The way into the library.** On a preview, signed out, choose Open your

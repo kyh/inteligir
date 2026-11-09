@@ -56,7 +56,8 @@ updates itself, Check for Updates… in the app menu.
 `latest.json`, whose archive is signed with the updater key in `.release/`
 (minisign; the app carries the public half). The page checks when it loads,
 and Check for Updates… checks again; a found update waits for Download, and a
-verified download for Restart, in the page's notice and Settings › About. The
+verified download for Restart, in the page's card at the window's bottom
+right (`apps/web/src/library/desktop-update-banner.tsx`) and Settings › About. The
 page holds no updater permission: three commands (`check_for_updates`,
 `download_update`, `install_update`) and one `update-state` event, which the
 window's one capability grants (`src-tauri/capabilities/web-app.json`) and the
