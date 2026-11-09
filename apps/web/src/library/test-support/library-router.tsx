@@ -13,7 +13,7 @@ import type { PageLibrary } from "../cloud/library-context";
 import { createPageQueryClient } from "../cloud/v1";
 import { LibraryLayout, seedScopes } from "../library-layout";
 import { librarySearchSchema } from "../library-search";
-import type { FloorRefusal, TabOpening } from "../library-tab";
+import type { TabOpening } from "../library-tab";
 import { RenderCrash } from "../render-crash";
 import { seedSettings, SettingsRoute } from "../settings/settings-route";
 
@@ -43,13 +43,13 @@ export const createLibraryRouter = (entry: string, open: () => Promise<TabOpenin
   });
 };
 
-const neverRefused: FloorRefusal = {
-  refused: () => false,
-  subscribe: () => () => {},
-};
-
 // a tab opened over a suite's library
 export const openedOver = (library: PageLibrary) => async (): Promise<TabOpening> => {
   await Promise.resolve();
-  return { floor: neverRefused, kind: "open", library, queryClient: createPageQueryClient() };
+  return {
+    floor: { refused: () => false, subscribe: () => () => {} },
+    kind: "open",
+    library,
+    queryClient: createPageQueryClient(),
+  };
 };

@@ -23,7 +23,7 @@ import { installLightPrints } from "./light-prints";
 import { applyStoredSpellcheck } from "./spellcheck";
 
 // the build floor's refusal, which any call after the open can meet
-export interface FloorRefusal {
+interface FloorRefusal {
   readonly refused: () => boolean;
   readonly subscribe: (heard: () => void) => () => void;
 }
