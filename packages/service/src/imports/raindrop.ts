@@ -1,27 +1,23 @@
 // A Raindrop.io CSV export read into library items: the header by name in any order and case,
 // a row per bookmark, folded by url key, every cell treated as hostile text. A bookmark's highlights
-// land in its note, each passage quoted with its own note under it. Pure: the library cell's import
-// job does the writing (packages/service/src/library/cell-import-raindrop.ts).
+// land in its note as blocks, each passage a quote with its own note under it, built here and never
+// written as markdown, so no word of one reads as syntax. Pure: the library cell's import job does
+// the writing (packages/service/src/library/cell-import-raindrop.ts).
 //
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
-import type { Paragraph, RootContent } from "mdast";
-import { toMarkdown } from "mdast-util-to-markdown";
 import { z } from "zod";
 
 import { parseItemTime } from "@repo/editor/items/item-time";
 import { cleanUrl, isWebUrl, urlKey } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
-import { MD_PROCESSOR, MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { parseCsv } from "./csv";
 
-/** @internal */
-export interface RaindropHighlight {
-  quote: string;
-  note: string;
-}
+const highlightSchema = z.object({ note: z.string(), quote: z.string() });
+type RaindropHighlight = z.infer<typeof highlightSchema>;
 
 export interface RaindropRow {
   url: string;
@@ -158,8 +154,10 @@ export const plannedItemSchema = z.object({
   description: z.string().nullable(),
   // its folder's path, null when Raindrop filed it in none
   folder: z.string().nullable(),
+  // each passage the person marked, with its own note, in Raindrop's order
+  highlights: z.array(highlightSchema),
   key: z.string(),
-  // the item's body as markdown: the person's note on the bookmark, then its highlights
+  // the person's note on the bookmark, as markdown
   note: z.string(),
   pinned: z.boolean(),
   savedMs: z.number(),
@@ -224,38 +222,33 @@ const oneLine = (text: string): string | null => {
 
 const sameTag = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
-const paragraphOf = (value: string): Paragraph => ({
-  children: [{ type: "text", value }],
-  type: "paragraph",
-});
+// a passage's paragraphs: Raindrop keeps a line break inside one, and a blank line between two
+const paragraphs = (text: string): string[] =>
+  text
+    .split(/\n[\t ]*\n/u)
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
 
-// Raindrop's words are text, so the dialect's own writer spells them, escaping what would read as
-// markdown
-const HIGHLIGHT_MARKDOWN = {
-  ...MD_STRINGIFY,
-  extensions: MD_PROCESSOR.data("toMarkdownExtensions"),
-};
+const paragraph = (text: string) => ({ children: [{ text }], type: "p" as const });
 
-// the note as the person wrote it, then each highlight as a quote with its own note under it
-const noteWithHighlights = (note: string, highlights: readonly RaindropHighlight[]): string => {
-  if (highlights.length === 0) {
-    return note;
-  }
-  const flow = highlights.flatMap((highlight): RootContent[] => [
-    { children: [paragraphOf(highlight.quote)], type: "blockquote" },
-    ...(highlight.note === "" ? [] : [paragraphOf(highlight.note)]),
-  ]);
-  const quoted = toMarkdown({ children: flow, type: "root" }, HIGHLIGHT_MARKDOWN).trimEnd();
-  return note === "" ? quoted : `${note}\n\n${quoted}`;
-};
-
-interface Planning {
-  readonly item: PlannedItem;
-  readonly highlights: RaindropHighlight[];
-}
+// each highlight a quote, its own note the paragraphs under it: blocks built whole, so a passage's
+// `*`, `[` or `:` is the text it is
+export const highlightBlocks = (
+  highlights: readonly RaindropHighlight[],
+  newBlockId: () => string,
+): LibraryBlock[] =>
+  highlights.flatMap((highlight): LibraryBlock[] => {
+    const quoted = paragraphs(highlight.quote).map(paragraph);
+    return [
+      ...(quoted.length === 0
+        ? []
+        : [{ children: quoted, id: newBlockId(), type: "blockquote" as const }]),
+      ...paragraphs(highlight.note).map((text) => ({ ...paragraph(text), id: newBlockId() })),
+    ];
+  });
 
 export const planRaindropImport = (rows: readonly RaindropRow[], now: number): ImportPlan => {
-  const byKey = new Map<string, Planning>();
+  const byKey = new Map<string, PlannedItem>();
   let duplicates = 0;
   for (const row of rows) {
     const key = urlKey(row.url);
@@ -274,8 +267,8 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
     if (earlier !== undefined) {
       duplicates += 1;
       for (const tag of tags) {
-        if (!earlier.item.tags.some((held) => sameTag(held, tag))) {
-          earlier.item.tags.push(tag);
+        if (!earlier.tags.some((held) => sameTag(held, tag))) {
+          earlier.tags.push(tag);
         }
       }
       for (const highlight of row.highlights) {
@@ -285,13 +278,14 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       }
       continue;
     }
-    const item: PlannedItem = {
+    byKey.set(key, {
       cover:
         row.cover !== null && row.cover.length <= ITEM_FIELD_CAPS.url && isWebUrl(row.cover)
           ? row.cover
           : null,
       description: oneLine(row.excerpt),
       folder: folderOf(row.folder),
+      highlights: [...row.highlights],
       key,
       note: row.note.trim(),
       pinned: row.favorite,
@@ -299,14 +293,7 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       tags,
       title: row.title.trim() === "" ? null : row.title.trim(),
       url,
-    };
-    byKey.set(key, { highlights: [...row.highlights], item });
+    });
   }
-  return {
-    duplicates,
-    items: [...byKey.values()].map(({ highlights, item }) => ({
-      ...item,
-      note: noteWithHighlights(item.note, highlights),
-    })),
-  };
+  return { duplicates, items: [...byKey.values()] };
 };

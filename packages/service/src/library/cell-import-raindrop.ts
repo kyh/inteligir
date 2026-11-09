@@ -5,12 +5,20 @@
 // picture tried after the page's; an address the library holds already is counted, not saved
 // twice.
 
-import { parseRaindropCsv, planRaindropImport, plannedItemSchema } from "../imports/raindrop";
+import {
+  highlightBlocks,
+  parseRaindropCsv,
+  planRaindropImport,
+  plannedItemSchema,
+} from "../imports/raindrop";
 import type { PlannedItem } from "../imports/raindrop";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { kindForUrl } from "@repo/contract/items/item-url";
+import { ordsBetween } from "@repo/contract/library/block-order";
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { z } from "zod";
 
 import { blobKey } from "./cell-blobs";
@@ -31,7 +39,9 @@ import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
 import { landNew, noteBlocksOf } from "./cell-items";
+import type { PlacedBlock } from "./cell-items";
 import { urlHolder } from "./cell-landing";
+import { refuse } from "./cell-refusal";
 import type { LandingScope } from "./cell-landing";
 
 // what a Raindrop export may be: its CSV is read whole, and one of 100,000 bookmarks is a few MB
@@ -80,17 +90,33 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
 
 type Landed = "added" | "held";
 
+const inNote = (blocks: readonly LibraryBlock[]): PlacedBlock[] => {
+  const ords = ordsBetween(null, null, blocks.length);
+  return blocks.flatMap((block, index) => {
+    const ord = ords[index];
+    return ord === undefined ? [] : [{ block, ord, section: "note" as const }];
+  });
+};
+
 // one bookmark as an unread link, or counted as held when its address is the library's already
 const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedItem): Landed => {
   if (urlHolder(scope.storage.db, planned.key, null) !== null) {
     return "held";
   }
   const { library } = host;
+  const noted =
+    planned.note === ""
+      ? []
+      : noteBlocksOf(scope, cellCodec(scope.storage.db, library.ids), planned.note);
+  // a passage past what a block holds would land a block no device could write back
+  const quoted = z
+    .array(storableBlockSchema)
+    .safeParse(highlightBlocks(planned.highlights, library.ids.block));
+  if (!quoted.success) {
+    return refuse({ kind: "too-large" });
+  }
   const item = landNew(scope, {
-    blocks:
-      planned.note === ""
-        ? []
-        : noteBlocksOf(scope, cellCodec(scope.storage.db, library.ids), planned.note),
+    blocks: inNote([...noted.map((placed) => placed.block), ...quoted.data]),
     fields: {
       ...blankItemFields(scope.now),
       description: planned.description,

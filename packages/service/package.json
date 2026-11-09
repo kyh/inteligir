@@ -39,7 +39,6 @@
     "agents": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
-    "mdast-util-to-markdown": "catalog:",
     "stemmer": "^2.0.1",
     "zod": "catalog:"
   },
@@ -50,7 +49,6 @@
     "@orpc/client": "catalog:",
     "@repo/agent-skills": "workspace:*",
     "@repo/messages-fake": "workspace:*",
-    "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "cf": "catalog:",
     "fflate": "^0.8.3",

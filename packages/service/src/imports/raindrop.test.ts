@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import {
+  highlightBlocks,
   parseRaindropCsv,
   parseRaindropHighlights,
   planRaindropImport,
@@ -123,20 +124,20 @@ describe(planRaindropImport, () => {
       tags: ["philosophy", "files", "ideas", "c"],
       title: "File over app",
     });
-    expect(item?.note).toBe(
-      [
-        "For Tuesday.",
-        "> Files last.",
-        "The point.",
-        "> Apps are ephemeral,\n> but files are not.",
-        "> A third one.",
-      ].join("\n\n"),
-    );
+    expect(item?.note).toBe("For Tuesday.");
+    expect(item?.highlights).toStrictEqual([
+      { note: "The point.", quote: "Files last." },
+      { note: "", quote: "Apps are ephemeral,\nbut files are not." },
+      { note: "", quote: "A third one." },
+    ]);
   });
 
-  it("writes the highlights of a bookmark with no note of its own as its note", () => {
-    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.note).toBe("> Use the zest.");
-    expect(byUrl.get("https://example.com/deep")?.note).toBe("");
+  it("keeps the highlights of a bookmark with no note of its own", () => {
+    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")).toMatchObject({
+      highlights: [{ note: "", quote: "Use the zest." }],
+      note: "",
+    });
+    expect(byUrl.get("https://example.com/deep")).toMatchObject({ highlights: [], note: "" });
   });
 
   it("nests folders, and files an empty folder and Raindrop's Unsorted in none", () => {
@@ -194,12 +195,74 @@ describe(planRaindropImport, () => {
       "Quick-Meals",
     ]);
   });
+});
 
-  it("spells a highlight's words as text, never as markdown", () => {
+const counter = () => {
+  let next = 0;
+  return () => {
+    next += 1;
+    return `b${String(next)}`;
+  };
+};
+
+describe(highlightBlocks, () => {
+  it("quotes each passage, its own note the paragraphs under it", () => {
+    expect(
+      highlightBlocks(
+        [
+          { note: "The point.", quote: "Files last." },
+          {
+            note: "One thought.\n \nAnother.",
+            quote: "Apps are ephemeral,\nbut files are not.\n\nA second paragraph.",
+          },
+        ],
+        counter(),
+      ),
+    ).toStrictEqual([
+      {
+        children: [{ children: [{ text: "Files last." }], type: "p" }],
+        id: "b1",
+        type: "blockquote",
+      },
+      { children: [{ text: "The point." }], id: "b2", type: "p" },
+      {
+        children: [
+          { children: [{ text: "Apps are ephemeral,\nbut files are not." }], type: "p" },
+          { children: [{ text: "A second paragraph." }], type: "p" },
+        ],
+        id: "b3",
+        type: "blockquote",
+      },
+      { children: [{ text: "One thought." }], id: "b4", type: "p" },
+      { children: [{ text: "Another." }], id: "b5", type: "p" },
+    ]);
+  });
+
+  it("keeps a highlight's words the text they are, never markdown", () => {
     const [item] = planRaindropImport(
-      rowsOf('url,highlights\nhttps://a.example/,"Highlight: *not* [a](link)\nNote: # a note"\n'),
+      rowsOf(
+        'url,highlights\nhttps://a.example/,"Highlight: *not* [a](link) :date[2026-01-02] [[Beta]] @2026-08-22\nNote: # a note"\n',
+      ),
       NOW,
     ).items;
-    expect(item?.note).toBe("> \\*not\\* \\[a]\\(link)\n\n\\# a note");
+    expect(highlightBlocks(item?.highlights ?? [], counter())).toStrictEqual([
+      {
+        children: [
+          {
+            children: [{ text: "*not* [a](link) :date[2026-01-02] [[Beta]] @2026-08-22" }],
+            type: "p",
+          },
+        ],
+        id: "b1",
+        type: "blockquote",
+      },
+      { children: [{ text: "# a note" }], id: "b2", type: "p" },
+    ]);
+  });
+
+  it("quotes nothing for a passage with no words", () => {
+    expect(highlightBlocks([{ note: "Still mine.", quote: " \n\n " }], counter())).toStrictEqual([
+      { children: [{ text: "Still mine." }], id: "b1", type: "p" },
+    ]);
   });
 });
