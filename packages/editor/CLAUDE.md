@@ -460,6 +460,20 @@ alone, and no walk narrows structurally.
   check inside each handler (a new plugin would miss it, where `editOnly` is
   Plate's own gate). `packages/editor/src/item/item-editor.tsx`.
 
+- **A KEY TYPED BEFORE A PICKER'S INPUT HAS FOCUS IS ITS QUERY.** Between a
+  trigger opening a picker (the slash menu, `[[`, `{{`) and its input taking
+  focus, a key reaches Slate with the caret in the picker's element, a void,
+  where Slate drops an insert. The content kit's innermost `insertText` lands
+  it in the element's hidden text instead (`PickerRaceKit`), and the input
+  types it in as the browser types, so Base UI narrows the rows and lights the
+  first as it does for any key. Rejected: setting the query from the input's
+  effect (Base UI lights a row only on the input's own change, so Enter picked
+  nothing); leaving the race to timing in the e2e (a loaded runner loses it at
+  random, so the scenario runs it every time).
+  `packages/editor/src/combobox-input.ts`,
+  `packages/editor/src/inline-combobox.tsx`,
+  `tools/e2e/src/scenarios/slash-menu-browser.ts`.
+
 ## The open item's merge
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN

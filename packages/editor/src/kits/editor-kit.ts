@@ -25,11 +25,14 @@ import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
+import { PickerRaceKit } from "@repo/editor/combobox-input";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations and the
 // markdown wiring. Every surface composes this whole, so a note reads
 // and serializes alike wherever it is open.
 export const CONTENT_KIT = [
+  // first, so every other insertText override, a picker's trigger included, sees a key before it
+  ...PickerRaceKit,
   ...BasicMarksKit,
   ...BasicBlocksKit,
   ...CodeBlockKit,

@@ -9,6 +9,7 @@ import {
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/combobox-input";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
@@ -140,6 +141,21 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     }).not.toThrow();
   });
 
+  it.each([
+    ["/", KEYS.slashInput],
+    ["[[", KEYS.mentionInput],
+    ["{{", FORMULA_INPUT_KEY],
+  ])("lands a key typed after %s, before its input has focus, in the element", (trigger, type) => {
+    const editor = makeEditor("");
+    editor.tf.select({ offset: 0, path: [0, 0] });
+    // each key as slate-react inserts one typed into the editor: no `voids`
+    for (const char of `${trigger}h2`) {
+      editor.tf.insertText(char);
+    }
+    const element = findByType(editor, type);
+    expect(element ? racedComboboxText(element) : null).toBe("h2");
+  });
+
   it("absorbs keystrokes that raced into the element's hidden text child", () => {
     const editor = makeEditor("");
     const element = openCombobox(editor, "/", KEYS.slashInput);
@@ -148,7 +164,8 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
       throw new Error("element path missing");
     }
     editor.tf.select({ offset: 0, path: [...path, 0] });
-    editor.tf.insertText("t", { voids: true });
+    // a key as slate-react inserts one typed into the editor, as one is before the input has focus
+    editor.tf.insertText("t");
     const raced = findByType(editor, KEYS.slashInput);
     expect(raced ? racedComboboxText(raced) : "").toBe("t");
     if (!raced) {

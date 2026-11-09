@@ -130,33 +130,24 @@ const InlineCombobox = ({
     inputRef.current?.focus();
   }, []);
 
-  // Keystrokes that beat the input's focus land in the element's hidden text
-  // child; each batch is spliced at the input caret, cleared from Slate and focus retaken.
+  // Keystrokes that beat the input's focus land in the element's hidden text child
+  // (PickerRaceKit). Each batch is cleared from Slate and typed into the input as the browser types,
+  // since Base UI narrows and highlights only on the input's own change: a query set from here
+  // would leave Enter no row to pick.
   const raced = racedComboboxText(element);
-  const pendingCaretRef = React.useRef<number | null>(null);
   React.useEffect(() => {
-    if (closedRef.current || raced.length === 0) {
+    const input = inputRef.current;
+    if (closedRef.current || raced.length === 0 || input === null) {
       return;
     }
     const absorbed = absorbRacedComboboxText(editor, element);
     if (absorbed.length === 0) {
       return;
     }
-    const input = inputRef.current;
-    const { current } = valueRef;
-    const caret = input?.selectionStart ?? current.length;
-    setValue(current.slice(0, caret) + absorbed + current.slice(caret));
-    pendingCaretRef.current = caret + absorbed.length;
-    input?.focus();
-  }, [raced, editor, element, setValue]);
-  React.useLayoutEffect(() => {
-    const pos = pendingCaretRef.current;
-    if (pos === null) {
-      return;
-    }
-    pendingCaretRef.current = null;
-    inputRef.current?.setSelectionRange(pos, pos);
-  });
+    input.focus();
+    // oxlint-disable-next-line typescript/no-deprecated -- the one way to type into an input as the browser does, its input event and undo step included
+    input.ownerDocument.execCommand("insertText", false, absorbed);
+  }, [raced, editor, element]);
 
   const onInputValueChange = React.useCallback(
     (nextValue: string) => {

@@ -14,9 +14,18 @@ ${PARAGRAPH}
 `;
 
 const HEADING = "Slash heading";
+const RACED_HEADING = "Raced heading";
+
+const rowsNow = `JSON.stringify([...document.querySelectorAll('${OPTION}')].map((n) => n.textContent))`;
+
+// one task dispatches every key, so the menu's input mounts only after they reached the editor:
+// the race a loaded runner loses at random, run every time
+const typedInOneTask = (text: string): string =>
+  `(() => { const editor = document.querySelector('${EDITOR}'); for (const data of ${JSON.stringify([...text])}) { editor.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, data, inputType: "insertText" })); } return "typed"; })()`;
 
 export const slashMenuBrowser: Scenario = {
-  description: "a typed slash opens the menu, and the picked construct lands in the item",
+  description:
+    "a typed slash opens the menu, and the picked construct lands in the item, a query typed before the menu's input has focus included",
   name: "slash-menu-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -51,18 +60,14 @@ export const slashMenuBrowser: Scenario = {
     await agentBrowser(["press", "2"]);
     // narrowing re-renders the portal'd rows; one settle tick is not a bound under full-suite
     // load.
-    await pollUntil(
-      async () =>
-        parseEval(
-          await agentBrowser([
-            "eval",
-            `JSON.stringify([...document.querySelectorAll('${OPTION}')].map((n) => n.textContent))`,
-          ]),
-          z.array(z.string()),
-        ),
-      (rows) => rows.length === 1 && (rows[0] ?? "").startsWith("Heading 2"),
-      { deadlineMs: 15_000, describe: (rows) => `the query left ${JSON.stringify(rows)}` },
-    );
+    const untilOnlyRow = async (label: string): Promise<void> => {
+      await pollUntil(
+        async () => parseEval(await agentBrowser(["eval", rowsNow]), z.array(z.string())),
+        (rows) => rows.length === 1 && (rows[0] ?? "").startsWith(label),
+        { deadlineMs: 15_000, describe: (rows) => `the query left ${JSON.stringify(rows)}` },
+      );
+    };
+    await untilOnlyRow("Heading 2");
 
     ctx.log("Enter applies it, and typing lands inside the new heading");
     await agentBrowser(["press", "Enter"]);
@@ -89,5 +94,20 @@ export const slashMenuBrowser: Scenario = {
     );
     expect(!saved.includes("/h2"), `the query text survived the insert:\n${saved}`);
     expect(saved.includes(PARAGRAPH), `the seeded paragraph was lost:\n${saved}`);
+
+    ctx.log("a query typed before the menu's input has focus narrows it the same");
+    await caretToEndOf(agentBrowser, HEADING);
+    await agentBrowser(["press", "Enter"]);
+    await agentBrowser(["eval", typedInOneTask("/h3")]);
+    await untilOnlyRow("Heading 3");
+    await agentBrowser(["press", "Enter"]);
+    await agentBrowser(["type", EDITOR, RACED_HEADING]);
+    const raced = await untilItemText(
+      library,
+      itemId,
+      (markdown) => markdown.includes(`### ${RACED_HEADING}`),
+      "the raced heading never reached the cell",
+    );
+    expect(!raced.includes("/h3"), `the raced query survived the insert:\n${raced}`);
   },
 };
