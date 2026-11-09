@@ -58,10 +58,11 @@ const rows = async (): Promise<(string | null)[]> => {
 const lightRow = async (name: string): Promise<HTMLElement> => {
   const row = await screen.findByRole("option", { name });
   const field = screen.getByRole("combobox");
-  for (let press = 0; press < 3 && !row.hasAttribute("data-highlighted"); press += 1) {
+  const lit = (): boolean => Object.hasOwn(row.dataset, "highlighted");
+  for (let press = 0; press < 3 && !lit(); press += 1) {
     fireEvent.keyDown(field, { key: "ArrowDown" });
   }
-  expect(row.hasAttribute("data-highlighted")).toBe(true);
+  expect(lit()).toBe(true);
   return field;
 };
 
