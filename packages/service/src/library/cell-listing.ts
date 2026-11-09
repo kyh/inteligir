@@ -1,18 +1,21 @@
 // What the apps read of the library, inside one read transaction: an item whole, and the listing
 // through the in-memory index (`@repo/contract/library/library-index`), built over the cell's rows for
 // the one call, for a screen's pages, the rail's counts and the titles a note's links resolve
-// against. An agent's lists and searches read the same index and the same search (`./cell-reads`).
+// against, each answer assembled there. An agent's lists and searches read the same index and the
+// same search (`./cell-reads`).
 
-import type { listedItemSchema, listingQuerySchema } from "@repo/contract/library/library-wire";
 import {
   excerptAround,
   findTextOffsets,
   isPrintableAscii,
 } from "@repo/editor/knowledge/text-matches";
-import type { ItemCard } from "@repo/contract/library/derive-item";
-import { LibraryIndex } from "@repo/contract/library/library-index";
-import type { ListingRow } from "@repo/contract/library/library-index";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import {
+  answerCard,
+  itemListing,
+  LibraryIndex,
+  listingPageOf,
+} from "@repo/contract/library/library-index";
+import type { ItemListing, ListingPageInput } from "@repo/contract/library/library-index";
 import {
   literalMatches,
   readBlocks,
@@ -23,18 +26,12 @@ import {
 import type { LiteralMatch, SearchSide } from "./library-queries";
 import { runPlan } from "./library-sql";
 import { asc } from "drizzle-orm";
-import type { z } from "zod";
 
 import { itemTags } from "@repo/db/cell/schema";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
 import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
-
-type ListedItem = z.infer<typeof listedItemSchema>;
-
-// a card as an answer carries it, its outline a list of its own
-const answerCard = (card: ItemCard) => ({ ...card, outline: [...card.outline] });
 
 // an item's row and every block it holds; one emptied from Deleted is no item
 export const itemWhole = (storage: CellStorage, id: string) => {
@@ -53,12 +50,6 @@ export const itemWhole = (storage: CellStorage, id: string) => {
   };
 };
 
-export interface ItemListing extends ListingRow {
-  readonly card: ItemCard;
-  readonly fields: LibraryItemFields;
-  readonly seq: number;
-}
-
 // every item the library holds (none purged), with the folders a listing files them under
 export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
   const tags = new Map<string, string[]>();
@@ -75,22 +66,7 @@ export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
   }
   const index = new LibraryIndex<ItemListing>();
   for (const item of readLiveItems(db)) {
-    const { fields } = item;
-    index.upsert({
-      card: item.card,
-      deletedAt: fields.deletedAt,
-      fields,
-      folderId: fields.folderId,
-      id: item.id,
-      kind: fields.kind,
-      pinnedAt: fields.pinnedAt,
-      savedAt: fields.savedAt,
-      seq: item.seq,
-      tags: tags.get(item.id) ?? [],
-      title: item.card.title,
-      updatedAt: item.updatedAt,
-      url: fields.url,
-    });
+    index.upsert(itemListing(item, tags.get(item.id) ?? []));
   }
   index.setFolders(liveFolders(db));
   return index;
@@ -155,75 +131,14 @@ export const searchHits = (
 
 // ---- the apps' listing ----
 
-export interface ListingPageInput {
-  readonly query: z.infer<typeof listingQuerySchema>;
-  readonly words?: string | undefined;
-  readonly cursor?: number | undefined;
-  readonly limit: number;
-}
-
-export const listingPage = (storage: CellStorage, input: ListingPageInput) => {
-  const offset = input.cursor ?? 0;
-  const hits =
+export const listingPage = (
+  storage: CellStorage,
+  input: ListingPageInput & { readonly words?: string | undefined },
+) =>
+  listingPageOf(
+    listingOf(storage.db),
+    input,
     input.words === undefined
       ? null
-      : searchHits(storage, input.words, input.query.deleted ? "deleted" : "live");
-  const page = listingOf(storage.db).items({
-    ...input.query,
-    limit: input.limit,
-    offset,
-    within: hits === null ? undefined : new Map([...hits.keys()].map((id, rank) => [id, rank])),
-  });
-  const end = offset + page.items.length;
-  return {
-    items: page.items.map((row): ListedItem => ({
-      card: answerCard(row.card),
-      fields: row.fields,
-      id: row.id,
-      seq: row.seq,
-      snippet: hits?.get(row.id),
-      tags: [...row.tags],
-      updatedAt: row.updatedAt,
-    })),
-    kindCounts: page.kindCounts,
-    nextCursor: end < page.total ? end : null,
-    total: page.total,
-  };
-};
-
-const EVERY_ROW = Number.MAX_SAFE_INTEGER;
-
-// the rail's counts: every live folder named, and each tag under the spelling it met first
-export const listingScopes = (db: CellDb) => {
-  const index = listingOf(db);
-  const scopes = index.scopes();
-  const folders = new Map(liveFolders(db).map((folder) => [folder.id, folder]));
-  const tags = new Map<string, { tag: string; items: number }>();
-  const live = index.items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "saved" });
-  for (const row of live.items) {
-    for (const tag of row.tags) {
-      const key = tag.toLowerCase();
-      const held = tags.get(key);
-      tags.set(key, { items: (held?.items ?? 0) + 1, tag: held?.tag ?? tag });
-    }
-  }
-  return {
-    deleted: index.items({ deleted: true, limit: 0, offset: 0, sort: "saved" }).total,
-    folders: scopes.folders.flatMap(({ id, items }) => {
-      const folder = folders.get(id);
-      return folder === undefined
-        ? []
-        : [{ id, items, name: folder.name, parentId: folder.parentId, sort: folder.sort }];
-    }),
-    tags: [...tags.values()].toSorted((a, b) => b.items - a.items || a.tag.localeCompare(b.tag)),
-    total: scopes.total,
-    unsorted: scopes.unsorted,
-    untagged: scopes.untagged,
-  };
-};
-
-export const listingTitles = (db: CellDb) => ({
-  targets: listingOf(db)
-    .items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "title" })
-    .items.map((row) => ({ id: row.id, title: row.title })),
-});
+      : searchHits(storage, input.words, input.query.deleted ? "deleted" : "live"),
+  );

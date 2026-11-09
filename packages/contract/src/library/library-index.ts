@@ -1,11 +1,17 @@
 // The library listing over the cell's rows: which items a grid shows, in what order and how many
-// of each kind, answered from memory. A page costs its own rows; only a filter walks the members.
-// Pinned items lead every order; Deleted lists what was deleted and nothing else, and a purged
-// item is never a row here.
+// of each kind, answered from memory, and the apps' three reads of it (a screen's page, the rail's
+// counts and every title), assembled here once for the cell and the fake cell alike. A page costs
+// its own rows; only a filter walks the members. Pinned items lead every order; Deleted lists what
+// was deleted and nothing else, and a purged item is never a row here.
+
+import type { z } from "zod";
 
 import type { ItemKind } from "../items/item-kind";
 import { siteMatches, urlHost } from "../items/item-url";
 import { compareText } from "./block-order";
+import type { ItemCard } from "./derive-item";
+import type { LibraryItemFields } from "./library-item";
+import type { listedItemSchema, listingQuerySchema } from "./library-wire";
 
 // what the listing reads of an item; a host's row type adds whatever its cards draw
 export interface ListingRow {
@@ -61,18 +67,36 @@ export interface ListingPage<R extends ListingRow> {
   readonly kindCounts: Readonly<Record<ItemKind, number>>;
 }
 
-interface FolderCount {
-  readonly id: string;
+interface FolderCount extends ListingFolder {
   // items in it and in every folder under it
   readonly items: number;
 }
 
-export interface ListingScopes {
+interface TagCount {
+  readonly tag: string;
+  readonly items: number;
+}
+
+// the rail's counts, as `library.listing.scopes` answers them
+interface ListingScopes {
   readonly total: number;
   readonly unsorted: number;
   readonly untagged: number;
+  readonly deleted: number;
   // in rail order: a parent before its children, siblings by their order key, then name
-  readonly folders: readonly FolderCount[];
+  readonly folders: FolderCount[];
+  // each under the spelling met first in saved order, the most held first
+  readonly tags: TagCount[];
+}
+
+interface TitleTarget {
+  readonly id: string;
+  readonly title: string;
+}
+
+// every live item's title, as `library.listing.titles` answers them
+interface ListingTitles {
+  readonly targets: TitleTarget[];
 }
 
 interface Entry<R extends ListingRow> {
@@ -197,16 +221,19 @@ export class LibraryIndex<R extends ListingRow> {
 
   scopes(): ListingScopes {
     const direct = new Map<string, number>();
+    const tags = new Map<string, TagCount>();
     let total = 0;
     let unsorted = 0;
     let untagged = 0;
-    for (const { row } of this.entries.values()) {
-      if (row.deletedAt !== null) {
-        continue;
-      }
+    for (const row of this.rowsOf(this.membersSorted(false, "saved"))) {
       total += 1;
       if (row.tags.length === 0) {
         untagged += 1;
+      }
+      for (const tag of row.tags) {
+        const key = tag.toLowerCase();
+        const held = tags.get(key);
+        tags.set(key, { items: (held?.items ?? 0) + 1, tag: held?.tag ?? tag });
       }
       const folderId = this.liveFolderOf(row);
       if (folderId === null) {
@@ -218,17 +245,44 @@ export class LibraryIndex<R extends ListingRow> {
     const folders: FolderCount[] = [];
     const walk = (parent: string | null): number => {
       let sum = 0;
-      for (const folder of this.children.get(parent) ?? []) {
+      for (const { id, name, parentId, sort } of this.children.get(parent) ?? []) {
         const at = folders.length;
-        folders.push({ id: folder.id, items: 0 });
-        const items = (direct.get(folder.id) ?? 0) + walk(folder.id);
-        folders[at] = { id: folder.id, items };
+        folders.push({ id, items: 0, name, parentId, sort });
+        const items = (direct.get(id) ?? 0) + walk(id);
+        folders[at] = { id, items, name, parentId, sort };
         sum += items;
       }
       return sum;
     };
     walk(null);
-    return { folders, total, unsorted, untagged };
+    let deleted = 0;
+    for (const { row } of this.entries.values()) {
+      if (row.deletedAt !== null) {
+        deleted += 1;
+      }
+    }
+    return {
+      deleted,
+      folders,
+      tags: [...tags.values()].toSorted((a, b) => b.items - a.items || a.tag.localeCompare(b.tag)),
+      total,
+      unsorted,
+      untagged,
+    };
+  }
+
+  // every live item by its card's title, which a note's links resolve against
+  titles(): ListingTitles {
+    return {
+      targets: this.rowsOf(this.membersSorted(false, "title")).map(({ id, title }) => ({
+        id,
+        title,
+      })),
+    };
+  }
+
+  private rowsOf(ids: readonly string[]): R[] {
+    return ids.flatMap((id) => this.entries.get(id)?.row ?? []);
   }
 
   private liveFolderOf(row: ListingRow): string | null {
@@ -310,3 +364,91 @@ export class LibraryIndex<R extends ListingRow> {
       .map((row) => row.id);
   }
 }
+
+// ---- the apps' answers ----
+
+// a row as the apps' answers read it: the listing's facts, and the card, fields and sequence each
+// answer carries
+export interface ItemListing extends ListingRow {
+  readonly card: ItemCard;
+  readonly fields: LibraryItemFields;
+  readonly seq: number;
+}
+
+// an item's row; `tags` is every tag it carries, its field's and its body's, each spelling once
+export const itemListing = (
+  item: {
+    readonly id: string;
+    readonly fields: LibraryItemFields;
+    readonly card: ItemCard;
+    readonly seq: number;
+    readonly updatedAt: number;
+  },
+  tags: readonly string[],
+): ItemListing => ({
+  card: item.card,
+  deletedAt: item.fields.deletedAt,
+  fields: item.fields,
+  folderId: item.fields.folderId,
+  id: item.id,
+  kind: item.fields.kind,
+  pinnedAt: item.fields.pinnedAt,
+  savedAt: item.fields.savedAt,
+  seq: item.seq,
+  tags,
+  title: item.card.title,
+  updatedAt: item.updatedAt,
+  url: item.fields.url,
+});
+
+// a card as an answer carries it, its outline a list of its own
+export const answerCard = (card: ItemCard) => ({ ...card, outline: [...card.outline] });
+
+type ListedItem = z.infer<typeof listedItemSchema>;
+
+// a row as a screen's page lists it, and the passage a search found it by when one did
+/** @internal */
+export const listedItem = (row: ItemListing, snippet?: string): ListedItem => {
+  const listed: ListedItem = {
+    card: answerCard(row.card),
+    fields: row.fields,
+    id: row.id,
+    seq: row.seq,
+    tags: [...row.tags],
+    updatedAt: row.updatedAt,
+  };
+  if (snippet !== undefined) {
+    listed.snippet = snippet;
+  }
+  return listed;
+};
+
+export interface ListingPageInput {
+  readonly query: z.infer<typeof listingQuerySchema>;
+  // the position the last page ended at
+  readonly cursor?: number | undefined;
+  readonly limit: number;
+}
+
+// a page of a screen's listing; `hits`, a search's items best first, each with the passage that
+// matched, narrows it to them and ranks them under the `relevance` sort
+export const listingPageOf = (
+  index: LibraryIndex<ItemListing>,
+  input: ListingPageInput,
+  hits: ReadonlyMap<string, string> | null,
+) => {
+  const offset = input.cursor ?? 0;
+  const page = index.items({
+    ...input.query,
+    limit: input.limit,
+    offset,
+    within: hits === null ? undefined : new Map([...hits.keys()].map((id, rank) => [id, rank])),
+  });
+  const end = offset + page.items.length;
+  return {
+    items: page.items.map((row) => listedItem(row, hits?.get(row.id))),
+    kindCounts: page.kindCounts,
+    nextCursor: end < page.total ? end : null,
+    total: page.total,
+  };
+};
