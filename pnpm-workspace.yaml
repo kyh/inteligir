@@ -51,6 +51,9 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
+  # exact: binds the editor to a note's live document; unreleased since 2023, so its bugs are ours,
+  # and it moves with yjs only once the binding suites pass on the pair
+  "@slate-yjs/core": 1.0.2
   # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
   "@tailwindcss/postcss": ^4.3.3
   "@tailwindcss/vite": ^4.3.3
@@ -136,6 +139,9 @@ catalog:
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
+  # exact, the one @platejs/slate pins: the live binding narrows Plate's editor to slate's own type
+  # with its guard, so the two must be one slate, and it moves only with a Plate bump
+  slate: 0.146.0
   tailwindcss: ^4.3.3
   tsx: ^4.23.15
   typescript: ^7.0.2
@@ -148,6 +154,9 @@ catalog:
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   yaml: ^2.9.1
+  # exact, and one copy: a note's live document is this encoding on every device and in its object,
+  # and a second copy breaks yjs's own constructor checks; 14 is a beta @slate-yjs/core predates
+  yjs: 13.6.33
   zod: ^4.6.7
   zustand: ^5.0.16
 

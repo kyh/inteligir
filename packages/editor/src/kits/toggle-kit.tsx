@@ -2,13 +2,15 @@
 // openIds store and chevron hooks, and its flat-model hider is switched off below. Open state
 // lives in that store, never on the node, so collapsing cannot dirty the document.
 
-import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
+import { ElementApi, KEYS, PathApi, createBlockStartInputRule } from "platejs";
 import type { Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { TogglePlugin } from "@platejs/toggle/react";
 
 import { stringProp } from "@repo/editor/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
+
+import { ToggleBodyPlugin } from "./headless/toggle-base";
 
 export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   editor.tf.withoutNormalizing(() => {
@@ -62,7 +64,7 @@ export const ToggleKit = [
   TogglePlugin.configure({ inputRules: [toggleInputRule] })
     .extend({ render: { aboveNodes: wrapNoBlock }, useHooks: indexNoToggles })
     .withComponent(ToggleElement)
-    .overrideEditor(({ editor, tf: { insertBreak, normalizeNode } }) => ({
+    .overrideEditor(({ editor, tf: { insertBreak } }) => ({
       transforms: {
         // the plugin's flat-model insertBreak would indent-attach the new block at top level,
         // a shape that does not survive serialization.
@@ -77,24 +79,7 @@ export const ToggleKit = [
           }
           insertBreak();
         },
-        // typing into an empty parsed toggle gives it inline children; wrap them into a paragraph.
-        // The codec's editor never normalizes, so an empty toggle is written as it was read until edited.
-        normalizeNode(entry) {
-          const [node, path] = entry;
-          if (
-            ElementApi.isElement(node) &&
-            node.type === KEYS.toggle &&
-            node.children.some((child) => TextApi.isText(child) || editor.api.isInline(child)) &&
-            node.children.some((child) => (TextApi.isText(child) ? child.text !== "" : true))
-          ) {
-            editor.tf.wrapNodes(
-              { children: [], type: editor.getType(KEYS.p) },
-              { at: path, children: true },
-            );
-            return;
-          }
-          normalizeNode(entry);
-        },
       },
     })),
+  ToggleBodyPlugin,
 ];

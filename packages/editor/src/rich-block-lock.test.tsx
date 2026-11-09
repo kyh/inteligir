@@ -185,6 +185,27 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     },
   );
 
+  it("a whole block inserted with what a normalizer fixes lands fixed", () => {
+    const editor = touchEditor("before\n");
+
+    editor.tf.insertNodes(
+      {
+        children: [
+          { children: [{ children: [], type: "p" }], type: "column", width: "50%" },
+          {
+            children: [{ children: [{ text: "right" }], type: "p" }],
+            type: "column",
+            width: "50%",
+          },
+        ],
+        type: "column_group",
+      },
+      { at: [1] },
+    );
+
+    expect(NodeApi.get(editor, [1, 0, 0])).toMatchObject({ children: [{ text: "" }] });
+  });
+
   it("a re-seed replaces the whole note, locked blocks and all", () => {
     const editor = touchEditor();
     const next = NOTE.replace('"value":3', '"value":9').replace("left column", "moved left");

@@ -2,15 +2,11 @@
 // read again means what it meant, and is a block a store takes, but for the losses each row names.
 
 import { describe, expect, it } from "vitest";
-import { ElementApi } from "platejs";
 import type { Descendant, TElement, TText } from "platejs";
 
-import {
-  libraryNodeSchema,
-  libraryTextSchema,
-  storableBlockSchema,
-} from "@repo/contract/library/library-nodes";
+import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 
+import { schemaPairs, usedPairs } from "../test-support/library-node-pairs";
 import { meaningOf, readValue, writeValue } from "../test-support/markdown-meaning";
 import { parseMarkdown, parseMarkdownSections } from "./markdown-doc";
 import { ARTICLE_SECTION_KEY } from "./md-rules";
@@ -650,46 +646,6 @@ const NOT_IN_MATRIX = new Map([
   ["file.sha", "the codec writes a kept file's sha as its path, and reads the path back"],
   ["video.sha", "the codec writes a kept file's sha as its path, and reads the path back"],
 ]);
-
-// every element type and its props, and every mark, the persisted node set names
-const schemaPairs = (): string[] => {
-  const pairs = Object.keys(libraryTextSchema.shape)
-    .filter((key) => key !== "text")
-    .map((mark) => `mark:${mark}`);
-  const [, elementSchema] = libraryNodeSchema.options;
-  for (const element of elementSchema.options) {
-    const fields = element.shape;
-    const type = fields.type.value;
-    pairs.push(`type:${type}`);
-    for (const key of Object.keys(fields)) {
-      if (key !== "type" && key !== "children") {
-        pairs.push(`${type}.${key}`);
-      }
-    }
-  }
-  return pairs;
-};
-
-const usedPairs = (nodes: readonly Descendant[], into: Set<string>): void => {
-  for (const node of nodes) {
-    if (ElementApi.isElement(node)) {
-      const { type } = node;
-      into.add(`type:${type}`);
-      for (const key of Object.keys(node)) {
-        if (key !== "type" && key !== "children") {
-          into.add(`${type}.${key}`);
-        }
-      }
-      usedPairs(node.children, into);
-    } else {
-      for (const key of Object.keys(node)) {
-        if (key !== "text") {
-          into.add(`mark:${key}`);
-        }
-      }
-    }
-  }
-};
 
 describe("the matrix", () => {
   it("holds every node, mark and prop the library persists, or says why not", () => {

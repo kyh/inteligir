@@ -2,17 +2,20 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
-import type { Descendant, TElement } from "platejs";
+import type { AnyPluginConfig, Descendant, SlateEditor, TElement } from "platejs";
 import { MarkdownPlugin, defaultRules } from "@platejs/markdown";
 import { z } from "zod";
 
+import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
+import { blockOfElement } from "@repo/editor/live/note-blocks";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { rewrite } from "@repo/editor/test-support/markdown-meaning";
+import { readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const FIXTURES = fileURLToPath(new URL("test-support/fixtures/corpus/", import.meta.url));
 
@@ -169,4 +172,88 @@ describe("kit parity (live editor mirror)", () => {
       );
     }
   });
+});
+
+const editorOf = (
+  plugins: readonly AnyPluginConfig[],
+  value: readonly TElement[] = [],
+): SlateEditor => createSlateEditor({ plugins: [...plugins], value: structuredClone([...value]) });
+
+const pluginNode = z.object({
+  node: z.object({
+    isElement: z.boolean().optional(),
+    isInline: z.boolean().optional(),
+    isMarkableVoid: z.boolean().optional(),
+    isVoid: z.boolean().optional(),
+    type: z.string(),
+  }),
+});
+
+// each element type with how Slate holds it
+const schemaOf = (plugins: readonly AnyPluginConfig[]): string[] =>
+  Object.values(editorOf(plugins).plugins)
+    .flatMap((plugin) => {
+      const { node } = pluginNode.parse(plugin);
+      return node.isElement === true
+        ? [
+            [
+              node.type,
+              node.isInline === true ? "inline" : "block",
+              node.isVoid === true ? "void" : "",
+              node.isMarkableVoid === true ? "markable" : "",
+            ].join(" "),
+          ]
+        : [];
+    })
+    .toSorted();
+
+const normalized = (plugins: readonly AnyPluginConfig[], value: readonly TElement[]) => {
+  const editor = editorOf(plugins, value);
+  editor.tf.normalize({ force: true });
+  return editor.children;
+};
+
+// Every editor of a note, the note's own headless one included, edits one live document: each
+// must read a node as the others do and write the same fix for the same state, or a reader fixes
+// what its writer left and two readers fix it twice.
+describe("kit parity (one live document)", () => {
+  const KITS = { desktop: EDITOR_KIT, touch: TOUCH_EDITOR_KIT };
+
+  const corpus = readdirSync(FIXTURES)
+    .toSorted()
+    .map((name) => ({ name, value: readValue(readFileSync(`${FIXTURES}${name}`, "utf-8")) }));
+
+  // what an editor is handed besides a file as read: blocks as the library stores them, which drop
+  // the empty texts Slate keeps beside an inline, a toggle typed into, and a picker left open
+  const handed: { name: string; value: TElement[] }[] = [
+    ...corpus,
+    ...corpus.map(({ name, value }) => ({
+      name: `${name} as stored`,
+      value: value.flatMap((element, index) => {
+        const block = blockOfElement({ ...element, id: `b${String(index)}` });
+        return block === null ? [] : [block];
+      }),
+    })),
+    { name: "a toggle typed into", value: [{ children: [{ text: "typed" }], type: KEYS.toggle }] },
+    {
+      name: "a picker open in a line",
+      value: PICKER_INPUT_TYPES.map((type) => ({
+        children: [{ text: "a" }, { children: [{ text: "q" }], type }, { text: "b" }],
+        type: KEYS.p,
+      })),
+    },
+  ];
+
+  it.each(Object.entries(KITS))("the %s kit holds every element as BASE_KIT does", (_, kit) => {
+    expect(schemaOf(kit)).toStrictEqual(schemaOf(BASE_KIT));
+  });
+
+  it.each(Object.entries(KITS))(
+    "the %s kit normalizes what it is handed as BASE_KIT does",
+    (_, kit) => {
+      for (const { name, value } of handed) {
+        expect(normalized(kit, value), name).toStrictEqual(normalized(BASE_KIT, value));
+      }
+    },
+  );
 });

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { SigmaIcon } from "lucide-react";
 import { ElementApi, KEYS, createTSlatePlugin } from "platejs";
 import type { Descendant, PluginConfig, TElement } from "platejs";
-import { PlateElement, createPlatePlugin, useEditorRef } from "platejs/react";
+import { PlateElement, useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { withTriggerCombobox } from "@platejs/combobox";
 import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
@@ -21,6 +21,7 @@ import {
 } from "@repo/editor/inline-combobox";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import { formulaInputBasePlugin } from "../kits/headless/picker-input-base";
 import { stringProp } from "@repo/editor/node-props";
 import {
   completeFormulaFromPicker,
@@ -136,8 +137,5 @@ export const FormulaAutocompleteKit = [
         !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
     },
   }).overrideEditor(withTriggerCombobox),
-  createPlatePlugin({
-    key: FORMULA_INPUT_KEY,
-    node: { isElement: true, isInline: true, isVoid: true },
-  }).withComponent(FormulaInputElement),
+  formulaInputBasePlugin.withComponent(FormulaInputElement),
 ];

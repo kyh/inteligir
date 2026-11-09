@@ -17,6 +17,7 @@ import { LinkBaseKit } from "./headless/link-base";
 import { ListBaseKit } from "./headless/list-base";
 import { MathBaseKit } from "./headless/math-base";
 import { MentionBaseKit } from "./headless/mention-base";
+import { PickerInputBaseKit } from "./headless/picker-input-base";
 import { RichBlocksBaseKit } from "./headless/rich-blocks-base";
 import { TableBaseKit } from "./headless/table-base";
 import { TabsBaseKit } from "./headless/tabs-base";
@@ -36,6 +37,7 @@ export const BASE_KIT = [
   ...DateBaseKit,
   ...MathBaseKit,
   ...MentionBaseKit,
+  ...PickerInputBaseKit,
   ...InlineConstructsBaseKit,
   ...RichBlocksBaseKit,
   ...TabsBaseKit,
