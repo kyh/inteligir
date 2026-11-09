@@ -46,7 +46,7 @@ first, and keeps every later edit; an undo is a set of its own. The cell keeps
 each until seven days after it sealed
 (`apps/web/src/worker/library/change-sets.ts`,
 `apps/web/src/worker/library/change-set-prune.ts`), and the revert is
-`@repo/notes/library/revert-change`'s.
+`@repo/service/library/revert-change`'s.
 
 **block** — one top-level node of an item's body, a Plate element stored as a
 row of its own: its id, its fractional order key, its **section**, its JSON
@@ -54,15 +54,15 @@ and its hash. A write names the hash it was computed from, so writes to two
 blocks never meet, and one whose base moved is answered `CONFLICT` with the
 block as it is. A list item is a block, since lists are flat indent lists. Not
 a Plate node at any depth: a block's children are inside its JSON. The model is
-`@repo/notes/library/block-ops`, its vocabulary
-`@repo/notes/library/library-nodes`, the ids the editor's
+`@repo/contract/library/block-ops`, its vocabulary
+`@repo/contract/library/library-nodes`, the ids the editor's
 (`packages/editor/src/item/item-session.ts`).
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a fill wrote. A fill and
 Refresh replace only `article` blocks, so reading a page again never touches
 the person's writing. An item reads its note before its article
-(`@repo/notes/library/block-order`), and its markdown writes the article as
+(`@repo/contract/library/block-order`), and its markdown writes the article as
 one top-level `:::article` container after the note
 (`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
@@ -71,9 +71,9 @@ Not a heading's stretch of a note (its outline), and not a folder.
 commits: each item it moved at its sequence, whether a folder moved, and which
 threads, a list past `MOVED_IDS_MAX` saying "all"
 (`apps/web/src/worker/library/cell-moved.ts`, the frame in
-`@repo/contract/cloud/library/library-socket`). A device asks again for what
+`@repo/contract/library/library-socket`). A device asks again for what
 it shows of those, and for everything each time its socket opens
-(`@repo/contract/cloud/library/account-socket`). A hint, never the state: a
+(`@repo/contract/library/account-socket`). A hint, never the state: a
 frame carries no row, so one missed loses nothing.
 
 **share outbox** — the iPhone's shares from other apps still to land, each kept
@@ -127,7 +127,7 @@ of the cell, which each device reads online (`agent-turns.ts`).
 ## The library
 
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
-`.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
+`.txt` (`@repo/contract/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides which file of an imported
 zip becomes a note. It is deliberately WIDER than what the codec writes, every
 note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
@@ -137,12 +137,12 @@ note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 whose `kind:` is missing or unknown is one, its filename its title, with no
 slug layer.
 The name the codec writes an item under follows one rule,
-`@repo/notes/items/item-name`, whatever its kind: a title is repaired into a
+`@repo/contract/items/item-name`, whatever its kind: a title is repaired into a
 name every disk takes, never refused, and its `[` and `]`, which would end a
 link to it, become `(` and `)`.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
-`\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading
+`\r`, `\n`), stated once in `@repo/editor`'s `text/source-lines`. A second reading
 of "what a line is" anywhere else is a file-corruption bug waiting to happen;
 the line diff's LF-only split (`text/line-diff`) is the one deliberate
 exception, because diff3 joins its segments back into the text's own bytes.
@@ -155,23 +155,23 @@ library cell in the cloud (`LibraryDO`, `apps/web/src/worker/library/`), which
 every device they sign in on reads online.
 
 **item** — one card the library lists: a row of fields and a body of Plate
-blocks (`@repo/notes/library/library-item`), whatever its kind; a link, a
+blocks (`@repo/contract/library/library-item`), whatever its kind; a link, a
 video, an image, a PDF and a note the person wrote are each one. A markdown
 file an import reads becomes one item, its frontmatter read into the item's
-fields by `readItemFacts` (`@repo/notes/items/item-frontmatter`). Listed in
-memory by `@repo/notes/library/library-index`, which the cell builds over its
+fields by `readItemFacts` (`@repo/editor/items/item-frontmatter`). Listed in
+memory by `@repo/contract/library/library-index`, which the cell builds over its
 rows for each `library.listing.page`.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
-or `file` (`ITEM_KINDS` in `@repo/notes/items/item-kind`), one of the item's
+or `file` (`ITEM_KINDS` in `@repo/contract/items/item-kind`), one of the item's
 fields. An imported markdown file's is its `kind:` key, and a missing or
 unknown one is a note; a saved file's is its extension's (`fileKindOf`); a
-saved url's is `kindForUrl` (`@repo/notes/items/item-url`). `link`, `video`
+saved url's is `kindForUrl` (`@repo/contract/items/item-url`). `link`, `video`
 and `audio` are the url kinds, the only ones a fill reads.
 
 **Unsorted** — where an item filed in no folder shows: its `folderId` is null
 or names a deleted folder (the `unsorted` scope of
-`@repo/domain/library-scope`). Not a folder: an item stays Unsorted until it is
+`@repo/contract/library-scope`). Not a folder: an item stays Unsorted until it is
 filed, whatever it is tagged.
 
 **filing rules** — what the person wrote for the agent about their library, one
@@ -191,7 +191,7 @@ in place of the address an unread item goes by; it calls no model and never
 writes `url` or `savedAt` (`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
 `pending`, `filled` or `failed`. A page the extension read an article from is
 saved read and never filled; one it did not goes to the
-fill as its link (`deviceKeepsReading` in `@repo/notes/items/link-fill`).
+fill as its link (`deviceKeepsReading` in `@repo/contract/items/link-fill`).
 
 **cover** — an item's picture: its `coverSha` field, the hash of a file the
 library keeps in R2, which a fill sets from the page it read and an import reads
@@ -200,7 +200,7 @@ part of its item, and is never a card of its own.
 
 **url key** — the one key two spellings of one link share: the scheme, `www.`,
 a default port, tracking parameters and a non-route fragment dropped, the host
-folded, the query sorted (`urlKey` in `@repo/notes/items/item-url`). A save of
+folded, the query sorted (`urlKey` in `@repo/contract/items/item-url`). A save of
 a url whose key a live item holds answers that item. Not what an item's url holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
 the key is a derived row, never a field.

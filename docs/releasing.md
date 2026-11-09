@@ -64,7 +64,7 @@ passed; § 7's checks need the published release.
 ## Once per product: the extension's store item
 
 The committed extension key (`EXTENSION_PUBLIC_KEY` in
-`packages/contract/src/cloud/extension/extension-identity.ts`) is one this repo
+`packages/contract/src/extension/extension-identity.ts`) is one this repo
 generated and threw the private half of away, so the dev build and the unpacked
 store build have a stable id before any listing. The Web Store signs the real
 item with a key of its own, and the id the cloud's sign-in trusts and the site's
@@ -376,7 +376,7 @@ is inteligir.com), with no dev build loaded.
   build with no error on chrome://extensions; Arc on its Chromium is the one
   this repo has not seen load it.
 - **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
-  (`packages/contract/src/cloud/extension/extension-identity.ts`).
+  (`packages/contract/src/extension/extension-identity.ts`).
 - **Sign in.** The welcome tab an install opens, signed out of inteligir.com.
   Passing: it offers Sign in to Inteligir, which opens
   inteligir.com/connect/extension and signs you in; Connect there says
@@ -695,7 +695,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   same, and its output says, for each of the three tombstones, whether it may
   leave the map; one it clears is deleted from the map in the next change.
 - **A new library schema.** When `LIBRARY_SCHEMA_VERSION`
-  (`packages/notes/src/library/library-schema.ts`) moved since the last
+  (`packages/service/src/library/library-schema.ts`) moved since the last
   deploy, open the library on the preview and then in production. Passing: it
   opens on an empty library with no error, and the Worker's log shows one
   `cell-schema-reset` for the account. No suite deploys over a cell.
