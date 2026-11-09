@@ -25,7 +25,8 @@ What you need:
 - A Mac with Apple silicon, or a browser for your library at
   inteligir.com/library.
 - To save from your browser, Chrome, Arc, Brave or Edge with the Inteligir
-  extension.
+  extension, which saves as whoever is signed in to inteligir.com in that
+  browser.
 - Nothing else to install, and no plan of your own for the built-in agent.
 
 Your library lives in your account, so it needs a connection to open, edit,
@@ -51,7 +52,9 @@ browser tab or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md))
 each read and write the library online through one `/v1` wire, their reads
 cached by TanStack Query and refreshed when the account's socket says what
 moved; the browser extension
-([`apps/extension`](./apps/extension/README.md)) saves over the same wire. A
+([`apps/extension`](./apps/extension/README.md)) saves over the same wire, on
+the browser's own sign-in to the site. Every device signs in with Better
+Auth's own session. A
 saved page is read by the extension that saved it, on the device, and by the
 Worker's fill otherwise, off a Queue. The built-in agent is
 the Worker's own loop over Claude through AI Gateway, one Durable Object a

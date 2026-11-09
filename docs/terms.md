@@ -37,9 +37,10 @@ terminate your account as described in Section 8.
 
 1.2 **Account Security.** You are responsible for keeping your login credentials
 confidential and for all activity that occurs under your account. Each device
-you sign in to your account keeps a credential of its own; if a device is lost,
-revoke it from Settings › Account on a Mac or in your library at
-inteligir.com/library, or from the account pages on the Site. If you believe your account has been accessed without your authorization,
+you sign in to your account keeps a sign-in of its own, and the browser
+extension uses the sign-in of the browser it runs in; if a device is lost,
+sign it out from Settings › Account on a Mac or in your library at
+inteligir.com/library. If you believe your account has been accessed without your authorization,
 please notify us immediately. We are not liable for any losses resulting from
 your failure to keep your credentials secure.
 

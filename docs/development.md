@@ -74,12 +74,18 @@ Settings says updates come with the Mac app.
 URL, signed when the keychain holds a Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
 § Packaging).
 
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, `/v1` with
-the apps' sign-in, every library cell and the account's socket, each
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, every
+device's sign-in, `/v1`, every library cell and the account's socket, each
 conversation with the built-in agent, the fill queue, the connector and the
 library's page at `/library` — over a local D1 file, R2, a queue, KV and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
+
+From curl, a session is Better Auth's: sign in at `/api/auth/sign-in/email`
+with `-c jar`, then call `/v1` as the phone does, `-b jar -H 'expo-origin:
+inteligir://'` and the `x-inteligir-build` header, or as the extension does,
+the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
+A raw, unsigned token is refused.
 
 The site's per-page share cards under `apps/web/public/og/` are rendered,
 never drawn by hand: `pnpm --filter @repo/web og:cards`
@@ -96,8 +102,8 @@ is written, never edited by hand: `pnpm --filter @repo/web agent-prompt`
 ## Browser extension
 
 `apps/extension` is the browser's Save: a Chromium extension that reads the
-page you're on and saves it to your library over `/v1`, with a device
-credential of its own (`apps/extension/README.md`). `pnpm dev:extension` runs
+page you're on and saves it to your library over `/v1`, under the browser's
+own sign-in to the site (`apps/extension/README.md`). `pnpm dev:extension` runs
 WXT's dev loop (`wxt`), which builds the extension into
 `apps/extension/.output/chrome-mv3-dev`, rebuilds it on every change and
 reloads it in the browser; load that folder once with Load unpacked on
@@ -105,33 +111,36 @@ reloads it in the browser; load that folder once with Load unpacked on
 build` writes the same flavor, without the dev server, to `.output/chrome-mv3`,
 which the e2e loads. Its committed key gives the unpacked build the id
 `EXTENSION_ID` (`packages/contract/src/cloud/extension/extension-identity.ts`),
-the one extension origin the Worker answers CORS for.
+the one extension origin the cloud's sign-in trusts.
 
-THE DEV BUILD CONNECTS FROM `pnpm dev:web`'S WORKER: with `pnpm dev:web`
-running, its welcome page's Connect your library opens
-`http://localhost:5174/connect/extension`, which signs you in and hands the
-extension its credential; any local Worker on `localhost`, on whatever port,
-may connect it, which is how the e2e connects the dev build to the Worker it
-boots (`tools/e2e/src/harness/extension-fixture.ts`). The store builds
+THE DEV BUILD SAVES TO `pnpm dev:web`'S WORKER, AS WHOEVER IS SIGNED IN THERE:
+it reads that browser's `better-auth.session_token` cookie for
+`http://localhost:5174` (its host permission names `http://localhost/*`, any
+port) and sends it as its bearer. Its welcome page's Sign in to Inteligir
+opens `http://localhost:5174/connect/extension`, which signs you in; Connect
+there tells the extension which site to save to, and nothing is handed over.
+Any local Worker on `localhost`, on whatever port, may name itself that way,
+which is how the e2e points the dev build at the Worker it boots
+(`tools/e2e/src/harness/extension-fixture.ts`). The store builds
 (`pnpm package:extension`: the Web Store zip and
-`.output/chrome-mv3-store-unpacked`, the same files with the key) connect from
-`https://inteligir.com/connect/extension` alone.
+`.output/chrome-mv3-store-unpacked`, the same files with the key) name
+`https://inteligir.com/*` as their one host and save there alone.
 
 ## Where state lives
 
-| What                                                             | Where                                                                                                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Site + cloud Worker (`pnpm dev:web`)                             | 5174 (pinned — `strictPort`)                                                                                                                            |
-| UI gallery (`pnpm dev:gallery`)                                  | 5175 (pinned — `strictPort`)                                                                                                                            |
-| Scripted Messages API (`pnpm dev:web`)                           | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                                                                                              |
-| Extension dev server (`pnpm dev:extension`)                      | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                  |
-| The Mac app's WebKit store (the site's cookie, the page's prefs) | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`        |
-| The extension's credential and the saves it waits on             | the browser's extension storage (`storage.local`), kept from the pages it scripts                                                                       |
-| The iPhone's kept reads, the shares it waits on, its files       | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; the credential in the Keychain (`apps/mobile/CLAUDE.md`) |
-| Accounts, sessions, devices, invites, revoked grants             | D1 (local file under `apps/web/.wrangler`)                                                                                                              |
-| The library's files                                              | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                      |
-| Library cells, their sockets and conversations                   | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                       |
-| Connected assistants' clients, grants and tokens                 | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                   |
+| What                                                                 | Where                                                                                                                                                                                   |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Site + cloud Worker (`pnpm dev:web`)                                 | 5174 (pinned — `strictPort`)                                                                                                                                                            |
+| UI gallery (`pnpm dev:gallery`)                                      | 5175 (pinned — `strictPort`)                                                                                                                                                            |
+| Scripted Messages API (`pnpm dev:web`)                               | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                                                                                                                              |
+| Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
+| The Mac app's WebKit store (the site's cookie, the page's prefs)     | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
+| The extension's account (its email and site), the saves it waits on  | the browser's extension storage (`storage.local`), kept from the pages it scripts; the session is the site's cookie in the browser's own jar                                            |
+| The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
+| Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
+| The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
+| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs                                                                                                                       |
+| Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates
 

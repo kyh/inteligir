@@ -18,7 +18,7 @@ that reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
-`library:<userId>` only from a verified credential, or from what the cell itself
+`library:<userId>` only from a verified session or grant, or from what the cell itself
 gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, threads, change sets and the
 account's live sockets, and it is the library's only writer: every `/v1`
@@ -28,8 +28,9 @@ every app reads the cell online, and keeps at most a cache of what it last
 read, which a **moved frame** tells it to read again.
 
 **principal** — who a library call is by, as the Worker verified it: the
-account and the actor whose **change set** its writes join (a device, the
-site's own tab on its session, or a **connected assistant** under one grant,
+account and the actor whose **change set** its writes join (a **session**,
+named by the door it came through: the site's tab or the Mac app's window, the
+iPhone, or the browser extension; or a **connected assistant** under one grant,
 the only actor with scopes). The Worker
 stamps it on the call it forwards to the **library cell** and drops any copy the
 request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
@@ -255,18 +256,30 @@ changes elsewhere in the block land, and this device's lines are kept where
 they overlap (`@repo/editor/stale-write`'s block merge). There is no conflict
 state to clear.
 
-**Connect your library** — the browser extension's sign-in: the site's
-`/connect/extension` page hands the extension a DEVICE CREDENTIAL of its own
-for the signed-in account, and the account's devices list it as Browser
-extension (`apps/extension/src/background/connection.ts`).
+**Sign in to Inteligir** — the browser extension's sign-in, which is the
+browser's own: the extension reads that browser's **session** cookie for the
+site and sends it with each save, so signing out of the site signs it out too.
+The site's `/connect/extension` page only tells it where the site is and is
+answered with the account it found signed in there; nothing crosses, and the
+extension adds no row to **Devices**
+(`apps/extension/src/background/sign-in.ts`,
+`apps/extension/src/background/connection.ts`).
+
+**session** — one device's sign-in, Better Auth's own row: a browser tab or the
+Mac app's window holds its cookie, the iPhone keeps it in the Keychain, and the
+browser extension rides its browser's. It lasts 60 days from its last use, an
+account holds 20 (a sign-in past that ends the one used longest ago), and a
+password reset ends them all (`apps/web/src/worker/auth/auth.ts`). Not a
+credential of our own: there is none.
 
 **Account**, **Devices** and **Connected assistants** — Settings › Account: an
-inteligir account (Better Auth, `apps/web/src/worker/auth/auth.ts`), the apps
-signed in to it, each
-holding a DEVICE CREDENTIAL, and the assistants a person let into the library
-through the **connector** (`apps/workspace/src/app/settings/account-section.tsx`).
-Each device and assistant can be signed out or disconnected from there; the
-browser tab leaves by Sign out.
+inteligir account (Better Auth, `apps/web/src/worker/auth/auth.ts`), its
+**sessions**, each listed by the device its user agent names (Chrome on Mac,
+iPhone) with This device marked, and the assistants a person let into the
+library through the **connector**
+(`apps/workspace/src/app/settings/account-section.tsx`). Every other device
+can be signed out from there and every assistant disconnected; this device
+leaves by Sign out.
 
 **Built-in agent** — Settings › Account's switch and the panel's **Agent** tab:
 the account's conversations with the BUILT-IN AGENT, the same on every device

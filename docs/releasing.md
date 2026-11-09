@@ -67,8 +67,8 @@ The committed extension key (`EXTENSION_PUBLIC_KEY` in
 `packages/contract/src/cloud/extension/extension-identity.ts`) is one this repo
 generated and threw the private half of away, so the dev build and the unpacked
 store build have a stable id before any listing. The Web Store signs the real
-item with a key of its own, and the id the Worker answers CORS for and the site's
-connect page hands a credential to must be that item's. Once:
+item with a key of its own, and the id the cloud's sign-in trusts and the site's
+connect page messages must be that item's. Once:
 
 1. A Chrome Web Store developer account (the one-time registration fee) on the
    owner's Google account.
@@ -133,9 +133,13 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
      does not write (such as `account.issuer`, with its index): push it as
      Deploy finishes, since a sign-up fails while one side has it and the
      other does not, then `--explain` again.
-   - Anything that recreates a table (a `__new_` table, a `DROP TABLE`): STOP.
-     D1 ignores the foreign-key pragma a recreate leans on, so the drop
-     cascades through every session, account and device (`apps/web/CLAUDE.md`,
+   - `DROP TABLE device` alone, once, in the release that ends the device
+     credential: the table is a child of `user` that nothing references, so the
+     drop cascades nothing. Push it as Deploy finishes, since the Worker before
+     it reads the table, then `--explain` again.
+   - Anything else that recreates a table (a `__new_` table, a `DROP TABLE`):
+     STOP. D1 ignores the foreign-key pragma a recreate leans on, so the drop
+     cascades through every session and account (`apps/web/CLAUDE.md`,
      Declare D1 uniques as named unique indexes).
 
    Deploy never touches the schema, so it belongs in D1 before the code that
@@ -278,6 +282,11 @@ the owner's account; a spare macOS user keeps your own WebKit store out of it.
   signing in shows the account's library; and Quit and reopen goes straight to
   it. Create an account with an invite code the same way, on a second spare
   user: the same.
+- **This Mac in Settings › Account.** Signed in on the Mac and in a browser.
+  Passing: Settings › Account lists both, the Mac's window as This device
+  (named from its user agent, Mac app) with no Sign out on its row; Sign out
+  at the bottom returns the window to the site's sign-in, and the browser stays
+  signed in.
 - **A development build is an app of its own.** With the release signed in,
   run `pnpm dev` from a checkout and sign it in to `pnpm dev:web`'s Worker, then
   sign it out. Passing: the release opens on its library, still signed in: the
@@ -358,19 +367,22 @@ the owner's account; a spare macOS user keeps your own WebKit store out of it.
 ### The browser extension
 
 Load `apps/extension/.output/chrome-mv3-store-unpacked` with Developer mode on
-in Chrome, Arc, Brave and Edge, against production (the store build connects
-from inteligir.com alone), with no dev build loaded.
+in Chrome, Arc, Brave and Edge, against production (the store build's one host
+is inteligir.com), with no dev build loaded.
 
 - **Chrome 148, Arc included.** Passing: each browser loads the unpacked store
   build with no error on chrome://extensions; Arc on its Chromium is the one
   this repo has not seen load it.
 - **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
   (`packages/contract/src/cloud/extension/extension-identity.ts`).
-- **Connect.** The welcome tab an install opens. Passing: it offers Connect
-  your library; that opens inteligir.com/connect/extension, which signs you in
-  if it must, and Connect there says Connected; the welcome tab then says
-  whose library it saves to, and the account's devices page lists Browser
-  extension. A second browser connected the same way lists a second device.
+- **Sign in.** The welcome tab an install opens, signed out of inteligir.com.
+  Passing: it offers Sign in to Inteligir, which opens
+  inteligir.com/connect/extension and signs you in; Connect there says
+  Connected and names your account; the welcome tab then says whose library it
+  saves to, the popup says Signed in as …, and Settings › Account lists the
+  browser you signed in with (Chrome on Mac), the extension adding no row of
+  its own. In a second browser already signed in to inteligir.com, the first
+  toolbar click saves with no other step.
 - **Save.** The toolbar button on an article. Passing: it lands in Unsorted,
   read, with its title, text and, where the site lets the extension read it,
   its cover, and a second click says it is already in your library.
@@ -390,15 +402,18 @@ from inteligir.com alone), with no dev build loaded.
 - **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
   its tooltip says Inteligir can't save this kind of page; after a save it
   shows "✓" for two seconds.
-- **Disconnect.** The welcome page's Disconnect. Passing: the popup then
-  offers Connect Inteligir to your library to save, and the devices page shows
-  the extension revoked.
-- **Disconnect, once the welcome tab is closed.** Close the tab the install
-  opened. Click the toolbar button and choose Manage connection, then
-  right-click the button and choose Options. Passing: each opens the welcome
-  page in a tab, and its Disconnect works as the check above says. Vitest
-  proves the link's href and the manifest's `options_ui`, not that the browser
-  opens either.
+- **Signed out on the site.** Sign out of inteligir.com in that browser, then
+  click the toolbar button on an article. Passing: the popup says Saved once
+  you sign in to Inteligir again, and the welcome page (right-click the
+  toolbar button › Options) links Sign in to Inteligir. Sign in again on the
+  site. Passing: within a minute the waiting page is in the library.
+- **Signed out from another device.** Sign that browser out in Settings ›
+  Account on the Mac, then click the toolbar button on an article. Passing:
+  the same waiting line, and the page lands once you sign in again.
+- **Whose library, once the welcome tab is closed.** Close the tab the install
+  opened, then right-click the toolbar button and choose Options. Passing: the
+  welcome page opens in a tab and says whose library this browser saves to.
+  Vitest proves the manifest's `options_ui`, not that the browser opens it.
 - **A save through a restart.** Turn the network off, save a page, and quit
   the browser while the save is under way or waiting. Turn the network on and
   start the browser without touching the extension. Passing: the page is in
@@ -422,7 +437,13 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **Sign in** with the account's email and password. Passing: the library
   shows. Kill the app and open it again. Passing: the splash holds until it
   knows, the sign-in form never flashes, and the phone is still signed in,
-  what it last showed there before the first answer.
+  what it last showed there before the first answer. The first launch of this
+  build over one that held a device credential opens on the sign-in screen,
+  once. Open the app again eight days later. Passing: still signed in, since a
+  sign-in lasts 60 days from its last use.
+- **Create an account.** Signed out, choose Create an account and enter a
+  name, an email, a password and a fresh invite code. Passing: the library
+  opens, empty; a used code says the invite doesn't work.
 - **Search.** Search the library for a word only an article's body holds,
   then sign out and in again. Passing: the search finds it (the cell's search,
   online), and the second sign-in starts from an empty cache with no error.
@@ -476,19 +497,26 @@ account whose library holds about 2,000 items gives the timing check its load.
   asks first, "Sign out and discard saves waiting?" over a line counting the
   one save; confirmed, the sign-in screen shows at once, even offline. Signed
   in again and signed out online, Settings › Account on the Mac no longer
-  lists the phone (it lets its device go once its copy is gone).
+  lists the phone (its session ends once its copy is gone).
 - **Revoke.** Sign the phone in again and, with its app open, choose Sign out on
   its row in Settings › Account on the Mac. Passing: the sign-in screen says
   this iPhone was signed out once its next call hears it, and a relaunch stays
-  signed out. No suite runs this on a real device.
+  signed out. Again with the app in the background: sign it out from the Mac,
+  then bring it to the front. Passing: the sign-in screen shows with no tap,
+  since a return to the front asks Better Auth. No suite runs this on a real
+  device.
 - **No iCloud backup of the library.** Settings › your name › iCloud › Manage
   Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
   small fraction of what it shows (the kept library and the shares waiting
   are out of the backup), and shares made in airplane mode do not grow it.
 - **A new phone signs in as itself.** Restore this iPhone's encrypted backup
   onto another iPhone and open the app. Passing: it shows the sign-in screen
-  (the Keychain's credential is this device's only), and once signed in
+  (the Keychain's session is this device's only), and once signed in
   Settings › Account on the Mac lists it beside the first phone.
+- **Safari's sign-in stays Safari's.** Sign in to inteligir.com in Safari on
+  the phone as a different account, then open the app. Passing: the app still
+  shows its own account's library, since its requests omit the shared cookie
+  jar.
 - **Share a page.** Share a page from Safari to Save to Inteligir. Passing: it
   opens at once as its link, "Waiting to be read", and fills in with its title,
   site, cover and article once the cloud reads it. From YouTube and Mail: the
@@ -556,7 +584,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   out. Passing: the sign-out finishes at once. That React Native's fetch honours
   the abort cannot run under vitest.
 - **This build over the last.** Install this build over the one TestFlight
-  last served, signed in, with a share waiting. Passing: it opens signed in,
+  last served, signed in, with a share waiting. In the release that ends the
+  device credential the update opens on the sign-in screen once instead, and a
+  share still waiting from the old build is let go at that sign-in. Otherwise,
+  passing: it opens signed in,
   what it last showed is there, and the share lands. No suite installs one
   build over another.
 - **A block that can't save asks before you leave.** Leave an item holding a
@@ -613,7 +644,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   on. No suite draws this screen.
 - **What sign-out leaves behind.** Read a library image and share a page, sign
   out, then inspect the app's Library/Caches HTTP cache (`Cache.db`,
-  `fsCachedData`). Passing: it holds no library file and no bearer. A suite
+  `fsCachedData`). Passing: it holds no library file and no session cookie. A suite
   proves the Worker's no-store on device reads; nothing on the phone clears the
   system's HTTP cache, so only this check shows nothing lands there.
 
@@ -638,16 +669,21 @@ account whose library holds about 2,000 items gives the timing check its load.
   preview binds no mail and logs instead. Passing: Forgot password on
   inteligir.com mails a reset link from `no-reply@inteligir.app` (the
   `RESET_FROM_ADDRESS` in `apps/web/cloudflare.config.ts`), and the link sets a
-  new password. The send runs under `ctx.waitUntil` after the answer, and no
-  suite runs it against real mail.
+  new password, and every device signed in before it, the phone and the
+  browser extension included, is signed out at its next call. The send runs
+  under `ctx.waitUntil` after the answer, and no suite runs it against real
+  mail.
 - **The pitch.** Passing: `apps/web/public/og.jpg` and the Web Store listing's
   copy read with the library's pitch (one library for everything you save),
   and an inteligir.com link pasted into a chat app previews with it.
 - **The library cell on a preview and in production.** On the PR's Worker
-  preview, sign a device in against the preview's D1 (`apps/web/README.md`
-  § Previews), mint its socket's ticket (`curl -s -X POST -H 'authorization:
-  Bearer igd_…' -H 'x-inteligir-build: <version>+mobile' -H 'content-type:
-  application/json' --data '{}' <preview>/v1/rpc/account/socketTicket`), then
+  preview, sign in as the phone does against the preview's D1
+  (`apps/web/README.md` § Previews: `curl -s -c jar -H 'expo-origin:
+  inteligir://' -H 'content-type: application/json' --data
+  '{"email":"…","password":"…"}' <preview>/api/auth/sign-in/email`), mint its
+  socket's ticket (`curl -s -X POST -b jar -H 'expo-origin: inteligir://' -H
+  'x-inteligir-build: <version>+mobile' -H 'content-type: application/json'
+  --data '{}' <preview>/v1/rpc/account/socketTicket`), then
   open `wss://<preview>/v1/socket?ticket=<the ticket>` within the minute
   (`websocat`) and send `ping`. Passing: the upload took the `exports` map in
   `apps/web/cloudflare.config.ts` (`LibraryDO` and `AgentThreadDO` live,
@@ -668,7 +704,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   and text, or the PDF as its file; the queue dashboard shows `inteligir-fill`
   consumed and nothing in `inteligir-fill-failed`; and the Worker's logs show
   the consumer's invocations inside their CPU and memory, none exceeded.
-- **An import in the cloud.** With a device's credential, upload a Raindrop CSV
+- **An import in the cloud.** Signed in as the phone (the session cookie under
+  `expo-origin`, as above), upload a Raindrop CSV
   and an Obsidian vault's zip to `/v1/blobs/<sha>` and start each with
   `library.imports.start` (`apps/web/README.md` § Routes). Passing: each import
   ends `done` with its counts, its links filled as above, and the Worker's logs
@@ -676,8 +713,7 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The way into the library.** On a preview, signed out, choose Open your
   library at the top of `<preview>/`. Passing: it reaches the sign-in and comes
   back to `<preview>/library`; the same link is on `<preview>/about`,
-  `<preview>/contact`, `<preview>/privacy` and `<preview>/terms`, and on
-  `<preview>/app/devices` once signed in; and the header doesn't crowd the page
+  `<preview>/contact`, `<preview>/privacy` and `<preview>/terms`; and the header doesn't crowd the page
   at phone width. No suite or scenario looks at the header's layout.
 - **Creating an account from the site.** With a fresh invite code, submit the
   form at `<preview>/app/sign-up` with no next. Passing: it lands in
@@ -686,8 +722,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   suite or scenario submits this form.
 - **Sign-up comes back.** Signed out, holding an unused invite, add the
   connector in claude.ai and choose Sign up on the sign-in page it opens.
-  Passing: creating the account lands on the consent page, not Devices, and
-  Allow connects. No suite or scenario submits this form.
+  Passing: creating the account lands on the consent page, not the library,
+  and Allow connects. No suite or scenario submits this form.
 - **The share cards.** Paste an inteligir.com/about and an inteligir.com/privacy
   link into a chat app. Passing: each previews with its description, which names
   one library on every device and what each device sends. No suite reads a chat
@@ -766,6 +802,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   in the Mac app's window. Passing: the reason opens in a small popover in each,
   and its words can be selected and copied without opening the item or the
   card's menu.
+- **Every device in Settings › Account.** On a preview, signed in from two
+  browsers. Passing: Settings › Account in each lists both, marks This device
+  with no Sign out on its row, and Sign out on the other row ends that
+  browser's session at its next action. Sign out at the bottom returns to the
+  sign-in and leaves the other browser signed in.
 - **A tab left open keeps its sign-in.** Sign in at `/library` and leave the tab
   open for more than a day. Passing: the session cookie's expiry has moved
   forward with no reload. No suite reads a real browser's cookie.
@@ -940,8 +981,11 @@ Only once every check in § 5 has passed, and the three close together.
    screenshots, the single-purpose statement ("saves the page you are on to
    your Inteligir library"), a justification for each permission (`activeTab`
    and `scripting` to read the page only when you click, `contextMenus` for the
-   right-click Save, `storage` to keep the sign-in and a save made offline,
-   `alarms` to send that save once you're back online), the privacy practices
+   right-click Save, `cookies` and the `https://inteligir.com/*` host to read
+   your inteligir.com sign-in, so the extension saves as you with no sign-in of
+   its own, `storage` to keep which account it saves to and a save made
+   offline or signed out, `alarms` to send that save once you're back online
+   or signed in), the privacy practices
    (website content and authentication information, sent to the person's own
    Inteligir library, never sold or transferred) and the policy URL
    `https://inteligir.com/privacy`. Submit for review; § 7 installs what the
@@ -967,9 +1011,10 @@ Only once every check in § 5 has passed, and the three close together.
   item.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
-  build loaded. Passing: chrome://extensions shows `EXTENSION_ID`, it connects
-  from inteligir.com/connect/extension, and the toolbar button saves the page
-  into the library.
+  build loaded. Passing: the install prompt names inteligir.com as the one
+  site it can read and change, chrome://extensions shows `EXTENSION_ID`, and,
+  signed in to inteligir.com in that browser, the toolbar button saves the page
+  into the library with no other step.
 - **The cohort.** Passing: the phone build is approved in the `Cohort` group,
   and one tester installs it from the invite and signs in.
 - **This file.** Whatever the release needed that is not written here goes in

@@ -83,17 +83,19 @@ each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
 and fails with what the last read held; `modChord` for the platform's
 modifier key, `clickButtonIn`, `press`, `caretToEndOf` and `untilBodyHolds`
 (`agent-browser.ts`); the library page's selectors (`selectors.ts`); the
-library's tab over a booted Worker, with a device of the account to seed and
+library's tab over a booted Worker, with a session of the account to seed and
 read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
-`library-tab.ts`); the account's sign-up against a dev Worker
-(`cloud-account.ts`); `/v1` as a phone calls it, a file's upload and read and
+`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
+Worker (`cloud-account.ts`); `/v1` as a phone or the extension calls it, a file's upload and read and
 an item's fields as the cell holds them (`v1-wire.ts`); the
 phone's own runtime under node over its own database, signed in as the
-owner, a second one standing in for another device, with a network a
+owner through a plain fetch on Better Auth's routes (`expo-origin`, the
+session cookie in a stand-in Keychain), since the Expo client loads in no node
+process, a second one standing in for another device, with a network a
 scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch reads, on loopback, which the Worker's fill reaches under
-a public name of its own (`page-fixture.ts`); the browser extension's dev build, connected through the
-site's connect page, and its worker's save (`extension-fixture.ts`); and the
+a public name of its own (`page-fixture.ts`); the browser extension's dev build, signed in on the
+site in its own profile and pointed at the Worker by the connect page, and its worker's save (`extension-fixture.ts`); and the
 one-colour PNG a scenario saves (`png-pixels.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
 Worker alone, as `cloudWorker` does, and prints its origin: the packaged Mac
 app's smoke (`apps/desktop/scripts/smoke-packaged.ts`) opens its window on it.

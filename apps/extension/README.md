@@ -4,7 +4,7 @@ The Chromium extension (Chrome, Arc, Brave, Edge, Vivaldi): a toolbar button
 and a right-click Save that read the page you're on and save it to your
 Inteligir library over `/v1`, under the browser's own sign-in to the site, so a
 save needs no app open and signing out on the site signs it out too. The
-site's `/connect/extension` page points it at the account, it reads the page
+site's `/connect/extension` page tells it which site to save to, it reads the page
 with `@repo/page-reader`, and it keeps a save the cloud did not answer, or made
 while signed out, until it can land.
 

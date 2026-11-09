@@ -151,8 +151,7 @@ the session cookie in the Keychain, this device only, while unlocked
 (`src/auth/keychain-storage.ts`), and every `/v1` call carries it with the
 app's scheme as its origin and no shared cookie jar (`src/lib/phone-transport.ts`).
 The password is held nowhere on the phone: it crosses the wire once and only
-the session remains, which the account's Devices page lists as an iPhone and
-can end. Each launch and each return to the front asks Better Auth for the
+the session remains, which Settings › Account lists as iPhone and can end. Each launch and each return to the front asks Better Auth for the
 session, which keeps a phone in use signed in. A refusal on the wire and a
 Keychain that cannot write all land in the one store the screen reads
 (`src/login/login-store.ts`), so each is shown rather than dropped; a session
@@ -295,8 +294,8 @@ If EAS's install fails under pnpm 12, the fallback is a custom build,
 ### Beta App Review account (one-time, owner)
 
 A build going to testers outside the team waits for Apple's Beta App Review,
-and the reviewer needs a sign-in that never expires into an account that
-already holds items: the phone signs in, never signs up.
+and the reviewer needs a sign-in into an account that already holds items,
+which lasts 60 days from its last use: the reviewer signs in, never signs up.
 
 1. Mint a production invite with a fresh code, the recipe in
    `apps/web/README.md` § Auth:

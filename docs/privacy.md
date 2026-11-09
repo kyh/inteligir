@@ -79,15 +79,16 @@ through the Service or otherwise includes:
     that phone in. A password reset emails you a link through Cloudflare's own
     email sending, and the link's token waits in D1 (see
     [Retention](#retention)).
-  - **Device records** — a name per device (the name a phone reports for itself,
-    or one you type when you sign the device
-    in), timestamps (created, last seen, revoked) and the SHA-256 hash of each
-    device credential. The credential itself is answered once, when the device
-    signs in with your email and password or creates the account, and never
-    stored. The password crosses the wire for that one request and is held
-    nowhere on the device; the browser session that sign-in or sign-up would
-    have created is deleted in the same request, so the device holds its
-    credential and nothing else.
+  - **Sessions** — one per device you sign in, the browser, the Mac app and
+    the iPhone alike: Better Auth's row, holding a random token our cloud
+    keeps to recognize that device, the IP address and user agent it signed
+    in from (the user agent is how Settings › Account names the device, such
+    as Chrome on Mac or iPhone), and when it was created, last used and
+    expires. A sign-in lasts 60 days from its last use; an account keeps at
+    most 20, a sign-in past that ending the one used longest ago; a password
+    reset ends them all. The password crosses the wire once, when the device
+    signs in or creates the account, and is held nowhere on the device. The
+    browser extension adds no session of its own: it rides its browser's.
 - **Communications data** based on our exchanges with you, including when you
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
@@ -105,7 +106,7 @@ through the Service or otherwise includes:
     library in our cloud, which keeps what each change replaced for seven days,
     so Undo can take it back, each change named for the device or the assistant
     that made it and the built-in agent's for the conversation that made them.
-    Your library is reachable only with a credential from your own account, and
+    Your library is reachable only with a sign-in to your own account, and
     holds about 1 GB, what Undo keeps included. A
     full one still opens and downloads everywhere, but takes no new changes:
     the device that made one says so, and the change is not in your library
@@ -131,20 +132,20 @@ as:
 
 - **Device data**, such as your IP address and your browser's user agent.
   Specifically:
-  - **The sessions on our website** each keep the IP address and user agent they
-    signed in from (see Account data, above).
+  - **Every device's session** keeps the IP address and user agent it signed
+    in from (see Sessions, above).
   - **Your IP address, for throttling — the one row NOT tied to your account.**
-    Signing a device in, creating an account, redeeming an invite, an assistant
-    registering itself to connect, and every Better Auth route but the session
-    read count attempts per caller address in D1's `rate_limit` table: a row
+    Creating an account, redeeming an invite, an assistant registering itself
+    to connect, and every Better Auth route but the session read, signing in
+    among them, count attempts per caller address in D1's `rate_limit` table: a row
     holds the address, an IPv6 address cut to its first 64 bits, beside the
     route it counts, a count and a timestamp.
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
     reads and writes of your library, and its attempts to delete the
-    account, are counted the same way under the device's id, never an address,
-    a browser tab's, or the Mac app's, under its session's id, and a connected assistant's calls
-    under the id of the access you gave it.
+    account, are counted the same way under its session's id, never an
+    address, and a connected assistant's calls under the id of the access you
+    gave it.
   - **The app's version, on every request to our cloud.** The phone app and
     the browser extension say which version they are, and which of the two, on
     each request they send our cloud, so it can stop answering a version too old to work with
@@ -189,14 +190,18 @@ facilitated by cookies and other technologies. The Service uses only these:
 
 - **Essential.** Our website sets a first-party cookie, Better Auth's session
   cookie, when you sign in or create an account there, so that its account pages
-  (the list of your devices, for one) know it is you. It keeps you signed in to
-  those pages for seven days, renewed as you use them. When an assistant you are
+  know it is you. It keeps you signed in for 60 days, renewed each day you use
+  it. When an assistant you are
   connecting sends you to our consent page, the page sets one more, for at most
   ten minutes and cleared once you answer, that ties your answer to the browser
   you were asked in. Your library in a browser tab, at inteligir.com/library,
   is signed in by that same session cookie. The Mac app's window is signed in
-  by that same session cookie, kept in the app's own web storage on your Mac;
-  the iPhone app uses no cookies.
+  by that same session cookie, kept in the app's own web storage on your Mac.
+  The iPhone app keeps a session cookie of its own in the iPhone's Keychain,
+  for that iPhone alone and only while it is unlocked, and sends it only to
+  our cloud, with each request. The browser extension keeps no cookie of its
+  own: with the `cookies` permission for inteligir.com alone, it reads your
+  browser's inteligir.com session cookie and sends it with each save.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's web storage (local storage), first-party, and
   never sends it to us; your library in a browser tab keeps its settings and
@@ -239,9 +244,12 @@ The apps also hold to these, plainly:
   the right-click menu. It reads the page as it is shown (its address, its
   title and its HTML without its scripts) in your browser, and sends what it
   read, the page's text, the facts it gives about itself and its cover picture,
-  to your Inteligir library in our cloud, signed in with a key of its own that
-  inteligir.com/connect/extension gave it, which you can revoke from your
-  devices. It fetches the cover picture the page names, from your browser and
+  to your Inteligir library in our cloud, signed in as the account you are
+  signed in to on inteligir.com in that browser: it reads that sign-in's
+  cookie from your browser, for inteligir.com alone, and sends it with each
+  save, and signing out there, or signing that browser out from Settings ›
+  Account, signs the extension out too. It keeps only the account's email and
+  the site's address in its storage. It fetches the cover picture the page names, from your browser and
   without your cookies, and nothing else. Nothing you typed into the page goes
   with it: form fields, the choices a page filled in for you and every box you
   type into, such as an email you are writing, are emptied first. Some saves
@@ -254,7 +262,10 @@ The apps also hold to these, plainly:
   never saved: the extension says it can't save it and sends nothing. A picture
   a page drew itself, which has no address, is uploaded to your library as a
   file of its own. A save made while you are offline waits in the browser's
-  storage for the extension as the page's address and title, and is sent, for our cloud to read, once you are back online.
+  storage for the extension as the page's address and title, and is sent, for our cloud to read, once you are back online;
+  one made while you are signed out waits there too, as its address and
+  title, until you sign in again as the same account, and one for an account
+  that was deleted is dropped.
 - **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves
   its address, with the title the sharing app gave it and the words you shared
   beside it, into your library, like any other edit on the phone; the phone
@@ -376,13 +387,15 @@ Specifically, in our cloud:
   forever, removes the item's text and what Undo kept of it at once,
   and each of its files once no other item and nothing Undo can still bring back
   names it.
-- Device rows (including revoked ones) persist as the dashboard's audit trail
-  until account deletion. A device's throttling counters are deleted when it is
-  revoked.
+- A session's row is deleted when that device signs out, when another device
+  signs it out from Settings › Account, when a password reset or the 20-session
+  cap ends it, and once it has lapsed, 60 days after its last use, the next
+  time it is presented; the rest go with the account. Its throttling rows wait
+  for the prune below.
 - A row for each assistant you disconnected (its grant's id and your account)
   persists until account deletion, so an assistant renewing its access at that
   moment stays out.
-- Throttling rows keyed on an address, a browser session or an assistant's
+- Throttling rows keyed on an address, a session or an assistant's
   access, not an account, cannot be found by account deletion, and neither a
   session ending nor an assistant's removal deletes its own. Better Auth deletes
   every row whose timestamp is over a minute old whenever one of its own limits
@@ -427,13 +440,13 @@ for that iPhone alone: a backup restored onto another phone does not carry it,
 so the new phone signs in again and becomes a device of its own.
 
 - **Signing out** on the phone erases all of it — what it kept, the files and
-  any shares waiting, which it asks about first — and tells our cloud to
-  remove the phone from your account. A phone that signs out offline forgets
-  its sign-in all the same; revoke it from Settings › Account on a Mac or at
-  inteligir.com/library.
-- **Revoking the phone** from another device, or **deleting the account**,
-  erases the same the next time the phone reaches our cloud and is refused,
-  without asking. Until then it keeps what it holds.
+  any shares waiting, which it asks about first — and tells our cloud to end
+  the phone's session. A phone that signs out offline forgets its sign-in all
+  the same; sign it out from Settings › Account on the Mac or at
+  inteligir.com/library to end that session too.
+- **Signing the phone out** from another device, or **deleting the account**,
+  erases the same the next time the phone opens or reaches our cloud and is
+  refused, without asking. Until then it keeps what it holds.
 
 ## How we share your personal information
 
@@ -446,7 +459,7 @@ us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
-  account, sessions, devices, the invite you redeemed, a row for each assistant
+  account, sessions, the invite you redeemed, a row for each assistant
   you disconnected and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
@@ -526,9 +539,10 @@ information about their rights below.
 
 **Access or update your information.** If you have registered for an account
 with us through the Service, you may review and update certain account
-information by logging into the account. Settings › Account on a Mac shows the
-account it is signed in to, and your devices with when each was last seen; our
-website's account pages list your devices too. The sign-in
+information by logging into the account. Settings › Account, in the Mac app or
+in your library at inteligir.com/library, shows the account it is signed in to,
+and every device signed in to it, named from the browser or app it signed in
+with, with when each was last used. The sign-in
 page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
@@ -538,8 +552,9 @@ ends its access, and on the phone deletes what it kept of your library.
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If
 you block our website's session cookie in your browser, you cannot sign in to
-its account pages or your library there; the Mac app keeps its own, and the
-iPhone app and the browser extension do not depend on it. If you clear our website's web storage, it forgets
+its account pages or your library there, and the browser extension, which
+rides that cookie, is signed out with it; the Mac app and the iPhone app keep
+their own. If you clear our website's web storage, it forgets
 your theme and shows its dark one, and your library in a browser tab forgets its
 settings and layout and follows your device's theme.
 
@@ -582,9 +597,8 @@ account row itself goes:
 4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
 5. **Every assistant's access is revoked**, its tokens with it.
-6. **Every device row you own**, with its throttling counters, is deleted from
-   D1, and **your email is dropped from the invite you redeemed** (the code
-   stays burned). This is late on purpose: until then your device can still ask
+6. **Your email is dropped from the invite you redeemed** (the code stays
+   burned). This is late on purpose: until then your device can still ask
    again if a step failed.
    Then Better Auth deletes your sessions, your password hash and the account row,
    and the rows for assistants you disconnected go with it.
@@ -592,7 +606,7 @@ account row itself goes:
    leaves the account able to ask again; every step is idempotent, so asking again
    resumes. Each of your devices erases its copy the next time our cloud refuses it
    (see [Retention](#retention)). The throttling rows keyed on an address, a
-   browser session or an assistant's access, and an unused reset link's row, are
+   session or an assistant's access, and an unused reset link's row, are
    not found by it (see [Retention](#retention)), and Cloudflare's request log
    lapses on its own.
 
@@ -622,8 +636,9 @@ R2, and each assistant's grant and tokens under your account in KV. A few things
 are not filed that way: the throttling rows, an unused reset link's row, what an
 assistant registered, a link waiting in the Queue for our cloud to read it,
 which has your account's id beside it, and Cloudflare's own logs of each request
-and of each call the built-in agent makes. Your password and each device
-credential are kept only as hashes, and the apps talk to our cloud over HTTPS.
+and of each call the built-in agent makes. Your password is kept only as a
+hash; each device's session is a random token our cloud keeps as it is, to
+recognize that device; and the apps talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
@@ -631,7 +646,7 @@ These are the edges of that protection, stated plainly:
   us (Cloudflare encrypts its storage at rest, but there is no end-to-end
   encryption). Don't keep in it what you wouldn't store in a hosted notes app.
 - **A lost phone holds what it last read of your library**, behind its
-  passcode. Revoke it from Settings › Account on a Mac or at
+  passcode. Sign it out from Settings › Account on the Mac or at
   inteligir.com/library: it erases what it kept the next time it goes online,
   but a phone that never does keeps it.
 - **Deleting an item does not delete it at once**: it waits in Deleted, and
@@ -641,15 +656,16 @@ These are the edges of that protection, stated plainly:
   every device and in the browser alike, with any location or camera details it
   carries, a picture pasted into a note's text on the phone included; only a
   photo the phone's photo button adds is saved again without them.
-- **A revoked device stops at the next request**, and its live connection is
-  closed as part of the revoke — but revocation cannot reach a response already
-  in flight.
-- **Signing out on a device revokes it the same way, but only if our cloud hears
-  the sign-out.** Settings › Account on a Mac waits for a connection. The phone
-  and the browser extension go on without one.
-  A device our cloud did not hear from forgets its credential while its row stays
-  active, until you revoke it from Settings › Account on a Mac or from the
-  account pages on our website.
+- **A device signed out from Settings › Account stops at its next request**,
+  and its live connection is closed as part of it — but signing it out cannot
+  reach a response already in flight.
+- **Signing out on a device ends its session the same way, but only if our
+  cloud hears the sign-out.** Settings › Account in a browser tab or on the Mac
+  waits for a connection; the phone goes on without one. A session no sign-out
+  reached stays listed, and works for whoever holds it, until another device
+  signs it out from Settings › Account, the 20-session cap retires it or it
+  lapses 60 days after its last use. The browser extension has no sign-out of
+  its own: signing out of inteligir.com in that browser signs it out.
 
 ## International data transfer
 
@@ -1035,16 +1051,16 @@ personal information is transferred by contacting us at kai@kyh.io.
 
 Your account's cloud is one origin, `https://inteligir.com`, and every call the
 Mac, the phone, the browser extension and the library's browser tab make to it
-is one of these routes, as is every call the account pages make but their
-sign-in, session and password-reset calls, which go to Better Auth under
-`/api/auth/`. Nothing else under `/v1/` exists.
+is one of these routes, as is every call the account pages make, but every
+device's sign-in, session, sign-out and password-reset calls, which go to
+Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 
-| Route          | What it carries                                                                                                                                                                                                                                                                                                             | What authenticates it                                                                                                                           |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, folders, tags, the changes Undo takes back and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
-| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                                       | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
-| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                                     | The invite code; attempts are throttled per caller address.                                                                                     |
-| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                         | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
+| Route          | What it carries                                                                                                                                                                                                                                                                                                 | What authenticates it                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, folders, tags, the changes Undo takes back and your messages to the agent) and your account (your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your device's signed-in session (the browser's, the Mac app's, the iPhone's, or the browser's that the extension rides), within a budget of its own. |
+| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                           | Your device's signed-in session, within a budget of its own.                                                                                         |
+| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website or the iPhone.                                                                                                                                                                                                           | The invite code; attempts are throttled per caller address.                                                                                          |
+| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                             | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                     |
 
 Everything else the app reaches is someone else's:
 

@@ -26,8 +26,8 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(device credentials, a byte-exact codec, block writes settled by diff3, our
-own agent loop). Where they
+(a byte-exact codec, block writes settled by diff3, our own agent loop). Where
+they
 disagree, these premises win, and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
@@ -138,7 +138,7 @@ apps/workspace          @repo/workspace — the SPA the Worker serves at /librar
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
 apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
-apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, with its own credential
+apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE client-safe contract for /v1: the library and the account
 packages/notes          @repo/notes — the pure, platform-neutral domain: the library model, its SQL, search and links
@@ -156,7 +156,9 @@ tools/messages-fake     @repo/messages-fake — a scripted Claude Messages API w
 
 Turborepo + pnpm, oxlint/oxfmt, vitest, knip. The site is TanStack Start,
 React 19 and Tailwind 4 on the Worker; auth is Better Auth on D1 (email and
-password, invite-gated, no social providers); the library cell is a SQLite
+password, invite-gated, no social providers, every device a session: the
+site's cookie, the phone's through its Expo plugin, the extension's browser's
+cookie as a signed bearer); the library cell is a SQLite
 Durable Object, the bytes are in R2, saved pages are read off a Queue, OAuth
 is `@cloudflare/workers-oauth-provider` on KV, and each conversation's object
 calls Claude with `@anthropic-ai/sdk` through AI Gateway, woken by
@@ -203,8 +205,10 @@ pnpm --filter @repo/web db:push
 pnpm --filter @repo/web db:studio
 ```
 
-`/app/sign-up` takes the code, and so does the apps' first run, which is
-signing in or creating an account. A code is spent by either door. Auth allows
+`/app/sign-up` takes the code, and so does the phone's Create an account; both
+reach the Worker's one invite-gated `/api/sign-up`, which spends it. The Mac's
+window is the site's page, and the browser extension rides the browser's
+sign-in to the site. Auth allows
 10 requests/60s per IP; a script creating several users sets
 `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weakening the limiter.
 
@@ -347,9 +351,10 @@ is in the file named.
 - **A value has one spelling**: a key binding comes from the table its listener
   reads (`packages/editor/CLAUDE.md`), a page preference is a `PREFS` row
   (`apps/workspace/CLAUDE.md`).
-- **The extension is a `/v1` client with its own device credential**: it ships
-  on the Web Store's cadence, so the build floor holds it as it holds every
-  client (`apps/extension/CLAUDE.md`).
+- **The extension is a `/v1` client on the browser's own session**: it sends
+  the site's signed session cookie as its bearer and ships on the Web Store's
+  cadence, so the build floor holds it as it holds every client
+  (`apps/extension/CLAUDE.md`).
 - **A library scope has one spelling**: `@repo/domain/library-scope`, read by
   the page's pref, the items listing and the view context
   (`apps/workspace/CLAUDE.md`).
@@ -369,10 +374,10 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items and Knowledge: search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
-- [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
+- [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sessions and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
-- [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: its connection, its saves and its queue
+- [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: whose sign-in it rides, its saves and its queue
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling
 
