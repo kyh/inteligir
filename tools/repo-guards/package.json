@@ -11,6 +11,7 @@
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@repo/contract": "workspace:*",
+    "@repo/service": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

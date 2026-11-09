@@ -37,6 +37,8 @@ import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
 import { undoBrowser } from "./scenarios/undo-browser";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
+import { workerDoorFaults } from "./scenarios/worker-door-faults";
+import { workerDoors } from "./scenarios/worker-doors";
 
 const SCENARIOS: readonly Scenario[] = [
   fileItems,
@@ -51,6 +53,8 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   tidyLibraryBrowser,
   builtWorkerBoot,
+  workerDoors,
+  workerDoorFaults,
   linkCapture,
   raindropImport,
   browserSmoke,

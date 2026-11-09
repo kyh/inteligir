@@ -1520,6 +1520,9 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
+      '@repo/service':
+        specifier: workspace:*
+        version: link:../../packages/service
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

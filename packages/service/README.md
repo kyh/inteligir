@@ -32,7 +32,9 @@ messages-service.ts    # the suites' outbound service: the scripted Messages API
 cloudflare.config.ts   # the suites' Worker, never deployed
 scripts/agent-prompt.ts  # writes src/agent/agent-prompt.ts from @repo/agent-skills
 src/
-  doors.ts             # the route table apps/web's entry answers its paths by
+  doors.ts             # each door apps/web's Start routes hand a request to
+  doors-api.ts         # the doors' types, naming only Request and Response
+  door-routes.ts       # the path each door answers, as its Start route spells it
   auth/                # Better Auth factory, invite gate, reset email, the
                        # account's sessions as its devices, account deletion
   wire/                # /v1's one wire: the floor, the principal a session
@@ -124,9 +126,11 @@ src/
 
 ## Seams
 
-- `answerDoor` (`src/doors.ts`): the one fetch-shaped function `apps/web`'s
-  entry hands every path `ownsPath` claims, and the suites' Worker its every
-  request.
+- `doorsFor(env, ctx)` (`src/doors.ts`): a request's doors, each a
+  fetch-shaped function of the request alone. `apps/web`'s entry puts them in
+  Start's request context, where each door's server route reaches its own, and
+  the suites' Worker dispatches to them by `DOOR_ROUTES`
+  (`src/door-routes.ts`), the table those routes are held to.
 - `SqlPort` (`src/library/library-sql.ts`): one statement per call. The cell
   binds `ctx.storage.sql` to it, with `transactionSync` as its
   `transaction(work)`, and a plan (`library-queries.ts`) runs over it through

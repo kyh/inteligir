@@ -3,7 +3,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { eq } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { ownsPath } from "./doors";
+import { doorAt } from "./door-routes";
 import { sendResetEmail } from "./auth/reset-email";
 import { createDb } from "@repo/db/d1/client";
 import { verification } from "@repo/db/d1/schema";
@@ -99,8 +99,8 @@ describe("password reset", () => {
     expect(landing.origin).toBe(ORIGIN);
     expect(landing.pathname).toBe(RESET_PAGE_PATH);
     expect(landing.searchParams.get("token")).toMatch(/^[A-Za-z0-9]+$/u);
-    // the server entry hands every path the API does not own to the site's Start handler
-    expect(ownsPath(landing.pathname)).toBe(false);
+    // no door answers it: the page is the site's own Start route
+    expect(doorAt(landing.pathname)).toBeUndefined();
   });
 
   it("carries a way back through the mail to the reset page", async () => {

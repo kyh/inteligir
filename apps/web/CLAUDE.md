@@ -209,8 +209,9 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
 - **THE WORKER'S SUITES RUN INSIDE workerd THROUGH `@cloudflare/vitest-plugin`,
   ON `@repo/service`'S OWN CONFIG.** The plugin reads the service's
   `cloudflare.config.ts` (its `newConfig`), never deployed: the deployed
-  Durable Objects and the Worker's doors, without the site, whose SSR needs
-  what only Start's vite plugin supplies. A suite reaches the Worker by
+  Durable Objects and the Worker's doors, reached by the path table the site's
+  door routes are held to, without the site, whose SSR needs what only Start's
+  vite plugin supplies. A suite reaches the Worker by
   `exports.default.fetch()` and reads every body to the end (`drained`), as
   per-file storage isolation needs; the suites that open the account's socket
   share one storage in a project of their own, since Durable Object WebSockets
@@ -470,11 +471,14 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   refused, since a browser can change accounts while the page stays open.
   The page runs no script (`default-src 'none'`, no framing), escapes every
   field a client sent, says where access is sent and warns of a loopback
-  address, and asks to "read and change your library". Rejected: a Start route
-  (the provider's helpers take the raw request, and the page would carry the
-  site's bundle); remembering an approval (every connect asks); `form-action`
-  (browsers disagree on whether it holds the 302 to the assistant's origin).
+  address, and asks to "read and change your library". Its route is a server
+  route that hands the raw request to its door, as every door's is. Rejected:
+  a Start page (the provider's helpers take the raw request, and the page would
+  carry the site's bundle); remembering an approval (every connect asks);
+  `form-action` (browsers disagree on whether it holds the 302 to the
+  assistant's origin).
   `packages/service/src/connector/consent-route.ts`, `consent-page.ts`,
+  `apps/web/src/routes/connect/authorize.ts`,
   `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
@@ -782,3 +786,32 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   join a page); a search of the apps' own beside the agent's (two rankings of
   one library).
   `packages/service/src/library/cell-listing.ts`, `library-router.ts`.
+
+- **EVERY PATH IS START'S, AND A DOOR'S SERVER ROUTE HANDS ITS REQUEST TO THE
+  SERVICE THROUGH START'S REQUEST CONTEXT.** The Worker's entry matches no
+  path: it exports the Durable Objects and the fill consumer and hands every
+  request to Start with `doorsFor(env, ctx)`, built per request, since the
+  connector's OAuth provider writes `ctx.props` on the very ExecutionContext
+  Cloudflare handed the entry. Each path a door answers is one server route
+  declaring `ANY`, a one-line handler giving the door the raw request, and the
+  door answers its methods and its 405 itself; `/api/$` and `/v1/$` answer a
+  plain 404, so an unknown API path never renders the site's page. A door
+  catches its own throw, logged, and answers it in its protocol (`rpcFault` on
+  `/v1/rpc`, `internal error` elsewhere), and refuses any path its row in the
+  table does not name, since Start's routes also take a splat's bare prefix, a
+  trailing slash and any case. One table spells those paths: the suites'
+  Worker dispatches by it, and a guard holds one route file to each row. The
+  routes type `context.doors` by the service's DOM-safe leaf, so the site's
+  program loads none of the service's code. Two departures from kyh/init's
+  layering: `@repo/db` may read `@repo/contract` and never the reverse, since
+  every client bundles the contract and must not bundle drizzle; and a route
+  reaches the service through the doors in its request context, not an oRPC
+  handler of its own, since only the entry holds the real ExecutionContext.
+  Rejected: a router of our own in front of Start (every path claimed twice);
+  a door route declaring its methods (one it leaves out falls to the site's
+  page, a 200 of HTML); Start's answer to a door's throw (a JSON 500 of its
+  own and a bare log line); doors kept at module scope (the context is per
+  request and the provider writes to it). `apps/web/src/worker/server.ts`,
+  `apps/web/src/request-context.ts`, `packages/service/src/doors.ts`,
+  `doors-api.ts`, `door-routes.ts`, `tools/repo-guards/src/route-paths.test.ts`,
+  `tools/e2e/src/scenarios/worker-doors.ts`, `worker-door-faults.ts`.
