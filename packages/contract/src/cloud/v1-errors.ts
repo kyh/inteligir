@@ -92,40 +92,28 @@ export const InvalidCredentialsError = error("INVALID_CREDENTIALS", {
   message: "That email and password don't match an account.",
 });
 
-export const DeviceLimitError = error("DEVICE_LIMIT", {
-  message: "This account is signed in on too many devices. Sign one out first.",
-});
-
-export const AccountExistsError = error("ACCOUNT_EXISTS", {
-  message: "An account with that email already exists.",
-});
-
-// one sentence for "no such code" and "already used", so a caller learns only that it will not work
+// the invite gate's, which answers its form in plain HTTP: one sentence for "no such code" and
+// "already used", so a caller learns only that it will not work
 export const InviteRefusedError = error("FORBIDDEN", {
   message: "That invite code isn't valid. Check it and try again.",
 });
 
-// what every row is built on: an unauthenticated call (signing in or up) meets the floor and the
-// rate limits, and a signed one the credential's own refusals besides
-export const publicBase = oc.errors({
+// what every row is built on, since every row is signed: the floor, the rate limits and the
+// session's own refusals
+export const signedBase = oc.errors({
+  [AccountGoneError.code]: AccountGoneError,
   [ClientOutdatedError.code]: ClientOutdatedError,
   [TooManyRequestsError.code]: TooManyRequestsError,
-});
-
-export const signedBase = publicBase.errors({
-  [AccountGoneError.code]: AccountGoneError,
   [UnauthorizedError.code]: UnauthorizedError,
 });
 
 // the codes oRPC does not know; one with no status here would default to 400 unnoticed
 /** @internal */
 export const V1_CUSTOM_ERROR_STATUS = {
-  [AccountExistsError.code]: 409,
   [AgentBudgetError.code]: 429,
   [AlreadyUndoneError.code]: 409,
   [BlobMissingError.code]: 409,
   [ClientOutdatedError.code]: 426,
-  [DeviceLimitError.code]: 409,
   [InvalidCredentialsError.code]: 401,
   // 507: the library cannot store this, which no retry fixes
   [QuotaError.code]: 507,

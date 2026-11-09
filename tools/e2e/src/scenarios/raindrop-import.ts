@@ -1,10 +1,10 @@
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { CloudWorker } from "../harness/cloud-worker";
 import { pollUntil } from "../harness/poll";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
-import { uploadFile, v1Client } from "../harness/v1-wire";
+import { asPhone, uploadFile, v1Client } from "../harness/v1-wire";
 
 // every link sits in TEST-NET-1 (192.0.2.0/24), space the guarded fetch refuses before it opens a
 // socket: each page's fill fails here and nothing leaves the machine. the import itself fetches
@@ -75,9 +75,9 @@ const QUOTED_NOTE = [
 // link lands unread in its collection's folder and the Worker's own fill consumer reads each,
 // which the guarded fetch refuses here (an address written out), so each says so in the item
 const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWorker) => {
-  const phone = await v1Client(worker, null).account.signIn({ ...OWNER, deviceName: "E2E Phone" });
-  const { library } = v1Client(worker, phone.credential);
-  const upload = await uploadFile(worker, phone.credential, {
+  const phone = asPhone(await signInPhone(worker.origin));
+  const { library } = v1Client(worker, phone);
+  const upload = await uploadFile(worker, phone, {
     bytes: new TextEncoder().encode(BACKUP),
     type: "text/csv",
   });
@@ -157,7 +157,7 @@ const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWor
 
   ctx.log("a second cloud import of the same backup, uploaded again, adds nothing");
   // the library let the first upload go once its import ended
-  const reupload = await uploadFile(worker, phone.credential, {
+  const reupload = await uploadFile(worker, phone, {
     bytes: new TextEncoder().encode(BACKUP),
     type: "text/csv",
   });

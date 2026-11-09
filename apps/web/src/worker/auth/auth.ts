@@ -20,11 +20,11 @@ import { capSessions } from "./session-devices";
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
 // it is derived from the request origin, so localhost, preview and prod need none.
 
-// The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
-// reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
-// user. Sign-out stays, since ending a session is never a risk. So does `/callback/:id`, which an
-// exact list cannot name and which, with no social provider, has nothing to sign in with, and so
-// does the phone's plugin's proxy, which serves social sign-in alone. Deletion's one door is
+// The HTTP router's alone: auth.api still calls each. Every device calls sign-in, get-session and
+// sign-out, the site the reset pair too, and the invite gate forwards sign-up; a route no client
+// calls is surface with no user. `/callback/:id` stays, since an exact list cannot name it, and with
+// no social provider it has nothing to sign in with; the phone's plugin's proxy goes, since it
+// serves social sign-in alone. Deletion's one door is
 // `account.delete` (../wire/account-router.ts), which asks the password again, where Better Auth's
 // own route settles for a fresh session; listing and ending sessions are `account.devices.*`, which
 // never hand a token out.
@@ -96,7 +96,7 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
     emailAndPassword: {
       disableSignUp,
       enabled: true,
-      // set from the contract, not left at the defaults: the invite gate, device login and the
+      // set from the contract, not left at the defaults: the invite gate, the sign-in forms and the
       // reset page bound a password by the same two numbers, so none can drift from what this enforces
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       minPasswordLength: PASSWORD_MIN_LENGTH,
@@ -143,8 +143,8 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
-        // retry. The library cell runs the account's purge, in its order, its credentials last
-        // (../library/account-purge.ts).
+        // retry. The library cell runs the account's purge in its order
+        // (../library/account-purge.ts), and the sessions go after it, with the account.
         beforeDelete: async (user) => {
           await libraryCell(ctx.exports, user.id).purge(user.email);
         },
@@ -204,7 +204,6 @@ export const withoutAuthToken = (answer: Response): Response => {
 };
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
-// invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
-// also shuts auth.api.signUpEmail.
+// invite gate (./invite.ts) needs this second instance; the flag also shuts auth.api.signUpEmail.
 export const createSignUpAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
   buildAuth(env, ctx, baseURL, false);

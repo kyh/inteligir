@@ -12,7 +12,7 @@ import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity"
 import { z } from "zod";
 import { clickButtonIn, parseEval, untilBodyHolds } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";
-import { expect, expectEq } from "./assert";
+import { expectEq } from "./assert";
 import { OWNER } from "./cloud-account";
 import { SUBMIT_READY } from "./selectors";
 
@@ -38,19 +38,6 @@ export const asLocalhost = (origin: string): string => {
   return url.origin;
 };
 
-// what the extension sends `/v1` for a browser holding `cookie`, a sign-up's or a sign-in's: the
-// session cookie's own signed value as the bearer, so an oracle calls through the extension's door
-export const sessionBearerOf = (cookie: string): string => {
-  const token = cookie
-    .split("; ")
-    .find((pair) => pair.split("=")[0]?.endsWith("better-auth.session_token") === true)
-    ?.split("=")
-    .slice(1)
-    .join("=");
-  expect(token !== undefined && token !== "", `no session cookie in ${cookie}`);
-  return token;
-};
-
 // signs the browser in on the site at `cloudOrigin`, as a person does, and lands on the connect
 // page, which the sign-in comes back to
 export const signInOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
@@ -65,10 +52,7 @@ export const signInOnSite = async (browser: AgentBrowser, cloudOrigin: string): 
 };
 
 // signs the browser in on the site at `cloudOrigin` and connects the extension there
-export const connectExtension = async (
-  browser: AgentBrowser,
-  cloudOrigin: string,
-): Promise<void> => {
+export const connectOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
   await signInOnSite(browser, cloudOrigin);
   await clickButtonIn(browser, "main", "Connect");
   await untilBodyHolds(browser, ["Connected."], 60_000);

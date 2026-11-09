@@ -6,8 +6,8 @@
 import { isOrpcError } from "../v1-errors";
 import { V1_BLOBS_PATH } from "./library-blobs";
 
-// `/v1` as the host reaches it: the cloud's origin and a fetch that adds the device's credential
-// and build, or in the browser the session's cookie
+// `/v1` as the host reaches it: the cloud's origin and a fetch that adds the session through the
+// host's door and its build, or in the browser nothing past the session's own cookie
 export interface V1Transport {
   readonly origin: string;
   readonly fetch: (request: Request) => Promise<Response>;

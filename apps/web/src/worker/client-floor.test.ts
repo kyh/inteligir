@@ -1,17 +1,18 @@
 // The client build floor as every `/v1` caller meets it: a request that names no build, or one
-// below `MIN_CLIENT_BUILD`, is refused before anything reads it, its credential left live; a page
+// below `MIN_CLIENT_BUILD`, is refused before anything reads it, its session left live; a page
 // this Worker served, which ships in the same deploy, names none.
 
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
-  deviceHeaders,
   drained,
-  loginDevice,
   ORIGIN,
+  phoneHeaders,
   sessionHeaders,
+  signInPhone,
   signUpUser,
   v1Link,
 } from "./test-support/cloud-helpers";
@@ -23,16 +24,17 @@ const versionAround = (majorStep: number, minorStep: number): string => {
 };
 const below = (): string => versionAround(0, -1);
 
-const signedIn = async (email: string): Promise<{ cookie: string; credential: string }> => {
+// the site's sign-up, and the phone signed in beside it
+const signedIn = async (email: string): Promise<{ cookie: string; phone: string }> => {
   const { cookie } = await signUpUser(email);
-  const { credential } = await loginDevice(cookie, "Laptop");
-  return { cookie, credential };
+  return { cookie, phone: await signInPhone(email) };
 };
 
-const asBuild = (credential: string, build: string | null): Record<string, string> =>
-  build === null
-    ? { authorization: `Bearer ${credential}` }
-    : { authorization: `Bearer ${credential}`, [CLIENT_BUILD_HEADER]: build };
+// the phone's own call, naming `build` or none
+const asBuild = (phone: string, build: string | null): Record<string, string> => {
+  const headers = { cookie: phone, "expo-origin": PHONE_ORIGIN };
+  return build === null ? headers : { ...headers, [CLIENT_BUILD_HEADER]: build };
+};
 
 const OUTDATED = { code: "CLIENT_OUTDATED", defined: true, status: 426 };
 
@@ -43,20 +45,18 @@ const refusalOfList = async (headers: Record<string, string>) => {
 
 describe("the client build floor", () => {
   it("refuses a call that names no build, or one it cannot read", async () => {
-    const { credential } = await signedIn("floor-missing@example.test");
+    const { phone } = await signedIn("floor-missing@example.test");
     for (const build of [null, "", "0.7.0", "latest+desktop"]) {
-      await expect(refusalOfList(asBuild(credential, build)), String(build)).resolves.toMatchObject(
+      await expect(refusalOfList(asBuild(phone, build)), String(build)).resolves.toMatchObject(
         OUTDATED,
       );
     }
   });
 
-  it("refuses a build below the floor, and its prerelease, before it judges the credential", async () => {
-    const { credential } = await signedIn("floor-below@example.test");
+  it("refuses a build below the floor, and its prerelease, before it judges the session", async () => {
+    const { phone } = await signedIn("floor-below@example.test");
     for (const build of [`${below()}+desktop`, `${env.MIN_CLIENT_BUILD}-beta.1+mobile`]) {
-      await expect(refusalOfList(asBuild(credential, build)), build).resolves.toMatchObject(
-        OUTDATED,
-      );
+      await expect(refusalOfList(asBuild(phone, build)), build).resolves.toMatchObject(OUTDATED);
     }
     await expect(
       refusalOfList({ [CLIENT_BUILD_HEADER]: `${below()}+desktop` }),
@@ -64,34 +64,18 @@ describe("the client build floor", () => {
   });
 
   it("answers a build at or above the floor, whatever platform it names", async () => {
-    const { credential } = await signedIn("floor-at@example.test");
-    for (const headers of [
-      deviceHeaders(credential),
-      asBuild(credential, `${versionAround(1, 0)}+android`),
-    ]) {
+    const { phone } = await signedIn("floor-at@example.test");
+    for (const headers of [phoneHeaders(phone), asBuild(phone, `${versionAround(1, 0)}+android`)]) {
       const { devices } = await v1Link(headers).account.devices.list();
-      expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Laptop"]);
+      expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "iPhone"]);
     }
   });
 
-  it("refuses the sign-in before it checks the password", async () => {
-    const stale = v1Link({});
-    await expect(
-      stale.refusalOf(
-        stale.account.signIn({
-          deviceName: "Laptop",
-          email: "nobody@example.test",
-          password: "not-the-password",
-        }),
-      ),
-    ).resolves.toMatchObject(OUTDATED);
-  });
-
   it("refuses a file as it refuses a call", async () => {
-    const { credential } = await signedIn("floor-bytes@example.test");
+    const { phone } = await signedIn("floor-bytes@example.test");
     const response = await drained(
       exports.default.fetch(`${ORIGIN}${V1_BLOBS_PATH}/${"a".repeat(64)}`, {
-        headers: asBuild(credential, null),
+        headers: asBuild(phone, null),
       }),
     );
     expect(response.status).toBe(426);
@@ -100,7 +84,7 @@ describe("the client build floor", () => {
   it("answers this Worker's own pages, which ship in the same deploy", async () => {
     const { cookie } = await signedIn("floor-page@example.test");
     const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "Laptop"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "iPhone"]);
     await expect(
       refusalOfList({ ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" }),
     ).resolves.toMatchObject(OUTDATED);

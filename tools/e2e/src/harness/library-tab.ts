@@ -1,15 +1,15 @@
-// The library's page in a browser tab over a booted Worker: the account `signUp` makes, a device of
-// its own signed in for a scenario to seed and read the library through `/v1` as an app does, and a
-// browser signed in through the site's own sign-in, which comes back to the page. What the tab
-// shows it read from the cell; what the cell holds is read through the device's client.
+// The library's page in a browser tab over a booted Worker: the account `signUp` makes, its session
+// called through the extension's door for a scenario to seed and read the library through `/v1` as
+// an app does, and a browser signed in through the site's own sign-in, which comes back to the page.
+// What the tab shows it read from the cell; what the cell holds is read through that client.
 
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { pollUntil } from "./poll";
 import type { OpenLibraryOptions, ScenarioBrowser } from "./agent-browser";
-import { OWNER, signUp } from "./cloud-account";
+import { signUp } from "./cloud-account";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import type { ScenarioContext } from "./scenario";
-import { uploadFile, v1Client } from "./v1-wire";
+import { asExtension, uploadFile, v1Client } from "./v1-wire";
 
 const DEADLINE_MS = 30_000;
 
@@ -18,12 +18,12 @@ export type Library = V1Client["library"];
 export interface LibraryTab {
   readonly worker: CloudWorker;
   readonly browser: ScenarioBrowser;
-  // the device's own client, the scenario's oracle for what the cell holds
+  // the sign-up session's own client, the scenario's oracle for what the cell holds
   readonly library: Library;
   readonly account: V1Client["account"];
 }
 
-// a file's bytes sent to the library's store as the seeding device, answering their sha
+// a file's bytes sent to the library's store as the seeding client, answering their sha
 type UploadBytes = (file: {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly type: string;
@@ -45,14 +45,11 @@ export const openLibraryTab = async (
   options: LibraryTabOptions = {},
 ): Promise<LibraryTab> => {
   const worker = await ctx.cloudWorker(options.worker);
-  await signUp(worker.origin);
-  const device = await v1Client(worker, null).account.signIn({
-    ...OWNER,
-    deviceName: "E2E Seeder",
-  });
-  const { account, library } = v1Client(worker, device.credential);
+  const { cookie } = await signUp(worker.origin);
+  const seeder = asExtension(cookie);
+  const { account, library } = v1Client(worker, seeder);
   await options.seed?.(library, async (file) => {
-    const { sha, status } = await uploadFile(worker, device.credential, file);
+    const { sha, status } = await uploadFile(worker, seeder, file);
     if (status !== 201) {
       throw new Error(`the seed's upload answered ${String(status)}`);
     }

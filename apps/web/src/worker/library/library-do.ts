@@ -251,8 +251,8 @@ export class LibraryDO extends DurableObject<Env> {
     }
   }
 
-  // the sockets of a holder whose standing ended after its upgrade, a revoked device or a session
-  // that ended; its next request meets the end itself (`./socket-routes`)
+  // the sockets of a holder whose session ended after its upgrade; its next request meets the end
+  // itself (`./socket-routes`)
   sever(holder: SocketHolder): void {
     severHolder(this.ctx, holder);
   }

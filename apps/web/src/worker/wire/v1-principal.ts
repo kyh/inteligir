@@ -5,18 +5,16 @@
 //
 // - a bearer is the browser extension's, the browser's own session cookie read from its jar. The
 //   cookie beside it is never read, so a bearer that fails is refused, never retried as the
-//   cookie; one no session signed meets the device credential's verifier instead.
+//   cookie.
 // - a request the site's own page made, which a browser marks same-origin, is a tab's or the Mac
 //   app's window, on its cookie.
 // - a request naming the phone's app scheme in `expo-origin` is the phone's, on the cookie it
-//   keeps: a page cannot send that header without a preflight, which no `/v1` route lets it pass
-//   (`../cors.ts` lets the extension's origin alone, and never that header).
+//   keeps: a page cannot send that header without a preflight, which no route of the Worker's
+//   answers.
 
 import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 
 import { readSession } from "../auth/auth";
-import { createDb } from "../db/client";
-import { verifyDeviceCredential } from "../device/device-auth";
 import type { AppPrincipal, SessionDoor } from "../library/library-principal";
 
 const doorOf = (request: Request): SessionDoor | null => {
@@ -40,24 +38,11 @@ const verifyPrincipal = async (
     return null;
   }
   const signedIn = await readSession(env, ctx, request);
-  if (signedIn !== null) {
-    return {
-      accountId: signedIn.user.id,
-      actor: { door, kind: "session", sessionId: signedIn.session.id },
-    };
-  }
-  if (door !== "extension") {
-    return null;
-  }
-  const verified = await verifyDeviceCredential(
-    createDb(env.DB),
-    request.headers.get("authorization"),
-  );
-  return verified === null
+  return signedIn === null
     ? null
     : {
-        accountId: verified.userId,
-        actor: { deviceId: verified.deviceId, deviceName: verified.deviceName, kind: "device" },
+        accountId: signedIn.user.id,
+        actor: { door, kind: "session", sessionId: signedIn.session.id },
       };
 };
 
@@ -74,6 +59,5 @@ export const lazyPrincipal = (
   };
 };
 
-// the window a principal's calls spend: its session's, or its device credential's
-export const holderIdOf = (principal: AppPrincipal): string =>
-  principal.actor.kind === "device" ? principal.actor.deviceId : principal.actor.sessionId;
+// the window a principal's calls spend: its session's
+export const holderIdOf = (principal: AppPrincipal): string => principal.actor.sessionId;

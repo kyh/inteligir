@@ -66,9 +66,6 @@ const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";
 const SHA = "a".repeat(64);
 
-const SIGN_IN = { deviceName: "Mac", email: "a@example.com", password: "password1" };
-const SIGN_UP = { ...SIGN_IN, inviteCode: "invite-123", name: "Ada" };
-
 interface ErrorCase {
   readonly code: keyof typeof V1_CUSTOM_ERROR_STATUS;
   readonly data: unknown;
@@ -133,18 +130,6 @@ describe("/v1's error statuses", () => {
   const os = implement(v1Contract);
   const cases: readonly ErrorCase[] = [
     {
-      code: "ACCOUNT_EXISTS",
-      data: undefined,
-      refusal: async (client) => await refusalOf(client.account.signUp(SIGN_UP)),
-      router: {
-        account: {
-          signUp: os.account.signUp.handler(({ errors }) => {
-            throw errors.ACCOUNT_EXISTS();
-          }),
-        },
-      },
-    },
-    {
       code: "AGENT_BUDGET",
       data: { resetsAt: 1_700_000_000_000 },
       refusal: async (client) =>
@@ -203,18 +188,6 @@ describe("/v1's error statuses", () => {
               throw errors.CLIENT_OUTDATED();
             }),
           },
-        },
-      },
-    },
-    {
-      code: "DEVICE_LIMIT",
-      data: undefined,
-      refusal: async (client) => await refusalOf(client.account.signIn(SIGN_IN)),
-      router: {
-        account: {
-          signIn: os.account.signIn.handler(({ errors }) => {
-            throw errors.DEVICE_LIMIT();
-          }),
         },
       },
     },

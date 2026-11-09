@@ -1,25 +1,31 @@
-// `/v1/rpc` end to end, as an app's link calls it: the Worker's floor and credential, the principal
+// `/v1/rpc` end to end, as an app's link calls it: the Worker's floor and session, the principal
 // it stamps on what it forwards, one account's cell out of another's reach, and the status every
 // refusal answers under.
 
+import { EXTENSION_ORIGIN } from "@repo/contract/cloud/extension/extension-identity";
+import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { markGrantRevoked } from "../connector/revoked-grants";
 import { createDb } from "../db/client";
-import { device, inviteCode, rateLimit, revokedGrant, session, user } from "../db/schema";
+import { rateLimit, revokedGrant, session, user } from "../db/schema";
 import { accountBlobPrefix, blobKey } from "../library/cell-blobs";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
 import { holderRateKey } from "../rate-limit";
 import {
   buildHeaders,
-  deviceHeaders,
   drained,
-  loginDevice,
   ORIGIN,
   PASSWORD,
+  phoneHeaders,
   sessionHeaders,
+  sessionIdOf,
+  signInPhone,
+  signOutPhone,
   signUpUser,
   userIdOf,
   v1Link,
@@ -28,29 +34,50 @@ import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell"
 
 const DAY_MS = 86_400_000;
 
-// an account signed in on a laptop: its credential's link, its session cookie and its id
+// an account made on the site and signed in on a phone: the phone's link and cookie, the site's
+// session cookie and the account's id
 const signedUp = async (email: string) => {
   const { cookie } = await signUpUser(email);
-  const laptop = await loginDevice(cookie, "Laptop");
-  const accountId = await userIdOf(cookie);
+  const phoneCookie = await signInPhone(email);
   return {
-    accountId,
+    accountId: await userIdOf(cookie),
     cookie,
-    credential: laptop.credential,
-    laptop: v1Link(deviceHeaders(laptop.credential)),
+    phone: v1Link(phoneHeaders(phoneCookie)),
+    phoneCookie,
   };
 };
 
-const freshInvite = async (): Promise<string> => {
-  const code = `RPC-TEST-${crypto.randomUUID()}`;
-  await createDb(env.DB).insert(inviteCode).values({ code });
-  return code;
-};
-
 describe("the one wire's door", () => {
+  it("lets no page of another origin read an answer, the extension's and the phone's header included", async () => {
+    for (const [path, origin] of [
+      [`${V1_RPC_PATH}/account/devices/list`, EXTENSION_ORIGIN],
+      [`${V1_RPC_PATH}/account/devices/list`, "https://elsewhere.example"],
+      [`${V1_RPC_PATH}/account/devices/list`, "tauri://localhost"],
+      [`${V1_BLOBS_PATH}/${"a".repeat(64)}`, EXTENSION_ORIGIN],
+      ["/api/auth/get-session", EXTENSION_ORIGIN],
+      ["/api/auth/get-session", "https://elsewhere.example"],
+    ] as const) {
+      const preflight = await drained(
+        exports.default.fetch(`${ORIGIN}${path}`, {
+          headers: {
+            "access-control-request-headers": "content-type, expo-origin, x-inteligir-build",
+            "access-control-request-method": "POST",
+            origin,
+          },
+          method: "OPTIONS",
+        }),
+      );
+      expect(preflight.headers.get("access-control-allow-origin"), `${origin} ${path}`).toBeNull();
+      const read = await drained(
+        exports.default.fetch(`${ORIGIN}${path}`, { headers: { ...buildHeaders(), origin } }),
+      );
+      expect(read.headers.get("access-control-allow-origin"), `${origin} ${path}`).toBeNull();
+    }
+  });
+
   it("refuses a build below the floor before it reads anything else", async () => {
-    const { credential } = await signedUp("rpc-floor@example.test");
-    const stale = v1Link({ authorization: `Bearer ${credential}` });
+    const { phoneCookie } = await signedUp("rpc-floor@example.test");
+    const stale = v1Link({ cookie: phoneCookie, "expo-origin": PHONE_ORIGIN });
     // each call made in its turn, so no refusal waits unheard behind another
     for (const call of [
       async () => await stale.library.items.list({}),
@@ -64,20 +91,20 @@ describe("the one wire's door", () => {
     }
   });
 
-  it("reaches the account's own library on a device's bearer", async () => {
-    const { laptop } = await signedUp("rpc-bearer@example.test");
-    const { item } = await laptop.library.items.createNote({ markdown: "From the laptop." });
-    const read = await laptop.library.items.read({ id: item.id });
-    expect(read.view.markdown).toBe("From the laptop.\n");
-    const history = await laptop.library.history.list({});
-    expect(history.changeSets[0]?.label).toBe("You on Laptop");
+  it("reaches the account's own library on the phone's session", async () => {
+    const { phone } = await signedUp("rpc-phone@example.test");
+    const { item } = await phone.library.items.createNote({ markdown: "From the phone." });
+    const read = await phone.library.items.read({ id: item.id });
+    expect(read.view.markdown).toBe("From the phone.\n");
+    const history = await phone.library.history.list({});
+    expect(history.changeSets[0]?.label).toBe("You on your iPhone");
   });
 
   it("refuses a bearer that does not verify, and never reads the cookie beside it", async () => {
     const { cookie } = await signedUp("rpc-bad-bearer@example.test");
     const forged = v1Link({
       ...sessionHeaders(cookie),
-      authorization: "Bearer igd_not-a-device",
+      authorization: "Bearer not-a-session",
     });
     // each call made in its turn, so no refusal waits unheard behind another
     for (const call of [
@@ -141,19 +168,19 @@ describe("the one wire's door", () => {
     const theirs = await signedUp("rpc-stamp-b@example.test");
     const claim = principalHeaderValue({
       accountId: theirs.accountId,
-      actor: { deviceId: "stolen", deviceName: "Stolen", kind: "device" },
+      actor: { door: "page", kind: "session", sessionId: "stolen" },
     });
-    const stamped = v1Link({ ...deviceHeaders(mine.credential), [PRINCIPAL_HEADER]: claim });
+    const stamped = v1Link({ ...phoneHeaders(mine.phoneCookie), [PRINCIPAL_HEADER]: claim });
     const { item } = await stamped.library.items.createNote({ markdown: "Whose is this?" });
 
-    const listed = await mine.laptop.library.items.list({});
+    const listed = await mine.phone.library.items.list({});
     expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
-    const history = await mine.laptop.library.history.list({});
-    expect(history.changeSets[0]?.label).toBe("You on Laptop");
-    const elsewhere = await theirs.laptop.library.items.list({});
+    const history = await mine.phone.library.history.list({});
+    expect(history.changeSets[0]?.label).toBe("You on your iPhone");
+    const elsewhere = await theirs.phone.library.items.list({});
     expect(elsewhere.items).toStrictEqual([]);
 
-    // the claim alone, with no credential, reaches nobody's cell
+    // the claim alone, with no session, reaches nobody's cell
     const bare = v1Link({ ...buildHeaders(), [PRINCIPAL_HEADER]: claim });
     await expect(bare.refusalOf(bare.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
@@ -164,18 +191,18 @@ describe("the one wire's door", () => {
   it("keeps one account's items out of another's reach", async () => {
     const a = await signedUp("rpc-isolate-a@example.test");
     const b = await signedUp("rpc-isolate-b@example.test");
-    const { item } = await a.laptop.library.items.createNote({ markdown: "Only mine." });
+    const { item } = await a.phone.library.items.createNote({ markdown: "Only mine." });
     await expect(
-      b.laptop.refusalOf(b.laptop.library.items.read({ id: item.id })),
+      b.phone.refusalOf(b.phone.library.items.read({ id: item.id })),
     ).resolves.toMatchObject({
       code: "NOT_FOUND",
       status: 404,
     });
-    await expect(b.laptop.library.search({ query: "mine" })).resolves.toStrictEqual({
+    await expect(b.phone.library.search({ query: "mine" })).resolves.toStrictEqual({
       cursor: null,
       hits: [],
     });
-    await expect(b.laptop.library.items.delete({ ids: [item.id] })).resolves.toStrictEqual({
+    await expect(b.phone.library.items.delete({ ids: [item.id] })).resolves.toStrictEqual({
       deleted: [],
       missing: [item.id],
     });
@@ -184,25 +211,25 @@ describe("the one wire's door", () => {
 
 describe("every refusal's status", () => {
   it("answers the library's refusals under the statuses the wire declares", async () => {
-    const { laptop } = await signedUp("rpc-statuses@example.test");
-    const { item } = await laptop.library.items.createNote({ markdown: "One.\n\nTwo." });
-    const { seq } = await laptop.library.items.read({ id: item.id });
-    await laptop.library.items.edit({
+    const { phone } = await signedUp("rpc-statuses@example.test");
+    const { item } = await phone.library.items.createNote({ markdown: "One.\n\nTwo." });
+    const { seq } = await phone.library.items.read({ id: item.id });
+    await phone.library.items.edit({
       baseSeq: seq,
       edits: [{ newText: "Two, edited.", oldText: "Two." }],
       id: item.id,
     });
-    const { changeSets } = await laptop.library.history.list({});
+    const { changeSets } = await phone.library.history.list({});
     const setIds = changeSets.map((set) => set.id);
-    await laptop.library.history.undo({ changeSetIds: setIds });
-    const { seq: now } = await laptop.library.items.read({ id: item.id });
+    await phone.library.history.undo({ changeSetIds: setIds });
+    const { seq: now } = await phone.library.items.read({ id: item.id });
 
     // each call made only when its turn comes, so every status is its own call's
     const refusals = [
-      [async () => await laptop.library.items.read({ id: crypto.randomUUID() }), "NOT_FOUND", 404],
+      [async () => await phone.library.items.read({ id: crypto.randomUUID() }), "NOT_FOUND", 404],
       [
         async () =>
-          await laptop.library.items.edit({
+          await phone.library.items.edit({
             baseSeq: seq,
             edits: [{ newText: "Uno.", oldText: "One." }],
             id: item.id,
@@ -212,7 +239,7 @@ describe("every refusal's status", () => {
       ],
       [
         async () =>
-          await laptop.library.items.edit({
+          await phone.library.items.edit({
             baseSeq: now,
             edits: [{ newText: "x", oldText: "Not in the item." }],
             id: item.id,
@@ -222,7 +249,7 @@ describe("every refusal's status", () => {
       ],
       [
         async () =>
-          await laptop.library.items.createFile({
+          await phone.library.items.createFile({
             folderId: null,
             id: "01a0f4c2-c400-78d9-a955-7935ec13d6d5",
             name: "photo.png",
@@ -234,109 +261,49 @@ describe("every refusal's status", () => {
         409,
       ],
       [
-        async () => await laptop.library.history.undo({ changeSetIds: setIds }),
+        async () => await phone.library.history.undo({ changeSetIds: setIds }),
         "ALREADY_UNDONE",
         409,
       ],
       [
         async () => {
           // the person turned the built-in agent off
-          await laptop.library.agent.setEnabled({ enabled: false });
-          return await laptop.library.agent.send({ text: "Tidy my library." });
+          await phone.library.agent.setEnabled({ enabled: false });
+          return await phone.library.agent.send({ text: "Tidy my library." });
         },
         "SERVICE_UNAVAILABLE",
         503,
       ],
-      [async () => await laptop.library.search({ query: " " }), "BAD_REQUEST", 400],
+      [async () => await phone.library.search({ query: " " }), "BAD_REQUEST", 400],
     ] as const;
     for (const [call, code, status] of refusals) {
-      await expect(laptop.refusalOf(call()), code).resolves.toMatchObject({ code, status });
+      await expect(phone.refusalOf(call()), code).resolves.toMatchObject({ code, status });
     }
   });
 
   it("answers the account's refusals under the statuses the wire declares", async () => {
-    const email = "rpc-account-statuses@example.test";
-    const { laptop } = await signedUp(email);
-    const anonymous = v1Link(buildHeaders());
-    const wrong = "not-the-password-0000";
-    const invite = await freshInvite();
-    const unsigned = [
+    const { phone } = await signedUp("rpc-account-statuses@example.test");
+    const refusals = [
       [
-        async () => await anonymous.account.signIn({ deviceName: "Phone", email, password: wrong }),
+        async () => await phone.account.delete({ password: "not-the-password-0000" }),
         "INVALID_CREDENTIALS",
         401,
       ],
-      [
-        async () =>
-          await anonymous.account.signUp({
-            deviceName: "Phone",
-            email: "rpc-nobody@example.test",
-            inviteCode: "NOT-A-CODE",
-            name: "Nobody",
-            password: PASSWORD,
-          }),
-        "FORBIDDEN",
-        403,
-      ],
-      [
-        async () =>
-          await anonymous.account.signUp({
-            deviceName: "Phone",
-            email,
-            inviteCode: invite,
-            name: "Again",
-            password: PASSWORD,
-          }),
-        "ACCOUNT_EXISTS",
-        409,
-      ],
+      [async () => await phone.account.devices.revoke({ id: "not-a-session" }), "NOT_FOUND", 404],
+      [async () => await phone.account.assistants.revoke({ grantId: "grant" }), "NOT_FOUND", 404],
     ] as const;
-    for (const [call, code, status] of unsigned) {
-      await expect(anonymous.refusalOf(call()), code).resolves.toMatchObject({ code, status });
+    for (const [call, code, status] of refusals) {
+      await expect(phone.refusalOf(call()), code).resolves.toMatchObject({ code, status });
     }
-    const signed = [
-      [async () => await laptop.account.delete({ password: wrong }), "INVALID_CREDENTIALS", 401],
-      [
-        async () => await laptop.account.devices.revoke({ deviceId: "not-a-device" }),
-        "NOT_FOUND",
-        404,
-      ],
-      [async () => await laptop.account.assistants.revoke({ grantId: "grant" }), "NOT_FOUND", 404],
-    ] as const;
-    for (const [call, code, status] of signed) {
-      await expect(laptop.refusalOf(call()), code).resolves.toMatchObject({ code, status });
-    }
-  });
-
-  it("refuses a sign-in past the account's device cap as its row declares", async () => {
-    const email = "rpc-device-cap@example.test";
-    const { accountId } = await signedUp(email);
-    const db = createDb(env.DB);
-    // the laptop holds one of the twenty
-    for (let index = 1; index < 20; index += 1) {
-      await db.insert(device).values({
-        createdAt: new Date(),
-        credentialHash: `rpc-cap-hash-${String(index)}`,
-        id: `rpc-cap-device-${String(index)}`,
-        name: `Device ${String(index)}`,
-        userId: accountId,
-      });
-    }
-    const anonymous = v1Link(buildHeaders());
-    await expect(
-      anonymous.refusalOf(
-        anonymous.account.signIn({ deviceName: "One Too Many", email, password: PASSWORD }),
-      ),
-    ).resolves.toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
   });
 
   it("answers a library whose account was deleted meanwhile as gone", async () => {
-    const { accountId, laptop } = await signedUp("rpc-gone@example.test");
+    const { accountId, phone } = await signedUp("rpc-gone@example.test");
     await inCell(cellOf(accountId), (state) => {
       engineIn(state, clockAt()).tombstone();
     });
     await expect(
-      laptop.refusalOf(laptop.library.items.createNote({ markdown: "Late." })),
+      phone.refusalOf(phone.library.items.createNote({ markdown: "Late." })),
     ).resolves.toMatchObject({
       code: "GONE",
       defined: true,
@@ -354,27 +321,22 @@ describe("every refusal's status", () => {
       env.RATE_LIMIT_DISABLED = wasDisabled;
     });
 
-    it("refuses a device past its minute's calls, on the library and the account alike", async () => {
-      const { accountId, laptop } = await signedUp("rpc-limited@example.test");
-      const devices = await createDb(env.DB)
-        .select({ deviceId: device.id })
-        .from(device)
-        .where(eq(device.userId, accountId))
-        .all();
-      const spent = devices.map(({ deviceId }) => ({
-        count: 1200,
-        id: crypto.randomUUID(),
-        key: holderRateKey("rpc", deviceId),
-        lastRequest: Date.now(),
-      }));
-      await createDb(env.DB).insert(rateLimit).values(spent).onConflictDoNothing();
-      expect(spent).toHaveLength(1);
+    it("refuses a session past its minute's calls, on the library and the account alike", async () => {
+      const { phone, phoneCookie } = await signedUp("rpc-limited@example.test");
+      await createDb(env.DB)
+        .insert(rateLimit)
+        .values({
+          count: 1200,
+          id: crypto.randomUUID(),
+          key: holderRateKey("rpc", await sessionIdOf(phoneCookie)),
+          lastRequest: Date.now(),
+        });
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
-        async () => await laptop.library.items.list({}),
-        async () => await laptop.account.devices.list(),
+        async () => await phone.library.items.list({}),
+        async () => await phone.account.devices.list(),
       ]) {
-        await expect(laptop.refusalOf(call())).resolves.toMatchObject({
+        await expect(phone.refusalOf(call())).resolves.toMatchObject({
           code: "TOO_MANY_REQUESTS",
           defined: true,
           status: 429,
@@ -385,99 +347,59 @@ describe("every refusal's status", () => {
 });
 
 describe("the account's rows", () => {
-  it("signs a device in and out, and lists the account's devices", async () => {
-    const email = "rpc-sign-in@example.test";
-    const { laptop } = await signedUp(email);
-    const anonymous = v1Link(buildHeaders());
-    const phone = await anonymous.account.signIn({
-      deviceName: "Phone",
-      email,
-      password: PASSWORD,
-    });
-    const onPhone = v1Link(deviceHeaders(phone.credential));
-    const { devices } = await onPhone.account.devices.list();
-    expect(devices.map((row) => row.name).toSorted()).toStrictEqual([
-      "Chrome on Mac",
-      "Laptop",
-      "Phone",
-    ]);
-    const ticket = await onPhone.account.socketTicket();
+  it("lists the account's devices, mints a socket's ticket, and refuses a session signed out", async () => {
+    const { cookie, phone, phoneCookie } = await signedUp("rpc-rows@example.test");
+    const { devices } = await phone.account.devices.list();
+    expect(devices.map((row) => row.name)).toStrictEqual(["Chrome on Mac", "iPhone"]);
+    const ticket = await phone.account.socketTicket();
     expect(ticket.ticket).not.toBe("");
-    await expect(laptop.account.assistants.list()).resolves.toStrictEqual({ assistants: [] });
+    await expect(phone.account.assistants.list()).resolves.toStrictEqual({ assistants: [] });
 
-    await expect(onPhone.account.signOut()).resolves.toStrictEqual({ revoked: true });
-    await expect(onPhone.refusalOf(onPhone.library.items.list({}))).resolves.toMatchObject({
+    await signOutPhone(phoneCookie);
+    await expect(phone.refusalOf(phone.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
-  });
-
-  it("signs up with an invite, answering the new device's credential", async () => {
-    const anonymous = v1Link(buildHeaders());
-    const signedIn = await anonymous.account.signUp({
-      deviceName: "Laptop",
-      email: "rpc-sign-up@example.test",
-      inviteCode: await freshInvite(),
-      name: "New Person",
-      password: PASSWORD,
-    });
-    const fresh = v1Link(deviceHeaders(signedIn.credential));
-    await expect(fresh.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
-  });
-
-  it("mints the browser extension its own credential for the site's session alone", async () => {
-    const email = "rpc-extension@example.test";
-    const { accountId, cookie, laptop } = await signedUp(email);
-    const tab = v1Link(sessionHeaders(cookie));
-    const extension = await tab.account.connectExtension({ deviceName: "Browser extension" });
-    expect(extension).toMatchObject({ email, userId: accountId });
-    const { devices } = await laptop.account.devices.list();
-    expect(devices.map((row) => row.name).toSorted()).toStrictEqual([
-      "Browser extension",
-      "Chrome on Mac",
-      "Laptop",
-    ]);
-    // the extension's credential reaches the library, and the tab's session stays
-    const fromExtension = v1Link(deviceHeaders(extension.credential));
-    await expect(fromExtension.library.items.list({})).resolves.toStrictEqual({
+    await expect(v1Link(sessionHeaders(cookie)).library.items.list({})).resolves.toStrictEqual({
       cursor: null,
       items: [],
     });
-    await expect(tab.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
-    // a device's credential mints none: one stolen would mint credentials outliving its revocation
-    await expect(
-      laptop.refusalOf(laptop.account.connectExtension({ deviceName: "Another" })),
-    ).resolves.toMatchObject({ code: "UNAUTHORIZED", status: 401 });
   });
 
-  it("ends a browser tab's own session when it signs out", async () => {
-    const { cookie } = await signedUp("rpc-tab-sign-out@example.test");
+  it("ends a browser tab's own session and its cookie when it signs out", async () => {
+    const { cookie, phone } = await signedUp("rpc-tab-sign-out@example.test");
+    const signedOut = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/sign-out`, {
+        body: "{}",
+        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(signedOut.status).toBe(200);
+    expect(signedOut.headers.getSetCookie().join("\n")).toMatch(/session_token=;/u);
     const tab = v1Link(sessionHeaders(cookie));
-    await expect(tab.account.signOut()).resolves.toStrictEqual({ revoked: true });
     await expect(tab.refusalOf(tab.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
+    await expect(phone.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
   });
 
   it("deletes the account with its password asked again, and everything it held goes", async () => {
     const email = "rpc-delete@example.test";
-    const { accountId, credential, laptop } = await signedUp(email);
-    await laptop.library.items.createNote({ markdown: "Soon gone." });
+    const { accountId, phone, phoneCookie } = await signedUp(email);
+    await phone.library.items.createNote({ markdown: "Soon gone." });
     await env.BLOBS.put(blobKey(accountId, "c".repeat(64)), "bytes");
     const db = createDb(env.DB);
     await markGrantRevoked(db, { accountId, grantId: "disconnected" });
 
-    await expect(laptop.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
+    await expect(phone.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
       deleted: true,
     });
 
     await expect(db.select().from(user).where(eq(user.id, accountId)).all()).resolves.toStrictEqual(
       [],
     );
-    await expect(
-      db.select().from(device).where(eq(device.userId, accountId)).all(),
-    ).resolves.toStrictEqual([]);
     await expect(
       db.select().from(revokedGrant).where(eq(revokedGrant.userId, accountId)).all(),
     ).resolves.toStrictEqual([]);
@@ -491,7 +413,7 @@ describe("the account's rows", () => {
       expect(library.deletedAt()).not.toBeNull();
       expect(library.head()).toBe(0);
     });
-    const after = v1Link(deviceHeaders(credential));
+    const after = v1Link(phoneHeaders(phoneCookie));
     await expect(after.refusalOf(after.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,

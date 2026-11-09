@@ -35,7 +35,7 @@ const GiB = 1024 * 1024 * 1024;
 
 const laptop = (accountId: string): NamedPrincipal => ({
   accountId,
-  actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
 });
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
@@ -547,7 +547,7 @@ describe("the library's procedures", () => {
           actor: "person",
           itemCount: 1,
           items: [expect.objectContaining({ created: true, id: item.id })],
-          label: "You on Laptop",
+          label: "You in the browser",
         }),
       ]);
       const [made] = changeSets;

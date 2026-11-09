@@ -8,12 +8,6 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
 import { z } from "zod";
 import {
   clickButtonIn,
@@ -23,19 +17,18 @@ import {
   untilBodyHolds,
 } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, PHONE_BUILD } from "../harness/cloud-account";
+import { OWNER, signInPhone } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import type { CloudWorker } from "../harness/cloud-worker";
 import { openLibraryTab } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { TOAST_TEXT } from "../harness/selectors";
+import { asPhone, v1Client } from "../harness/v1-wire";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // what the cloud names a session the phone's runtime signed in, from the system's networking stack
 // its native requests carry
 const PHONE = "iPhone";
-const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
 // Better Auth's session cookie on the local Worker's http origin, which takes no `__Secure-` prefix
 const SESSION_COOKIE = "better-auth.session_token";
 const DEADLINE_MS = 30_000;
@@ -61,33 +54,6 @@ const OWN_ROWS = `JSON.stringify([...document.querySelectorAll('ul[aria-label="D
   .filter((row) => row.textContent.includes("This device"))
   .map((row) => row.querySelector("button") !== null))`;
 
-// the phone as its runtime signs in, on Better Auth's own route under its app scheme, and its
-// `/v1` calls on the cookie that answered
-const signInPhone = async (worker: CloudWorker): Promise<V1Client> => {
-  const response = await fetch(`${worker.origin}/api/auth/sign-in/email`, {
-    body: JSON.stringify(OWNER),
-    headers: {
-      "content-type": "application/json",
-      "expo-origin": PHONE_ORIGIN,
-      "user-agent": PHONE_USER_AGENT,
-    },
-    method: "POST",
-  });
-  await response.arrayBuffer();
-  expect(response.ok, `the phone's sign-in answered ${String(response.status)}`);
-  const cookie = response.headers
-    .getSetCookie()
-    .map((setCookie) => setCookie.split(";")[0] ?? "")
-    .join("; ");
-  return createORPCClient<V1Client>(
-    new RPCLink({
-      headers: { ...clientBuildHeaders(PHONE_BUILD), cookie, "expo-origin": PHONE_ORIGIN },
-      origin: worker.origin,
-      url: V1_RPC_PATH,
-    }),
-  );
-};
-
 // how a call answered: the code it was refused with, or that it answered
 const outcomeOf = async (call: () => Promise<object>): Promise<string> => {
   try {
@@ -105,7 +71,7 @@ export const settingsBrowser: Scenario = {
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const { browser, library, worker } = await openLibraryTab(ctx, "settings");
-    const phone = await signInPhone(worker);
+    const phone = v1Client(worker, asPhone(await signInPhone(worker.origin)));
 
     ctx.log("Settings opened offline: each row the cloud answers waits, and says so");
     await browser(["set", "offline", "on"]);

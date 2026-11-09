@@ -8,15 +8,17 @@ import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { request } from "node:http";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
+import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, PHONE_BUILD, signUp } from "../harness/cloud-account";
+import { PHONE_BUILD, signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { CloudWorker } from "../harness/cloud-worker";
 import { solidPng } from "../harness/png-pixels";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
-import { newItemId, readFile, uploadFile, v1Client } from "../harness/v1-wire";
+import { asPhone, newItemId, readFile, uploadFile, v1Client } from "../harness/v1-wire";
+import type { V1Caller } from "../harness/v1-wire";
 import { z } from "zod";
 
 interface Source {
@@ -66,10 +68,10 @@ type Library = V1Client["library"];
 const bytesOf = async (response: Response): Promise<Buffer> =>
   Buffer.from(await response.arrayBuffer());
 
-const saveAll = async (worker: CloudWorker, credential: string, library: Library) => {
+const saveAll = async (worker: CloudWorker, phone: V1Caller, library: Library) => {
   const saved = new Map<string, Saved>();
   for (const source of SOURCES) {
-    const upload = await uploadFile(worker, credential, source);
+    const upload = await uploadFile(worker, phone, source);
     expectEq(upload.status, 201, `${source.name}'s upload`);
     const { item } = await library.items.createFile({
       folderId: null,
@@ -87,11 +89,12 @@ const saveAll = async (worker: CloudWorker, credential: string, library: Library
 };
 
 // a PUT that declares a file past the cap: refused on its length, so not one byte is sent
-const declaredPastTheCap = async (worker: CloudWorker, credential: string): Promise<number> => {
+const declaredPastTheCap = async (worker: CloudWorker, cookie: string): Promise<number> => {
   const put = request(`${worker.origin}${V1_BLOBS_PATH}/${"0".repeat(64)}`, {
     headers: {
       ...clientBuildHeaders(PHONE_BUILD),
-      authorization: `Bearer ${credential}`,
+      cookie,
+      "expo-origin": PHONE_ORIGIN,
       "content-length": String(BLOB_MAX_BYTES + 1),
       "content-type": "video/mp4",
     },
@@ -106,11 +109,11 @@ const declaredPastTheCap = async (worker: CloudWorker, credential: string): Prom
 
 const expectServed = async (
   worker: CloudWorker,
-  credential: string,
+  phone: V1Caller,
   saved: ReadonlyMap<string, Saved>,
 ) => {
   const shaOf = (name: string): string => saved.get(name)?.sha ?? "";
-  const pdf = await readFile(worker, credential, shaOf("Lecture notes.pdf"));
+  const pdf = await readFile(worker, phone, shaOf("Lecture notes.pdf"));
   expectEq(pdf.status, 200, "the PDF's read");
   expectEq(pdf.headers.get("content-type"), "application/pdf", "the PDF's type");
   const pdfPolicy = pdf.headers.get("content-security-policy") ?? "sandbox";
@@ -118,7 +121,7 @@ const expectServed = async (
   await pdf.arrayBuffer();
 
   const webm = saved.get("clip.webm");
-  const probe = await readFile(worker, credential, shaOf("clip.webm"), { range: "bytes=0-1" });
+  const probe = await readFile(worker, phone, shaOf("clip.webm"), { range: "bytes=0-1" });
   expectEq(probe.status, 206, "the recording's probe");
   expectEq(
     probe.headers.get("content-range"),
@@ -128,7 +131,7 @@ const expectServed = async (
   const probed = await bytesOf(probe);
   expectEq(probed.length, 2, "the probe's bytes");
 
-  const zip = await readFile(worker, credential, shaOf("archive.zip"));
+  const zip = await readFile(worker, phone, shaOf("archive.zip"));
   expect(
     (zip.headers.get("content-security-policy") ?? "").includes("sandbox"),
     "an archive is served under a sandbox",
@@ -143,7 +146,7 @@ const expectServed = async (
 const expectDeleteAndRestore = async (
   ctx: ScenarioContext,
   worker: CloudWorker,
-  credential: string,
+  phone: V1Caller,
   library: Library,
   pdf: Saved,
 ) => {
@@ -156,14 +159,14 @@ const expectDeleteAndRestore = async (
   expectEq(back, [pdf.id], "the PDF's item restored");
   const restored = await library.items.read({ id: pdf.id });
   expectEq([restored.fields.kind, restored.fields.deletedAt], ["pdf", null], "the restored item");
-  const bytes = await bytesOf(await readFile(worker, credential, pdf.sha));
+  const bytes = await bytesOf(await readFile(worker, phone, pdf.sha));
   expectEq(Buffer.compare(bytes, Buffer.from(pdf.source.bytes)), 0, "the restored PDF's bytes");
 };
 
 const expectSharedFileKept = async (
   ctx: ScenarioContext,
   worker: CloudWorker,
-  credential: string,
+  phone: V1Caller,
   library: Library,
   picture: Saved,
 ) => {
@@ -179,7 +182,7 @@ const expectSharedFileKept = async (
   await library.items.delete({ ids: [picture.id] });
   const { purged } = await library.items.purge({ ids: [picture.id] });
   expectEq(purged, [picture.id], "the first picture's item emptied");
-  const kept = await readFile(worker, credential, picture.sha);
+  const kept = await readFile(worker, phone, picture.sha);
   expectEq(kept.status, 200, "the picture the second item names");
   expectEq(
     Buffer.compare(await bytesOf(kept), Buffer.from(picture.source.bytes)),
@@ -198,25 +201,23 @@ export const fileItems: Scenario = {
   async run(ctx) {
     const worker = await ctx.cloudWorker();
     await signUp(worker.origin);
-    const { credential } = await v1Client(worker, null).account.signIn({
-      ...OWNER,
-      deviceName: "E2E Phone",
-    });
-    const { library } = v1Client(worker, credential);
+    const cookie = await signInPhone(worker.origin);
+    const phone = asPhone(cookie);
+    const { library } = v1Client(worker, phone);
 
     ctx.log("a PDF, a recording, an archive and a picture land as items of their kind");
-    const saved = await saveAll(worker, credential, library);
+    const saved = await saveAll(worker, phone, library);
 
     ctx.log("a file declared past the cap is refused on its length");
-    expectEq(await declaredPastTheCap(worker, credential), 413, "the oversized upload");
+    expectEq(await declaredPastTheCap(worker, cookie), 413, "the oversized upload");
 
     ctx.log("the PDF unsandboxed, a recording's range, and the archive under a sandbox");
-    await expectServed(worker, credential, saved);
+    await expectServed(worker, phone, saved);
 
     const pdf = saved.get("Lecture notes.pdf");
     const picture = saved.get("red.png");
     expect(pdf !== undefined && picture !== undefined, "the PDF and the picture were saved");
-    await expectDeleteAndRestore(ctx, worker, credential, library, pdf);
-    await expectSharedFileKept(ctx, worker, credential, library, picture);
+    await expectDeleteAndRestore(ctx, worker, phone, library, pdf);
+    await expectSharedFileKept(ctx, worker, phone, library, picture);
   },
 };

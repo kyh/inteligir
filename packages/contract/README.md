@@ -6,7 +6,7 @@ by the Worker and `library.*` by the account's library cell, typed by every
 client as `V1Client`. Beside it are the plain-HTTP routes it names (a file's
 bytes, the account's socket), the build every request names,
 and `cloud/extension`, the browser extension's identity and the messages the
-site's connect page hands it a credential with.
+site's connect page tells it where the site is with.
 
 ## Why it exists
 
@@ -37,8 +37,8 @@ src/
     v1-contract.ts     # /v1's one oRPC wire: account.* and library.*, and the client type over it
     v1-errors.ts       # every refusal /v1 answers, declared once, and the status map every handler uses
     refusal-text.ts    # what a screen says of a failed call: a declared refusal's own sentence, else its fallback
-    account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors (account-schema.ts)
-    device/            # the device credential, its sign-in and the account's devices
+    account/           # the account's rows (account-contract.ts), its deletion and the sign-up form (account-schema.ts)
+    device/            # the password's bounds and the account's devices, each a signed-in session
     library/           # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
                        #   the agent's events, a file's route, the socket's frames, the socket client
                        #   every app dials (account-socket.ts) and what a failed call means (call-outcome.ts)
@@ -85,7 +85,7 @@ src/
   `/v1` handler's status map, since an unmapped code answers 400.
   `cloud/v1-contract.test.ts` holds it to exactly the custom codes the rows
   declare and answers each through a real handler and link. An error no row
-  declares is never a verdict on a credential: it is a fault a client retries,
+  declares is never a verdict on a session: it is a fault a client retries,
   but for `BAD_REQUEST`, which says the call can never land as it is.
 - **Every library write takes an optional `opId`**, which the cell keeps, so
   a save queue resending after a lost answer lands once; the test names each read
@@ -98,7 +98,7 @@ src/
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides every call, a file's too
   (`client-build.ts`); `CLIENT_OUTDATED` ends a sign-in as outdated, not signed
-  out: the credential stands, and only an update moves past it. A page the
+  out: the session stands, and only an update moves past it. A page the
   Worker served names none, and the socket opens on a ticket a call minted.
 - **One spelling per route path.** `tools/repo-guards/src/route-paths.test.ts`
   sweeps the repo for the literal strings behind `V1_RPC_PATH` and

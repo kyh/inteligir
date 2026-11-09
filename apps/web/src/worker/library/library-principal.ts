@@ -1,7 +1,6 @@
 // Who a call to the library is by: the account, and the actor whose change set its writes join. The
 // Worker resolves it from the credential the request carried (a session through the door it came
-// by and a device's bearer on `/v1`, an assistant's OAuth token on the connector), drops any copy the request
-// brought, and stamps it on the request it forwards to the account's cell
+// by on `/v1`, an assistant's OAuth token on the connector), drops any copy the request brought, and stamps it on the request it forwards to the account's cell
 // (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there alone, since
 // only the Worker reaches a cell, and holds it to the account its own name gives. The built-in
 // agent's principal is never a header's: the cell mints it in `agentTool`, for one turn of one
@@ -20,15 +19,8 @@ export const SOCKET_HOLDER_HEADER = "x-library-socket-holder";
 // `library:read` reads it alone; an app and the built-in agent hold neither, having no such limit
 export const LIBRARY_SCOPES = ["library", "library:read"] as const;
 
-// the id a credential goes by: a device's, a browser session's or an assistant's grant
+// the id a credential goes by: a session's or an assistant's grant
 export const credentialIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u);
-
-// an app signed in on a device by a device credential
-const deviceActorSchema = z.strictObject({
-  deviceId: credentialIdSchema,
-  deviceName: z.string().min(1).max(128),
-  kind: z.literal("device"),
-});
 
 // the door a session reached `/v1` by (`../wire/v1-principal`): the site's own page, a tab or the
 // Mac app's window; the phone; the browser extension, on the browser's own session
@@ -56,11 +48,7 @@ const assistantActorSchema = z.strictObject({
 // what a header may carry: every principal but the built-in agent's, so no request names one
 export const principalSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
-  actor: z.discriminatedUnion("kind", [
-    deviceActorSchema,
-    sessionActorSchema,
-    assistantActorSchema,
-  ]),
+  actor: z.discriminatedUnion("kind", [sessionActorSchema, assistantActorSchema]),
 });
 
 // a principal its own claim names, as the Worker stamps it
@@ -82,9 +70,9 @@ export const agentPrincipal = (
   actor: { kind: "agent", threadId: turn.threadId, turn: turn.turn },
 });
 
-// what an app's credential verifies to on `/v1`, which takes no assistant
+// what an app's session verifies to on `/v1`, which takes no assistant
 export type AppPrincipal = NamedPrincipal & {
-  readonly actor: z.infer<typeof deviceActorSchema> | z.infer<typeof sessionActorSchema>;
+  readonly actor: z.infer<typeof sessionActorSchema>;
 };
 
 // what the connector takes: an assistant's grant, the person's own Claude or ChatGPT
@@ -96,7 +84,7 @@ export const isConnectorPrincipal = (principal: Principal): principal is Connect
   principal.actor.kind === "assistant";
 
 export const isAppPrincipal = (principal: Principal): principal is AppPrincipal =>
-  principal.actor.kind === "device" || principal.actor.kind === "session";
+  principal.actor.kind === "session";
 
 export const isNamedPrincipal = (principal: Principal): principal is NamedPrincipal =>
   principal.actor.kind !== "agent";
@@ -105,7 +93,7 @@ export const isNamedPrincipal = (principal: Principal): principal is NamedPrinci
 export const changesLibrary = (principal: ConnectorPrincipal): boolean =>
   principal.actor.scopes.includes("library");
 
-// a header carries Latin-1 alone and a device's name may hold any letter, so the JSON is
+// a header carries Latin-1 alone and an assistant's name may hold any letter, so the JSON is
 // percent-encoded
 /** @internal */
 export const principalHeaderValue = (principal: NamedPrincipal): string =>
@@ -162,9 +150,6 @@ const SESSION_LABELS = {
 export const cellActorOf = (principal: NamedPrincipal): CellActor => {
   const { actor } = principal;
   switch (actor.kind) {
-    case "device": {
-      return { deviceId: actor.deviceId, kind: "person", label: `You on ${actor.deviceName}` };
-    }
     case "session": {
       return { deviceId: actor.sessionId, kind: "person", label: SESSION_LABELS[actor.door] };
     }

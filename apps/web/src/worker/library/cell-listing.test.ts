@@ -22,7 +22,7 @@ const cellIn = (state: DurableObjectState) => {
       actor: () =>
         cellActorOf({
           accountId: "account",
-          actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+          actor: { door: "page", kind: "session", sessionId: "laptop-1" },
         }),
       agent: agentCellIn(state, engine, { clock }),
       library: engine,

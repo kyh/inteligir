@@ -5,7 +5,7 @@ import { mintSocketTicket, readSocketTicket, SOCKET_TICKET_TTL_MS } from "./sock
 
 const SECRET = "a secret only the Worker holds";
 const NOW = Date.UTC(2026, 9, 1);
-const CLAIM = { accountId: "account-1", holder: { id: "device-1", kind: "device" } } as const;
+const CLAIM = { accountId: "account-1", holder: { id: "session-1", kind: "session" } } as const;
 
 const base64Url = (text: string): string =>
   base64FromBytes(new TextEncoder().encode(text))

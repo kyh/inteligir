@@ -4,7 +4,6 @@ import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { PHONE_ORIGIN } from "@repo/contract/cloud/origin";
-import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import {
   librarySocketFrameSchema,
   SOCKET_TICKET_PARAM,
@@ -91,25 +90,32 @@ export const sessionHeaders = (cookie: string) => ({ ...OWN_PAGE_HEADERS, cookie
 // binary frames carry no ping, so anything but text is skipped
 const textFrameSchema = z.string();
 
-const sessionUserSchema = z.looseObject({
-  user: z.looseObject({ email: z.string(), id: z.string() }),
+const sessionSchema = z.looseObject({
+  session: z.looseObject({ id: z.string() }),
+  user: z.looseObject({ id: z.string() }),
 });
 
-const sessionUser = async (cookie: string): Promise<{ id: string; email: string }> => {
+const sessionOf = async (cookie: string) => {
   const response = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(cookie),
   });
-  const body = sessionUserSchema.safeParse(await response.json());
+  const body = sessionSchema.safeParse(await response.json());
   if (!body.success) {
     throw new Error("no session for that cookie");
   }
-  return body.data.user;
+  return body.data;
 };
 
 // ask before a test deletes the account; afterwards the session no longer answers
 export const userIdOf = async (cookie: string): Promise<string> => {
-  const user = await sessionUser(cookie);
+  const { user } = await sessionOf(cookie);
   return user.id;
+};
+
+// the session a cookie names, as the windows a session's calls spend are keyed on it
+export const sessionIdOf = async (cookie: string): Promise<string> => {
+  const { session } = await sessionOf(cookie);
+  return session.id;
 };
 
 // a `/v1/rpc` link as an app holds one, its headers fixed, and the status each answer came under
@@ -151,11 +157,6 @@ export const v1Link = (headers: Record<string, string>) => {
   // the client is a proxy, so its two routers are read off it rather than spread
   return { account: client.account, library: client.library, refusalOf, setCookies, statuses };
 };
-
-export const deviceHeaders = (credential: string) => ({
-  ...buildHeaders(),
-  authorization: `Bearer ${credential}`,
-});
 
 // a session cookie's value as the browser's jar holds it, signed and encoded as Better Auth set it
 export const sessionTokenOf = (cookie: string): string => {
@@ -203,19 +204,20 @@ export const signInPhone = async (email: string, password = PASSWORD): Promise<s
   return cookieHeaderOf(response);
 };
 
-// a caller at the floor that holds no credential yet: a sign-in or a sign-up
-export const anonymous = () => v1Link(buildHeaders());
-
-// the cookie only names the account: the device credential comes from the account's own password
-export const loginDevice = async (
-  cookie: string,
-  deviceName: string,
-): Promise<DeviceLoginResponse> => {
-  const { email } = await sessionUser(cookie);
-  return await anonymous().account.signIn({ deviceName, email, password: PASSWORD });
+// the phone's sign-out as its runtime makes it: Better Auth's own route, which ends the session
+// the cookie names
+export const signOutPhone = async (cookie: string): Promise<void> => {
+  const response = await drained(
+    exports.default.fetch(`${ORIGIN}/api/auth/sign-out`, {
+      body: "{}",
+      headers: { "content-type": "application/json", cookie, "expo-origin": PHONE_ORIGIN },
+      method: "POST",
+    }),
+  );
+  expect(response.status).toBe(200);
 };
 
-// a socket opened as every client opens one: on a ticket minted under these headers' credential
+// a socket opened as every client opens one: on a ticket minted under these headers' session
 export const openSocketAs = async (
   headers: Record<string, string>,
 ): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> => {
@@ -240,9 +242,3 @@ export const openSocketAs = async (
   });
   return { frames, socket };
 };
-
-// a device's socket, on a ticket its credential minted
-export const openSocket = async (
-  credential: string,
-): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> =>
-  await openSocketAs(deviceHeaders(credential));

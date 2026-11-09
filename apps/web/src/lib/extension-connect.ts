@@ -57,9 +57,7 @@ const askExtension = async (
   }
 };
 
-export const connectExtension = async (
-  runtime: PageRuntime | undefined,
-): Promise<ConnectOutcome> => {
+export const tellExtension = async (runtime: PageRuntime | undefined): Promise<ConnectOutcome> => {
   const answer = await askExtension(runtime);
   if (answer === null) {
     return { kind: "no-extension" };

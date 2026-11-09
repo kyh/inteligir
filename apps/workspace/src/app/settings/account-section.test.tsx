@@ -17,7 +17,7 @@ const device = (id: string, name: string, current: boolean) => ({
   createdAt: 1,
   current,
   id,
-  lastSeenAt: null,
+  lastSeenAt: 1,
   name,
 });
 
@@ -79,8 +79,8 @@ describe("Settings › Account's devices", () => {
 });
 
 describe("Settings › Account's Sign out", () => {
-  it("ends this session at Better Auth, never through the cell, then leaves for the sign-in", async () => {
-    const { calls, library } = fakePageLibrary({ answer });
+  it("ends this session at Better Auth, then leaves for the sign-in", async () => {
+    const { library } = fakePageLibrary({ answer });
     const { asked, auth, leaves, left } = signingOut(200);
     renderOnLibrary(<AccountSection />, { ...library, auth, left });
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
@@ -90,7 +90,6 @@ describe("Settings › Account's Sign out", () => {
     expect(asked.map((request) => `${request.method} ${request.url}`)).toStrictEqual([
       `POST ${ORIGIN}/api/auth/sign-out`,
     ]);
-    expect(calls.map((call) => call.path)).not.toContain("account.signOut");
   });
 
   it("stays on the page when Better Auth refuses it", async () => {

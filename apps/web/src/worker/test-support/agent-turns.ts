@@ -49,7 +49,7 @@ const laptopClient = (
   const agent = agentCellIn(state, library, options);
   const actor = cellActorOf({
     accountId: agent.accountId,
-    actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+    actor: { door: "page", kind: "session", sessionId: "laptop-1" },
   });
   return createRouterClient(libraryRouter, {
     context: { actor: () => actor, agent, library, settle: agent.settle },

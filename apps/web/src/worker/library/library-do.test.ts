@@ -1,13 +1,13 @@
 import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../db/client";
-import { device, inviteCode } from "../db/schema";
+import { inviteCode } from "../db/schema";
 import { connectorAuth } from "../connector/connector-auth";
-import { loginDevice, signUpUser, userIdOf } from "../test-support/cloud-helpers";
+import { signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import { connectAssistant } from "../test-support/connector-session";
 import {
   blocksOf,
@@ -44,10 +44,10 @@ const files = async (prefix: string): Promise<number> => {
   return listing.objects.length;
 };
 
-// a laptop's call as the Worker stamps it, for the account named
+// a tab's call as the Worker stamps it, for the account named
 const principal = (accountId: string): NamedPrincipal => ({
   accountId,
-  actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
 });
 
 const itemCount = (state: DurableObjectState): number =>
@@ -275,18 +275,17 @@ describe("the library cell", () => {
 });
 
 describe("deleting the account from its cell", () => {
-  it("runs its steps in order: the tombstone, the agent's conversations, the cell's storage, its files, its grants, its credentials", async () => {
+  it("runs its steps in order: the tombstone, the agent's conversations, the cell's storage, its files, its grants, its invite", async () => {
     expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toStrictEqual([
       "tombstone",
       "agent",
       "storage",
       "files",
       "grants",
-      "credentials",
+      "invite",
     ]);
     const email = "purge-order@example.test";
     const { cookie } = await signUpUser(email);
-    await loginDevice(cookie, "Laptop");
     await connectAssistant(cookie);
     const accountId = await userIdOf(cookie);
     const { helpers } = connectorAuth(env);
@@ -298,8 +297,12 @@ describe("deleting the account from its cell", () => {
     await env.BLOBS.put(blobKey(accountId, SHA), "mine");
     await env.BLOBS.put(blobKey(stranger, SHA), "theirs");
     const db = createDb(env.DB);
-    const devices = async (): Promise<number> => {
-      const rows = await db.select().from(device).where(eq(device.userId, accountId)).all();
+    const invites = async (): Promise<number> => {
+      const rows = await db
+        .select()
+        .from(inviteCode)
+        .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`)
+        .all();
       return rows.length;
     };
     // two conversations the account's threads name, each holding rows in its own object
@@ -317,9 +320,9 @@ describe("deleting the account from its cell", () => {
     // what each step left behind, and what a read meeting the cell then heard
     interface Seen {
       readonly alarm: number | null;
-      readonly devices: number;
       readonly files: number;
       readonly grants: number;
+      readonly invites: number;
       readonly items: number;
       readonly read: CellRefusal | null;
       readonly threads: number;
@@ -347,9 +350,9 @@ describe("deleting the account from its cell", () => {
         await step.run(scope);
         seen.set(step.name, {
           alarm: await state.storage.getAlarm(),
-          devices: await devices(),
           files: await files(accountBlobPrefix(accountId)),
           grants: await grants(),
+          invites: await invites(),
           items: itemCount(state),
           read: refusalOf(engineIn(state, clockAt()).read(() => null)),
           threads: await heldThreads(),
@@ -357,28 +360,18 @@ describe("deleting the account from its cell", () => {
       }
     });
     const gone = { kind: "gone" };
-    const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 1, items: 1 };
+    const before = { alarm: expect.any(Number), files: 1, grants: 1, invites: 1, items: 1 };
     expect(Object.fromEntries(seen)).toStrictEqual({
       // a thread's purge settles through the cell, which keeps no alarm past the tombstone
       agent: { ...before, alarm: null, read: gone, threads: 0 },
-      credentials: {
-        alarm: null,
-        devices: 0,
-        files: 0,
-        grants: 0,
-        items: 0,
-        read: gone,
-        threads: 0,
-      },
-      files: { alarm: null, devices: 1, files: 0, grants: 1, items: 0, read: gone, threads: 0 },
-      grants: { alarm: null, devices: 1, files: 0, grants: 0, items: 0, read: gone, threads: 0 },
-      storage: { alarm: null, devices: 1, files: 1, grants: 1, items: 0, read: gone, threads: 0 },
+      files: { alarm: null, files: 0, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
+      grants: { alarm: null, files: 0, grants: 0, invites: 1, items: 0, read: gone, threads: 0 },
+      invite: { alarm: null, files: 0, grants: 0, invites: 0, items: 0, read: gone, threads: 0 },
+      storage: { alarm: null, files: 1, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
       tombstone: { ...before, read: gone, threads: 2 },
     });
-    // another account's files stay, and the invite's redeemer is forgotten
+    // another account's files stay
     await expect(files(accountBlobPrefix(stranger))).resolves.toBe(1);
-    const invites = await db.select().from(inviteCode).all();
-    expect(invites.some((invite) => invite.redeemedBy === email)).toBe(false);
   });
 
   // a thousand and five puts to R2, past one listing's page on purpose

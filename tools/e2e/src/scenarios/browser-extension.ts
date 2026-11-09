@@ -18,19 +18,18 @@ import { OWNER, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import {
   asLocalhost,
-  connectExtension,
+  connectOnSite,
   extensionAccount,
   extensionLaunchFlags,
   extensionPage,
   queuedSaves,
   saveFromWorker,
-  sessionBearerOf,
   signInOnSite,
   signOutOnSite,
 } from "../harness/extension-fixture";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { v1Client } from "../harness/v1-wire";
+import { asExtension, v1Client } from "../harness/v1-wire";
 
 const ARTICLE_PATH = "/essays/file-over-app";
 const LATER_PATH = "/essays/read-it-later";
@@ -114,7 +113,7 @@ export const browserExtension: Scenario = {
     const cloud = asLocalhost(link.origin);
     // the account's own session, called through the extension's door, so the oracle needs no
     // credential of its own
-    const { account, library } = v1Client(worker, sessionBearerOf(owner.cookie));
+    const { account, library } = v1Client(worker, asExtension(owner.cookie));
     const landed = async (url: string): Promise<boolean> => {
       const { items } = await library.items.list({ kind: "link" });
       return items.some((item) => item.url === url);
@@ -126,7 +125,7 @@ export const browserExtension: Scenario = {
       });
 
       ctx.log("signed in on the site, the connect page points the extension at the account");
-      await connectExtension(browser, cloud);
+      await connectOnSite(browser, cloud);
       await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
       expectEq(
         await extensionAccount(browser),
@@ -174,7 +173,7 @@ export const browserExtension: Scenario = {
 
       ctx.log("the account signs this browser out from another device, and a save waits for it");
       const { devices } = await account.devices.list();
-      const others = devices.filter((device) => !device.current && device.revokedAt === null);
+      const others = devices.filter((device) => !device.current);
       expect(others.length > 0, `the browser's session is listed: ${JSON.stringify(devices)}`);
       for (const other of others) {
         await account.devices.revoke({ id: other.id });
@@ -191,7 +190,7 @@ export const browserExtension: Scenario = {
       expectEq(await extensionAccount(browser), null, "the extension's account");
 
       ctx.log("signed in and connected again, the save that waited goes");
-      await connectExtension(browser, cloud);
+      await connectOnSite(browser, cloud);
       await browser(["tab", "new", extensionPage("welcome.html")], DEADLINE_MS);
       await untilNothingWaits(browser, DEADLINE_MS);
       expect(await landed(revokedPage), "the save made signed out landed");

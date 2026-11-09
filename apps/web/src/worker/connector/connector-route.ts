@@ -5,7 +5,7 @@
 // and publishes the metadata that challenge names. A call that passes is checked for the scope it
 // needs and its grant's budget, then forwarded whole into the account's cell, carrying the
 // principal the token verified, an assistant's grant, and nothing the caller sent in its place. No
-// device credential is taken here: the connector is an assistant's door alone.
+// session is taken here: the connector is an assistant's door alone.
 
 import {
   hostHeaderValidationResponse,

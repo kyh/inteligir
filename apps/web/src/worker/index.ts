@@ -11,7 +11,6 @@ import {
 } from "./connector/connector-auth";
 import { handleConnector } from "./connector/connector-route";
 import { handleConsent } from "./connector/consent-route";
-import { answerPreflight, crossOriginPage, letPageRead } from "./cors";
 import { consumeFills } from "./fill/fill-consumer";
 import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket } from "./library/socket-routes";
@@ -49,8 +48,8 @@ interface FrontDoor {
 }
 
 // the doors answered whole before any floor: an assistant's, which names no build and takes no
-// device credential (the token its OAuth endpoints minted, asked for on its consent page), and the
-// library's page, its document from the assets for every path under its prefix
+// session (the token its OAuth endpoints minted, asked for on its consent page), and the library's
+// page, its document from the assets for every path under its prefix
 const FRONT_DOORS: readonly FrontDoor[] = [
   { answer: handleConnector, owns: isConnectorPath },
   {
@@ -83,7 +82,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleV1Rpc(request, env, ctx, url);
   }
 
-  // the library's files: the floor and the credential checked as the wire checks them
+  // the library's files: the floor and the session checked as the wire checks them
   if (isBlobPath(url.pathname)) {
     return await handleBlobRoute(request, env, ctx, url);
   }
@@ -112,14 +111,7 @@ const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promis
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const page = crossOriginPage(request, new URL(request.url).pathname);
-    if (page === null) {
-      return await answer(request, env, ctx);
-    }
-    if (request.method === "OPTIONS") {
-      return answerPreflight(page);
-    }
-    return letPageRead(await answer(request, env, ctx), page);
+    return await answer(request, env, ctx);
   },
   async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
     await consumeFills(batch, env, ctx);

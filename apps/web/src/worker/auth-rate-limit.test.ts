@@ -62,7 +62,7 @@ describe("Better Auth's limiter", () => {
     const db = createDb(env.DB);
     const lapsed = Date.now() - 2 * AUTH_RATE_WINDOW_SECONDS * 1000;
     const workerKey = callerRateKey(
-      "login",
+      "inviteSignUp",
       new Request(ORIGIN, { headers: { [CALLER_IP_HEADER]: "203.0.113.30" } }),
     );
     await db.insert(rateLimit).values([

@@ -1,5 +1,5 @@
-// `account.delete`, the one way an account ends: the password asked again under a live credential,
-// and everything the account held gone with it, its sockets and every device's credential too.
+// `account.delete`, the one way an account ends: the password asked again under a live session,
+// and everything the account held gone with it, its sockets and every device's session too.
 
 import { env, exports } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -9,21 +9,23 @@ import { inviteCode, rateLimit, session, user } from "./db/schema";
 import { holderRateKey } from "./rate-limit";
 import {
   buildHeaders,
-  deviceHeaders,
   drained,
-  loginDevice,
-  openSocket,
+  openSocketAs,
   ORIGIN,
   PASSWORD,
+  phoneHeaders,
   sessionHeaders,
+  sessionIdOf,
+  signInPhone,
+  signOutPhone,
   signUpUser,
   userIdOf,
   v1Link,
 } from "./test-support/cloud-helpers";
 
-// whether a credential still reaches the account: a call any live credential may make
-const reaches = async (credential: string): Promise<boolean> => {
-  const link = v1Link(deviceHeaders(credential));
+// whether a phone's session still reaches the account: a call any live session may make
+const reaches = async (cookie: string): Promise<boolean> => {
+  const link = v1Link(phoneHeaders(cookie));
   try {
     await link.account.devices.list();
     return true;
@@ -56,13 +58,13 @@ describe("deleting the account", () => {
   it("re-checks the password and deletes everything the account holds", async () => {
     const email = "delete-from-app@example.test";
     const { cookie } = await signUpUser(email);
-    const laptop = await loginDevice(cookie, "Laptop");
-    const phone = await loginDevice(cookie, "Phone");
+    const laptop = await signInPhone(email);
+    const phone = await signInPhone(email);
     const userId = await userIdOf(cookie);
     const invite = await inviteOf(email);
     expect(invite).toBeDefined();
 
-    const phoneSocket = await openSocket(phone.credential);
+    const phoneSocket = await openSocketAs(phoneHeaders(phone));
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const phoneClosed = new Promise<number>((resolve) => {
       phoneSocket.socket.addEventListener("close", (close) => {
@@ -70,17 +72,15 @@ describe("deleting the account", () => {
       });
     });
 
-    await expect(
-      deleteAs(deviceHeaders(laptop.credential), PASSWORD).deletion,
-    ).resolves.toStrictEqual({
+    await expect(deleteAs(phoneHeaders(laptop), PASSWORD).deletion).resolves.toStrictEqual({
       deleted: true,
     });
 
     await expect(userExists(userId)).resolves.toBe(false);
-    for (const credential of [laptop.credential, phone.credential]) {
-      await expect(reaches(credential)).resolves.toBe(false);
+    for (const signedIn of [laptop, phone]) {
+      await expect(reaches(signedIn)).resolves.toBe(false);
     }
-    // the sign-in that checked the password minted a session; none outlives the account
+    // no session outlives the account
     const sessions = await createDb(env.DB)
       .select()
       .from(session)
@@ -101,34 +101,34 @@ describe("deleting the account", () => {
   });
 
   it("refuses a wrong password, and deletes nothing", async () => {
-    const { cookie } = await signUpUser("delete-wrong-password@example.test");
-    const { credential } = await loginDevice(cookie, "Laptop");
+    const email = "delete-wrong-password@example.test";
+    const { cookie } = await signUpUser(email);
+    const phone = await signInPhone(email);
     const userId = await userIdOf(cookie);
 
-    await expect(
-      refusalOfDelete(deviceHeaders(credential), "not-the-password"),
-    ).resolves.toMatchObject({
+    await expect(refusalOfDelete(phoneHeaders(phone), "not-the-password")).resolves.toMatchObject({
       code: "INVALID_CREDENTIALS",
       defined: true,
       status: 401,
     });
 
     await expect(userExists(userId)).resolves.toBe(true);
-    await expect(reaches(credential)).resolves.toBe(true);
+    await expect(reaches(phone)).resolves.toBe(true);
     const sessions = await createDb(env.DB)
       .select()
       .from(session)
       .where(eq(session.userId, userId))
       .all();
-    // the sign-up's own session, which the test holds as its cookie
-    expect(sessions).toHaveLength(1);
+    // the sign-up's own session, which the test holds as its cookie, and the phone's
+    expect(sessions).toHaveLength(2);
   });
 
-  it("refuses a caller with no live credential, and deletes nothing", async () => {
-    const { cookie } = await signUpUser("delete-no-credential@example.test");
-    const { credential } = await loginDevice(cookie, "Laptop");
-    const revoked = await loginDevice(cookie, "Old Phone");
-    await v1Link(deviceHeaders(revoked.credential)).account.signOut();
+  it("refuses a caller with no live session, and deletes nothing", async () => {
+    const email = "delete-no-credential@example.test";
+    const { cookie } = await signUpUser(email);
+    const phone = await signInPhone(email);
+    const signedOut = await signInPhone(email);
+    await signOutPhone(signedOut);
     const userId = await userIdOf(cookie);
 
     const callers = [
@@ -137,7 +137,7 @@ describe("deleting the account", () => {
         caller: "another site's page riding the session",
         headers: { ...buildHeaders(), cookie, "sec-fetch-site": "cross-site" },
       },
-      { caller: "a revoked credential", headers: deviceHeaders(revoked.credential) },
+      { caller: "a phone signed out", headers: phoneHeaders(signedOut) },
       { caller: "no credential", headers: buildHeaders() },
     ];
     for (const { caller, headers } of callers) {
@@ -148,7 +148,7 @@ describe("deleting the account", () => {
     }
 
     await expect(userExists(userId)).resolves.toBe(true);
-    await expect(reaches(credential)).resolves.toBe(true);
+    await expect(reaches(phone)).resolves.toBe(true);
   });
 
   it("deletes from the library's own tab on its session, the password asked again", async () => {
@@ -197,17 +197,19 @@ describe("the deletion's per-holder budget", () => {
     env.RATE_LIMIT_DISABLED = wasDisabled;
   });
 
-  it("refuses the device past its window before checking the password", async () => {
-    const { cookie } = await signUpUser("delete-budget@example.test");
-    const { credential, deviceId } = await loginDevice(cookie, "Laptop");
+  it("refuses the session past its window before checking the password", async () => {
+    const email = "delete-budget@example.test";
+    const { cookie } = await signUpUser(email);
+    const phone = await signInPhone(email);
     const userId = await userIdOf(cookie);
     const spent = { count: 1_000_000, lastRequest: Date.now() };
+    const key = holderRateKey("accountDelete", await sessionIdOf(phone));
     await createDb(env.DB)
       .insert(rateLimit)
-      .values({ id: crypto.randomUUID(), key: holderRateKey("accountDelete", deviceId), ...spent })
+      .values({ id: crypto.randomUUID(), key, ...spent })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });
 
-    await expect(refusalOfDelete(deviceHeaders(credential), PASSWORD)).resolves.toMatchObject({
+    await expect(refusalOfDelete(phoneHeaders(phone), PASSWORD)).resolves.toMatchObject({
       code: "TOO_MANY_REQUESTS",
       defined: true,
       status: 429,

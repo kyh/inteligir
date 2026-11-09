@@ -15,14 +15,13 @@ import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import {
   asLocalhost,
-  connectExtension,
+  connectOnSite,
   extensionLaunchFlags,
   extensionPage,
   saveFromWorker,
-  sessionBearerOf,
 } from "../harness/extension-fixture";
 import type { Scenario } from "../harness/scenario";
-import { v1Client } from "../harness/v1-wire";
+import { asExtension, v1Client } from "../harness/v1-wire";
 
 const ARTICLE_PATH = "/essays/file-over-app";
 const TITLE = "File over app";
@@ -89,13 +88,13 @@ export const extensionIntegrated: Scenario = {
     const worker = await ctx.cloudWorker();
     const owner = await signUp(worker.origin);
     // the account's own session, called through the extension's door
-    const { library } = v1Client(worker, sessionBearerOf(owner.cookie));
+    const { library } = v1Client(worker, asExtension(owner.cookie));
     const article = await startArticleServer();
     try {
       const browser = await ctx.browser("extension-integrated", {
         launchFlags: extensionLaunchFlags(ctx),
       });
-      await connectExtension(browser, asLocalhost(worker.origin));
+      await connectOnSite(browser, asLocalhost(worker.origin));
 
       ctx.log("the page loads and its own script writes the passage into the article");
       await browser(["open", article.url], DEADLINE_MS);

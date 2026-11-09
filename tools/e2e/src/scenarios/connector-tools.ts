@@ -4,13 +4,13 @@ import { z } from "zod";
 import { untilBodyHolds } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { OWNER, signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { startAssistant } from "../harness/connector-assistant";
 import type { ConnectorAssistant } from "../harness/connector-assistant";
 import type { Scenario } from "../harness/scenario";
 import { SUBMIT_READY } from "../harness/selectors";
-import { v1Client } from "../harness/v1-wire";
+import { asPhone, sessionBearerOf, v1Client } from "../harness/v1-wire";
 
 const DEADLINE_MS = 60_000;
 
@@ -172,7 +172,7 @@ const toolRows = async (client: Client) => {
 
 export const connectorTools: Scenario = {
   description:
-    "the connector against a Miniflare Worker: a call with no token, or with a device's credential, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 9 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the four reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
+    "the connector against a Miniflare Worker: a call with no token, or with a session of the person's own, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 9 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the four reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
   name: "connector-tools",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -207,15 +207,12 @@ export const connectorTools: Scenario = {
       `the server takes no S256 challenge: ${JSON.stringify(server)}`,
     );
 
-    ctx.log("the account exists, and a device's credential is no assistant's token");
-    await signUp(worker.origin);
-    const phone = await v1Client(worker, null).account.signIn({
-      ...OWNER,
-      deviceName: "E2E Phone",
-    });
-    const refused = await probe(connector, phone.credential);
+    ctx.log("the account exists, and a session of its own is no assistant's token");
+    const { cookie } = await signUp(worker.origin);
+    const phone = asPhone(await signInPhone(worker.origin));
+    const refused = await probe(connector, sessionBearerOf(cookie));
     await refused.arrayBuffer();
-    expectEq(refused.status, 401, "the connector's answer to a device credential");
+    expectEq(refused.status, 401, "the connector's answer to the browser's session");
 
     const browser = await ctx.browser("consent");
     const claude = await startAssistant(connector, "Claude");
@@ -255,7 +252,7 @@ export const connectorTools: Scenario = {
         },
         name: "edit_item",
       });
-      const { library, account } = v1Client(worker, phone.credential);
+      const { library, account } = v1Client(worker, phone);
       const onPhone = await library.items.read({ id: item.id });
       expectEq(
         onPhone.view.markdown,

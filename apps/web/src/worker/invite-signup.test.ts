@@ -5,10 +5,11 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createDb } from "./db/client";
 import { inviteCode } from "./db/schema";
+import { CALLER_IP_HEADER } from "./rate-limit";
 import { cookieHeaderOf, drained, OWN_PAGE_HEADERS } from "./test-support/cloud-helpers";
 
 const ORIGIN = "https://inteligir-web.workers.dev";
@@ -47,10 +48,13 @@ const mintCode = async (code: string): Promise<void> => {
   await createDb(env.DB).insert(inviteCode).values({ code });
 };
 
-const signUp = async (body: Record<string, string>): Promise<Response> =>
+const signUp = async (
+  body: Record<string, string>,
+  headers: Record<string, string> = {},
+): Promise<Response> =>
   await exports.default.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
-    headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
+    headers: { ...OWN_PAGE_HEADERS, ...headers, "content-type": "application/json" },
     method: "POST",
   });
 
@@ -248,5 +252,37 @@ describe("invite-gated sign-up", () => {
       headers: { cookie: cookieHeaderOf(signIn) },
     });
     expect(sessionSchema.parse(await asCookie.json()).user.email).toBe("grace@example.test");
+  });
+});
+
+const windowAttempt = (code: string) => ({
+  email: "window@example.test",
+  inviteCode: code,
+  name: "Window",
+  password: PASSWORD,
+});
+
+describe("the invite gate's window", () => {
+  // the suite config keeps the limiter off so suites do not 429 on one another
+  let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
+  beforeEach(() => {
+    wasDisabled = env.RATE_LIMIT_DISABLED;
+    env.RATE_LIMIT_DISABLED = "false";
+  });
+  afterEach(() => {
+    env.RATE_LIMIT_DISABLED = wasDisabled;
+  });
+
+  it("closes on the eleventh attempt from one address, before it reads the code", async () => {
+    const caller = { [CALLER_IP_HEADER]: "203.0.113.77" };
+    for (let tried = 0; tried < 10; tried += 1) {
+      const refused = await drained(signUp(windowAttempt("NOT-A-CODE"), caller));
+      expect(refused.status).toBe(403);
+    }
+    await mintCode("INVITE-WINDOW");
+    const closed = await drained(signUp(windowAttempt("INVITE-WINDOW"), caller));
+    expect(closed.status).toBe(429);
+    const untouched = await readCode("INVITE-WINDOW");
+    expect(untouched?.redeemedAt).toBeNull();
   });
 });

@@ -3,15 +3,14 @@
 // browser's socket carries no header; the Worker names the cell from the account the ticket
 // verified, and stamps its holder over any copy the request carried. The ticket goes no further.
 // The holder's standing is checked at the upgrade alone, before the cell accepts and again after,
-// so whatever ends it later, a device's revocation or a session's end, closes its sockets here
-// (`severSockets`).
+// so whatever ends its session later closes its sockets here (`severSockets`).
 
 import { SOCKET_TICKET_PARAM } from "@repo/contract/cloud/library/library-socket";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
-import { device, session } from "../db/schema";
+import { session } from "../db/schema";
 import { plainText } from "../plain-http";
 import { CELL_SOCKET_PATH, holderHeaderValue } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
@@ -39,21 +38,13 @@ const forwardToCell = async (
   );
 };
 
-// the ticket's credential still stands: a revocation since it was minted shuts the socket out
+// the ticket's session still stands: an end since it was minted shuts the socket out
 const holderStands = async (
   db: Db,
   accountId: string,
   holder: SocketHolder,
   now: number,
 ): Promise<boolean> => {
-  if (holder.kind === "device") {
-    const row = await db
-      .select({ id: device.id })
-      .from(device)
-      .where(and(eq(device.id, holder.id), eq(device.userId, accountId), isNull(device.revokedAt)))
-      .get();
-    return row !== undefined;
-  }
   const row = await db
     .select({ id: session.id })
     .from(session)
@@ -68,8 +59,8 @@ const holderStands = async (
   return row !== undefined;
 };
 
-// the sockets a holder opened while it stood, closed once it no longer does: the credential is
-// already dead in D1, and no per-request check reaches a socket that has its upgrade. Best-effort:
+// the sockets a holder opened while it stood, closed once it no longer does: the session is
+// already gone from D1, and no per-request check reaches a socket that has its upgrade. Best-effort:
 // a failure costs a stale socket, never a live credential
 export const severSockets = async (
   exports: Cloudflare.Exports,
