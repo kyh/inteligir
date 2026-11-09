@@ -28,6 +28,14 @@ describe(readMarkdown, () => {
     });
   });
 
+  // refused by the read's own measure, so the answer is the same on a platform whose stack holds it
+  it("refuses 500 quotes deep, short of where any stack runs out", () => {
+    expect(read(`${"> ".repeat(500)}x\n`)).toStrictEqual({
+      ok: false,
+      reason: { kind: "too-deep" },
+    });
+  });
+
   it("refuses a list nested past what an item holds as too deep, and reads one at it", () => {
     expect(read(`${"- ".repeat(LIST_MAX_INDENT)}x\n`).ok).toBe(true);
     expect(read(`${"- ".repeat(LIST_MAX_INDENT + 1)}x\n`)).toStrictEqual({

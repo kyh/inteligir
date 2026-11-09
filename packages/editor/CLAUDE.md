@@ -49,13 +49,18 @@ alone, and no walk narrows structurally.
   down, a paste lands as plain text). A list is flat in the model, so nothing
   but a cap holds it inside the writer's recursion: `LIST_MAX_INDENT`, which
   the read refuses past, the vocabulary stores no deeper than and a Tab stops
-  at. Any other nesting is refused where a stack runs out, which V8 says as a
-  RangeError or, compiling a regular expression, as a SyntaxError
-  (`withinStack`). Rejected: a byte-exact codec of our own (most of the
-  editor's code, for round trips no reader needs); a raw editor beside the rich
-  one (markdown is not at rest); Plate's bare `serialize` (no pre-pass); and a
-  catch per item around a write (a list a writer cannot hold would land, and
-  read nowhere after). `packages/editor/src/markdown/markdown-doc.ts`,
+  at. Any other nesting is refused past the depth a storable item reads as
+  (`READ_MAX_DEPTH`), measured on the parsed tree before Plate builds a node,
+  since that build costs more than linear in depth and its stack runs out where
+  each platform's frames put it; a stack that still runs out in the parse is
+  refused too, which V8 says as a RangeError or, compiling a regular
+  expression, as a SyntaxError (`withinStack`). Rejected: a byte-exact codec of
+  our own (most of the editor's code, for round trips no reader needs); a raw
+  editor beside the rich one (markdown is not at rest); Plate's bare
+  `serialize` (no pre-pass); a catch per item around a write (a list a writer
+  cannot hold would land, and read nowhere after); and refusing only where a
+  stack runs out (a quote 6,000 deep builds for seconds on x64 first, and one
+  platform reads what another refuses). `packages/editor/src/markdown/markdown-doc.ts`,
   `packages/editor/src/markdown/md-read.ts`, `packages/editor/README.md`
   § Invariants.
 

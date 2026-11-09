@@ -1,15 +1,19 @@
 // The one read of markdown into blocks: Plate's own deserialize over the dialect's plugins and
 // rules, with no MDX pre-pass, and a failure said as a refusal rather than a degraded model.
 
+import type { Nodes } from "mdast";
 import { ElementApi, NodeApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
+import type { Plugin, Transformer } from "unified";
 import { MarkdownPlugin } from "@platejs/markdown";
 
-import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
+import { BLOCK_MAX_DEPTH, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { remarkWikiImport } from "@repo/editor/markdown/remark-wiki-import";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 import { numberProp } from "@repo/editor/node-props";
+
+import { isMdastRoot } from "./mdast-nodes";
 
 type MarkdownRefusal = { kind: "too-deep" } | { kind: "failed"; error: Error };
 
@@ -20,6 +24,38 @@ export type MarkdownRead = { ok: true; value: TElement[] } | { ok: false; reason
 const isStackOverflow = (error: Error): boolean =>
   error instanceof RangeError ||
   (error instanceof SyntaxError && error.message.endsWith(": Stack overflow"));
+
+// the deepest a storable item reads as: a list two levels a step to its deepest indent, inside
+// blocks and their marks nested as deep as a block may
+const READ_MAX_DEPTH = 2 * (LIST_MAX_INDENT + 1) + 2 * BLOCK_MAX_DEPTH;
+
+class TooDeepError extends Error {
+  override name = "TooDeepError";
+}
+
+// Measured before Plate builds nodes, whose recursion costs more than linear in depth and runs out
+// of stack where each platform's frames put it, so a refusal is cheap and the same everywhere. Walked
+// without recursion, so the tree a recursion overflows on cannot overflow this.
+const remarkReadDepth: Plugin = function remarkReadDepth(): Transformer {
+  return (tree) => {
+    const pending: { depth: number; node: Nodes }[] = isMdastRoot(tree)
+      ? [{ depth: 0, node: tree }]
+      : [];
+    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+      if (next.depth > READ_MAX_DEPTH) {
+        throw new TooDeepError(`nests deeper than ${String(READ_MAX_DEPTH)} levels`);
+      }
+      if ("children" in next.node) {
+        for (const child of next.node.children) {
+          pending.push({ depth: next.depth + 1, node: child });
+        }
+      }
+    }
+  };
+};
+
+const isTooDeep = (error: Error): boolean =>
+  error instanceof TooDeepError || isStackOverflow(error);
 
 const withinStack = <T>(run: () => T): T | null => {
   try {
@@ -62,8 +98,11 @@ export const readMarkdown = (
       onError: (error: Error) => {
         failures.push(error);
       },
-      remarkPlugins:
-        wiki === undefined ? undefined : [...MD_REMARK_PLUGINS, remarkWikiImport(wiki)],
+      remarkPlugins: [
+        remarkReadDepth,
+        ...MD_REMARK_PLUGINS,
+        ...(wiki === undefined ? [] : [remarkWikiImport(wiki)]),
+      ],
       withoutMdx: true,
     }),
   );
@@ -74,7 +113,7 @@ export const readMarkdown = (
   if (failed !== undefined) {
     return {
       ok: false,
-      reason: isStackOverflow(failed) ? { kind: "too-deep" } : { error: failed, kind: "failed" },
+      reason: isTooDeep(failed) ? { kind: "too-deep" } : { error: failed, kind: "failed" },
     };
   }
   const value = nodes.filter((node) => ElementApi.isElement(node));

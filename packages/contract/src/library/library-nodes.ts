@@ -27,7 +27,6 @@ export const BLOCK_MAX_BYTES = 512 * 1024;
 
 // how deep a block nests: a table in a column in a tab panel is under ten, and a parse of
 // untrusted JSON must not recurse until the stack runs out
-/** @internal */
 export const BLOCK_MAX_DEPTH = 32;
 
 // how deep a list nests. A list is flat here, an item's depth one number, and the writer turns that
