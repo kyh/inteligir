@@ -9,10 +9,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-/// The event the page listens for (`apps/workspace/src/shell/desktop-bridge.ts`).
+/// The event the page listens for (`apps/web/src/library/shell/desktop-bridge.ts`).
 const UPDATE_STATE_EVENT: &str = "update-state";
 
-/// Mirrored by `updateStateSchema` in `apps/workspace/src/shell/desktop-bridge.ts`, which parses it.
+/// Mirrored by `updateStateSchema` in `apps/web/src/library/shell/desktop-bridge.ts`, which parses it.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum UpdateState {

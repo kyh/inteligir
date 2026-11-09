@@ -18,24 +18,84 @@ const PHONE_WIDTH = 375;
 const WELCOME = "Welcome to your library";
 const TYPED = " Typed in the tab.";
 
+const LIBRARY_HEADERS = {
+  "cache-control": "no-cache",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-robots-tag": "noindex, nofollow",
+} as const;
+
+// a script tag with no src, which runs only by the nonce; data blocks run nothing
+const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc=)[^>]*>/gu;
+const DATA_BLOCK = /type="application\/(?:ld\+)?json"/u;
+
+// the library's chunk group and its route's stylesheet, by the name vite.config.ts gives them
+const LIBRARY_ASSET = /\/assets\/library-[\w-]{8}\.(?:js|css)/gu;
+const LINK_TAG = /<link\b[^>]*>/gu;
+const HREF = /\bhref="(?<href>[^"]+)"/u;
+
+const stylesheets = (html: string): string[] =>
+  [...html.matchAll(LINK_TAG)]
+    .map((match) => match[0])
+    .filter((tag) => tag.includes('rel="stylesheet"'))
+    .map((tag) => HREF.exec(tag)?.groups?.href ?? "");
+
+interface Answered {
+  readonly html: string;
+  readonly nonce: string;
+  readonly response: Response;
+}
+
 // here, not a unit test: no test task waits on a build, so a unit test over the assets reads the
 // previous build or one mid-write
+const documentAt = async (origin: string, path: string): Promise<Answered> => {
+  const response = await fetch(`${origin}${path}`, { headers: { accept: "text/html" } });
+  expect(response.ok, `GET ${path} answered ${String(response.status)}`);
+  const policy = response.headers.get("content-security-policy") ?? "";
+  const scripts = policy.split("; ").find((directive) => directive.startsWith("script-src")) ?? "";
+  const nonce = /'nonce-(?<nonce>[^']+)'/u.exec(scripts)?.groups?.nonce ?? "";
+  expect(nonce !== "", `${path}'s document names no nonce for its scripts: ${policy}`);
+  expect(
+    !scripts.includes("'unsafe-inline'"),
+    `${path}'s policy runs any inline script: ${policy}`,
+  );
+  expect(policy.includes(" ipc:"), `${path}'s policy keeps the Mac app's commands out: ${policy}`);
+  const html = await response.text();
+  const unsigned = [...html.matchAll(INLINE_SCRIPT)]
+    .map((match) => match[0])
+    .filter((tag) => !DATA_BLOCK.test(tag) && !tag.includes(`nonce="${nonce}"`));
+  expect(
+    unsigned.length === 0,
+    `${path} carries inline scripts without its nonce:\n${unsigned.join("\n")}`,
+  );
+  return { html, nonce, response };
+};
+
 const assertDocumentPolicy = async (origin: string): Promise<void> => {
-  for (const path of [LIBRARY_PAGE_PATH, `${LIBRARY_PAGE_PATH}/settings`]) {
-    const response = await fetch(`${origin}${path}`, { headers: { accept: "text/html" } });
-    expect(response.ok, `GET ${path} answered ${String(response.status)}`);
-    const policy = response.headers.get("content-security-policy") ?? "";
-    expect(
-      policy.includes("script-src 'self';"),
-      `${path}'s document does not carry the page's policy: ${policy}`,
-    );
-    const html = await response.text();
-    expect(html.includes('<div id="root"'), `${path} did not answer the page's document`);
-    const inline = (html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gu) ?? []).filter(
-      (tag) => !tag.includes("application/json"),
-    );
-    expect(inline.length === 0, `the document carries inline scripts:\n${inline.join("\n")}`);
+  const page = await documentAt(origin, LIBRARY_PAGE_PATH);
+  const settings = await documentAt(origin, `${LIBRARY_PAGE_PATH}/settings`);
+  expect(page.nonce !== settings.nonce, "two documents were answered under one nonce");
+  for (const [path, { response }] of [
+    [LIBRARY_PAGE_PATH, page],
+    [`${LIBRARY_PAGE_PATH}/settings`, settings],
+  ] as const) {
+    for (const [name, value] of Object.entries(LIBRARY_HEADERS)) {
+      expect(
+        response.headers.get(name) === value,
+        `${path} answered ${name}: ${String(response.headers.get(name))}`,
+      );
+    }
   }
+
+  const libraryOnly = new Set([
+    ...[...page.html.matchAll(LIBRARY_ASSET)].map((match) => match[0]),
+    ...stylesheets(page.html),
+  ]);
+  expect(libraryOnly.size > 0, "the library's document links no chunk or stylesheet of its own");
+  const home = await documentAt(origin, "/");
+  const shared = [...libraryOnly].filter((asset) => home.html.includes(asset));
+  expect(shared.length === 0, `the site's home loads the library's:\n${shared.join("\n")}`);
+
   const site = await fetch(`${origin}/libraryish`);
   await site.arrayBuffer();
   expect(
@@ -65,7 +125,7 @@ const assertPhoneWidth = async (browser: ScenarioBrowser, origin: string): Promi
 
 export const browserSmoke: Scenario = {
   description:
-    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the library read into the tab from the cell, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
+    "the library's page served by the built Worker at /library under the nonce policy every document carries, the site's home loading none of it, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the library read into the tab from the cell, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
   name: "browser-smoke",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -81,7 +141,7 @@ export const browserSmoke: Scenario = {
     });
     const { browser, library, worker } = tab;
 
-    ctx.log("the document carries the page's own policy on every path under its prefix");
+    ctx.log("every document carries the nonce policy, and the site's home none of the library");
     await assertDocumentPolicy(worker.origin);
 
     ctx.log("a tab with no session is sent to the site's sign-in, told to come back");

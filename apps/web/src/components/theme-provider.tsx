@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from "react";
 
-import { parseTheme, ThemeProvider as UiThemeProvider } from "@repo/ui/lib/theme";
+import { ThemeProvider as UiThemeProvider } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 
-// the no-flash inline script in __root.tsx reads the same key and fallback; keep them in sync
-export const THEME_STORAGE_KEY = "theme";
-export const THEME_FALLBACK: Theme = "dark";
+import { PREFS, readPref, writePref } from "#library/prefs";
+
+// The document's one theme, the site's and the library's alike: the PREFS row the root's no-flash
+// script reads, so Settings › Appearance and the site's toggle are one choice.
 
 const listeners = new Set<() => void>();
 
@@ -19,26 +20,13 @@ const subscribe = (listener: () => void): (() => void) => {
   };
 };
 
-const getSnapshot = (): Theme => {
-  if (unpersisted !== null) {
-    return unpersisted;
-  }
-  try {
-    return parseTheme(localStorage.getItem(THEME_STORAGE_KEY)) ?? THEME_FALLBACK;
-  } catch {
-    return THEME_FALLBACK;
-  }
-};
+const getSnapshot = (): Theme => unpersisted ?? readPref(PREFS.theme);
 
-const getServerSnapshot = (): Theme => THEME_FALLBACK;
+const getServerSnapshot = (): Theme => PREFS.theme.fallback;
 
 const setTheme = (next: Theme): void => {
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, next);
-    unpersisted = null;
-  } catch {
-    unpersisted = next;
-  }
+  writePref(PREFS.theme, next);
+  unpersisted = readPref(PREFS.theme) === next ? null : next;
   for (const listener of listeners) {
     listener();
   }

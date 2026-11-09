@@ -26,7 +26,7 @@ a bullet is written and cited.
   launched offline it shows WebKit's own load error until View › Reload finds
   the site. It keeps the system's title bar, so the page draws the same in
   every host (THE MAC APP'S WINDOW KEEPS THE SYSTEM'S TITLE BAR, in
-  `apps/workspace/CLAUDE.md`). A debug build (`pnpm dev`) loads
+  `apps/web/src/library/CLAUDE.md`). A debug build (`pnpm dev`) loads
   `http://localhost:5174/library` (`devUrl`) as an app of its own:
   `tauri.local.conf.json` names it `com.inteligir.desktop.dev`, so its WebKit
   store and cookie are never the release's. Any build loads a Worker on this
@@ -43,7 +43,7 @@ a bullet is written and cited.
   compared by its parts, never by prefix or by an origin type that answers
   opaque for a non-special scheme, and the blank documents a frame starts on;
   a blob the page made loads too, the one a `download` link keeps its name on
-  (`apps/workspace/src/app/item/item-stages.tsx`). Any other web page opens in
+  (`apps/web/src/library/item/item-stages.tsx`). Any other web page opens in
   the browser; anything else is refused, `window.open` opens no window, and a
   download lands in Downloads (`apps/desktop/src-tauri/src/navigation.rs`).
   Closing the window hides it, and the Dock's icon brings it back. Rejected: a
@@ -76,7 +76,7 @@ a bullet is written and cited.
   Check for Updates… checks again; a found update waits for Download and a
   verified download for Restart, in the page's notice and Settings › About.
   Rust drives it all behind three commands and one `update-state` event, which
-  the page parses (`apps/workspace/src/shell/desktop-bridge.ts`); the window's
+  the page parses (`apps/web/src/library/shell/desktop-bridge.ts`); the window's
   one capability grants those alone (`apps/desktop/src-tauri/capabilities/web-app.json`),
   and the app manifest names them (`apps/desktop/src-tauri/build.rs`).
   Rejected: an update that downloads itself and installs on quit (a timer and a
@@ -88,10 +88,10 @@ a bullet is written and cited.
   since WKWebView has no session-wide spell-check switch. Spell check is a page
   pref like the theme, set on the document root before the first paint and
   inherited by every field but the item's title and body; macOS picks the
-  languages, so the row names none (`apps/workspace/src/app/spellcheck.ts`). A
+  languages, so the row names none (`apps/web/src/library/spellcheck.ts`). A
   print, the browser tab's (the window offers none), is light whatever the page
   shows: the dark theme steps aside between the print events the browser fires
-  around it (`apps/workspace/src/app/light-prints.ts`). Rejected: #889's print
+  around it (`apps/web/src/library/light-prints.ts`). Rejected: #889's print
   stylesheet (a screen-only theme needs an at-rule in
   `packages/editor/src/styles.css`, which its guard keeps flat).
 

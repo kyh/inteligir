@@ -24,7 +24,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   one account's devices).
   `packages/service/src/wire/account-router.ts`,
   `packages/service/src/auth/session-devices.ts`,
-  `apps/workspace/src/app/settings/account-section.tsx`.
+  `apps/web/src/library/settings/account-section.tsx`.
 
 - **A DEVICE SIGNS OUT THROUGH BETTER AUTH'S OWN `/api/auth/sign-out`, AND NO
   UNREACHABLE CLOUD HOLDS THAT SIGN-OUT OPEN.** The phone takes its copy away
@@ -41,8 +41,8 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   local drop (a failed wipe left a library on a dead session, whose edits
   nothing could send). `apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`, `apps/mobile/src/auth/phone-auth.ts`,
-  `apps/workspace/src/app/settings/account-section.tsx`,
-  `apps/workspace/src/app/cloud/auth-client.ts`.
+  `apps/web/src/library/settings/account-section.tsx`,
+  `apps/web/src/library/cloud/auth-client.ts`.
 
 - **AN ACCOUNT IS DELETED FROM ANY SIGNED-IN DEVICE, THE PASSWORD ASKED AGAIN,
   THROUGH BETTER AUTH'S `deleteUser`** (owner decision: whoever lost their Mac
@@ -217,7 +217,8 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   share one storage in a project of their own, since Durable Object WebSockets
   fail under isolation; the model's pure suites run under node, and every
   suite that reaches SQL runs on the cell's own SQLite. `@repo/web` keeps the
-  site's suites, which render its routes under node. Rejected: a mocked
+  site's suites, which render its routes under node, and the library's, which
+  draw its page under jsdom (`apps/web/vitest.config.ts`). Rejected: a mocked
   runtime (Better Auth, D1 and the Durable Objects run as they deploy); the
   app's config (its entry's SSR, and fill consumers that would take a suite's
   messages); bindings restated in `vitest.config.ts` (a second spelling of the
@@ -479,7 +480,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   assistant's origin).
   `packages/service/src/connector/consent-route.ts`, `consent-page.ts`,
   `apps/web/src/routes/connect/authorize.ts`,
-  `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
+  `apps/web/src/routes/_site/app/sign-in.tsx`, `sign-up.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
   OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker
@@ -644,21 +645,27 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   API ignores); a thread on its first definition for good (its tools drift from
   the procedures they call). `packages/service/src/agent/thread-request.ts`.
 
-- **THE LIBRARY'S PAGE IS THE WORKER'S, AT `/library`, FROM ITS OWN ASSETS AND
-  UNDER ITS OWN POLICY.** Every path under the prefix reaches the Worker first
-  (`assets.runWorkerFirst`), which answers a file the page's build holds as it
-  is and any other path with the page's one document, so a deep link loads and
-  the page's router draws it; only the hashed `/library/assets/*` skip the
-  Worker, and no other path falls back, so a mistyped site route still answers
-  the site's 404. The document carries a policy of its own: its scripts and
-  no wasm, calls and the socket to this origin alone, nothing remote drawn in
-  an item, no frame and no worker. The page's
-  build is copied into the Worker's assets (`apps/web/vite.config.ts`), so it
-  ships in the Worker's deploy and its calls meet no build floor. Rejected: a
-  Start route (the site's bundle and policy on the page); the asset server's
-  SPA fallback (every unknown path would answer the page); a page on an origin
-  of its own (a second sign-in, CORS on every call).
-  `packages/service/src/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
+- **THE LIBRARY'S PAGE IS A ROUTE OF THE SITE, AT `/library`, DRAWN IN THE
+  BROWSER UNDER THE POLICY EVERY DOCUMENT CARRIES.** The route is `ssr: false`
+  under a bare root document, so the server sends the shell and the page's
+  head, and none of the site's providers, head or header, which sit in the
+  pathless `_site` layout; a deep link is a route of the one router, and a path
+  it does not hold answers the site's 404. Start's request middleware mints a
+  nonce a request and puts one policy on every `text/html` answer that names
+  none: scripts from this origin or by that nonce and no wasm, calls and the
+  socket to this origin and the Mac app's command channel alone, nothing
+  remote drawn in an item, no frame and no worker; a file served under its own
+  sandbox, and the consent page, keep theirs. The page ships in the Worker's
+  deploy, so its calls meet no build floor, and its code is chunks a site page
+  never preloads (`apps/web/vite.config.ts`). Rejected: a page built apart and
+  copied into the Worker's assets (a second build, and a door and
+  `runWorkerFirst` rows to answer its deep links); a server render of the
+  library (it reads the account's cell online, after the tab's session read);
+  inline scripts by `'unsafe-inline'` (an injected one would run); the asset
+  server's SPA fallback (every unknown path would answer the page); a page on
+  an origin of its own (a second sign-in, CORS on every call).
+  `apps/web/src/routes/library.tsx`, `apps/web/src/start.ts`,
+  `apps/web/src/lib/document-policy.ts`.
 
 - **EVERY PAGE THAT CALLS `/v1` IS ONE THE WORKER SERVED, SO IT ANSWERS NO
   CORS.** The site's page and the Mac app's window call on their own
@@ -683,7 +690,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   page, and none is minted or revoked there. Rejected: a credential minted for
   the extension and handed over (a second secret per browser, which outlived
   the browser's sign-out); the id from the link (a link could name another
-  extension). `apps/web/src/routes/connect/extension.tsx`,
+  extension). `apps/web/src/routes/_site/connect/extension.tsx`,
   `apps/web/src/lib/extension-connect.ts`.
 
 - **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON
@@ -730,7 +737,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   when its cookie lapses with its row standing); forwarding `Set-Cookie` on every `/v1`
   answer (each door, a file's immutable read among them, carrying a header none
   of them owns). `packages/service/src/auth/auth.ts`,
-  `apps/workspace/src/app/cloud/session-keeper.ts`.
+  `apps/web/src/lib/auth-client.ts`.
 
 - **EVERY DEVICE SIGNS IN WITH BETTER AUTH'S OWN SESSION, AND `/v1` READS IT
   BY THE DOOR THE REQUEST CAME THROUGH** (owner decision: the extension rides
@@ -757,7 +764,8 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
 - **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
   THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the
   open-redirect guard passes, else `/library`, by a document load, since the
-  site's router holds neither that page nor the consent page; sign-in, sign-up
+  library's tab opens once a document, so only a load opens the account just
+  signed in to, and the site's router holds no consent page; sign-in, sign-up
   and the reset pages hand `next` on, the reset through its mail's link, each
   page's search parsed by the same guard so none holds an off-site one. One
   link, in the site's header, serves someone signed in and someone not, since
@@ -767,7 +775,7 @@ schema `@repo/db`'s, and the Worker that deploys them this app's.
   the library); `Disallow` in robots.txt (a page it blocks can still be listed
   by its link). `apps/web/src/lib/next-path.ts`,
   `apps/web/src/components/library-link.tsx`,
-  `packages/service/src/library/library-page.ts`.
+  `apps/web/src/library/library-tab.ts`, `apps/web/src/routes/library.tsx`.
 
 - **THE APPS READ WHAT THEY SHOW FROM THE CELL, THROUGH ROWS NO TOOL CARRIES.**
   `library.items.get` answers an item whole, its fields and every block, one in

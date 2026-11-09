@@ -11,8 +11,8 @@ export const pageTitle = (page: PageMeta): string =>
 
 /**
  * A route's head: its title, description, Open Graph and Twitter tags and its own JSON-LD. The
- * root route carries the site-wide defaults, and Start keeps the deepest match's tag for each
- * name or property, so these override them. The canonical link is the root document's.
+ * site's layout carries the site-wide defaults and the canonical link, and Start keeps the deepest
+ * match's tag for each name or property, so these override them.
  */
 export const pageHead = (page: PageMeta, options: { dateModified?: string } = {}) => {
   const title = pageTitle(page);

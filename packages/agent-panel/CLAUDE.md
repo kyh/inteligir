@@ -13,7 +13,7 @@ says how a bullet is written and cited.
   screen it leaves from) are pure functions over the contract's own union, so
   the Mac, the tab and the phone say one thing of one conversation. It imports
   no platform and no UI (`oxlint.config.ts`): the page draws it with `@repo/ui`
-  (`apps/workspace/src/app/agent/agent-panel.tsx`), the phone natively.
+  (`apps/web/src/library/agent/agent-panel.tsx`), the phone natively.
   Rejected: the phone drawing the page's panel in a WebView (a second page, and
   the composer under a soft keyboard the page cannot lay out); a copy of the
   fold per device (the words drift).

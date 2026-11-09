@@ -52,9 +52,8 @@ src/
                        # (cell-moved.ts), the upgrade routes with the ticket a
                        # browser's socket opens on, the files' bytes in R2
                        # (blob-routes.ts), the readings it sends to the fill
-                       # queue (cell-fills.ts) and its imports (cell-imports.ts);
-                       # beside the cell, the library's page, answered from the
-                       # assets (library-page.ts). The library's SQL and undo:
+                       # queue (cell-fills.ts) and its imports (cell-imports.ts).
+                       # The library's SQL and undo:
     cell-db.ts         # drizzle over the cell, its migrations run on wake,
                        # inserts cut under the bound-parameter cap
     library-sql.ts     # the raw port, plans as generators, statement chunking

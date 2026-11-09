@@ -100,9 +100,3 @@ export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {
     ],
   };
 };
-
-// `<` escaped so no string in the graph can close the inline <script> it is embedded in
-type JsonLdGraph = ReturnType<typeof siteGraph> | ReturnType<typeof pageGraph>;
-
-export const serializeJsonLd = (graph: JsonLdGraph): string =>
-  JSON.stringify(graph).replaceAll("<", String.raw`\u003c`);

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-const TABLE = "apps/workspace/src/app/prefs.ts";
+const TABLE = "apps/web/src/library/prefs.ts";
 
 const KEYED_ACCESS =
   /\b(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem)\s*\(/u;
@@ -16,12 +16,8 @@ const ROW_KEY = /\b(?:pref|unsetPref)\(\s*"(?<key>[^"]+)"/gu;
 
 const ELSEWHERE = new Map<string, string>([
   [
-    "apps/workspace/src/app/prefs.test.ts",
+    "apps/web/src/library/prefs.test.ts",
     "pins the keys and bytes a window's storage already holds, so it spells them rather than reading them off the table",
-  ],
-  [
-    "apps/web/src/components/theme-provider.tsx",
-    "the marketing site is another program on another origin, with its own theme key; the shell's table is not its storage",
   ],
   [
     "packages/editor/src/heading-collapse.tsx",

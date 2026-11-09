@@ -10,7 +10,7 @@ const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 // where chrome is drawn.
 const CHROME_ROOTS = [
   "apps/extension/src/",
-  "apps/workspace/src/",
+  "apps/web/src/library/",
   "packages/editor/src/",
   "packages/ui/src/components/",
   "packages/ui/src/ai/",

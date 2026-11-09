@@ -1,7 +1,7 @@
 # @repo/desktop — the Mac app
 
 A window on the library's page the site serves at `/library`
-([`apps/workspace`](../workspace/README.md)), with a menu and the stock
+([`apps/web/src/library`](../web/src/library/CLAUDE.md)), with a menu and the stock
 updater. The shell is Tauri 2: Rust over the system's own WebKit (WKWebView on
 the Mac). It bundles no page, runs no node and no server, and keeps nothing of
 the library: the page signs in, reads and writes as a browser tab does, so the
@@ -60,7 +60,7 @@ verified download for Restart, in the page's notice and Settings › About. The
 page holds no updater permission: three commands (`check_for_updates`,
 `download_update`, `install_update`) and one `update-state` event, which the
 window's one capability grants (`src-tauri/capabilities/web-app.json`) and the
-page parses (`apps/workspace/src/shell/desktop-bridge.ts`). A pack with no
+page parses (`apps/web/src/library/shell/desktop-bridge.ts`). A pack with no
 updater key, and `pnpm dev`, have no feed, so their updater is off.
 
 ## Running it

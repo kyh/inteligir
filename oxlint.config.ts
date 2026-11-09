@@ -249,11 +249,6 @@ export default defineConfig({
       NODE,
       "@repo/ui is browser-only: the library's page, the extension's pages and the site's server-rendered pages draw it",
     ),
-    platformPurity(
-      "apps/workspace",
-      NODE,
-      "@repo/workspace is the library's page: it runs in the Mac app's WebKit or a browser tab, where no node module loads",
-    ),
     {
       // the one place the library's rows become the connector's tools
       files: ["packages/service/src/**"],
@@ -265,6 +260,28 @@ export default defineConfig({
       excludeFiles: tests,
       files: ["apps/web/src/**"],
       rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK]) },
+    },
+    {
+      // after the site's, whose options this one replaces for the library's code
+      excludeFiles: tests,
+      files: ["apps/web/src/library/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          {
+            message:
+              "the library runs in the Mac app's WebKit or a browser tab, where no node module loads",
+            regex: NODE,
+          },
+          CONFIG_MODULES,
+          AGENTS_SDK,
+        ]),
+      },
+    },
+    {
+      // Start's request middleware hands `next` a context and gets the answer back to wrap: a
+      // continuation, not the Node callback the rule's default list names it as
+      files: ["apps/web/src/start.ts"],
+      rules: { "node/callback-return": ["error", ["callback", "cb"]] },
     },
     {
       // after the first of these overrides, whose options this one replaces for the Worker's code

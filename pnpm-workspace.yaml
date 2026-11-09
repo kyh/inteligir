@@ -66,7 +66,6 @@ catalog:
   # exact: the committed route tree is an artifact of the plugin version
   "@tanstack/react-router": 1.170.46
   "@tanstack/react-start": 1.169.4
-  "@tanstack/router-plugin": 1.168.48
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2

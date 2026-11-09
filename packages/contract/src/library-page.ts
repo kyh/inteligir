@@ -1,5 +1,4 @@
-// Where the Worker serves the library's page, the SPA `@repo/workspace` builds: its own prefix,
-// beside the site's routes, which keep theirs. The page's router and its build name this base, and
-// the Worker answers every path under it with the page's document from its assets.
+// Where the site serves the library, its route `apps/web/src/routes/library.tsx`. The site's
+// router types its own links to it; this is the spelling for every caller outside those types.
 
 export const LIBRARY_PAGE_PATH = "/library";

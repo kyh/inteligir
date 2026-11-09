@@ -48,7 +48,8 @@ export const authPageSearchSchema = z.object({
 });
 
 // where a session goes once it has one, by a document load: the landing may be a page the Worker
-// answers before this router (the library, an assistant's consent page)
+// answers before this router (an assistant's consent page), and the library opens on a document of
+// its own
 export const signedInLanding = (next?: string): string => internalNextPath(next) ?? SIGNED_IN_HOME;
 
 const RESET_PAGE_PATH = "/app/reset-password";
