@@ -6,6 +6,7 @@
 import { evictDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import { FOLDER_NAME_MAX } from "@repo/contract/library/library-wire";
 import { RAINDROP_EXPORT } from "../imports/test-support/raindrop-export";
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
@@ -168,6 +169,28 @@ describe("a Raindrop import", () => {
           "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite",
           `1,Long,${"n".repeat(PAST_A_ROW)},,https://example.com/long,,,,,,`,
           "2,Short,,,https://example.com/short,,,,,,",
+        ].join("\n"),
+      ),
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 1,
+      state: "done",
+      unreadable: 1,
+    });
+  });
+
+  it("leaves out a bookmark whose highlight is past what a block holds, and lands the rest", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      csv(
+        [
+          "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite",
+          `1,Long,,,https://example.com/long,,,,,${"h".repeat(BLOCK_MAX_BYTES)},`,
+          "2,Short,,,https://example.com/short,,,,,A passage.,",
         ].join("\n"),
       ),
       "raindrop",
