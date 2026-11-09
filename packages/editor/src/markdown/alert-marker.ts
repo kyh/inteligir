@@ -15,7 +15,7 @@ const ALERT_LINE_RE = new RegExp(String.raw`^\[!${VARIANT_GROUP}\](?:\n|$)`, "iu
 // loose: the marker leads the text, whatever follows; the match spans one space or break after it.
 const ALERT_LEAD_RE = new RegExp(String.raw`^\s*\[!${VARIANT_GROUP}\]\s?`, "iu");
 
-export const parseAlertVariant = (raw: string): AlertVariant | null => {
+const parseAlertVariant = (raw: string): AlertVariant | null => {
   const upper = raw.toUpperCase();
   return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
 };

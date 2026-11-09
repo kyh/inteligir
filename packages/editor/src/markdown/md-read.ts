@@ -11,7 +11,7 @@ import { remarkWikiImport } from "@repo/editor/markdown/remark-wiki-import";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 import { numberProp } from "@repo/editor/node-props";
 
-export type MarkdownRefusal = { kind: "too-deep" } | { kind: "failed"; error: Error };
+type MarkdownRefusal = { kind: "too-deep" } | { kind: "failed"; error: Error };
 
 export type MarkdownRead = { ok: true; value: TElement[] } | { ok: false; reason: MarkdownRefusal };
 
@@ -21,7 +21,7 @@ const isStackOverflow = (error: Error): boolean =>
   error instanceof RangeError ||
   (error instanceof SyntaxError && error.message.endsWith(": Stack overflow"));
 
-export const withinStack = <T>(run: () => T): T | null => {
+const withinStack = <T>(run: () => T): T | null => {
   try {
     return run();
   } catch (error) {

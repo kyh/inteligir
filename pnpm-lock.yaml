@@ -1044,15 +1044,6 @@ importers:
       mdast-util-to-markdown:
         specifier: 'catalog:'
         version: 2.2.0
-      micromark-util-character:
-        specifier: ^2.1.1
-        version: 2.1.1
-      micromark-util-symbol:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-types:
-        specifier: ^2.0.3
-        version: 2.0.3
       pele:
         specifier: ^1.5.2
         version: 1.5.2
@@ -1138,9 +1129,6 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3(@noble/hashes@2.4.0)
-      remark-stringify:
-        specifier: ^11.0.0
-        version: 11.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

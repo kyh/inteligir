@@ -183,9 +183,6 @@
     "mdast-util-gfm-task-list-item": "^2.0.0",
     "mdast-util-math": "^3.0.0",
     "mdast-util-to-markdown": "catalog:",
-    "micromark-util-character": "^2.1.1",
-    "micromark-util-symbol": "^2.0.1",
-    "micromark-util-types": "^2.0.3",
     "pele": "^1.5.2",
     "platejs": "^53.5.2",
     "react-day-picker": "^10.0.2",
@@ -214,7 +211,6 @@
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
-    "remark-stringify": "^11.0.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

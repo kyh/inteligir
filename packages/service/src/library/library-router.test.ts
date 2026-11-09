@@ -335,8 +335,10 @@ describe("the library's procedures", () => {
         markdown: "See [[Existing Title]] and [[Missing]].\n\nTwo.",
       });
       const link = { key: target.item.id, type: "mention", value: "Existing Title" };
-      const textOf = async () =>
-        (await library.items.get({ id: item.id })).blocks.map(({ block }) => block.children);
+      const textOf = async () => {
+        const { blocks } = await library.items.get({ id: item.id });
+        return blocks.map(({ block }) => block.children);
+      };
       await expect(textOf()).resolves.toStrictEqual([
         [{ text: "See " }, { children: [{ text: "" }], ...link }, { text: " and [[Missing]]." }],
         [{ text: "Two." }],

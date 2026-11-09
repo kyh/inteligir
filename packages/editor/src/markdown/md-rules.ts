@@ -126,7 +126,7 @@ const isEmptyParagraph = (node: Descendant | undefined): boolean =>
   node.children.every((child) => TextApi.isText(child) && child.text === "");
 
 // the wrapper a block nested in a list item rides to the writer, which no editor node holds
-export const LIST_NESTED_KEY = "list_nested";
+const LIST_NESTED_KEY = "list_nested";
 
 const LIST_DEPTH_KEY = "listDepth";
 

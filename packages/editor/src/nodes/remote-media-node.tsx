@@ -22,7 +22,7 @@ const Unplayable = ({ children }: { children: ReactNode }) => (
 const NOT_HERE = "This recording isn't on this device yet.";
 
 // a recording the library holds by its sha, played from where the host draws its files
-export const LibraryVideo = ({ selected, sha }: { selected: boolean; sha: string }) => {
+const LibraryVideo = ({ selected, sha }: { selected: boolean; sha: string }) => {
   const file = useLibraryFile(sha);
   if (file.kind === "ready") {
     return (

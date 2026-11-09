@@ -10,11 +10,6 @@ import { parseFormulaMeta } from "../formulas/formula-meta";
 import { parseMarkdown } from "../markdown/markdown-doc";
 import { stringProp } from "../node-props";
 
-// a pill in the dialect's spelling, so a suite writes one by its parts
-/** @internal */
-export const pillMarkdown = (source: string, display: string, meta = ""): string =>
-  `:formula[${display}]{source="${source}"${meta === "" ? "" : ` meta="${meta}"`}}`;
-
 /** @internal */
 export const formulasIn = (markdown: string): CollectedFormula[] => {
   const read = parseMarkdown(markdown);

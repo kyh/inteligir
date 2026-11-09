@@ -37,7 +37,7 @@ const WIDTH_RE = /^\d{1,5}(?:x\d{1,5})?$/u;
 const MENTION_SCHEME = "mention:";
 
 /** @internal */
-export const wikiTarget = (body: string): WikiTarget => {
+const wikiTarget = (body: string): WikiTarget => {
   const pipe = body.indexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? null : body.slice(pipe + 1).trim();

@@ -40,15 +40,8 @@ import { nestInLists } from "@repo/editor/markdown/md-rules";
 import { isMdastRoot } from "./mdast-nodes";
 
 // the directives the dialect reads; any other is the text it was written as
-export const CONTAINER_DIRECTIVES = new Set([
-  "article",
-  "column",
-  "columns",
-  "tab",
-  "tabs",
-  "toggle",
-]);
-export const TEXT_DIRECTIVES = ["date", "formula"] as const;
+const CONTAINER_DIRECTIVES = new Set(["article", "column", "columns", "tab", "tabs", "toggle"]);
+const TEXT_DIRECTIVES = ["date", "formula"] as const;
 
 const ISO_DATE_RE = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
 
