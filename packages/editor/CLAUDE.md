@@ -254,7 +254,9 @@ alone, and no walk narrows structurally.
   phone until named (`packages/editor/src/kits/touch-editor-kit.ts`). Inside a
   rich block (chart, canvas, html, tabs, columns) every op but a whole-block
   insert, remove or move is refused, so a block changed elsewhere lands whole
-  and undo restores a deletion
+  and undo restores a deletion, while another device's change and a
+  normalizer's fix land, since the live document already holds the one and
+  Slate's normalizer loops forever on a refused other
   (`packages/editor/src/kits/rich-block-lock-kit.ts`), and `beforeinput`
   refuses keystrokes inside, which slate-react defers to an input event never
   fired. Rejected: the desktop kit minus its pointer chrome, and
@@ -473,6 +475,32 @@ alone, and no walk narrows structurally.
   `packages/editor/src/combobox-input.ts`,
   `packages/editor/src/inline-combobox.tsx`,
   `tools/e2e/src/scenarios/slash-menu-browser.ts`.
+
+- **A NOTE'S BODY IS ONE LIVE DOCUMENT, EVERY EDITOR OF IT IS BOUND
+  INNERMOST, AND EVERY KIT HOLDS AND FIXES ITS NODES ALIKE.**
+  `yjsBindingPlugin` sits beneath every kit plugin, so each op reaches the
+  document as the plugins outside it left it, NodeId's ids included; while it
+  applies another editor's change NodeId names nothing, since a move arrives as
+  an insert before its delete under the id it has. Undo is a `Y.UndoManager`
+  over the editor's own origin (`YHistoryPlugin`), so it takes back this
+  editor's changes and no one else's, and `editor.tf.withoutSaving` keeps a
+  write out of it. `seedDoc` writes a note's blocks as BASE_KIT normalizes
+  them, so an editor connecting has nothing to fix, and `readBlocks` reads
+  them back as the library stores them, each in its `section`. A writer's
+  block edits land through the editor by id (`applyBodyChanges`): a put that
+  keeps the block's shape edits it in place by code point, so a person's typing
+  in it meanwhile stays, and a batch whose base moved lands nothing. Every kit
+  holds each node as BASE_KIT does and writes the same fix for the same state
+  (`packages/editor/src/kit-parity.test.ts`), or each reader rewrites what its
+  writer left and two readers write it twice. Rejected: `@platejs/yjs` (its
+  provider config is a closed union a custom provider joins only by a type
+  assertion, it bundles hocuspocus, y-webrtc and y-indexeddb, 44 KB gzip
+  nothing runs, its init waits 5 s for a sync, and its `withTYjs` and
+  `withTYHistory` pass through); the binding at Plate's default priority (the
+  ids NodeId gives never reach the document).
+  `packages/editor/src/live/yjs-binding.ts`,
+  `packages/editor/src/live/note-blocks.ts`,
+  `packages/editor/src/live/body-change.ts`.
 
 ## The open item's merge
 
