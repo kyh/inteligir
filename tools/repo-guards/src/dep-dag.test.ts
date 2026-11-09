@@ -454,8 +454,8 @@ const workspaceExportFile = (specifier: string): string | null => {
   const { exports } = exportsSchema.parse(
     JSON.parse(fs.readFileSync(path.join(REPO_ROOT, workspace.dir, "package.json"), "utf-8")),
   );
-  const target = exports?.[`.${specifier.slice(workspace.name.length)}`];
-  return typeof target === "string" ? path.posix.join(workspace.dir, target) : null;
+  const target = z.string().safeParse(exports?.[`.${specifier.slice(workspace.name.length)}`]);
+  return target.success ? path.posix.join(workspace.dir, target.data) : null;
 };
 
 const resolveRelative = (from: string, specifier: string): string | null => {
