@@ -111,6 +111,8 @@ const keepFiles = (editor: SlateEditor, files: readonly File[], at: TRange | nul
 // only on React plugins.
 export const ImageKit = [
   createPlatePlugin({
+    // the picture still draws read-only; only its paste and drop wait for an editable editor
+    editOnly: { handlers: true, inject: false, render: false },
     key: KEYS.img,
     node: { isElement: true, isVoid: true },
   })

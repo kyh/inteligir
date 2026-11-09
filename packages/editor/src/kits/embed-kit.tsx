@@ -57,7 +57,7 @@ const emptyParagraphEntry = (editor: PlateEditor): [TElement, number[]] | null =
   return [node, path];
 };
 
-const AutoEmbedPlugin = createPlatePlugin({ key: "embedAutoPill" })
+const AutoEmbedPlugin = createPlatePlugin({ editOnly: true, key: "embedAutoPill" })
   .overrideEditor(({ editor, tf: { insertData } }) => ({
     transforms: {
       insertData(data) {

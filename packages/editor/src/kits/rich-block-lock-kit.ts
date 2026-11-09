@@ -136,6 +136,7 @@ export const RichBlockLockKit = [
   // there; the deferred insert then lands wherever anyone types next. So a keystroke aimed inside
   // a locked block is refused before slate-react takes it.
   createPlatePlugin({
+    editOnly: true,
     handlers: {
       onDOMBeforeInput: ({ editor, event }) => {
         if (!aimsInsideLocked(editor)) {

@@ -2,7 +2,7 @@
 // them; the desktop shell's window delivers both.
 
 import { isHotkey, KEYS } from "platejs";
-import { createPlatePlugin } from "platejs/react";
+import { SlateReactExtensionPlugin, createPlatePlugin } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
 import {
@@ -111,7 +111,9 @@ export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEven
 };
 
 export const EditorShortcutsKit = [
-  createPlatePlugin({ key: "editorShortcuts" }).extend(() => ({
+  // Plate's own keydown, whose Tab indents a list item or a code line
+  SlateReactExtensionPlugin.configure({ editOnly: true }),
+  createPlatePlugin({ editOnly: true, key: "editorShortcuts" }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
         handleEditorShortcut(editor, event);
