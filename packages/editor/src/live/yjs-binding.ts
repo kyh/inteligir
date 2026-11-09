@@ -25,6 +25,7 @@ export const appliesRemoteChange = (editor: SlateEditor): boolean =>
 // `localOrigin` names this editor's writes in the document, which its undo tracks and every other
 // editor reads as remote. The host connects it (`YjsEditor.connect`) once the document has synced,
 // so an editor never seeds a document it has yet to read.
+/** @internal */
 export const yjsBindingPlugin = ({
   root,
   localOrigin,
@@ -76,6 +77,7 @@ const untracked = (editor: YHistoryEditor, fn: () => void): void => {
 // back this editor's changes and no one else's. `editor.tf.withoutSaving` keeps a write out of it
 // (a formula's display). It sits beside Plate's HistoryPlugin rather than replacing it, since
 // Plate's own readers of `editor.history` stay, as @platejs/yjs's history does.
+/** @internal */
 export const YHistoryPlugin = createSlatePlugin({
   extendEditor: ({ editor }) => {
     if (!YjsEditor.isYjsEditor(editor)) {

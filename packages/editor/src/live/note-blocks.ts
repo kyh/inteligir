@@ -17,6 +17,7 @@ import { blockId } from "@repo/editor/node-props";
 import { namedBlockJson, tidyBlock } from "../codec/read-blocks";
 import { noteRoot } from "./yjs-binding";
 
+/** @internal */
 export interface NoteBlock {
   readonly block: LibraryBlock;
   readonly section: LibrarySection;
@@ -63,6 +64,7 @@ export const sectioned = (block: LibraryBlock, section: LibrarySection): TElemen
 // (a stored block drops the empty texts Slate keeps beside an inline). A note with no blocks gets
 // one empty paragraph: an editor never connects to an empty root, where two at once would each
 // write one.
+/** @internal */
 export const seedDoc = (doc: Y.Doc, blocks: readonly NoteBlock[]): void => {
   const root = noteRoot(doc);
   if (root.length > 0) {
@@ -84,6 +86,7 @@ export const seedDoc = (doc: Y.Doc, blocks: readonly NoteBlock[]): void => {
 };
 
 // The document's blocks in order; an element no block stores is left out of the library's view.
+/** @internal */
 export const readBlocks = (doc: Y.Doc): NoteBlock[] =>
   yTextToSlateElement(noteRoot(doc)).children.flatMap((node): NoteBlock[] => {
     if (!ElementApi.isElement(node)) {
