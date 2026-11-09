@@ -14,7 +14,9 @@ session's ports and the `EditorHost` singleton
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
 one `installEditorHost` call per host. Its
 `EditorHostIo` reads the library by its own keys (THE EDITOR'S HOST SPEAKS THE
-LIBRARY) and carries the link resolver store, so no host writes its own; its
+LIBRARY), and the library's titles a host hands `setLibraryTitles` sit beside
+it, so no host keeps a store of its own (THE `[[` PICKER IS PLATE'S MENTION
+INPUT); its
 `EditorHostActions` (Ask agent, `showTag` and a new note, all required) are
 how a deep node asks the shell. The item editor provides the id of the item it
 shows (`open-item.tsx`), which a heading's fold is keyed by. `node-props.ts` is the
@@ -376,8 +378,9 @@ alone, and no walk narrows structurally.
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
-  SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, the
-  feed's `titleOf` is live, and `readFile(sha)` answers from the host's file
+  SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, a
+  page link shows the title its id goes by in the library's titles now, and
+  `readFile(sha)` answers from the host's file
   source (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app
   alike; the phone's cache over the bridge). A media block holds `{sha}` (a file its
   `name`) or a web `{url}`, its type the Blob's. A page link reaches an item by
@@ -491,8 +494,9 @@ alone, and no walk narrows structurally.
   the codec or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
   a `#` or `%` in a name reads back. Past the import nothing is a path: the
   editor reaches an item by a page link's id, its `[[` picker ranking the
-  library's items its host feeds (`packages/editor/src/link-resolver-feed.ts`),
-  and a file by its sha, and only an http(s) url reaches the browser. Rejected: resolving
+  library's titles its host hands over (`setLibraryTitles` in
+  `packages/editor/src/host-io.ts`), and a file by its sha, and only an
+  http(s) url reaches the browser. Rejected: resolving
   a live note's relative url (no library item has a path to resolve it
   against).
   `packages/editor/src/codec/import-plan.ts`.
@@ -504,9 +508,7 @@ alone, and no walk narrows structurally.
   `[[todo.txt]]`; a zip links only within itself. Past the zip there are no
   files: the cell and the editor reach an item by its id or by `titleKey`.
   Rejected: dropping every doc extension (it loses Obsidian's reading and the
-  pinned resolver). The `[[` picker inserts a page link to an item by its id,
-  with its title, so no rename breaks it.
-  `packages/editor/src/knowledge/link-resolve.test.ts`.
+  pinned resolver). `packages/editor/src/knowledge/link-resolve.test.ts`.
 
 - **A MARKDOWN FILE'S FACTS ARE ITS FRONTMATTER KEYS, AND ONE READER READS
   THEM.** An import, and the codec reading a file back, take a link's, a
@@ -522,3 +524,25 @@ alone, and no walk narrows structurally.
   leaves the filename standing and stays a property, as an Obsidian template
   writes it. Rejected: a frontmatter block kept in the item (its keys are the
   item's fields).
+
+- **THE `[[` PICKER IS PLATE'S MENTION INPUT, OVER THE LIBRARY'S TITLES.**
+  `MentionPlugin` opens its input on a `[` typed after a `[`, outside a code
+  block, so `[[` opens it and an `@` stays the character typed; the first `[`
+  stays typed until a pick takes it (`consumeTriggerLead`). The rows are the
+  library's titles, which a host hands `setLibraryTitles` each time its listing
+  of them answers, a title's prefix ranked first and the list cut before any
+  row mounts (`packages/editor/src/mention/rank-titles.ts`), since Base UI's
+  filter and Plate's `filterWords` only filter. A pick is Plate's own mention
+  insert, by the item's id with the title it goes by, so no rename breaks it,
+  and a page link's chip reads the same titles, so it shows the name the item
+  goes by now. A title no item has offers Create, which makes the note before
+  linking it and leaves the words typed as text when the note was not made;
+  typing `]]` links the item the words name by `titleKey`, the first the
+  library lists, or leaves them the text they are. The popup, its keys and its
+  IME-safe Enter are Base UI's Combobox (A PICKER IS BASE UI'S, in
+  `packages/ui/CLAUDE.md`). Rejected: a trigger plugin and input element of our
+  own (Plate's mention input opens on a trigger and the character before it);
+  a resolver store each host fed and kept (every host hands the editor the
+  same list). `packages/editor/src/kits/mention-kit.tsx`,
+  `packages/editor/src/mention/mention-input.tsx`,
+  `packages/editor/src/host-io.ts`.

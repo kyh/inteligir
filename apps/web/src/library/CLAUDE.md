@@ -77,7 +77,7 @@ is parsed in `shell/desktop-bridge.ts`.
 
 - **THE LIBRARY IS ONE CHUNK, AND CATCHES UP AS ITS CONNECTION RETURNS.**
   Every module only the library's routes reach, the tab's open and the
-  editor's lazy nodes (KaTeX, Mermaid, the calendar, the wiki chip) among them,
+  editor's lazy nodes (KaTeX, Mermaid, the calendar) among them,
   is one chunk group, so a site page preloads none of it and, once the page
   loads, nothing is fetched but calls and files: a chunk first asked for by a
   tab that lost its connection fails, and the crash screen offers a reload. The

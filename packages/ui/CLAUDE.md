@@ -28,8 +28,8 @@ nobody, and git keeps it (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
   demo. Selection-anchored surfaces take a virtual anchor (`block-menu.tsx`),
   the find bar the item view's slot above the note (`setFindBarAnchor` in
   `packages/editor/src/find-bar.tsx`); the
-  wiki-link preview is a HoverCard, since Popover has no hover
-  (`packages/editor/src/wiki/wiki-chip.tsx`); Quick Look is a `Dialog`
+  page link's preview is a HoverCard, since Popover has no hover
+  (`packages/editor/src/mention/mention-chip.tsx`); Quick Look is a `Dialog`
   (`apps/web/src/library/library/quick-look.tsx`). The one exception is the
   selection toolbar (`packages/editor/src/selection-toolbar.tsx`): with no
   open/dismiss lifecycle, a Popover would still need its selection-driven `open`
@@ -74,10 +74,14 @@ nobody, and git keeps it (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
   grouped data and nothing filtered or filled from them, so the field keeps
   focus while the arrows move the light, Enter runs the lit row and a picked
   row never becomes the query (`packages/ui/src/components/command.tsx`); the
-  editor's in-text menus are Combobox (`packages/editor/src/inline-combobox.tsx`).
-  Rejected: the palette's own listbox (its active descendant, arrows, Enter and
-  row registry were ours to keep right, under five lint suppressions); cmdk (a
-  second picker library beside Base UI).
+  editor's in-text menus are Combobox (`packages/editor/src/inline-combobox.tsx`),
+  drawn inside the input element Plate's trigger plugin opens, the `[[` picker
+  inside Plate's mention input (`packages/editor/src/mention/mention-input.tsx`),
+  so Base UI owns the popup's portal, positioning, dismissal, arrows and Enter,
+  an Enter that ends an IME composition included. Rejected: the palette's own
+  listbox (its active descendant, arrows, Enter and row registry were ours to
+  keep right, under five lint suppressions); cmdk (a second picker library
+  beside Base UI); Plate's registry combobox (Ariakit, a second popup library).
 
 ## Repo guards, vendoring and tooling
 

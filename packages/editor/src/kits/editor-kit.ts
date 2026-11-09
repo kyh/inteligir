@@ -25,7 +25,6 @@ import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
-import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations and the
 // markdown wiring. Every surface composes this whole, so a note reads
@@ -47,7 +46,6 @@ export const CONTENT_KIT = [
   ...InlineConstructsKit,
   ...RichBlocksKit,
   ...TabsKit,
-  ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
   // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,

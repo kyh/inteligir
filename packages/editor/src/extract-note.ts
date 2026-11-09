@@ -15,7 +15,6 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
-import { pageLinkNode } from "@repo/editor/wiki/wiki-insert";
 
 import { readElement } from "./item/item-diff";
 
@@ -67,8 +66,13 @@ const signatureOf = (elements: readonly TElement[]): string =>
     })
     .join(" ");
 
+// the page link Plate's mention insert writes: the note by its id, under the title it was made with
 const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
-  children: [{ text: "" }, pageLinkNode({ id: itemId, title }), { text: "" }],
+  children: [
+    { text: "" },
+    { children: [{ text: "" }], key: itemId, type: editor.getType(KEYS.mention), value: title },
+    { text: "" },
+  ],
   type: editor.getType(KEYS.p),
 });
 

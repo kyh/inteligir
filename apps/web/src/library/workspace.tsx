@@ -10,6 +10,7 @@ import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
+import { setLibraryTitles } from "@repo/editor/host-io";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import type { ItemKind } from "@repo/contract/items/item-kind";
@@ -208,7 +209,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   }, [cloud, socket, wire]);
   useEffect(() => {
     if (titles !== undefined) {
-      hostRef.current?.setTargets(titles.targets);
+      setLibraryTitles(titles.targets);
     }
   }, [titles]);
 

@@ -142,7 +142,11 @@ describe("an item's value as the ops it writes", () => {
   it("reads a block around a picker still open in it, whose query nobody has written yet", () => {
     const item = itemOf(1, 0);
     const picking: TElement = {
-      children: [{ text: "n 0 [" }, { children: [{ text: "" }], type: "wiki_input" }, { text: "" }],
+      children: [
+        { text: "n 0 [" },
+        { children: [{ text: "" }], type: "mention_input" },
+        { text: "" },
+      ],
       id: "n0",
       type: "p",
     };
