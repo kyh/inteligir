@@ -136,7 +136,9 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    - `DROP TABLE device` alone, once, in the release that ends the device
      credential: the table is a child of `user` that nothing references, so the
      drop cascades nothing. Push it as Deploy finishes, since the Worker before
-     it reads the table, then `--explain` again.
+     it reads the table, then `--explain` again. drizzle-kit refuses a drop of a
+     table that holds rows until `--hints` confirms the loss, and its refusal
+     prints the hint to pass (`confirm_data_loss` for `device`).
    - Anything else that recreates a table (a `__new_` table, a `DROP TABLE`):
      STOP. D1 ignores the foreign-key pragma a recreate leans on, so the drop
      cascades through every session and account (`apps/web/CLAUDE.md`,
