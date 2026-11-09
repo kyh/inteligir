@@ -26,6 +26,7 @@ import { dropJob, deferJob, dueJobs, retryJob, scheduleJob } from "../library/ce
 import type { DueJob } from "../library/cell-jobs";
 import { releaseHeldFills } from "../library/cell-fills";
 import type { LandingScope } from "../library/cell-landing";
+import type { CellStorage } from "../library/cell-storage";
 import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
 import { deleteThread } from "../library/cell-threads";
@@ -190,8 +191,8 @@ const openTurn = (
   }
   const row = storeEvent(scope, send.threadId, turnEventId(send.threadId, turn), event);
   setThreadStatus(scope, send.threadId, "running");
-  scheduleJob(storage, deliverJob(send.threadId), now);
-  scheduleJob(storage, watchJob(send.threadId), now + WATCH_EVERY_MS);
+  scheduleJob(storage.db, deliverJob(send.threadId), now);
+  scheduleJob(storage.db, watchJob(send.threadId), now + WATCH_EVERY_MS);
   return row;
 };
 
@@ -223,18 +224,18 @@ const setIdSchema = z.object({ id: z.string(), sealed_at: z.number().nullable() 
 
 // the change set a turn's writes opened, sealed: one undoable set a turn
 const sealTurnSet = (
-  sql: SqlStatements,
+  storage: CellStorage,
   turn: Pick<OpenTurn, "threadId" | "turn">,
   now: number,
 ): string[] => {
   const ids: string[] = [];
-  for (const raw of sql.all(
+  for (const raw of storage.all(
     "SELECT id, sealed_at FROM change_sets WHERE actor = 'agent' AND thread_id = ? AND turn = ?",
     [turn.threadId, turn.turn],
   )) {
     const set = setIdSchema.parse(raw);
     if (set.sealed_at === null) {
-      sealChangeSet(sql, set.id, now);
+      sealChangeSet(storage, set.id, now);
     }
     ids.push(set.id);
   }
@@ -249,10 +250,10 @@ const closeTurn = (scope: LandingScope, turn: OpenTurn): void => {
   if (settleTurnCalls(storage, turn) === 0) {
     bookTurn(storage, dayOf(turn.startedAt), -1);
   }
-  releaseHeldFills(storage, sets, now);
+  releaseHeldFills(storage.db, sets, now);
   dropTurn(storage, turn.threadId);
-  dropJob(storage, deliverJob(turn.threadId).id);
-  dropJob(storage, watchJob(turn.threadId).id);
+  dropJob(storage.db, deliverJob(turn.threadId).id);
+  dropJob(storage.db, watchJob(turn.threadId).id);
 };
 
 // ---- handing a turn to its thread ----
@@ -270,16 +271,16 @@ const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): P
 // the open turn handed to its thread's object, and stopped there when the person stopped it; the
 // job stays for the alarm until both landed
 const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
-  const read = cell.library.read((sql) => {
-    const turn = openTurnOf(sql, threadId);
-    return turn === null ? null : { rules: filingRules(sql), turn };
+  const read = cell.library.read((storage) => {
+    const turn = openTurnOf(storage, threadId);
+    return turn === null ? null : { rules: filingRules(storage.db), turn };
   });
   if (!read.ok) {
     return;
   }
   if (read.value === null) {
     await landRows(cell, (scope) => {
-      dropJob(scope.storage, deliverJob(threadId).id);
+      dropJob(scope.storage.db, deliverJob(threadId).id);
     });
     return;
   }
@@ -299,14 +300,14 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
   } catch (error) {
     console.warn({ event: "agent-deliver-failed", threadId, ...errorFields(error) });
     await landRows(cell, (scope) => {
-      deferJob(scope.storage, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
+      deferJob(scope.storage.db, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
     });
     return;
   }
   await landRows(cell, (scope) => {
     // a stop asked for meanwhile is delivered by the job it asked for
     if (openTurnOf(scope.storage, threadId)?.cancel !== true || turn.cancel) {
-      dropJob(scope.storage, deliverJob(threadId).id);
+      dropJob(scope.storage.db, deliverJob(threadId).id);
     }
   });
 };
@@ -459,7 +460,7 @@ export const cancelTurn = async (
         restThread(scope, input.threadId);
       } else {
         markCancel(storage, input.threadId);
-        scheduleJob(storage, deliverJob(input.threadId), scope.now);
+        scheduleJob(storage.db, deliverJob(input.threadId), scope.now);
       }
       return statusOf(storage, input.threadId);
     },
@@ -479,7 +480,7 @@ export const stopEveryTurn = (scope: LandingScope): void => {
       restThread(scope, threadId);
     } else {
       markCancel(storage, threadId);
-      scheduleJob(storage, deliverJob(threadId), scope.now);
+      scheduleJob(storage.db, deliverJob(threadId), scope.now);
     }
   }
 };
@@ -812,9 +813,9 @@ const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   }
   await landRows(cell, (scope) => {
     if (openTurnOf(scope.storage, threadId) === null) {
-      dropJob(scope.storage, watchJob(threadId).id);
+      dropJob(scope.storage.db, watchJob(threadId).id);
     } else {
-      scheduleJob(scope.storage, watchJob(threadId), scope.now + WATCH_EVERY_MS);
+      scheduleJob(scope.storage.db, watchJob(threadId), scope.now + WATCH_EVERY_MS);
     }
   });
 };
@@ -831,7 +832,7 @@ const runAgentJob = async (
 
 // the agent's jobs due, each leaving its own row as it should be; one that throws is put off
 export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
-  const due = cell.library.read((sql) => dueJobs(sql, cell.now(), AGENT_JOBS));
+  const due = cell.library.read((storage) => dueJobs(storage.db, cell.now(), AGENT_JOBS));
   if (!due.ok) {
     return;
   }
@@ -841,7 +842,7 @@ export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
     } catch (error) {
       console.error({ event: "agent-job-failed", kind: job.kind, ...errorFields(error) });
       await landRows(cell, (scope) => {
-        retryJob(scope.storage, job, scope.now);
+        retryJob(scope.storage.db, job, scope.now);
       });
     }
   }

@@ -11,11 +11,11 @@ const TEST_SCHEMA = execFileSync("pnpm", ["--filter", "@repo/db", "run", "--sile
   encoding: "utf-8",
 });
 
-// the library model's own suites, which run under node: its SQL on SQLite's wasm build, which
-// workerd cannot compile, and the pure modules beside it
+// the library model's pure suites, which run under node; every suite that reaches SQL runs in
+// workerd, on the cell's own SQLite
 const MODEL_SUITES = [
   "src/{imports,items,knowledge,text}/**/*.test.ts",
-  "src/library/{library-queries,library-schema,library-sql,revert-change}.test.ts",
+  "src/library/revert-change.test.ts",
   "src/test-support/revert-edit.test.ts",
 ];
 
@@ -40,6 +40,9 @@ const workerd = cloudflareTest({
     // also makes ctx.exports.LibraryDO a SQLite namespace (test-support/env.d.ts)
     durableObjects: { LIBRARY_CELL: { className: "LibraryDO", useSQLite: true } },
     bindings: { TEST_SCHEMA },
+    // the cell's migrations, which @repo/db's migrations.js imports as text; the plugin takes module
+    // rules from here or a Wrangler file alone, and parses a .sql as JavaScript otherwise
+    modulesRules: [{ include: ["**/*.sql"], type: "Text" }],
   },
 });
 

@@ -6,9 +6,12 @@
 // missed alarm; the alarm is set to the earliest due one, and only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
+import { and, asc, eq, inArray, lte, min, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import type { SqlStatements } from "./library-sql";
+import { jobs } from "@repo/db/cell/schema";
+import { excluded } from "./cell-db";
+import type { CellDb } from "./cell-db";
 
 const JOB_KINDS = [
   "seal",
@@ -30,41 +33,42 @@ export interface DueJob<K extends JobKind = JobKind> {
   readonly attempts: number;
 }
 
+interface JobRequest {
+  readonly id: string;
+  readonly kind: JobKind;
+  readonly payload: string;
+}
+
 // a job asked for at `nextAt`; one already waiting is asked for again, its count of failed runs
 // started over
-export const scheduleJob = (
-  sql: SqlStatements,
-  job: { readonly id: string; readonly kind: JobKind; readonly payload: string },
-  nextAt: number,
-): void => {
-  sql.run(
-    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
-     ON CONFLICT (id) DO UPDATE SET payload = excluded.payload, next_at = excluded.next_at,
-       attempts = 0`,
-    [job.id, job.kind, job.payload, nextAt],
-  );
+export const scheduleJob = (db: CellDb, job: JobRequest, nextAt: number): void => {
+  db.insert(jobs)
+    .values({ attempts: 0, id: job.id, kind: job.kind, nextAt, payload: job.payload })
+    .onConflictDoUpdate({
+      set: { attempts: 0, nextAt: excluded(jobs.nextAt), payload: excluded(jobs.payload) },
+      target: jobs.id,
+    })
+    .run();
 };
 
 // a job made only if it is not already waiting, its time left alone
-export const ensureJob = (
-  sql: SqlStatements,
-  job: { readonly id: string; readonly kind: JobKind; readonly payload: string },
-  nextAt: number,
-): void => {
-  sql.run(
-    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
-     ON CONFLICT (id) DO NOTHING`,
-    [job.id, job.kind, job.payload, nextAt],
-  );
+export const ensureJob = (db: CellDb, job: JobRequest, nextAt: number): void => {
+  db.insert(jobs)
+    .values({ attempts: 0, id: job.id, kind: job.kind, nextAt, payload: job.payload })
+    .onConflictDoNothing({ target: jobs.id })
+    .run();
 };
 
-export const dropJob = (sql: SqlStatements, id: string): void => {
-  sql.run("DELETE FROM jobs WHERE id = ?", [id]);
+export const dropJob = (db: CellDb, id: string): void => {
+  db.delete(jobs).where(eq(jobs.id, id)).run();
 };
 
 // a job's next run moved, its attempts counted
-export const deferJob = (sql: SqlStatements, id: string, nextAt: number): void => {
-  sql.run("UPDATE jobs SET attempts = attempts + 1, next_at = ? WHERE id = ?", [nextAt, id]);
+export const deferJob = (db: CellDb, id: string, nextAt: number): void => {
+  db.update(jobs)
+    .set({ attempts: sql`${jobs.attempts} + 1`, nextAt })
+    .where(eq(jobs.id, id))
+    .run();
 };
 
 // a failed run waits longer each time, at most an hour
@@ -74,12 +78,8 @@ const RETRY_MAX_MS = 60 * 60_000;
 // a failed run counted, and the next put off. A job whose run the platform may end (past its CPU,
 // its memory), which no catch would see, counts its run so before it starts, and the run that gets
 // somewhere asks for its next itself (`scheduleJob`), starting the count over
-export const retryJob = (sql: SqlStatements, job: DueJob, now: number): void => {
-  const wait = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** job.attempts);
-  sql.run("UPDATE jobs SET attempts = attempts + 1, next_at = ? WHERE id = ?", [
-    now + wait,
-    job.id,
-  ]);
+export const retryJob = (db: CellDb, job: DueJob, now: number): void => {
+  deferJob(db, job.id, now + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** job.attempts));
 };
 
 // what one alarm run takes on of each lot, the longest waiting first
@@ -87,29 +87,23 @@ const DUE_PER_RUN = 50;
 
 // the due jobs of `kinds`
 export const dueJobs = <K extends JobKind>(
-  sql: SqlStatements,
+  db: CellDb,
   now: number,
   kinds: readonly [K, ...K[]],
 ): DueJob<K>[] => {
-  const rowSchema = z.object({
-    attempts: z.number().int().nonnegative(),
-    id: z.string(),
-    kind: z.enum(kinds),
-    payload: z.string(),
-  });
-  return sql
-    .all(
-      `SELECT id, kind, payload, attempts FROM jobs
-       WHERE next_at <= ? AND kind IN (${kinds.map(() => "?").join(", ")})
-       ORDER BY next_at, id LIMIT ?`,
-      [now, ...kinds, DUE_PER_RUN],
-    )
-    .map((row) => rowSchema.parse(row));
+  const kindSchema = z.enum(kinds);
+  return db
+    .select({ attempts: jobs.attempts, id: jobs.id, kind: jobs.kind, payload: jobs.payload })
+    .from(jobs)
+    .where(and(lte(jobs.nextAt, now), inArray(jobs.kind, kinds)))
+    .orderBy(asc(jobs.nextAt), asc(jobs.id))
+    .limit(DUE_PER_RUN)
+    .all()
+    .map((row) => ({ ...row, kind: kindSchema.parse(row.kind) }));
 };
 
-const nextRowSchema = z.object({ next: z.number().nullable() });
-
-export const nextJobAt = (sql: SqlStatements): number | null => {
-  const [row] = sql.all("SELECT min(next_at) AS next FROM jobs", []);
-  return nextRowSchema.parse(row).next;
-};
+export const nextJobAt = (db: CellDb): number | null =>
+  db
+    .select({ next: min(jobs.nextAt) })
+    .from(jobs)
+    .get()?.next ?? null;

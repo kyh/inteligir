@@ -10,6 +10,7 @@
     ".tanstack",
     "routeTree.gen.ts",
     "packages/editor/src/test-support/fixtures",
+    "packages/db/src/cell/migrations",
     "__snapshots__"
   ]
 }

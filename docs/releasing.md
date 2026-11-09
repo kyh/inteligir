@@ -694,8 +694,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   that only `ctx.exports` reaches. On the production deploy, passing is the
   same, and its output says, for each of the three tombstones, whether it may
   leave the map; one it clears is deleted from the map in the next change.
-- **A new library schema.** When `LIBRARY_SCHEMA_VERSION`
-  (`packages/service/src/library/library-schema.ts`) moved since the last
+- **A new library schema.** When the cell's migrations
+  (`packages/db/src/cell/migrations`) moved since the last
   deploy, open the library on the preview and then in production. Passing: it
   opens on an empty library with no error, and the Worker's log shows one
   `cell-schema-reset` for the account. No suite deploys over a cell.

@@ -109,7 +109,7 @@ describe("a Raindrop import", () => {
       expect(sets).toStrictEqual([
         { id: job.changeSetId, label: "Imported from Raindrop", sealed_at: expect.any(Number) },
       ]);
-      expect(readBlobRow(cellStorageOf(state.storage), started.sha)).toBeNull();
+      expect(readBlobRow(cellStorageOf(state.storage).db, started.sha)).toBeNull();
       // every reading the links wait for was sent to the fill queue
       expect(
         state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'fill'").toArray(),
@@ -581,7 +581,7 @@ describe("an import's runs", () => {
     });
     await inCell(cellOf(accountId), async (state) => {
       await runImports(jobHostIn(state, accountId, undefined, () => Date.now() + 6 * DAY_MS));
-      expect(readBlobRow(cellStorageOf(state.storage), started.sha)).toBeNull();
+      expect(readBlobRow(cellStorageOf(state.storage).db, started.sha)).toBeNull();
     });
     await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       added: 0,

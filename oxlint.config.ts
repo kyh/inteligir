@@ -319,7 +319,6 @@ export default defineConfig({
         "packages/service/src/items/**",
         "packages/service/src/knowledge/**",
         "packages/service/src/library/library-queries.ts",
-        "packages/service/src/library/library-schema.ts",
         "packages/service/src/library/library-sql.ts",
         "packages/service/src/library/revert-change.ts",
         "packages/service/src/library/sql-value.ts",

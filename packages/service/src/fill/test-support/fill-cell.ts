@@ -4,7 +4,6 @@
 
 import type { ItemState } from "@repo/contract/library/block-ops";
 import { readItemState } from "../../library/library-queries";
-import { runPlan } from "../../library/library-sql";
 import { createRouterClient } from "@orpc/server";
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -62,9 +61,7 @@ export const savedLink = async (url: string): Promise<SavedLink> => {
 };
 
 export const itemIn = async (accountId: string, itemId: string): Promise<ItemState | null> =>
-  await inCell(cellOf(accountId), (state) =>
-    runPlan(cellStorageOf(state.storage), readItemState(itemId)),
-  );
+  await inCell(cellOf(accountId), (state) => readItemState(cellStorageOf(state.storage), itemId));
 
 export const fieldsIn = async (accountId: string, itemId: string) => {
   const state = await itemIn(accountId, itemId);

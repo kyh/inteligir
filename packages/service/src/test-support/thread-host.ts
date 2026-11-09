@@ -72,7 +72,7 @@ export const openTurnInCell = async (
         });
         bookTurn(scope.storage, dayOf(scope.now), 1);
         setThreadStatus(scope, threadId, "running");
-        return filingRules(scope.storage);
+        return filingRules(scope.storage.db);
       }),
     );
   });

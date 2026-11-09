@@ -65,7 +65,12 @@
     "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
     "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
-    "packages/db": { "project": ["src/**/*.ts!"] },
+    "packages/db": {
+      // knip's drizzle plugin reads only drizzle.config.ts by default; the cell's schema has its own
+      // config, and the local D1's throws on load until `pnpm dev:web` has made that database
+      "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.cell.ts"] },
+      "project": ["src/**/*.{ts,js}!"]
+    },
     "packages/service": {
       // cloudflare.config.ts is the suites' Worker, never deployed, its entrypoint
       // src/test-support/test-worker.ts; the type claims are vitest's `typecheck.include`, which

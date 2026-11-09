@@ -4,13 +4,17 @@
 // folder lists as unsorted. A folder is no item, so its writes join no change set; each is stamped
 // with the write's sequence number, as an item is.
 
+import { and, asc, eq, isNull } from "drizzle-orm";
+import type { z } from "zod";
+
+import { folders } from "@repo/db/cell/schema";
 import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/library/library-wire";
 import type { folderOpSchema } from "@repo/contract/library/library-wire";
 import { compareText, ordBetween } from "@repo/contract/library/block-order";
 import { titleKey } from "@repo/contract/library/derive-item";
-import type { SqlRow, SqlStatements } from "./library-sql";
-import { z } from "zod";
 
+import { excluded } from "./cell-db";
+import type { CellDb } from "./cell-db";
 import type { LandingScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 import type { ConflictCurrent } from "./cell-refusal";
@@ -29,51 +33,37 @@ export interface FolderRow {
 // where an item is filed: a folder by id, by its path of names from the top, or none
 export type FolderTarget = { readonly id: string } | { readonly path: string } | null;
 
-const rowSchema = z.object({
-  deleted_at: z.number().nullable(),
-  id: z.string(),
-  name: z.string(),
-  parent_id: z.string().nullable(),
-  seq: z.number(),
-  sort: z.string(),
-});
+const readFolder = (db: CellDb, id: string): FolderRow | null =>
+  db.select().from(folders).where(eq(folders.id, id)).get() ?? null;
 
-const COLUMNS = "id, parent_id, name, sort, deleted_at, seq";
-
-const rowOf = (raw: SqlRow): FolderRow => {
-  const row = rowSchema.parse(raw);
-  return {
-    deletedAt: row.deleted_at,
-    id: row.id,
-    name: row.name,
-    parentId: row.parent_id,
-    seq: row.seq,
-    sort: row.sort,
-  };
-};
-
-const readFolder = (sql: SqlStatements, id: string): FolderRow | null => {
-  const [raw] = sql.all(`SELECT ${COLUMNS} FROM folders WHERE id = ?`, [id]);
-  return raw === undefined ? null : rowOf(raw);
-};
-
-export const liveFolders = (sql: SqlStatements): FolderRow[] =>
-  sql
-    .all(`SELECT ${COLUMNS} FROM folders WHERE deleted_at IS NULL ORDER BY sort, id`, [])
-    .map(rowOf);
+export const liveFolders = (db: CellDb): FolderRow[] =>
+  db
+    .select()
+    .from(folders)
+    .where(isNull(folders.deletedAt))
+    .orderBy(asc(folders.sort), asc(folders.id))
+    .all();
 
 const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === null ? row : null);
 
 const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRow => {
-  const seq = scope.seq();
-  scope.storage.run(
-    `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, name = excluded.name,
-       sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq`,
-    [row.id, row.parentId, row.name, row.sort, row.deletedAt, seq],
-  );
+  const folder = { ...row, seq: scope.seq() };
+  scope.storage.db
+    .insert(folders)
+    .values(folder)
+    .onConflictDoUpdate({
+      set: {
+        deletedAt: excluded(folders.deletedAt),
+        name: excluded(folders.name),
+        parentId: excluded(folders.parentId),
+        seq: excluded(folders.seq),
+        sort: excluded(folders.sort),
+      },
+      target: folders.id,
+    })
+    .run();
   scope.moved.folder();
-  return { ...row, seq };
+  return folder;
 };
 
 const conflictOf = (id: string, current: FolderRow | null): ConflictCurrent => ({
@@ -82,28 +72,31 @@ const conflictOf = (id: string, current: FolderRow | null): ConflictCurrent => (
   kind: "folder",
 });
 
-const childrenOf = (sql: SqlStatements, parentId: string | null): FolderRow[] =>
-  sql
-    .all(`SELECT ${COLUMNS} FROM folders WHERE parent_id IS ? AND deleted_at IS NULL`, [parentId])
-    .map(rowOf);
+const childrenOf = (db: CellDb, parentId: string | null): FolderRow[] =>
+  db
+    .select()
+    .from(folders)
+    .where(
+      and(
+        parentId === null ? isNull(folders.parentId) : eq(folders.parentId, parentId),
+        isNull(folders.deletedAt),
+      ),
+    )
+    .all();
 
 // the live sibling another folder would share a name with
 const namesake = (
-  sql: SqlStatements,
+  db: CellDb,
   folder: { readonly id: string; readonly parentId: string | null; readonly name: string },
 ): FolderRow | null =>
-  childrenOf(sql, folder.parentId).find(
+  childrenOf(db, folder.parentId).find(
     (sibling) => sibling.id !== folder.id && titleKey(sibling.name) === titleKey(folder.name),
   ) ?? null;
 
 // whether `ancestor` is `folderId` or a folder above it
-const isAtOrAbove = (sql: SqlStatements, ancestor: string, folderId: string | null): boolean => {
+const isAtOrAbove = (db: CellDb, ancestor: string, folderId: string | null): boolean => {
   const seen = new Set<string>();
-  for (
-    let at = folderId;
-    at !== null && !seen.has(at);
-    at = readFolder(sql, at)?.parentId ?? null
-  ) {
+  for (let at = folderId; at !== null && !seen.has(at); at = readFolder(db, at)?.parentId ?? null) {
     if (at === ancestor) {
       return true;
     }
@@ -114,60 +107,60 @@ const isAtOrAbove = (sql: SqlStatements, ancestor: string, folderId: string | nu
 
 type Op<K extends FolderOp["op"]> = Extract<FolderOp, { op: K }>;
 
-const liveParentOrRefuse = (sql: SqlStatements, parentId: string): FolderRow =>
-  live(readFolder(sql, parentId)) ?? refuse({ kind: "not-found" });
+const liveParentOrRefuse = (db: CellDb, parentId: string): FolderRow =>
+  live(readFolder(db, parentId)) ?? refuse({ kind: "not-found" });
 
-const createConflict = (sql: SqlStatements, op: Op<"create">): ConflictCurrent | null => {
-  const held = readFolder(sql, op.id);
+const createConflict = (db: CellDb, op: Op<"create">): ConflictCurrent | null => {
+  const held = readFolder(db, op.id);
   if (held !== null) {
     const same = held.deletedAt === null && held.name === op.name && held.parentId === op.parentId;
     return same ? null : conflictOf(op.id, held);
   }
   if (op.parentId !== null) {
-    liveParentOrRefuse(sql, op.parentId);
+    liveParentOrRefuse(db, op.parentId);
   }
-  const clash = namesake(sql, op);
+  const clash = namesake(db, op);
   return clash === null ? null : conflictOf(clash.id, clash);
 };
 
-const renameConflict = (sql: SqlStatements, op: Op<"rename">): ConflictCurrent | null => {
-  const held = readFolder(sql, op.id);
+const renameConflict = (db: CellDb, op: Op<"rename">): ConflictCurrent | null => {
+  const held = readFolder(db, op.id);
   const current = live(held);
   if (current === null || (current.name !== op.base && current.name !== op.name)) {
     return conflictOf(op.id, held);
   }
-  const clash = namesake(sql, { ...current, name: op.name });
+  const clash = namesake(db, { ...current, name: op.name });
   return clash === null ? null : conflictOf(clash.id, clash);
 };
 
-const moveConflict = (sql: SqlStatements, op: Op<"move">): ConflictCurrent | null => {
-  const held = readFolder(sql, op.id);
+const moveConflict = (db: CellDb, op: Op<"move">): ConflictCurrent | null => {
+  const held = readFolder(db, op.id);
   const current = live(held);
   if (current === null || current.parentId !== op.baseParentId) {
     return current?.parentId === op.parentId ? null : conflictOf(op.id, held);
   }
   if (op.parentId !== null) {
-    const parent = liveParentOrRefuse(sql, op.parentId);
+    const parent = liveParentOrRefuse(db, op.parentId);
     // a folder cannot go under itself: the tree the writer read did not hold it there
-    if (isAtOrAbove(sql, op.id, op.parentId)) {
+    if (isAtOrAbove(db, op.id, op.parentId)) {
       return conflictOf(parent.id, parent);
     }
   }
-  const clash = namesake(sql, { ...current, parentId: op.parentId });
+  const clash = namesake(db, { ...current, parentId: op.parentId });
   return clash === null ? null : conflictOf(clash.id, clash);
 };
 
 // what an op met instead of its base, or null when it may land (an op already true included)
-const opConflict = (sql: SqlStatements, op: FolderOp): ConflictCurrent | null => {
+const opConflict = (db: CellDb, op: FolderOp): ConflictCurrent | null => {
   switch (op.op) {
     case "create": {
-      return createConflict(sql, op);
+      return createConflict(db, op);
     }
     case "rename": {
-      return renameConflict(sql, op);
+      return renameConflict(db, op);
     }
     case "move": {
-      return moveConflict(sql, op);
+      return moveConflict(db, op);
     }
     case "delete": {
       return null;
@@ -177,19 +170,19 @@ const opConflict = (sql: SqlStatements, op: FolderOp): ConflictCurrent | null =>
 };
 
 // a folder and every live folder under it, deepest last
-const subtreeOf = (sql: SqlStatements, root: FolderRow): FolderRow[] => {
+const subtreeOf = (db: CellDb, root: FolderRow): FolderRow[] => {
   const found: FolderRow[] = [root];
   // an array's iterator reads the entries pushed while it runs, so each folder's children follow
   for (const parent of found) {
-    found.push(...childrenOf(sql, parent.id));
+    found.push(...childrenOf(db, parent.id));
   }
   return found;
 };
 
 // the rows the op changed, none for an op already true
 const landOp = (scope: LandingScope, op: FolderOp): FolderRow[] => {
-  const { storage } = scope;
-  const held = readFolder(storage, op.id);
+  const { db } = scope.storage;
+  const held = readFolder(db, op.id);
   switch (op.op) {
     case "create": {
       return held === null
@@ -218,7 +211,7 @@ const landOp = (scope: LandingScope, op: FolderOp): FolderRow[] => {
       const current = live(held);
       return current === null
         ? []
-        : subtreeOf(storage, current).map((folder) =>
+        : subtreeOf(db, current).map((folder) =>
             storeFolder(scope, { ...folder, deletedAt: scope.now }),
           );
     }
@@ -232,7 +225,7 @@ export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): Fol
   const conflicts: ConflictCurrent[] = [];
   const landed = new Map<string, FolderRow>();
   for (const op of ops) {
-    const conflict = opConflict(scope.storage, op);
+    const conflict = opConflict(scope.storage.db, op);
     if (conflict === null) {
       for (const row of landOp(scope, op)) {
         landed.set(row.id, row);
@@ -258,15 +251,14 @@ export const folderOfTarget = (
   if (target === undefined || target === null) {
     return target;
   }
+  const { db } = scope.storage;
   if ("id" in target) {
-    return live(readFolder(scope.storage, target.id)) === null
-      ? refuse({ kind: "not-found" })
-      : target.id;
+    return live(readFolder(db, target.id)) === null ? refuse({ kind: "not-found" }) : target.id;
   }
   let parentId: string | null = null;
   for (const written of folderPathNames(target.path)) {
     const name = written.slice(0, FOLDER_NAME_MAX).trim();
-    const siblings = childrenOf(scope.storage, parentId);
+    const siblings = childrenOf(db, parentId);
     const held = siblings.find((sibling) => titleKey(sibling.name) === titleKey(name));
     if (held === undefined) {
       const last =

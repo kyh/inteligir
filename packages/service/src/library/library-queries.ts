@@ -1,11 +1,15 @@
-// The library's reads and writes over its one schema (`./library-schema`), as plans every engine
-// runs alike. A write binds every value and cuts every many-row statement under a Durable
-// Object's limits (`chunkStatement`); a user's text is matched with instr(), since a Durable
-// Object refuses a pattern-match operand past 50 bytes. A row is applied only over an older one,
-// so a write stamped with a sequence the row has passed lands nothing.
+// The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
+// its derived rows and `meta` through drizzle's builders, and its blocks and the search index as
+// raw plans (`./library-sql`). A write binds every value and cuts every many-row statement under a
+// Durable Object's limits (`insertChunks`, `chunkStatement`); a user's text is matched with
+// instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
+// only over an older one, so a write stamped with a sequence the row has passed lands nothing.
 
+import { and, asc, eq, getColumns, isNull, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
+import { items, itemTags, links, meta } from "@repo/db/cell/schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
@@ -18,8 +22,12 @@ import type { DerivedItem, ItemCard, ItemSearchText } from "@repo/contract/libra
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { libraryBlockSchema, librarySectionSchema } from "@repo/contract/library/library-nodes";
-import { all, chunkStatement, LibraryRowError, run } from "./library-sql";
-import type { SqlPlan, SqlRow, SqlStatement, SqlValue } from "./library-sql";
+import { all, chunkStatement, LibraryRowError, run, runPlan } from "./library-sql";
+import type { SqlPlan, SqlRow, SqlStatement } from "./library-sql";
+
+import { excluded, insertChunks } from "./cell-db";
+import type { CellDb } from "./cell-db";
+import type { CellStorage } from "./cell-storage";
 
 const runEach = function* runEach(statements: readonly SqlStatement[]): SqlPlan<void> {
   for (const statement of statements) {
@@ -64,103 +72,62 @@ export interface ItemRowWrite {
   readonly seq: number;
 }
 
-const ITEM_COLUMNS = [
-  "id",
-  "kind",
-  "title",
-  "folder_id",
-  "aliases",
-  "tags",
-  "properties",
-  "url",
-  "url_key",
-  "site",
-  "author",
-  "published",
-  "description",
-  "lang",
-  "cover_sha",
-  "original_sha",
-  "original_name",
-  "fetch_state",
-  "fetched_at",
-  "fetch_error",
-  "saved_at",
-  "updated_at",
-  "pinned_at",
-  "deleted_at",
-  "purged",
-  "card",
-  "seq",
-] as const;
+// every column a write replaces: all but the row's own ids
+const REPLACED = Object.entries(getColumns(items)).filter(([key]) => key !== "rid" && key !== "id");
 
-const UPSERT_ITEM = `INSERT INTO items (${ITEM_COLUMNS.join(", ")})
-VALUES (${ITEM_COLUMNS.map(() => "?").join(", ")})
-ON CONFLICT (id) DO UPDATE SET ${ITEM_COLUMNS.filter((column) => column !== "id")
-  .map((column) => `${column} = excluded.${column}`)
-  .join(", ")}
-WHERE excluded.seq > items.seq
-RETURNING seq`;
+const ITEM_UPSERT = Object.fromEntries(REPLACED.map(([key, column]) => [key, excluded(column)]));
 
-// an item's row, over the one it replaces when that one is older: whether it landed, since an
-// upsert whose update is skipped returns no row (https://www.sqlite.org/lang_returning.html)
-export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan<boolean> {
+// an upsert whose update is skipped returns no row (https://www.sqlite.org/lang_returning.html)
+const newerThanHeld = sql`${excluded(items.seq)} > ${items.seq}`;
+
+// an item's row, over the one it replaces when that one is older: whether it landed
+export const storeItemRow = (db: CellDb, write: ItemRowWrite): boolean => {
   const { fields } = write;
-  const values: Record<(typeof ITEM_COLUMNS)[number], SqlValue> = {
-    aliases: JSON.stringify(fields.aliases),
-    author: fields.author,
-    card: JSON.stringify(write.card),
-    cover_sha: fields.coverSha,
-    deleted_at: fields.deletedAt,
-    description: fields.description,
-    fetch_error: fields.fetchError,
-    fetch_state: fields.fetchState,
-    fetched_at: fields.fetchedAt,
-    folder_id: fields.folderId,
-    id: write.id,
-    kind: fields.kind,
-    lang: fields.lang,
-    original_name: fields.originalName,
-    original_sha: fields.originalSha,
-    pinned_at: fields.pinnedAt,
-    properties: canonicalJson(fields.properties),
-    published: fields.published,
-    purged: 0,
-    saved_at: fields.savedAt,
-    seq: write.seq,
-    site: fields.site,
-    tags: JSON.stringify(fields.tags),
-    title: fields.title,
-    updated_at: write.updatedAt,
-    url: fields.url,
-    url_key: write.urlKey,
-  };
-  const landed = yield all(
-    UPSERT_ITEM,
-    ITEM_COLUMNS.map((column) => values[column]),
-  );
+  const landed = db
+    .insert(items)
+    .values({
+      aliases: JSON.stringify(fields.aliases),
+      author: fields.author,
+      card: JSON.stringify(write.card),
+      coverSha: fields.coverSha,
+      deletedAt: fields.deletedAt,
+      description: fields.description,
+      fetchError: fields.fetchError,
+      fetchState: fields.fetchState,
+      fetchedAt: fields.fetchedAt,
+      folderId: fields.folderId,
+      id: write.id,
+      kind: fields.kind,
+      lang: fields.lang,
+      originalName: fields.originalName,
+      originalSha: fields.originalSha,
+      pinnedAt: fields.pinnedAt,
+      properties: canonicalJson(fields.properties),
+      published: fields.published,
+      purged: 0,
+      savedAt: fields.savedAt,
+      seq: write.seq,
+      site: fields.site,
+      tags: JSON.stringify(fields.tags),
+      title: fields.title,
+      updatedAt: write.updatedAt,
+      url: fields.url,
+      urlKey: write.urlKey,
+    })
+    .onConflictDoUpdate({ set: ITEM_UPSERT, setWhere: newerThanHeld, target: items.id })
+    .returning({ seq: items.seq })
+    .all();
   return landed.length > 0;
 };
 
-const ITEM_TABLES_BY_ID = [
-  "DELETE FROM blocks WHERE item_id = ?",
-  "DELETE FROM links WHERE source_id = ?",
-  "DELETE FROM item_tags WHERE item_id = ?",
-] as const;
+// a tombstone takes its deletion, time and sequence, and nulls every other column it replaces
+const TOMBSTONE_TAKES: ReadonlySet<string> = new Set(["purged", "deletedAt", "updatedAt", "seq"]);
+const TOMBSTONE_UPSERT = Object.fromEntries(
+  REPLACED.map(([key, column]) => [key, TOMBSTONE_TAKES.has(key) ? excluded(column) : sql`NULL`]),
+);
 
 const DELETE_SEARCH_ROW =
   "DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)";
-
-const UPSERT_TOMBSTONE = `INSERT INTO items (id, purged, deleted_at, updated_at, seq)
-VALUES (?, 1, ?, ?, ?)
-ON CONFLICT (id) DO UPDATE SET ${ITEM_COLUMNS.filter(
-  (column) => !["id", "purged", "deleted_at", "updated_at", "seq"].includes(column),
-)
-  .map((column) => `${column} = NULL`)
-  .join(", ")}, purged = 1, deleted_at = excluded.deleted_at, updated_at = excluded.updated_at,
-  seq = excluded.seq
-WHERE excluded.seq > items.seq
-RETURNING seq`;
 
 export interface TombstoneWrite {
   readonly id: string;
@@ -172,52 +139,29 @@ export interface TombstoneWrite {
 // a purged item: its id, sequence and deletion stay forever, and everything it held goes but the
 // files it named, which the cell counts for itself; whether it landed, since a row newer than the
 // tombstone keeps everything it holds
-export const storeTombstone = function* storeTombstone(write: TombstoneWrite): SqlPlan<boolean> {
-  const landed = yield all(UPSERT_TOMBSTONE, [
-    write.id,
-    write.deletedAt,
-    write.updatedAt,
-    write.seq,
-  ]);
+export const storeTombstone = (storage: CellStorage, write: TombstoneWrite): boolean => {
+  const { db } = storage;
+  const landed = db
+    .insert(items)
+    .values({
+      deletedAt: write.deletedAt,
+      id: write.id,
+      purged: 1,
+      seq: write.seq,
+      updatedAt: write.updatedAt,
+    })
+    .onConflictDoUpdate({ set: TOMBSTONE_UPSERT, setWhere: newerThanHeld, target: items.id })
+    .returning({ seq: items.seq })
+    .all();
   if (landed.length === 0) {
     return false;
   }
-  yield run(DELETE_SEARCH_ROW, [write.id]);
-  for (const sql of ITEM_TABLES_BY_ID) {
-    yield run(sql, [write.id]);
-  }
+  storage.run(DELETE_SEARCH_ROW, [write.id]);
+  storage.run("DELETE FROM blocks WHERE item_id = ?", [write.id]);
+  db.delete(links).where(eq(links.sourceId, write.id)).run();
+  db.delete(itemTags).where(eq(itemTags.itemId, write.id)).run();
   return true;
 };
-
-const itemRowSchema = z.object({
-  aliases: z.string().nullable(),
-  author: z.string().nullable(),
-  card: z.string().nullable(),
-  cover_sha: z.string().nullable(),
-  deleted_at: z.number().nullable(),
-  description: z.string().nullable(),
-  fetch_error: z.string().nullable(),
-  fetch_state: z.string().nullable(),
-  fetched_at: z.number().nullable(),
-  folder_id: z.string().nullable(),
-  id: z.string(),
-  kind: z.string().nullable(),
-  lang: z.string().nullable(),
-  original_name: z.string().nullable(),
-  original_sha: z.string().nullable(),
-  pinned_at: z.number().nullable(),
-  properties: z.string().nullable(),
-  published: z.string().nullable(),
-  purged: z.number(),
-  saved_at: z.number().nullable(),
-  seq: z.number(),
-  site: z.string().nullable(),
-  tags: z.string().nullable(),
-  title: z.string().nullable(),
-  updated_at: z.number(),
-  url: z.string().nullable(),
-  url_key: z.string().nullable(),
-});
 
 export interface LiveStoredItem {
   readonly kind: "live";
@@ -241,29 +185,31 @@ export type StoredItem =
 
 const stringList = z.array(z.string());
 
-const liveItemOf = (row: z.infer<typeof itemRowSchema>): LiveStoredItem => {
+type ItemRow = typeof items.$inferSelect;
+
+const liveItemOf = (row: ItemRow): LiveStoredItem => {
   const fields = libraryItemFieldsSchema.safeParse({
     aliases: parseJsonColumn(row.aliases ?? "", stringList, "an item's aliases"),
     author: row.author,
-    coverSha: row.cover_sha,
-    deletedAt: row.deleted_at,
+    coverSha: row.coverSha,
+    deletedAt: row.deletedAt,
     description: row.description,
-    fetchError: row.fetch_error,
-    fetchState: row.fetch_state,
-    fetchedAt: row.fetched_at,
-    folderId: row.folder_id,
+    fetchError: row.fetchError,
+    fetchState: row.fetchState,
+    fetchedAt: row.fetchedAt,
+    folderId: row.folderId,
     kind: row.kind,
     lang: row.lang,
-    originalName: row.original_name,
-    originalSha: row.original_sha,
-    pinnedAt: row.pinned_at,
+    originalName: row.originalName,
+    originalSha: row.originalSha,
+    pinnedAt: row.pinnedAt,
     properties: parseJsonColumn(
       row.properties ?? "",
       z.record(z.string(), z.json()),
       "an item's properties",
     ),
     published: row.published,
-    savedAt: row.saved_at,
+    savedAt: row.savedAt,
     site: row.site,
     tags: parseJsonColumn(row.tags ?? "", stringList, "an item's tags"),
     title: row.title,
@@ -280,36 +226,30 @@ const liveItemOf = (row: z.infer<typeof itemRowSchema>): LiveStoredItem => {
     id: row.id,
     kind: "live",
     seq: row.seq,
-    updatedAt: row.updated_at,
-    urlKey: row.url_key,
+    updatedAt: row.updatedAt,
+    urlKey: row.urlKey,
   };
 };
 
-const storedItemOf = (raw: SqlRow): StoredItem => {
-  const row = parseRow(raw, itemRowSchema, "an item");
-  return row.purged === 1
+const storedItemOf = (row: ItemRow): StoredItem =>
+  row.purged === 1
     ? {
-        deletedAt: row.deleted_at,
+        deletedAt: row.deletedAt,
         id: row.id,
         kind: "purged",
         seq: row.seq,
-        updatedAt: row.updated_at,
+        updatedAt: row.updatedAt,
       }
     : liveItemOf(row);
-};
 
-export const readItem = function* readItem(id: string): SqlPlan<StoredItem | null> {
-  const [row] = yield all(`SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE id = ?`, [id]);
+export const readItem = (db: CellDb, id: string): StoredItem | null => {
+  const row = db.select().from(items).where(eq(items.id, id)).get();
   return row === undefined ? null : storedItemOf(row);
 };
 
 // every item that is not purged, by id: what the cell's listing is built from
-export const readLiveItems = function* readLiveItems(): SqlPlan<LiveStoredItem[]> {
-  const rows = yield all(
-    `SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE purged = 0 ORDER BY id`,
-  );
-  return rows.map((raw) => liveItemOf(parseRow(raw, itemRowSchema, "an item")));
-};
+export const readLiveItems = (db: CellDb): LiveStoredItem[] =>
+  db.select().from(items).where(eq(items.purged, 0)).orderBy(asc(items.id)).all().map(liveItemOf);
 
 // ---- blocks ----
 
@@ -392,12 +332,12 @@ export const readBlocks = function* readBlocks(itemId: string): SqlPlan<StoredBl
   return orderedBlocks(new Map(blocks.map((stored) => [stored.block.id, stored])));
 };
 
-export const readItemState = function* readItemState(id: string): SqlPlan<ItemState | null> {
-  const item = yield* readItem(id);
+export const readItemState = (storage: CellStorage, id: string): ItemState | null => {
+  const item = readItem(storage.db, id);
   if (item?.kind !== "live") {
     return null;
   }
-  const blocks = yield* readBlocks(id);
+  const blocks = runPlan(storage, readBlocks(id));
   return {
     blocks: new Map(blocks.map((stored) => [stored.block.id, stored])),
     fields: item.fields,
@@ -406,29 +346,21 @@ export const readItemState = function* readItemState(id: string): SqlPlan<ItemSt
 
 // ---- derived rows: links and tags ----
 
-export const storeDerived = function* storeDerived(
-  itemId: string,
-  derived: DerivedItem,
-): SqlPlan<void> {
-  yield run("DELETE FROM links WHERE source_id = ?", [itemId]);
-  yield* runEach(
-    chunkStatement({
-      each: "(?, ?, ?)",
-      head: "INSERT INTO links (source_id, target_id, target_key) VALUES ",
-      rows: derived.links.map((link) => [itemId, link.targetId, link.targetKey]),
-      separator: ", ",
-    }),
-  );
-  yield run("DELETE FROM item_tags WHERE item_id = ?", [itemId]);
-  yield* runEach(
-    chunkStatement({
-      each: "(?, ?, ?)",
-      head: "INSERT INTO item_tags (item_id, tag, origin) VALUES ",
-      rows: derived.tags.map((tag) => [itemId, tag.tag, tag.origin]),
-      separator: ", ",
-      tail: " ON CONFLICT DO NOTHING",
-    }),
-  );
+export const storeDerived = (db: CellDb, itemId: string, derived: DerivedItem): void => {
+  db.delete(links).where(eq(links.sourceId, itemId)).run();
+  const linkRows = derived.links.map((link) => ({
+    sourceId: itemId,
+    targetId: link.targetId,
+    targetKey: link.targetKey,
+  }));
+  for (const chunk of insertChunks(links, linkRows)) {
+    db.insert(links).values(chunk).run();
+  }
+  db.delete(itemTags).where(eq(itemTags.itemId, itemId)).run();
+  const tagRows = derived.tags.map((tag) => ({ itemId, origin: tag.origin, tag: tag.tag }));
+  for (const chunk of insertChunks(itemTags, tagRows)) {
+    db.insert(itemTags).values(chunk).onConflictDoNothing().run();
+  }
 };
 
 // ---- search ----
@@ -489,12 +421,12 @@ export const searchRowBytes = (row: SearchRow): number =>
 export const searchRowOf = (text: ItemSearchText): SearchRow => {
   const title = clipToBytes(text.title, TITLE_MAX_BYTES);
   const headings = clipToBytes(text.headings, HEADINGS_MAX_BYTES);
-  const meta = clipToBytes(text.meta, META_MAX_BYTES);
+  const metaText = clipToBytes(text.meta, META_MAX_BYTES);
   const fixed = {
     headingStems: stemText(headings),
     headings,
-    meta,
-    metaStems: stemText(meta),
+    meta: metaText,
+    metaStems: stemText(metaText),
     title,
     titleStems: stemText(title),
   };
@@ -655,56 +587,48 @@ export const literalMatches = function* literalMatches(
 
 // ---- links ----
 
-const linkSourceSchema = z.object({ source_id: z.string() });
-
-const liveSourcesWhere = function* liveSourcesWhere(
-  where: string,
-  param: string,
-): SqlPlan<string[]> {
-  const rows = yield all(
-    `SELECT DISTINCT links.source_id AS source_id
-     FROM links JOIN items ON items.id = links.source_id
-     WHERE items.deleted_at IS NULL AND items.purged = 0 AND ${where}
-     ORDER BY links.source_id`,
-    [param],
-  );
-  return rows.map((raw) => parseRow(raw, linkSourceSchema, "a link").source_id);
-};
+const liveSourcesWhere = (db: CellDb, where: SQL): string[] =>
+  db
+    .selectDistinct({ sourceId: links.sourceId })
+    .from(links)
+    .innerJoin(items, eq(items.id, links.sourceId))
+    .where(and(isNull(items.deletedAt), eq(items.purged, 0), where))
+    .orderBy(asc(links.sourceId))
+    .all()
+    .map((row) => row.sourceId);
 
 // the live items linking to an item by its id
-export const linksTo = (targetId: string): SqlPlan<string[]> =>
-  liveSourcesWhere("links.target_id = ?", targetId);
+export const linksTo = (db: CellDb, targetId: string): string[] =>
+  liveSourcesWhere(db, eq(links.targetId, targetId));
 
 // the live items linking to an address, by its url key: a saved link's Linked from
-export const linksToUrl = (key: string): SqlPlan<string[]> =>
-  liveSourcesWhere("links.target_key = ?", key);
+export const linksToUrl = (db: CellDb, key: string): string[] =>
+  liveSourcesWhere(db, eq(links.targetKey, key));
 
 // ---- meta ----
 
-const metaRowSchema = z.object({ v: z.union([z.string(), z.number()]).nullable() });
+export const readMeta = (db: CellDb, key: string): string | number | null =>
+  db.select({ v: meta.v }).from(meta).where(eq(meta.k, key)).get()?.v ?? null;
 
-export const readMeta = function* readMeta(key: string): SqlPlan<string | number | null> {
-  const [row] = yield all("SELECT v FROM meta WHERE k = ?", [key]);
-  return row === undefined ? null : parseRow(row, metaRowSchema, "a meta").v;
+export const writeMeta = (db: CellDb, key: string, value: string | number): void => {
+  db.insert(meta)
+    .values({ k: key, v: value })
+    .onConflictDoUpdate({ set: { v: excluded(meta.v) }, target: meta.k })
+    .run();
 };
 
-export const writeMeta = function* writeMeta(key: string, value: string | number): SqlPlan<void> {
-  yield run("INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v", [
-    key,
-    value,
-  ]);
-};
-
-const headRowSchema = z.object({ v: z.number() });
+const headSchema = z.number().int().positive();
 
 // the library's next sequence number: one per write, every row it touches stamped with it
-export const nextHead = function* nextHead(): SqlPlan<number> {
-  const [row] = yield all(
-    `INSERT INTO meta (k, v) VALUES ('head', 1) ON CONFLICT (k) DO UPDATE SET v = v + 1
-     RETURNING v`,
-  );
+export const nextHead = (db: CellDb): number => {
+  const [row] = db
+    .insert(meta)
+    .values({ k: "head", v: 1 })
+    .onConflictDoUpdate({ set: { v: sql`${meta.v} + 1` }, target: meta.k })
+    .returning({ v: meta.v })
+    .all();
   if (row === undefined) {
     throw new LibraryRowError("the head did not come back from its own write");
   }
-  return parseRow(row, headRowSchema, "the head").v;
+  return headSchema.parse(row.v);
 };

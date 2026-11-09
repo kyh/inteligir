@@ -23,7 +23,6 @@ import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";
 import { readItemState } from "./library-queries";
-import { runPlan } from "./library-sql";
 import { cellStorageOf } from "./cell-storage";
 
 const read = (
@@ -53,7 +52,7 @@ const read = (
 };
 
 const stateOf = (state: DurableObjectState, itemId: string) =>
-  runPlan(cellStorageOf(state.storage), readItemState(itemId));
+  readItemState(cellStorageOf(state.storage), itemId);
 
 const sectionOf = (state: DurableObjectState, itemId: string, section: "note" | "article") =>
   [...(stateOf(state, itemId)?.blocks.values() ?? [])]
@@ -312,13 +311,13 @@ describe("a page's reading, landed", () => {
           ),
         ),
       ).toMatchObject({ ok: false, refusal: { kind: "quota" } });
-      expect(readBlobRow(storage, stray)).not.toBeNull();
+      expect(readBlobRow(storage.db, stray)).not.toBeNull();
       engine.runDueJobs(() => {
         throw new Error("no job fails here");
       });
-      expect(readBlobRow(storage, stray)).toBeNull();
-      expect(readBlobRow(storage, refused)).toBeNull();
-      expect(readBlobRow(storage, named)).not.toBeNull();
+      expect(readBlobRow(storage.db, stray)).toBeNull();
+      expect(readBlobRow(storage.db, refused)).toBeNull();
+      expect(readBlobRow(storage.db, named)).not.toBeNull();
     });
   });
 

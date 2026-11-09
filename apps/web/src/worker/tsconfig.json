@@ -22,6 +22,11 @@
     // the generated Env reaches cloudflare.config.ts, which names its imports by their `.ts`
     "allowImportingTsExtensions": true
   },
-  "include": [".", "../../.cloudflare/types/index.d.ts"],
+  // the cell's migrations reach this program through the service, and so does its typing of them
+  "include": [
+    ".",
+    "../../.cloudflare/types/index.d.ts",
+    "../../../../packages/service/src/types/sql-modules.d.ts"
+  ],
   "exclude": ["node_modules"]
 }

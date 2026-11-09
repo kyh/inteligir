@@ -63,8 +63,8 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
   const plan = planRaindropImport(parse.rows, host.now());
   const rows = plan.items.map((value, idx) => ({ idx, value })).filter(fitsImportRow);
   const written = apart(host.library, (scope) => {
-    putImportRows(scope.storage, job.id, ROW, rows);
-    advanceImport(scope.storage, job.id, {
+    putImportRows(scope.storage.db, job.id, ROW, rows);
+    advanceImport(scope.storage.db, job.id, {
       counts: {
         alreadySaved: plan.duplicates,
         skipped: parse.skipped,
@@ -82,7 +82,7 @@ type Landed = "added" | "held";
 
 // one bookmark as an unread link, or counted as held when its address is the library's already
 const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedItem): Landed => {
-  if (urlHolder(scope.storage, planned.key, null) !== null) {
+  if (urlHolder(scope.storage.db, planned.key, null) !== null) {
     return "held";
   }
   const { library } = host;
@@ -90,7 +90,7 @@ const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedIte
     blocks:
       planned.note === ""
         ? []
-        : noteBlocksOf(scope, cellCodec(scope.storage, library.ids), planned.note),
+        : noteBlocksOf(scope, cellCodec(scope.storage.db, library.ids), planned.note),
     fields: {
       ...blankItemFields(scope.now),
       description: planned.description,
@@ -120,8 +120,8 @@ const LANDED = z.enum(["added", "held"]);
 // lands none twice
 const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutcome => {
   const { library } = host;
-  const page = library.read((sql) =>
-    importRows(sql, job.id, ROW, { from: job.cursor, limit: PAGE_ROWS }, plannedItemSchema),
+  const page = library.read((storage) =>
+    importRows(storage.db, job.id, ROW, { from: job.cursor, limit: PAGE_ROWS }, plannedItemSchema),
   );
   if (!page.ok) {
     return DONE;
@@ -132,7 +132,7 @@ const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutc
   for (const { idx, value } of page.value) {
     const landed = library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
       const result = landBookmark(scope, host, value);
-      advanceImport(scope.storage, job.id, {
+      advanceImport(scope.storage.db, job.id, {
         changeSetId: result === "added" ? scope.set().id : undefined,
         counts: result === "added" ? { added: 1 } : { alreadySaved: 1 },
         cursor: idx + 1,

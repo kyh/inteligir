@@ -200,22 +200,27 @@ describe("the library cell", () => {
     expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
   });
 
-  it("starts over empty when its schema is of another version", async () => {
+  it("wakes started over empty when it applied a migration this build lacks", async () => {
     const stub = cellOf();
     await inCell(stub, (state) => {
       landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
-          blocks: placed([paragraph("a", "an older build's")]),
+          blocks: placed([paragraph("a", "a later build's")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
         }),
       );
-      state.storage.sql.exec("UPDATE meta SET v = 1 WHERE k = 'schema'");
+      state.storage.sql.exec(
+        "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES ('', 0, 'later')",
+      );
     });
     await evictDurableObject(stub);
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
-    expect(warned).toHaveBeenCalledWith({ event: "cell-schema-reset", found: "1" });
+    expect(warned).toHaveBeenCalledWith({
+      event: "cell-schema-reset",
+      found: expect.objectContaining({ kind: "drizzle" }),
+    });
     warned.mockRestore();
   });
 
@@ -423,7 +428,7 @@ describe("deleting the account from its cell", () => {
         env,
       });
       scheduleJob(
-        cellStorageOf(state.storage),
+        cellStorageOf(state.storage).db,
         { id: "agent-watch:left", kind: "agent-watch", payload: "{}" },
         Date.now(),
       );

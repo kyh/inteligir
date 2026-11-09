@@ -10,7 +10,6 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
 import { readItemState } from "./library-queries";
-import { runPlan } from "./library-sql";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { urlKey } from "@repo/contract/items/item-url";
 
@@ -33,7 +32,7 @@ export interface SavedItem {
 // the live item a url's key names, if one does
 const heldItem = (scope: LandingScope, url: string): { readonly id: string } | null => {
   const key = urlKey(url);
-  return key === null ? null : urlHolder(scope.storage, key, null);
+  return key === null ? null : urlHolder(scope.storage.db, key, null);
 };
 
 export interface SaveInput {
@@ -150,7 +149,7 @@ export const savePage = (scope: LandingScope, codec: CellCodec, input: SaveInput
   if (held === null) {
     return { created: true, item: newPage(scope, input, noteOf(scope, codec, input.note)) };
   }
-  const state = runPlan(scope.storage, readItemState(held.id));
+  const state = readItemState(scope.storage, held.id);
   return state !== null && input.article.length > 0 && awaitsRead(state)
     ? {
         created: false,

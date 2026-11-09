@@ -11,7 +11,13 @@ import {
 } from "./library-sql";
 import type { RepeatedStatement, SqlPlan, SqlValue } from "./library-sql";
 import { mulberry32 } from "@repo/contract/test-support/seeded-random";
-import { openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
+
+import { cellOf, inCell } from "../test-support/library-cell";
+import { cellStorageOf } from "./cell-storage";
+import type { CellStorage } from "./cell-storage";
+
+const inStorage = async <T>(work: (storage: CellStorage) => T): Promise<T> =>
+  await inCell(cellOf(), (state) => work(cellStorageOf(state.storage)));
 
 const placeholders = (width: number): string =>
   `(${Array.from({ length: width }, () => "?").join(", ")})`;
@@ -96,20 +102,23 @@ const broken = function* broken(): SqlPlan<void> {
 };
 
 describe(runPlan, () => {
-  it("drives a plan over the port, handing each statement its rows", () => {
-    expect(runPlan(openWasmSqlPort(), counting())).toBe(3);
+  it("drives a plan over the port, handing each statement its rows", async () => {
+    await expect(inStorage((storage) => runPlan(storage, counting()))).resolves.toBe(3);
   });
 
-  it("throws an engine's refusal into the plan at its yield", () => {
-    expect(runPlan(openWasmSqlPort(), failing())).toBe("refused");
+  it("throws an engine's refusal into the plan at its yield", async () => {
+    await expect(inStorage((storage) => runPlan(storage, failing()))).resolves.toBe("refused");
   });
 
-  it("lands nothing of a transaction that throws", () => {
-    const port = openWasmSqlPort();
-    runPlan(port, counting());
-    expect(() => {
-      transactPlan(port, broken());
-    }).toThrow("stop");
-    expect(port.all("SELECT count(*) AS rows FROM n", [])).toStrictEqual([{ rows: 2 }]);
+  it("lands nothing of a transaction that throws", async () => {
+    await inStorage((storage) => {
+      runPlan(storage, counting());
+      expect(() => {
+        storage.transaction(() => {
+          runPlan(storage, broken());
+        });
+      }).toThrow("stop");
+      expect(storage.all("SELECT count(*) AS rows FROM n", [])).toStrictEqual([{ rows: 2 }]);
+    });
   });
 });

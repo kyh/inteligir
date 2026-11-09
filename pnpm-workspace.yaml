@@ -51,9 +51,6 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
-  # exact: the version is SQLite's own release with a build suffix, not semver; it is the engine
-  # the library's SQL is tested on in @repo/service, so a bump moves the SQLite under test
-  "@sqlite.org/sqlite-wasm": 3.54.1-build1
   # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
   "@tailwindcss/postcss": ^4.3.3
   "@tailwindcss/vite": ^4.3.3

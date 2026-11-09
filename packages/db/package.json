@@ -2,14 +2,17 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "The D1 accounts database's drizzle schema and client, and the drizzle-kit configs that push it.",
+  "description": "The D1 accounts database's and each library cell's drizzle schemas, the D1 client, the cell's migrations, and the drizzle-kit configs that push and generate them.",
   "type": "module",
   "exports": {
+    "./cell/migrations": "./src/cell/migrations/migrations.js",
+    "./cell/schema": "./src/cell/schema.ts",
     "./d1/client": "./src/d1/client.ts",
     "./d1/schema": "./src/d1/schema.ts"
   },
   "scripts": {
     "export": "drizzle-kit export --dialect=sqlite --schema=./src/d1/schema.ts",
+    "generate:cell": "drizzle-kit generate --config drizzle.config.cell.ts",
     "push": "drizzle-kit push --config drizzle.config.local.ts --force",
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "drizzle-kit studio --config drizzle.config.local.ts",
@@ -17,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/contract": "workspace:*",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {

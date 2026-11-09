@@ -17,9 +17,10 @@ by the runtime `cf workers types` generates from the suites' Worker
 entry reaches against the deployed `Env` again. No node or react import (the
 root `oxlint.config.ts`), and the library model's modules (`src/library/`'s
 SQL and undo, `src/knowledge/`, `src/items/`, `src/imports/`, `src/text/`)
-take no `crypto` or `URL` global either: the platform comes in as a port (the
-SQL driver, the clock, random bytes and fresh ids), so their suites run the
-cell's plans on SQLite's own wasm build.
+take no `crypto` or `URL` global either: the clock, random bytes and fresh ids
+come in as ports. The cell's SQL is the Durable Object's own, drizzle over
+`@repo/db`'s cell schema with raw plans beside it, so every suite that reaches
+it runs in workerd.
 
 ## Layout
 
@@ -52,10 +53,12 @@ src/
                        # queue (cell-fills.ts) and its imports (cell-imports.ts);
                        # beside the cell, the library's page, answered from the
                        # assets (library-page.ts). The library's SQL and undo:
-    library-schema.ts  # the ONE DDL, versioned by `meta.schema`
-    library-sql.ts     # the ports, plans as generators, statement chunking
+    cell-db.ts         # drizzle over the cell, its migrations run on wake,
+                       # inserts cut under the bound-parameter cap
+    library-sql.ts     # the raw port, plans as generators, statement chunking
     sql-value.ts       # a SQL value and row as zod
-    library-queries.ts # every read and write over the schema, as plans
+    library-queries.ts # an item's rows: drizzle for its row and derived rows,
+                       # plans for its blocks and the search index
     revert-change.ts   # a change set taken back three ways, the set's after
                        # as the base, newest set first
   connector/           # the connector: its OAuth on
@@ -143,12 +146,11 @@ tests, in three projects (`vitest.config.ts`):
   one batch.
 - `sockets`: the suites that open the account's socket, sharing one storage,
   since Durable Object WebSockets are unsupported under per-file isolation.
-- `model`: the library model's own suites, under node: `src/knowledge/` pins
-  the search policy; `src/library/` runs its SQL on SQLite's own wasm build
-  behind a port that refuses what a Durable Object refuses
-  (`src/test-support/wasm-sql-port.ts`), and its properties (undo restores,
-  undo agrees with its line oracle, chunking under both caps) draw from the
-  contract's one seeded generator. They run under a 512MB heap ceiling, so an
+- `model`: the library model's pure suites, under node: `src/knowledge/` pins
+  the search policy, and undo's properties (undo restores, undo agrees with
+  its line oracle) draw from the contract's one seeded generator. The library's
+  SQL runs in `worker`, on a cell's own SQLite, which refuses what a Durable
+  Object refuses. The model's suites run under a 512MB heap ceiling, so an
   allocation that grows with a note's size, like a diff trace that copies the
   whole frontier every round, fails here rather than passing on a default
   heap.

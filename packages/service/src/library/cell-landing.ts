@@ -19,9 +19,11 @@ import {
 import { LibraryRowError, runPlan } from "./library-sql";
 import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { z } from "zod";
+import { and, eq, isNull, ne } from "drizzle-orm";
 
+import { items } from "@repo/db/cell/schema";
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
+import type { CellDb } from "./cell-db";
 import { encodeParts, keepSuperseded, partsFit } from "./cell-parts";
 import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
@@ -139,21 +141,25 @@ const fieldBytes = ({
     }),
   );
 
-const urlHolderSchema = z.object({ id: z.string(), seq: z.number() });
-
 // the other live item holding a url key, if one does
 export const urlHolder = (
-  storage: CellStorage,
+  db: CellDb,
   urlKey: string,
   itemId: string | null,
-): z.infer<typeof urlHolderSchema> | null => {
-  const [row] = storage.all(
-    `SELECT id, seq FROM items WHERE url_key = ? AND deleted_at IS NULL AND purged = 0
-       AND id IS NOT ? LIMIT 1`,
-    [urlKey, itemId],
-  );
-  return row === undefined ? null : urlHolderSchema.parse(row);
-};
+): { readonly id: string; readonly seq: number } | null =>
+  db
+    .select({ id: items.id, seq: items.seq })
+    .from(items)
+    .where(
+      and(
+        eq(items.urlKey, urlKey),
+        isNull(items.deletedAt),
+        eq(items.purged, 0),
+        itemId === null ? undefined : ne(items.id, itemId),
+      ),
+    )
+    .limit(1)
+    .get() ?? null;
 
 const sameShas = (a: readonly string[], b: readonly string[]): boolean => {
   const left = new Set(a);
@@ -182,7 +188,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
     refuse({ kind: "too-large" });
   }
   if (derived.urlKey !== null && after.fields.deletedAt === null) {
-    const holder = urlHolder(storage, derived.urlKey, itemId);
+    const holder = urlHolder(storage.db, derived.urlKey, itemId);
     if (holder !== null) {
       refuse({ itemId: holder.id, kind: "url-held", seq: holder.seq });
     }
@@ -190,7 +196,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   const shas = itemFilesOf(after);
   const priorShas = before === null ? [] : itemFilesOf(before);
   const missing = missingBlobs(
-    storage,
+    storage.db,
     shas.filter((sha) => !priorShas.includes(sha)),
   );
   if (missing.length > 0) {
@@ -217,17 +223,14 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     itemId,
     setId: set.id,
   });
-  const landed = runPlan(
-    storage,
-    storeItemRow({
-      card: derived.card,
-      fields: after.fields,
-      id: itemId,
-      seq,
-      updatedAt: scope.now,
-      urlKey: derived.urlKey,
-    }),
-  );
+  const landed = storeItemRow(storage.db, {
+    card: derived.card,
+    fields: after.fields,
+    id: itemId,
+    seq,
+    updatedAt: scope.now,
+    urlKey: derived.urlKey,
+  });
   if (!landed) {
     throw new LibraryRowError(`the item ${itemId} holds a row newer than the library's head`);
   }
@@ -237,14 +240,14 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const fieldsChanged =
     before === null || canonicalJson(before.fields) !== canonicalJson(after.fields);
   if (blocks.written.length > 0 || blocks.dropped.length > 0 || fieldsChanged) {
-    runPlan(storage, storeDerived(itemId, derived));
+    storeDerived(storage.db, itemId, derived);
     // a person's typing reindexes when its set seals (`./change-sets`)
     if (set.actor !== "person") {
       runPlan(storage, storeSearchRow(itemId, derived.search));
     }
   }
   if (before === null || !sameShas(priorShas, shas)) {
-    storeItemBlobs(storage, itemId, shas, scope.now);
+    storeItemBlobs(storage.db, itemId, shas, scope.now);
   }
   scope.moved.item(itemId, seq);
   return {

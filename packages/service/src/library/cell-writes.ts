@@ -7,7 +7,6 @@
 import { applyOps } from "@repo/contract/library/block-ops";
 import type { LibraryOp } from "@repo/contract/library/block-ops";
 import { readItem, readItemState } from "./library-queries";
-import { runPlan } from "./library-sql";
 import { z } from "zod";
 
 import { landItem } from "./cell-landing";
@@ -55,7 +54,7 @@ const conflictCurrentOf = (itemId: string, conflict: OpConflict): ConflictCurren
 // the item's row as it stands, for a write every op of which was already true, or a save of an
 // address the item holds
 export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const item = runPlan(scope.storage, readItem(itemId));
+  const item = readItem(scope.storage.db, itemId);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
@@ -65,7 +64,7 @@ export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
 
 export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow => {
   const { itemId } = input;
-  const state = runPlan(scope.storage, readItemState(itemId));
+  const state = readItemState(scope.storage, itemId);
   if (state === null) {
     return refuse({ kind: "not-found" });
   }

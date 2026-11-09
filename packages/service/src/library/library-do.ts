@@ -52,7 +52,7 @@ import {
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
 import { EVERYTHING_MOVED } from "./cell-moved";
-import { openCellSchema } from "./cell-schema";
+import { migrateCell } from "./cell-db";
 import {
   acceptSocket,
   CELL_SOCKET_PATH,
@@ -94,7 +94,7 @@ export class LibraryDO extends DurableObject<Env> {
     // event opens it again
     void ctx.blockConcurrencyWhile(async () => {
       try {
-        await openCellSchema(ctx.storage);
+        await migrateCell(ctx.storage);
       } catch (error) {
         console.error({ event: "library-cell-open-failed", ...errorFields(error) });
         throw error;

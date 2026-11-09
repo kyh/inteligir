@@ -1,14 +1,20 @@
-// The library cell's SQLite behind the port `@repo/service/library/library-sql` runs its plans over: `sql.exec`
+// The library cell's SQLite, two ways over one database: drizzle's builders (`db`) for the tables
+// that outlive the block rows, change sets and the agent's tables, and the port
+// `@repo/service/library/library-sql` runs those raw plans and the search index over: `sql.exec`
 // is synchronous and runs one statement a call, and a transaction is `transactionSync`, which
-// commits when its work returns and rolls back when it throws
-// (https://developers.cloudflare.com/durable-objects/api/sql-storage/). Every cursor is read to the
-// end before the call returns, so none is held across an await.
+// commits when its work returns and rolls back when it throws, drizzle's statements inside it
+// included (https://developers.cloudflare.com/durable-objects/api/sql-storage/). Every cursor is
+// read to the end before the call returns, so none is held across an await.
 
 import { LibraryRowError } from "./library-sql";
 import { sqlRowSchema } from "./sql-value";
 import type { SqlPort, SqlRow } from "./library-sql";
 
+import { cellDbOf } from "./cell-db";
+import type { CellDb } from "./cell-db";
+
 export interface CellStorage extends SqlPort {
+  readonly db: CellDb;
   // what the cell's SQLite holds, its change sets included: one half of what the quota counts
   readonly databaseSize: () => number;
 }
@@ -32,6 +38,7 @@ export const cellStorageOf = (storage: DurableObjectStorage): CellStorage => ({
       .toArray()
       .map(rowOf),
   databaseSize: () => storage.sql.databaseSize,
+  db: cellDbOf(storage),
   run: (sql, params) => {
     // drained, not only stepped: a cursor left open would read past the next await
     storage.sql.exec(sql, ...params).toArray();
