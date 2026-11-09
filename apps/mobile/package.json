@@ -62,7 +62,6 @@
   "devDependencies": {
     "@expo/plist": "catalog:",
     "@kyh/tsconfig": "catalog:",
-    "@orpc/server": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
