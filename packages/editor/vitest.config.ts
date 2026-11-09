@@ -62,6 +62,9 @@ export default defineConfig({
           execArgv: ["--max-old-space-size=512"],
           include: ["src/**/*.test.ts"],
           name: "editor",
+          // a corpus written through real Plate editors runs near 5s on the Linux runner beside the
+          // Workers pool, so the default is a coin-flip; parse-cost's ratios hold the time instead.
+          testTimeout: 20_000,
         },
       },
       {
