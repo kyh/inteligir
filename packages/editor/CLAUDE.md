@@ -1,6 +1,7 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it round-trips, and an open item's merge.
+The editor, the dialect it round-trips, an open item's merge, and the
+dialect's one grammar with the links and a file's facts it reads.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
@@ -21,6 +22,8 @@ keyed by.
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
 alone, and no walk narrows structurally.
+`packages/editor/src/markdown/mdast-nodes.ts` narrows a transform's bare
+`Node` input to the mdast root.
 
 ## Editor and dialect
 
@@ -442,3 +445,95 @@ alone, and no walk narrows structurally.
   CONFLICT's settle hands its host's `notifyOverlap`, said in the item's
   words. `@repo/editor/text/line-diff`,
   `packages/editor/src/stale-write.ts`.
+
+## The grammar, links and a file's facts
+
+- **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
+  of markdown, the codec, an import and the editor alike, parses through one
+  plugin list (`@repo/editor/markdown/md-plugins`), so what reads as prose is
+  what the editor draws as prose: no indented code, no flow html, and math as
+  latex, never a link. No input throws: with no jsx or expressions, `<` opens an
+  html tag, an autolink or text and `{` is prose, and a tag folds with its
+  closer as the tree compiles (`@repo/editor/markdown/remark-inline-html`), as
+  the editor pairs it, or stays an `html` literal. An escape stays on the text
+  it wrote even where GFM splits that text for a bare url
+  (`@repo/editor/markdown/text-escapes`). A reference reads as the link or image
+  it names and a definition one used goes, so every reader after the parse
+  meets a link; a definition nothing used stays its line, as source
+  (`@repo/editor/markdown/remark-references`,
+  `@repo/editor/markdown/remark-opaque`). A footnote reads as its text by the
+  time the parse ends: its call the `[^label]` it spells, and its definition
+  its own blocks where it stood, led by `[^label]: `, so its words are searched
+  like any others and an edit of a call's line alone reads it the same.
+  Rejected: a second, plain-markdown grammar for an import (it needed a bridge
+  to say where the two disagreed), a node for a reference in the library (a
+  second spelling of every link), holding a footnote as its source (its words
+  would go unsearched, and an edit would read a call apart from its
+  definition), and switching GFM's footnote constructs off (CommonMark would
+  read `[^a]: word` as a link definition, and the call as a link to its words).
+  `packages/editor/src/markdown/total-grammar.test.ts`.
+
+- **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An
+  import reads a link's or an image's url through `mdLinkTarget`
+  (`@repo/editor/knowledge/link-extract`) and resolves it with `buildResolver`
+  beside the file that wrote it, so a folder's relative links and pictures
+  become links by id and files by sha, and a file's path written as a url, by
+  the codec or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
+  a `#` or `%` in a name reads back. Past the import nothing is a path: the
+  editor reaches an item by `[[…]]` through the resolver its host feeds with
+  the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
+  by its sha, and only an http(s) url reaches the browser. Rejected: resolving
+  a live note's relative url (no library item has a path to resolve it
+  against).
+  `packages/editor/src/codec/import-plan.ts`.
+
+- **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
+  PARSER WRITES IT.** `.md` is the one extension a file's link leaves off
+  (`wikiLinkName` in `@repo/contract/knowledge/doc-file`), and `buildResolver`,
+  which an import reads a zip's links by, keys that name, so a
+  `.txt` note links as `[[todo.txt]]`. Past the zip there are no files: the cell
+  and the editor reach an item by its id or by `titleKey`. Rejected: dropping
+  every doc extension (it loses Obsidian's reading and the pinned resolver).
+  The `[[` picker links an item by its id, with its title, so no rename breaks
+  it. Every writer's bytes come from `serializeWikiBody`
+  (`@repo/editor/markdown/remark-wiki-link`), and its null writes nothing.
+  `packages/editor/src/knowledge/link-resolve.test.ts`.
+
+- **A LINK IS SPELLED BARE ONLY WHERE GFM READS IT BACK IN ITS PLACE.** A link
+  whose label is its own address writes no label, so a url written by hand stays
+  as typed. But gfm ends a literal short of trailing punctuation, runs it on to
+  the next space and wants no word before it, so the writer's link handler asks
+  gfm itself, over the literal and the bytes either side as they are about to be
+  written, and every other link keeps `[text](url)`, which always reads back.
+  A link touching a mark keeps its label, since the
+  writer may spell the character beside a mark as a reference, and a literal with
+  no space before the next link does too, as does a marked literal after a link,
+  whose closer it would join. So does a link in a mark's own node, which only a
+  held source holds, since a literal runs on through the closer into bytes the
+  writer cannot see, and a mark over a held link's label, which would read back
+  as that node. A mail address with a `>` after it does too, since only one
+  character before shows and a `<` further back would close on it as an angle
+  link to another address. Rejected: a copy of gfm's rules (it reads
+  a literal twice, in its tokenizer and over finished text, by two different
+  trails, and a copy of either drifts), deciding in the rule table (a rule sees
+  no neighbour), a pass over the tree ahead of the write (only the write knows
+  what it will escape), labelling every link in a held source (a url written
+  by hand in a tag would not stay as typed) and every link
+  writing all it looks past in full (each tag deep multiplied the writes).
+  `packages/editor/src/markdown/autolink-text.ts`,
+  `packages/editor/src/markdown-bare-links.test.ts`.
+
+- **A MARKDOWN FILE'S FACTS ARE ITS FRONTMATTER KEYS, AND ONE READER READS
+  THEM.** An import, and the codec reading a file back, take a link's, a
+  video's or a note's facts from its frontmatter (`kind`, `url`, `site`,
+  `author`, `published`, `saved`, `fetched`, `fetch-error`, `description`,
+  `lang`, beside `id`, `tags` and `aliases`) through `readItemFacts`
+  (`@repo/editor/items/item-frontmatter`), into the item's fields: a missing or
+  unknown `kind` is a note, and an export writes a note none. The filename is
+  the title (`itemNameFromTitle` in `@repo/contract/items/item-name`), and a
+  `title:` key is written only for a title the file's stem cannot carry, one
+  its name mended or numbered or the empty one, so an export reads back as the
+  item: `title: ""` is no title, and a blank `title:`, which says nothing,
+  leaves the filename standing and stays a property, as an Obsidian template
+  writes it. Rejected: a frontmatter block kept in the item (its keys are the
+  item's fields).

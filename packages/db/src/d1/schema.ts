@@ -3,9 +3,9 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 
 // Better Auth's tables and relations as `npx auth@1.7.18 generate` prints them for auth.ts's plugin
 // set over the relations-v2 adapter, ported rather than pasted, since its `.unique()`, its SQL
-// column defaults and a new NOT NULL each plan a table recreate on D1 (apps/web/CLAUDE.md, Declare
-// D1 uniques as named unique indexes). The port departs from the generator in exactly three ways:
-// uniques stay named indexes; every column the generator gives a SQL default takes the same value
+// column defaults and a new NOT NULL each plan a table recreate on D1 (packages/db/CLAUDE.md,
+// Declare D1 uniques as named unique indexes). The port departs from the generator in exactly
+// three ways: uniques stay named indexes; every column the generator gives a SQL default takes the same value
 // from `$defaultFn`, which changes no DDL; and verification's createdAt and updatedAt stay
 // nullable where the generator prints `.notNull()`. Re-run the generator on a Better Auth bump or
 // a plugin change and port what moved within those three; check `drizzle-kit push --explain` and

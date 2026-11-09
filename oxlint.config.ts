@@ -51,13 +51,13 @@ const AGENTS_SDK = {
 // hand the code under test the platform.
 const SERVICE_PLATFORM = {
   message:
-    "@repo/service runs on workerd, and its model's suites under node over wasm SQLite: it takes the platform from the runtime or through a port, never a node or React import",
+    "@repo/service runs on workerd, and its model's pure suites under node: it takes the platform from the runtime or through a port, never a node or React import",
   regex: NODE_OR_REACT,
 };
 
 // A conversation's object is named only by its account's cell, from a thread its own rows hold, so
-// no other caller can create one or reach another account's (apps/web/CLAUDE.md, THE BUILT-IN
-// AGENT IS OUR OWN LOOP)
+// no other caller can create one or reach another account's (packages/service/CLAUDE.md, THE
+// BUILT-IN AGENT IS OUR OWN LOOP)
 const THREAD_STUB = {
   message:
     "only the account's cell names a conversation's object: library-do.ts and agent-turns.ts reach it",
