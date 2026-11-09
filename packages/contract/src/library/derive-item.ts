@@ -1,18 +1,19 @@
 // What an item's rows say that no writer writes: its title as the library shows it, its card, its
-// searchable text, the links and tags its blocks hold and each block's text. One walk over the
-// fields and the blocks in reading order, in the same transaction as the write, so nothing
-// derived is stale. The card rides the item's row, so a listing draws an item without its body.
+// searchable text, and the links, tags and files its body holds. The body is read once, by
+// whoever holds it (the cell for a body it keeps, a note's object for a live one), into its text
+// and a digest the item's row keeps; the card and the index text are the fields over that digest,
+// so a write of the fields alone derives them again without the body. The card rides the item's
+// row, so a listing draws an item without its body.
 
 import { z } from "zod";
 
 import { urlKey, urlSearchText } from "../items/item-url";
 import { inlineTagSpans } from "../knowledge/tag-grammar";
 import { clipSnippet } from "../text/clip-text";
-import { orderedBlocks } from "./block-ops";
-import type { StoredBlock } from "./block-ops";
 import { utf8ByteLength } from "./canonical-json";
 import type { LibraryItemFields } from "./library-item";
-import type { LibraryElement, LibraryNode } from "./library-nodes";
+import { collectFileShas } from "./library-nodes";
+import type { LibraryBlock, LibraryElement, LibraryNode, LibrarySection } from "./library-nodes";
 
 // a card's preview: the first paragraph's text, cut short
 const PREVIEW_MAX = 140;
@@ -22,14 +23,20 @@ const SHOWN_LINE_MAX = 100;
 // Durable Object caps at 2 MB, and a heading block may hold half a megabyte
 const OUTLINE_MAX = 200;
 
+// a top-level block of an item's body, in reading order: the person's note or the page a fill read
+export interface BodyBlock {
+  readonly block: LibraryBlock;
+  readonly section: LibrarySection;
+}
+
 // an item a page link names, or a url's key, so an item saved from that address finds the
 // notes that linked it
-type DerivedLink =
+export type DerivedLink =
   | { readonly targetId: string; readonly targetKey: null }
   | { readonly targetId: null; readonly targetKey: string };
 
 // a field tag is one the item's tags list names; an inline one a `#name` in its note's text
-interface DerivedTag {
+export interface DerivedTag {
   readonly tag: string;
   readonly origin: "field" | "inline";
 }
@@ -66,10 +73,6 @@ export const itemCardSchema = z.object({
   words: z.number().int().nonnegative(),
 }) satisfies z.ZodType<ItemCard>;
 
-interface DerivedBlock {
-  readonly text: string;
-}
-
 // the four literal columns the ranked index reads (`@repo/service/knowledge/search-query`)
 export interface ItemSearchText {
   readonly title: string;
@@ -78,15 +81,62 @@ export interface ItemSearchText {
   readonly body: string;
 }
 
+// what the item's row keeps of its body: what its card and index text need beside the fields, and
+// what its rows of tags and files are rewritten from when only the fields change
+export interface BodyDigest {
+  // the first heading's text, else the first line's, cut to a line: the title of an item with none
+  readonly lead: string;
+  readonly preview: string;
+  readonly outline: readonly OutlineEntry[];
+  readonly words: number;
+  // every heading's text, a line each, cut to what the index row holds of them
+  readonly headings: string;
+  // the `#name`s the note's text holds, each once
+  readonly tags: readonly string[];
+  // the files the body embeds, by sha
+  readonly files: readonly string[];
+  // whether the body holds a page a fill or a device read
+  readonly article: boolean;
+}
+
+export const bodyDigestSchema = z.object({
+  article: z.boolean(),
+  files: z.array(z.string()),
+  headings: z.string(),
+  lead: z.string(),
+  outline: itemCardSchema.shape.outline,
+  preview: z.string(),
+  tags: z.array(z.string()),
+  words: z.number().int().nonnegative(),
+}) satisfies z.ZodType<BodyDigest>;
+
+export const EMPTY_DIGEST: BodyDigest = {
+  article: false,
+  files: [],
+  headings: "",
+  lead: "",
+  outline: [],
+  preview: "",
+  tags: [],
+  words: 0,
+};
+
+export interface DerivedBody {
+  readonly digest: BodyDigest;
+  readonly links: readonly DerivedLink[];
+  // the body's text, each block's lines after the last's: what the literal tier matches and the
+  // index's body column is cut from
+  readonly text: string;
+  // that text as UTF-8: what the cell's cap on a kept body counts
+  readonly textBytes: number;
+}
+
 export interface DerivedItem {
   readonly urlKey: string | null;
   readonly card: ItemCard;
-  readonly links: readonly DerivedLink[];
   readonly tags: readonly DerivedTag[];
-  readonly blocks: ReadonlyMap<string, DerivedBlock>;
-  readonly search: ItemSearchText;
-  // the body's text as UTF-8: what the cell's cap on an item's text counts
-  readonly textBytes: number;
+  // the index's columns but the body's, which is the body's own text
+  readonly search: Omit<ItemSearchText, "body">;
 }
 
 // what a `[[Title]]` resolves by: the key an item's title and aliases are filed under
@@ -229,15 +279,7 @@ const unique = <T>(items: readonly T[], keyOf: (item: T) => string): T[] => {
 
 const firstLine = (text: string): string => text.trim().split("\n", 1)[0]?.trim() ?? "";
 
-const titleOf = (
-  fields: LibraryItemFields,
-  headings: readonly string[],
-  texts: readonly string[],
-): string => {
-  const named = fields.title.trim();
-  if (named !== "") {
-    return named;
-  }
+const leadOf = (headings: readonly string[], texts: readonly string[]): string => {
   const heading = headings.find((text) => text.trim() !== "");
   const line = heading ?? texts.map(firstLine).find((text) => text !== "") ?? "";
   return clipSnippet(firstLine(line), SHOWN_LINE_MAX);
@@ -263,23 +305,27 @@ const OUTLINE_LEVELS = new Map<string, OutlineEntry["level"]>([
 // every heading ranks as one, at every depth
 const HEADING_TYPES = new Set<string>(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
-export const deriveItem = (
-  fields: LibraryItemFields,
-  blocks: ReadonlyMap<string, StoredBlock>,
-): DerivedItem => {
-  const ordered = orderedBlocks(blocks);
-  const derivedBlocks = new Map<string, DerivedBlock>();
+// what the digest keeps of the headings, a sixteenth of what the item's 2 MB row could hold at
+// three bytes a unit; the index row clips them again with the rest
+const HEADINGS_MAX = 64 * 1024;
+
+export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
   const links: DerivedLink[] = [];
   const inlineTags: DerivedTag[] = [];
   const outline: OutlineEntry[] = [];
   const headings: string[] = [];
   const texts: string[] = [];
+  const files = new Set<string>();
   let preview = "";
   let words = 0;
-  for (const { block, section } of ordered) {
+  let article = false;
+  for (const { block, section } of blocks) {
     if (section === "note") {
       textTags(block, false, inlineTags);
+    } else {
+      article = true;
     }
+    collectFileShas(block, files);
     const text = nodeText(block);
     texts.push(text);
     words += text.match(WORD)?.length ?? 0;
@@ -311,29 +357,43 @@ export const deriveItem = (
         }
       }
     });
-    derivedBlocks.set(block.id, { text });
   }
+  const text = texts.join("\n");
+  return {
+    digest: {
+      article,
+      files: [...files],
+      headings: clipSnippet(headings.join("\n"), HEADINGS_MAX),
+      lead: leadOf(headings, texts),
+      outline,
+      preview,
+      tags: unique(inlineTags, (tag) => tag.tag.toLowerCase()).map((tag) => tag.tag),
+      words,
+    },
+    links,
+    text,
+    textBytes: utf8ByteLength(text),
+  };
+};
+
+export const deriveItem = (fields: LibraryItemFields, digest: BodyDigest): DerivedItem => {
   const tags = [
     ...unique(
       fields.tags.map((tag): DerivedTag => ({ origin: "field", tag })),
       (tag) => tag.tag.toLowerCase(),
     ),
-    ...unique(inlineTags, (tag) => tag.tag.toLowerCase()),
+    ...digest.tags.map((tag): DerivedTag => ({ origin: "inline", tag })),
   ];
-  const title = titleOf(fields, headings, texts);
-  const body = texts.join("\n");
+  const named = fields.title.trim();
+  const title = named === "" ? digest.lead : named;
   return {
-    blocks: derivedBlocks,
-    card: { outline, preview, title, words },
-    links,
+    card: { outline: [...digest.outline], preview: digest.preview, title, words: digest.words },
     search: {
-      body,
-      headings: [...headings, ...fields.aliases].join("\n"),
+      headings: [digest.headings, ...fields.aliases].filter((line) => line !== "").join("\n"),
       meta: metaOf(fields, tags),
       title,
     },
     tags,
-    textBytes: utf8ByteLength(body),
     urlKey: fields.url === null ? null : urlKey(fields.url),
   };
 };

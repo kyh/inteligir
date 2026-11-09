@@ -28,6 +28,10 @@ import {
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
+// where an item's body lives: in the cell's `seed_blocks` until its note first opens, then in the
+// note's own object, of which the cell keeps the projection
+export const BODY_HOMES = ["seed", "note"] as const;
+
 // a CHECK's list, spelled from the vocabulary it holds a column to
 const oneOf = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(", "));
@@ -45,7 +49,9 @@ export const meta = sqliteTable("meta", {
 
 // a purged item keeps its id, sequence and deletion as a tombstone forever and nulls the rest, so
 // no id is ever made again, an import's or a late save's included; every other row holds its
-// whole record. `rid` is the search index's row id, so a write replaces its index row in place
+// whole record. `rid` is the search index's row id, so a write replaces its index row in place.
+// Of its body the row keeps where it lives, the digest its card and index derive from, and for a
+// live note the version of the projection landed and the bytes its object holds
 export const items = sqliteTable(
   "items",
   {
@@ -76,6 +82,10 @@ export const items = sqliteTable(
     deletedAt: integer("deleted_at"),
     purged: integer().notNull().default(0),
     card: text(),
+    bodyHome: text("body_home", { enum: BODY_HOMES }),
+    bodyDigest: text("body_digest"),
+    bodyVersion: integer("body_version"),
+    bodyBytes: integer("body_bytes"),
     seq: integer().notNull(),
   },
   (t) => [
@@ -88,31 +98,56 @@ export const items = sqliteTable(
     check("items_kind", sql`${t.kind} IN (${oneOf(ITEM_KINDS)})`),
     check("items_fetch_state", sql`${t.fetchState} IN (${oneOf(FETCH_STATES)})`),
     check("items_purged", sql`${t.purged} IN (0, 1)`),
+    check("items_body_home", sql`${t.bodyHome} IN (${oneOf(BODY_HOMES)})`),
     check(
       "items_whole",
       sql`${t.purged} = 1 OR (${t.kind} IS NOT NULL AND ${t.title} IS NOT NULL
         AND ${t.aliases} IS NOT NULL AND ${t.tags} IS NOT NULL AND ${t.properties} IS NOT NULL
-        AND ${t.fetchState} IS NOT NULL AND ${t.savedAt} IS NOT NULL AND ${t.card} IS NOT NULL)`,
+        AND ${t.fetchState} IS NOT NULL AND ${t.savedAt} IS NOT NULL AND ${t.card} IS NOT NULL
+        AND ${t.bodyHome} IS NOT NULL AND ${t.bodyDigest} IS NOT NULL
+        AND ${t.bodyVersion} IS NOT NULL AND ${t.bodyBytes} IS NOT NULL)`,
     ),
   ],
 );
 
-export const blocks = sqliteTable(
-  "blocks",
+// a body the cell keeps until its note first opens, a top-level block a row in reading order; the
+// note's first load reads them, and its confirm drops them
+export const seedBlocks = sqliteTable(
+  "seed_blocks",
   {
     itemId: text("item_id").notNull(),
+    pos: integer().notNull(),
     blockId: text("block_id").notNull(),
-    ord: text().notNull(),
     section: text({ enum: LIBRARY_SECTIONS }).notNull(),
     json: text().notNull(),
-    hash: text().notNull(),
-    text: text().notNull(),
-    seq: integer().notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.itemId, t.blockId] }),
-    check("blocks_section", sql`${t.section} IN (${oneOf(LIBRARY_SECTIONS)})`),
+    primaryKey({ columns: [t.itemId, t.pos] }),
+    check("seed_blocks_section", sql`${t.section} IN (${oneOf(LIBRARY_SECTIONS)})`),
   ],
+);
+
+// an item's body as text, cut at line ends into parts a row holds, whether the cell keeps the body
+// or a note projects it: what search's literal tier matches and the index's body column is cut from
+export const bodyTexts = sqliteTable(
+  "body_texts",
+  {
+    itemId: text("item_id").notNull(),
+    part: integer().notNull(),
+    text: text().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.part] })],
+);
+
+// a session's open sockets on notes, which the Worker's door records as it opens one, so the
+// session's end closes them too
+export const noteSockets = sqliteTable(
+  "note_sockets",
+  {
+    sessionId: text("session_id").notNull(),
+    itemId: text("item_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.sessionId, t.itemId] })],
 );
 
 export const folders = sqliteTable("folders", {
@@ -193,13 +228,11 @@ export const itemBlobs = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
 );
 
-// A change set's item names its before and after by part: an item's fields and its manifest (each
-// block's id, hash, order key and section) are each kept once per item under their content hash
-// (`snapshot_parts`), so a set that changed one block stores one new manifest and nothing else,
-// and no row nears a Durable Object's 2 MB. A set's after is null while the set is open and the
-// item is as it left it; it is written when the set seals, or when another set is about to change
-// the item. A block a write replaces or drops keeps its content in `block_versions`, which the
-// prune job sweeps of what no part names
+// A change set's item names its fields before and after by part, each kept once per item under its
+// content hash (`snapshot_parts`), so no row nears a Durable Object's 2 MB. A set's after is null
+// while the set is open and the item is as it left it; it is written when the set seals, or when
+// another set is about to change the item. A body is no part: the agent's edits to it are its
+// note's turn log, and a person's typing is no change set
 export const changeSets = sqliteTable(
   "change_sets",
   {
@@ -207,7 +240,7 @@ export const changeSets = sqliteTable(
     actor: text({ enum: CHANGE_SET_ACTORS }).notNull(),
     actorId: text("actor_id"),
     label: text().notNull(),
-    sessionId: text("device_id"),
+    sessionId: text("session_id"),
     threadId: text("thread_id"),
     turn: integer(),
     clientId: text("client_id"),
@@ -229,20 +262,13 @@ export const changeSetItems = sqliteTable(
     itemId: text("item_id").notNull(),
     created: integer().notNull(),
     beforeFields: text("before_fields"),
-    beforeManifest: text("before_manifest"),
     afterFields: text("after_fields"),
-    afterManifest: text("after_manifest"),
   },
   (t) => [
     primaryKey({ columns: [t.changeSetId, t.itemId] }),
     index("change_set_items_item").on(t.itemId),
     check("change_set_items_created", sql`${t.created} IN (0, 1)`),
     check("change_set_items_made", sql`(${t.created} = 1) = (${t.beforeFields} IS NULL)`),
-    check(
-      "change_set_items_before",
-      sql`(${t.beforeFields} IS NULL) = (${t.beforeManifest} IS NULL)`,
-    ),
-    check("change_set_items_after", sql`(${t.afterFields} IS NULL) = (${t.afterManifest} IS NULL)`),
   ],
 );
 
@@ -256,18 +282,8 @@ export const snapshotParts = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.hash] })],
 );
 
-export const blockVersions = sqliteTable(
-  "block_versions",
-  {
-    itemId: text("item_id").notNull(),
-    hash: text().notNull(),
-    json: text().notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.itemId, t.hash] })],
-);
-
-// the files each fields part and block version names, so whether any change set still holds a
-// file is one lookup, never a read of the parts themselves
+// the files each fields part names, so whether any change set still holds a file is one lookup,
+// never a read of the parts themselves
 export const changeSetBlobs = sqliteTable(
   "change_set_blobs",
   {

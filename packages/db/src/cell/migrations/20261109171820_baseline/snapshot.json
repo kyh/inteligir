@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "bdb0e245-50f5-4194-a23d-c14d71d5d2b7",
+  "id": "4d30d044-ef85-4868-a0ba-cf1c914a8dab",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -43,11 +43,7 @@
       "entityType": "tables"
     },
     {
-      "name": "block_versions",
-      "entityType": "tables"
-    },
-    {
-      "name": "blocks",
+      "name": "body_texts",
       "entityType": "tables"
     },
     {
@@ -96,6 +92,14 @@
     },
     {
       "name": "meta",
+      "entityType": "tables"
+    },
+    {
+      "name": "note_sockets",
+      "entityType": "tables"
+    },
+    {
+      "name": "seed_blocks",
       "entityType": "tables"
     },
     {
@@ -478,87 +482,17 @@
       "generated": null,
       "name": "item_id",
       "entityType": "columns",
-      "table": "block_versions"
+      "table": "body_texts"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "hash",
+      "name": "part",
       "entityType": "columns",
-      "table": "block_versions"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "json",
-      "entityType": "columns",
-      "table": "block_versions"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "item_id",
-      "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "block_id",
-      "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "ord",
-      "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "section",
-      "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "json",
-      "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "hash",
-      "entityType": "columns",
-      "table": "blocks"
+      "table": "body_texts"
     },
     {
       "type": "text",
@@ -568,17 +502,7 @@
       "generated": null,
       "name": "text",
       "entityType": "columns",
-      "table": "blocks"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "seq",
-      "entityType": "columns",
-      "table": "blocks"
+      "table": "body_texts"
     },
     {
       "type": "text",
@@ -656,27 +580,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "before_manifest",
-      "entityType": "columns",
-      "table": "change_set_items"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
       "name": "after_fields",
-      "entityType": "columns",
-      "table": "change_set_items"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "after_manifest",
       "entityType": "columns",
       "table": "change_set_items"
     },
@@ -726,7 +630,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "device_id",
+      "name": "session_id",
       "entityType": "columns",
       "table": "change_sets"
     },
@@ -1371,6 +1275,46 @@
       "table": "items"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_home",
+      "entityType": "columns",
+      "table": "items"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_digest",
+      "entityType": "columns",
+      "table": "items"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_version",
+      "entityType": "columns",
+      "table": "items"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_bytes",
+      "entityType": "columns",
+      "table": "items"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -1479,6 +1423,76 @@
       "name": "v",
       "entityType": "columns",
       "table": "meta"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "session_id",
+      "entityType": "columns",
+      "table": "note_sockets"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "table": "note_sockets"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "table": "seed_blocks"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "pos",
+      "entityType": "columns",
+      "table": "seed_blocks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "block_id",
+      "entityType": "columns",
+      "table": "seed_blocks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "section",
+      "entityType": "columns",
+      "table": "seed_blocks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "json",
+      "entityType": "columns",
+      "table": "seed_blocks"
     },
     {
       "type": "text",
@@ -1643,22 +1657,12 @@
     {
       "columns": [
         "item_id",
-        "hash"
+        "part"
       ],
       "nameExplicit": false,
-      "name": "block_versions_pk",
+      "name": "body_texts_pk",
       "entityType": "pks",
-      "table": "block_versions"
-    },
-    {
-      "columns": [
-        "item_id",
-        "block_id"
-      ],
-      "nameExplicit": false,
-      "name": "blocks_pk",
-      "entityType": "pks",
-      "table": "blocks"
+      "table": "body_texts"
     },
     {
       "columns": [
@@ -1712,6 +1716,26 @@
       "name": "item_tags_pk",
       "entityType": "pks",
       "table": "item_tags"
+    },
+    {
+      "columns": [
+        "session_id",
+        "item_id"
+      ],
+      "nameExplicit": false,
+      "name": "note_sockets_pk",
+      "entityType": "pks",
+      "table": "note_sockets"
+    },
+    {
+      "columns": [
+        "item_id",
+        "pos"
+      ],
+      "nameExplicit": false,
+      "name": "seed_blocks_pk",
+      "entityType": "pks",
+      "table": "seed_blocks"
     },
     {
       "columns": [
@@ -2147,12 +2171,6 @@
       "table": "agent_turns"
     },
     {
-      "value": "\"section\" IN ('note', 'article')",
-      "name": "blocks_section",
-      "entityType": "checks",
-      "table": "blocks"
-    },
-    {
       "value": "\"created\" IN (0, 1)",
       "name": "change_set_items_created",
       "entityType": "checks",
@@ -2161,18 +2179,6 @@
     {
       "value": "(\"created\" = 1) = (\"before_fields\" IS NULL)",
       "name": "change_set_items_made",
-      "entityType": "checks",
-      "table": "change_set_items"
-    },
-    {
-      "value": "(\"before_fields\" IS NULL) = (\"before_manifest\" IS NULL)",
-      "name": "change_set_items_before",
-      "entityType": "checks",
-      "table": "change_set_items"
-    },
-    {
-      "value": "(\"after_fields\" IS NULL) = (\"after_manifest\" IS NULL)",
-      "name": "change_set_items_after",
       "entityType": "checks",
       "table": "change_set_items"
     },
@@ -2225,10 +2231,22 @@
       "table": "items"
     },
     {
-      "value": "\"purged\" = 1 OR (\"kind\" IS NOT NULL AND \"title\" IS NOT NULL\n        AND \"aliases\" IS NOT NULL AND \"tags\" IS NOT NULL AND \"properties\" IS NOT NULL\n        AND \"fetch_state\" IS NOT NULL AND \"saved_at\" IS NOT NULL AND \"card\" IS NOT NULL)",
+      "value": "\"body_home\" IN ('seed', 'note')",
+      "name": "items_body_home",
+      "entityType": "checks",
+      "table": "items"
+    },
+    {
+      "value": "\"purged\" = 1 OR (\"kind\" IS NOT NULL AND \"title\" IS NOT NULL\n        AND \"aliases\" IS NOT NULL AND \"tags\" IS NOT NULL AND \"properties\" IS NOT NULL\n        AND \"fetch_state\" IS NOT NULL AND \"saved_at\" IS NOT NULL AND \"card\" IS NOT NULL\n        AND \"body_home\" IS NOT NULL AND \"body_digest\" IS NOT NULL\n        AND \"body_version\" IS NOT NULL AND \"body_bytes\" IS NOT NULL)",
       "name": "items_whole",
       "entityType": "checks",
       "table": "items"
+    },
+    {
+      "value": "\"section\" IN ('note', 'article')",
+      "name": "seed_blocks_section",
+      "entityType": "checks",
+      "table": "seed_blocks"
     }
   ],
   "renames": []

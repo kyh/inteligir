@@ -8,8 +8,7 @@
 
 import { z } from "zod";
 
-import { libraryOpSchema } from "./block-ops";
-import { ordSchema } from "./order-key";
+import { fieldOpSchema } from "./field-ops";
 import { libraryItemFieldsSchema } from "./library-item";
 import { storableBlockSchema } from "./library-nodes";
 
@@ -51,12 +50,12 @@ import {
   newIdSchema,
   opIdSchema,
   PAGE_MAX,
-  placedBlockSchema,
+  newBodyBlockSchema,
   responseFormatSchema,
   searchHitSchema,
   seqSchema,
   shaSchema,
-  storedBlockSchema,
+  bodyBlockSchema,
   THREAD_STATUSES,
   threadEventRowSchema,
   threadRowSchema,
@@ -128,7 +127,7 @@ const itemsContract = {
   get: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema }))
-    .output(liveItemRowSchema.extend({ blocks: z.array(storedBlockSchema) })),
+    .output(liveItemRowSchema.extend({ blocks: z.array(bodyBlockSchema) })),
 
   // a note a device made, with its blocks
   create: signedBase
@@ -140,7 +139,7 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        blocks: z.array(placedBlockSchema).max(WRITE_OPS_MAX),
+        blocks: z.array(newBodyBlockSchema).max(WRITE_OPS_MAX),
         folderId: idSchema.nullable(),
         id: newIdSchema,
         opId,
@@ -203,9 +202,7 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        article: z
-          .array(z.strictObject({ block: storableBlockSchema, ord: ordSchema }))
-          .max(WRITE_OPS_MAX),
+        article: z.array(storableBlockSchema).max(WRITE_OPS_MAX),
         coverSha: shaSchema.nullable(),
         facts: z.strictObject({
           author: FIELDS.author,
@@ -251,11 +248,10 @@ const itemsContract = {
     )
     .output(saved),
 
-  // exact passages of the item's markdown view replaced, against the sequence it was read at; the
-  // new text names items as `createNote`'s does
+  // exact passages of the item's markdown view replaced in its body as it stands, typing around
+  // them kept; the new text names items as `createNote`'s does
   edit: signedBase
     .errors({
-      [ConflictError.code]: ConflictError,
       [EditRefusedError.code]: EditRefusedError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
@@ -263,7 +259,6 @@ const itemsContract = {
     })
     .input(
       z.strictObject({
-        baseSeq: seqSchema,
         edits: z
           .array(z.strictObject({ newText: z.string(), oldText: z.string().min(1) }))
           .min(1)
@@ -425,6 +420,8 @@ const historyContract = {
       z.object({
         changeSetId: idSchema.nullable(),
         kept: z.array(idSchema),
+        // the items whose undo took text someone wrote inside a block the undone turn added
+        lostText: z.array(idSchema),
         refused: z.array(idSchema),
         reverted: z.array(idSchema),
       }),
@@ -582,8 +579,8 @@ export const libraryContract = {
     )
     .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
 
-  // one item's ops, guarded block by block and field by field: it lands
-  // whole or answers every conflict. `write`, not `apply`: a client's path is a function's
+  // one item's field ops, each guarded by its base: it lands whole or answers every conflict; a
+  // body is written live in its note. `write`, not `apply`: a client's path is a function's
   // property, and `apply` would be Function.prototype's
   write: signedBase
     .errors({
@@ -597,7 +594,7 @@ export const libraryContract = {
       z.strictObject({
         itemId: idSchema,
         opId,
-        ops: z.array(libraryOpSchema).min(1).max(WRITE_OPS_MAX),
+        ops: z.array(fieldOpSchema).min(1).max(WRITE_OPS_MAX),
       }),
     )
     .output(landed),

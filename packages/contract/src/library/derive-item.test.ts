@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveItem } from "./derive-item";
-import type { LibraryBlock } from "./library-nodes";
-import { itemOf, noteFields, paragraph } from "../test-support/library-items";
+import { deriveBody, deriveItem } from "./derive-item";
+import type { BodyBlock } from "./derive-item";
+import type { LibraryItemFields } from "./library-item";
+import type { LibraryBlock, LibrarySection } from "./library-nodes";
+import { noteFields, paragraph } from "../test-support/library-items";
+
+const bodyOf = (blocks: readonly LibraryBlock[], section: LibrarySection = "note"): BodyBlock[] =>
+  blocks.map((block) => ({ block, section }));
+
+// the item's rows as the cell derives them: its body read once, then the fields over its digest
+const derive = (fields: LibraryItemFields, body: readonly BodyBlock[]) => {
+  const derived = deriveBody(body);
+  return { ...deriveItem(fields, derived.digest), body: derived };
+};
 
 const leaf: [{ text: "" }] = [{ text: "" }];
 
@@ -18,10 +29,10 @@ const linked: LibraryBlock = {
   type: "p",
 };
 
-describe(deriveItem, () => {
+describe(deriveBody, () => {
   it("reads a page link by its item's id and a url by its key, and a `[[…]]` the text it is", () => {
-    const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
-    expect(derived.links).toStrictEqual([
+    const derived = derive(noteFields(), bodyOf([linked]));
+    expect(derived.body.links).toStrictEqual([
       { targetId: "item-2", targetKey: null },
       { targetId: null, targetKey: "example.com/a" },
     ]);
@@ -37,9 +48,9 @@ describe(deriveItem, () => {
       id: "p5",
       type: "p",
     };
-    const derived = deriveItem(noteFields(), itemOf([mentioned]).blocks);
+    const derived = derive(noteFields(), bodyOf([mentioned]));
     expect(derived.card.preview).toBe("See Other now.");
-    expect(derived.search.body).toBe("See Other now.");
+    expect(derived.body.text).toBe("See Other now.");
   });
 
   it("reads a link to an untitled item by its id alone", () => {
@@ -48,27 +59,28 @@ describe(deriveItem, () => {
       id: "p4",
       type: "p",
     };
-    expect(deriveItem(noteFields(), itemOf([untitled]).blocks).links).toMatchObject([
+    expect(derive(noteFields(), bodyOf([untitled])).body.links).toMatchObject([
       { targetId: "item-2", targetKey: null },
     ]);
   });
 
   it("reads no word in the line markdown writes an empty paragraph as", () => {
-    const { blocks } = itemOf([
-      { children: [{ text: "​" }], id: "e", type: "p" },
-      { children: [{ text: "Words​ here" }], id: "w", type: "p" },
-    ]);
-    const derived = deriveItem(noteFields({ title: "" }), blocks);
-    expect(derived.blocks.get("e")).toStrictEqual({ text: "" });
+    const derived = derive(
+      noteFields({ title: "" }),
+      bodyOf([
+        { children: [{ text: "​" }], id: "e", type: "p" },
+        { children: [{ text: "Words​ here" }], id: "w", type: "p" },
+      ]),
+    );
     expect(derived.card.preview).toBe("Words here");
     expect(derived.card.title).toBe("Words here");
-    expect(derived.search.body).toBe("\nWords here");
+    expect(derived.body.text).toBe("\nWords here");
   });
 
   it("joins the field's tags and the body's chips, each origin once, case folded", () => {
-    const derived = deriveItem(
+    const derived = derive(
       noteFields({ tags: ["work/plans", "Read"] }),
-      itemOf([linked, { ...linked, id: "p3" }]).blocks,
+      bodyOf([linked, { ...linked, id: "p3" }]),
     );
     expect(derived.tags).toStrictEqual([
       { origin: "field", tag: "work/plans" },
@@ -92,45 +104,43 @@ describe(deriveItem, () => {
       id: "c1",
       type: "code_block",
     };
-    const page = itemOf([literal, fenced]);
-    const article = new Map(
-      [...page.blocks].map(([id, stored]) => [id, { ...stored, section: "article" as const }]),
-    );
-    expect(deriveItem(noteFields(), page.blocks).tags).toStrictEqual([
+    expect(derive(noteFields(), bodyOf([literal, fenced])).tags).toStrictEqual([
       { origin: "inline", tag: "kept" },
     ]);
-    expect(deriveItem(noteFields(), article).tags).toStrictEqual([]);
+    expect(derive(noteFields(), bodyOf([literal, fenced], "article")).tags).toStrictEqual([]);
   });
 
-  it("gives each block its text", () => {
-    const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
-    expect(derived.blocks.get("p2")).toStrictEqual({
-      text: "See Other and [[Not Yet]], the site #Work/plans marked",
-    });
+  it("reads a body's text, its files and whether it holds a page", () => {
+    const image: LibraryBlock = { children: leaf, id: "i", sha: "a".repeat(64), type: "img" };
+    const derived = derive(noteFields(), [
+      ...bodyOf([linked]),
+      ...bodyOf([image, paragraph("a", "Read.")], "article"),
+    ]);
+    expect(derived.body.text).toBe(
+      "See Other and [[Not Yet]], the site #Work/plans marked\n\nRead.",
+    );
+    expect(derived.body.digest).toMatchObject({ article: true, files: ["a".repeat(64)] });
+    expect(derive(noteFields(), bodyOf([linked])).body.digest.article).toBe(false);
   });
 
   it("names an untitled item by its first heading, else its first line", () => {
     const heading: LibraryBlock = { children: [{ text: "Plans\nfor May" }], id: "h", type: "h2" };
     expect(
-      deriveItem(noteFields({ title: "  " }), itemOf([paragraph("p", "body"), heading]).blocks).card
-        .title,
+      derive(noteFields({ title: "  " }), bodyOf([paragraph("p", "body"), heading])).card.title,
     ).toBe("Plans");
     expect(
-      deriveItem(noteFields({ title: "" }), itemOf([paragraph("p", "  first\nsecond")]).blocks).card
-        .title,
+      derive(noteFields({ title: "" }), bodyOf([paragraph("p", "  first\nsecond")])).card.title,
     ).toBe("first");
-    expect(deriveItem(noteFields({ title: "Named" }), itemOf([heading]).blocks).card.title).toBe(
-      "Named",
-    );
+    expect(derive(noteFields({ title: "Named" }), bodyOf([heading])).card.title).toBe("Named");
   });
 
   it("cards an item: its first paragraph, its outline and its words", () => {
-    const { blocks } = itemOf([
+    const blocks = bodyOf([
       { children: [{ text: "Intro" }], id: "h", type: "h1" },
       { children: [{ text: "a list item" }], id: "l", listStyleType: "disc", type: "p" },
       paragraph("p", "The first paragraph."),
     ]);
-    expect(deriveItem(noteFields(), blocks).card).toStrictEqual({
+    expect(derive(noteFields(), blocks).card).toStrictEqual({
       outline: [{ blockId: "h", level: 1, text: "Intro" }],
       preview: "The first paragraph.",
       title: "A note",
@@ -139,12 +149,12 @@ describe(deriveItem, () => {
   });
 
   it("outlines h1 to h3 as the table of contents does, and ranks every heading", () => {
-    const { blocks } = itemOf([
+    const blocks = bodyOf([
       { children: [{ text: "Four" }], id: "h4", type: "h4" },
       { children: [{ text: "Two" }], id: "h2", type: "h2" },
       { children: [{ text: "Six" }], id: "h6", type: "h6" },
     ]);
-    const derived = deriveItem(noteFields({ aliases: ["Alt"], title: "" }), blocks);
+    const derived = derive(noteFields({ aliases: ["Alt"], title: "" }), blocks);
     expect(derived.card.outline).toStrictEqual([{ blockId: "h2", level: 2, text: "Two" }]);
     expect(derived.search.headings).toBe("Four\nTwo\nSix\nAlt");
     expect(derived.card.title).toBe("Four");
@@ -164,7 +174,7 @@ describe(deriveItem, () => {
         type: "h2",
       })),
     ];
-    const { outline } = deriveItem(noteFields(), itemOf(headings).blocks).card;
+    const { outline } = derive(noteFields(), bodyOf(headings)).card;
     expect(outline.length).toBeLessThan(headings.length);
     expect(outline.map((entry) => entry.blockId)).toStrictEqual(
       headings.slice(0, outline.length).map((block) => block.id),
@@ -174,7 +184,7 @@ describe(deriveItem, () => {
   });
 
   it("reads a table row by cell and a code block by line, and reads nothing from a rich block", () => {
-    const { blocks } = itemOf([
+    const blocks = bodyOf([
       {
         children: [
           {
@@ -198,18 +208,18 @@ describe(deriveItem, () => {
       },
       { children: leaf, id: "x", type: "html_block", value: "<b>hidden</b>" },
     ]);
-    expect(deriveItem(noteFields(), blocks).search.body).toBe("a\tb\none()\ntwo()\n");
+    expect(derive(noteFields(), blocks).body.text).toBe("a\tb\none()\ntwo()\n");
   });
 
   it("ranks a url item's address, site and tags as its meta", () => {
-    const derived = deriveItem(
+    const derived = derive(
       noteFields({
         kind: "link",
         site: "Example",
         tags: ["read"],
         url: "https://example.com/post",
       }),
-      new Map(),
+      [],
     );
     expect(derived.search.meta).toBe("example.com post\nExample\nread");
     expect(derived.urlKey).toBe("example.com/post");
