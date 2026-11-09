@@ -33,9 +33,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf every client loads: `/v1`'s wire and the parser-free library model it validates
     // against, so it reaches no markdown parser ("the contract" below walks for one).
     "@repo/contract": [],
-    // a leaf: the D1 accounts database's drizzle schema and its client, which the Worker's auth
-    // reads and drizzle-kit pushes
-    "@repo/db": [],
+    // the D1 accounts database's drizzle schema and its client, which the Worker's auth reads and
+    // drizzle-kit pushes, and each library cell's schema and migrations: the @repo/contract edge is
+    // the vocabularies a cell column's CHECK holds it to
+    "@repo/db": ["@repo/contract"],
     // the shell is Rust (src-tauri) and holds no src/: the page it shows is the one the site serves
     "@repo/desktop": [],
     // the @repo/contract edge is `/v1`'s wire, which the scenarios drive a booted Worker over, and

@@ -7,8 +7,8 @@
 
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { nextHead, readItem, readMeta, storeTombstone, writeMeta } from "./library-queries";
-import { LibraryRowError, runPlan } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
+import { LibraryRowError } from "./library-sql";
+import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
 import { z } from "zod";
 
@@ -106,8 +106,8 @@ const deletedAtSchema = z.number().int().nonnegative();
 const headSchema = z.number().int().nonnegative();
 
 // the last sequence number a write took, 0 before the first
-export const libraryHead = (sql: SqlStatements): number => {
-  const head = runPlan(sql, readMeta("head"));
+export const libraryHead = (db: CellDb): number => {
+  const head = readMeta(db, "head");
   return head === null ? 0 : headSchema.parse(head);
 };
 
@@ -139,9 +139,10 @@ const noSet = (): OpenSet => {
 
 export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, ids, storage } = deps;
+  const { db } = storage;
 
   const deletedAt = (): number | null => {
-    const held = runPlan(storage, readMeta("deleted_at"));
+    const held = readMeta(db, "deleted_at");
     return held === null ? null : deletedAtSchema.parse(held);
   };
 
@@ -176,7 +177,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           moved,
           now,
           seq: () => {
-            taken.seq ??= runPlan(storage, nextHead());
+            taken.seq ??= nextHead(db);
             return taken.seq;
           },
           set: () => {
@@ -196,7 +197,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             JSON.stringify(value),
             now,
           ]);
-          ensureJob(storage, PRUNE_JOB, now + PRUNE_EVERY_MS);
+          ensureJob(db, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
         return { moved: moved.frame(), ok: true, value };
       });
@@ -237,16 +238,18 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       const purged: string[] = [];
       const missing: string[] = [];
       for (const id of new Set(input.ids)) {
-        const item = runPlan(storage, readItem(id));
+        const item = readItem(db, id);
         if (item?.kind !== "live" || item.fields.deletedAt === null) {
           missing.push(id);
           continue;
         }
         const seq = scope.seq();
-        runPlan(
-          storage,
-          storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
-        );
+        storeTombstone(storage, {
+          deletedAt: item.fields.deletedAt,
+          id,
+          seq,
+          updatedAt: scope.now,
+        });
         for (const table of ["snapshot_parts", "block_versions", "change_set_items"] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
@@ -296,7 +299,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     );
     if (!result.ok && result.refusal.kind === "quota") {
       storage.transaction(() => {
-        refuseUpload(storage, sha, deps.now());
+        refuseUpload(db, sha, deps.now());
       });
     }
     return result;
@@ -306,9 +309,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // sha again
   const beginStrayRemovals = (): StrayRemoval[] =>
     storage.transaction(() =>
-      dueJobs(storage, deps.now(), ["stray"]).flatMap((job) => {
+      dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
         const { sha } = PAYLOADS.stray.parse(job.payload);
-        return beginRemoval(storage, sha) ? [{ job, sha }] : [];
+        return beginRemoval(db, sha) ? [{ job, sha }] : [];
       }),
     );
 
@@ -318,9 +321,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     storage.transaction(() => {
       for (const removal of removals) {
         if (removed) {
-          endRemoval(storage, removal.sha);
+          endRemoval(db, removal.sha);
         } else {
-          retryJob(storage, removal.job, now);
+          retryJob(db, removal.job, now);
         }
       }
     });
@@ -332,7 +335,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const fillsSent = (claimed: readonly ClaimedFill[]): void => {
     storage.transaction(() => {
-      sentFills(storage, claimed);
+      sentFills(db, claimed);
     });
   };
 
@@ -344,7 +347,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     );
     if (!landed.ok && landed.refusal.kind !== "gone") {
       storage.transaction(() => {
-        hurryUnnamed(storage, readingFiles(landing), deps.now());
+        hurryUnnamed(db, readingFiles(landing), deps.now());
       });
     }
     return landed;
@@ -366,7 +369,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }
   };
 
-  const read = <T>(work: (sql: SqlStatements) => T): CellResult<T> => reading(() => work(storage));
+  const read = <T>(work: (cell: CellStorage) => T): CellResult<T> => reading(() => work(storage));
 
   // what a write already answered under `opId`, or null while none has: a write whose work waits on
   // the network between its transactions asks first, and lands its op with its last one
@@ -386,21 +389,21 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "upload": {
-        releaseUpload(storage, PAYLOADS.upload.parse(job.payload).sha, now);
+        releaseUpload(db, PAYLOADS.upload.parse(job.payload).sha, now);
         break;
       }
       case "unnamed": {
         const { sha } = PAYLOADS.unnamed.parse(job.payload);
-        if (importsRunning(storage)) {
-          awaitNameAgain(storage, sha, now + PLAN_AGAIN_MS);
+        if (importsRunning(db)) {
+          awaitNameAgain(db, sha, now + PLAN_AGAIN_MS);
         } else {
-          releaseUnnamed(storage, [sha], now);
+          releaseUnnamed(db, [sha], now);
         }
         break;
       }
       case "prune": {
         const more = pruneChangeSets(storage, now);
-        scheduleJob(storage, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
+        scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
         break;
       }
       // no default
@@ -411,7 +414,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // again later and the rest still run
   const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
     const now = deps.now();
-    for (const job of storage.transaction(() => dueJobs(storage, now, STORAGE_JOBS))) {
+    for (const job of storage.transaction(() => dueJobs(db, now, STORAGE_JOBS))) {
       try {
         storage.transaction(() => {
           runJob(job, now);
@@ -419,7 +422,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       } catch (error) {
         onFailure(job, error);
         storage.transaction(() => {
-          retryJob(storage, job, now);
+          retryJob(db, job, now);
         });
       }
     }
@@ -429,7 +432,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const tombstone = (): void => {
     storage.transaction(() => {
       if (deletedAt() === null) {
-        runPlan(storage, writeMeta("deleted_at", deps.now()));
+        writeMeta(db, "deleted_at", deps.now());
       }
     });
   };
@@ -437,21 +440,21 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   return {
     answered,
     beginStrayRemovals,
-    blobRemovals: () => blobRemovals(storage),
+    blobRemovals: () => blobRemovals(db),
     claimDueFills,
     closeChangeSet,
     deletedAt,
     endStrayRemovals,
     fillWanted,
     fillsSent,
-    head: () => libraryHead(storage),
+    head: () => libraryHead(db),
     ids,
     land,
     landApart,
     landReading,
     // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
     // the deletion's retry wipes it
-    nextJobAt: () => (deletedAt() === null ? nextJobAt(storage) : null),
+    nextJobAt: () => (deletedAt() === null ? nextJobAt(db) : null),
     purgeItems,
     read,
     reserve,

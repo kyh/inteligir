@@ -4,10 +4,11 @@
 // A write that adds words past the cap, in a block or a field, is refused, and one
 // that frees or keeps them never is, so a full library can still be tidied.
 
-import { readMeta, writeMeta } from "./library-queries";
-import { runPlan } from "./library-sql";
 import { z } from "zod";
 
+import { readMeta, writeMeta } from "./library-queries";
+
+import type { CellDb } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
@@ -16,16 +17,16 @@ const BYTES_USED = "bytes_used";
 const countSchema = z.number().int().nonnegative();
 
 // the files' bytes the library holds or holds room for
-const fileBytes = (storage: CellStorage): number => {
-  const held = runPlan(storage, readMeta(BYTES_USED));
+const fileBytes = (db: CellDb): number => {
+  const held = readMeta(db, BYTES_USED);
   return held === null ? 0 : countSchema.parse(held);
 };
 
-export const addFileBytes = (storage: CellStorage, delta: number): void => {
-  runPlan(storage, writeMeta(BYTES_USED, Math.max(0, fileBytes(storage) + delta)));
+export const addFileBytes = (db: CellDb, delta: number): void => {
+  writeMeta(db, BYTES_USED, Math.max(0, fileBytes(db) + delta));
 };
 
-const bytesUsed = (storage: CellStorage): number => fileBytes(storage) + storage.databaseSize();
+const bytesUsed = (storage: CellStorage): number => fileBytes(storage.db) + storage.databaseSize();
 
 // refuses `growth` more bytes once they would pass the cap
 export const holdRoomFor = (storage: CellStorage, bytesCap: number, growth: number): void => {

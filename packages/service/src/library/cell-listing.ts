@@ -22,10 +22,13 @@ import {
 } from "./library-queries";
 import type { LiteralMatch, SearchSide } from "./library-queries";
 import { runPlan } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
-import { z } from "zod";
+import { asc } from "drizzle-orm";
+import type { z } from "zod";
 
+import { itemTags } from "@repo/db/cell/schema";
+import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
+import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
 type ListedItem = z.infer<typeof listedItemSchema>;
@@ -34,13 +37,13 @@ type ListedItem = z.infer<typeof listedItemSchema>;
 const answerCard = (card: ItemCard) => ({ ...card, outline: [...card.outline] });
 
 // an item's row and every block it holds; one emptied from Deleted is no item
-export const itemWhole = (sql: SqlStatements, id: string) => {
-  const item = runPlan(sql, readItem(id));
+export const itemWhole = (storage: CellStorage, id: string) => {
+  const item = readItem(storage.db, id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
   return {
-    blocks: runPlan(sql, readBlocks(id)),
+    blocks: runPlan(storage, readBlocks(id)),
     card: answerCard(item.card),
     fields: item.fields,
     id,
@@ -56,21 +59,22 @@ export interface ItemListing extends ListingRow {
   readonly seq: number;
 }
 
-const tagRowSchema = z.object({ item_id: z.string(), tag: z.string() });
-
 // every item the library holds (none purged), with the folders a listing files them under
-export const listingOf = (sql: SqlStatements): LibraryIndex<ItemListing> => {
+export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
   const tags = new Map<string, string[]>();
-  for (const raw of sql.all("SELECT item_id, tag FROM item_tags ORDER BY item_id, tag", [])) {
-    const row = tagRowSchema.parse(raw);
-    const held = tags.get(row.item_id) ?? [];
+  for (const row of db
+    .select({ itemId: itemTags.itemId, tag: itemTags.tag })
+    .from(itemTags)
+    .orderBy(asc(itemTags.itemId), asc(itemTags.tag))
+    .all()) {
+    const held = tags.get(row.itemId) ?? [];
     if (!held.includes(row.tag)) {
       held.push(row.tag);
     }
-    tags.set(row.item_id, held);
+    tags.set(row.itemId, held);
   }
   const index = new LibraryIndex<ItemListing>();
-  for (const item of runPlan(sql, readLiveItems())) {
+  for (const item of readLiveItems(db)) {
     const { fields } = item;
     index.upsert({
       card: item.card,
@@ -88,7 +92,7 @@ export const listingOf = (sql: SqlStatements): LibraryIndex<ItemListing> => {
       url: fields.url,
     });
   }
-  index.setFolders(liveFolders(sql));
+  index.setFolders(liveFolders(db));
   return index;
 };
 
@@ -117,12 +121,12 @@ const lineExcerpt = (text: string, query: string): string | null => {
 // needle reads no more of the library's text than those pages' blocks; only an ascii query on one
 // line has such a scan, since SQLite folds ascii case alone and a match lives in one line
 export const searchHits = (
-  sql: SqlStatements,
+  storage: CellStorage,
   query: string,
   side: SearchSide,
 ): Map<string, string> => {
   const hits = new Map<string, string>();
-  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES, side))) {
+  for (const hit of runPlan(storage, searchLibrary(query, SEARCH_CANDIDATES, side))) {
     hits.set(hit.itemId, hit.snippet);
   }
   if (side === "deleted" || !isPrintableAscii(query)) {
@@ -131,7 +135,7 @@ export const searchHits = (
   let after: string | null = null;
   while (hits.size < SEARCH_CANDIDATES) {
     const page: LiteralMatch[] = runPlan(
-      sql,
+      storage,
       literalMatches(query, { after, limit: LITERAL_PAGE }),
     );
     for (const match of page) {
@@ -158,13 +162,13 @@ export interface ListingPageInput {
   readonly limit: number;
 }
 
-export const listingPage = (sql: SqlStatements, input: ListingPageInput) => {
+export const listingPage = (storage: CellStorage, input: ListingPageInput) => {
   const offset = input.cursor ?? 0;
   const hits =
     input.words === undefined
       ? null
-      : searchHits(sql, input.words, input.query.deleted ? "deleted" : "live");
-  const page = listingOf(sql).items({
+      : searchHits(storage, input.words, input.query.deleted ? "deleted" : "live");
+  const page = listingOf(storage.db).items({
     ...input.query,
     limit: input.limit,
     offset,
@@ -190,10 +194,10 @@ export const listingPage = (sql: SqlStatements, input: ListingPageInput) => {
 const EVERY_ROW = Number.MAX_SAFE_INTEGER;
 
 // the rail's counts: every live folder named, and each tag under the spelling it met first
-export const listingScopes = (sql: SqlStatements) => {
-  const index = listingOf(sql);
+export const listingScopes = (db: CellDb) => {
+  const index = listingOf(db);
   const scopes = index.scopes();
-  const folders = new Map(liveFolders(sql).map((folder) => [folder.id, folder]));
+  const folders = new Map(liveFolders(db).map((folder) => [folder.id, folder]));
   const tags = new Map<string, { tag: string; items: number }>();
   const live = index.items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "saved" });
   for (const row of live.items) {
@@ -218,8 +222,8 @@ export const listingScopes = (sql: SqlStatements) => {
   };
 };
 
-export const listingTitles = (sql: SqlStatements) => ({
-  targets: listingOf(sql)
+export const listingTitles = (db: CellDb) => ({
+  targets: listingOf(db)
     .items({ deleted: false, limit: EVERY_ROW, offset: 0, sort: "title" })
     .items.map((row) => ({ id: row.id, title: row.title })),
 });

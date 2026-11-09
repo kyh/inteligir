@@ -178,4 +178,4 @@ export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[]
 
 // an item's row as the cell holds it, or null for none
 export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>
-  landedValue(library.read((sql) => runPlan(sql, readItem(itemId))));
+  landedValue(library.read((sql) => readItem(sql.db, itemId)));

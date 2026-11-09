@@ -32,10 +32,11 @@ import { urlKey } from "@repo/contract/items/item-url";
 import { dirnamePath, normalizePath } from "@repo/contract/knowledge/folder-path";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import { readItem } from "./library-queries";
-import { runPlan } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
 import { frontmatterEnd } from "@repo/editor/markdown/frontmatter";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
+
+import { importRows as planRows, itemBlobs, items } from "@repo/db/cell/schema";
 
 import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "../zip/zip-read";
 import type { ByteSource, ZipEntry } from "../zip/zip-read";
@@ -68,7 +69,7 @@ import type { ImportJob, ImportStep } from "./cell-import-jobs";
 import { landNew, setDeleted } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
-import type { CellStorage } from "./cell-storage";
+import type { CellDb } from "./cell-db";
 import { filingRules } from "./library-rules";
 
 // a file read whole to hash it; a larger one is read twice, once to hash it and once to store it
@@ -209,7 +210,7 @@ const isRulesHeld = (host: ImportHost, path: string, text: string): boolean => {
   if (normalizePath(path) !== LIBRARY_RULES_PATH) {
     return false;
   }
-  const rules = host.library.read(filingRules);
+  const rules = host.library.read((storage) => filingRules(storage.db));
   return rules.ok && rules.value === text;
 };
 
@@ -277,12 +278,12 @@ interface SettledDoc {
   readonly standing: DocRow["standing"];
 }
 
-const settledDoc = (sql: CellStorage, doc: PlannedDoc, newId: () => string): SettledDoc => {
-  const item = runPlan(sql, readItem(doc.itemId));
+const settledDoc = (db: CellDb, doc: PlannedDoc, newId: () => string): SettledDoc => {
+  const item = readItem(db, doc.itemId);
   if (item?.kind === "live" && item.fields.deletedAt === null) {
     return { doc, standing: "held" };
   }
-  const holder = doc.urlKey === null ? null : urlHolder(sql, doc.urlKey, null);
+  const holder = doc.urlKey === null ? null : urlHolder(db, doc.urlKey, null);
   if (holder !== null) {
     return { doc: { ...doc, itemId: holder.id }, standing: "held" };
   }
@@ -293,40 +294,40 @@ const settledDoc = (sql: CellStorage, doc: PlannedDoc, newId: () => string): Set
 };
 
 const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void => {
-  const sql = scope.storage;
-  const entries = importRows(sql, job.id, ROWS.entry, ALL, entrySchema).map((row) => row.value);
+  const { db } = scope.storage;
+  const entries = importRows(db, job.id, ROWS.entry, ALL, entrySchema).map((row) => row.value);
   const zips = new Map(
     entries.flatMap((entry) => (entry.kind === "doc" ? [[entry.path, entry.zip] as const] : [])),
   );
   const plan = planImport(entries.map(importEntryOf), { newItemId: host.library.ids.item });
   putImportRows(
-    sql,
+    db,
     job.id,
     ROWS.doc,
     plan.docs.flatMap((doc, idx) => {
       const zip = zips.get(doc.path);
       return zip === undefined
         ? []
-        : [{ idx, value: { ...settledDoc(sql, doc, host.library.ids.item), zip } }];
+        : [{ idx, value: { ...settledDoc(db, doc, host.library.ids.item), zip } }];
     }),
   );
   putImportRows(
-    sql,
+    db,
     job.id,
     ROWS.file,
     plan.files.map((value, idx) => ({ idx, value })),
   );
-  dropImportRows(sql, job.id, ROWS.entry);
-  advanceImport(sql, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });
+  dropImportRows(db, job.id, ROWS.entry);
+  advanceImport(db, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });
 };
 
 // every file the first pass put in the library for the job, where its rows name them: the paths
 // it read while it reads, the plan's files once the plan is made
-export const keptFileShas = (sql: SqlStatements, jobId: string): string[] => [
-  ...importRows(sql, jobId, ROWS.entry, ALL, entrySchema).flatMap(({ value }) =>
+export const keptFileShas = (db: CellDb, jobId: string): string[] => [
+  ...importRows(db, jobId, ROWS.entry, ALL, entrySchema).flatMap(({ value }) =>
     value.kind === "file" ? [value.sha] : [],
   ),
-  ...importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map(({ value }) => value.sha),
+  ...importRows(db, jobId, ROWS.file, ALL, fileRowSchema).map(({ value }) => value.sha),
 ];
 
 const readPaths = async (
@@ -360,9 +361,11 @@ const readPaths = async (
     }
     const moved = apart(host.library, (scope) => {
       if (read.kind === "row") {
-        putImportRows(scope.storage, job.id, ROWS.entry, [{ idx: entry.index, value: read.value }]);
+        putImportRows(scope.storage.db, job.id, ROWS.entry, [
+          { idx: entry.index, value: read.value },
+        ]);
       }
-      advanceImport(scope.storage, job.id, {
+      advanceImport(scope.storage.db, job.id, {
         counts: ENTRY_COUNTS[read.kind],
         cursor: entry.index + 1,
       });
@@ -388,13 +391,13 @@ interface LoadedPlan {
   readonly docs: readonly DocRow[];
 }
 
-const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
-  const docs = importRows(sql, jobId, ROWS.doc, ALL, docRowSchema).map((row) => row.value);
+const loadPlan = (db: CellDb, jobId: string): LoadedPlan => {
+  const docs = importRows(db, jobId, ROWS.doc, ALL, docRowSchema).map((row) => row.value);
   return {
     docs,
     plan: {
       docs: docs.map((row) => row.doc),
-      files: importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
+      files: importRows(db, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
     },
   };
 };
@@ -416,7 +419,7 @@ const restoreDoc = (
     askFill(scope, item);
   }
   const back = restored.changed.length > 0;
-  advanceImport(scope.storage, job.id, {
+  advanceImport(scope.storage.db, job.id, {
     changeSetId: back ? scope.set().id : undefined,
     counts: back ? { added: 1 } : { alreadySaved: 1 },
     cursor: idx + 1,
@@ -432,8 +435,8 @@ const landDoc = (
   const { item, doc } = read;
   const key = item.fields.url === null ? null : urlKey(item.fields.url);
   if (
-    runPlan(scope.storage, readItem(doc.itemId))?.kind === "live" ||
-    (key !== null && urlHolder(scope.storage, key, null) !== null)
+    readItem(scope.storage.db, doc.itemId)?.kind === "live" ||
+    (key !== null && urlHolder(scope.storage.db, key, null) !== null)
   ) {
     return { held: true };
   }
@@ -505,7 +508,7 @@ const docOutcome = async (
     idx,
     library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
       const result = landDoc(scope, host, read.read);
-      advanceImport(scope.storage, job.id, {
+      advanceImport(scope.storage.db, job.id, {
         changeSetId: result.held ? undefined : scope.set().id,
         counts: result.held
           ? { alreadySaved: 1 }
@@ -517,47 +520,46 @@ const docOutcome = async (
   );
 };
 
-const namedFileSchema = z.object({ original_sha: z.string().nullable(), sha256: z.string() });
-
 // what live items name of the plan's files once its notes have landed: the notes it read, those
 // the library held already and those back from Deleted alike, none of which it need read for this
-const namedFiles = (sql: SqlStatements, jobId: string): ReadFiles => {
-  const named = sql
-    .all(
-      `SELECT DISTINCT item_blobs.sha256, items.original_sha
-         FROM item_blobs JOIN items ON items.id = item_blobs.item_id
-        WHERE items.deleted_at IS NULL AND items.purged = 0 AND item_blobs.sha256 IN
-          (SELECT json_extract(json, '$.sha') FROM import_rows WHERE job_id = ? AND kind = ?)`,
-      [jobId, ROWS.file],
-    )
-    .map((row) => namedFileSchema.parse(row));
+const namedFiles = (db: CellDb, jobId: string): ReadFiles => {
+  const planned = db
+    .select({ sha: sql`json_extract(${planRows.json}, '$.sha')` })
+    .from(planRows)
+    .where(and(eq(planRows.jobId, jobId), eq(planRows.kind, ROWS.file)));
+  const named = db
+    .selectDistinct({ originalSha: items.originalSha, sha256: itemBlobs.sha256 })
+    .from(itemBlobs)
+    .innerJoin(items, eq(items.id, itemBlobs.itemId))
+    .where(and(isNull(items.deletedAt), eq(items.purged, 0), inArray(itemBlobs.sha256, planned)))
+    .all();
   return {
     attached: new Set(named.map((row) => row.sha256)),
     originals: new Set(
-      named.flatMap((row) => (row.original_sha === row.sha256 ? [row.sha256] : [])),
+      named.flatMap((row) => (row.originalSha === row.sha256 ? [row.sha256] : [])),
     ),
   };
 };
 
 // the files no item names, planned once every note has landed, each an item of its own
 const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded: LoadedPlan) => {
-  const sql = scope.storage;
-  const items = planFileItems(
+  const { db } = scope.storage;
+  const fileItems = planFileItems(
     loaded.plan,
-    namedFiles(sql, job.id),
+    namedFiles(db, job.id),
     { newItemId: host.library.ids.item },
     host.now(),
   );
   putImportRows(
-    sql,
+    db,
     job.id,
     ROWS.fileItem,
-    items.map((value, idx) => ({ idx, value })),
+    fileItems.map((value, idx) => ({ idx, value })),
   );
-  advanceImport(sql, job.id, {
+  advanceImport(db, job.id, {
     cursor: 0,
     phase: "files",
-    total: loaded.docs.length + items.length,
+    total: loaded.docs.length + fileItems.length,
   });
 };
 
@@ -570,7 +572,7 @@ const landDocs = async (
   if (source === null) {
     return failed(FILE_GONE);
   }
-  const loaded = host.library.read((sql) => loadPlan(sql, job.id));
+  const loaded = host.library.read((storage) => loadPlan(storage.db, job.id));
   if (!loaded.ok) {
     return DONE;
   }
@@ -610,9 +612,9 @@ const LANDED_FILE = z.object({ held: z.boolean() });
 
 const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
   const { library } = host;
-  const page = library.read((sql) =>
+  const page = library.read((storage) =>
     importRows(
-      sql,
+      storage.db,
       job.id,
       ROWS.fileItem,
       { from: job.cursor, limit: PAGE_FILES },
@@ -627,7 +629,7 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
       importActor(job),
       { answer: LANDED_FILE, opId: undefined },
       (scope) => {
-        const held = runPlan(scope.storage, readItem(value.itemId))?.kind === "live";
+        const held = readItem(scope.storage.db, value.itemId)?.kind === "live";
         if (!held) {
           landNew(scope, {
             blocks: [],
@@ -639,7 +641,7 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
             id: value.itemId,
           });
         }
-        advanceImport(scope.storage, job.id, {
+        advanceImport(scope.storage.db, job.id, {
           changeSetId: held ? undefined : scope.set().id,
           counts: held ? { alreadySaved: 1 } : { added: 1 },
           cursor: idx + 1,

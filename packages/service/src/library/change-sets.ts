@@ -17,6 +17,7 @@ import type { CellActor, ChangeSetActor, SealPolicy } from "./cell-actor";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import { encodeParts, storeParts } from "./cell-parts";
 import type { PartRefs } from "./cell-parts";
+import type { CellStorage } from "./cell-storage";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
 
 // the change-set prune's job, made by whichever lands first, a sealed set or an op's answer,
@@ -126,8 +127,8 @@ const insertSet = (
   );
 };
 
-export const readItemNow = (sql: SqlStatements, itemId: string): ItemNow | null => {
-  const state = runPlan(sql, readItemState(itemId));
+export const readItemNow = (storage: CellStorage, itemId: string): ItemNow | null => {
+  const state = readItemState(storage, itemId);
   return state === null ? null : { state };
 };
 
@@ -150,44 +151,44 @@ const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z
 // writes the after of each item the set still holds open, and closes the set, unless it was
 // already sealed or never was. An item another set changed since already has its after, written at
 // that change
-export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): void => {
-  const [raw] = sql.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
+export const sealChangeSet = (storage: CellStorage, setId: string, now: number): void => {
+  const [raw] = storage.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
   const set = raw === undefined ? null : sealRowSchema.parse(raw);
   if (set?.sealed_at !== null) {
-    dropJob(sql, sealJobOf(setId).id);
+    dropJob(storage.db, sealJobOf(setId).id);
     return;
   }
-  const items = sql
+  const items = storage
     .all("SELECT item_id, after_fields FROM change_set_items WHERE change_set_id = ?", [setId])
     .map((row) => setItemSchema.parse(row));
   for (const item of items) {
-    const current = readItemNow(sql, item.item_id);
+    const current = readItemNow(storage, item.item_id);
     if (item.after_fields === null) {
       if (current === null) {
-        sql.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
+        storage.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
           setId,
           item.item_id,
         ]);
         continue;
       }
-      const refs = storeParts(sql, item.item_id, encodeParts(current));
-      writeAfter(sql, { itemId: item.item_id, refs, setId });
+      const refs = storeParts(storage, item.item_id, encodeParts(current));
+      writeAfter(storage, { itemId: item.item_id, refs, setId });
     }
     // a person's typing reindexes once its set closes, not on every keystroke's write
     if (set.actor === "person" && current !== null) {
       const { blocks, fields: itemFields } = current.state;
-      runPlan(sql, storeSearchRow(item.item_id, deriveItem(itemFields, blocks).search));
+      runPlan(storage, storeSearchRow(item.item_id, deriveItem(itemFields, blocks).search));
     }
   }
-  sql.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
-  dropJob(sql, sealJobOf(setId).id);
-  ensureJob(sql, PRUNE_JOB, now + PRUNE_EVERY_MS);
+  storage.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
+  dropJob(storage.db, sealJobOf(setId).id);
+  ensureJob(storage.db, PRUNE_JOB, now + PRUNE_EVERY_MS);
 };
 
 // the actor's open set, which this write joins: a new one when it has none, when its own has gone
 // quiet past its deadline (sealed here, since the alarm may run late), or when one write is a set
 export const joinChangeSet = (
-  sql: SqlStatements,
+  storage: CellStorage,
   actor: CellActor,
   now: number,
   newId: () => string,
@@ -195,24 +196,24 @@ export const joinChangeSet = (
   const policy = SEAL_POLICIES[actor.kind];
   const keys = keysOf(actor);
   if (policy.kind !== "commit") {
-    const open = findOpen(sql, actor.kind, keys);
+    const open = findOpen(storage, actor.kind, keys);
     if (open !== null) {
       const overdue =
         policy.kind === "quiet" && quietDeadline(policy, open.opened_at, open.touched_at) <= now;
       if (!overdue) {
-        sql.run("UPDATE change_sets SET touched_at = ? WHERE id = ?", [now, open.id]);
+        storage.run("UPDATE change_sets SET touched_at = ? WHERE id = ?", [now, open.id]);
         if (policy.kind === "quiet") {
-          scheduleJob(sql, sealJobOf(open.id), quietDeadline(policy, open.opened_at, now));
+          scheduleJob(storage.db, sealJobOf(open.id), quietDeadline(policy, open.opened_at, now));
         }
         return { actor: actor.kind, id: open.id, policy };
       }
-      sealChangeSet(sql, open.id, now);
+      sealChangeSet(storage, open.id, now);
     }
   }
   const id = newId();
-  insertSet(sql, { actor: actor.kind, id, label: actor.label }, keys, now);
+  insertSet(storage, { actor: actor.kind, id, label: actor.label }, keys, now);
   if (policy.kind === "quiet") {
-    scheduleJob(sql, sealJobOf(id), quietDeadline(policy, now, now));
+    scheduleJob(storage.db, sealJobOf(id), quietDeadline(policy, now, now));
   }
   return { actor: actor.kind, id, policy };
 };

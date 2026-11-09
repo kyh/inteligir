@@ -17,7 +17,7 @@ import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "@repo/db/d1/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { accountBlobPrefix } from "./cell-blobs";
-import { openCellSchema } from "./cell-schema";
+import { migrateCell } from "./cell-db";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
 import { cellStorageOf } from "./cell-storage";
@@ -40,7 +40,7 @@ const R2_PAGE = 1000;
 
 // an empty schema and the time it was deleted, which every later call to the cell meets
 const markDeleted = async (ctx: DurableObjectState, env: Env): Promise<void> => {
-  await openCellSchema(ctx.storage);
+  await migrateCell(ctx.storage);
   openCellLibrary(ctx, env).tombstone();
 };
 

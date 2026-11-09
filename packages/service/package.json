@@ -48,7 +48,6 @@
     "@orpc/client": "catalog:",
     "@repo/agent-skills": "workspace:*",
     "@repo/messages-fake": "workspace:*",
-    "@sqlite.org/sqlite-wasm": "catalog:",
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "cf": "catalog:",

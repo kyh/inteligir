@@ -72,7 +72,6 @@ export const runPlan = <T>(port: SqlStatements, plan: SqlPlan<T>): T => {
 // A SQLite Durable Object binds at most 100 parameters to one statement and reads at most 100 KB
 // of statement text (https://developers.cloudflare.com/durable-objects/platform/limits/); every
 // many-row statement is cut under whichever binds first.
-/** @internal */
 export const SQL_MAX_PARAMS = 100;
 /** @internal */
 export const SQL_MAX_STATEMENT_BYTES = 100_000;

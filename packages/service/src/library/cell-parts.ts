@@ -22,7 +22,7 @@ import type { SqlStatements } from "./library-sql";
 import type { ItemNow, ItemSnapshot, ManifestEntry } from "./revert-change";
 import { z } from "zod";
 
-import { fieldFilesOf, keepHistoryFiles } from "./cell-blobs";
+import { fieldFilesOf, keepSetFiles } from "./cell-blobs";
 
 // a manifest of about 15,000 blocks
 const MANIFEST_MAX_BYTES = 1_000_000;
@@ -81,7 +81,7 @@ export const storeParts = (sql: SqlStatements, itemId: string, parts: EncodedPar
   for (const part of [parts.fields, parts.manifest]) {
     sql.run(INSERT_PART, [itemId, part.hash, part.json]);
   }
-  keepHistoryFiles(sql, itemId, parts.fields.hash, parts.files);
+  keepSetFiles(sql, itemId, parts.fields.hash, parts.files);
   return {
     fields: parts.fields.hash,
     manifest: parts.manifest.hash,
@@ -159,7 +159,7 @@ export const keepSuperseded = (
   for (const stored of blocks) {
     const files = new Set<string>();
     collectFileShas(stored.block, files);
-    keepHistoryFiles(sql, itemId, stored.hash, [...files]);
+    keepSetFiles(sql, itemId, stored.hash, [...files]);
   }
 };
 

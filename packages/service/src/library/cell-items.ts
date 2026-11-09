@@ -12,7 +12,6 @@ import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import { readItem, readItemState } from "./library-queries";
-import { runPlan } from "./library-sql";
 
 import { readBlobRow } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
@@ -49,7 +48,7 @@ const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]):
 // an item the write makes, with its blocks; an id the library holds already is a conflict naming
 // that item
 export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
-  const held = runPlan(scope.storage, readItem(item.id));
+  const held = readItem(scope.storage.db, item.id);
   if (held !== null) {
     refuse({ current: [{ itemId: item.id, kind: "item", seq: held.seq }], kind: "conflict" });
   }
@@ -125,7 +124,7 @@ export interface CreateFileInput {
 
 // a file whose bytes the library holds
 export const createFile = (scope: LandingScope, input: CreateFileInput): LiveItemRow => {
-  const blob = readBlobRow(scope.storage, input.sha);
+  const blob = readBlobRow(scope.storage.db, input.sha);
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
@@ -156,14 +155,14 @@ export interface EditAnswer {
 // an agent's exact passages replaced on the item's markdown as it read it at `baseSeq`: an item
 // changed since is a conflict naming its sequence, so the agent reads it again
 export const editItem = (scope: LandingScope, codec: CellCodec, input: EditInput): EditAnswer => {
-  const item = runPlan(scope.storage, readItem(input.id));
+  const item = readItem(scope.storage.db, input.id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
   if (item.seq !== input.baseSeq) {
     refuse({ current: [{ itemId: input.id, kind: "item", seq: item.seq }], kind: "conflict" });
   }
-  const state = runPlan(scope.storage, readItemState(input.id));
+  const state = readItemState(scope.storage, input.id);
   if (state === null) {
     return refuse({ kind: "not-found" });
   }
@@ -196,7 +195,7 @@ export const organizeItems = (
   const folderId = folderOfTarget(scope, input.folder, ids.item);
   const removed = new Set((input.removeTags ?? []).map(tagKey));
   return [...new Set(input.ids)].map((itemId) => {
-    const state = runPlan(scope.storage, readItemState(itemId));
+    const state = readItemState(scope.storage, itemId);
     if (state === null) {
       return refuse({ kind: "not-found" });
     }
@@ -244,7 +243,7 @@ export const setDeleted = (
   const landed: LiveItemRow[] = [];
   const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
-    const item = runPlan(scope.storage, readItem(itemId));
+    const item = readItem(scope.storage.db, itemId);
     if (item?.kind !== "live") {
       missing.push(itemId);
       continue;
@@ -276,7 +275,7 @@ export const setDeleted = (
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no
 // address has no page to read
 export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const state = runPlan(scope.storage, readItemState(itemId));
+  const state = readItemState(scope.storage, itemId);
   if (state === null || state.fields.url === null) {
     return refuse({ kind: "not-found" });
   }

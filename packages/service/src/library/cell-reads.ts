@@ -18,17 +18,21 @@ import type { ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 import { linksTo, linksToUrl, readBlocks, readItem } from "./library-queries";
-import { chunkStatement, runPlan } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
+import { runPlan } from "./library-sql";
 import { jsonTextSchema } from "./sql-value";
+import { and, asc, countDistinct, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { items, itemTags, links } from "@repo/db/cell/schema";
 import type { CellCodec } from "./cell-codec";
+import { listChunks } from "./cell-db";
+import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
 import { listingOf, searchHits } from "./cell-listing";
 import type { ItemListing } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
+import type { CellStorage } from "./cell-storage";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
@@ -115,9 +119,9 @@ export interface ListInput {
   readonly tag?: string | undefined;
 }
 
-export const listItems = (sql: SqlStatements, input: ListInput) => {
+export const listItems = (db: CellDb, input: ListInput) => {
   const offset = offsetOf(input.cursor);
-  const index = listingOf(sql);
+  const index = listingOf(db);
   const page = index.items({
     deleted: false,
     folderId: input.folderId,
@@ -158,10 +162,10 @@ export interface SearchInput {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const searchItems = (sql: SqlStatements, input: SearchInput) => {
+export const searchItems = (storage: CellStorage, input: SearchInput) => {
   const offset = offsetOf(input.cursor);
-  const hits = searchHits(sql, input.query, "live");
-  const page = listingOf(sql).items({
+  const hits = searchHits(storage, input.query, "live");
+  const page = listingOf(storage.db).items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,
     folderId: input.folderId,
@@ -201,20 +205,15 @@ const READ_PAGE_MAX_CHARS = 16_000;
 // the items a read names as linking in or out, the first by title
 const READ_LINKS_MAX = 50;
 
-const titleRowSchema = z.object({ card: z.string(), id: z.string() });
-
 // the live items of `ids`, by title
-const linkedItems = (sql: SqlStatements, ids: ReadonlySet<string>) => {
+const linkedItems = (db: CellDb, ids: ReadonlySet<string>) => {
   const found: { id: string; title: string }[] = [];
-  for (const statement of chunkStatement({
-    each: "?",
-    head: "SELECT id, card FROM items WHERE purged = 0 AND deleted_at IS NULL AND id IN (",
-    rows: [...ids].map((id) => [id]),
-    separator: ", ",
-    tail: ")",
-  })) {
-    for (const raw of sql.all(statement.sql, statement.params)) {
-      const row = titleRowSchema.parse(raw);
+  for (const chunk of listChunks([...ids])) {
+    for (const row of db
+      .select({ card: items.card, id: items.id })
+      .from(items)
+      .where(and(eq(items.purged, 0), isNull(items.deletedAt), inArray(items.id, chunk)))
+      .all()) {
       found.push({ id: row.id, title: jsonTextSchema.pipe(itemCardSchema).parse(row.card).title });
     }
   }
@@ -223,7 +222,6 @@ const linkedItems = (sql: SqlStatements, ids: ReadonlySet<string>) => {
     .slice(0, READ_LINKS_MAX);
 };
 
-const targetRowSchema = z.object({ target_id: z.string() });
 const countRowSchema = z.object({ count: z.number() });
 
 // the page the read asks for, halved until it fits; one block alone is its own page however long
@@ -243,25 +241,31 @@ export interface ReadInput {
   readonly responseFormat: ResponseFormat;
 }
 
-export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadInput): ItemRead => {
-  const item = runPlan(sql, readItem(input.id));
+export const readItemView = (
+  storage: CellStorage,
+  codec: CellCodec,
+  input: ReadInput,
+): ItemRead => {
+  const { db } = storage;
+  const item = readItem(db, input.id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
-  const blocks = runPlan(sql, readBlocks(input.id));
+  const blocks = runPlan(storage, readBlocks(input.id));
   const view = itemView(new Map(blocks.map((stored) => [stored.block.id, stored])), codec.view);
   const page = pageWithin(view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
   const out = new Set(
-    sql
-      .all("SELECT DISTINCT target_id FROM links WHERE source_id = ? AND target_id IS NOT NULL", [
-        input.id,
-      ])
-      .map((row) => targetRowSchema.parse(row).target_id),
+    db
+      .selectDistinct({ targetId: links.targetId })
+      .from(links)
+      .where(and(eq(links.sourceId, input.id), isNotNull(links.targetId)))
+      .all()
+      .flatMap((row) => (row.targetId === null ? [] : [row.targetId])),
   );
   out.delete(input.id);
   const into = new Set([
-    ...runPlan(sql, linksTo(input.id)),
-    ...(item.urlKey === null ? [] : runPlan(sql, linksToUrl(item.urlKey))),
+    ...linksTo(db, input.id),
+    ...(item.urlKey === null ? [] : linksToUrl(db, item.urlKey)),
   ]);
   into.delete(input.id);
   const { fields } = item;
@@ -286,7 +290,7 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
       url: fields.url,
     },
     id: input.id,
-    links: { in: linkedItems(sql, into), out: linkedItems(sql, out) },
+    links: { in: linkedItems(db, into), out: linkedItems(db, out) },
     seq: item.seq,
     view: { from: page.from, markdown: page.markdown, to: page.to, total: page.total },
   };
@@ -294,34 +298,31 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
 
 // ---- the folder tree and tags ----
 
-const tagCountSchema = z.object({ items: z.number(), tag: z.string() });
-
-export const outlineOf = (sql: SqlStatements) => {
+export const outlineOf = (db: CellDb) => {
   const counts = new Map(
-    listingOf(sql)
+    listingOf(db)
       .scopes()
       .folders.map((folder) => [folder.id, folder.items]),
   );
   return {
-    folders: liveFolders(sql).map((folder) => ({
+    folders: liveFolders(db).map((folder) => ({
       id: folder.id,
       items: counts.get(folder.id) ?? 0,
       name: folder.name,
       parentId: folder.parentId,
     })),
-    tags: sql
-      .all(
-        `SELECT item_tags.tag AS tag, count(DISTINCT item_tags.item_id) AS items FROM item_tags
-         JOIN items ON items.id = item_tags.item_id
-         WHERE items.purged = 0 AND items.deleted_at IS NULL
-         GROUP BY item_tags.tag ORDER BY item_tags.tag`,
-        [],
-      )
-      .map((row) => tagCountSchema.parse(row)),
+    tags: db
+      .select({ items: countDistinct(itemTags.itemId), tag: itemTags.tag })
+      .from(itemTags)
+      .innerJoin(items, eq(items.id, itemTags.itemId))
+      .where(and(eq(items.purged, 0), isNull(items.deletedAt)))
+      .groupBy(itemTags.tag)
+      .orderBy(asc(itemTags.tag))
+      .all(),
   };
 };
 
-// ---- history ----
+// ---- change sets ----
 
 // the items one set's entry names, at most a page of them
 const SET_ITEMS_SHOWN = 50;
@@ -343,14 +344,14 @@ const setItemSchema = z.object({
   item_id: z.string(),
 });
 
-const setItemOf = (sql: SqlStatements, raw: z.infer<typeof setItemSchema>) => {
-  const now = runPlan(sql, readItem(raw.item_id));
+const setItemOf = (storage: CellStorage, raw: z.infer<typeof setItemSchema>) => {
+  const now = readItem(storage.db, raw.item_id);
   const before =
-    raw.before_fields === null ? null : readFieldsPart(sql, raw.item_id, raw.before_fields);
+    raw.before_fields === null ? null : readFieldsPart(storage, raw.item_id, raw.before_fields);
   // a set still open has written no after: the item is as it left it
   let after: LibraryItemFields | null = now?.kind === "live" ? now.fields : null;
   if (raw.after_fields !== null) {
-    after = readFieldsPart(sql, raw.item_id, raw.after_fields);
+    after = readFieldsPart(storage, raw.item_id, raw.after_fields);
   }
   return {
     created: raw.created === 1,
@@ -361,17 +362,17 @@ const setItemOf = (sql: SqlStatements, raw: z.infer<typeof setItemSchema>) => {
   };
 };
 
-interface HistoryInput {
+interface ChangeSetsInput {
   readonly cursor?: string | undefined;
   // the sets one conversation's turns opened, which its Undo takes back; else the library's newest
   readonly threadId?: string | undefined;
   readonly limit: number;
 }
 
-export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
+export const listChangeSets = (storage: CellStorage, input: ChangeSetsInput) => {
   const offset = offsetOf(input.cursor);
   const threadId = input.threadId ?? null;
-  const sets = sql
+  const sets = storage
     .all(
       `SELECT id, actor, label, opened_at, sealed_at, thread_id, turn, undone_by FROM change_sets
        WHERE ? IS NULL OR thread_id = ?
@@ -382,23 +383,23 @@ export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
   const shown = sets.slice(0, input.limit);
   return {
     changeSets: shown.map((set): ChangeSet => {
-      const [counted] = sql.all(
+      const [counted] = storage.all(
         "SELECT count(*) AS count FROM change_set_items WHERE change_set_id = ?",
         [set.id],
       );
-      const items = sql
+      const setItems = storage
         .all(
           `SELECT item_id, created, before_fields, after_fields FROM change_set_items
            WHERE change_set_id = ? ORDER BY item_id LIMIT ?`,
           [set.id, SET_ITEMS_SHOWN],
         )
-        .map((row) => setItemOf(sql, setItemSchema.parse(row)));
+        .map((row) => setItemOf(storage, setItemSchema.parse(row)));
       return {
         actor: set.actor,
         closedAt: set.sealed_at === null ? null : isoOf(set.sealed_at),
         id: set.id,
         itemCount: countRowSchema.parse(counted).count,
-        items,
+        items: setItems,
         label: set.label,
         openedAt: isoOf(set.opened_at),
         threadId: set.thread_id,

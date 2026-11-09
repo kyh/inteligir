@@ -7,8 +7,9 @@ import { chunkStatement } from "./library-sql";
 import type { SqlStatements } from "./library-sql";
 import { z } from "zod";
 
-import { dropHistoryFiles } from "./cell-blobs";
+import { dropSetFiles } from "./cell-blobs";
 import { readManifest } from "./cell-parts";
+import type { CellStorage } from "./cell-storage";
 
 const DAY_MS = 24 * 60 * 60_000;
 const UNDO_REACH_MS = 7 * DAY_MS;
@@ -43,10 +44,10 @@ const deleteIn = (
 
 // the parts and block versions of the item no change set still names, and what they alone held of
 // the library's files
-const collectGarbage = (sql: SqlStatements, itemId: string, now: number): void => {
+const collectGarbage = (storage: CellStorage, itemId: string, now: number): void => {
   const named = new Set<string>();
   const manifests = new Set<string>();
-  for (const raw of sql.all(
+  for (const raw of storage.all(
     `SELECT before_fields, before_manifest, after_fields, after_manifest FROM change_set_items
      WHERE item_id = ?`,
     [itemId],
@@ -64,29 +65,34 @@ const collectGarbage = (sql: SqlStatements, itemId: string, now: number): void =
       }
     }
   }
-  const parts = sql
+  const parts = storage
     .all("SELECT hash FROM snapshot_parts WHERE item_id = ?", [itemId])
     .map((row) => hashRowSchema.parse(row).hash)
     .filter((hash) => !named.has(hash));
-  deleteIn(sql, "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (", [itemId], parts);
+  deleteIn(storage, "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (", [itemId], parts);
   const blocks = new Set<string>();
   for (const manifest of manifests) {
-    for (const entry of readManifest(sql, itemId, manifest)) {
+    for (const entry of readManifest(storage, itemId, manifest)) {
       blocks.add(entry.hash);
     }
   }
-  const versions = sql
+  const versions = storage
     .all("SELECT hash FROM block_versions WHERE item_id = ?", [itemId])
     .map((row) => hashRowSchema.parse(row).hash)
     .filter((hash) => !blocks.has(hash));
-  deleteIn(sql, "DELETE FROM block_versions WHERE item_id = ? AND hash IN (", [itemId], versions);
-  dropHistoryFiles(sql, itemId, [...parts, ...versions], now);
+  deleteIn(
+    storage,
+    "DELETE FROM block_versions WHERE item_id = ? AND hash IN (",
+    [itemId],
+    versions,
+  );
+  dropSetFiles(storage, itemId, [...parts, ...versions], now);
 };
 
 // one run's page; whether more wait for the next
-export const pruneChangeSets = (sql: SqlStatements, now: number): boolean => {
+export const pruneChangeSets = (storage: CellStorage, now: number): boolean => {
   const closedBefore = now - UNDO_REACH_MS;
-  const entries = sql
+  const entries = storage
     .all(
       `SELECT change_set_id, item_id FROM change_set_items WHERE change_set_id IN (
          SELECT id FROM change_sets WHERE sealed_at < ?) LIMIT ?`,
@@ -94,20 +100,20 @@ export const pruneChangeSets = (sql: SqlStatements, now: number): boolean => {
     )
     .map((row) => entryRowSchema.parse(row));
   for (const entry of entries) {
-    sql.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
+    storage.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
       entry.change_set_id,
       entry.item_id,
     ]);
   }
   for (const itemId of new Set(entries.map((entry) => entry.item_id))) {
-    collectGarbage(sql, itemId, now);
+    collectGarbage(storage, itemId, now);
   }
   // a closed set with nothing left to take back, however recent, is nothing to undo
-  sql.run(
+  storage.run(
     `DELETE FROM change_sets WHERE sealed_at IS NOT NULL
      AND NOT EXISTS (SELECT 1 FROM change_set_items WHERE change_set_id = change_sets.id)`,
     [],
   );
-  sql.run("DELETE FROM applied_ops WHERE at < ?", [now - OP_ANSWER_MS]);
+  storage.run("DELETE FROM applied_ops WHERE at < ?", [now - OP_ANSWER_MS]);
   return entries.length === ENTRIES_PER_RUN;
 };

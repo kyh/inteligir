@@ -643,7 +643,7 @@ describe("the library's procedures", () => {
         defined: true,
       });
 
-      addFileBytes(cellStorageOf(state.storage), GiB);
+      addFileBytes(cellStorageOf(state.storage).db, GiB);
       await expect(
         refusalOf(
           library.items.edit({
@@ -673,7 +673,7 @@ describe("the library's procedures", () => {
         id: item.id,
       });
       const { changeSets } = await library.history.list({});
-      addFileBytes(cellStorageOf(state.storage), GiB);
+      addFileBytes(cellStorageOf(state.storage).db, GiB);
       await expect(
         refusalOf(library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] })),
       ).resolves.toMatchObject({ code: "QUOTA", defined: true });

@@ -11,36 +11,39 @@ import type { ViewPorts } from "@repo/editor/codec/item-view";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 import { itemCardSchema, titleKey } from "@repo/contract/library/derive-item";
-import type { SqlStatements } from "./library-sql";
 import { jsonTextSchema } from "./sql-value";
 import { isUuidWikiAlias } from "@repo/editor/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/editor/markdown/remark-wiki-link";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { blobs, items } from "@repo/db/cell/schema";
+import type { CellDb } from "./cell-db";
 import type { CellIds } from "./cell-ids";
 
-const cardRowSchema = z.object({ card: z.string() });
+// a live item's row holds every field; only a purged one's are null
 const titleRowSchema = z.object({ aliases: z.string(), id: z.string(), title: z.string() });
-const mimeRowSchema = z.object({ mime: z.string() });
 const namesSchema = z.array(z.string());
 
 // an item's name as a link to it is written: its card's title, which falls back to its first
 // heading or line; null for an id no item holds
-const titleOf = (sql: SqlStatements, itemId: string): string | null => {
-  const [raw] = sql.all("SELECT card FROM items WHERE id = ? AND purged = 0", [itemId]);
-  return raw === undefined
-    ? null
-    : jsonTextSchema.pipe(itemCardSchema).parse(cardRowSchema.parse(raw).card).title;
+const titleOf = (db: CellDb, itemId: string): string | null => {
+  const row = db
+    .select({ card: items.card })
+    .from(items)
+    .where(and(eq(items.id, itemId), eq(items.purged, 0)))
+    .get();
+  return row === undefined ? null : jsonTextSchema.pipe(itemCardSchema).parse(row.card).title;
 };
 
-const fileKindOf = (sql: SqlStatements, sha: string): FileKind | null => {
-  const [raw] = sql.all("SELECT mime FROM blobs WHERE sha256 = ?", [sha]);
-  return raw === undefined ? null : fileKindOfMime(mimeRowSchema.parse(raw).mime);
+const fileKindOf = (db: CellDb, sha: string): FileKind | null => {
+  const row = db.select({ mime: blobs.mime }).from(blobs).where(eq(blobs.sha256, sha)).get();
+  return row === undefined ? null : fileKindOfMime(row.mime);
 };
 
 // every live item by the keys its title and aliases are filed under, read once a call; a key two
 // items answer to is null, since a link by that title reaches neither
-const titleIndex = (sql: SqlStatements): Map<string, string | null> => {
+const titleIndex = (db: CellDb): Map<string, string | null> => {
   const index = new Map<string, string | null>();
   const file = (name: string, id: string): void => {
     const key = titleKey(name);
@@ -50,11 +53,12 @@ const titleIndex = (sql: SqlStatements): Map<string, string | null> => {
     const held = index.get(key);
     index.set(key, held === undefined || held === id ? id : null);
   };
-  for (const raw of sql.all(
-    "SELECT id, title, aliases FROM items WHERE purged = 0 AND deleted_at IS NULL",
-    [],
-  )) {
-    const row = titleRowSchema.parse(raw);
+  for (const held of db
+    .select({ aliases: items.aliases, id: items.id, title: items.title })
+    .from(items)
+    .where(and(eq(items.purged, 0), isNull(items.deletedAt)))
+    .all()) {
+    const row = titleRowSchema.parse(held);
     file(row.title, row.id);
     for (const alias of jsonTextSchema.pipe(namesSchema).parse(row.aliases)) {
       file(alias, row.id);
@@ -69,16 +73,16 @@ export interface CellCodec {
   readonly importing: (now: number) => ImportPorts;
 }
 
-export const cellCodec = (sql: SqlStatements, ids: CellIds): CellCodec => {
+export const cellCodec = (db: CellDb, ids: CellIds): CellCodec => {
   let titles: Map<string, string | null> | null = null;
   const itemByTitle = (title: string): string | null => {
-    titles ??= titleIndex(sql);
+    titles ??= titleIndex(db);
     return titles.get(titleKey(title)) ?? null;
   };
-  const title = (itemId: string): string | null => titleOf(sql, itemId);
+  const title = (itemId: string): string | null => titleOf(db, itemId);
   const fileAt = (url: string): FoundFile | null => {
     const file = viewFileAt(url);
-    const kind = file === null ? null : fileKindOf(sql, file.sha);
+    const kind = file === null ? null : fileKindOf(db, file.sha);
     return file === null || kind === null
       ? null
       : { kind, name: file.name ?? file.sha, path: url, place: url, sha: file.sha };
@@ -98,7 +102,7 @@ export const cellCodec = (sql: SqlStatements, ids: CellIds): CellCodec => {
   };
   return {
     edit: {
-      fileKind: (sha) => fileKindOf(sql, sha),
+      fileKind: (sha) => fileKindOf(db, sha),
       itemByTitle,
       newBlockId: ids.block,
       title,
