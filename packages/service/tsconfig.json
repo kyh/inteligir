@@ -1,9 +1,8 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // lib: ES2023 is a ceiling here, not just a floor — this is the sharing seam,
-    // so it also runs on Hermes, which ships no ES2024+ stdlib
-    // (facebook/hermes#1684). Raising it compiles clean and crashes on device.
+    // WebWorker, not DOM: the cell runs this on workerd, whose Web Crypto and
+    // TextDecoder it reaches, and no document is there.
     "lib": ["ES2023", "WebWorker"],
     "types": []
   },
