@@ -15,7 +15,7 @@ connector serves (`read_item` answers an item's text in this dialect, `edit_item
 run time: every word is inlined into the system prompt, in a fixed order, the same bytes for every
 conversation of every account, so all of them read one cached prefix. Each conversation freezes the
 prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
-start of the conversation's next turn, never mid-turn (`apps/web/src/worker/agent/thread-loop.ts`).
+start of the conversation's next turn, never mid-turn (`packages/service/src/agent/thread-loop.ts`).
 
 ## Layout
 
@@ -47,9 +47,9 @@ Finish" checklist the agent runs against its own edit.
 
 ## How it reaches the agent
 
-`apps/web/scripts/agent-prompt.ts` (`pnpm --filter @repo/web agent-prompt`) builds the prompt from
+`packages/service/scripts/agent-prompt.ts` (`pnpm --filter @repo/service agent-prompt`) builds the prompt from
 this package — `built-in-agent.md`, the hub, then every focused contract in the hub's order — and
-writes it as the Worker's module `apps/web/src/worker/agent/agent-prompt.ts`, which every new
+writes it as the Worker's module `packages/service/src/agent/agent-prompt.ts`, which every new
 conversation sends as its system. The prompt is code the Worker ships, so a PR's skills are the ones
 its preview runs. Edit a file here, run the script, and commit what it writes.
 

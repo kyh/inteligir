@@ -118,7 +118,7 @@ update, the one thing the page asks its shell, is parsed in
   straight back, for good). `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/library-files.ts`,
   `apps/workspace/src/app/cloud/session-keeper.ts`,
-  `apps/workspace/src/main.tsx`, over `apps/web/src/worker/client-floor.ts`.
+  `apps/workspace/src/main.tsx`, over `packages/service/src/client-floor.ts`.
 
 ## Surfaces
 

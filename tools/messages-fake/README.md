@@ -4,7 +4,7 @@ A scripted Claude Messages API with no model and no account behind it. The
 local Worker (`pnpm dev:web`), the e2e scenarios and the Worker's suites run
 the built-in agent against it, through the SDK's `baseURL` or as its `fetch`,
 so every conversation's object runs the one code path it runs deployed
-(`apps/web/src/worker/agent/anthropic-client.ts`).
+(`packages/service/src/agent/anthropic-client.ts`).
 
 It answers `POST /v1/messages`, only a streamed request that carries the
 gateway's `cf-aig-authorization` header, and streams the documented events:
@@ -71,6 +71,6 @@ turn's ceiling.
 e2e harness serves one beside each Worker it boots, on an ephemeral port
 (`tools/e2e/src/harness/cloud-worker.ts`), and the Worker's suites answer
 its address with its fetch handler from their outbound service, which refuses
-every other (`apps/web/messages-service.ts`). Its
+every other (`packages/service/messages-service.ts`). Its
 counters, the requests answered, the replies a stall held open and the
 thinking blocks dropped, answer at `GET /__fake/stats`.

@@ -8,10 +8,13 @@ write by, with the rules of links and tags, which `@repo/editor` holds.
 
 ## Shape
 
-Pure and platform-neutral: no node or react import, and no `crypto` or `URL`
-global here, in the contract's model or in the editor's grammar
-(lint-enforced), and every platform capability (the SQL driver, the clock,
-random bytes and fresh ids) is injected.
+The library model is pure and platform-neutral: no node or react import, and
+no `crypto` or `URL` global in its modules here (`src/library/`'s SQL and
+undo, `src/knowledge/`, `src/items/`, `src/imports/`, `src/text/`), in the
+contract's model or in the editor's grammar (lint-enforced), and every
+platform capability (the SQL driver, the clock, random bytes and fresh ids) is
+injected. The rest of this package is the Worker's code, whose decisions are
+`apps/web/CLAUDE.md`'s.
 `packages/editor/src/markdown/mdast-nodes.ts` narrows a transform's bare
 `Node` input to the mdast root.
 

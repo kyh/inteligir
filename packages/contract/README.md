@@ -22,7 +22,7 @@ wires are two serializers, two error vocabularies and two clients; every
 `@orpc/*` package is pinned to one exact beta so the serializer and the error
 shape it owns move only with a deliberate bump. The library's rows are plain
 contract rows: which of them an agent sees as a tool, and how, is decorated in
-the Worker (`apps/web/src/worker/connector/library-tools.ts`), so no client
+the Worker (`packages/service/src/connector/library-tools.ts`), so no client
 bundle carries MCP or OpenAPI (`oxlint.config.ts` refuses either import
 anywhere else).
 

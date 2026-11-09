@@ -133,14 +133,15 @@ this guide wins.
 ## Map
 
 ```
-apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell, each conversation with the built-in agent
+apps/web                @repo/web — ONE Cloudflare Worker: the site, and the entry that serves @repo/service's doors and exports its Durable Objects
 apps/workspace          @repo/workspace — the SPA the Worker serves at /library, which the Mac app's window shows
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
 apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
-packages/service        @repo/service — the account's library cell's own rules: its SQL, search, undo, the imports and the fill's modules
+packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each conversation with the built-in agent
+packages/db             @repo/db — the D1 accounts database's drizzle schema and client, and the drizzle-kit configs that push it
 packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's markdown grammar, and the codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
@@ -164,6 +165,7 @@ calls Claude with `@anthropic-ai/sdk` through AI Gateway, woken by
 `agents/lifecycle`. The Mac is Tauri 2; the phone is
 Expo, shipped to TestFlight by EAS. The workspaces' READMEs own their layouts
 and loops; `apps/web/README.md` has the Worker's routes and deploy,
+`packages/service/README.md` its code's layout and suites,
 `docs/privacy.md` what each device sends and where.
 
 ## Quickstart
@@ -199,9 +201,9 @@ everyone.
 pnpm dev:web
 # the local D1 file appears on the first request that touches it, so hit one, THEN push
 curl -s -o /dev/null localhost:5174/api/auth/get-session
-pnpm --filter @repo/web db:push
+pnpm --filter @repo/db push
 # mint an invite: add a row to `invite_code` (a fresh `code` each time)
-pnpm --filter @repo/web db:studio
+pnpm --filter @repo/db studio
 ```
 
 `/app/sign-up` takes the code, and so does the phone's Create an account; both
@@ -211,9 +213,9 @@ sign-in to the site. Auth allows
 10 requests/60s per IP; a script creating several users sets
 `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weakening the limiter.
 
-> **Never run `db:push:remote` or `db:studio:remote`.** Both hit the
-> PRODUCTION D1 with the root `.env.production.local` creds. The bare
-> `db:push` and `db:studio` are the local ones.
+> **Never run `@repo/db`'s `push:remote` or `studio:remote`.** Both hit the
+> PRODUCTION D1 with the root `.env.production.local` creds. The bare `push`
+> and `studio` are the local ones.
 
 Drive the running site with
 [agent-browser](https://github.com/vercel-labs/agent-browser)
