@@ -198,7 +198,7 @@ describe(insertToggle, () => {
     expect(output).toBe(":::toggle\nhello\n:::\n");
   });
 
-  it("leaves an untouched empty toggle byte-exact", () => {
+  it("leaves an untouched empty toggle as it was written", () => {
     const editor = makeEditor(":::toggle\n:::\n\ntext\n");
     editor.tf.insertText("!", { at: { offset: 4, path: [1, 0] } });
     expect(out(editor)).toBe(":::toggle\n:::\n\ntext!\n");
@@ -225,7 +225,7 @@ describe("insert transforms serialize canonically", () => {
     editor.tf.select(editor.api.end([0]));
     insertDate(editor);
     const output = out(editor);
-    expect(output).toMatch(/^x:date\[\d{4}\\-\d{2}\\-\d{2}\]/u);
+    expect(output).toMatch(/^x:date\[\d{4}-\d{2}-\d{2}\]/u);
     expect(rewrite(output)).toBe(output);
   });
 

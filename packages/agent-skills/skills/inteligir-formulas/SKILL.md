@@ -12,9 +12,9 @@ one-off calculation; a name and an id make it something other pills can point at
 
 `display` sits in the brackets, `source` and the optional semicolon-separated
 `meta` in quoted attributes. A `"` inside `source` or `meta` is written `&#x22;`.
-`read_item` writes a backslash before each punctuation mark in the display
-(`:formula[1\,000]{source="1000"}`); a display you write reads the same with or
-without them.
+`read_item` writes a backslash before a mark in the display that markdown would
+read as formatting (`` ` ``, `*`, `_`, `~`, `$`, `&`, `<`, `[`, `]`, `:`, `|`,
+`\`), so `:formula[1,000]{source="1000"}` reads as it is written.
 
 `display` is what the reader sees. Keep it consistent with `source` — the app
 recomputes executable pills, but a stale display you wrote by hand is a lie

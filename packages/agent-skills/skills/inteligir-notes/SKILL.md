@@ -44,9 +44,8 @@ was read, and reading the page again replaces it. Write in the note, never in th
 never move or remove either line.
 
 The text is written as the library spells it: a backslash before a character that would
-otherwise read as syntax (`\*`, `\[\[`), and before every punctuation mark inside a date's, a
-pill's or a tab's brackets (`:date[2026\-08\-22]`, `:formula[1\,000]{source="1000"}`). Quote it
-that way in `edit_item`'s old text; in new text, a label reads the same with or without them.
+otherwise read as syntax (`\*`, `\[\[`), inside a date's, a pill's or a tab's brackets too
+(`:date[2026-08-22]`, `:::tab[Q\&A]`). Quote it that way in `edit_item`'s old text.
 
 ## Choosing A Block
 

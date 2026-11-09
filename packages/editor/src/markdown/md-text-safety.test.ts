@@ -88,3 +88,67 @@ describe("markdown a person pastes", () => {
     expect(meaningOf(readValue(md))).toBe(meaningOf(paragraph(md)));
   });
 });
+
+const pill = (type: string, props: Record<string, string>): TElement => ({
+  children: [{ text: "" }],
+  type,
+  ...props,
+});
+
+// every ASCII punctuation mark, and each inline construct a label could read as, so a label the
+// writer escapes too little shows here
+const LABELS = [
+  "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
+  "*a* _b_ `c` ~~d~~ ~e~ $$f$$ [g](h) ![i](j) <k> <https://l.m> &amp; :n[o] p|q \\*r",
+];
+
+describe("a label", () => {
+  it("writes a date, a number and a plain tab label as they read", () => {
+    const written = writeValue([
+      { children: [pill("date", { date: "2026-08-22" }), { text: " " }], type: "p" },
+      {
+        children: [pill("formulaPill", { display: "1,000.50", source: "=1000.5" }), { text: "" }],
+        type: "p",
+      },
+      {
+        children: [
+          {
+            children: [{ children: [{ text: "x" }], type: "p" }],
+            label: "Q3 - plan (draft)",
+            type: "tab_panel",
+          },
+        ],
+        type: "tab_group",
+      },
+    ]);
+    expect(written).toContain(":date[2026-08-22]");
+    expect(written).toContain(":formula[1,000.50]");
+    expect(written).toContain(":tab[Q3 - plan (draft)]");
+  });
+
+  it.each(LABELS)("keeps %j in a pill's display and a tab's label", (label) => {
+    const value: TElement[] = [
+      {
+        children: [
+          { text: "" },
+          pill("formulaPill", { display: label, source: "=1" }),
+          { text: "" },
+        ],
+        type: "p",
+      },
+      {
+        children: [
+          {
+            children: [{ children: [{ text: "x" }], type: "p" }],
+            label,
+            type: "tab_panel",
+          },
+        ],
+        type: "tab_group",
+      },
+    ];
+    const written = writeValue(value);
+    expect(meaningOf(readValue(written))).toBe(meaningOf(value));
+    expect(rewrite(written)).toBe(written);
+  });
+});

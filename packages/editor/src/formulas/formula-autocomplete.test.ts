@@ -71,7 +71,7 @@ describe("formula picker completion", () => {
       }),
     );
     expect(out(editor)).toBe(
-      `${String.raw`before :formula[5\,000]{meta="id=abc;name=budget" source="5000"}after`}\n`,
+      `${String.raw`before :formula[5,000]{meta="id=abc;name=budget" source="5000"}after`}\n`,
     );
   });
 

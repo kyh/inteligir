@@ -252,14 +252,15 @@ const phrasingText = (children: readonly PhrasingContent[]): string =>
     })
     .join("");
 
-const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/gu;
+// what would read as a construct inside a label and change its words: an escape, a code span,
+// emphasis, a strikethrough, a bracket, a tag or autolink, an entity, math, a directive, a cell's
+// pipe; a date's hyphens and a number's comma read as themselves
+const LABEL_SYNTAX = /[$&*:<[\\\]_`|~]/gu;
 
-// A label is a string, so every punctuation mark it holds is written escaped: the directive writer
+// A label is a string, so what would read as syntax in it is written escaped: the directive writer
 // escapes only what would close the label, and `*y*` would read back as emphasis.
 const labelPhrasing = (label: string): PhrasingContent[] =>
-  label === ""
-    ? []
-    : [{ type: "html", value: label.replaceAll(ASCII_PUNCTUATION, String.raw`\$&`) }];
+  label === "" ? [] : [{ type: "html", value: label.replaceAll(LABEL_SYNTAX, String.raw`\$&`) }];
 
 const labelOf = (node: ContainerDirective): string => {
   const [head] = node.children;
