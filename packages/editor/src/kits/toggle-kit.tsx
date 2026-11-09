@@ -78,7 +78,7 @@ export const ToggleKit = [
           insertBreak();
         },
         // typing into an empty parsed toggle gives it inline children; wrap them into a paragraph.
-        // The codec's editor never normalizes, so an empty toggle stays byte-exact until edited.
+        // The codec's editor never normalizes, so an empty toggle is written as it was read until edited.
         normalizeNode(entry) {
           const [node, path] = entry;
           if (

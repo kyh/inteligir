@@ -4,7 +4,7 @@
 {"type":"line","series":[{"name":"Desktop","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]},{"name":"Web","data":[{"label":"Mon","value":8},{"label":"Tue","value":11}]}]}
 ```
 
-An invalid payload stays code, byte-exact:
+An invalid payload stays code, as written:
 
 ```inteligir-chart
 {"type":"pie","data":not json

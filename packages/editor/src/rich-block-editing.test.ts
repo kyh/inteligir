@@ -190,7 +190,7 @@ describe(strokeSegmentCells, () => {
   });
 });
 
-describe("untouched blocks stay byte-exact through the pipeline", () => {
+describe("untouched blocks are written as they were read", () => {
   it("chart and canvas fences round-trip unchanged", () => {
     const md =
       '```inteligir-chart\n{"type":"bar","data":[{"label":"Mon","value":12}]}\n```\n\n```inteligir-canvas\n[inteligir:grid:v2]\nab.\n.x.\n```\n';
