@@ -8,6 +8,7 @@ import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
+import { setLibraryTitles } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -74,6 +75,30 @@ describe(notePreviewHead, () => {
     expect(notePreviewHead(blocks)).toBe(
       ["Title", "Some bold and a target plus noted text.", "", "quoted code"].join("\n"),
     );
+  });
+
+  it("labels a link to an item by the name it goes by now, else the title it was written with", () => {
+    setLibraryTitles([{ id: "9e64c3df-c1e2-4a4d-8c07-91528f422413", title: "Plan, renamed" }]);
+    const blocks = [
+      paragraph([
+        { text: "See " },
+        {
+          children: VOID,
+          key: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+          type: "mention",
+          value: "Plan",
+        },
+        { text: " and " },
+        {
+          children: VOID,
+          key: "9e64c3df-c1e2-4a4d-8c07-91528f422415",
+          type: "mention",
+          value: "Gone",
+        },
+      ]),
+    ];
+    expect(notePreviewHead(blocks)).toBe("See Plan, renamed and Gone");
+    setLibraryTitles([]);
   });
 
   it("labels a link to an item by the title it was written with, never its id", () => {

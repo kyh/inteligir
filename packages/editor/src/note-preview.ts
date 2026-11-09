@@ -3,47 +3,22 @@
 // rich block. A tooltip earns a walk of the blocks, never a serialization.
 
 import { ElementApi, TextApi } from "platejs";
-import type { Descendant, TElement } from "platejs";
+import type { TElement } from "platejs";
 
-import { shownTitle } from "@repo/contract/items/item-name";
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import { stringProp } from "@repo/editor/node-props";
+import { shownText } from "@repo/editor/shown-text";
 
 const PREVIEW_MAX_LINES = 20;
 
 // the blocks that are lines of their own when a container holds them
 const LINE_BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "code_line", "td", "th"]);
 
-const textOf = (node: Descendant): string => {
-  if (TextApi.isText(node)) {
-    return node.text;
-  }
-  if (!ElementApi.isElement(node)) {
-    return "";
-  }
-  switch (node.type) {
-    case "mention": {
-      return shownTitle(stringProp(node, "value") ?? "");
-    }
-    case "date": {
-      return stringProp(node, "date") ?? "";
-    }
-    case FORMULA_PILL_KEY: {
-      return stringProp(node, "display") ?? stringProp(node, "source") ?? "";
-    }
-    default: {
-      return node.children.map(textOf).join("");
-    }
-  }
-};
-
 // a block's lines: a paragraph or heading is one, a container gives one per line block it holds
 const linesOf = (element: TElement): string[] => {
   if (LINE_BLOCKS.has(element.type) || element.children.every(TextApi.isText)) {
-    return [textOf(element)];
+    return [shownText(element)];
   }
   return element.children.flatMap((child) =>
-    ElementApi.isElement(child) ? linesOf(child) : [textOf(child)],
+    ElementApi.isElement(child) ? linesOf(child) : [shownText(child)],
   );
 };
 

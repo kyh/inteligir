@@ -79,6 +79,26 @@ describe("outline targets", () => {
     expect(rows()).toStrictEqual(["1 Top", "2.0 Quoted", "3 Tails"]);
   });
 
+  it("names a heading by its words, a page link, a date and a formula among them", () => {
+    const editor = mountValue([
+      {
+        children: [
+          { text: "Notes on " },
+          { children: [{ text: "" }], key: "item-1", type: "mention", value: "Plan" },
+          { text: " for " },
+          { children: [{ text: "" }], date: "2026-08-22", type: "date" },
+          { text: " at " },
+          { children: [{ text: "" }], display: "4", source: "=2+2", type: "formulaPill" },
+          { text: "" },
+        ],
+        type: "h2",
+      },
+    ]);
+    expect(collectHeadings(editor).map((row) => row.title)).toStrictEqual([
+      "Notes on Plan for 2026-08-22 at 4",
+    ]);
+  });
+
   it("answers null for a path the document no longer holds", () => {
     const editor = mountValue([h("h2", "Only"), p("body")]);
     expect(headingElement(editor, { depth: 2, id: "99", path: [99], title: "gone" })).toBeNull();

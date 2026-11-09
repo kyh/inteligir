@@ -134,6 +134,7 @@
     "./run-anchoring": "./src/run-anchoring.ts",
     "./scroll-reveal": "./src/scroll-reveal.ts",
     "./selection-toolbar": "./src/selection-toolbar.tsx",
+    "./shown-text": "./src/shown-text.ts",
     "./slash-items": "./src/slash-items.tsx",
     "./slash-menu": "./src/slash-menu.tsx",
     "./stale-write": "./src/stale-write.ts",

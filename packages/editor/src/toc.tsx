@@ -10,6 +10,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
 import { holdInView } from "@repo/editor/run-anchoring";
+import { shownText } from "@repo/editor/shown-text";
 import { isNearInScroller } from "@repo/editor/scroll-reveal";
 
 export interface HeadingItem {
@@ -76,7 +77,7 @@ const blockHeadings = (editor: SlateEditor, block: TElement): readonly BlockHead
       ElementApi.isElement(n) && (editor.api.isVoid(n) || editor.api.isElementReadOnly(n)),
   })) {
     const depth = ElementApi.isElement(node) ? HEADING_DEPTH.get(node.type) : undefined;
-    const title = depth === undefined ? "" : NodeApi.string(node).trim();
+    const title = depth === undefined ? "" : shownText(node).trim();
     if (depth !== undefined && title) {
       found.push({ depth, relative, title });
     }
