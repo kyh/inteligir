@@ -5,7 +5,7 @@ one origin: the TanStack Start pages, the library's page at `/library`, Better
 Auth on D1 and every device's session, each account's library cell (a SQLite
 Durable Object holding the library and its devices' sockets), the connector a
 person's own assistant reaches the library through. The wire contract is
-`@repo/contract/cloud` — the Worker implements it; the library's page (the Mac
+`@repo/contract/v1` — the Worker implements it; the library's page (the Mac
 app's window and the browser tab), the phone and the extension consume it.
 
 ## Layout

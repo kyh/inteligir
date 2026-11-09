@@ -9,7 +9,7 @@ wire and never the page's source (`tools/repo-guards/src/dep-dag.test.ts`,
 `EDITOR_PAGE_CLIENTS`).
 
 Both ends ship in one binary, so the wire breaks freely: no version field, no
-negotiation. Its imports are zod and the grammars of `@repo/notes`, and it
+negotiation. Its imports are zod and the grammars of `@repo/contract`, and it
 compiles at ES2023 with no ambient types,
 the ceiling of Hermes and of the phone's WebKit from iOS 16.4.
 

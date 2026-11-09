@@ -16,7 +16,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   an engine's word appears (`tools/repo-guards/src/product-words.test.ts`, a
   textual lower bound over quoted literals, templates, JSX text and the legal
   pages). Coverage, if ever added, needs `coverage.include` (Vitest 4) and
-  gates only `@repo/notes`. A guard's failure states its rule and names the
+  gates only `@repo/contract` and `@repo/service`. A guard's failure states its rule and names the
   file.
 
 - **A GUARD DERIVES EVERY VALUE IT CAN, AND IS FOR A FAILURE NOTHING ELSE
@@ -108,7 +108,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   splitting at every word, parses a long paragraph in time quadratic in its
   lines; `packages/editor/src/markdown/parse-cost.test.ts` compares a 20k-line
   paragraph's parse with an eighth of it. Rejected: a workaround
-  in `@repo/notes` (splitting the paragraph changes what it parses to).
+  in the editor's grammar (splitting the paragraph changes what it parses to).
   Residual: a paragraph dense with emphasis or inline nodes is still
   superlinear upstream, and not patched.
 

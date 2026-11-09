@@ -12,8 +12,7 @@ change its bytes**. Splitting it out makes that invariant a package boundary: th
 contract, its fixture matrix and the kit-parity guards live together, and the
 workspace above it consumes an editor rather than containing one.
 
-Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
-(the components). No node, and nothing of the desktop shell's. The host contract is this package's own
+Deps: `@repo/contract` (the library model), `@repo/ui` (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
 `host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`)
 and an item session's ports (`item/item-session.ts`); a host implements both
 and comes in through one call, `installEditorHost`, and everything above its
@@ -29,7 +28,10 @@ selectors it reads, and `style-hooks.test.ts` pins the two together.
 
 ```
 src/
-  markdown/            # the round trip: the Slate↔mdast rules, the one
+  markdown/            # the dialect's one grammar (`md-plugins.ts`, its remark
+                       # plugins, the parse, `fence-langs.ts`, the header
+                       # fence and typed properties in `frontmatter.ts`), and
+                       # the round trip: the Slate↔mdast rules, the one
                        # markdown→Slate conversion, the bounded fixpoint and
                        # `serializeNote`, the one way the codec writes markdown
   codec/               # an item as markdown, headless: import and export of
@@ -43,7 +45,16 @@ src/
                        # ops over the host's store, the block diff, its
                        # properties and the line a merge that kept this device's
                        # lines says
-  formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
+  formulas/            # `{{…}}` pills: collection, the expression and its
+                       # evaluation, the resolve graph, result formatting, and
+                       # the `{{` picker, entry, editing, recompute
+  knowledge/           # a link's target (`link-resolve.ts`: the id tier, then
+                       # five path and alias tiers), the `[[` picker's order,
+                       # what a file says outside its blocks, literal matches
+  items/               # a markdown file's facts from its frontmatter, the one
+                       # time spelling
+  text/                # ONE Myers line diff under diff3, bounded by an edit
+                       # budget, and where a line ends, stated once
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the panel of an item's typed properties
   lib/                 # debounce, the one door a diagram's markup becomes
@@ -164,8 +175,8 @@ src/
 pnpm --filter @repo/editor test
 ```
 
-Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
-fixtures, the property/adversarial harnesses and the link resolver feed;
+Two vitest projects: `editor` (node, `*.test.ts`, under a 512MB heap) for
+the grammar, the pipeline, the fixtures, the property/adversarial harnesses and the link resolver feed;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
 sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`

@@ -89,9 +89,8 @@ workspace's README its own layout.
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle or an
 import the importer's manifest does not list, and `oxlint.config.ts` fails a
-package acquiring a platform it may not have (`@repo/notes` runs in the
-Worker, the browser and the phone;
-`@repo/domain` and `@repo/contract` touch neither node nor react). knip fails
+package acquiring a platform it may not have (`@repo/contract` runs in the
+Worker, the browser and the phone, so it touches neither node nor react). knip fails
 a dependency nothing imports, and an export nothing reaches.
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — the premises,

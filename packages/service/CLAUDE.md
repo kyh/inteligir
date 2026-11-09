@@ -1,17 +1,19 @@
-# Decisions: @repo/notes
+# Decisions: @repo/service and the library model
 
-The library model (an item as fields and blocks, its ops, its undo and its
-SQL), the dialect's markdown grammar the codec and the import read and write
-by, and the rules of search, links and tags.
+The account's cell's own rules (its SQL, undo and search), and the model they
+apply: an item as fields and blocks and its ops, which `@repo/contract`
+holds, and the dialect's markdown grammar the codec and the import read and
+write by, with the rules of links and tags, which `@repo/editor` holds.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-Pure and platform-neutral: no node, react or ui import and no `crypto` global
+Pure and platform-neutral: no node or react import, and no `crypto` or `URL`
+global here, in the contract's model or in the editor's grammar
 (lint-enforced), and every platform capability (the SQL driver, the clock,
 random bytes and fresh ids) is injected.
-`markdown/mdast-nodes.ts` narrows a transform's bare `Node` input to the mdast
-root.
+`packages/editor/src/markdown/mdast-nodes.ts` narrows a transform's bare
+`Node` input to the mdast root.
 
 ## Library
 
