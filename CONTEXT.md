@@ -63,8 +63,8 @@ person wrote, or `article`, the page's readable text a fill wrote. A fill and
 Refresh replace only `article` blocks, so reading a page again never touches
 the person's writing. An item reads its note before its article
 (`@repo/contract/library/block-order`), and its markdown writes the article as
-one top-level `:::article` container after the note
-(`@repo/editor/codec/item-markdown`).
+one top-level `article` container after the note, its colon fence longer than
+any inside it (`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
 
 **moved frame** — what the account's socket tells every device once a write
@@ -130,8 +130,8 @@ of the cell, which each device reads online (`agent-turns.ts`).
 `.txt` (`@repo/contract/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides which file of an imported
 zip becomes a note. It is deliberately WIDER than what the codec writes, every
-note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
-`.txt` note links as `[[todo.txt]]`.
+note as `.md`, and WIDER than what a zip's link may leave off: `.md` alone, so
+a `.txt` note in a zip links as `[[todo.txt]]`.
 
 **note** — an item of kind `note`, the text a person writes. An imported doc
 whose `kind:` is missing or unknown is one, its filename its title, with no
@@ -141,12 +141,20 @@ The name the codec writes an item under follows one rule,
 name every disk takes, never refused, and its `[` and `]`, which would end a
 link to it, become `(` and `)`.
 
-**line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
-`\r`, `\n`), stated once in `@repo/editor`'s `text/source-lines`. A second reading
-of "what a line is" anywhere else is a file-corruption bug waiting to happen;
-the line diff's LF-only split (`text/line-diff`) is the one deliberate
-exception, because diff3 joins its segments back into the text's own bytes.
-Not a write unit: a block is, guarded by its hash.
+**page link** — a link from one item to another: Plate's mention, its key the
+item's id and its value the title it was written with, in markdown
+`[Title](mention:<id>)` (`@repo/editor/markdown/md-rules`). It shows the title
+its item goes by now, so no rename breaks it. Not a web link, and not
+`[[Title]]`, which only an import and the agent's text read, as a page link to
+the one item so titled or as the text it is
+(`@repo/editor/markdown/remark-wiki-import`).
+
+**line** — a line's content EXCLUDES its terminator. The markdown codec reads
+`\r\n` and `\r` as `\n` at every entry (`lfOnly` in
+`@repo/editor/markdown/md-read`), so past it every line ends in `\n`; the line
+diff splits on `\n` alone (`text/line-diff`), because diff3 joins its segments
+back into the text's own bytes. Not a write unit: a block is, guarded by its
+hash.
 
 ## Items
 

@@ -26,8 +26,8 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(a byte-exact codec, block writes settled by diff3, our own agent loop, the
-phone's editor as a WebView page). Where they disagree, these premises win,
+(block writes settled by diff3, our own agent loop, the phone's editor as a
+WebView page). Where they disagree, these premises win,
 and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
@@ -141,7 +141,7 @@ apps/extension          @repo/extension — the Chromium extension: toolbar and 
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
 packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each conversation with the built-in agent
 packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's with the migrations it runs as it wakes
-packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's markdown grammar, and the codec over its headless kits
+packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's rules over Plate's stock markdown, and the codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends

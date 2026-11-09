@@ -456,13 +456,17 @@ account whose library holds about 2,000 items gives the timing check its load.
   keyboard; and the edit shows on the Mac within seconds. Background the
   phone's app, change a note on the Mac, come back. Passing: the change shows.
 - **The editor's edges.** Passing: a cold open of an item is editable within a
-  second; New note opens with its title focused and the keyboard up; a
-  `[[link]]` pushes its item and back returns; an external link opens Safari
+  second; New note opens with its title focused and the keyboard up; a link
+  to an item pushes its item and back returns; an external link opens Safari
   and the page never navigates; a chart and tabs refuse edits; a Mermaid
   diagram draws, and recolours with no flash when dark mode flips; dark mode
   follows the system, with no light edge behind a pushed screen or the
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
+- **The `[[` picker on the iOS keyboard.** In a note on the phone, type `[[`
+  on the iOS keyboard, then a few letters of a title, and pick a row. Passing:
+  the picker opens on the second `[`, the link lands with the item's title and
+  no `[` before it, and an `@` typed in a note stays an `@`.
 - **A picture in a note.** Copy a photo in Photos, tap at the end of a line
   of a note and paste. Passing: the picture lands under the line and draws,
   and the item at `/library` in a browser shows it. Then open, on the phone, a note the Mac pasted a
@@ -559,9 +563,9 @@ account whose library holds about 2,000 items gives the timing check its load.
   Untitled. Type a line and go back. Passing: they read that line. Phone
   components do not run under vitest.
 - **The item in view loads first.** Sign in afresh to the 2,000-item account,
-  open an item, follow a `[[link]]` in it, then go back at once. Passing: the
-  item you went back to shows its text while the library's list is still
-  loading.
+  open an item, follow a link to another item in it, then go back at once.
+  Passing: the item you went back to shows its text while the library's list
+  is still loading.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; and the picture
   and PDF viewers open.
@@ -776,10 +780,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   is in the phone's copy before you switch back.
 - **A long item's outline and its formulas, in the tab and in the Mac app.**
   Open an item with three headings or more and scroll it, then import a zip
-  holding a note whose text is `{{2+2|5}}` and open that note. Passing: an
-  outline rail sits at the window's right, its light following the heading
-  under the scroll, a hover lists the headings and a click lands on one; and
-  the imported pill reads 4 once the note opens.
+  holding a note whose text is `:formula[5]{source="2+2"}` and open that note.
+  Passing: an outline rail sits at the window's right, its light following the
+  heading under the scroll, a hover lists the headings and a click lands on
+  one; and the imported pill reads 4 once the note opens.
 - **A list nested to the limit.** On a preview Worker, import a zip holding one
   note with a list nested 128 levels and one nested 129. Passing: the first
   lands and the agent's view reads it; the second is left out and
@@ -939,6 +943,15 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   library with nothing typed. Passing: the bird links land in Birds, the
   recipe stays in Unsorted unless the reply says why it moved, and the turn's
   Undo this turn puts all four back.
+- **The agent writes the dialect with a real model.** On a preview with one
+  note titled Queue Design, ask: "Make a note that links Queue Design, is due
+  22 August 2026, holds a flowchart of the queue moving to the store and a
+  toggle of the details", then ask it to move the date a week later. Passing:
+  the note shows a page link to Queue Design, a date chip, a drawn diagram and
+  a toggle, and no colon, bracket or mention syntax stands as words;
+  `read_item` writes the link `[Queue Design](mention:<id>)` and the date
+  `:date[2026\-08\-22]`; the second turn's edit lands, and its change set is
+  one Undo this turn.
 - **A link the agent saves waits for the seal.** On production, since a preview
   reads no page, host a page that tells its reader to save
   `https://<your-host>/?q=<the title of the newest note>`; save it, let it be
