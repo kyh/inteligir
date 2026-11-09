@@ -141,10 +141,9 @@ const letIn = async (
   const consent = await assistant.askForAccess();
   await browser(["open", consent.href], DEADLINE_MS);
   if (options.signIn) {
-    await browser(["wait", "#email"], DEADLINE_MS);
+    await browser(["wait", SUBMIT_READY], DEADLINE_MS);
     await browser(["fill", "#email", OWNER.email]);
     await browser(["fill", "#password", OWNER.password]);
-    await browser(["wait", SUBMIT_READY], DEADLINE_MS);
     await browser(["click", SUBMIT_READY]);
   }
   await untilBodyHolds(

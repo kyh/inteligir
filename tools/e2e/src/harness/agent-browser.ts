@@ -261,10 +261,9 @@ export const createScenarioBrowser = (
   const run = agentBrowserSession(label, launch.launchFlags);
   const signIn = async (signInUrl: string): Promise<void> => {
     await run(["open", signInUrl], 60_000);
-    await run(["wait", "#email"], 60_000);
+    await run(["wait", SUBMIT_READY], 60_000);
     await run(["fill", "#email", OWNER.email]);
     await run(["fill", "#password", OWNER.password]);
-    await run(["wait", SUBMIT_READY], 60_000);
     await run(["click", SUBMIT_READY]);
     await run(["wait", LIBRARY_RAIL], 90_000);
   };

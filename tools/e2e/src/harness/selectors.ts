@@ -3,7 +3,8 @@
 // the rail, which draws once the page has opened the library
 export const LIBRARY_RAIL = '[data-slot="sidebar-wrapper"] [aria-label="Library"]';
 export const EDITOR = '[data-slate-editor="true"]';
-// an account page's submit once it has hydrated: a click before is the browser's own GET
+// an account page's submit once it has hydrated: fill and click only after, since a click before is
+// the browser's own GET and what was typed before can be lost to the hydration
 export const SUBMIT_READY = 'button[type="submit"]:not([disabled])';
 // a row of a listbox: the palette's and the editor's menus
 export const OPTION = "[role=option]";

@@ -43,10 +43,9 @@ export const asLocalhost = (origin: string): string => {
 export const signInOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
   const next = new URLSearchParams({ next: CONNECT_EXTENSION_PATH }).toString();
   await browser(["open", `${cloudOrigin}/app/sign-in?${next}`], 60_000);
-  await browser(["wait", "#email"], 60_000);
+  await browser(["wait", SUBMIT_READY], 60_000);
   await browser(["fill", "#email", OWNER.email]);
   await browser(["fill", "#password", OWNER.password]);
-  await browser(["wait", SUBMIT_READY], 60_000);
   await browser(["click", SUBMIT_READY]);
   await untilBodyHolds(browser, ["Connect the browser extension"], 60_000);
 };
