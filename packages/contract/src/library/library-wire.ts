@@ -1,7 +1,8 @@
 // The library's wire: the rows the apps read, the shapes a write names, what a refusal carries
 // and what an agent reads. Rows and answers are `z.object`, so a field a newer cell adds is
 // stripped rather than refused; requests are strict, since only the newest cell reads them. The
-// persisted vocabulary inside both (an item's fields, a block) is `./library-item`'s and `./library-nodes`' own.
+// persisted vocabulary inside both (an item's fields, a block) is `./library-item`'s and
+// `./library-nodes`' own.
 //
 // A row keeps its table's times, unix milliseconds; an answer an agent reads spells its times in
 // ISO 8601, which a model reads as a date.
@@ -14,11 +15,6 @@ import { blockHashSchema } from "./block-ops";
 import { ordSchema } from "./block-order";
 import { itemCardSchema } from "./derive-item";
 import { libraryItemFieldsSchema, propertyKeySchema, SHA256_HEX_RE } from "./library-item";
-import {
-  CHANGE_SET_ACTORS,
-  IMPORT_SOURCES,
-  IMPORT_STATES,
-} from "@repo/service/library/library-schema";
 import {
   blockIdSchema,
   libraryBlockSchema,
@@ -313,6 +309,17 @@ export const itemReadSchema = z.object({
   }),
 });
 
+// who a change set is by: the person, the built-in agent, a connected assistant, an import, the
+// cloud reading a page, or an undo
+export const CHANGE_SET_ACTORS = [
+  "person",
+  "agent",
+  "assistant",
+  "import",
+  "fill",
+  "undo",
+] as const;
+
 export const changeSetSchema = z.object({
   actor: z.enum(CHANGE_SET_ACTORS),
   closedAt: isoInstant.nullable(),
@@ -360,6 +367,13 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
 ]);
 
 // ---- imports ----
+
+// what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
+// a job stands, and the phase a running one is in: reading the file into its plan, landing its
+// items a page at a time, then the files no item embedded as items of their own
+export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
+export const IMPORT_STATES = ["running", "done", "failed", "cancelled"] as const;
+export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
 
 const count = z.number().int().nonnegative();
 

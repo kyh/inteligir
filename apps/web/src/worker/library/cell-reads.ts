@@ -16,7 +16,7 @@ import { compareText } from "@repo/contract/library/block-order";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { CHANGE_SET_ACTORS } from "@repo/service/library/library-schema";
+import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 import { linksTo, linksToUrl, readBlocks, readItem } from "@repo/service/library/library-queries";
 import { chunkStatement, runPlan } from "@repo/service/library/library-sql";
 import type { SqlStatements } from "@repo/service/library/library-sql";

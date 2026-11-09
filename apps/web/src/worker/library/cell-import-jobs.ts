@@ -6,7 +6,7 @@
 
 import type { importJobSchema } from "@repo/contract/library/library-wire";
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
-import { IMPORT_PHASES, IMPORT_SOURCES, IMPORT_STATES } from "@repo/service/library/library-schema";
+import { IMPORT_PHASES, IMPORT_SOURCES, IMPORT_STATES } from "@repo/contract/library/library-wire";
 import { chunkStatement } from "@repo/service/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/service/library/library-sql";
 import { jsonTextSchema } from "@repo/service/library/sql-value";

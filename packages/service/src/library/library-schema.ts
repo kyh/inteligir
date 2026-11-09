@@ -7,6 +7,12 @@
 import { z } from "zod";
 
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
+import {
+  CHANGE_SET_ACTORS,
+  IMPORT_PHASES,
+  IMPORT_SOURCES,
+  IMPORT_STATES,
+} from "@repo/contract/library/library-wire";
 import { FETCH_STATES } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
 import { all, run } from "./library-sql";
@@ -17,24 +23,6 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 export const LIBRARY_SCHEMA_VERSION = 13;
 
 const TAG_ORIGINS = ["field", "inline"] as const;
-// who a change set is by: the person, the built-in agent, a connected assistant, an import, the
-// cloud reading a page, or an undo
-export const CHANGE_SET_ACTORS = [
-  "person",
-  "agent",
-  "assistant",
-  "import",
-  "fill",
-  "undo",
-] as const;
-
-// what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
-// a job stands, and the phase a running one is in: reading the file into its plan, landing its
-// items a page at a time, then the files no item embedded as items of their own
-export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
-export const IMPORT_STATES = ["running", "done", "failed", "cancelled"] as const;
-export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
-
 // a CHECK's list, spelled from the vocabulary it holds a column to
 const oneOf = (values: readonly string[]): string => values.map((value) => `'${value}'`).join(", ");
 
