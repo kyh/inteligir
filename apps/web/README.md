@@ -24,13 +24,21 @@ src/
                      /app/reset-password (the last client-only)
     connect/         /connect/extension, which tells the browser extension
                      where the site is and which account this browser is
-                     signed in to (client-only)
+                     signed in to (client-only), and /connect/authorize, the
+                     consent page's door
+    api/, v1/,       Server routes, one a door's path, each handing every
+    oauth/,          method to its @repo/service door; api/$ and v1/$ answer
+    [.]well-known/,  a plain 404
+    connector.ts
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
+  request-context.ts What the entry hands Start with every request: the
+                     service's doors, typed for both programs
   worker/            The deployed entry: its OWN tsconfig program (no DOM)
-    server.ts        Splits @repo/service's doors from the site's SSR, and
-                     exports the Durable Objects and the fill queue's consumer
+    server.ts        Hands every request to Start with that request's doors,
+                     and exports the Durable Objects and the fill queue's
+                     consumer
     service-exports.test-d.ts  the deployed exports held to the service's classes
   **/*.test.ts       the site's own suites, under node
 ```
@@ -126,6 +134,7 @@ own (`.dev.vars.example`).
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                               |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                         |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                   |
+| `/api/*`, `/v1/*` (else)    | —               | A plain `not found` 404, never the site's page                                                                        |
 
 "session" is Better Auth's own, read once a request by the door it came
 through (`packages/service/src/wire/v1-principal.ts`): the site's page sends its cookie
