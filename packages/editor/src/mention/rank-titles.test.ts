@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { rankWikiTargets } from "./rank-wiki-targets";
-import type { RankableWikiTarget } from "./rank-wiki-targets";
-
-const titled = (...titles: string[]): RankableWikiTarget[] => titles.map((title) => ({ title }));
+import { rankTitles } from "./rank-titles";
 
 const ranked = (titles: readonly string[], query: string): string[] =>
-  rankWikiTargets(titled(...titles), query).map((target) => target.title);
+  rankTitles(
+    titles.map((title) => ({ title })),
+    query,
+  ).map((target) => target.title);
 
-describe(rankWikiTargets, () => {
+describe(rankTitles, () => {
   it("answers every target in listing order for a blank query", () => {
     expect(ranked(["B", "A"], "")).toStrictEqual(["B", "A"]);
     expect(ranked(["B", "A"], "   ")).toStrictEqual(["B", "A"]);

@@ -1,14 +1,13 @@
 import { fileSha } from "@repo/contract/library/file-sha";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 
-import { installEditorHost } from "@repo/editor/host-io";
+import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type {
   AgentRequestActions,
   EditorHostIo,
   ItemActions,
   LinkTarget,
 } from "@repo/editor/host-io";
-import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 
 type HostCall =
   | { readonly action: "openItem"; readonly args: readonly [string] }
@@ -17,8 +16,8 @@ type HostCall =
 
 /** @internal */
 export interface FakeEditorHostOptions {
-  // the items a link can name, resolved as a host's feed resolves them
-  readonly linkTargets?: readonly LinkTarget[];
+  // the library's titles, as a host hands them over
+  readonly titles?: readonly LinkTarget[];
   // an item's blocks by its id, as the device holds them now; null reads as not on the device
   readonly itemBlocks?: (itemId: string) => readonly LibraryBlock[] | null;
   // the library's files by sha, which a kept file joins
@@ -40,11 +39,11 @@ const ignore = (): void => {
 // the library's cap, as the hosts install it
 const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
-// Installs the singleton the hooks read; the io half answers from the items and files it is
-// handed, keeps a file by its real sha and then draws it (refusing one with no type, as the hosts
-// do), the shell hears every other ask as nothing, and an open, a new note and a kept file are
-// recorded in `calls`. `changed` says items moved, as a host's change
-// feed does.
+// Installs the singleton the hooks read and hands the editor the library's titles; the io half
+// answers from the items and files it is handed, keeps a file by its real sha and then draws it
+// (refusing one with no type, as the hosts do), the shell hears every other ask as nothing, and an
+// open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
+// host's change feed does.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
@@ -63,8 +62,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     },
   };
 
-  const feed = createLinkResolverFeed();
-  feed.setTargets(options.linkTargets ?? []);
+  setLibraryTitles(options.titles ?? []);
   const io: EditorHostIo = {
     fileMaxBytes: options.fileMaxBytes ?? FILE_MAX_BYTES,
     keepFile: async (bytes, mime) => {
@@ -80,7 +78,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       files.set(sha, new Blob([bytes], { type: mime }));
       return await Promise.resolve({ sha });
     },
-    linkResolver: feed.store,
     onItemsChanged: (listener) => {
       listeners.add(listener);
       return () => {

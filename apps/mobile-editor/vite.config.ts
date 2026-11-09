@@ -22,7 +22,7 @@ export default defineConfig({
       // vite hands each dynamic import `import.meta.url` for its preload helper, which an IIFE
       // empties; with every import inlined there is nothing left to preload, and no source reads it
       checks: { emptyImportMeta: false },
-      // one IIFE, the dynamic imports (pele, katex, the calendar, the wiki chip) inlined
+      // one IIFE, the dynamic imports (pele, katex, the calendar) inlined
       output: { codeSplitting: false, format: "iife" },
     },
   },

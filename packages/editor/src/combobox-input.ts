@@ -6,12 +6,11 @@ import { KEYS, NodeApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 // the elements a picker keeps its query in, which stand in a block only while it is open
 export const PICKER_INPUT_TYPES: readonly string[] = [
   KEYS.slashInput,
-  WIKI_INPUT_KEY,
+  KEYS.mentionInput,
   FORMULA_INPUT_KEY,
 ];
 

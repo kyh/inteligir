@@ -1,4 +1,5 @@
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep
@@ -7,35 +8,35 @@ import type { StoreApi } from "zustand/vanilla";
 // provider would put a type edge back across the package boundary. Everything is the library's own
 // key: an item by its id, a file by its bytes' sha.
 
-// an item a link can name, as the host feeds it: its id and the title it goes by now
+// an item a page link can name, as the library's titles list it: its id and the title it goes by now
 export interface LinkTarget {
   readonly id: string;
   readonly title: string;
 }
 
-// The resolver over the items the host feeds, so a link the editor draws reaches the item the
-// library holds by that id or that title. Identity changes when the items refresh, so a link
-// re-renders on that alone.
-export interface LinkResolver {
-  // the item a `[[…]]` names: by the id it carries (`alias`), else by the title it is written with
-  resolveWikiTarget: (target: string, alias?: string) => string | null;
-  // what the `[[` picker lists, in the host's order
-  targets: readonly LinkTarget[];
-  // the name an item goes by now, the one its card shows, so a link that names it by id shows it
-  // as it is; null for an item the host does not feed
-  titleOf: (itemId: string) => string | null;
+interface LibraryTitles {
+  // in the library's order, which the `[[` picker ranks within
+  readonly targets: readonly LinkTarget[];
+  // the name an item goes by now, the one its card shows
+  readonly byId: ReadonlyMap<string, string>;
 }
 
-// The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a
-// field because the resolver is rebuilt as the library moves while the actions never change, so
-// only its readers re-render.
-export type LinkResolverStore = Pick<
-  StoreApi<LinkResolver>,
+// Beside the host rather than in it: the titles move with the library while the host never
+// changes, so only a page link and the picker re-render, and the titles outlive a host installed
+// again.
+const titles = createStore<LibraryTitles>()(() => ({ byId: new Map(), targets: [] }));
+
+export const libraryTitles: Pick<
+  StoreApi<LibraryTitles>,
   "getState" | "getInitialState" | "subscribe"
->;
+> = titles;
+
+// what a host hands the editor each time its listing of the library's titles answers
+export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
+  titles.setState({ byId: new Map(targets.map((target) => [target.id, target.title])), targets });
+};
 
 export interface EditorHostIo {
-  readonly linkResolver: LinkResolverStore;
   // shows the item a link, an embed or a chip names
   readonly openItem: (itemId: string) => void;
   // an embedded item's blocks in reading order, as this device holds them now; null for an item it

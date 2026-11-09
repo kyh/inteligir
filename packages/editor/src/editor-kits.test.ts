@@ -9,7 +9,7 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
-import { insertPageLink } from "@repo/editor/wiki/wiki-insert";
+import { insertPageLink } from "@repo/editor/mention/mention-insert";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { rewrite } from "@repo/editor/test-support/markdown-meaning";
 import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
@@ -131,7 +131,7 @@ describe("a page link typed outside the picker", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     type(editor, " [[");
-    expect(JSON.stringify(editor.children)).toContain("wiki_input");
+    expect(JSON.stringify(editor.children)).toContain(KEYS.mentionInput);
   });
 
   it("does not fire inside code blocks", () => {

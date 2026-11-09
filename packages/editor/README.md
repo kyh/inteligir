@@ -20,8 +20,8 @@ Deps: `@repo/contract` (the library model), `@repo/ui` (the components). No node
 `host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`)
 and an item session's ports (`item/item-session.ts`); a host implements both
 and comes in through one call, `installEditorHost`, and everything above its
-store (the block diff, the merge, the link resolver) is this package's, so a
-second host copies none of it. The package
+store (the block diff, the merge, the library's titles a link and the `[[`
+picker read) is this package's, so a second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
 swap, the hljs theme, the prose scope the appearance dials feed, typeset's
 table rules and the diagram frame's `--pele-*` variables), inert until the
@@ -55,14 +55,14 @@ src/
                        # evaluation, the resolve graph, result formatting, and
                        # the `{{` picker, entry, editing, recompute
   knowledge/           # a link's target in an import (`link-resolve.ts`: the
-                       # path and alias tiers), the `[[` picker's order,
-                       # what a file says outside its blocks, literal matches
+                       # path and alias tiers), what a file says outside its
+                       # blocks, literal matches
   items/               # a markdown file's facts from its frontmatter, the one
                        # time spelling
   text/                # ONE Myers line diff under diff3, bounded by an edit
                        # budget
-  wiki/                # page links: the `[[` picker, the mention's chip,
-                       # insertion, keys
+  mention/             # page links: the `[[` picker over Plate's mention
+                       # input, its order, the insert and Create, the chip
   properties/          # the panel of an item's typed properties
   lib/                 # debounce, the one door a diagram's markup becomes
                        # nodes through, embed and url helpers
@@ -128,10 +128,11 @@ src/
   a recording or a file card in a note, drawn from an object URL of the page's
   own), `keepFile` (a file pasted or dropped into the text, kept by its sha
   ahead of the write that names it), the cap `fileMaxBytes` and whether a file
-  card may save a file (`savesFiles`); and the link resolver store (a title's
-  key and an id over the items the host feeds, the `[[` picker's rows and
-  `titleOf`, subscribed to rather than read, because it
-  moves with the library while the actions never do). Its `EditorHostActions`
+  card may save a file (`savesFiles`). Beside it sit the library's titles, an
+  item's id and the title it goes by, which a host hands `setLibraryTitles`
+  each time its listing of them answers: the `[[` picker's rows and the name a
+  page link shows, subscribed to rather than read, because they move with the
+  library while the host never does. Its `EditorHostActions`
   are what the editor asks the shell for (Ask agent and a `#tag` chip's
   `showTag`, and the note an extract or
   a link's Create makes, `items.createNote`), every one required, so a host
@@ -139,9 +140,8 @@ src/
   nothing. Each host installs it once, through `installEditorHost`, ahead of
   the first render (`apps/web/src/library/item/page-editor-host.ts`, over the
   account's cell in a tab and the Mac app's window, and the phone's over its
-  WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver
-  store through `link-resolver-feed.ts`, and `host.ts` is React's door
-  (`useLinkResolver`, `useLinkTargets`).
+  WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), and `host.ts` is
+  React's door to the titles (`useLibraryTitles`, `useTitleOf`).
 - `stale-write.ts` — `mergeBlocks`, the block merge: a block two writers
   changed, diff3-merged over each side's markdown (`codec/block-markdown.ts`),
   with whether it kept this device's lines over the other's change to the same
@@ -155,8 +155,8 @@ src/
   item's blocks are in (or a line saying the device lacks it), read-only while
   the host says it is `offline`, which a host reads the status of and flushes,
   and `item/item-properties.ts` the panel's rows over its fields. A link to an
-  item by id shows the name the item goes by now, the resolver's `titleOf`,
-  read off the items the host feeds. The suites open items over
+  item by id shows the name the item goes by now, `useTitleOf` over the
+  library's titles. The suites open items over
   `test-support/memory-item.tsx`, items held in memory as the cell holds them.
 - `open-item.tsx` — the id of the item the editor shows, which the item editor
   provides and `useOpenItemId` reads under it.
@@ -175,7 +175,7 @@ pnpm --filter @repo/editor test
 ```
 
 Two vitest projects: `editor` (node, `*.test.ts`, under a 512MB heap) for
-the grammar, the codec, the matrix, the corpus and the link resolver feed;
+the grammar, the codec, the matrix, the corpus and the `[[` picker's trigger;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
 sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`

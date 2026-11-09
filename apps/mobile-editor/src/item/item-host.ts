@@ -9,10 +9,9 @@
 // and goes, which the editor reads to take edits or not. The page hands no file on to the system:
 // its WebView opens nothing but web links.
 
-import { installEditorHost } from "@repo/editor/host-io";
+import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import type { ItemSession, ItemStore } from "@repo/editor/item/item-session";
-import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { toast } from "@repo/ui/components/sonner";
 
@@ -94,16 +93,15 @@ export interface ItemPageHost {
 
 export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPageHost => {
   const { itemId } = init;
-  const feed = createLinkResolverFeed();
   let session: ItemSession | null = null;
   let { online } = init;
   const connectionListeners = new Set<() => void>();
 
-  // the items a link can name, by id and by title, and the names they go by now, read again as
-  // the library moves; a link shows the title it was written with until the phone answers
+  // the library's titles, which a link and the `[[` picker read, read again as the library moves;
+  // a link shows the title it was written with until the phone answers
   const readTargets = oneReadAtATime(async () => {
     const { targets } = await bridge.request("linkTargets", {});
-    feed.setTargets(targets);
+    setLibraryTitles(targets);
   });
   void readTargets();
 
@@ -130,7 +128,6 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
     fileMaxBytes: init.fileMaxBytes,
     keepFile: async (bytes, mime) =>
       await bridge.request("keepFile", { base64: base64Of(bytes), mediaType: mime }),
-    linkResolver: feed.store,
     onItemsChanged: (listener) =>
       bridge.onNative((event) => {
         if (event.type === "itemChanged") {

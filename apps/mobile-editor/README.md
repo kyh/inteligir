@@ -26,7 +26,7 @@ and the navigation stack stay native.
 classic `<script defer>` and one stylesheet, relative to the page. A `file://`
 page in WKWebView loads no module script and no `crossorigin` tag
 (`vite/classic-page.ts` says why), so the build is one IIFE with every dynamic
-import inlined (pele, katex, the calendar, the wiki chip), and
+import inlined (pele, katex, the calendar), and
 `vite/classic-page.ts` rewrites vite's entry tag and FAILS the build on a
 module script, a second script or chunk, a `crossorigin` tag or a
 modulepreload link. Every woff2 is inlined into the
@@ -85,8 +85,8 @@ bases, so its retry finds what landed). An answer is parsed by the kind it
 answers.
 
 `src/item/item-host.ts` builds the editor's host over the bridge: the item
-store the session reads and writes, its link-resolver store fed by the
-targets, and the `EditorHostIo` and `EditorHostActions` it installs as one
+store the session reads and writes, the library's titles it hands the
+editor, and the `EditorHostIo` and `EditorHostActions` it installs as one
 host when the page starts; a bound formula reads the items it names through
 the same store.
 

@@ -1,26 +1,24 @@
-import { KEYS } from "platejs";
-import type { SlateEditor, TElement } from "platejs";
+import { getMentionOnSelectItem } from "@platejs/mention";
+import type { SlateEditor } from "platejs";
 
 import { toast } from "@repo/ui/components/sonner";
 
 import { consumeTriggerLead } from "@repo/editor/combobox-input";
-import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import type { LinkTarget } from "@repo/editor/host-io";
 
-// a page link: the item by its id, with the title it goes by now, so no rename breaks it
-export const pageLinkNode = (target: LinkTarget): TElement => ({
-  children: [{ text: "" }],
-  key: target.id,
-  type: KEYS.mention,
-  value: target.title,
-});
+// Plate's own pick: the mention lands at the caret, and the caret moves past it
+const selectMention = getMentionOnSelectItem();
 
-// the `[[` the picker opened on goes, and the link stands where it was
+// a page link names the item by its id, with the title it goes by now, so no rename breaks it
+const linkTo = (editor: SlateEditor, target: LinkTarget): void => {
+  selectMention(editor, { key: target.id, text: target.title });
+};
+
+// the first `[` of the `[[` the picker opened on goes, and the link stands where it was
 export const insertPageLink = (editor: SlateEditor, target: LinkTarget): void => {
   consumeTriggerLead(editor, "[");
-  // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
-  insertVoidAndEscape(editor, pageLinkNode(target));
+  linkTo(editor, target);
 };
 
 // a link's Create: an empty note under the name, made where the item the editor shows is; null
@@ -49,5 +47,5 @@ export const createAndLink = async (editor: SlateEditor, title: string): Promise
     editor.tf.insertText(`[[${title}]]`);
     return;
   }
-  insertVoidAndEscape(editor, pageLinkNode({ id: itemId, title }));
+  linkTo(editor, { id: itemId, title });
 };

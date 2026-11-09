@@ -1,4 +1,4 @@
-export interface RankableWikiTarget {
+interface Titled {
   readonly title: string;
 }
 
@@ -21,11 +21,7 @@ const hasWordStart = (text: string, word: string): boolean => {
 
 // Lower ranks first: the title starting with what was typed, every typed word starting a word of
 // it, then a hit mid-word.
-const tierOf = (
-  target: RankableWikiTarget,
-  needle: string,
-  words: readonly string[],
-): number | null => {
+const tierOf = (target: Titled, needle: string, words: readonly string[]): number | null => {
   const title = fold(target.title);
   if (title.startsWith(needle)) {
     return 0;
@@ -36,12 +32,9 @@ const tierOf = (
   return title.includes(needle) ? 2 : null;
 };
 
-// Every target the query matches, case- and accent-blind, best first; a tie keeps the listing's
-// order. A blank query matches every target, in order.
-export const rankWikiTargets = <T extends RankableWikiTarget>(
-  targets: readonly T[],
-  query: string,
-): T[] => {
+// Every title the query matches, case- and accent-blind, best first; a tie keeps the listing's
+// order. A blank query matches every title, in order.
+export const rankTitles = <T extends Titled>(targets: readonly T[], query: string): T[] => {
   const needle = fold(query.trim());
   if (needle === "") {
     return [...targets];

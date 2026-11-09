@@ -1,13 +1,10 @@
-// loaded via React.lazy from mention-kit: this module reaches the editor host seam, so an eager
-// import from a kit file base-kit composes would close an import cycle.
-
 import { useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
 import { cn } from "@repo/ui/lib/cn";
 
-import { useLinkResolver } from "@repo/editor/host";
+import { useTitleOf } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 
@@ -35,17 +32,16 @@ const openItem = (itemId: string): void => {
   getEditorHostIo().openItem(itemId);
 };
 
-// a page link names its item by id, and shows the name the item goes by now; an item the host
-// does not feed (gone, or not yet listed) draws the title the link was written with, and opens
-// nothing
-const WikiChip = ({ itemId, title }: { itemId: string; title: string }) => {
-  const { titleOf } = useLinkResolver();
+// a page link names its item by id, and shows the name the item goes by now; an item the
+// library's titles do not list (gone, or not yet listed) draws the title the link was written
+// with, and opens nothing
+export const MentionChip = ({ itemId, title }: { itemId: string; title: string }) => {
+  const live = useTitleOf(itemId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
   // the item the open preview was read for; a read landing after a close is dropped
   const previewFor = useRef<string | null>(null);
 
-  const live = titleOf(itemId);
   const label = shownTitle(live ?? title);
   const resolved = live === null ? null : itemId;
 
@@ -131,5 +127,3 @@ const WikiChip = ({ itemId, title }: { itemId: string; title: string }) => {
     </HoverCard>
   );
 };
-
-export default WikiChip;
