@@ -2,12 +2,15 @@
 // (`pnpm dev:web`), the e2e scenarios and the Worker's suites: the built-in agent's client reaches
 // it at `<origin>/v1/messages`, as it reaches AI Gateway at its route's `/v1/messages`, so every
 // thread runs its one code path. It answers only a streamed request carrying the gateway's token
-// header, refuses what Claude Opus 5.5 refuses (`./fake-request.ts`), checks every replayed
+// header and the account its metadata names, refuses what Claude Sonnet 5.5 refuses
+// (`./fake-request.ts`), checks every replayed
 // thinking block (`./fake-signature.ts`) and drops and counts one that fails under `drop_block`
 // instead of refusing, and replies by the person's script (`./fake-script.ts`, `./fake-reply.ts`).
 // It keeps no conversation: only its three counters, at `/__fake/stats`, and per request body the
 // failures and stalls a script asked for. Web-standard throughout, so the suites run it in workerd
 // and `./serve.ts` in node.
+
+import { z } from "zod";
 
 import {
   BINDING_BETA,
@@ -23,6 +26,26 @@ import { scriptOf } from "./fake-script.ts";
 import { checkThinking } from "./fake-signature.ts";
 
 const FAKE_STATS_PATH = "/__fake/stats";
+
+// the gateway's custom metadata, a JSON object of at most five entries
+// (developers.cloudflare.com/ai-gateway/observability/custom-metadata/), naming the account the
+// gateway's per-account spend limit splits by
+const metadataSchema = z
+  .object({ account: z.string().min(1) })
+  .catchall(z.union([z.string(), z.number(), z.boolean()]))
+  .refine((entries) => Object.keys(entries).length <= 5);
+
+const accountOf = (header: string | null): string | null => {
+  if (header === null) {
+    return null;
+  }
+  try {
+    const metadata = metadataSchema.safeParse(JSON.parse(header));
+    return metadata.success ? metadata.data.account : null;
+  } catch {
+    return null;
+  }
+};
 const MESSAGES_PATH = "/v1/messages";
 
 /** @internal */
@@ -136,6 +159,13 @@ export const messagesFake = (): MessagesFake => {
     const requestId = `req_fake_${String(requests)}`;
     if (incoming.headers.get("cf-aig-authorization") === null) {
       return failure(401, "AI Gateway: the request carries no cf-aig-authorization.", requestId);
+    }
+    if (accountOf(incoming.headers.get("cf-aig-metadata")) === null) {
+      return failure(
+        400,
+        "AI Gateway: the request names no account in cf-aig-metadata.",
+        requestId,
+      );
     }
     const raw = await incoming.text();
     const parsed = parsedBody(raw);

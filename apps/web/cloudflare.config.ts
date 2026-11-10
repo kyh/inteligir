@@ -79,9 +79,9 @@ const shared = {
   // gateway of a developer's own. The Worker holds no Anthropic key: each gateway stores its
   // target's
   AI_GATEWAY_TOKEN: bindings.secret(),
-  // what the built-in agent may spend for one account, and the list prices its calls are booked
-  // at, a fallback model's included (@repo/service/agent-limits, read by
-  // packages/service/src/agent/agent-allowance.ts)
+  // what the built-in agent may spend for one account, and the list prices its replies are booked
+  // at: Sonnet 5.5's, and Sonnet 5's, which Anthropic falls back to on a refusal
+  // (@repo/service/agent-limits, read by packages/service/src/agent/agent-allowance.ts)
   AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
   AGENT_PRICES: bindings.json(AGENT_PRICES),
 };

@@ -3,8 +3,8 @@
 // events that carries it (platform.claude.com/docs/en/build-with-claude/streaming), typed by the
 // SDK's own event union. Tokens are a quarter of a block's characters, rounded up; everything
 // before the request's last breakpoint is read from the cache, the block that carries it is written
-// at its lifetime, and what follows it is input. A reply thinks first, as an adaptive Opus 5.5
-// does, and writes a progress note in a thinking block of its own before each tool call, each
+// at its lifetime, and what follows it is input. A reply thinks first, as an adaptive Sonnet
+// 5.5 does, and writes a progress note in a thinking block of its own before each tool call, each
 // signed against the request it answers (`./fake-signature.ts`); what a thinking block shows is
 // what the request's `thinking.display` asks for: the note alone under `updates`, every block's
 // words under `summarized`, nothing otherwise. A step the script marks `compact` opens with a
@@ -36,14 +36,14 @@ import { scriptOf, stepAt } from "./fake-script.ts";
 import type { RefusalCategory, StallAt } from "./fake-script.ts";
 import { signThinking } from "./fake-signature.ts";
 
-export const FAKE_MODEL = "claude-opus-5-5";
+export const FAKE_MODEL = "claude-sonnet-5-5";
 // what a refusal of the request model falls back to, as `fallbacks: "default"` names it
-const FALLBACK_MODEL = "claude-opus-5";
+const FALLBACK_MODEL = "claude-sonnet-5";
 
 // list output prices, dollars per million tokens, which a `spend` costs its tokens out at
 const OUTPUT_PRICES = new Map([
-  [FAKE_MODEL, 20],
-  [FALLBACK_MODEL, 25],
+  [FAKE_MODEL, 10],
+  [FALLBACK_MODEL, 10],
 ]);
 
 // a declined hop's own output before its refusal
@@ -210,12 +210,12 @@ const stepReply = (
     }
     case "fallback": {
       if (request.fallbacks === undefined) {
-        return { ...base, blocks: [], refused: "general_harms", stop: "refusal" };
+        return { ...base, blocks: [], refused: "cyber", stop: "refusal" };
       }
       const boundary: BetaFallbackBlock = {
         from: { model: request.model },
         to: { model: FALLBACK_MODEL },
-        trigger: { category: "general_harms", type: "refusal" },
+        trigger: { category: "cyber", type: "refusal" },
         type: "fallback",
       };
       return {
@@ -247,7 +247,7 @@ const replyOf = (request: FakeRequest, toolIdPrefix: string): Reply => {
 };
 
 // what a thinking block shows under the request's display: the note under `updates`, every
-// block's words under `summarized`, and nothing under `omitted`, Opus 5.5's default
+// block's words under `summarized`, and nothing under `omitted`, Sonnet 5.5's default
 const shownOf = (planned: PlannedThinking, request: FakeRequest): string => {
   const display = request.thinking?.display ?? "omitted";
   if (display === "summarized" || (display === "updates" && planned.kind === "progress")) {

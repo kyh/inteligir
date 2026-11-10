@@ -19,7 +19,7 @@ const PLANS = { markdown: "# Plans\n\nA trip in spring.\n", title: "Plans" };
 const GROCERIES = { markdown: "# Groceries\n\nApples.\n", title: "Groceries" };
 const DEADLINE_MS = 60_000;
 // a day of more turns than the scenario sends, so no send meets the allowance
-const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 10, turnCents: 50 };
+const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 10 };
 
 const userMessageSchema = z.looseObject({
   text: z.string(),

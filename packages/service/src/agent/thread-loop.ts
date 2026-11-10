@@ -1,12 +1,14 @@
-// A conversation's loop, step by step, over the thread's own SQL, its Messages client, its cell
+// A conversation's loop, step by step, over the thread's own SQLite, its Messages client, its cell
 // and its clock, which the object hands in (`./agent-thread`). One step is one model call or one
 // round of tool calls. The rules:
-// - the transcript is append-only and holds what was sent and returned (`./thread-schema`);
+// - the transcript is append-only and holds what was sent and returned
+//   (`@repo/db/thread/schema`);
 // - a reply lands only once its stream ends, so a call cut short is sent again whole, never
 //   continued: a call stamped by an instance that died is cut, and its step re-sent byte for byte;
 // - every tool call of a reply is journaled before any runs, and each is run by the cell under an
 //   op id of its own, so one run again lands once;
-// - every call is reserved with the cell before it is sent, and what it cost pushed after;
+// - every call asks the same cap, so a step sent again is the same bytes, and what each reply was
+//   billed is pushed once it lands; a turn ends `budget` before a call past its twentieth reply;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once;
 // - a turn is sent under the definition in force when it started: one a deploy changed is taken up
@@ -26,15 +28,25 @@ import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/mess
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import { TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/library/agent-events";
 import { sha256Hex } from "@repo/contract/bytes";
-import type { SqlPort, SqlStatements } from "../library/library-sql";
+import {
+  modelCalls,
+  threadDefinitions,
+  threadMeta,
+  threadOutbox,
+  threadTranscript,
+  threadTurns,
+  toolCalls,
+} from "@repo/db/thread/schema";
+import { and, asc, count, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
 import { asksFirst } from "./agent-tools";
 import { callFailureFields, isApiError } from "./anthropic-client";
-import { AGENT_MAX_TOKENS } from "./library-agent";
+import { AGENT_MAX_STEPS } from "./library-agent";
+import type { ThreadDb } from "./thread-db";
 import {
   agentRequest,
-  callEstimateOf,
   frozenDefinition,
   logDroppedThinking,
   replyBlocksOf,
@@ -43,24 +55,19 @@ import {
   transcriptMessage,
 } from "./thread-request";
 import type {
-  CallAnchor,
   ReplyBlock,
   ThreadDefinition,
   ToolResultBlock,
   TranscriptMessage,
 } from "./thread-request";
-import { THREAD_TURN_STATUSES } from "./thread-schema";
 import { pushEntrySchema } from "./thread-wire";
 import { RULES_CLEARED } from "./turn-message";
 import type {
-  CallEstimate,
   CellAnswer,
   DeliveryRequest,
   PreviewRequest,
   PushEntry,
   PushRequest,
-  Reservation,
-  ReserveRequest,
   ThreadInspection,
   ToolAnswer,
   ToolRequest,
@@ -87,7 +94,6 @@ const TURN_CLOSED = "This turn has ended, so this did not run.";
 // what the thread's cell answers it, by Durable Object RPC (`../library/library-do`)
 /** @internal */
 export interface ThreadCell {
-  readonly agentReserve: (request: ReserveRequest) => Promise<CellAnswer<Reservation>>;
   readonly agentTool: (request: ToolRequest) => Promise<CellAnswer<ToolAnswer>>;
   readonly agentPush: (request: PushRequest) => Promise<CellAnswer<null>>;
   readonly agentPreview: (request: PreviewRequest) => Promise<CellAnswer<null>>;
@@ -105,7 +111,9 @@ interface ThreadJobs {
 
 export interface ThreadHost {
   readonly threadId: string;
-  readonly sql: SqlPort;
+  readonly db: ThreadDb;
+  // one synchronous transaction, the Durable Object's own `transactionSync`
+  readonly transaction: <T>(work: () => T) => T;
   // this instance's stamp: a call stamped by another was made by an instance that died
   readonly isolate: string;
   readonly now: () => number;
@@ -183,16 +191,6 @@ export type StepResult = "continue" | "later" | "paused" | "idle" | "purged";
 
 // ---- rows ----
 
-const turnRowSchema = z.object({
-  cancel_requested: z.number(),
-  content: z.string(),
-  rules: z.string().nullable(),
-  rules_hash: z.string().nullable(),
-  started: z.number(),
-  status: z.enum(THREAD_TURN_STATUSES),
-  turn: z.number(),
-});
-
 interface OpenTurn {
   readonly turn: number;
   readonly content: string;
@@ -203,85 +201,86 @@ interface OpenTurn {
   readonly waiting: boolean;
 }
 
-const openTurnOf = (sql: SqlStatements): OpenTurn | null => {
-  const [raw] = sql.all(
-    `SELECT turn, content, rules, rules_hash, started, cancel_requested, status FROM turns
-     WHERE status != 'ended' ORDER BY turn LIMIT 1`,
-    [],
-  );
-  if (raw === undefined) {
+const openTurnOf = (db: ThreadDb): OpenTurn | null => {
+  const row = db
+    .select()
+    .from(threadTurns)
+    .where(ne(threadTurns.status, "ended"))
+    .orderBy(asc(threadTurns.turn))
+    .limit(1)
+    .get();
+  if (row === undefined) {
     return null;
   }
-  const row = turnRowSchema.parse(raw);
   return {
-    cancelRequested: row.cancel_requested === 1,
+    cancelRequested: row.cancelRequested === 1,
     content: row.content,
     rules: row.rules,
-    rulesHash: row.rules_hash,
+    rulesHash: row.rulesHash,
     started: row.started === 1,
     turn: row.turn,
     waiting: row.status === "awaiting_approval",
   };
 };
 
-const metaSchema = z.object({ v: z.string() });
+const META_ID = 1;
 
-// `rules_hash` is absent while the conversation carries no filing rules and the last landed
-// rules' hash while it does. Rules a compaction summarized or a new definition stopped replaying
-// are neither: the next turn owes their words, or word that they are cleared, so the row stays
-// and holds what no hash equals.
-const markRulesOwed = (sql: SqlStatements): void => {
-  sql.run("UPDATE meta SET v = '' WHERE k = 'rules_hash'", []);
+const metaOf = (db: ThreadDb) => {
+  db.insert(threadMeta).values({ id: META_ID }).onConflictDoNothing().run();
+  const row = db.select().from(threadMeta).where(eq(threadMeta.id, META_ID)).get();
+  if (row === undefined) {
+    throw new Error("a conversation without its meta row");
+  }
+  return row;
 };
 
-const metaOf = (sql: SqlStatements, key: string): string | null => {
-  const [row] = sql.all("SELECT v FROM meta WHERE k = ?", [key]);
-  return row === undefined ? null : metaSchema.parse(row).v;
+const setMeta = (db: ThreadDb, values: SQLiteUpdateSetSource<typeof threadMeta>): void => {
+  metaOf(db);
+  db.update(threadMeta).set(values).where(eq(threadMeta.id, META_ID)).run();
 };
 
-const setMeta = (sql: SqlStatements, key: string, value: string): void => {
-  sql.run("INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v", [
-    key,
-    value,
-  ]);
+// `rulesHash` is null while the conversation carries no filing rules and the last landed rules'
+// hash while it does. Rules a compaction summarized or a new definition stopped replaying are
+// neither: the next turn owes their words, or word that they are cleared, so it holds what no hash
+// equals.
+const markRulesOwed = (db: ThreadDb): void => {
+  db.update(threadMeta).set({ rulesHash: "" }).where(isNotNull(threadMeta.rulesHash)).run();
 };
-
-const transcriptRowSchema = z.object({
-  content: z.string(),
-  role: z.string(),
-  seq: z.number(),
-  turn: z.number(),
-});
 
 type StoredMessage = TranscriptMessage & { readonly seq: number; readonly turn: number };
 
-const transcriptOf = (sql: SqlStatements): StoredMessage[] =>
-  sql.all("SELECT seq, turn, role, content FROM transcript ORDER BY seq", []).map((raw) => {
-    const row = transcriptRowSchema.parse(raw);
-    return { ...transcriptMessage(row.role, row.content), seq: row.seq, turn: row.turn };
-  });
+const transcriptOf = (db: ThreadDb): StoredMessage[] =>
+  db
+    .select()
+    .from(threadTranscript)
+    .orderBy(asc(threadTranscript.seq))
+    .all()
+    .map((row) => ({ ...transcriptMessage(row.role, row.content), seq: row.seq, turn: row.turn }));
+
+// the seq the next transcript row takes, which a definition names before that row is written
+const nextSeq = sql`(SELECT coalesce(max(${threadTranscript.seq}), 0) + 1 FROM ${threadTranscript})`;
 
 // one message after every other, its content the JSON it is replayed as
 const append = (
-  sql: SqlStatements,
-  row: { readonly turn: number; readonly role: string; readonly content: string },
+  db: ThreadDb,
+  row: Pick<typeof threadTranscript.$inferInsert, "content" | "role" | "turn">,
 ): void => {
-  sql.run(
-    `INSERT INTO transcript (seq, turn, role, content)
-     VALUES ((SELECT coalesce(max(seq), 0) + 1 FROM transcript), ?, ?, ?)`,
-    [row.turn, row.role, row.content],
-  );
+  db.insert(threadTranscript)
+    .values({ ...row, seq: nextSeq })
+    .run();
 };
 
 // what the turn did, queued for the cell in the transaction that did it, under the thread's own
 // sequence, which never goes back
-const enqueue = (sql: SqlStatements, turn: number, entries: readonly PushEntry[]): void => {
+const enqueue = (db: ThreadDb, turn: number, entries: readonly PushEntry[]): void => {
   if (entries.length === 0) {
     return;
   }
-  const seq = Number(metaOf(sql, "push_seq") ?? "0") + 1;
-  setMeta(sql, "push_seq", String(seq));
-  sql.run("INSERT INTO outbox (seq, json) VALUES (?, ?)", [seq, JSON.stringify({ entries, turn })]);
+  const seq = metaOf(db).pushSeq + 1;
+  setMeta(db, { pushSeq: seq });
+  db.insert(threadOutbox)
+    .values({ json: JSON.stringify({ entries, turn }), seq })
+    .run();
 };
 
 const eventEntry = (event: AgentEvent): PushEntry => ({ event, kind: "event" });
@@ -293,18 +292,20 @@ interface TurnEnding {
 }
 
 // the turn over: its row ended and the cell told why, which seals it there
-const endTurn = (sql: SqlStatements, turn: number, ending: TurnEnding): void => {
-  sql.run("UPDATE turns SET status = 'ended' WHERE turn = ? AND status != 'ended'", [turn]);
+const endTurn = (db: ThreadDb, turn: number, ending: TurnEnding): void => {
+  db.update(threadTurns)
+    .set({ status: "ended" })
+    .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
+    .run();
   const ended: AgentEvent = { reason: ending.reason, turn, type: "turn.ended" };
   if (ending.detail !== null) {
     ended.detail = ending.detail.slice(0, 200);
   }
-  enqueue(sql, turn, [eventEntry(ended)]);
+  enqueue(db, turn, [eventEntry(ended)]);
 };
 
 // ---- the outbox ----
 
-const outboxRowSchema = z.object({ json: z.string(), seq: z.number() });
 const outboxBodySchema = z.object({ entries: z.array(pushEntrySchema), turn: z.number() });
 
 // every push the cell has not acknowledged, in order; one it could not take waits for the outbox
@@ -312,11 +313,10 @@ const outboxBodySchema = z.object({ entries: z.array(pushEntrySchema), turn: z.n
 // holds open lands nothing there, and goes
 export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later" | "purged"> => {
   for (;;) {
-    const [raw] = host.sql.all("SELECT seq, json FROM outbox ORDER BY seq LIMIT 1", []);
-    if (raw === undefined) {
+    const row = host.db.select().from(threadOutbox).orderBy(asc(threadOutbox.seq)).limit(1).get();
+    if (row === undefined) {
       return "drained";
     }
-    const row = outboxRowSchema.parse(raw);
     const body = outboxBodySchema.parse(JSON.parse(row.json));
     let answer: CellAnswer<null>;
     try {
@@ -339,38 +339,40 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
       await host.purge();
       return "purged";
     }
-    host.sql.run("DELETE FROM outbox WHERE seq = ?", [row.seq]);
+    host.db.delete(threadOutbox).where(eq(threadOutbox.seq, row.seq)).run();
   }
 };
 
 // ---- a turn handed in ----
 
-// the turn the cell delivered, kept once by its op id
+// the turn the cell delivered, kept once by its op id, and the push sequence taken past the last
+// push the cell landed, which an object that started over on empty tables would otherwise reuse
 export const acceptDelivery = (
   host: ThreadHost,
   request: DeliveryRequest,
   rulesHash: string | null,
 ): void => {
-  host.sql.run(
-    `INSERT INTO turns (turn, op_id, content, rules, rules_hash, status)
-     VALUES (?, ?, ?, ?, ?, 'running') ON CONFLICT DO NOTHING`,
-    [request.turn, request.opId, JSON.stringify(request.content), request.rules, rulesHash],
-  );
+  const { db } = host;
+  host.transaction(() => {
+    db.insert(threadTurns)
+      .values({
+        content: JSON.stringify(request.content),
+        opId: request.opId,
+        rules: request.rules,
+        rulesHash,
+        status: "running",
+        turn: request.turn,
+      })
+      .onConflictDoNothing()
+      .run();
+    setMeta(db, { pushSeq: sql`max(${threadMeta.pushSeq}, ${request.pushedThrough})` });
+  });
 };
 
 export const rulesHashOf = async (rules: string | null): Promise<string | null> =>
   rules === null ? null : await sha256Hex(rules);
 
 // ---- the definition ----
-
-const definitionRowSchema = z.object({
-  effort: z.string(),
-  hash: z.string(),
-  model: z.string(),
-  since_seq: z.number(),
-  system: z.string(),
-  tools: z.string(),
-});
 
 // the definition the thread's turns are sent under, and the transcript row it is in force from
 interface DefinitionInForce {
@@ -379,21 +381,22 @@ interface DefinitionInForce {
   readonly sinceSeq: number;
 }
 
-const definitionOf = (sql: SqlStatements): DefinitionInForce | null => {
-  const [raw] = sql.all(
-    "SELECT hash, model, effort, system, tools, since_seq FROM definition ORDER BY id DESC LIMIT 1",
-    [],
-  );
-  if (raw === undefined) {
+const definitionOf = (db: ThreadDb): DefinitionInForce | null => {
+  const row = db
+    .select()
+    .from(threadDefinitions)
+    .orderBy(desc(threadDefinitions.id))
+    .limit(1)
+    .get();
+  if (row === undefined) {
     return null;
   }
-  const row = definitionRowSchema.parse(raw);
-  return { definition: storedDefinition(row), hash: row.hash, sinceSeq: row.since_seq };
+  return { definition: storedDefinition(row), hash: row.hash, sinceSeq: row.sinceSeq };
 };
 
 // the definition a started turn is sent under, which its start wrote
-const definitionInForce = (sql: SqlStatements): DefinitionInForce => {
-  const held = definitionOf(sql);
+const definitionInForce = (db: ThreadDb): DefinitionInForce => {
+  const held = definitionOf(db);
   if (held === null) {
     throw new Error("a started turn has a definition");
   }
@@ -405,120 +408,41 @@ const definitionInForce = (sql: SqlStatements): DefinitionInForce => {
 // definition only here, so a turn is sent under one definition from its first call to its last
 const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
   const deployed = await frozenDefinition(host.definition());
-  host.sql.transaction(() => {
-    const held = definitionOf(host.sql);
+  const { db } = host;
+  host.transaction(() => {
+    const held = definitionOf(db);
     if (held?.hash !== deployed.hash) {
-      host.sql.run(
-        `INSERT INTO definition (id, hash, model, effort, system, tools, since_seq)
-         VALUES ((SELECT coalesce(max(id), 0) + 1 FROM definition), ?, ?, ?, ?, ?,
-           (SELECT coalesce(max(seq), 0) + 1 FROM transcript))`,
-        [deployed.hash, deployed.model, deployed.effort, deployed.system, deployed.tools],
-      );
+      db.insert(threadDefinitions)
+        .values({
+          effort: deployed.effort,
+          hash: deployed.hash,
+          id: sql`(SELECT coalesce(max(${threadDefinitions.id}), 0) + 1 FROM ${threadDefinitions})`,
+          model: deployed.model,
+          sinceSeq: nextSeq,
+          system: deployed.system,
+          tools: deployed.tools,
+        })
+        .run();
       if (held !== null) {
         console.info({
           event: "agent-definition-taken-up",
           threadId: host.threadId,
           turn: turn.turn,
         });
-        markRulesOwed(host.sql);
+        markRulesOwed(db);
       }
     }
-    append(host.sql, { content: turn.content, role: "user", turn: turn.turn });
-    host.sql.run("UPDATE turns SET started = 1 WHERE turn = ?", [turn.turn]);
+    append(db, { content: turn.content, role: "user", turn: turn.turn });
+    db.update(threadTurns).set({ started: 1 }).where(eq(threadTurns.turn, turn.turn)).run();
   });
 };
 
 // ---- one model call ----
 
-const usageSchema = z.looseObject({
-  cache_creation_input_tokens: z.number().nullish(),
-  cache_read_input_tokens: z.number().nullish(),
-  input_tokens: z.number(),
-  output_tokens: z.number(),
-});
-
-const lastCallSchema = z.object({
-  covered_seq: z.number(),
-  ended_at: z.number(),
-  replied: z.number(),
-  usage: z.string(),
-});
-
-// The last call the API answered under the definition in force from `sinceSeq`, which the cell
-// prices the cache by and the next estimate counts from: when it landed, the prompt it was billed
-// (its usage's top level, the prompt after any compaction it made), its reply's tokens when the
-// transcript replays the reply, and the last row its prompt or reply holds. A call under an
-// earlier definition warmed a prefix this one does not share.
-const lastCall = (
-  sql: SqlStatements,
-  sinceSeq: number,
-): {
-  readonly anchor: CallAnchor;
-  readonly coveredSeq: number;
-  readonly replied: boolean;
-} | null => {
-  const [raw] = sql.all(
-    `SELECT m.usage, m.ended_at, m.covered_seq, t.role = 'assistant' AS replied
-       FROM model_calls m JOIN transcript t ON t.seq = m.covered_seq
-     WHERE m.status = 'done' AND m.usage IS NOT NULL
-       AND m.turn >= (SELECT turn FROM transcript WHERE seq = ?)
-     ORDER BY m.ended_at DESC LIMIT 1`,
-    [sinceSeq],
-  );
-  if (raw === undefined) {
-    return null;
-  }
-  const row = lastCallSchema.parse(raw);
-  const usage = usageSchema.parse(JSON.parse(row.usage));
-  return {
-    anchor: {
-      endedAt: row.ended_at,
-      promptTokens:
-        usage.input_tokens +
-        (usage.cache_read_input_tokens ?? 0) +
-        (usage.cache_creation_input_tokens ?? 0),
-      replyTokens: row.replied === 1 ? usage.output_tokens : 0,
-    },
-    coveredSeq: row.covered_seq,
-    replied: row.replied === 1,
-  };
-};
-
-// What the cell is told of a call before it goes, counted from the last call under its definition
-// when there is one: what its request carries past that call's prompt is the call's reply, when
-// the transcript replays it, a message for each row after it, and the filing rules when they go
-// with this call.
-const estimateOf = (
-  sql: SqlStatements,
-  call: {
-    readonly definition: ThreadDefinition;
-    readonly messages: readonly TranscriptMessage[];
-    readonly rules: string | null;
-    readonly sinceSeq: number;
-    readonly transcript: readonly StoredMessage[];
-  },
-): CallEstimate => {
-  const draft = agentRequest(call.definition, call.messages, AGENT_MAX_TOKENS);
-  const last = lastCall(sql, call.sinceSeq);
-  if (last === null) {
-    return callEstimateOf(call.definition, draft, null, []);
-  }
-  const added =
-    (last.replied ? 1 : 0) +
-    call.transcript.filter((message) => message.seq > last.coveredSeq).length +
-    (call.rules === null ? 0 : 1);
-  return callEstimateOf(
-    call.definition,
-    draft,
-    last.anchor,
-    added === 0 ? [] : call.messages.slice(-added),
-  );
-};
-
 // what the turn has to say of the filing rules while it is still to land: on a first reply, the
 // rules when they differ from the last that landed, or that they are cleared when some had
-const pendingRules = (sql: SqlStatements, turn: OpenTurn, step: number): string | null =>
-  step !== 0 || turn.rulesHash === metaOf(sql, "rules_hash") ? null : (turn.rules ?? RULES_CLEARED);
+const pendingRules = (db: ThreadDb, turn: OpenTurn, step: number): string | null =>
+  step !== 0 || turn.rulesHash === metaOf(db).rulesHash ? null : (turn.rules ?? RULES_CLEARED);
 
 const withRules = (
   transcript: readonly TranscriptMessage[],
@@ -528,50 +452,27 @@ const withRules = (
     ? transcript
     : [...transcript, { content: [{ text: rules, type: "text" }], role: "system" }];
 
-const callRowsSchema = z.object({ failed: z.number(), tries: z.number() });
-
 // the calls before this one at the same step: every try, and those that failed reaching Claude
-const triesAt = (sql: SqlStatements, turn: number, step: number) => {
-  const [raw] = sql.all(
-    `SELECT count(*) AS tries, coalesce(sum(status = 'failed'), 0) AS failed FROM model_calls
-     WHERE turn = ? AND step = ?`,
-    [turn, step],
-  );
-  return callRowsSchema.parse(raw);
+const triesAt = (db: ThreadDb, turn: number, step: number) => {
+  const statuses = db
+    .select({ status: modelCalls.status })
+    .from(modelCalls)
+    .where(and(eq(modelCalls.turn, turn), eq(modelCalls.step, step)))
+    .all();
+  return {
+    failed: statuses.filter((row) => row.status === "failed").length,
+    tries: statuses.length,
+  };
 };
 
-const capRowSchema = z.object({ max_tokens: z.number() });
-
-// the cap the step's first call went out with, or null for a step not yet sent
-const firstCapAt = (sql: SqlStatements, turn: number, step: number): number | null => {
-  const [raw] = sql.all(
-    `SELECT max_tokens FROM model_calls WHERE turn = ? AND step = ? AND max_tokens IS NOT NULL
-     ORDER BY attempt LIMIT 1`,
-    [turn, step],
-  );
-  return raw === undefined ? null : capRowSchema.parse(raw).max_tokens;
-};
-
-const cutRowSchema = z.object({ call_id: z.string(), turn: z.number() });
-
-// every call an instance that died left streaming, cut: booked at what it reserved, and its step
-// sent again whole by the next step that reaches it
+// every call an instance that died left streaming, cut, its step sent again whole by the next step
+// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds
 const cutDeadCalls = (host: ThreadHost): void => {
-  const { sql } = host;
-  const cut = sql
-    .all("SELECT call_id, turn FROM model_calls WHERE status = 'streaming' AND isolate != ?", [
-      host.isolate,
-    ])
-    .map((row) => cutRowSchema.parse(row));
-  if (cut.length === 0) {
-    return;
-  }
-  sql.transaction(() => {
-    for (const call of cut) {
-      sql.run("UPDATE model_calls SET status = 'cut' WHERE call_id = ?", [call.call_id]);
-      enqueue(sql, call.turn, [{ callId: call.call_id, kind: "call", outcome: "cut" }]);
-    }
-  });
+  host.db
+    .update(modelCalls)
+    .set({ status: "cut" })
+    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, host.isolate)))
+    .run();
 };
 
 // what a stop reason ends a turn with; `tool_use` ends none
@@ -628,9 +529,9 @@ const resultEvent = (toolUseId: string, content: string, isError: boolean): Push
     type: "agent.tool_result",
   });
 
-// the reply landed whole, with what it cost, in one transaction: its blocks as returned, after the
-// filing rules it was asked under, and the turn ended unless it asks for tools; a compaction in it
-// has the next turn send the filing rules again
+// the reply landed whole, with what it was billed, in one transaction: its blocks as returned,
+// after the filing rules it was asked under, and the turn ended unless it asks for tools; a
+// compaction in it has the next turn send the filing rules again
 const landReply = (
   host: ThreadHost,
   turn: OpenTurn,
@@ -642,24 +543,16 @@ const landReply = (
   },
 ): void => {
   const { message } = call;
+  const { db } = host;
   const blocks = replyBlocksOf(message.content);
-  host.sql.transaction(() => {
-    host.sql.run(
-      "UPDATE model_calls SET status = 'done', ended_at = ?, usage = ? WHERE call_id = ?",
-      [host.now(), JSON.stringify(message.usage), call.callId],
-    );
+  host.transaction(() => {
+    db.update(modelCalls).set({ status: "done" }).where(eq(modelCalls.callId, call.callId)).run();
     const entries: PushEntry[] = [
-      {
-        callId: call.callId,
-        kind: "call",
-        model: call.model,
-        outcome: "billed",
-        usage: z.json().parse(message.usage),
-      },
+      { kind: "usage", model: call.model, usage: z.json().parse(message.usage) },
     ];
     if (blocks === null) {
-      enqueue(host.sql, turn.turn, entries);
-      endTurn(host.sql, turn.turn, {
+      enqueue(db, turn.turn, entries);
+      endTurn(db, turn.turn, {
         detail: "a reply this build cannot replay",
         reason: "failed",
       });
@@ -669,44 +562,36 @@ const landReply = (
       // a reply declined after it began is discarded, what it wrote before the decline with it,
       // and the turn ends with the decline's category
       // (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback)
-      enqueue(host.sql, turn.turn, entries);
-      endTurn(host.sql, turn.turn, endingOf(message));
+      enqueue(db, turn.turn, entries);
+      endTurn(db, turn.turn, endingOf(message));
       return;
     }
     if (blocks.length > 0) {
       if (call.rules !== null) {
-        append(host.sql, {
+        append(db, {
           content: JSON.stringify([{ text: call.rules, type: "text" }]),
           role: "system",
           turn: turn.turn,
         });
-        if (turn.rulesHash === null) {
-          host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
-        } else {
-          setMeta(host.sql, "rules_hash", turn.rulesHash);
-        }
+        setMeta(db, { rulesHash: turn.rulesHash });
       }
-      append(host.sql, {
+      append(db, {
         content: JSON.stringify(message.content),
         role: "assistant",
         turn: turn.turn,
       });
-      host.sql.run(
-        "UPDATE model_calls SET covered_seq = (SELECT max(seq) FROM transcript) WHERE call_id = ?",
-        [call.callId],
-      );
       if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
-        markRulesOwed(host.sql);
+        markRulesOwed(db);
       }
       entries.push(...replyEvents(blocks));
     }
     const uses = blocks.flatMap((block) => (block.type === "tool_use" ? [block] : []));
     if (message.stop_reason === "tool_use" && uses.length > 0) {
-      enqueue(host.sql, turn.turn, entries);
+      enqueue(db, turn.turn, entries);
       return;
     }
     if (uses.length > 0) {
-      append(host.sql, {
+      append(db, {
         content: JSON.stringify(
           uses.map((use) => ({
             content: CUT_OFF,
@@ -720,8 +605,8 @@ const landReply = (
       });
       entries.push(...uses.map((use) => resultEvent(use.id, CUT_OFF, true)));
     }
-    enqueue(host.sql, turn.turn, entries);
-    endTurn(host.sql, turn.turn, endingOf(message));
+    enqueue(db, turn.turn, entries);
+    endTurn(db, turn.turn, endingOf(message));
   });
 };
 
@@ -735,7 +620,8 @@ const isRetryable = (status: number | undefined): boolean =>
 
 // a call that did not land: stopped by the person, refused by the API (the turn ends), or Claude
 // unreachable or silent (sent again, three times, then the turn ends). A call the API answered
-// with an error cost nothing; one cut short may have, and is booked at what it reserved
+// with an error cost nothing; one cut short may have, which no usage reports and the gateway's
+// per-account limit bounds
 const failedCall = async (
   host: ThreadHost,
   turn: OpenTurn,
@@ -747,14 +633,13 @@ const failedCall = async (
   },
 ): Promise<StepResult> => {
   const { error } = call;
+  const { db } = host;
   const status = isApiError(error) ? error.status : undefined;
-  const outcome = status === undefined ? "cut" : "free";
   const settle = (state: "cancelled" | "failed", ending: TurnEndReason | null): void => {
-    host.sql.transaction(() => {
-      host.sql.run("UPDATE model_calls SET status = ? WHERE call_id = ?", [state, call.callId]);
-      enqueue(host.sql, turn.turn, [{ callId: call.callId, kind: "call", outcome }]);
+    host.transaction(() => {
+      db.update(modelCalls).set({ status: state }).where(eq(modelCalls.callId, call.callId)).run();
       if (ending !== null) {
-        endTurn(host.sql, turn.turn, {
+        endTurn(db, turn.turn, {
           detail: status === undefined ? null : `status ${String(status)}`,
           reason: ending,
         });
@@ -808,114 +693,73 @@ interface CallTry {
 }
 
 // a try that never went out, counted so the next one takes an id of its own
-const recordUnsent = (
-  host: ThreadHost,
-  call: CallTry,
-  status: "cancelled" | "failed" | "refused",
-): void => {
-  host.sql.run(
-    "INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate) VALUES (?, ?, ?, ?, ?, ?)",
-    [call.callId, call.turn, call.step, call.attempt, status, host.isolate],
-  );
+const recordUnsent = (host: ThreadHost, call: CallTry, status: "cancelled" | "failed"): void => {
+  host.db
+    .insert(modelCalls)
+    .values({
+      attempt: call.attempt,
+      callId: call.callId,
+      isolate: host.isolate,
+      status,
+      step: call.step,
+      turn: call.turn,
+    })
+    .run();
 };
 
-// a call stopped before it went out: nothing sent, its reservation let go, and the stop settled by
-// the next step
+// a call stopped before it went out: nothing sent, and the stop settled by the next step
 const unsentCall = (host: ThreadHost, call: CallTry): StepResult => {
-  host.sql.transaction(() => {
-    recordUnsent(host, call, "cancelled");
-    enqueue(host.sql, call.turn, [{ callId: call.callId, kind: "call", outcome: "free" }]);
-  });
+  recordUnsent(host, call, "cancelled");
   return "continue";
 };
 
-const reserveAndSend = async (
+const sendCall = async (
   host: ThreadHost,
   turn: OpenTurn,
   transcript: readonly StoredMessage[],
   signal: AbortSignal,
 ): Promise<StepResult> => {
-  const { sql } = host;
-  const { definition, sinceSeq } = definitionInForce(sql);
+  const { db } = host;
   const step = transcript.filter(
     (message) => message.role === "assistant" && message.turn === turn.turn,
   ).length;
-  const tries = triesAt(sql, turn.turn, step);
+  if (step >= AGENT_MAX_STEPS) {
+    host.transaction(() => {
+      endTurn(db, turn.turn, { detail: null, reason: "budget" });
+    });
+    return "continue";
+  }
+  const { definition, sinceSeq } = definitionInForce(db);
+  const tries = triesAt(db, turn.turn, step);
   const callId = `${host.threadId}:${String(turn.turn)}:${String(step)}:${String(tries.tries)}`;
   const callTry: CallTry = { attempt: tries.tries, callId, step, turn: turn.turn };
-  // a step sent again keeps the cap it was first sent with, so its bytes are the same
-  const resend = firstCapAt(sql, turn.turn, step);
-  const rules = pendingRules(sql, turn, step);
-  const messages = withRules(requestMessages(transcript, sinceSeq), rules);
-  const estimate = estimateOf(sql, { definition, messages, rules, sinceSeq, transcript });
-  const coveredSeq = transcript.at(-1)?.seq ?? 0;
-  let reserved: CellAnswer<Reservation>;
-  try {
-    reserved = await host.cell().agentReserve({
-      callId,
-      estimate,
-      model: definition.model,
-      resend,
-      threadId: host.threadId,
-      turn: turn.turn,
-    });
-  } catch (error) {
-    console.warn({ event: "agent-reserve-failed", ...callFailureFields(error) });
-    if (signal.aborted) {
-      return unsentCall(host, callTry);
-    }
-    await host.jobs.driveAt(host.now() + CELL_AGAIN_MS);
-    return "later";
-  }
-  if (!reserved.ok) {
-    if (reserved.refusal === "unknown-thread") {
-      await host.purge();
-      return "purged";
-    }
-    sql.transaction(() => {
-      endTurn(sql, turn.turn, { detail: "the turn was closed", reason: "failed" });
-    });
-    return "continue";
-  }
-  const reservation = reserved.value;
-  if (reservation.kind === "refused") {
-    sql.transaction(() => {
-      recordUnsent(host, callTry, "refused");
-      endTurn(sql, turn.turn, { detail: null, reason: "budget" });
-    });
-    return "continue";
-  }
-  const body = agentRequest(definition, messages, reservation.maxTokens);
+  const rules = pendingRules(db, turn, step);
+  const body = agentRequest(definition, withRules(requestMessages(transcript, sinceSeq), rules));
   const requestSha = await sha256Hex(JSON.stringify(body));
-  // the last await before the request goes: a stop that landed while the call was reserved or its
-  // request hashed sends nothing
+  // the last await before the request goes: a stop that landed while its request was hashed sends
+  // nothing
   if (signal.aborted) {
     return unsentCall(host, callTry);
   }
   const client = host.client();
   if (client === null) {
-    sql.transaction(() => {
+    host.transaction(() => {
       recordUnsent(host, callTry, "failed");
-      enqueue(sql, turn.turn, [{ callId, kind: "call", outcome: "free" }]);
-      endTurn(sql, turn.turn, { detail: null, reason: "unavailable" });
+      endTurn(db, turn.turn, { detail: null, reason: "unavailable" });
     });
     return "continue";
   }
-  sql.run(
-    `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
-       max_tokens, covered_seq)
-     VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?)`,
-    [
+  db.insert(modelCalls)
+    .values({
+      attempt: tries.tries,
       callId,
-      turn.turn,
-      step,
-      tries.tries,
-      host.isolate,
+      isolate: host.isolate,
       requestSha,
-      reservation.maxTokens,
-      coveredSeq,
-    ],
-  );
+      status: "streaming",
+      step,
+      turn: turn.turn,
+    })
+    .run();
   let message: BetaMessage;
   try {
     const stream = client.beta.messages.stream(body, { signal });
@@ -945,7 +789,7 @@ const reserveAndSend = async (
 };
 
 // one model call under an abort registered before its first await, so a stop that lands while the
-// call is reserved, hashed or streamed cuts it
+// call is hashed or streamed cuts it
 const modelCall = async (
   host: ThreadHost,
   turn: OpenTurn,
@@ -954,7 +798,7 @@ const modelCall = async (
   const call: CallInFlight = { abort: new AbortController(), heardAt: host.now() };
   host.calls.set(turn.turn, call);
   try {
-    return await reserveAndSend(host, turn, transcript, call.abort.signal);
+    return await sendCall(host, turn, transcript, call.abort.signal);
   } finally {
     host.calls.delete(turn.turn);
   }
@@ -962,49 +806,33 @@ const modelCall = async (
 
 // ---- one round of tool calls ----
 
-const toolRowSchema = z.object({
-  decision: z.enum(["approved", "denied"]).nullable(),
-  input: z.string(),
-  is_error: z.number(),
-  name: z.string(),
-  reason: z.string().nullable(),
-  result: z.string().nullable(),
-  status: z.enum(["pending", "awaiting_approval", "running", "done"]),
-  tool_use_id: z.string(),
-});
+type ToolRow = typeof toolCalls.$inferSelect;
 
-type ToolRow = z.infer<typeof toolRowSchema>;
-
-const toolRowsOf = (sql: SqlStatements, msgSeq: number): ToolRow[] =>
-  sql
-    .all(
-      `SELECT tool_use_id, name, input, status, decision, reason, result, is_error FROM tool_calls
-       WHERE msg_seq = ? ORDER BY idx`,
-      [msgSeq],
-    )
-    .map((row) => toolRowSchema.parse(row));
+const toolRowsOf = (db: ThreadDb, msgSeq: number): ToolRow[] =>
+  db.select().from(toolCalls).where(eq(toolCalls.msgSeq, msgSeq)).orderBy(asc(toolCalls.idx)).all();
 
 const finishTool = (
   host: ThreadHost,
   turn: number,
   answer: { readonly toolUseId: string; readonly content: string; readonly isError: boolean },
 ): void => {
-  host.sql.transaction(() => {
-    host.sql.run(
-      "UPDATE tool_calls SET status = 'done', result = ?, is_error = ? WHERE tool_use_id = ?",
-      [answer.content, answer.isError ? 1 : 0, answer.toolUseId],
-    );
-    enqueue(host.sql, turn, [resultEvent(answer.toolUseId, answer.content, answer.isError)]);
+  host.transaction(() => {
+    host.db
+      .update(toolCalls)
+      .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
+      .where(eq(toolCalls.toolUseId, answer.toolUseId))
+      .run();
+    enqueue(host.db, turn, [resultEvent(answer.toolUseId, answer.content, answer.isError)]);
   });
 };
 
 const resultBlock = (row: ToolRow): ToolResultBlock => {
   const block: ToolResultBlock = {
     content: row.result ?? "",
-    tool_use_id: row.tool_use_id,
+    tool_use_id: row.toolUseId,
     type: "tool_result",
   };
-  if (row.is_error === 1) {
+  if (row.isError === 1) {
     block.is_error = true;
   }
   return block;
@@ -1017,32 +845,35 @@ const toolRound = async (
   turn: OpenTurn,
   reply: StoredMessage & { readonly role: "assistant" },
 ): Promise<StepResult> => {
-  const { sql } = host;
+  const { db } = host;
   const uses = reply.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
   const asked: string[] = [];
   const until = host.now() + APPROVAL_LIMIT_MS;
-  sql.transaction(() => {
+  host.transaction(() => {
     for (const [index, use] of uses.entries()) {
-      if (sql.all("SELECT 1 FROM tool_calls WHERE tool_use_id = ?", [use.id]).length > 0) {
+      const journaled = db
+        .select({ toolUseId: toolCalls.toolUseId })
+        .from(toolCalls)
+        .where(eq(toolCalls.toolUseId, use.id))
+        .get();
+      if (journaled !== undefined) {
         continue;
       }
       const asks = asksFirst(use.name);
-      sql.run(
-        `INSERT INTO tool_calls (tool_use_id, turn, msg_seq, idx, name, input, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          use.id,
-          turn.turn,
-          reply.seq,
-          index,
-          use.name,
-          JSON.stringify(use.input),
-          asks ? "awaiting_approval" : "pending",
-        ],
-      );
+      db.insert(toolCalls)
+        .values({
+          idx: index,
+          input: JSON.stringify(use.input),
+          msgSeq: reply.seq,
+          name: use.name,
+          status: asks ? "awaiting_approval" : "pending",
+          toolUseId: use.id,
+          turn: turn.turn,
+        })
+        .run();
       if (asks) {
         asked.push(use.id);
-        enqueue(sql, turn.turn, [
+        enqueue(db, turn.turn, [
           eventEntry({
             input: z.json().parse(use.input),
             name: use.name,
@@ -1057,7 +888,7 @@ const toolRound = async (
   for (const toolUseId of asked) {
     await host.jobs.approvalAt(toolUseId, until);
   }
-  for (const row of toolRowsOf(sql, reply.seq)) {
+  for (const row of toolRowsOf(db, reply.seq)) {
     if (row.status === "done" || (row.status === "awaiting_approval" && row.decision === null)) {
       continue;
     }
@@ -1065,25 +896,25 @@ const toolRound = async (
       finishTool(host, turn.turn, {
         content: row.reason === null ? DECLINED : `${DECLINED} ${row.reason}`,
         isError: true,
-        toolUseId: row.tool_use_id,
+        toolUseId: row.toolUseId,
       });
       continue;
     }
-    if (openTurnOf(sql)?.cancelRequested !== false) {
+    if (openTurnOf(db)?.cancelRequested !== false) {
       // stopped meanwhile: the next step answers what is left
       return "continue";
     }
-    sql.run(
-      "UPDATE tool_calls SET status = 'running', attempts = attempts + 1 WHERE tool_use_id = ?",
-      [row.tool_use_id],
-    );
+    db.update(toolCalls)
+      .set({ attempts: sql`${toolCalls.attempts} + 1`, status: "running" })
+      .where(eq(toolCalls.toolUseId, row.toolUseId))
+      .run();
     let answer: CellAnswer<ToolAnswer>;
     try {
       answer = await host.cell().agentTool({
         input: z.json().parse(JSON.parse(row.input)),
         name: row.name,
         threadId: host.threadId,
-        toolUseId: row.tool_use_id,
+        toolUseId: row.toolUseId,
         turn: turn.turn,
       });
     } catch (error) {
@@ -1098,30 +929,28 @@ const toolRound = async (
     finishTool(host, turn.turn, {
       content: answer.ok ? answer.value.content : TURN_CLOSED,
       isError: answer.ok ? answer.value.isError : true,
-      toolUseId: row.tool_use_id,
+      toolUseId: row.toolUseId,
     });
   }
-  const rows = toolRowsOf(sql, reply.seq);
+  const rows = toolRowsOf(db, reply.seq);
   if (rows.some((row) => row.status !== "done")) {
-    sql.run("UPDATE turns SET status = 'awaiting_approval' WHERE turn = ?", [turn.turn]);
+    db.update(threadTurns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(threadTurns.turn, turn.turn))
+      .run();
     return "paused";
   }
-  sql.transaction(() => {
-    append(sql, { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn });
-    sql.run("UPDATE turns SET status = 'running' WHERE turn = ? AND status != 'ended'", [
-      turn.turn,
-    ]);
+  host.transaction(() => {
+    append(db, { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn });
+    db.update(threadTurns)
+      .set({ status: "running" })
+      .where(and(eq(threadTurns.turn, turn.turn), ne(threadTurns.status, "ended")))
+      .run();
   });
   return "continue";
 };
 
 // ---- the person ----
-
-const decisionRowSchema = z.object({
-  decision: z.string().nullable(),
-  status: z.string(),
-  turn: z.number(),
-});
 
 // the answer to one call that waits on the person, kept once: false when it was answered already,
 // or never waited
@@ -1134,25 +963,25 @@ export const decideCall = async (
     readonly reason: string | null;
   },
 ): Promise<boolean> => {
-  const decided = host.sql.transaction(() => {
-    const [raw] = host.sql.all(
-      "SELECT turn, status, decision FROM tool_calls WHERE tool_use_id = ?",
-      [answer.toolUseId],
-    );
-    const row = raw === undefined ? null : decisionRowSchema.parse(raw);
+  const { db } = host;
+  const decided = host.transaction(() => {
+    const row = db
+      .select({ decision: toolCalls.decision, status: toolCalls.status, turn: toolCalls.turn })
+      .from(toolCalls)
+      .where(eq(toolCalls.toolUseId, answer.toolUseId))
+      .get();
     if (row?.status !== "awaiting_approval" || row.decision !== null) {
       return false;
     }
-    host.sql.run("UPDATE tool_calls SET decision = ?, reason = ? WHERE tool_use_id = ?", [
-      answer.approved ? "approved" : "denied",
-      answer.reason,
-      answer.toolUseId,
-    ]);
-    host.sql.run(
-      "UPDATE turns SET status = 'running' WHERE turn = ? AND status = 'awaiting_approval'",
-      [row.turn],
-    );
-    enqueue(host.sql, row.turn, [
+    db.update(toolCalls)
+      .set({ decision: answer.approved ? "approved" : "denied", reason: answer.reason })
+      .where(eq(toolCalls.toolUseId, answer.toolUseId))
+      .run();
+    db.update(threadTurns)
+      .set({ status: "running" })
+      .where(and(eq(threadTurns.turn, row.turn), eq(threadTurns.status, "awaiting_approval")))
+      .run();
+    enqueue(db, row.turn, [
       eventEntry({
         by: answer.by,
         result: answer.approved ? "allow" : "deny",
@@ -1170,9 +999,11 @@ export const decideCall = async (
 
 // the turn marked stopped, durably, and its stream cut; the next step settles it
 export const requestCancel = (host: ThreadHost, turn: number): void => {
-  host.sql.run("UPDATE turns SET cancel_requested = 1 WHERE turn = ? AND status != 'ended'", [
-    turn,
-  ]);
+  host.db
+    .update(threadTurns)
+    .set({ cancelRequested: 1 })
+    .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
+    .run();
   host.calls.get(turn)?.abort.abort(new Error("The person stopped this turn."));
 };
 
@@ -1183,12 +1014,12 @@ const settleCancel = async (
   turn: OpenTurn,
   last: StoredMessage | undefined,
 ): Promise<void> => {
-  const { sql } = host;
+  const { db } = host;
   const waited: string[] = [];
-  sql.transaction(() => {
+  host.transaction(() => {
     if (last?.role === "assistant" && last.turn === turn.turn) {
       const uses = last.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
-      const rows = new Map(toolRowsOf(sql, last.seq).map((row) => [row.tool_use_id, row]));
+      const rows = new Map(toolRowsOf(db, last.seq).map((row) => [row.toolUseId, row]));
       const entries: PushEntry[] = [];
       const results = uses.map((use) => {
         const row = rows.get(use.id);
@@ -1214,14 +1045,14 @@ const settleCancel = async (
           type: "tool_result" as const,
         };
       });
-      sql.run(
-        "UPDATE tool_calls SET status = 'done', result = ?, is_error = 1 WHERE msg_seq = ? AND status != 'done'",
-        [STOPPED, last.seq],
-      );
-      append(sql, { content: JSON.stringify(results), role: "user", turn: turn.turn });
-      enqueue(sql, turn.turn, entries);
+      db.update(toolCalls)
+        .set({ isError: 1, result: STOPPED, status: "done" })
+        .where(and(eq(toolCalls.msgSeq, last.seq), ne(toolCalls.status, "done")))
+        .run();
+      append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
+      enqueue(db, turn.turn, entries);
     }
-    endTurn(sql, turn.turn, { detail: null, reason: "cancelled" });
+    endTurn(db, turn.turn, { detail: null, reason: "cancelled" });
   });
   for (const toolUseId of waited) {
     await host.jobs.dropApproval(toolUseId);
@@ -1238,7 +1069,7 @@ const turnStep = async (host: ThreadHost, turn: OpenTurn): Promise<StepResult> =
     await startTurn(host, turn);
     return "continue";
   }
-  const transcript = transcriptOf(host.sql);
+  const transcript = transcriptOf(host.db);
   const last = transcript.at(-1);
   if (turn.cancelRequested) {
     await settleCancel(host, turn, last);
@@ -1257,7 +1088,7 @@ export const step = async (host: ThreadHost): Promise<StepResult> => {
   if (before === "purged") {
     return "purged";
   }
-  const turn = openTurnOf(host.sql);
+  const turn = openTurnOf(host.db);
   if (turn === null) {
     return before === "later" ? "later" : "idle";
   }
@@ -1271,15 +1102,15 @@ export const step = async (host: ThreadHost): Promise<StepResult> => {
 
 // where the thread stands, as its cell and the suites ask
 export const inspectThread = (host: ThreadHost, driving: boolean): ThreadInspection => {
-  const turn = openTurnOf(host.sql);
-  const [outbox] = host.sql.all("SELECT count(*) AS count FROM outbox", []);
+  const turn = openTurnOf(host.db);
+  const outbox = host.db.select({ count: count() }).from(threadOutbox).get()?.count ?? 0;
   let status: ThreadInspection["status"] = "idle";
   if (turn !== null) {
     status = turn.waiting ? "awaiting_approval" : "running";
   }
   return {
     driving,
-    outbox: z.object({ count: z.number() }).parse(outbox).count,
+    outbox,
     status,
     turn: turn?.turn ?? null,
   };

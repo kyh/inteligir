@@ -15,6 +15,7 @@ import { z } from "zod";
 import { fakeStats, script } from "../test-support/agent-turns";
 import { expectSharedPrefixes } from "../test-support/request-bodies";
 import { anthropicClient } from "./anthropic-client";
+import { AGENT_MAX_TOKENS, AGENT_MODEL } from "./library-agent";
 import {
   agentRequest,
   deployedDefinition,
@@ -51,7 +52,7 @@ const breakpointsOf = (body: Body): string[] =>
 // the thread's client to the scripted API, keeping the text of every body it sends
 const recordingClient = () => {
   const sent: string[] = [];
-  const client = anthropicClient(env, async (input, init) => {
+  const client = anthropicClient(env, "account-1", async (input, init) => {
     const request = new Request(input, init);
     sent.push(await request.clone().text());
     return await fetch(request);
@@ -78,7 +79,7 @@ describe("a conversation's request", () => {
     const { client, sent } = recordingClient();
     const definition = deployedDefinition();
     const send = async (transcript: readonly TranscriptMessage[]): Promise<BetaMessage> =>
-      await client.beta.messages.stream(agentRequest(definition, transcript, 4096)).finalMessage();
+      await client.beta.messages.stream(agentRequest(definition, transcript)).finalMessage();
     // a turn of two steps, a tool's result between them, then a turn of one with filing rules
     const transcript: TranscriptMessage[] = [
       person(script('call search_library {"query":"Paris"}')),
@@ -125,7 +126,7 @@ describe("a conversation's request", () => {
   });
 
   it("sends the definition's model and effort, adaptive thinking that drops what fails and shows its notes, compaction at the threshold, and no sampling", () => {
-    const body = agentRequest(deployedDefinition(), [person("Hello.")], 2048);
+    const body = agentRequest(deployedDefinition(), [person("Hello.")]);
     expect(body).toMatchObject({
       betas: [
         "thinking-binding-controls-2026-08-01",
@@ -139,8 +140,8 @@ describe("a conversation's request", () => {
         edits: [{ trigger: { type: "input_tokens", value: 50_000 }, type: "compact_20260112" }],
       },
       fallbacks: "default",
-      max_tokens: 2048,
-      model: "claude-opus-5-5",
+      max_tokens: AGENT_MAX_TOKENS,
+      model: AGENT_MODEL.id,
       output_config: { effort: "medium" },
       thinking: {
         block_binding: { prefix_mismatch_behavior: "drop_block" },
@@ -159,7 +160,7 @@ describe("a conversation's request", () => {
   it("logs every replayed thinking block the API dropped but those another model could not read", async () => {
     const { client } = recordingClient();
     const message = await client.beta.messages
-      .stream(agentRequest(deployedDefinition(), [person(script("Hello."))], 2048))
+      .stream(agentRequest(deployedDefinition(), [person(script("Hello."))]))
       .finalMessage();
     expect(message.input_transformations).toStrictEqual([]);
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});

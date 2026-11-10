@@ -7,7 +7,9 @@ so every conversation's object runs the one code path it runs deployed
 (`packages/service/src/agent/anthropic-client.ts`).
 
 It answers `POST /v1/messages`, only a streamed request that carries the
-gateway's `cf-aig-authorization` header, and streams the documented events:
+gateway's `cf-aig-authorization` header and a `cf-aig-metadata` object naming
+its `account`, which the gateway's per-account spend limit splits by, and
+streams the documented events:
 thinking, text, tool calls and compaction with their deltas, every usage field
 with the 5-minute and 1-hour cache writes apart,
 `usage.iterations` on every reply when the compaction beta is sent, and
@@ -18,7 +20,7 @@ it written at its lifetime. A reply's thinking shows what `thinking.display`
 asks for: under `updates`, the progress note it writes before each tool call
 and nothing of its reasoning; under `summarized`, both; otherwise nothing.
 
-It refuses with a 400, in the API's words, what Claude Opus 5.5 refuses
+It refuses with a 400, in the API's words, what Claude Sonnet 5.5 refuses
 (`src/fake-request.ts`): sampling parameters, thinking other than adaptive, a
 forced tool choice, a field on a message other than its role and content, an
 assistant message last, a system message out of place, a tool call with no
@@ -60,8 +62,8 @@ all a request sent from the block on tells the fake of them; its sampling is
 an entry of its own in `usage.iterations`.
 
 So `call create_note {"title":"Paris","markdown":"Paris"}` asks the thread to
-run that tool through the account's cell, and `spend 30` twice spends past a
-turn's ceiling.
+run that tool through the account's cell, and `spend 30` costs a turn thirty
+cents of the day's allowance.
 
 ## Running it
 

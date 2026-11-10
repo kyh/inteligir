@@ -2,7 +2,7 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "The D1 accounts database's, each library cell's and each note's drizzle schemas, the D1 client, the cell's and the note's migrations, and the drizzle-kit configs that push and generate them.",
+  "description": "The D1 accounts database's, each library cell's, each note's and each conversation's drizzle schemas, the D1 client, the cell's, the note's and the conversation's migrations, and the drizzle-kit configs that push and generate them.",
   "type": "module",
   "exports": {
     "./cell/migrations": "./src/cell/migrations/migrations.js",
@@ -10,12 +10,15 @@
     "./d1/client": "./src/d1/client.ts",
     "./d1/schema": "./src/d1/schema.ts",
     "./note/migrations": "./src/note/migrations/migrations.js",
-    "./note/schema": "./src/note/schema.ts"
+    "./note/schema": "./src/note/schema.ts",
+    "./thread/migrations": "./src/thread/migrations/migrations.js",
+    "./thread/schema": "./src/thread/schema.ts"
   },
   "scripts": {
     "export": "drizzle-kit export --dialect=sqlite --schema=./src/d1/schema.ts",
     "generate:cell": "drizzle-kit generate --config drizzle.config.cell.ts",
     "generate:note": "drizzle-kit generate --config drizzle.config.note.ts",
+    "generate:thread": "drizzle-kit generate --config drizzle.config.thread.ts",
     "push": "drizzle-kit push --config drizzle.config.local.ts --force",
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "drizzle-kit studio --config drizzle.config.local.ts",

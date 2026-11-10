@@ -1,9 +1,11 @@
 // The built-in agent's turns as the account's cell keeps them: a send let in, refused or queued in
 // one transaction; the calls a conversation's object makes back refused for a thread the cell does
 // not hold or a turn not open; each push landed once by its sequence, its events told to the
-// sockets once it commits; the seal, one change set Undo takes back, a turn that cost nothing given
-// back, a cut call booked at what it reserved and a link the turn saved read only then; the
-// switch; and a thread's or the account's deletion taking each conversation's object with it.
+// sockets once it commits and each reply's usage booked on its turn's day; the seal, one change set
+// Undo takes back, a turn Claude could not be reached for given back but a stopped one not, and a
+// link the turn saved read only then; the switch; an object that started over handed its turns
+// again past the pushes the cell landed; and a thread's or the account's deletion taking each
+// conversation's object with it.
 
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -33,7 +35,7 @@ import { agentCellIn, inCell } from "../test-support/library-cell";
 import { openTurnInCell } from "../test-support/thread-host";
 import { dayOf, nextDayAt, UCENTS_PER_CENT } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
-import { landPush, reserveForCall, runAgentJobs, showPreview } from "./agent-turns";
+import { landPush, runAgentJobs, showPreview } from "./agent-turns";
 import { AGENT_MODEL } from "./library-agent";
 import type { PushRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
@@ -104,13 +106,16 @@ const endingsOf = async (account: AgentAccount, threadId: string) => {
   );
 };
 
-// the object's instance gone, its tables of another version, and nothing left to wake it: what a
-// deploy that changes the thread's tables leaves, which the next instance's start wipes
+// the object's instance gone, a migration applied that this build lacks, and nothing left to wake
+// it: what a deploy that regenerates the thread's baseline leaves, which the next instance's
+// constructor wipes
 const startsOver = async (account: AgentAccount, threadId: string): Promise<void> => {
   const thread = threadOf(account.accountId, threadId);
   // committed before the reset, which drops what its own call wrote
   await runInDurableObject(thread, async (_thread: AgentThreadDO, state) => {
-    state.storage.sql.exec("UPDATE meta SET v = '0' WHERE k = 'schema'");
+    state.storage.sql.exec(
+      "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES ('', 0, 'later')",
+    );
     await state.storage.deleteAlarm();
   });
   await expect(
@@ -188,7 +193,7 @@ describe("a send to the built-in agent", () => {
     const account = agentAccount();
     const roomy: Env = {
       ...env,
-      AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10, turnCents: 50 },
+      AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10 },
     };
     // two turns open, as two sends left them, their objects not yet handed them
     const [busy, other] = [crypto.randomUUID(), crypto.randomUUID()];
@@ -228,18 +233,6 @@ describe("what a conversation's object asks of its cell", () => {
     });
     await openTurnInCell(account, threadId, "Open.");
     await expect(account.cell.agentTool({ ...call, threadId, turn: 2 })).resolves.toStrictEqual({
-      ok: false,
-      refusal: "turn-closed",
-    });
-    const reserve = {
-      callId: `${threadId}:2:0:0`,
-      estimate: { frozenTokens: 100, previous: null, promptTokens: 200 },
-      model: AGENT_MODEL.id,
-      resend: null,
-      threadId,
-      turn: 2,
-    };
-    await expect(account.cell.agentReserve(reserve)).resolves.toStrictEqual({
       ok: false,
       refusal: "turn-closed",
     });
@@ -313,80 +306,70 @@ describe("what a conversation's object asks of its cell", () => {
     ]);
   });
 
-  it("books a cut call at what it reserved, and gives back a turn that cost nothing", async () => {
+  it("books a reply's usage at list price on the day its turn started", async () => {
     const account = agentAccount();
-    const [cutThread, freeThread] = [crypto.randomUUID(), crypto.randomUUID()];
-    await openTurnInCell(account, cutThread, "Cut.");
-    await openTurnInCell(account, freeThread, "Free.");
-    const estimate = { frozenTokens: 1000, previous: null, promptTokens: 2000 };
+    const threadId = crypto.randomUUID();
+    await openTurnInCell(account, threadId, "Priced.");
+    // the turn began yesterday, and its reply lands today
+    const yesterday = Date.now() - 24 * 60 * 60_000;
+    await cellRows(
+      account,
+      "UPDATE agent_turns SET started_at = ? WHERE thread_id = ?",
+      yesterday,
+      threadId,
+    );
     await inCell(account.cell, async (state) => {
       const cell = agentCellIn(state, openCellLibrary(state, env));
-      for (const threadId of [cutThread, freeThread]) {
-        const reserved = reserveForCall(cell, {
-          callId: `${threadId}:1:0:0`,
-          estimate,
-          model: AGENT_MODEL.id,
-          resend: null,
+      await expect(
+        landPush(cell, {
+          entries: [
+            {
+              kind: "usage",
+              model: AGENT_MODEL.id,
+              usage: { input_tokens: 1000, output_tokens: 2000 },
+            },
+          ],
+          seq: 1,
           threadId,
           turn: 1,
-        });
-        expect(reserved).toMatchObject({ ok: true, value: { kind: "granted" } });
-      }
-      for (const [threadId, outcome] of [
-        [cutThread, "cut"],
-        [freeThread, "free"],
+        }),
+      ).resolves.toStrictEqual({ ok: true, value: null });
+    });
+    // claude-sonnet-5-5's input and output at 200 and 1,000 micro-cents a token
+    const days = await cellRows(
+      account,
+      "SELECT day, turns, cost_ucents FROM agent_usage ORDER BY day",
+    );
+    expect(days).toStrictEqual([
+      { cost_ucents: 1000 * 200 + 2000 * 1000, day: dayOf(yesterday), turns: 0 },
+      { cost_ucents: 0, day: dayOf(Date.now()), turns: 1 },
+    ]);
+  });
+
+  it("does not give back a turn the person stopped, and gives back one Claude could not be reached for", async () => {
+    const account = agentAccount();
+    const [stopped, unreachable] = [crypto.randomUUID(), crypto.randomUUID()];
+    await openTurnInCell(account, stopped, "Stopped.");
+    await openTurnInCell(account, unreachable, "Unreachable.");
+    await expect(usageToday(account)).resolves.toStrictEqual({ cost_ucents: 0, turns: 2 });
+    await inCell(account.cell, async (state) => {
+      const cell = agentCellIn(state, openCellLibrary(state, env));
+      for (const [threadId, reason] of [
+        [stopped, "cancelled"],
+        [unreachable, "unavailable"],
       ] as const) {
         await landPush(cell, {
-          entries: [
-            { callId: `${threadId}:1:0:0`, kind: "call", outcome },
-            { event: { reason: "unavailable", turn: 1, type: "turn.ended" }, kind: "event" },
-          ],
+          entries: [{ event: { reason, turn: 1, type: "turn.ended" }, kind: "event" }],
           seq: 1,
           threadId,
           turn: 1,
         });
       }
     });
-    const calls = await cellRows(
-      account,
-      "SELECT thread_id, reserved_ucents, cost_ucents, cut FROM agent_calls",
-    );
-    const cut = calls.find((call) => call.thread_id === cutThread);
-    expect(cut?.cost_ucents).toBe(cut?.reserved_ucents);
-    expect(cut?.cut).toBe(1);
-    expect(calls.find((call) => call.thread_id === freeThread)).toMatchObject({
-      cost_ucents: 0,
-      cut: 0,
-    });
-    // both turns sealed; the one that cost nothing was given back
+    // both turns sealed; only the unreachable one was given back
     await expect(cellRows(account, "SELECT thread_id FROM agent_turns")).resolves.toStrictEqual([]);
-    const usage = await usageToday(account);
-    expect(usage).toStrictEqual({ cost_ucents: cut?.reserved_ucents, turns: 1 });
+    await expect(usageToday(account)).resolves.toStrictEqual({ cost_ucents: 0, turns: 1 });
   });
-
-  it(
-    "ends a turn whose call the allowance cannot reserve, sending nothing, and gives it back",
-    { timeout: TURN_MS },
-    async () => {
-      const account = agentAccount();
-      // a cent of the day left: a send is let in, and its first call buys too little to answer
-      await spentToday(account, 99);
-      const before = await fakeStats();
-      const sent = await send(account, script("Go on."));
-      await settled(account, sent.threadId);
-      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
-        { reason: "budget" },
-      ]);
-      const after = await fakeStats();
-      expect(after.requests).toBe(before.requests);
-      await expect(usageToday(account)).resolves.toStrictEqual({
-        cost_ucents: 99 * UCENTS_PER_CENT,
-        turns: 0,
-      });
-      // the conversation goes on from there the next time the day allows
-      await expect(threadStatus(account, sent.threadId)).resolves.toBe("idle");
-    },
-  );
 });
 
 describe("a turn's seal", () => {
@@ -583,9 +566,27 @@ describe("the switch and deletion", () => {
       const account = agentAccount();
       const sent = await send(account, script("Before."));
       await settled(account, sent.threadId);
+      const [landed] = await cellRows(
+        account,
+        "SELECT seq FROM agent_pushes WHERE thread_id = ?",
+        sent.threadId,
+      );
+      const warned = vi.spyOn(console, "warn");
       await startsOver(account, sent.threadId);
       await send(account, script("After."), sent.threadId);
       await settled(account, sent.threadId);
+      expect(warned).toHaveBeenCalledWith({
+        event: "thread-schema-reset",
+        found: expect.objectContaining({ kind: "drizzle" }),
+      });
+      warned.mockRestore();
+      // its sequence went on past the last push the cell landed, which the delivery said
+      const [pushed] = await threadRows(
+        account.accountId,
+        sent.threadId,
+        "SELECT push_seq FROM thread_meta",
+      );
+      expect(z.number().parse(pushed?.push_seq)).toBeGreaterThan(z.number().parse(landed?.seq));
       await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
         { reason: "done" },
         { reason: "done" },

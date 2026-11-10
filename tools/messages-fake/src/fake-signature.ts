@@ -1,4 +1,4 @@
-// The fake's thinking signatures, bound as Claude Opus 5.5 binds a replayed thinking block: to the
+// The fake's thinking signatures, bound as Claude Sonnet 5.5 binds a replayed thinking block: to the
 // request's system, its tools and every message before the block from the conversation's last
 // compaction block on, compared as the API compares them (`./fake-request.ts` `prefixOf`), and
 // chained to the thinking block before it since that compaction. So a request that leaves out a

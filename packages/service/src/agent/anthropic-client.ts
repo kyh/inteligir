@@ -4,7 +4,7 @@
 // Anthropic key itself (BYOK, provider credentials required), so the Worker sends no key: the
 // SDK's own `x-api-key` and `Authorization` are left off and the gateway's token rides
 // `cf-aig-authorization`, and every request asks the gateway to keep no prompt or reply, only its
-// metadata. The SDK retries nothing, since a thread sends a cut or failed call again itself, whole
+// metadata, the account it is for among them. The SDK retries nothing, since a thread sends a cut or failed call again itself, whole
 // (`./thread-loop`). With no gateway the client is null: every send answers that the agent cannot
 // be reached, and nothing is faked. The local Worker and the e2e scenarios name instead the
 // scripted Messages API on this machine (tools/messages-fake) by `ANTHROPIC_FAKE_URL`, which only
@@ -65,8 +65,13 @@ const routeOf = (env: Env): { readonly baseURL: string; readonly token: string }
 // cell asks before it lets a send in
 export const agentConfigured = (env: Env): boolean => routeOf(env) !== null;
 
-// `fetch` is the thread's listening one over the platform's (`./thread-loop`), or a suite's own
-export const anthropicClient = (env: Env, fetch?: ClientOptions["fetch"]): Anthropic | null => {
+// a client for one account's conversations; `fetch` is the thread's listening one over the
+// platform's (`./thread-loop`), or a suite's own
+export const anthropicClient = (
+  env: Env,
+  accountId: string,
+  fetch?: ClientOptions["fetch"],
+): Anthropic | null => {
   const route = routeOf(env);
   if (route === null) {
     return null;
@@ -79,6 +84,9 @@ export const anthropicClient = (env: Env, fetch?: ClientOptions["fetch"]): Anthr
       Authorization: null,
       "cf-aig-authorization": `Bearer ${route.token}`,
       "cf-aig-collect-log-payload": "false",
+      // the gateway's spend limit splits by it, so each account is held to a limit of its own
+      // (developers.cloudflare.com/ai-gateway/observability/custom-metadata/)
+      "cf-aig-metadata": JSON.stringify({ account: accountId }),
     },
     fetch,
     maxRetries: 0,

@@ -1,18 +1,18 @@
 // The built-in agent's turns, as the account's cell keeps them: `library.agent.*` as the person
-// asks, and the four calls each conversation's object makes back (`./thread-wire`). A send is let
+// asks, and the three calls each conversation's object makes back (`./thread-wire`). A send is let
 // in, in one transaction, when the agent is on and Claude reachable, and the day's turns and cost
 // allow it: a new thread gets its row, and the turn opens, or waits behind its thread's open turn
 // or while the account runs as many as it may at once. An open turn is handed to its thread's
-// object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every model
-// call the object makes is reserved here first and settled at its exact usage after; every tool
+// object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every tool
 // call runs here, under the turn, against the library's own procedures; and what the turn did
-// lands here as pushes, each once by its sequence, as the thread's stored events. The push that
-// ends a turn seals it: one change set, its open reservations booked, a turn that cost nothing
-// given back, the links it saved read, and the next waiting send let in. A watch job asks after a
-// turn whose object it has not heard from in five minutes.
+// lands here as pushes, each once by its sequence, as the thread's stored events and each reply's
+// usage, booked at list price on the day the turn started. The push that ends a turn seals it: one
+// change set, the turn given back when Claude could not be reached, the links it saved read, and
+// the next waiting send let in. A watch job asks after a turn whose object it has not heard from
+// in five minutes.
 
 import { agentEventSchema, agentPreviewSchema } from "@repo/contract/library/agent-events";
-import type { AgentEvent } from "@repo/contract/library/agent-events";
+import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { ORPCError } from "@orpc/server";
@@ -38,19 +38,12 @@ import { pushedEventId, storeEvent, turnEventId } from "./agent-events";
 import type { ThreadEventRow } from "./agent-events";
 import {
   allowanceOf,
+  bookCost,
   bookTurn,
   dayOf,
-  heldReservation,
-  limitsOf,
   nextDayAt,
-  pricesFor,
   pricesOf,
   priceUsage,
-  recordReservation,
-  reservationOf,
-  resendReservationOf,
-  settleCall,
-  settleTurnCalls,
   turnsLeft,
   usageReportSchema,
 } from "./agent-allowance";
@@ -82,19 +75,12 @@ import {
   turnActor,
 } from "./turn-rows";
 import type { OpenTurn, TurnMessage } from "./turn-rows";
-import {
-  previewRequestSchema,
-  pushRequestSchema,
-  reserveRequestSchema,
-  toolRequestSchema,
-} from "./thread-wire";
+import { previewRequestSchema, pushRequestSchema, toolRequestSchema } from "./thread-wire";
 import type {
   CellAnswer,
   PreviewRequest,
   PushEntry,
   PushRequest,
-  Reservation,
-  ReserveRequest,
   ThreadInspection,
   ToolAnswer,
   ToolRequest,
@@ -242,12 +228,13 @@ const sealTurnSet = (
   return ids;
 };
 
-// a turn over: its change set sealed, every call still open booked at what it reserved, a turn
-// that cost nothing given back, the links it saved let go to be read, and its row gone
-const closeTurn = (scope: LandingScope, turn: OpenTurn): void => {
+// a turn over: its change set sealed, the turn given back when it ended because Claude could not be
+// reached, the links it saved let go to be read, and its row gone. A turn the person stopped still
+// counts, so a send stopped at once is no free call
+const closeTurn = (scope: LandingScope, turn: OpenTurn, reason: TurnEndReason): void => {
   const { storage, now } = scope;
   const sets = sealTurnSet(storage, turn, now);
-  if (settleTurnCalls(storage, turn) === 0) {
+  if (reason === "unavailable") {
     bookTurn(storage, dayOf(turn.startedAt), -1);
   }
   releaseHeldFills(storage.db, sets, now);
@@ -268,12 +255,14 @@ const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): P
   );
 };
 
-// the open turn handed to its thread's object, and stopped there when the person stopped it; the
-// job stays for the alarm until both landed
+// the open turn handed to its thread's object with the last push landed of it, and stopped there
+// when the person stopped it; the job stays for the alarm until both landed
 const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((storage) => {
     const turn = openTurnOf(storage, threadId);
-    return turn === null ? null : { rules: filingRules(storage.db), turn };
+    return turn === null
+      ? null
+      : { pushedThrough: lastPush(storage, threadId), rules: filingRules(storage.db), turn };
   });
   if (!read.ok) {
     return;
@@ -284,12 +273,13 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
     });
     return;
   }
-  const { rules, turn } = read.value;
+  const { pushedThrough, rules, turn } = read.value;
   const stub = threadStub(cell.exports, cell.accountId, threadId);
   try {
     await stub.send({
       content: turnUserMessage(turn.message),
       opId: `${threadId}:${String(turn.turn)}`,
+      pushedThrough,
       rules,
       threadId,
       turn: turn.turn,
@@ -516,7 +506,7 @@ export const deleteAgentThread = async (
     knownThread(storage, input.threadId);
     const open = openTurnOf(storage, input.threadId);
     if (open !== null) {
-      closeTurn(scope, open);
+      closeTurn(scope, open, "cancelled");
     }
     dropQueuedFor(storage, input.threadId);
     forgetPushes(storage, input.threadId);
@@ -576,72 +566,6 @@ const turnNamed = (
   return open?.turn === named.turn ? { kind: "open", turn: open } : { kind: "turn-closed" };
 };
 
-const reserveOutcomeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("granted"), maxTokens: z.number() }),
-  z.object({ kind: z.literal("refused") }),
-  z.object({ kind: z.literal("unknown-thread") }),
-  z.object({ kind: z.literal("turn-closed") }),
-]);
-
-// a model call's cap, before it is sent, recorded as its reservation; asked again for a call it
-// already reserved, the same cap
-export const reserveForCall = (
-  cell: AgentCell,
-  request: ReserveRequest,
-): CellAnswer<Reservation> => {
-  const parsed = reserveRequestSchema.safeParse(request);
-  if (!parsed.success) {
-    console.error({ event: "agent-reserve-malformed", issues: parsed.error.issues.length });
-    return { ok: true, value: { kind: "refused" } };
-  }
-  const { callId, estimate, threadId, turn } = parsed.data;
-  const allowance = allowanceOf(cell.env);
-  const prices = pricesFor(pricesOf(cell.env), parsed.data.model);
-  const landed = cell.library.landApart(
-    { answer: reserveOutcomeSchema, opId: undefined },
-    (scope): z.infer<typeof reserveOutcomeSchema> => {
-      const { storage, now } = scope;
-      const named = turnNamed(storage, { threadId, turn });
-      if (named.kind !== "open") {
-        return { kind: named.kind };
-      }
-      heardFrom(storage, threadId, now);
-      const held = heldReservation(storage, callId);
-      if (held !== null) {
-        return { kind: "granted", maxTokens: held.max_tokens };
-      }
-      const limits = limitsOf(storage, named.turn, allowance, now);
-      const answer =
-        parsed.data.resend === null
-          ? reservationOf(estimate, prices, limits, now)
-          : resendReservationOf(estimate, prices, parsed.data.resend, limits, now);
-      if (answer.kind === "refused") {
-        return answer;
-      }
-      recordReservation(
-        storage,
-        {
-          callId,
-          maxTokens: answer.maxTokens,
-          reservedUcents: answer.reservedUcents,
-          threadId,
-          turn,
-        },
-        now,
-      );
-      return { kind: "granted", maxTokens: answer.maxTokens };
-    },
-  );
-  if (!landed.ok) {
-    return gone();
-  }
-  const outcome = landed.value;
-  if (outcome.kind === "unknown-thread" || outcome.kind === "turn-closed") {
-    return { ok: false, refusal: outcome.kind };
-  }
-  return { ok: true, value: outcome };
-};
-
 // one tool call of an open turn, run as that turn's; its refusal or failure is the agent's to read
 export const runTurnTool = async (
   cell: AgentCell,
@@ -677,29 +601,25 @@ const pushOutcomeSchema = z.object({
   rows: z.array(threadEventRowSchema),
 });
 
-const settleEntry = (
+// a reply's usage at list price, booked on the day its turn started; a report this build cannot
+// read books nothing, and is logged
+const bookUsage = (
   sql: SqlStatements,
-  entry: Extract<PushEntry, { readonly kind: "call" }>,
+  turn: OpenTurn,
+  entry: Extract<PushEntry, { readonly kind: "usage" }>,
   prices: PriceTable,
 ): void => {
-  if (entry.outcome !== "billed") {
-    settleCall(sql, entry.callId, entry.outcome === "cut" ? "reserved" : "free");
-    return;
-  }
   const report = usageReportSchema.safeParse(entry.usage);
   if (!report.success) {
     console.error({ event: "agent-usage-malformed", issues: report.error.issues.length });
+    return;
   }
-  settleCall(
-    sql,
-    entry.callId,
-    report.success ? priceUsage(report.data, entry.model, prices) : "reserved",
-  );
+  bookCost(sql, dayOf(turn.startedAt), priceUsage(report.data, entry.model, prices));
 };
 
 // one push of a thread's object, applied once by its sequence in one transaction: its events
-// stored, its calls settled, the thread's status moved, and the turn sealed by the push that ends
-// it
+// stored, its replies' usage booked, the thread's status moved, and the turn sealed by the push
+// that ends it
 export const landPush = async (
   cell: AgentCell,
   request: PushRequest,
@@ -730,10 +650,10 @@ export const landPush = async (
       }
       heardFrom(storage, push.threadId, scope.now);
       const rows: ThreadEventRow[] = [];
-      let ended = false;
+      let ended: TurnEndReason | null = null;
       for (const [index, entry] of push.entries.entries()) {
-        if (entry.kind === "call") {
-          settleEntry(storage, entry, prices);
+        if (entry.kind === "usage") {
+          bookUsage(storage, named.turn, entry, prices);
           continue;
         }
         const id = pushedEventId(push.threadId, push.seq, index);
@@ -749,10 +669,12 @@ export const landPush = async (
           );
           setThreadStatus(scope, push.threadId, status);
         }
-        ended ||= entry.event.type === "turn.ended";
+        if (entry.event.type === "turn.ended") {
+          ended = entry.event.reason;
+        }
       }
-      if (ended) {
-        closeTurn(scope, named.turn);
+      if (ended !== null) {
+        closeTurn(scope, named.turn, ended);
         restThread(scope, push.threadId);
         rows.push(...openWaiting(scope, allowance, push.threadId));
       }

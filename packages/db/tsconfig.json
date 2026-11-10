@@ -10,9 +10,10 @@
     "drizzle.config.ts",
     "drizzle.config.local.ts",
     "drizzle.config.cell.ts",
-    "drizzle.config.note.ts"
+    "drizzle.config.note.ts",
+    "drizzle.config.thread.ts"
   ],
   // drizzle-kit's output, which imports each migration's SQL as a text module: the Worker's
   // programs that bundle it type that (packages/service/src/types/sql-modules.d.ts)
-  "exclude": ["node_modules", "src/cell/migrations", "src/note/migrations"]
+  "exclude": ["node_modules", "src/cell/migrations", "src/note/migrations", "src/thread/migrations"]
 }

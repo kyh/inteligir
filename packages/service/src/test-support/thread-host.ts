@@ -3,27 +3,28 @@
 // Lifecycle's queue: a retry it times for later, an approval's ten minutes, are each run at once
 // by the suite, so what a deployed thread waits seconds or minutes for is a step away. The cell
 // holds the thread and its open turn as a send leaves them; the delivery is the one the cell would
-// hand over, the library's filing rules with it, and the next turn is handed over the same way once
-// the last has sealed. A suite may
+// hand over, the library's filing rules and the last push the cell landed of the thread with it,
+// and the next turn is handed over the same way once the last has sealed. A suite may
 // stand in for the deployment's definition, to swap it between steps as a deploy would, and reads
 // every request body the loop sent.
 
+import { threadTurns } from "@repo/db/thread/schema";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
+import { max } from "drizzle-orm";
 import { z } from "zod";
 
 import type { AgentThreadDO } from "../agent/agent-thread";
 import { anthropicClient } from "../agent/anthropic-client";
+import { threadDbOf } from "../agent/thread-db";
 import { acceptDelivery, listeningFetch, rulesHashOf, step } from "../agent/thread-loop";
 import type { CallInFlight, StepResult, ThreadCell, ThreadHost } from "../agent/thread-loop";
 import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
-import { openThreadSchema } from "../agent/thread-schema";
 import { turnUserMessage } from "../agent/turn-message";
 import { bookTurn, dayOf } from "../agent/agent-allowance";
-import { createThread, insertTurn, setThreadStatus } from "../agent/turn-rows";
+import { createThread, insertTurn, lastPush, setThreadStatus } from "../agent/turn-rows";
 import { openCellLibrary } from "../library/cell-library";
-import { cellStorageOf } from "../library/cell-storage";
 import { libraryCellName } from "../library/library-cell";
 import { filingRules } from "../library/library-rules";
 import type { AgentAccount } from "./agent-turns";
@@ -49,18 +50,20 @@ export interface SteppedThread {
   readonly deliver: (text: string) => Promise<number>;
 }
 
+const handedSchema = z.object({ pushedThrough: z.number(), rules: z.string().nullable() });
+
 // a send's open turn in the cell, as an admission leaves it, its thread new for the first: the
-// filing rules a delivery of it carries
+// filing rules a delivery of it carries, and the last push the cell landed of the thread
 export const openTurnInCell = async (
   account: AgentAccount,
   threadId: string,
   text: string,
   turn = 1,
-): Promise<string | null> =>
+): Promise<z.infer<typeof handedSchema>> =>
   await inCell(account.cell, (state) => {
     const library = openCellLibrary(state, env);
     return valueOf(
-      library.landApart({ answer: z.string().nullable(), opId: undefined }, (scope) => {
+      library.landApart({ answer: handedSchema, opId: undefined }, (scope) => {
         if (turn === 1) {
           createThread(scope, threadId, text);
         }
@@ -72,12 +75,13 @@ export const openTurnInCell = async (
         });
         bookTurn(scope.storage, dayOf(scope.now), 1);
         setThreadStatus(scope, threadId, "running");
-        return filingRules(scope.storage.db);
+        return {
+          pushedThrough: lastPush(scope.storage, threadId),
+          rules: filingRules(scope.storage.db),
+        };
       }),
     );
   });
-
-const turnSchema = z.object({ turn: z.number() });
 
 // the thread's loop inside its own object, the turn the cell holds open handed in as delivered;
 // `cell` stands in for the cell's answers where the suite needs one to fail, and `definition` for
@@ -92,13 +96,12 @@ export const inSteppedThread = async <T>(
     readonly definition?: () => ThreadDefinition;
   } = {},
 ): Promise<T> => {
-  const rules = await openTurnInCell(account, threadId, text);
+  const first = await openTurnInCell(account, threadId, text);
   const real = (): ThreadCell => exports.LibraryDO.getByName(libraryCellName(account.accountId));
   return await runInDurableObject(
     threadOf(account.accountId, threadId),
     async (_thread: AgentThreadDO, state) => {
-      const sql = cellStorageOf(state.storage);
-      openThreadSchema(sql);
+      const db = threadDbOf(state.storage);
       const asked: AskedJobs = { approvals: new Map(), drives: [], outbox: [] };
       const calls = new Map<number, CallInFlight>();
       const sent: string[] = [];
@@ -106,8 +109,9 @@ export const inSteppedThread = async <T>(
       const host: ThreadHost = {
         calls,
         cell: () => options.cell?.(real()) ?? real(),
+        db,
         client: () =>
-          anthropicClient(env, async (input, init) => {
+          anthropicClient(env, account.accountId, async (input, init) => {
             const request = new Request(input, init);
             sent.push(await request.clone().text());
             return await listening(request);
@@ -132,13 +136,13 @@ export const inSteppedThread = async <T>(
         purge: async () => {
           await state.storage.deleteAll();
         },
-        sql,
         threadId,
+        transaction: (run) => state.storage.transactionSync(run),
       };
       const handOver = async (turn: {
         readonly text: string;
         readonly turn: number;
-        readonly rules: string | null;
+        readonly handed: z.infer<typeof handedSchema>;
       }) => {
         const content = turnUserMessage({ text: turn.text, viewContext: null });
         acceptDelivery(
@@ -146,17 +150,21 @@ export const inSteppedThread = async <T>(
           {
             content,
             opId: `${threadId}:${String(turn.turn)}`,
-            rules: turn.rules,
+            pushedThrough: turn.handed.pushedThrough,
+            rules: turn.handed.rules,
             threadId,
             turn: turn.turn,
           },
-          await rulesHashOf(turn.rules),
+          await rulesHashOf(turn.handed.rules),
         );
       };
-      await handOver({ rules, text, turn: 1 });
+      await handOver({ handed: first, text, turn: 1 });
       const deliver = async (next: string): Promise<number> => {
-        const [last] = sql.all("SELECT max(turn) AS turn FROM turns", []);
-        const turn = turnSchema.parse(last).turn + 1;
+        const turn =
+          (db
+            .select({ last: max(threadTurns.turn) })
+            .from(threadTurns)
+            .get()?.last ?? 0) + 1;
         // a stub made here, inside the thread's object, which may not use one made outside it
         const held = await openTurnInCell(
           { ...account, cell: cellOf(account.accountId) },
@@ -164,7 +172,7 @@ export const inSteppedThread = async <T>(
           next,
           turn,
         );
-        await handOver({ rules: held, text: next, turn });
+        await handOver({ handed: held, text: next, turn });
         return turn;
       };
       const run = async (most = 40): Promise<StepResult[]> => {

@@ -10,7 +10,8 @@
 // Lifecycle retries a job three times in process by default. A fresh instance holds no work, so
 // every `drive` job it finds is an orphan, woken at once. Each RPC starts the lifecycle, as native
 // RPC needs, and is safe to repeat. A cell that answers that it holds no such thread has the object
-// purge itself.
+// purge itself. Its schema is migrated in the constructor, before Lifecycle's first job makes its
+// own table, which a later migration would take for tables drizzle did not make.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { Lifecycle } from "agents/lifecycle";
@@ -18,10 +19,11 @@ import type { LifecycleJobContext, LifecycleJobOutcome } from "agents/lifecycle"
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
-import { cellStorageOf } from "../library/cell-storage";
 import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
+import { openWithSchema } from "../object-schema";
 import { anthropicClient } from "./anthropic-client";
+import { migrateThread, threadDbOf } from "./thread-db";
 import {
   acceptDelivery,
   cutSilentCalls,
@@ -35,7 +37,6 @@ import {
 } from "./thread-loop";
 import type { CallInFlight, ThreadHost } from "./thread-loop";
 import { deployedDefinition } from "./thread-request";
-import { openThreadSchema } from "./thread-schema";
 import { deliveryRequestSchema, respondRequestSchema } from "./thread-wire";
 import type { DeliveryRequest, RespondRequest, ThreadInspection } from "./thread-wire";
 
@@ -80,6 +81,12 @@ export class AgentThreadDO extends DurableObject<Env> {
   #again = false;
   #purged = false;
   #client: Anthropic | null | undefined;
+  readonly #db = threadDbOf(this.ctx.storage);
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    openWithSchema(ctx, "thread", migrateThread);
+  }
 
   #host(): ThreadHost {
     const { accountId, threadId } = threadNameOf(this.ctx.id.name);
@@ -87,8 +94,13 @@ export class AgentThreadDO extends DurableObject<Env> {
     return {
       calls: this.#calls,
       cell: () => libraryCell(this.ctx.exports, accountId),
+      db: this.#db,
       client: () => {
-        this.#client ??= anthropicClient(this.env, listeningFetch(this.#calls, Date.now));
+        this.#client ??= anthropicClient(
+          this.env,
+          accountId,
+          listeningFetch(this.#calls, Date.now),
+        );
         return this.#client;
       },
       definition: deployedDefinition,
@@ -117,15 +129,14 @@ export class AgentThreadDO extends DurableObject<Env> {
       purge: async () => {
         await this.#purge();
       },
-      sql: cellStorageOf(this.ctx.storage),
       threadId,
+      transaction: (work) => this.ctx.storage.transactionSync(work),
     };
   }
 
   // ---- Lifecycle's hooks ----
 
   async onStart(): Promise<void> {
-    openThreadSchema(cellStorageOf(this.ctx.storage));
     for (const job of this.lifecycle.jobs.list()) {
       if (job.fn === DRIVE_JOB) {
         await this.lifecycle.jobs.reschedule(job.id, Date.now());
