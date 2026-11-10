@@ -2,13 +2,9 @@
 // open item, and the conversation's "Undo this turn", pressed right after a line the person typed
 // since and before the note's save, takes the agent's line back and keeps the person's.
 
-import { z } from "zod";
-import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
-import type { AgentBrowser } from "../harness/agent-browser";
+import { caretToEndOf, clickButtonIn, press, untilEditorHolds } from "../harness/agent-browser";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { openLibraryTab, untilItemText } from "../harness/library-tab";
-import type { Library } from "../harness/library-tab";
-import { pollUntil } from "../harness/poll";
+import { openLibraryTab, untilItemText, untilThreadStatus } from "../harness/library-tab";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
@@ -21,38 +17,6 @@ const DOC = `# ${TITLE}\n\n${FIRST}\n\n${KEPT}\n`;
 const PANEL_TOGGLE = 'button[aria-label="Info and the agent"]';
 const PANEL = '[data-side="right"]';
 const DEADLINE_MS = 30_000;
-
-const editorText = async (browser: AgentBrowser): Promise<string> =>
-  parseEval(
-    await browser(["eval", `String(document.querySelector('${EDITOR}')?.textContent ?? "")`]),
-    z.string(),
-  );
-
-const untilEditor = async (
-  browser: AgentBrowser,
-  holds: (text: string) => boolean,
-  what: string,
-): Promise<void> => {
-  await pollUntil(async () => await editorText(browser), holds, {
-    deadlineMs: DEADLINE_MS,
-    describe: (text) => `${what}; the editor holds:\n${text}`,
-  });
-};
-
-// the account's conversation, once its turn has ended
-const untilIdle = async (library: Library, threadId: string): Promise<void> => {
-  await pollUntil(
-    async () => {
-      const { threads } = await library.agent.list({});
-      return threads.find((thread) => thread.id === threadId)?.status ?? null;
-    },
-    (status) => status === "idle",
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (status) => `the turn never ended: the thread is ${String(status)}`,
-    },
-  );
-};
 
 export const undoBrowser: Scenario = {
   description:
@@ -69,15 +33,19 @@ export const undoBrowser: Scenario = {
         itemId = item.id;
       },
     });
-    await untilEditor(browser, (text) => text.includes(KEPT), "the item never opened");
+    await untilEditorHolds(browser, (text) => text.includes(KEPT), "the item never opened");
 
     ctx.log("a turn of the agent rewrites the first line, and the open item shows it");
     const edit = { edits: [{ newText: SECOND, oldText: FIRST }], id: itemId };
     const { threadId } = await library.agent.send({
       text: `Rewrite the draft.\ncall edit_item ${JSON.stringify(edit)}`,
     });
-    await untilIdle(library, threadId);
-    await untilEditor(browser, (text) => text.includes(SECOND), "the agent's line never showed");
+    await untilThreadStatus(library, threadId, "idle");
+    await untilEditorHolds(
+      browser,
+      (text) => text.includes(SECOND),
+      "the agent's line never showed",
+    );
 
     ctx.log("the conversation is in the panel, its turn offering Undo this turn");
     await browser(["click", PANEL_TOGGLE]);
@@ -98,6 +66,10 @@ export const undoBrowser: Scenario = {
       kept,
       "the cell never held the first line and the typed one",
     );
-    await untilEditor(browser, kept, "the editor never showed the first line and the typed one");
+    await untilEditorHolds(
+      browser,
+      kept,
+      "the editor never showed the first line and the typed one",
+    );
   },
 };

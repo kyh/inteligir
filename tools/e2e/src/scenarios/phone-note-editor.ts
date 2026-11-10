@@ -16,7 +16,7 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { noteActions } from "@repo/mobile/editor/note-actions";
 import { z } from "zod";
 
-import { caretToEndOf, parseEval } from "../harness/agent-browser";
+import { caretToEndOf, editorText, parseEval, untilEditorHolds } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
@@ -186,17 +186,12 @@ const untilBooted = async (page: AgentBrowser): Promise<void> => {
   }
 };
 
-const editorText = async (browser: AgentBrowser): Promise<string> =>
-  await evalString(browser, `document.querySelector(${JSON.stringify(EDITOR)})?.textContent ?? ""`);
-
 const untilShows = async (browser: AgentBrowser, text: string, where: string): Promise<void> => {
-  await pollUntil(
-    async () => await editorText(browser),
+  await untilEditorHolds(
+    browser,
     (shown) => shown.includes(text),
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (shown) => `${where} never showed "${text}"; it holds:\n${shown}`,
-    },
+    `${where} never showed "${text}"`,
+    DEADLINE_MS,
   );
 };
 

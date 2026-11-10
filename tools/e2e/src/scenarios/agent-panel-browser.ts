@@ -7,7 +7,7 @@
 import { modChord, clickButtonIn, untilBodyHolds } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { openLibraryTab } from "../harness/library-tab";
+import { agentSets, isDeleted, openLibraryTab } from "../harness/library-tab";
 import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -21,11 +21,6 @@ const DEADLINE_MS = 60_000;
 const LONG_REPLY_CHARS = 6000;
 const PREVIEW = "[data-agent-preview]";
 
-const isDeleted = async (library: Library, id: string): Promise<boolean> => {
-  const { fields } = await library.items.read({ id });
-  return fields.deletedAt !== null;
-};
-
 const untilDeleted = async (library: Library, id: string, deleted: boolean): Promise<void> => {
   await pollUntil(
     async () => await isDeleted(library, id),
@@ -35,12 +30,6 @@ const untilDeleted = async (library: Library, id: string, deleted: boolean): Pro
       describe: () => `${id} is ${deleted ? "still in the library" : "still in Deleted"}`,
     },
   );
-};
-
-// the agent's change sets, newest first
-const agentSets = async (library: Library) => {
-  const { changeSets } = await library.history.list({});
-  return changeSets.filter((set) => set.actor === "agent");
 };
 
 export const agentPanelBrowser: Scenario = {

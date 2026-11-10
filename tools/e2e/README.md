@@ -99,11 +99,14 @@ is refused, never left running or printed under the next scenario:
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
 and fails with what the last read held; `modChord` for the platform's
-modifier key, `clickButtonIn`, `press`, `caretToEndOf` and `untilBodyHolds`
-(`agent-browser.ts`); the library page's selectors (`selectors.ts`); the
-library's tab over a booted Worker, with a session of the account to seed and
-read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
-`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
+modifier key, `clickButtonIn`, `press`, `caretToEndOf`, `untilBodyHolds`,
+the editor's text and a wait on it (`editorText`, `untilEditorHolds`) and the
+site's sign-in (`submitSiteSignIn`) (`agent-browser.ts`); the library page's
+selectors (`selectors.ts`); the library's tab over a booted Worker, with a
+session of the account to seed and read the cell through `/v1`
+(`openLibraryTab` and `untilItemText`), and the conversation and change-set
+reads the agent's scenarios share (`untilThreadStatus`, `isDeleted`,
+`agentSets`) (`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
 Worker (`cloud-account.ts`); `/v1` as a phone or the extension calls it, a file's upload and read and
 an item's fields as the cell holds them (`v1-wire.ts`); the
 phone's own runtime under node over its own database, signed in as the

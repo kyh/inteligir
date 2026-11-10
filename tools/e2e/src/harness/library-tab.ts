@@ -14,6 +14,7 @@ import { asExtension, uploadFile, v1Client } from "./v1-wire";
 const DEADLINE_MS = 30_000;
 
 export type Library = V1Client["library"];
+type ThreadStatus = Awaited<ReturnType<Library["agent"]["list"]>>["threads"][number]["status"];
 
 export interface LibraryTab {
   readonly worker: CloudWorker;
@@ -65,6 +66,37 @@ export const openLibraryTab = async (
   }
   await browser.openLibrary(worker, open);
   return { account, browser, library, worker };
+};
+
+// the account's conversation as it lists it, once it reaches `status`, the one a turn leaves it in
+export const untilThreadStatus = async (
+  library: Library,
+  threadId: string,
+  status: ThreadStatus,
+  deadlineMs = DEADLINE_MS,
+): Promise<void> => {
+  await pollUntil(
+    async () => {
+      const { threads } = await library.agent.list({});
+      return threads.find((thread) => thread.id === threadId)?.status ?? null;
+    },
+    (current) => current === status,
+    {
+      deadlineMs,
+      describe: (current) => `thread ${threadId} is ${String(current)}, not ${status}`,
+    },
+  );
+};
+
+export const isDeleted = async (library: Library, id: string): Promise<boolean> => {
+  const { fields } = await library.items.read({ id });
+  return fields.deletedAt !== null;
+};
+
+// the agent's change sets, newest first
+export const agentSets = async (library: Library) => {
+  const { changeSets } = await library.history.list({});
+  return changeSets.filter((set) => set.actor === "agent");
 };
 
 // an item's markdown as the cell holds it, once it holds what `holds` waits for

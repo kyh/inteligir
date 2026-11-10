@@ -6,11 +6,16 @@
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
-import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
+import {
+  caretToEndOf,
+  clickButtonIn,
+  parseEval,
+  press,
+  untilEditorHolds,
+} from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { openLibraryTab, untilItemText } from "../harness/library-tab";
-import type { Library } from "../harness/library-tab";
+import { openLibraryTab, untilItemText, untilThreadStatus } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
@@ -34,42 +39,18 @@ const PANEL = '[data-side="right"]';
 const EDITABLE = `String(document.querySelector('${EDITOR}')?.getAttribute("contenteditable"))`;
 const DEADLINE_MS = 30_000;
 
-const editorText = async (browser: AgentBrowser): Promise<string> =>
-  parseEval(
-    await browser(["eval", `String(document.querySelector('${EDITOR}')?.textContent ?? "")`]),
-    z.string(),
-  );
-
 const untilShows = async (
   browser: AgentBrowser,
   tab: string,
   holds: (text: string) => boolean,
   what: string,
 ): Promise<void> => {
-  await pollUntil(async () => await editorText(browser), holds, {
-    deadlineMs: DEADLINE_MS,
-    describe: (text) => `tab ${tab} never showed ${what}; its editor holds:\n${text}`,
-  });
+  await untilEditorHolds(browser, holds, `tab ${tab} never showed ${what}`, DEADLINE_MS);
 };
 
 const typeAfter = async (browser: AgentBrowser, line: string, typed: string): Promise<void> => {
   await caretToEndOf(browser, line);
   await browser(["keyboard", "type", typed]);
-};
-
-// the account's conversation, once its turn has ended
-const untilIdle = async (library: Library, threadId: string): Promise<void> => {
-  await pollUntil(
-    async () => {
-      const { threads } = await library.agent.list({});
-      return threads.find((thread) => thread.id === threadId)?.status ?? null;
-    },
-    (status) => status === "idle",
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (status) => `the turn never ended: the thread is ${String(status)}`,
-    },
-  );
 };
 
 export const liveNoteBrowser: Scenario = {
@@ -115,7 +96,7 @@ export const liveNoteBrowser: Scenario = {
     });
     await typeAfter(a.browser, `${LINE_ONE}${FROM_A}`, WHILE_AGENT);
     const { threadId } = await sending;
-    await untilIdle(library, threadId);
+    await untilThreadStatus(library, threadId, "idle");
     const both = (text: string): boolean =>
       text.includes(AGENT_LINE) && text.includes(WHILE_AGENT.trim()) && !text.includes(LINE_THREE);
     await untilShows(a.browser, "A", both, "the agent's line beside the typing");
