@@ -1,10 +1,11 @@
 // An item's rich surface, by its id: the editor bound to the note's live document
 // (`note-connection.ts`), drawn only once that document has synced, so no device seeds a note and
-// nothing is typed into a value the note then replaces. Each item gets a connection of its own,
-// and each document an editor of its own, since a reopen replaces the document. An edit reaches
-// the note as it is typed; with no connection, or a note that holds its edits back, the surface
-// reads but takes no edit and says why above the text. A formula's display follows the pills it
-// names, and the desktop draws the outline beside the text.
+// nothing is typed into a value the note then replaces. Each item gets a connection of its own, and
+// each document an editor of its own, since a reopen replaces the document. An edit reaches the
+// note as it is typed; with no connection, or a note that holds its edits back, the surface reads
+// but takes no edit and says why above the text, and a note that cannot open with no connection
+// shows what the host holds of it until it opens. A formula's display follows the pills it names,
+// and the desktop draws the outline beside the text.
 
 import {
   useEffect,
@@ -19,13 +20,13 @@ import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 import { YjsEditor } from "@slate-yjs/core";
 import type * as Y from "yjs";
 
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
 import { cn } from "@repo/ui/lib/cn";
 
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
-import type { EditorProfile } from "@repo/editor/editor-profile";
 import { watchFileKeeps } from "@repo/editor/file-keeps";
 import {
   followItemFormulas,
@@ -45,8 +46,10 @@ import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemProvider } from "@repo/editor/open-item";
 import { TableOfContents } from "@repo/editor/toc";
 
+import { HeldItem } from "./held-item";
 import { noteConnection } from "./note-connection";
 import type { NoteConnection, NoteHeld, NoteStatus } from "./note-connection";
+import { Notice } from "./notice";
 
 // a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
@@ -131,18 +134,6 @@ const FormulaRecompute = ({ itemId }: { itemId: string }) => {
   useEffect(() => followItemFormulas(editor, itemId, getEditorHostIo()), [editor, itemId]);
   return null;
 };
-
-// why the text above takes no edit, held at the top of the scroll
-export const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
-  <div
-    className={cn(
-      editorColumnPx(profile),
-      "sticky top-[env(safe-area-inset-top)] z-10 bg-background py-2 text-body",
-    )}
-  >
-    <p className="text-muted-foreground">{text}</p>
-  </div>
-);
 
 // A connect hands the editor fresh nodes in place of the ones it held, so the surface draws the
 // editor anew over each connect, and not before the first: a component kept from before would
@@ -235,6 +226,36 @@ const noticeOf = (status: Extract<NoteStatus, { kind: "open" }>): string | null 
   return status.held === null ? null : HELD_BACK[status.held];
 };
 
+// A note that cannot open with no connection: what the host holds of the item, read once as this
+// mounts, drawn read-only under the words every screen says of it. Nothing held, or a read that
+// fails, leaves the words alone.
+const HeldOffline = ({ itemId }: { itemId: string }) => {
+  const profile = useEditorProfile();
+  const [held, setHeld] = useState<readonly LibraryBlock[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = async (): Promise<void> => {
+      try {
+        const blocks = await getEditorHostIo().readItemBlocks(itemId);
+        if (live) {
+          setHeld(blocks);
+        }
+      } catch {
+        // the words stand alone
+      }
+    };
+    void read();
+    return () => {
+      live = false;
+    };
+  }, [itemId]);
+  return held === null ? (
+    <Notice profile={profile} text={NEEDS_CONNECTION} />
+  ) : (
+    <HeldItem itemId={itemId} blocks={held} notice={NEEDS_CONNECTION} />
+  );
+};
+
 const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
   const profile = useEditorProfile();
   const host = getEditorHostIo().notes;
@@ -263,7 +284,7 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
     );
   }
   if (status.kind === "opening") {
-    return offline ? <Notice profile={profile} text={NEEDS_CONNECTION} /> : null;
+    return offline ? <HeldOffline itemId={itemId} /> : null;
   }
   return (
     <BoundSurface

@@ -43,6 +43,7 @@
     "./library/library-wire": "./src/library/library-wire.ts",
     "./library/order-key": "./src/library/order-key.ts",
     "./library/uuid-v7": "./src/library/uuid-v7.ts",
+    "./needs-connection": "./src/needs-connection.ts",
     "./origin": "./src/cloud-origin.ts",
     "./refusal-text": "./src/refusal-text.ts",
     "./test-support/deferred": "./src/test-support/deferred.ts",

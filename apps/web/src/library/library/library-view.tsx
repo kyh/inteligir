@@ -2,7 +2,8 @@
 // the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
 // an empty scope says why and offers a next step.
 
-import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
+import { refusalText } from "@repo/contract/refusal-text";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { Button } from "@repo/ui/components/button";
 import { MediaCardSkeleton } from "@repo/ui/components/media-card";

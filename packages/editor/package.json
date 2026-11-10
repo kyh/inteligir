@@ -47,6 +47,7 @@
     "./item/item-editor": "./src/item/item-editor.tsx",
     "./item/item-properties": "./src/item/item-properties.ts",
     "./item/note-connection": "./src/item/note-connection.ts",
+    "./item/note-holds": "./src/item/note-holds.ts",
     "./items/item-frontmatter": "./src/items/item-frontmatter.ts",
     "./items/item-time": "./src/items/item-time.ts",
     "./kits/base-kit": "./src/kits/base-kit.ts",

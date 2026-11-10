@@ -26,7 +26,13 @@ interface TestHost extends NoteHost {
   readonly tickets: () => number;
 }
 
-const testHost = ({ failTickets = 0 }: { readonly failTickets?: number } = {}): TestHost => {
+// the cloud a note dials, an origin apart from the page's own location
+const CLOUD = "https://notes.test";
+
+const testHost = ({
+  failTickets = 0,
+  socketOrigin = CLOUD,
+}: { readonly failTickets?: number; readonly socketOrigin?: string } = {}): TestHost => {
   const listeners = new Set<() => void>();
   let offline = false;
   let asked = 0;
@@ -45,6 +51,7 @@ const testHost = ({ failTickets = 0 }: { readonly failTickets?: number } = {}): 
         listeners.delete(listener);
       };
     },
+    socketOrigin,
     socketTicket: async () => {
       asked += 1;
       if (asked <= failTickets) {
@@ -113,7 +120,16 @@ describe("a note's live document over its socket", () => {
     expect(Y.encodeStateVector(server.note("n1").doc)).toStrictEqual(before);
     expect(server.awarenessFrames()).toBe(0);
     expect(server.sockets[0]?.binaryType).toBe("arraybuffer");
-    expect(server.sockets[0]?.url).toMatch(/^ws:\/\/localhost:3000\/v1\/notes\/n1\?/u);
+    expect(server.sockets[0]?.url).toMatch(/^wss:\/\/notes\.test\/v1\/notes\/n1\?/u);
+  });
+
+  it("dials the cloud the host names, by its scheme, and never the page's own location", async () => {
+    openNote("n1", testHost({ socketOrigin: "http://127.0.0.1:8787" }));
+    await pass();
+    expect(location.origin).toBe("http://localhost:3000");
+    expect(server.sockets.map(({ url }) => url.split("?")[0])).toStrictEqual([
+      "ws://127.0.0.1:8787/v1/notes/n1",
+    ]);
   });
 
   it("dials each time with a ticket asked for then, and carries edits both ways", async () => {

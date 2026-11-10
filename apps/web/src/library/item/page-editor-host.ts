@@ -1,11 +1,11 @@
 // The editor's host on this page: what the editor's kits ask of the page, answered by the cell. A
-// note's live document is dialled on the page's own host, on the account socket's ticket, and goes
-// read-only the moment the browser says it has no connection. A link names its item by id, and
-// opening it opens that item; an embed draws the item's blocks as the cell holds them; a file a
-// note names by its sha is drawn from the cloud's own route, and one pasted or dropped into the
-// text is sent up there before the edit that names it; a note the editor makes (an extract, a
-// link's Create) is made in the open item's folder. The library's titles a link and the `[[`
-// picker read reach the editor from the page's own query of them.
+// note's live document is dialled on the cloud's origin, the page's own, on the account socket's
+// ticket, and goes read-only the moment the browser says it has no connection. A link names its
+// item by id, and opening it opens that item; an embed draws the item's blocks as the cell holds
+// them; a file a note names by its sha is drawn from the cloud's own route, and one pasted or
+// dropped into the text is sent up there before the edit that names it; a note the editor makes (an
+// extract, a link's Create) is made in the open item's folder. The library's titles a link and the
+// `[[` picker read reach the editor from the page's own query of them.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { isOrpcError, NotFoundError } from "@repo/contract/v1/errors";
@@ -68,6 +68,7 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
         onlineManager.subscribe(() => {
           listener();
         }),
+      socketOrigin: ports.cloud.origin,
       socketTicket: async () => {
         const { ticket } = await client.account.socketTicket();
         return ticket;

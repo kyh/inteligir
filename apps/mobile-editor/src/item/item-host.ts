@@ -27,11 +27,13 @@ const takesNoEdit = async (): Promise<never> => {
   throw new Error("the phone's page takes no edit");
 };
 
-// the page binds no note's live document, so nothing dials it: it reads as offline for good
+// the page binds no note's live document, so nothing dials it and it names no cloud: it reads as
+// offline for good
 const NO_NOTES: NoteHost = {
   notePath,
   offline: () => true,
   onOfflineChange: () => nothingToDo,
+  socketOrigin: "",
   socketTicket: takesNoEdit,
 };
 
