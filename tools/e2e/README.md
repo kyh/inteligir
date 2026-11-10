@@ -114,7 +114,8 @@ scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch reads, on loopback, which the Worker's fill reaches under
 a public name of its own (`page-fixture.ts`); the browser extension's dev build, signed in on the
 site in its own profile and pointed at the Worker by the connect page, and its worker's save (`extension-fixture.ts`); and the
-one-colour PNG a scenario saves (`png-pixels.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
+one-colour PNG a scenario saves (`png-pixels.ts`), and the Raindrop backup an
+import reads (`raindrop-csv.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
 Worker alone, as `cloudWorker` does, and prints its origin: the packaged Mac
 app's smoke (`apps/desktop/scripts/smoke-packaged.ts`) opens its window on it.
 

@@ -2,6 +2,7 @@ import { safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER, phoneSignIn, postSignUp, signInPhone, signUp } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import {
   accountIdOf,
@@ -15,12 +16,7 @@ import {
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 // a one-pixel PNG, the file the phone keeps in the library
-const PIXEL = new Uint8Array(
-  Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-    "base64",
-  ),
-);
+const PIXEL = solidPng(1, 1, [32, 96, 160, 255]);
 
 // the code a refusal answers, or what was answered instead
 const codeOf = (error: Error | null): string =>

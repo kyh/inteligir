@@ -18,6 +18,7 @@ import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab } from "../harness/library-tab";
 import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import {
   BACK_TO_LIBRARY,
@@ -37,13 +38,7 @@ const ARCHIVE = "Archive";
 const TAG = "field";
 const INFO_TAG = "e2e";
 const RENAMED = "Field journal";
-// a 1x1 transparent png
-const PIXEL = Uint8Array.from(
-  Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-    "base64",
-  ),
-);
+const PIXEL = solidPng(1, 1, [0, 0, 0, 0]);
 
 const CARD_IDS = `JSON.stringify([...document.querySelectorAll('[role="gridcell"][data-item-id]')].map((card) => card.dataset.itemId))`;
 const TITLE_TEXT = `String(document.querySelector('[data-library-scope] h1')?.textContent ?? "")`;

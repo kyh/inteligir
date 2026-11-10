@@ -23,6 +23,7 @@ import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import { libraryOf, signedInPhone } from "../harness/phone-runtime";
 import { pollUntil } from "../harness/poll";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 import { turboBuildOnce } from "../harness/turbo-build";
@@ -44,9 +45,9 @@ const OTHER_TITLE = "Tide tables";
 const WEB_IMAGE_HOST = "images.example.test";
 const WEB_IMAGE = `https://${WEB_IMAGE_HOST}/heron.png`;
 // one red pixel, a PNG Chromium decodes
-const PIXEL_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
-const PIXEL_SHA = createHash("sha256").update(Buffer.from(PIXEL_BASE64, "base64")).digest("hex");
+const PIXEL = solidPng(1, 1, [255, 0, 0, 255]);
+const PIXEL_BASE64 = Buffer.from(PIXEL).toString("base64");
+const PIXEL_SHA = createHash("sha256").update(PIXEL).digest("hex");
 
 // every function prop the item screen hands the page (apps/mobile/src/editor/use-note-page.ts),
 // each a native action
