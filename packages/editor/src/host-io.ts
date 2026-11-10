@@ -58,6 +58,19 @@ export interface EditorHostIo {
   // whether a file card can hand a file's bytes to the system to save, as a browser tab and the
   // Mac's window can; the phone's page cannot
   readonly savesFiles: boolean;
+  readonly notes: NoteHost;
+}
+
+// How a note's live document is reached (`item/note-connection.ts`): its socket dials the page's
+// own host, at the path the Worker answers the note at, on the account socket's ticket.
+export interface NoteHost {
+  // asked again on every dial, so a ticket that ran out is never sent twice
+  readonly socketTicket: () => Promise<string>;
+  readonly notePath: (itemId: string) => string;
+  // the host's own word that it has no connection, which turns an open note read-only at once,
+  // ahead of any socket noticing
+  readonly offline: () => boolean;
+  readonly onOfflineChange: (listener: () => void) => () => void;
 }
 
 export interface AgentRequestActions {
