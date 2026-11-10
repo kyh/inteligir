@@ -11,7 +11,7 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { SizeProvider } from "@repo/ui/lib/size-context";
-import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { getRouteApi, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
 
@@ -23,6 +23,7 @@ import { libraryQueries } from "./cloud/library-queries";
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
 import { DesktopUpdateBanner } from "./desktop-update-banner";
+import { seedReads } from "./library-tab";
 import type { TabOpening } from "./library-tab";
 import { Workspace } from "./workspace";
 
@@ -59,9 +60,9 @@ const WorkspaceLayout = () => {
 
 type Opened = Extract<TabOpening, { kind: "open" }>;
 
-const OpenLibrary = ({ floor, library, queryClient }: Opened) => {
-  const refused = useSyncExternalStore(floor.subscribe, floor.refused);
-  if (refused) {
+const OpenLibrary = ({ library, queryClient, session }: Opened) => {
+  const standing = useSyncExternalStore(session.subscribe, session.get);
+  if (standing.kind === "ended" && standing.why === "outdated") {
     return TOO_OLD;
   }
   return (
@@ -100,18 +101,11 @@ export const LibraryLayout = () => {
   );
 };
 
-// the rail's scopes are read before the grid draws, once, the rail asking again itself after a
-// failure; with no connection nothing is awaited, and the rail says it needs one
+// the rail's scopes are read before the grid draws
 export const seedScopes = async ({
   context: { opening },
 }: {
   context: { opening: TabOpening };
 }): Promise<void> => {
-  if (opening.kind !== "open" || !onlineManager.isOnline()) {
-    return;
-  }
-  const { scopes } = libraryQueries(opening.library.wire);
-  await Promise.allSettled([
-    opening.queryClient.query({ ...scopes(), retry: 0, staleTime: "static" }),
-  ]);
+  await seedReads(opening, (seed, wire) => [seed(libraryQueries(wire).scopes())]);
 };

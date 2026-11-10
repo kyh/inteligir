@@ -43,13 +43,16 @@ export const createLibraryRouter = (entry: string, open: () => Promise<TabOpenin
   });
 };
 
+// one value, since the layout reads it through useSyncExternalStore
+const LIVE = { kind: "live" } as const;
+
 // a tab opened over a suite's library
 export const openedOver = (library: PageLibrary) => async (): Promise<TabOpening> => {
   await Promise.resolve();
   return {
-    floor: { refused: () => false, subscribe: () => () => {} },
     kind: "open",
     library,
     queryClient: createPageQueryClient(),
+    session: { get: () => LIVE, subscribe: () => () => {} },
   };
 };

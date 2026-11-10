@@ -1,13 +1,18 @@
 // The screens' reads of the account's library, each a TanStack Query over the cell's own rows, kept
 // on the phone between launches so what was last read shows offline, and asked again whenever the
 // socket says it moved: an item whole, the conversations and a thread's events; the reply the agent
-// is writing from the socket, and a file's address from the file cache. The signed-in library comes
-// down through one context the root provides, so no screen holds a runtime of its own.
+// is writing from the socket, and a file's address from the file cache; and Move to Deleted, the
+// one write two screens make. The signed-in library comes down through one context the root
+// provides, so no screen holds a runtime of its own.
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, use, useEffect, useSyncExternalStore } from "react";
+import { Alert } from "react-native";
+import { UNREACHABLE } from "@repo/contract/library/call-outcome";
+import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
 import { isOrpcError } from "@repo/contract/v1/errors";
+import { online } from "../ui/needs-connection";
 import type { PhoneLibrary } from "./compose-runtime";
 
 export const LibraryContext = createContext<PhoneLibrary | null>(null);
@@ -42,6 +47,31 @@ export const useItem = (itemId: string): ItemRead => {
     return { kind: "missing" };
   }
   return error === null && fetchStatus !== "paused" ? { kind: "loading" } : { kind: "unreachable" };
+};
+
+// an item moved to Deleted on every device; false, and the person told why, when it stayed
+export const useMoveToDeleted = (): ((itemId: string) => Promise<boolean>) => {
+  const { newId, queries } = useLibrary();
+  const queryClient = useQueryClient();
+  const { mutateAsync } = useMutation(
+    queries.library.items.delete.mutationOptions({
+      onSettled: async () => {
+        await queryClient.invalidateQueries({ queryKey: queries.library.key() });
+      },
+    }),
+  );
+  return async (itemId) => {
+    if (!online()) {
+      return false;
+    }
+    try {
+      await mutateAsync({ ids: [itemId], opId: newId() });
+      return true;
+    } catch (error) {
+      Alert.alert("Couldn't move it to Deleted", refusalText(error, UNREACHABLE));
+      return false;
+    }
+  };
 };
 
 const THREADS_PAGE = 50;

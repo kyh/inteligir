@@ -2,6 +2,7 @@
 // default`, so the layout's alone would leave each child unguarded, and the site's default is no
 // library's. It says what the crash left as it was: whatever reached the library is safe there.
 
+import { Button } from "@repo/ui/components/button";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 
 export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
@@ -15,22 +16,19 @@ export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
         {error instanceof Error ? (error.stack ?? error.message) : String(error)}
       </pre>
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded border border-border px-3 py-1.5 text-subtitle hover:bg-muted"
-        >
+        <Button type="button" variant="secondary" size="compact" onClick={reset}>
           Try again
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="secondary"
+          size="compact"
           onClick={() => {
             window.location.reload();
           }}
-          className="rounded border border-border px-3 py-1.5 text-subtitle hover:bg-muted"
         >
           Reload
-        </button>
+        </Button>
       </div>
     </div>
   </div>

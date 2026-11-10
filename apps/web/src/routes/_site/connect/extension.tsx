@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
@@ -47,12 +47,16 @@ const Outcome = ({ outcome }: { outcome: ConnectOutcome }) => (
 
 const ConnectExtensionPage = () => {
   const [outcome, setOutcome] = useState<ConnectOutcome | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  const connect = async () => {
-    setPending(true);
-    setOutcome(await tellExtension(window.chrome?.runtime));
-    setPending(false);
+  const connect = (): void => {
+    startTransition(async () => {
+      const told = await tellExtension(window.chrome?.runtime);
+      // a state set after an await leaves the transition unless it is wrapped again
+      startTransition(() => {
+        setOutcome(told);
+      });
+    });
   };
 
   return (
@@ -64,13 +68,7 @@ const ConnectExtensionPage = () => {
       <div className="grid gap-4">
         {outcome === null ? null : <Outcome outcome={outcome} />}
         {outcome?.kind === "connected" ? null : (
-          <Button
-            disabled={pending}
-            onClick={() => {
-              void connect();
-            }}
-            type="button"
-          >
+          <Button disabled={pending} onClick={connect} type="button">
             {pending ? "Connecting…" : "Connect"}
           </Button>
         )}

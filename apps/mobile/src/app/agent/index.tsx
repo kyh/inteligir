@@ -8,13 +8,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EMPTY_WORDS, statusWords } from "@repo/agent-panel/thread-entries";
 import { useThreads } from "@/lib/library-hooks";
 import { openAgent } from "@/lib/routes";
-import { useTheme } from "@/lib/theme";
+import { screenStyle, useTheme } from "@/lib/theme";
 
 const ConversationsScreen = () => {
   const theme = useTheme();
   const { more, threads = [] } = useThreads();
   return (
-    <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }} edges={["left", "right"]}>
+    <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
           accessibilityLabel="New conversation"

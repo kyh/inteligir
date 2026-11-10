@@ -3,18 +3,8 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { login, signUp, useLoginState, useSession } from "@/lib/app-runtime";
-import { useTheme } from "@/lib/theme";
-import type { Palette } from "@/lib/palette";
+import { screenStyle, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
-
-// a value, not a class: className draws nothing on a SafeAreaView
-const screenOf = (theme: Palette) =>
-  ({
-    alignItems: "center",
-    backgroundColor: theme.background,
-    flex: 1,
-    justifyContent: "center",
-  }) as const;
 
 const FIELD_CLASS =
   "rounded-lg border border-input bg-card px-4 py-3 text-16 text-foreground placeholder:text-muted-foreground";
@@ -43,7 +33,7 @@ const SignInScreen = () => {
       : "Sign in with your account to see and edit your library.");
 
   return (
-    <SafeAreaView style={screenOf(theme)}>
+    <SafeAreaView style={{ ...screenStyle(theme), alignItems: "center", justifyContent: "center" }}>
       <Stack.Screen options={{ title: "inteligir" }} />
       <View className="gap-3 self-stretch px-6">
         <Text className="text-30 font-bold text-foreground">inteligir</Text>

@@ -15,6 +15,10 @@ type LoadRequest = Pick<WebViewNavigation, "navigationType" | "url"> & {
   readonly isTopFrame: boolean;
 };
 
+// a web view hands anything its origin list does not admit to the OS itself, before its load rule
+// runs, so the list admits every address and the rule is the one policy, the viewer's as this one
+export const EVERY_ORIGIN = ["*"];
+
 const isHttpUrl = (url: string): boolean => /^https?:\/\//iu.test(url);
 
 const isFileUrl = (url: string): boolean => /^file:\/\//iu.test(url);

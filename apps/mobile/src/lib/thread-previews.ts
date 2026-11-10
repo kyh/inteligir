@@ -1,7 +1,7 @@
 // The reply the agent is writing, as the account's socket carries it: never stored and never read
 // back, so the phone keeps each thread's text so far, for a screen that reads it as an external
 // store, and lets it go once a write moves the thread, since by then its reply landed or its turn
-// moved on.
+// moved on, or once the socket goes down, since nothing could then say so.
 
 // the text so far of the reply the agent is writing in a thread; or none any more (null) in a
 // thread, or in every thread (`threadId` null)

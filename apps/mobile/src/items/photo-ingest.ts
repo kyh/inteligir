@@ -12,6 +12,7 @@ import {
 } from "expo-image-picker";
 import type { ImagePickerOptions } from "expo-image-picker";
 import { ActionSheetIOS } from "react-native";
+import { removed } from "../files/expo-thumbnail";
 import { messageOf } from "../lib/error-message";
 import type { PhoneSaves } from "./phone-saves";
 import { photoName, photoResize, photoType } from "./photo-plan";
@@ -93,11 +94,7 @@ const reencoded = async ({ type, uri }: PickedPhoto): Promise<Uint8Array<ArrayBu
   );
   const file = new File(saved.uri);
   const bytes = await file.bytes();
-  try {
-    file.delete();
-  } catch {
-    // a copy left in the cache is the OS's to purge
-  }
+  removed(file);
   return new Uint8Array(bytes);
 };
 

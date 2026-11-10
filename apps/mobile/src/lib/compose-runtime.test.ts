@@ -3,6 +3,7 @@
 // and signed out, what each one keeps and clears, and what the socket's frames ask again.
 
 import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { dehydrate } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
@@ -309,6 +310,61 @@ describe("the phone's runtime", () => {
     expect(keys.held()).toBeNull();
   });
 
+  it("gives a second sign-out asked while the first clears the first's outcome", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    const folder = refusingOnce(memoryFolder());
+    const { runtime } = runtimeOver(createFakeCell(), { folder: folder.port, keys });
+    await runtime.start();
+
+    folder.refuseNext();
+    const failed = { kind: "failed", message: "database or disk is full" };
+    await expect(Promise.all([runtime.logout(), runtime.logout()])).resolves.toStrictEqual([
+      failed,
+      failed,
+    ]);
+    expect(runtime.session.get().kind).toBe("signed-in");
+    expect(keys.calls).not.toContain("signOut");
+  });
+
+  it("asks the session once a return to the front, however many times it is told", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    keys.checks("unknown");
+    const { runtime } = runtimeOver(createFakeCell(), { keys });
+    await runtime.start();
+    runtime.resume();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual(["check", "check"]);
+    runtime.suspend();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual(["check", "check", "check"]);
+  });
+
+  it("does nothing on a return to the front while signed out", async () => {
+    const keys = fakePhoneAuth();
+    const sockets = fakeSockets();
+    const { runtime } = runtimeOver(createFakeCell(), { keys, sockets });
+    await runtime.start();
+    runtime.suspend();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual([]);
+    expect(sockets.sockets).toStrictEqual([]);
+  });
+
+  it("dials no socket while the app is away, and one once it is back", async () => {
+    const sockets = fakeSockets();
+    const { runtime } = runtimeOver(createFakeCell(), {
+      keys: fakePhoneAuth(KEPT_SESSION),
+      sockets,
+    });
+    runtime.suspend();
+    await runtime.start();
+    await delay(20);
+    expect(sockets.sockets).toStrictEqual([]);
+
+    runtime.resume();
+    await expect.poll(() => sockets.sockets.length).toBe(1);
+  });
+
   it("is signed out of a sign-in the cloud ended though its copy would not go, and clears it at the next launch", async () => {
     const cell = createFakeCell();
     const keys = fakePhoneAuth(KEPT_SESSION);
@@ -364,11 +420,24 @@ const socketPhone = async () => {
   const sockets = fakeSockets();
   const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION), sockets });
   await runtime.start();
-  await expect.poll(() => sockets.sockets.length).toBe(1);
-  const [socket] = sockets.sockets;
-  if (socket === undefined) {
-    throw new Error("the phone dialled no socket");
-  }
+  // the next socket the phone dials, opened
+  const opened = async () => {
+    const dialled = sockets.sockets.length;
+    await expect.poll(() => sockets.sockets.length).toBe(dialled + 1);
+    const live = sockets.sockets.at(-1);
+    if (live === undefined) {
+      throw new Error("the phone dialled no socket");
+    }
+    live.open();
+    return live;
+  };
+  const socket = await opened();
+  // behind and back in front: the socket goes, and the next one comes up
+  const cameBack = async (): Promise<void> => {
+    runtime.suspend();
+    runtime.resume();
+    await opened();
+  };
   const { queries } = signedIn(runtime);
   const { agent, items, listing } = queries.library;
   const keys = {
@@ -391,7 +460,7 @@ const socketPhone = async () => {
       .filter(([, key]) => runtime.queryClient.getQueryState(key)?.isInvalidated === true)
       .map(([name]) => name)
       .toSorted();
-  return { asked, runtime, socket };
+  return { asked, cameBack, runtime, socket };
 };
 
 describe("what the account's socket asks again", () => {
@@ -416,20 +485,22 @@ describe("what the account's socket asks again", () => {
     expect(asked()).toStrictEqual(["scopes", "threads"]);
   });
 
-  it("asks everything again when a frame or an open socket says anything may have moved", async () => {
+  it("asks everything again when a frame or a socket coming up says anything may have moved", async () => {
     const all = await socketPhone();
     all.socket.message(
       JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }),
     );
     expect(all.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
 
-    const opened = await socketPhone();
-    opened.socket.open();
-    expect(opened.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
+    const back = await socketPhone();
+    back.runtime.suspend();
+    expect(back.asked()).toStrictEqual([]);
+    await back.cameBack();
+    expect(back.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
   });
 
-  it("tells a screen which items moved, and that any may have once a frame or an open socket says so", async () => {
-    const { runtime, socket } = await socketPhone();
+  it("tells a screen which items moved, and that any may have once a frame or a socket coming up says so", async () => {
+    const { cameBack, runtime, socket } = await socketPhone();
     const heard: (string[] | null)[] = [];
     const stop = signedIn(runtime).onItems((ids) => {
       heard.push(ids === null ? null : [...ids]);
@@ -448,10 +519,10 @@ describe("what the account's socket asks again", () => {
     );
     socket.message(JSON.stringify({ folders: true, items: [], threads: [], type: "moved" }));
     socket.message(JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }));
-    socket.open();
+    await cameBack();
     expect(heard).toStrictEqual([[NOTE, other], null, null]);
     stop();
-    socket.open();
+    await cameBack();
     expect(heard).toHaveLength(3);
   });
 
@@ -474,7 +545,19 @@ describe("what the account's socket asks again", () => {
     hear({ folders: false, items: [], threads: "all", type: "moved" });
     expect(previews.get(other)).toBeNull();
     hear({ text: "Filed", threadId: thread, type: "preview" });
-    socket.open();
+    socket.drop();
+    expect(previews.get(thread)).toBeNull();
+  });
+
+  it("lets the reply being written go when the app goes behind", async () => {
+    const { runtime, socket } = await socketPhone();
+    const { previews } = signedIn(runtime);
+    const thread = "0190a000-0000-7000-8000-0000000000c1";
+
+    socket.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
+    expect(previews.get(thread)).toBe("Filing");
+    runtime.suspend();
+    expect(socket.closed).toBe(true);
     expect(previews.get(thread)).toBeNull();
   });
 });

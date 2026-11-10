@@ -31,6 +31,7 @@ import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
+import { systemClock } from "./system-clock";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
@@ -89,15 +90,7 @@ const build = (): AppRuntime => {
   const rt = composeRuntime({
     auth: phoneAuth(cloudUrl),
     build: { platform: "mobile", version: appVersion() },
-    clock: {
-      after: (ms, run) => {
-        const timer = setTimeout(run, ms);
-        return () => {
-          clearTimeout(timer);
-        };
-      },
-      now: () => Date.now(),
-    },
+    clock: systemClock,
     cloudUrl,
     // React Native's WebSocket: it opens with the ticket a `/v1` call minted, in the query string,
     // as every client does, never a header
@@ -110,27 +103,37 @@ const build = (): AppRuntime => {
     shrinkCover: shrinkToThumbnail,
     storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
   });
+  // the app reaches the cloud while it is in front and online, and the runtime hears each edge of
+  // that once, so a wake that also brings the network back resumes once; a phone back online in
+  // the background waits for the foreground
+  const reach = { front: true, online: true };
+  let reached = true;
+  const judge = (): void => {
+    const reaches = reach.front && reach.online;
+    if (reaches === reached) {
+      return;
+    }
+    reached = reaches;
+    if (reaches) {
+      rt.resume();
+    } else {
+      rt.suspend();
+    }
+  };
   // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
   // `inactive` is a passing state on iOS (a pulled-down notification centre), not a departure.
   AppState.addEventListener("change", (state) => {
     focusManager.setFocused(state === "active");
-    if (state === "active") {
-      rt.resume();
-    } else if (state === "background") {
-      rt.suspend();
+    if (state === "active" || state === "background") {
+      reach.front = state === "active";
+      judge();
     }
   });
-  // a phone back online sends the shares it kept offline at once; in the background it waits for
-  // the foreground, which dials the socket too
-  let online = true;
   onlineManager.setEventListener((setOnline) => {
     const subscription = addNetworkStateListener((network) => {
-      const reachable = network.isInternetReachable ?? network.isConnected ?? false;
-      setOnline(reachable);
-      if (reachable && !online && AppState.currentState === "active") {
-        rt.resume();
-      }
-      online = reachable;
+      reach.online = network.isInternetReachable ?? network.isConnected ?? false;
+      setOnline(reach.online);
+      judge();
     });
     return () => {
       subscription.remove();

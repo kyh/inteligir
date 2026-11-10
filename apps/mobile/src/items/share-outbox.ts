@@ -11,7 +11,8 @@ import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import { serialLock } from "../lib/serial-lock";
 import type { PhoneSaves } from "./phone-saves";
-import type { SharedSave } from "./share-payload";
+import { shareSaveSchema } from "./share-payload";
+import type { ShareSave } from "./share-payload";
 
 // the phone's key-value store, as expo-sqlite's kv-store and the persisted cache read it
 export interface KvStorage {
@@ -30,21 +31,11 @@ const waitingShareSchema = z.object({
   opId: z.string().min(1),
   // why the cloud took it as no resend would land it; null while it waits to be sent
   refused: z.string().nullable(),
-  save: z.discriminatedUnion("kind", [
-    z.object({
-      kind: z.literal("link"),
-      note: z.string().nullable(),
-      title: z.string().nullable(),
-      url: z.string(),
-    }),
-    z.object({ kind: z.literal("text"), text: z.string() }),
-  ]),
+  save: shareSaveSchema,
   savedAt: z.number(),
 });
 
 export type WaitingShare = z.infer<typeof waitingShareSchema>;
-
-type ShareSave = Exclude<SharedSave, { kind: "nothing" }>;
 
 type ShareOutcome =
   | { readonly kind: "landed"; readonly itemId: string }

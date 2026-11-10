@@ -1,13 +1,14 @@
 // The account's socket as this page hears it (`@repo/contract/library/account-socket`): a
 // hint, never the state. A moved frame invalidates the queries over what it names, an item's row
-// only when the copy held is older than the sequence it names, and every time the socket opens
+// only when the copy held is older than the sequence it names, and every time the socket comes up
 // everything is invalidated, since a drop or a deploy may have hidden a write meanwhile. A note's
 // typing moves its item only when it changes what a row holds (the card, the links, the tags or
 // the files), so a row is read again that often and no more. The editor's embeds hear which items
-// moved, and the agent panel the reply being written, until a write moves its thread.
+// moved, and the agent panel the reply being written, until a write moves its thread or the
+// socket goes down.
 
 import { createSocketHint } from "@repo/contract/library/account-socket";
-import type { Clock, SocketDial } from "@repo/contract/library/account-socket";
+import type { Clock, SocketDial, SocketHint } from "@repo/contract/library/account-socket";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
@@ -21,15 +22,13 @@ export type ItemsMoved = ReadonlyMap<string, number> | null;
 
 // the reply the agent is writing in a thread, its text so far; or none any more (null) in a
 // thread a write moved, since its reply landed or its turn moved on, or in every thread
-// (`threadId` null) when the write moved more than a frame names or the socket opened again
+// (`threadId` null) when the write moved more than a frame names or the socket went down
 /** @internal */
 export type ThreadPreview =
   | { readonly threadId: string; readonly text: string }
   | { readonly threadId: string | null; readonly text: null };
 
-export interface LibrarySocket {
-  readonly connect: () => void;
-  readonly close: () => void;
+export interface LibrarySocket extends SocketHint {
   readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
   readonly onPreview: (listener: (preview: ThreadPreview) => void) => () => void;
 }
@@ -131,36 +130,39 @@ export const createLibrarySocket = ({
         // no default
       }
     },
-    // a frame that let a preview go may have been missed meanwhile, and a reply still being
-    // written sends its next preview within a moment
-    onOpen: () => {
+    // down: no frame can let a preview go any more, and a reply still being written sends its
+    // next one within a moment of the next up, by when any write may have landed unsaid
+    onStatus: (status) => {
+      if (status === "down") {
+        previews.tell({ text: null, threadId: null });
+        return;
+      }
       void queryClient.invalidateQueries();
       items.tell(null);
-      previews.tell({ text: null, threadId: null });
     },
     origin,
     ticket: async () => {
-      try {
-        const { ticket } = await wire.client.account.socketTicket();
-        return ticket;
-      } catch {
-        return null;
-      }
+      const { ticket } = await wire.client.account.socketTicket();
+      return ticket;
     },
   });
   return { ...hint, onItems: items.add, onPreview: previews.add };
 };
 
-// dialled while the page shows the library, and at once when the browser says it is back online
-// rather than at the next wait of its backoff
+// dialled while the page shows the library and the browser says it is online: at once when it
+// comes back rather than at the next wait of its backoff, and never while it is offline
 export const useLibrarySocket = (socket: LibrarySocket): void => {
   useEffect(() => {
-    socket.connect();
-    const stop = onlineManager.subscribe((online) => {
+    const reach = (online: boolean): void => {
       if (online) {
-        socket.connect();
+        socket.online();
+      } else {
+        socket.offline();
       }
-    });
+    };
+    reach(onlineManager.isOnline());
+    socket.connect();
+    const stop = onlineManager.subscribe(reach);
     return () => {
       stop();
       socket.close();

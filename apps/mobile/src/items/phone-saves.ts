@@ -14,6 +14,7 @@ import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import type { FileCache, HeldFile } from "../files/file-cache";
 import { linkInText } from "./link-in-text";
+import type { ShareSave } from "./share-payload";
 
 // where a save lands: the scope's folder, or Unsorted
 interface SaveTarget {
@@ -42,11 +43,7 @@ type KeepOutcome =
   | { readonly kind: "kept"; readonly sha: string }
   | Exclude<SaveOutcome, { readonly kind: "saved" }>;
 
-interface SharedLink {
-  readonly url: string;
-  readonly title: string | null;
-  readonly note: string | null;
-}
+type SharedLink = Omit<Extract<ShareSave, { kind: "link" }>, "kind">;
 
 export interface PhoneSaves {
   readonly stamp: () => SaveStamp;
@@ -80,7 +77,6 @@ export interface PhoneSavesArgs {
   readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
 }
 
-/** @internal */
 const NOTHING_TO_SAVE = "Type a link or a thought to save.";
 
 // a title is one line, and a card's title at most this long
