@@ -1,12 +1,12 @@
-// One item's ops landed inside a write's transaction: guarded block by block and field by field
-// (`@repo/contract/library/block-ops`), every conflict answered together, and the item laid only when
-// something changed. Every write the cell's procedures make of an existing item by ops
-// comes through here: a device's own ops, an agent's edit, a reading, an organize. An undo
-// (`./cell-undo`) lands a state it merged, and a purge (`./library-engine`) a tombstone.
+// One item's field ops landed inside a write's transaction: guarded field by field
+// (`@repo/contract/library/field-ops`), every conflict answered together, and the item laid only when
+// something changed. Every write the cell's procedures make of an existing item's fields comes
+// through here: a device's own ops, a reading, an organize, Deleted and back. An undo
+// (`./cell-undo`) lands the fields it merged, and a purge (`./library-engine`) a tombstone.
 
-import { applyOps } from "@repo/contract/library/block-ops";
-import type { LibraryOp } from "@repo/contract/library/block-ops";
-import { readItem, readItemState } from "./library-queries";
+import { applyFieldOps } from "@repo/contract/library/field-ops";
+import type { FieldConflict, FieldOp } from "@repo/contract/library/field-ops";
+import { readLiveItem } from "./library-queries";
 import { z } from "zod";
 
 import { landItem } from "./cell-landing";
@@ -16,19 +16,11 @@ import type { ConflictCurrent } from "./cell-refusal";
 
 export interface ItemWrite {
   readonly itemId: string;
-  readonly ops: readonly LibraryOp[];
+  readonly ops: readonly FieldOp[];
 }
 
-type OpConflict = Extract<ReturnType<typeof applyOps>, { kind: "conflict" }>["conflicts"][number];
-
-const conflictCurrentOf = (itemId: string, conflict: OpConflict): ConflictCurrent => {
+const conflictCurrentOf = (itemId: string, conflict: FieldConflict): ConflictCurrent => {
   switch (conflict.kind) {
-    case "block": {
-      return { blockId: conflict.blockId, current: conflict.current, itemId, kind: "block" };
-    }
-    case "order": {
-      return { blockId: conflict.blockId, currentOrd: conflict.currentOrd, itemId, kind: "order" };
-    }
     case "field": {
       return {
         current: z.json().parse(conflict.current),
@@ -54,8 +46,8 @@ const conflictCurrentOf = (itemId: string, conflict: OpConflict): ConflictCurren
 // the item's row as it stands, for a write every op of which was already true, or a save of an
 // address the item holds
 export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const item = readItem(scope.storage.db, itemId);
-  if (item?.kind !== "live") {
+  const item = readLiveItem(scope.storage.db, itemId);
+  if (item === null) {
     return refuse({ kind: "not-found" });
   }
   const { card, fields, seq, updatedAt } = item;
@@ -64,11 +56,11 @@ export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
 
 export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow => {
   const { itemId } = input;
-  const state = readItemState(scope.storage, itemId);
-  if (state === null) {
+  const before = readLiveItem(scope.storage.db, itemId);
+  if (before === null) {
     return refuse({ kind: "not-found" });
   }
-  const outcome = applyOps(state, input.ops);
+  const outcome = applyFieldOps(before.fields, input.ops);
   if (outcome.kind === "conflict") {
     refuse({
       current: outcome.conflicts.map((conflict) => conflictCurrentOf(itemId, conflict)),
@@ -78,9 +70,7 @@ export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow =>
   if (outcome.kind !== "applied") {
     return refuse({ kind: "too-large" });
   }
-  const { touched } = outcome;
-  const unchanged = touched.blocks.size === 0 && touched.dropped.size === 0 && !touched.fields;
-  return unchanged
-    ? liveRowOf(scope, itemId)
-    : landItem(scope, { after: outcome.state, before: state, itemId });
+  return outcome.changed
+    ? landItem(scope, { before, fields: outcome.fields, itemId, seed: null })
+    : liveRowOf(scope, itemId);
 };

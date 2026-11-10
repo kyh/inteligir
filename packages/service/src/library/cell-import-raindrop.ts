@@ -14,7 +14,7 @@ import {
 import type { PlannedItem } from "../imports/raindrop";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { kindForUrl } from "@repo/contract/items/item-url";
-import { ordsBetween } from "@repo/contract/library/order-key";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { blankItemFields } from "@repo/contract/library/item-makes";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
@@ -39,7 +39,6 @@ import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
 import { landNew, noteBlocksOf } from "./cell-items";
-import type { PlacedBlock } from "./cell-items";
 import { urlHolder } from "./cell-landing";
 import { refuse } from "./cell-refusal";
 import type { LandingScope } from "./cell-landing";
@@ -90,13 +89,8 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
 
 type Landed = "added" | "held";
 
-const inNote = (blocks: readonly LibraryBlock[]): PlacedBlock[] => {
-  const ords = ordsBetween(null, null, blocks.length);
-  return blocks.flatMap((block, index) => {
-    const ord = ords[index];
-    return ord === undefined ? [] : [{ block, ord, section: "note" as const }];
-  });
-};
+const inNote = (blocks: readonly LibraryBlock[]): BodyBlock[] =>
+  blocks.map((block) => ({ block, section: "note" }));
 
 // one bookmark as an unread link, or counted as held when its address is the library's already
 const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedItem): Landed => {

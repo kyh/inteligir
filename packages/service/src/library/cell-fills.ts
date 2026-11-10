@@ -7,15 +7,19 @@
 // lands here as a change set of its own: only the article and the facts a fill owns, so the
 // person's note and fields are never touched, and only on an item still waiting for that reading at
 // that address, so a message met twice lands once. A page whose redirects end at another address is
-// read into the item that waited for it, which keeps the address it was saved at.
+// read into the item that waited for it, which keeps the address it was saved at. An item whose
+// note has opened takes the article in its note, which the cell's object sends there before the
+// landing (`fillForNote`).
 
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { jobs } from "@repo/db/cell/schema";
-import type { LibraryOp, ItemState } from "@repo/contract/library/block-ops";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readItemState } from "./library-queries";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { readLiveItem } from "./library-queries";
+import type { LiveStoredItem } from "./library-queries";
 import { jsonTextSchema } from "./sql-value";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
@@ -190,7 +194,7 @@ const readFieldOps = (
   fields: LibraryItemFields,
   landing: Extract<FillLanding, { kind: "read" }>,
   now: number,
-): LibraryOp[] => {
+): FieldOp[] => {
   const upgraded = kindForUrl(landing.finalUrl);
   const kind =
     fields.kind === "link"
@@ -205,11 +209,11 @@ const readFieldOps = (
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
-const waiting = (state: ItemState | null, url: string): state is ItemState => {
-  const held = state?.fields.url ?? null;
+const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredItem => {
+  const held = item?.fields.url ?? null;
   return (
-    state?.fields.deletedAt === null &&
-    state.fields.fetchState === "pending" &&
+    item?.fields.deletedAt === null &&
+    item.fields.fetchState === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)
   );
@@ -217,7 +221,27 @@ const waiting = (state: ItemState | null, url: string): state is ItemState => {
 
 // whether an item still waits for a reading of `url`, so a consumer reads no page nobody waits for
 export const fillWaits = (storage: CellStorage, itemId: string, url: string): boolean =>
-  waiting(readItemState(storage, itemId), url);
+  waiting(readLiveItem(storage.db, itemId), url);
+
+// the note a reading's article goes to before it lands, when the item waiting for it has opened
+// its note: named by the item's sequence, so the same reading sent again replaces nothing twice,
+// and a reading asked for again replaces it anew
+export const fillForNote = (
+  storage: CellStorage,
+  landing: FillLanding,
+): {
+  readonly itemId: string;
+  readonly fillId: string;
+  readonly article: LibraryBlock[];
+} | null => {
+  if (landing.kind !== "read" || landing.article.length === 0) {
+    return null;
+  }
+  const item = readLiveItem(storage.db, landing.itemId);
+  return waiting(item, landing.url) && item.body.home === "note"
+    ? { article: landing.article, fillId: `fill:${item.id}:${item.seq}`, itemId: item.id }
+    : null;
+};
 
 // the files a reading kept in the library on its way (`../fill/store-file`)
 export const readingFiles = (landing: FillLanding): string[] => {
@@ -235,18 +259,21 @@ export const readingFiles = (landing: FillLanding): string[] => {
   }
 };
 
-export const landFill = (scope: LandingScope, landing: FillLanding): FillLanded => {
-  const state = readItemState(scope.storage, landing.itemId);
-  if (!waiting(state, landing.url)) {
+export const landFill = (
+  scope: LandingScope,
+  landing: FillLanding,
+  articleInNote: boolean,
+): FillLanded => {
+  const item = readLiveItem(scope.storage.db, landing.itemId);
+  if (!waiting(item, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
     hurryUnnamed(scope.storage.db, readingFiles(landing), scope.now);
     return { kind: "stale" };
   }
-  const item = { id: landing.itemId, state };
-  const { fields } = state;
+  const { fields } = item;
   switch (landing.kind) {
     case "failed": {
-      const ops: LibraryOp[] = [
+      const ops: FieldOp[] = [
         { base: fields.fetchState, field: "fetchState", op: "set", value: "failed" },
         { base: fields.fetchError, field: "fetchError", op: "set", value: landing.sentence },
         { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
@@ -255,7 +282,7 @@ export const landFill = (scope: LandingScope, landing: FillLanding): FillLanded 
       return { kind: "failed" };
     }
     case "file": {
-      const ops: LibraryOp[] = [
+      const ops: FieldOp[] = [
         { base: fields.kind, field: "kind", op: "set", value: landing.fileKind },
         {
           base: fields.coverSha,
@@ -276,7 +303,12 @@ export const landFill = (scope: LandingScope, landing: FillLanding): FillLanded 
       return { kind: "filled" };
     }
     case "read": {
-      landRead(scope, item, landing, readFieldOps(fields, landing, scope.now));
+      landRead(
+        scope,
+        item,
+        { article: landing.article, articleInNote },
+        readFieldOps(fields, landing, scope.now),
+      );
       return { kind: "filled" };
     }
     // no default

@@ -3,20 +3,18 @@
 // never by a timer, so an eviction loses no deadline. Each item a set touches keeps its state
 // before the set's first write; its after is the item as it is while the set is the last to have
 // changed it, written down when the set seals or another set is about to change the item, so a
-// set's after is the item as that set left it however its sets' seals interleave.
+// set's after is the item as that set left it however its sets' seals interleave. A set keeps an
+// item's fields; what an agent's set did to a note's body is that note's turn log, under the set's id.
 
-import { deriveItem } from "@repo/contract/library/derive-item";
-import { readItemState, storeSearchRow } from "./library-queries";
-import { runPlan } from "./library-sql";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { readLiveItem } from "./library-queries";
 import type { SqlStatements } from "./library-sql";
-import type { ItemNow } from "./revert-change";
 import { z } from "zod";
 
 import { SEAL_POLICIES } from "./cell-actor";
 import type { CellActor, ChangeSetActor, SealPolicy } from "./cell-actor";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
-import { encodeParts, storeParts } from "./cell-parts";
-import type { PartRefs } from "./cell-parts";
+import { storeFieldsPart } from "./cell-parts";
 import type { CellStorage } from "./cell-storage";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
 
@@ -94,7 +92,7 @@ const quietDeadline = (
 const findOpen = (sql: SqlStatements, actor: ChangeSetActor, keys: ActorKeys) => {
   const [row] = sql.all(
     `SELECT id, opened_at, touched_at FROM change_sets
-     WHERE actor = ? AND sealed_at IS NULL AND actor_id IS ? AND client_id IS ? AND device_id IS ?
+     WHERE actor = ? AND sealed_at IS NULL AND actor_id IS ? AND client_id IS ? AND session_id IS ?
        AND thread_id IS ? AND turn IS ?
      ORDER BY opened_at DESC LIMIT 1`,
     [actor, keys.actorId, keys.clientId, keys.sessionId, keys.threadId, keys.turn],
@@ -109,7 +107,7 @@ const insertSet = (
   now: number,
 ): void => {
   sql.run(
-    `INSERT INTO change_sets (id, actor, actor_id, label, device_id, thread_id, turn, client_id,
+    `INSERT INTO change_sets (id, actor, actor_id, label, session_id, thread_id, turn, client_id,
        opened_at, touched_at, sealed_at, undone_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
     [
@@ -127,32 +125,31 @@ const insertSet = (
   );
 };
 
-export const readItemNow = (storage: CellStorage, itemId: string): ItemNow | null => {
-  const state = readItemState(storage, itemId);
-  return state === null ? null : { state };
-};
+// the item's fields as they are; null once it was purged
+export const readFieldsNow = (storage: CellStorage, itemId: string): LibraryItemFields | null =>
+  readLiveItem(storage.db, itemId)?.fields ?? null;
 
-// the set's after for the item: the item as the set left it
+// the set's after for the item: its fields as the set left them
 const writeAfter = (
   sql: SqlStatements,
-  change: { readonly setId: string; readonly itemId: string; readonly refs: PartRefs },
+  change: { readonly setId: string; readonly itemId: string; readonly fields: string },
 ): void => {
-  const { itemId, refs, setId } = change;
-  sql.run(
-    `UPDATE change_set_items SET after_fields = ?, after_manifest = ?
-     WHERE change_set_id = ? AND item_id = ?`,
-    [refs.fields, refs.manifest, setId, itemId],
-  );
+  const { fields, itemId, setId } = change;
+  sql.run("UPDATE change_set_items SET after_fields = ? WHERE change_set_id = ? AND item_id = ?", [
+    fields,
+    setId,
+    itemId,
+  ]);
 };
 
-const sealRowSchema = z.object({ actor: z.string(), sealed_at: z.number().nullable() });
+const sealRowSchema = z.object({ sealed_at: z.number().nullable() });
 const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z.string() });
 
 // writes the after of each item the set still holds open, and closes the set, unless it was
 // already sealed or never was. An item another set changed since already has its after, written at
 // that change
 export const sealChangeSet = (storage: CellStorage, setId: string, now: number): void => {
-  const [raw] = storage.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
+  const [raw] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [setId]);
   const set = raw === undefined ? null : sealRowSchema.parse(raw);
   if (set?.sealed_at !== null) {
     dropJob(storage.db, sealJobOf(setId).id);
@@ -162,23 +159,22 @@ export const sealChangeSet = (storage: CellStorage, setId: string, now: number):
     .all("SELECT item_id, after_fields FROM change_set_items WHERE change_set_id = ?", [setId])
     .map((row) => setItemSchema.parse(row));
   for (const item of items) {
-    const current = readItemNow(storage, item.item_id);
-    if (item.after_fields === null) {
-      if (current === null) {
-        storage.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
-          setId,
-          item.item_id,
-        ]);
-        continue;
-      }
-      const refs = storeParts(storage, item.item_id, encodeParts(current));
-      writeAfter(storage, { itemId: item.item_id, refs, setId });
+    if (item.after_fields !== null) {
+      continue;
     }
-    // a person's typing reindexes once its set closes, not on every keystroke's write
-    if (set.actor === "person" && current !== null) {
-      const { blocks, fields: itemFields } = current.state;
-      runPlan(storage, storeSearchRow(item.item_id, deriveItem(itemFields, blocks).search));
+    const current = readFieldsNow(storage, item.item_id);
+    if (current === null) {
+      storage.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
+        setId,
+        item.item_id,
+      ]);
+      continue;
     }
+    writeAfter(storage, {
+      fields: storeFieldsPart(storage, item.item_id, current),
+      itemId: item.item_id,
+      setId,
+    });
   }
   storage.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
   dropJob(storage.db, sealJobOf(setId).id);
@@ -237,7 +233,11 @@ const otherSetSchema = z.object({ change_set_id: z.string() });
 // is the item as it is now writes that after down, since this write is about to change it
 export const touchItem = (
   sql: SqlStatements,
-  change: { readonly setId: string; readonly itemId: string; readonly before: ItemNow | null },
+  change: {
+    readonly setId: string;
+    readonly itemId: string;
+    readonly before: LibraryItemFields | null;
+  },
 ): void => {
   const { before, itemId, setId } = change;
   const [held] = sql.all(
@@ -251,27 +251,25 @@ export const touchItem = (
       [itemId, setId],
     )
     .map((row) => otherSetSchema.parse(row).change_set_id);
-  const refs =
+  const fields =
     before !== null && (held === undefined || others.length > 0)
-      ? storeParts(sql, itemId, encodeParts(before))
+      ? storeFieldsPart(sql, itemId, before)
       : null;
-  if (refs !== null) {
+  if (fields !== null) {
     for (const other of others) {
-      writeAfter(sql, { itemId, refs, setId: other });
+      writeAfter(sql, { fields, itemId, setId: other });
     }
   }
   if (held === undefined) {
     sql.run(
-      `INSERT INTO change_set_items (change_set_id, item_id, created, before_fields,
-         before_manifest, after_fields, after_manifest)
-       VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
-      [setId, itemId, before === null ? 1 : 0, refs?.fields ?? null, refs?.manifest ?? null],
+      `INSERT INTO change_set_items (change_set_id, item_id, created, before_fields, after_fields)
+       VALUES (?, ?, ?, ?, NULL)`,
+      [setId, itemId, before === null ? 1 : 0, fields],
     );
   } else if (itemRowSchema.parse(held).after_fields !== null) {
     // written down when another set wrote; the item is this set's again
     sql.run(
-      `UPDATE change_set_items SET after_fields = NULL, after_manifest = NULL
-       WHERE change_set_id = ? AND item_id = ?`,
+      "UPDATE change_set_items SET after_fields = NULL WHERE change_set_id = ? AND item_id = ?",
       [setId, itemId],
     );
   }

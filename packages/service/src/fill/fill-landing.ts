@@ -5,7 +5,6 @@
 // checks its own reading by the same schema first, so one the door would refuse is said in its item.
 
 import { TEXT_NOT_SAVED } from "../items/fill-sentences";
-import { ordSchema } from "@repo/contract/library/order-key";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import { z } from "zod";
@@ -26,7 +25,7 @@ export const fillLandingSchema = z.discriminatedUnion("kind", [
   // the cover kept from it; `finalUrl` is where its redirects ended
   z.strictObject({
     ...asked,
-    article: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
+    article: z.array(storableBlockSchema),
     coverSha: sha.nullable(),
     facts: z.strictObject({
       author: FIELDS.author,
