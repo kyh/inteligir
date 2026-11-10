@@ -362,6 +362,37 @@ describe("the agent panel's conversation", () => {
     });
   });
 
+  it("offers no Undo until every page of the conversation's sets is read, then every one", async () => {
+    const older = Promise.withResolvers<null>();
+    const { calls, library } = fakePageLibrary({
+      answer: async ({ path, input }) => {
+        if (path !== "library.history.list") {
+          return UNDONE;
+        }
+        if (!JSON.stringify(input).includes('"cursor":"1"')) {
+          return { changeSets: [set("s2", 2)], cursor: "1" };
+        }
+        await older.promise;
+        return { changeSets: [set("s1", 1)], cursor: null };
+      },
+      events: twoFinishedTurns,
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    // the newest page is in, the older one asked: no turn's Undo yet, since one turn offering its
+    // own while the conversation's waits is half a list
+    await waitFor(() => {
+      expect(callsTo(calls, "library.history.list")).toHaveLength(2);
+    });
+    expect(document.querySelectorAll("[data-turn-ended]")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
+    older.resolve(null);
+    const { turn, whole } = await twoTurnsDrawn();
+    expect(heldDown(turn)).toBe(false);
+    expect(heldDown(whole)).toBe(false);
+  });
+
   it("takes back the turn the list on screen has yet to show", async () => {
     let listed = [set("s1", 1)];
     const { calls, library } = fakePageLibrary({

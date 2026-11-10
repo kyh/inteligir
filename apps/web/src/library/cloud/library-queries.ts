@@ -8,6 +8,7 @@ import type { V1Client } from "@repo/contract/v1";
 import { keepPreviousData, queryOptions, skipToken } from "@tanstack/react-query";
 
 import type { ListingQuery } from "../library/listing";
+import { everyChangeSet } from "./change-set-pages";
 import type { CloudWire } from "./v1";
 
 type Outputs = InferClientOutputs<V1Client>["library"];
@@ -65,6 +66,18 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
           }
         }
       },
+    }),
+
+  // a conversation's change sets, every page of them, which each finished turn's Undo and the
+  // whole conversation's need; the socket asks again as a turn moves the thread, its set sealing
+  // as it ends
+  changeSets: (threadId: string) =>
+    queryOptions({
+      ...orpc.library.history.list.queryOptions({ input: { threadId } }),
+      queryFn: async ({ signal }): Promise<Outputs["history"]["list"]> => ({
+        changeSets: await everyChangeSet(client, { threadId }, signal),
+        cursor: null,
+      }),
     }),
 
   // every thread of the account, newest first

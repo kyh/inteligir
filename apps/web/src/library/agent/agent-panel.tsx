@@ -33,22 +33,17 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  changeSetPages,
-  everyChangeSet,
-  UNDO_SCOPE,
-  useUndoWaits,
-} from "../cloud/change-set-pages";
+import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
 import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { quotePassage } from "./quote-passage";
-import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
@@ -225,41 +220,12 @@ const Conversation = ({
   const { client, orpc } = useWire();
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
-  const stored = useQuery(queries.threadEvents(threadId));
-  const rows = stored.data?.events ?? [];
+  const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
   const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
   const titles = useQuery(queries.titles()).data?.targets ?? [];
   const { blocks, waiting } = conversationOf(rows);
   const preview = useLivePreview(threadId);
-  // the conversation's sets, every page of them: each finished turn's Undo and the whole
-  // conversation's need them all
-  const setPages = changeSetPages(orpc, { threadId });
-  const sets = useInfiniteQuery(setPages);
-  // asked again after every answer, since a refetch that meets a page still being asked starts the
-  // pages over and lands as the same data
-  const { dataUpdatedAt, fetchNextPage, hasNextPage, isFetching } = sets;
-  useEffect(() => {
-    if (dataUpdatedAt > 0 && hasNextPage && !isFetching) {
-      void fetchNextPage();
-    }
-  }, [dataUpdatedAt, fetchNextPage, hasNextPage, isFetching]);
-  // a turn's change set seals in the push that ends it, so the sets are asked again as each turn
-  // ends after the conversation was read, what was read shown meanwhile
-  const ended = blocks.filter(
-    (block) => block.kind === "entry" && block.entry.event.type === "turn.ended",
-  ).length;
-  const endedRead = useRef<number | null>(null);
-  const eventsRead = stored.data !== undefined;
-  const setsKey = setPages.queryKey;
-  useEffect(() => {
-    if (!eventsRead) {
-      return;
-    }
-    if (endedRead.current !== null && endedRead.current !== ended) {
-      void queryClient.invalidateQueries({ queryKey: setsKey });
-    }
-    endedRead.current = ended;
-  }, [ended, endedRead, eventsRead, queryClient, setsKey]);
+  const changeSets = useQuery(queries.changeSets(threadId)).data?.changeSets;
   const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   const undo = useMutation(
@@ -277,7 +243,6 @@ const Conversation = ({
     }),
   );
   const undoWaits = useUndoWaits();
-  const changeSets = changeSetsOf(sets.data?.pages ?? []);
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
       const kept: string[] = [];
@@ -302,15 +267,14 @@ const Conversation = ({
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {
-    const ids = turnUndo(changeSets, turn);
+    const ids = changeSets === undefined ? null : turnUndo(changeSets, turn);
     return ids === null
       ? null
       : () => {
           undoSets(ids);
         };
   };
-  // offered once every page is read
-  const whole = hasNextPage ? null : conversationUndo(changeSets);
+  const whole = changeSets === undefined ? null : conversationUndo(changeSets);
   // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
   // so that list can be a turn short of the conversation, or hold what another device took back. A
   // mutation though it writes nothing, so the press waits offline under the layout's notice and in
