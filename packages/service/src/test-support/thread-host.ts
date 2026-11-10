@@ -23,7 +23,7 @@ import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
 import { turnUserMessage } from "../agent/turn-message";
 import { bookTurn, dayOf } from "../agent/agent-allowance";
-import { createThread, insertTurn, lastPush, setThreadStatus } from "../agent/turn-rows";
+import { createThread, insertTurn, lastPush, restatus } from "../agent/turn-rows";
 import { openCellLibrary } from "../library/cell-library";
 import { libraryCellName } from "../library/library-cell";
 import { filingRules } from "../library/library-rules";
@@ -74,7 +74,7 @@ export const openTurnInCell = async (
           turn,
         });
         bookTurn(scope.storage, dayOf(scope.now), 1);
-        setThreadStatus(scope, threadId, "running");
+        restatus(scope, threadId);
         return {
           pushedThrough: lastPush(scope.storage, threadId),
           rules: filingRules(scope.storage.db),
