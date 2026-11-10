@@ -72,7 +72,14 @@ written and cited.
   client, query helpers, saves, shares and previews made together and closed
   together, so a revocation any of its calls hears ends it for all, once
   however many hear it, and a refusal heard under an earlier sign-in never
-  ends the next. The route guard, never a per-screen branch, decides which
+  ends the next. Where the sign-in stands is one phase (closed, open with its
+  library and socket, or leaving), whose one writer lets a socket go with its
+  library, so a sign-out asked while another clears gets that one's outcome;
+  the app tells the runtime each edge of being in front and online once, so a
+  wake resumes once (`apps/mobile/src/lib/app-runtime.ts`). Rejected: a
+  nullable library beside the session (signed in with nothing open read as a
+  sign-out under way, and a second sign-out answered signed out over a first
+  that failed). The route guard, never a per-screen branch, decides which
   screens exist (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`):
   signed in, the Library, an item, a script-less viewer of a file and the
   agent; signed out, the sign-in.

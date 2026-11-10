@@ -3,6 +3,7 @@
 // and signed out, what each one keeps and clears, and what the socket's frames ask again.
 
 import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { dehydrate } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
@@ -307,6 +308,61 @@ describe("the phone's runtime", () => {
       .poll(() => runtime.session.get())
       .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
     expect(keys.held()).toBeNull();
+  });
+
+  it("gives a second sign-out asked while the first clears the first's outcome", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    const folder = refusingOnce(memoryFolder());
+    const { runtime } = runtimeOver(createFakeCell(), { folder: folder.port, keys });
+    await runtime.start();
+
+    folder.refuseNext();
+    const failed = { kind: "failed", message: "database or disk is full" };
+    await expect(Promise.all([runtime.logout(), runtime.logout()])).resolves.toStrictEqual([
+      failed,
+      failed,
+    ]);
+    expect(runtime.session.get().kind).toBe("signed-in");
+    expect(keys.calls).not.toContain("signOut");
+  });
+
+  it("asks the session once a return to the front, however many times it is told", async () => {
+    const keys = fakePhoneAuth(KEPT_SESSION);
+    keys.checks("unknown");
+    const { runtime } = runtimeOver(createFakeCell(), { keys });
+    await runtime.start();
+    runtime.resume();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual(["check", "check"]);
+    runtime.suspend();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual(["check", "check", "check"]);
+  });
+
+  it("does nothing on a return to the front while signed out", async () => {
+    const keys = fakePhoneAuth();
+    const sockets = fakeSockets();
+    const { runtime } = runtimeOver(createFakeCell(), { keys, sockets });
+    await runtime.start();
+    runtime.suspend();
+    runtime.resume();
+    expect(keys.calls).toStrictEqual([]);
+    expect(sockets.sockets).toStrictEqual([]);
+  });
+
+  it("dials no socket while the app is away, and one once it is back", async () => {
+    const sockets = fakeSockets();
+    const { runtime } = runtimeOver(createFakeCell(), {
+      keys: fakePhoneAuth(KEPT_SESSION),
+      sockets,
+    });
+    runtime.suspend();
+    await runtime.start();
+    await delay(20);
+    expect(sockets.sockets).toStrictEqual([]);
+
+    runtime.resume();
+    await expect.poll(() => sockets.sockets.length).toBe(1);
   });
 
   it("is signed out of a sign-in the cloud ended though its copy would not go, and clears it at the next launch", async () => {
