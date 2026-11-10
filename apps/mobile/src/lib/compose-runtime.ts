@@ -76,6 +76,9 @@ export interface PhoneLibrary {
   readonly shares: ShareOutbox;
   // the reply the agent is writing, as the socket carries it
   readonly previews: ThreadPreviews;
+  // the items a write moved, as the socket says, or null when any may have: an open note's page
+  // reads again what it shows of them
+  readonly onItems: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
   // a fresh op id for a write a screen makes
   readonly newId: () => string;
 }
@@ -113,6 +116,7 @@ export interface AppRuntime {
   readonly suspend: () => void;
 }
 
+/** @internal */
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
@@ -277,10 +281,22 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     });
     await shares.load();
     const previews = createThreadPreviews();
+    const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
+    const itemsMoved = (ids: ReadonlySet<string> | null): void => {
+      for (const listener of itemListeners) {
+        listener(ids);
+      }
+    };
     const made: PhoneLibrary = {
       client,
       files,
       newId: args.newId,
+      onItems: (listener) => {
+        itemListeners.add(listener);
+        return () => {
+          itemListeners.delete(listener);
+        };
+      },
       previews,
       queries,
       saves,
@@ -299,6 +315,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
                 return;
               }
               moved(queries, frame);
+              if (frame.items === "all") {
+                itemsMoved(null);
+              } else if (frame.items.length > 0) {
+                itemsMoved(new Set(frame.items.map(({ id }) => id)));
+              }
               for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
                 previews.hear({ text: null, threadId });
               }
@@ -307,6 +328,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
             // preview go been missed; a reply still being written sends its next one in a moment
             onOpen: () => {
               void queryClient.invalidateQueries({ queryKey: queries.library.key() });
+              itemsMoved(null);
               previews.hear({ text: null, threadId: null });
             },
             origin: args.cloudUrl,

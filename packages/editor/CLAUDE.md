@@ -79,9 +79,10 @@ alone, and no walk narrows structurally.
   import, and every hook is spelled once and pinned both ways and to each
   import, since a missing sheet fails no other test
   (`packages/editor/src/style-hooks.ts`). The tokens are declared once in
-  `apps/web/src/library/styles/globals.css` and read with no fallback; the phone
-  page writes its own value for each, with no dials and `--editor-size` at 16px
-  or more, since iOS zooms into smaller text
+  `apps/web/src/library/styles/globals.css` and read with no fallback; the phone's
+  note page (`apps/mobile/src/editor/page/note-page.css`) writes its own value
+  for each, with no dials and `--editor-size` at 16px or more, since iOS zooms
+  into smaller text
   (`tools/repo-guards/src/appearance-tokens.test.ts`). Rejected: an accent axis
   (nothing in Plate consumes a hue).
 
@@ -385,7 +386,9 @@ alone, and no walk narrows structurally.
   socket) take item ids, a page link shows the title its id goes by in the
   library's titles now, and `readFile(sha)` answers from the host's file source
   (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app alike;
-  the phone's cache over the bridge). A media block holds `{sha}` (a file its
+  the phone's file cache through its native actions), and a note's socket dials
+  the cloud at the host's `socketOrigin`, since the phone's page loads from a
+  file. A media block holds `{sha}` (a file its
   `name`) or a web `{url}`, its type the Blob's. A page link reaches an item by
   its id, the mention's key; a `[[Title]]` in an import or the agent's text
   reaches one by `titleKey`, the key the cell resolves a title by; a markdown
@@ -415,7 +418,8 @@ alone, and no walk narrows structurally.
   account (`apps/web/src/library/cloud/account-storage.ts`). Rejected: a fold
   in the cell (it is one device's view, and every fold a write); the heading's
   text as the key (it stayed on the phone after a sign-out). Residual: the
-  phone's page keeps the ids and hashes, which name nothing, past a sign-out.
+  phone's editor page keeps the ids and hashes, which name nothing, past a
+  sign-out.
   `packages/editor/src/heading-collapse.tsx`.
 
 - **A TABLE CELL KEEPS A CODE SPAN'S AND AN EQUATION'S PIPES.** gfm splits a
@@ -458,8 +462,9 @@ alone, and no walk narrows structurally.
   going stays in the document, which the provider's sync hands the note once the
   socket is back. A note that cannot open while the host is offline draws what
   the host holds of it (`readItemBlocks`) read-only under the same words, until
-  the note opens; a host holding none, or whose read fails, shows the words
-  alone (`packages/editor/src/item/held-item.tsx`). Rejected: queueing an edit
+  the note opens, so an item the phone opened before reads on a plane; a host
+  holding none, or whose read fails, shows the words alone
+  (`packages/editor/src/item/held-item.tsx`). Rejected: queueing an edit
   offline (the cloud is the truth, and a queue that outlives the tab is a
   second writer); a read-only flag of the editor's own (every node and toolbar
   already reads Plate's); a read-only check inside each handler (a new plugin

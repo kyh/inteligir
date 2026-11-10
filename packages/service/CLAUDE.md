@@ -804,7 +804,7 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   to carry the person's words there; `save_link` asks first, and its card shows
   the address as the library would read it, the host named beside it, since
   the model's own reply is what such a page writes. Nothing a
-  device draws is the same door: the library's page, in a tab and the Mac app alike, and the phone's editor page
+  device draws is the same door: the library's page, in a tab and the Mac app alike, and the phone's editor
   each draw no remote image, frame or media
   (`tools/repo-guards/src/remote-media.test.ts`).
   Rejected: holding the read until the person confirms it after the turn (a

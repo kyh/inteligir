@@ -1,7 +1,8 @@
 # @repo/e2e — the end-to-end suite
 
 Boots the REAL Worker (apps/web's `cf build` output under Miniflare), the
-browser extension and the phone's own runtime on scratch dirs, drives them over
+browser extension, the phone's own runtime and its exported note page on
+scratch dirs, drives them over
 `/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. It is orchestration plus
 plain assertions on purpose — no test framework; the runner exits non-zero on
 any failure with a readable transcript.
@@ -37,7 +38,7 @@ every scenario in registry order whatever finished first. Everything a
 scenario touches is its own, which is what lets it share a run: its scratch
 dir, ports reserved ephemerally and never handed to two lanes in one run
 (`src/harness/ports.ts`), and browser sessions named for it. A build a scenario
-makes through turbo (the Worker, the phone's editor page) runs once per run and
+makes through turbo (the Worker, the phone's export) runs once per run and
 one at a time (`src/harness/turbo-build.ts`), because a second build would
 rewrite the output a running Worker serves its assets from.
 
@@ -80,9 +81,12 @@ scratch dir and tears everything down afterwards:
   cut refuses every new connection and drops every open one, as a device that
   lost its network meets the cloud, and a restore listens on the same port
   again. Registered for teardown with the scenario.
-- `browser(label)` — an agent-browser session registered for teardown with the
-  scenario, so a failed or abandoned scenario still closes it. It is callable
-  with any agent-browser command, and `openLibrary(worker, { path?, ready? })`
+- `browser(label, { launchFlags? })` — an agent-browser session registered for
+  teardown with the scenario, so a failed or abandoned scenario still closes
+  it, its browser launched with the flags named (the extension's profile, or
+  the phone's note page's stand-in for its web view as an `--init-script`). It
+  is callable with any agent-browser command, and
+  `openLibrary(worker, { path?, ready? })`
   signs it in to a booted Worker through the site's own sign-in, which comes
   back to `/library`, and returns once the rail and `ready` mounted. It skips
   the scenario when no headless browser can launch (see CI).

@@ -2,7 +2,7 @@
 @import "@repo/editor/styles.css";
 /* The editor package is outside this app's scan root, so an editor-only
    utility silently never generates unless its sources are named here. */
-@source "../../../../packages/editor/src/**/*.{ts,tsx}";
+@source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
   /* The phone's own dials, one value each: the page offers no appearance
@@ -16,7 +16,7 @@
 
 html,
 body {
-  /* the WebView is the note, so a drag past its edge must not reveal the
+  /* the web view is the note, so a drag past its edge must not reveal the
      native view behind it */
   overscroll-behavior: none;
 }

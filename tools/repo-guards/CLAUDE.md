@@ -21,7 +21,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **A GUARD DERIVES EVERY VALUE IT CAN, AND IS FOR A FAILURE NOTHING ELSE
   REPORTS.** What it cannot derive is a row carrying its reason
-  (`EDITOR_PAGE_CLIENTS`, `PROSE_SIZES`, product-words' `ALLOWED`), and
+  (`PROSE_SIZES`, product-words' `ALLOWED`), and
   `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A second copy of a
   tool's check, or of what the tree already prints, is one more table every
   change keeps in step, so knip's unused dependencies,
@@ -41,16 +41,16 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **THE REACT COMPILER IS ON FOR EVERY BUNDLE, THROUGH react.dev's VITE PATH**
   (owner decision): `@vitejs/plugin-react`'s `reactCompilerPreset` run by
-  `@rolldown/plugin-babel` in the web's, the phone editor page's and the
-  gallery's vite configs and the extension's WXT config
-  (`apps/extension/wxt.config.ts`), and `reactCompiler: true` in
-  `apps/mobile/app.config.js`; the web's build says each component the
-  compiler skipped (`apps/web/vite.config.ts`). The suites run what
-  ships: the library's, `@repo/editor`'s, `@repo/ui`'s, the phone page's and
-  the extension's DOM tests compile their sources the same way (not test files,
-  where a fixture hook minted in a factory is hoisted with no diagnostic), and
-  a `compiled-under-test` case in each fails without the preset (the phone
-  page's in `apps/mobile-editor/src/item/item-page.test.tsx`, the extension's in
+  `@rolldown/plugin-babel` in the web's and the gallery's vite configs and the
+  extension's WXT config (`apps/extension/wxt.config.ts`), and
+  `reactCompiler: true` in `apps/mobile/app.config.js`, which `expo export`
+  hands each DOM component as it does the app, so the phone's note page is
+  compiled too; the web's build says each component the compiler skipped
+  (`apps/web/vite.config.ts`). The suites run what ships: the library's,
+  `@repo/editor`'s, `@repo/ui`'s and the extension's DOM tests compile their
+  sources the same way (not test files, where a fixture hook minted in a
+  factory is hoisted with no diagnostic), and a `compiled-under-test` case in
+  each fails without the preset (the extension's in
   `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node suite cannot
   run compiled: the preset applies to the client environment alone. Rejected:
   the plugin's own `compiler` option (marked experimental, over a second
@@ -68,20 +68,23 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   install riding no lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
   the `Cargo.lock` every cargo step runs `--locked` against. The
   browser-extension scenarios pass agent-browser's `--profile` and
-  `--extension` on every call (`tools/e2e/src/harness/extension-fixture.ts`),
-  since agent-browser launches its browser on whichever call comes first. The
+  `--extension`, and the phone's note page its `--init-script`, on every call
+  (`tools/e2e/src/harness/extension-fixture.ts`,
+  `tools/e2e/src/scenarios/phone-note-editor.ts`), since agent-browser
+  launches its browser on whichever call comes first. The
   arguments are `pnpm-workspace.yaml`'s comments.
 
 - **AN UPDATE SWEEP SKIPS THE EXPO SDK'S NAMES, NOT ITS `expo:` CATALOG.**
   `update.ignoreDeps` holds `expo`, `expo-*`, `@expo/*`, `react-native`,
   `react-native-*` and `@react-native/*` under `pnpm up --latest -r`, and
   `nativewind`, whose `latest` is its Tailwind 3 line. It matches by name, so
-  `react` and `typescript`, which web shares, cannot be listed without freezing
-  web too: after a sweep, revert the `expo:` catalog rows by hand, then
+  `typescript`, which web shares, cannot be listed without freezing web too:
+  after a sweep, revert the `expo:` catalog's row by hand, then
   `npx expo install --check` in `apps/mobile`. An SDK upgrade moves all of them
   together, `expo-share-intent` by hand: it is third-party, so
   `npx expo install --fix` does not manage it, though its major tracks the SDK
-  (its peer `expo` range) and the `expo-*` glob skips it.
+  (its peer `expo` range) and the `expo-*` glob skips it. React is no `expo:`
+  row: the phone and its DOM component run the repo's one catalog React.
 
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit replays
   the output with no error, and the e2e suite and `package:*` ship what it
@@ -185,7 +188,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `pnpm e2e` runs one scenario per two of the machine's cores at once, at most
   four, each started in registry order as a lane frees and its log printed whole
   when it ends; `--lanes 1` runs them one after another, streaming. Ports,
-  scratch dirs and browser sessions are each lane's own, and the Worker and the phone's editor page are built once
+  scratch dirs and browser sessions are each lane's own, and the Worker and the phone's export are built once
   per run, a build's wait behind another lane's not counted against its
   scenario's deadline. Rejected: one serial run (835 s against about 490 s on
   four cores). `tools/e2e/src/run.ts`.

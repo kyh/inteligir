@@ -39,9 +39,6 @@ const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 // a block's id on this phone: what a thought's paragraphs are named by
 const newBlockId = (): string => Crypto.randomUUID();
 
-// one per load of an item's page
-export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
 const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   hexFromBytes(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
 

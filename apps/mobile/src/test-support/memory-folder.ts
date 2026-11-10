@@ -3,10 +3,12 @@
 
 import type { FileFolder } from "../files/file-cache";
 
+/** @internal */
 export interface MemoryFolder extends FileFolder {
   readonly held: () => readonly string[];
 }
 
+/** @internal */
 export const memoryFolder = (): MemoryFolder => {
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   return {

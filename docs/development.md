@@ -33,7 +33,9 @@ every step and check that is the owner's.
 pnpm dev                # The Mac app's window on the local Worker's library page (pnpm dev:web)
 pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
-                        #   pnpm --filter @repo/mobile dev runs it without one)
+                        #   pnpm --filter @repo/mobile dev runs it without one); a physical phone
+                        #   needs `expo start --tunnel`, since the note editor's page needs a secure
+                        #   context plain http over the network is not (apps/mobile/README.md § Dev)
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the site and
                         #   the library's page at /library off vite's dev server, and the scripted
                         #   Messages API on :5177 its built-in agent talks to
@@ -168,7 +170,8 @@ pnpm format:fix && pnpm verify
 `test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
 `format` are the root package's own tasks in `turbo.json`, beside the shell's
 `cargo fmt` check. Its `build` bundles the phone too (`expo export --platform
-ios`), so JavaScript Metro refuses fails here rather than on EAS. It is check-only on purpose — `format:fix` is a separate first
+ios`), its note editor's DOM bundle beside it (`apps/mobile/dist/www.bundle`),
+so JavaScript Metro refuses fails here rather than on EAS. It is check-only on purpose — `format:fix` is a separate first
 step, never folded in. Format before gates, commit after gates. Turbo carries
 on past a failure to every task whose dependencies passed, so a red format
 cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
@@ -210,7 +213,8 @@ extension's) needs its workspace's `generate` first, which `turbo run` does.
 End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
 own with its state in a scratch dir, and drives it the way a person or an
 assistant does: the library's tab in a headless browser, the browser extension
-in Chromium, and the phone's item page and runtime. It is deliberately outside
+in Chromium, and the phone's runtime and its exported note page, loaded from
+its file in a stand-in for the phone's web view. It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
 lanes, half the machine's cores and at most four at once, each printed whole
 when it ends; `--lanes 1` runs them one at a time and streams every line, and

@@ -25,9 +25,9 @@ is moving the code to these premises in stages, issues
 [#926](https://github.com/kyh/inteligir/issues/926) to
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
-onward and the `CLAUDE.md` bullets of its area may describe the older design
-(the phone's editor as a WebView page). Where they disagree, these premises
-win, and the stage's issue says what changes.
+onward and the `CLAUDE.md` bullets of its area may describe the older design.
+Where they disagree, these premises win, and the stage's issue says what
+changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
   Notion.
@@ -135,14 +135,12 @@ this guide wins.
 ```
 apps/web                @repo/web — ONE Cloudflare Worker: the site, the library's page at /library (src/library, which the Mac app's window shows), and the entry that serves @repo/service's doors and exports its Durable Objects
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
-apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, an item drawn read-only from what it holds, and shares that wait offline
-apps/mobile-editor      @repo/mobile-editor — the phone's item page: an item drawn read-only by @repo/editor, one script behind a WebView bridge
+apps/mobile             @repo/mobile — the iPhone app: notes edited live in an Expo DOM component over @repo/editor, the library read through a kept TanStack Query cache, and shares that wait offline
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
 packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each item's note (NoteDO, a live Yjs document), each conversation with the built-in agent
 packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's, each note's and each conversation's, with the migrations each runs as it wakes
 packages/editor         @repo/editor — the Plate WYSIWYG bound to a note's live document, the dialect's rules over Plate's stock markdown, and the codec over its headless kits
-packages/editor-bridge  @repo/editor-bridge — the phone item page's wire (an item, its link targets, a file's bytes), which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events folded into the person's words, its approvals and its sends
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
@@ -275,7 +273,7 @@ Every surface, and how an agent sees it run; a scenario is one of
 | The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's                                                                                             |
 | The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                                                                                                                        |
 | The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                                                                                                                 |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its item page, read-only), `phone-offline-share` (its runtime under node)                                                                                    |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-note-editor` (the exported editor page from `file://` against a local Worker), `phone-offline-share` (its runtime under node)                                              |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
@@ -396,7 +394,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — the site and the Worker: the layout's departures from kyh/init, Start's paths and doors, each program's `Env`, the library's route, and previews
 - [`apps/web/src/library/CLAUDE.md`](apps/web/src/library/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its read-only item page, its cache, its shares and its files, the agent, its look, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: whose sign-in it rides, its saves and its queue
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling

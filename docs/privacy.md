@@ -106,7 +106,9 @@ through the Service or otherwise includes:
     cloud. What you type in a note goes there as you type it, to that note's own
     store in your library, which sends it on to every device that has the note
     open, as it does the built-in agent's edits; it carries no presence, so no
-    one learns who else has a note open or where their cursor is. Your library
+    one learns who else has a note open or where their cursor is. On the
+    iPhone, a note's connection opens from the app's editor view, on a
+    one-minute pass the app asked for. Your library
     keeps what each change to an item's fields, a folder or a tag replaced, and
     what the built-in agent, an assistant, an import or a reading of a page
     changed, for seven days, so Undo can take it back, each change named for the
@@ -439,8 +441,8 @@ so that still shows with no connection:
 - **Pages you share while offline.** A page or text you share to Inteligir
   waits on the phone until your library takes it; one the library refuses
   stays on the phone and says so. Nothing else waits: a save typed into the
-  app, a photo or a deletion needs a connection, and says so, and the phone
-  shows a note read-only.
+  app, a photo, a deletion or typing in a note needs a connection, and says
+  so.
 
 It all lives in the app's own storage on the phone. What it last read and the
 shares waiting sit where the app keeps them out of the phone's iCloud backup:

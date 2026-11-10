@@ -3,12 +3,14 @@
 
 import type { KvStorage } from "../items/share-outbox";
 
+/** @internal */
 export interface MemoryKv extends KvStorage {
   readonly held: ReadonlyMap<string, string>;
   // the next writes fail, as a full disk's would
   readonly failWrites: (failing: boolean) => void;
 }
 
+/** @internal */
 export const memoryKv = (): MemoryKv => {
   const held = new Map<string, string>();
   let failing = false;

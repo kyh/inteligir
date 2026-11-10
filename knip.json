@@ -21,18 +21,11 @@
       "project": ["scripts/*.ts"]
     },
     "apps/mobile": {
-      // expo reads fingerprint.config.js by its name when it fingerprints the native build, and
-      // its `module.exports` is what expo reads, which knip can neither see used nor be told of
-      // (a JSDoc tag rides no CommonJS export); every other entry here is the expo-router plugin's
-      "entry": ["fingerprint.config.js"],
-      "includeEntryExports": false,
-      "project": ["src/**/*.{ts,tsx,css}!", "plugins/*.js!", "!src/**/test-support/**!"],
+      "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
       // leaves it off until the EAS project is committed. expo-linking, autolinked as
       // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
-      // @repo/mobile-editor is the built editor page, never imported: plugins/with-editor-page.js
-      // links its dist/ into the native build, and the edge orders its build before the app's
-      "ignoreDependencies": ["expo-updates", "@repo/mobile-editor"]
+      "ignoreDependencies": ["expo-updates"]
     },
     "apps/extension": {
       // WXT's entrypoints live under its srcDir, src/, where knip's wxt plugin, which looks in
@@ -41,10 +34,6 @@
       "project": ["src/**/*.{ts,tsx,css}!", "*.ts", "!src/**/test-support/**!"],
       // tailwindcss is @repo/ui's globals.css import, which knip does not follow
       "ignoreDependencies": ["tailwindcss"]
-    },
-    "apps/mobile-editor": {
-      // vite/ is the build's own plugins
-      "project": ["src/**/*.{ts,tsx,css}!", "vite/**/*.ts", "!src/**/test-support/**!"]
     },
     "apps/web": {
       // cloudflare.config.ts is what `cf build` deploys, its entrypoint src/worker/server.ts; the
@@ -58,7 +47,6 @@
     "packages/agent-panel": { "project": ["src/**/*.ts!"] },
     "packages/contract": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
-    "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/db": {
       // knip's drizzle plugin reads only drizzle.config.ts by default; the cell's, the note's and the

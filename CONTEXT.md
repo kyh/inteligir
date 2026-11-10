@@ -127,8 +127,7 @@ it, through a relaunch too (`apps/mobile/src/items/share-outbox.ts`); a share
 the cloud refuses is **parked** with its words, for Try again or Let it go.
 The one write a device keeps offline, with the browser extension's retry
 queue, which holds a save's url and title the same way. Not a queue of edits:
-a save typed into the app, a photo and a delete each need a connection, and
-the iPhone shows a note read-only.
+a save typed into the app, a photo and a delete each need a connection.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
 (`packages/service/src/connector/connector-route.ts`), the library's procedures

@@ -13,6 +13,7 @@ export type AuthAnswer =
   | { readonly kind: "unreachable" };
 
 // Better Auth's own read of the session, the one read that slides it on
+/** @internal */
 export type SessionCheck = "live" | "ended" | "unknown";
 
 export interface PhoneAuth {

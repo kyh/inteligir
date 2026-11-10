@@ -144,7 +144,7 @@ const ORPC_V1_NAMES = [
   },
 ];
 
-// The phone's editor page is a Metro DOM bundle, which Expo compiles with classes transpiled to
+// The phone's DOM component is a Metro DOM bundle, which Expo compiles with classes transpiled to
 // functions, and oRPC's builder dies under that at boot ("Cannot call a class as a function") while
 // typecheck and export stay green. Every module of @repo/contract that reaches oRPC is named.
 const NO_ORPC_IN_PAGE = {
@@ -155,8 +155,23 @@ const NO_ORPC_IN_PAGE = {
 };
 
 type ImportPattern =
-  | { readonly message: string; readonly regex: string }
+  | { readonly message: string; readonly regex: string; readonly allowTypeImports?: boolean }
   | { readonly message: string; readonly group: readonly string[] };
+
+// The phone's note is a DOM component (apps/mobile/src/editor/page/): a page in its web view, where
+// only the browser is, reaching the phone through its props alone. A type import is erased from the
+// bundle, so the page may name expo/dom's prop types.
+const NOTE_PAGE_PLATFORM = {
+  allowTypeImports: true,
+  message:
+    "the phone's note page runs in its web view, where only the browser is: no React Native, Expo module or node",
+  regex: "^(?:node:|react-native(?:-[^/]+)?(?:/|$)|@react-native/|expo(?:-[^/]+)?(?:/|$)|@expo/)",
+};
+const NOTE_PAGE_WALL = {
+  message:
+    "the phone's note page reaches the phone only through its props (page-host.ts), so it imports nothing of the app outside page/",
+  regex: "^(?:\\.\\./|@/)",
+};
 
 // One rule config per file: an override's options replace the base's rather than add to them, so
 // every override restating the rule carries the repo-wide rows beside its own.
@@ -273,7 +288,7 @@ export default defineConfig({
     platformPurity(
       "packages/editor",
       NODE,
-      "@repo/editor imports no node module: it runs in the page, in the phone's WebView, and headless in the Worker, whose cell reads and writes markdown through its codec",
+      "@repo/editor imports no node module: it runs in the page, in the phone's DOM component, and headless in the Worker, whose cell reads and writes markdown through its codec",
       NO_ORPC_IN_PAGE,
     ),
     platformPurity(
@@ -291,11 +306,32 @@ export default defineConfig({
       NODE,
       "@repo/extension runs in the browser: its pages and its service worker reach the library only through /v1, as every client does",
     ),
-    platformPurity(
-      "apps/mobile-editor",
-      NODE,
-      "@repo/mobile-editor is a page in the phone's WebView, loaded from file://: nothing but the browser is there",
-    ),
+    {
+      excludeFiles: tests,
+      files: ["apps/mobile/src/editor/page/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          NOTE_PAGE_PLATFORM,
+          NOTE_PAGE_WALL,
+          NO_ORPC_IN_PAGE,
+        ]),
+      },
+    },
+    {
+      // the phone's screens draw natively; the editor and @repo/ui are DOM, drawn only by the note's
+      // DOM component, which Expo bundles apart
+      excludeFiles: [...tests, "apps/mobile/src/editor/page/**"],
+      files: ["apps/mobile/src/**"],
+      rules: {
+        "no-restricted-imports": restrictedImports([
+          {
+            message:
+              "only the phone's note page (src/editor/page/) draws DOM: a native screen imports no @repo/editor, @repo/ui or react-dom",
+            regex: "^(?:@repo/(?:editor|ui)(?:/|$)|react-dom(?:/|$))",
+          },
+        ]),
+      },
+    },
     platformPurity(
       "packages/ui",
       NODE,

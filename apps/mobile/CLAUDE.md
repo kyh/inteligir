@@ -1,52 +1,65 @@
 # Decisions: @repo/mobile
 
-The phone: its read-only item page, its cache, its shares and its files, the
-agent, its look, and how it ships. `AGENTS.md` § Decisions says how a bullet is
+The phone: its editor, its cache, its shares and its files, the agent, its
+look, and how it ships. `AGENTS.md` § Decisions says how a bullet is
 written and cited.
 
 ## Editor and dialect
 
-- **THE PHONE'S EDITOR IS A VITE PAGE CARRIED IN THE BINARY: ONE CLASSIC SCRIPT
-  IN A WEBVIEW, BEHIND A TYPED, NONCE-STAMPED BRIDGE** (owner decision).
-  WKWebView loads no module script or `crossorigin` tag from `file://`
-  (vitejs/vite#14483), so the build is one IIFE and fails on anything else
-  (`apps/mobile-editor/vite/classic-page.ts`). The page ships in the bundle, so
-  it loads with no network (`apps/mobile/plugins/with-editor-page.js`), and in
-  the native fingerprint, so an EAS Update beside another page matches no
-  install (`apps/mobile/fingerprint.config.js`). Rejected: a React Native
-  renderer of the dialect (cannot edit, degrades what it does not model); Expo
-  DOM components (a second compile of the editor, typechecked under the
-  phone's TypeScript 6, not the editor's Vite, React Compiler and TypeScript 7).
+- **THE PHONE'S EDITOR IS AN EXPO DOM COMPONENT OVER @repo/editor, BUILT BY
+  `expo export` AND SHIPPED IN EAS UPDATES, ON react-native-webview** (owner
+  decision). An item's screen draws a `"use dom"` component
+  (`apps/mobile/src/editor/page/note-page.tsx`), which Metro bundles apart for
+  the web with the repo's one React, so the phone runs the editor every device
+  draws, through its touch profile, compiled as every bundle is. `expo export`
+  writes it beside the app's JS (`dist/www.bundle`), so an editor fix is a JS
+  update; in one chunk, since an exported page fails to load a lazy chunk it
+  split off (`EXPO_NO_BUNDLE_SPLITTING` in `apps/mobile/package.json`), and its
+  fonts written into its sheet, since the page loads no file the export moved
+  (`apps/mobile/inline-fonts.js`). The web view is react-native-webview's
+  (`useExpoDOMWebView: false`), the one that offers a navigation policy and a
+  keyboard raised without a tap. Rejected: the Vite page and its bridge (a
+  second build of the editor and a wire of our own); `@expo/dom-webview` (no
+  navigation policy, no keyboard raised by code); a React of the SDK's own for
+  Metro (two Reacts, where Expo's DOM entry runs on the repo's 19.2.8).
 
-- **NATIVE REACHES THE EDITOR PAGE ONLY THROUGH ITS DOOR, AND THE WEBVIEW IS ONE
-  POLICY.** The door is installed non-writable on `window`, never a message
-  event a child frame's `parent.postMessage` could forge, and every frame after
-  `init` carries the nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The
-  wire breaks freely, since one binary ships both ends
-  (`packages/editor-bridge/src/protocol.ts`); an item page's host reads the
-  account's library and writes nothing
-  (`apps/mobile-editor/src/item/item-host.ts`,
-  `apps/mobile/src/editor/item-ports.ts`). The WebView loads the page and its
-  frames, hands a followed web link to Safari and refuses the rest; its origin
-  list admits every address, because the library hands what that list refuses
-  to the OS before the policy runs (`apps/mobile/src/editor/editor-host.ts`).
-  Every injected script ends `true;` and every frame is a string.
-  `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
-  `file://`.
+- **NATIVE REACHES THE PAGE ONLY THROUGH ITS ACTIONS AND PROPS, AND THE WEB
+  VIEW IS ONE POLICY.** The page asks the library through actions native
+  answers from the account's runtime, each argument and answer JSON, a file's
+  bytes base64 and a refusal an Error carrying its message
+  (`apps/mobile/src/editor/note-actions.ts`); native tells the page a few
+  primitive props, sent again on every render: the item, the cloud's origin,
+  whether there is a connection, a count of the items that moved and a leave's
+  ask (`apps/mobile/src/editor/page/page-host.ts`). A production page inserts
+  its content policy before it draws, its one connection the note's socket
+  (`apps/mobile/src/editor/page/page-policy.ts`), and lint holds the page to
+  the browser and every native screen off DOM (`oxlint.config.ts`). The web
+  view loads the page from the bundle or an update and its frames, hands a web
+  link a tap followed to Safari and refuses the rest, by the navigation's
+  type; its origin list admits every address, because the library hands what
+  that list refuses to the OS before the policy runs
+  (`apps/mobile/src/editor/web-view-policy.ts`). Rejected: an imperative
+  handle into the page (a second channel, lost with each reload); a listing in
+  props (every render sends each prop whole). Residual: Expo's door into the
+  page carries no nonce, so only the page's own script may run, which its
+  policy holds.
 
-- **THE PHONE'S ITEM PAGE IS READ-ONLY, DRAWN FROM THE BLOCKS THE PHONE
-  HOLDS** (owner decision, until the phone's editor joins a note's live
-  document). The page draws the item as the cloud holds it, or as the phone
-  last read it while there is no connection, under the phone's words that
-  editing on the phone is coming, and draws it again when the item's query
-  moves or a name a link shows does (`apps/mobile/src/editor/item-ports.ts`,
-  `apps/mobile/src/editor/use-item-editor.ts`,
-  `apps/mobile-editor/src/item/item-page.tsx`). It dials no note, keeps no
-  file and makes no note; a save, a photo and a share still save. Rejected:
-  writing a note's blocks from the phone beside the live document (a second
-  writer the note would have to merge); queueing edits offline (the cloud is
-  the truth). Residual: a note's typing that moves no row leaves the phone's
-  copy as it was until the next move of its row or a pull to refresh.
+- **THE PHONE EDITS A NOTE LIVE AS EVERY DEVICE DOES, AND READS WHAT IT LAST
+  HELD WITH NO CONNECTION.** The page dials the note's socket itself, at the
+  cloud's origin native names, on a ticket native fetched. No connection is the
+  network's word or the app being behind, where iOS suspends the page's
+  socket, so the note turns read-only at once and redials on the way back
+  (`apps/mobile/src/editor/use-note-page.ts`); an item opened with none draws
+  the blocks the phone last read, read-only under "Needs a connection". A
+  leave while an edit made here may not be held asks the page, which answers
+  once the note holds it, and one it does not hold within 5 s offers Stay or
+  Discard edits in the library tab's words (`apps/mobile/src/app/item/[id].tsx`,
+  `apps/mobile/src/editor/leave-asks.ts`); an item deep under other screens
+  lets its web view go once the note holds. New note opens with the caret at
+  the end of its body and the keyboard up, and a tag chip does nothing on the
+  phone (owner decision). Rejected: a socket of native's own beside the page's
+  (two connections to one note); queueing edits offline (the cloud is the
+  truth).
 
 ## Cloud, sync and accounts
 
@@ -95,9 +108,9 @@ written and cited.
   CACHE.** A file is downloaded once however many screens ask for it at once,
   and a cover's thumbnail is made from the bytes that crossed. A file the phone
   sent up is kept as it went, so the phone never downloads what it sent. Each
-  file keeps the type it was sent as or the cloud served, which the item page
-  draws a note's file by over the bridge
-  (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists from a
+  file keeps the type it was sent as or the cloud served, which the note page
+  draws a note's file by, through its native action
+  (`apps/mobile/src/editor/note-actions.ts`). A file over 512 KB lists from a
   320 px thumbnail made once. No cover is decoded past
   `FILL_LIMITS.coverMaxPixels`: one is drawn whole only when it is a small file
   whose header names a size within that, any other picture goes through the
@@ -230,7 +243,8 @@ written and cited.
   background) reads `apps/mobile/src/lib/palette.ts`, which holds only those,
   and which `apps/mobile/src/styles.test.ts` holds equal to the compiled sheet
   in both schemes. Rejected: `StyleSheet.create` over a copied palette (a second
-  spelling in each screen); `@repo/ui` (DOM, which the dep-dag guard refuses).
+  spelling in each screen); `@repo/ui` (the native screens cannot draw DOM;
+  only the editor's page does).
 
 - **THE PHONE'S STYLE PINS ARE NATIVEWIND'S RELEASE CANDIDATE PAIR, SET UP AS
   ITS INSTALL SAYS, AND A REM IS THE WEB'S.** Exact: nativewind 5.0.0-rc.0,
@@ -268,7 +282,8 @@ written and cited.
   one with the Mac's and the extension's, and EAS builds with the repo's node and
   pnpm (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is an
   EAS Update to builds of the same native fingerprint, a native change a new
-  build (owner decision). The share extension is a target of its own in the App
+  build (owner decision); the editor rides the JS, so its fixes are updates.
+  The share extension is a target of its own in the App
   Group `group.com.inteligir.mobile`, both the plugin's defaults and both signed
   by EAS, and the group's defaults are a declared reason (`1C8F.1`);
   `apps/mobile/src/app-config.test.ts` holds the group, exactly one app

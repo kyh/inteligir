@@ -187,7 +187,8 @@ yet.
 
 § 3's Worker comes before this build: every save's answer carries `created`,
 which an older Worker doesn't send. This build drops the phone's local Expo
-module for the HTTP cache, a native change that moves the fingerprint, so it
+module for the HTTP cache, and the config plugin and the fingerprint rules that
+carried the old editor page, native changes that move the fingerprint, so it
 ships as a new EAS build, never an EAS Update (§ Hotfixes).
 
 ## 5. The owner's checks
@@ -450,22 +451,59 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **Search.** Search the library for a word only an article's body holds,
   then sign out and in again. Passing: the search finds it (the cell's search,
   online), and the second sign-in starts from an empty cache with no error.
-- **Read-only notes.** Open a note and try to type in it. Passing: it says
-  "Editing on the phone is coming. For now, edit this note in a browser or on
-  your Mac.", typing changes nothing, a link to an item opens its item, and a
-  change made on the Mac shows. Background the phone's app, change a note on
-  the Mac, come back. Passing: the change shows.
-- **The editor's edges.** Passing: a link to an item pushes its item and back
-  returns; an external link opens Safari and the page never navigates; a chart
-  and tabs draw; a Mermaid diagram draws, and recolours with no flash when dark
-  mode flips; dark mode follows the system, with no light edge behind a pushed
-  screen, even after switching it with the app open.
-- **A picture in a note.** Open, on the phone, a note the Mac pasted a
-  picture, a video and a PDF into. Passing: the picture draws, the video plays
+- **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
+  keyboard's microphone each land once; the selection handles and the edit
+  menu work, with no floating toolbar; the formatting toolbar rides the
+  keyboard; and the typing shows on the Mac as it lands. Background the
+  phone's app, change a note on the Mac, come back. Passing: the change shows.
+- **The editor's edges.** Passing: on the oldest iPhone the app installs on, a
+  cold open of an item is editable within a second; New note opens with the
+  caret in its body and the keyboard up; a link to an item pushes its item and
+  back returns; an external link opens Safari and the page never navigates; a
+  chart and tabs refuse edits; a Mermaid diagram draws, and recolours with no
+  flash when dark mode flips; dark mode follows the system, with no light edge
+  behind a pushed screen or the keyboard, even after switching it with the app
+  open; typing and then backgrounding and killing the app keeps what was typed.
+- **Fonts, equations and the keyboard.** Passing: a note's text is Inter and a
+  code block the code face, never a system fallback; an equation draws in
+  KaTeX's faces; tapping into the 17px text never zooms the page; typing at the
+  end of a long note keeps the caret above the keyboard; and a picker's field
+  (the `/` menu, `[[`) takes the focus with the keyboard up. The page's fonts
+  ride its sheet as data, which only a device's web view proves.
+- **The note's connection comes back.** In a note, lock the phone for a minute,
+  unlock it and type. Passing: the typing shows on the Mac. Turn on airplane
+  mode in a note. Passing: it says Needs a connection at once and takes no
+  typing; turn airplane mode off. Passing: the note takes typing again with no
+  reopening, and it shows on the Mac.
+- **The `[[` picker on the iOS keyboard.** In a note on the phone, type `[[`
+  on the iOS keyboard, then a few letters of a title, and pick a row. Passing:
+  the picker opens on the second `[`, the link lands with the item's title and
+  no `[` before it, and an `@` typed in a note stays an `@`.
+- **A picture in a note.** Copy a photo in Photos, tap at the end of a line
+  of a note and paste. Passing: the picture lands under the line and draws,
+  and the item at `/library` in a browser shows it. Then open, on the phone, a
+  note the Mac pasted a picture, a video and a PDF into. Passing: the picture draws, the video plays
   in the note, and the PDF shows as a card naming it, with no Download. Turn
   on airplane mode and open the note again. Passing: the picture still draws.
+- **A large paste.** Copy a long article's whole text (about 20,000 words) in
+  Safari and paste it into a note. Passing: it lands whole within a few
+  seconds, the note scrolls without stutter, and the Mac shows it.
+- **Both devices at once.** Type in one paragraph of a note on the phone and in
+  another on the Mac at once, then in the same paragraph on both. Passing: each
+  device shows the other's typing as it lands, and nothing is lost.
+- **Leaving a note that holds typing not yet sent.** Type a line in a note, turn
+  on airplane mode at once, and swipe back. Passing: it asks "Leave without
+  saving?"; Stay keeps the note open with the line, and Discard edits leaves.
+  Online, type and swipe back at once. Passing: it leaves with no question, and
+  the line is on the Mac.
+- **A picture pasted just before you leave.** Paste a large picture into a note
+  and swipe back at once. Passing: the leave waits for it, and the picture is
+  there on reopen and on the Mac.
+- **iOS 16.4.** On an iPhone, or the simulator, on iOS 16.4, open a note and
+  type. Passing: it opens and takes the typing.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
-  library and the items opened before show, read-only as ever; a picture item
+  library and the items opened before show, a note opened before read-only
+  under Needs a connection; a picture item
   opened once before opens in the viewer, and one never opened says it is not on
   this iPhone yet; a note whose text holds a picture the Mac pasted, opened once
   online, draws it offline. Save a link or a thought, New note, add a photo and
@@ -548,7 +586,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   the state's address, its notes "the post says it well" and "the state".
 - **New note with no words.** New note, then go back without typing. Passing:
   the Library row, its long-press sheet and the item's screen title read
-  Untitled. Phone components do not run under vitest.
+  Untitled. Type a line and go back. Passing: they read that line. Phone
+  components do not run under vitest.
 - **The item in view loads first.** Sign in afresh to the 2,000-item account,
   open an item, follow a link to another item in it, then go back at once.
   Passing: the item you went back to shows its text while the library's list
@@ -568,7 +607,14 @@ account whose library holds about 2,000 items gives the timing check its load.
   only one out, `pnpm hotfix:mobile` from the release commit, then open the app
   twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`
   (`eas update:list --branch production` names the group) counts a launch. An
-  update that matches no build is the fingerprint trap in § Hotfixes.
+  update that matches no build is the fingerprint trap in § Hotfixes. Then
+  publish one whose only change is the editor's (a word its `/` menu shows)
+  and open a note twice. Passing: the menu shows the change, so the editor
+  rides the update.
+- **The note's Embed from URL dialog covers the screen on iOS 26.** In a note,
+  choose Embed from URL in the `/` menu with the note scrolled down. Passing:
+  the dimmed backdrop reaches every edge of the screen, and Cancel fades the
+  dialog out.
 
 - **Sign out during an upload.** Start a large upload on a slow link, then Sign
   out. Passing: the sign-out finishes at once. That React Native's fetch honours
@@ -629,18 +675,20 @@ account whose library holds about 2,000 items gives the timing check its load.
 
 ### The iPhone app, in the simulator or a development build
 
-- **The editor page's policy under WebKit.** In a development build
-  (`pnpm --filter @repo/mobile ios`), open an item, then Safari › Develop ›
-  Simulator › the item's page. Passing: the item draws, and the console
-  has no `Refused to` line; the static CSP is otherwise proven in Chromium
-  alone.
+- **The note page's policy under WebKit.** In a release build in the
+  simulator (`pnpm --filter @repo/mobile exec expo run:ios --configuration
+  Release`), whose page carries its content policy, open a note holding an
+  equation, a picture and a web link. Passing: the note takes typing, its fonts
+  and the equation draw, and the link opens Safari while the page never
+  navigates; the policy's refusals are otherwise proven in Chromium alone.
 - **The share address.** In the simulator, share a link from Safari to the
   app, once with the app quit and once with it open. Passing: `+native-intent`
   lands on the Library both times, with no Unmatched-route screen flashing
   first.
-- **A killed page reloads.** In the simulator, quit the item's
-  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the item
-  reloads with its text.
+- **A killed page reloads.** In the simulator, quit the note's
+  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
+  reloads with its text and dials its connection again: a line typed then
+  shows on the Mac.
 
 ### The site
 
@@ -1047,13 +1095,11 @@ Only once every check in § 5 has passed, and the three close together.
   there. An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
-  names what differs. The editor page is part of the fingerprint too, so a
-  mismatch that names `apps/mobile-editor/dist` with no page change means the
-  page's build is not byte-identical across machines. Passing: as the update
-  check in § 5. A bad update is rolled back with
+  names what differs. The editor rides the JavaScript, so its fixes are
+  updates too. Passing: as the update check in § 5. A bad update is rolled back with
   `pnpm --filter @repo/mobile exec eas update:rollback <group id>`.
-- **The phone, anything native** (a module, a config plugin, the SDK, the
-  editor page): a new build of the same version, `pnpm testflight:mobile` from
+- **The phone, anything native** (a module, a config plugin, the SDK): a new
+  build of the same version, `pnpm testflight:mobile` from
   a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
 - **The Mac app or the extension**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its
