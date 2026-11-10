@@ -3,9 +3,11 @@
 Boots the REAL Worker (apps/web's `cf build` output under Miniflare), the
 browser extension, the phone's own runtime and its exported note page on
 scratch dirs, drives them over
-`/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. It is orchestration plus
+`/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. A scenario is orchestration plus
 plain assertions on purpose — no test framework; the runner exits non-zero on
-any failure with a readable transcript.
+any failure with a readable transcript. The harness's own lifecycle, a run's
+scope, has a vitest suite beside it (`pnpm --filter @repo/e2e test`), which
+`pnpm verify` runs.
 
 ## Run it
 
@@ -53,15 +55,17 @@ A scenario that passed still FAILS when any Worker it booted replayed a
 thinking block Claude dropped: the harness reads each Worker's scripted Claude
 for its count once the run passes (`src/harness/scenario.ts`).
 
-Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
-the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
-sweep), but its scenarios boot processes and a browser, so they run only via
-`pnpm e2e`.
+Deliberately OUTSIDE `pnpm verify`: the package typechecks, lints, formats
+and runs its harness's suites in the gate, but its scenarios boot processes
+and a browser, so they run only via `pnpm e2e`.
 
 ## What a scenario gets
 
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
-scratch dir and tears everything down afterwards:
+scratch dir and tears everything down afterwards, through its run's scope
+(`src/harness/scope.ts`): what it starts is stopped at teardown, the last
+started first, and an abandoned run's start or line once the teardown began
+is refused, never left running or printed under the next scenario:
 
 - `cloudWorker({ vars?, json?, pages? })` — the product Worker (apps/web), built through
   turbo once per run and booted from its `cf build` output under Miniflare

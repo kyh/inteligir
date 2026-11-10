@@ -7,6 +7,7 @@
   "scripts": {
     "e2e": "tsx src/run.ts",
     "serve-worker": "tsx src/serve-worker.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -20,6 +21,7 @@
     "miniflare": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "vitest": "catalog:",
     "zod": "catalog:"
   }
 }
