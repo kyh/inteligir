@@ -372,17 +372,6 @@ describe("a note edited live", () => {
     a.provider.destroy();
   });
 
-  it("undoes a turn from its stored rows alone once every object was aborted", async () => {
-    const { accountId, itemId } = await signedIn("note-abort@example.test");
-    const note = noteOf(accountId, itemId);
-    const before = blockAt(await serverBlocks(accountId, itemId), 2);
-    await note.applyChange(agentPut("turn-abort", before, withText(before, "Rewritten.")));
-    await abortAllDurableObjects();
-    const undone = await noteOf(accountId, itemId).undoTurn("turn-abort", "undo-abort");
-    expect(undone).toMatchObject({ lostText: false, personEdited: false });
-    await expect(serverLine(accountId, itemId, 2)).resolves.toBe("Below the fox.");
-  });
-
   it("wakes from hibernation on a device's next frame, its sockets kept", async () => {
     const { accountId, itemId, ticket } = await signedIn("note-hibernate@example.test");
     const a = await openClient(itemId, ticket, "sleep-a");
@@ -499,7 +488,7 @@ describe("a note's door", () => {
     reader.provider.destroy();
   });
 
-  it("closes a session's note sockets as the session ends", async () => {
+  it("closes a session's note sockets as the session ends, and opens none on its ticket after", async () => {
     const { itemId } = await signedIn("door-sever@example.test");
     const owner = await signInPhone("door-sever@example.test");
     const phone = v1Link(phoneHeaders(owner));
@@ -508,10 +497,14 @@ describe("a note's door", () => {
       return minted.ticket;
     };
     const client = await openClient(itemId, ticket, "sever-phone");
+    const unspent = await ticket();
     await signOutPhone(owner);
     await until(() => traces.get("sever-phone")?.closes.includes(NOTE_SOCKET.revokedCode) === true);
     client.provider.destroy();
     expect(traces.get("sever-phone")?.closes[0]).toBe(NOTE_SOCKET.revokedCode);
+    await expect(status(`${notePath(itemId)}?${SOCKET_TICKET_PARAM}=${unspent}`)).resolves.toBe(
+      401,
+    );
   });
 
   it("closes every socket on a note deleted for good, which then opens on nothing", async () => {
@@ -628,5 +621,19 @@ describe("a note's first load", () => {
     });
     await expect(serverText(accountId, itemId)).resolves.toStrictEqual(["Above the fox.", X_TEXT]);
     await expect(cell.readSeed(itemId)).resolves.toStrictEqual({ kind: "claimed" });
+  });
+});
+
+// last, since it aborts every object the suites' shared storage holds
+describe("a note after every object was aborted", () => {
+  it("undoes a turn from its stored rows alone", async () => {
+    const { accountId, itemId } = await signedIn("note-abort@example.test");
+    const note = noteOf(accountId, itemId);
+    const before = blockAt(await serverBlocks(accountId, itemId), 2);
+    await note.applyChange(agentPut("turn-abort", before, withText(before, "Rewritten.")));
+    await abortAllDurableObjects();
+    const undone = await noteOf(accountId, itemId).undoTurn("turn-abort", "undo-abort");
+    expect(undone).toMatchObject({ lostText: false, personEdited: false });
+    await expect(serverLine(accountId, itemId, 2)).resolves.toBe("Below the fox.");
   });
 });

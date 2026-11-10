@@ -4,8 +4,8 @@
 // undoes first, outside any transaction (`planUndo` names those notes), and the write lands what
 // each note answered: its body after, whether the undo took someone's text, whether anyone but an
 // agent wrote there. An item whose way back a rule refuses (its url now another live item's, a file
-// gone, the quota) is named apart and the rest land, and its set stays undoable, since room or the
-// address can come back; when nothing lands the rule's refusal is the answer. A set of which only
+// gone) is named apart and the rest land, and its set stays undoable, since the file or the address
+// can come back; when nothing lands the rule's refusal is the answer. A set of which only
 // kept items remain stays undoable too, since the edit since can go, and when no set moved no write
 // of its own is made.
 

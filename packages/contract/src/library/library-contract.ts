@@ -255,7 +255,6 @@ const itemsContract = {
       [EditRefusedError.code]: EditRefusedError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
-      [QuotaError.code]: QuotaError,
     })
     .input(
       z.strictObject({
@@ -274,7 +273,6 @@ const itemsContract = {
     .errors({
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
-      [QuotaError.code]: QuotaError,
     })
     .input(
       z
@@ -311,7 +309,7 @@ const itemsContract = {
 
   // the cloud reads the page again, replacing only the article
   refresh: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError, [QuotaError.code]: QuotaError })
+    .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema, opId }))
     .output(landed),
 };
@@ -413,7 +411,6 @@ const historyContract = {
       [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
-      [QuotaError.code]: QuotaError,
     })
     .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(
@@ -588,7 +585,6 @@ export const libraryContract = {
       [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
-      [QuotaError.code]: QuotaError,
     })
     .input(
       z.strictObject({

@@ -281,6 +281,16 @@ describe("the library's procedures", () => {
         view: { markdown: "Uno.\n\nTwo, edited.\n" },
       });
 
+      // an item in Deleted takes none, its note never opened or not
+      const unopened = await library.items.createNote({ markdown: "Never opened." });
+      await library.items.delete({ ids: [unopened.item.id, item.id] });
+      for (const id of [unopened.item.id, item.id]) {
+        await expect(
+          refusalOf(library.items.edit({ edits: [{ newText: "x", oldText: "." }], id })),
+        ).resolves.toMatchObject({ code: "NOT_FOUND" });
+      }
+      await library.items.restore({ ids: [item.id] });
+
       await expect(
         refusalOf(
           library.items.edit({

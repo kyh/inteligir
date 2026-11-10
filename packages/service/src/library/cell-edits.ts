@@ -108,9 +108,12 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   let projection: NoteProjection | null = null;
   let moved: BodyBlock[] = [];
   for (let tries = 0; tries < 2 && projection === null; tries += 1) {
-    const held = library.read((storage) => readLiveItem(storage.db, input.id) !== null);
-    if (!held.ok || !held.value) {
-      return held.ok ? refused({ kind: "not-found" }) : held;
+    // an item in Deleted takes no edit, as its note says once it opened, and one it never opened too
+    const editable = library.read(
+      (storage) => readLiveItem(storage.db, input.id)?.fields.deletedAt === null,
+    );
+    if (!editable.ok || !editable.value) {
+      return editable.ok ? refused({ kind: "not-found" }) : editable;
     }
     const read = await note.read();
     const blocks = noteBlocksSchema.parse(read.blocks);

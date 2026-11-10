@@ -198,7 +198,8 @@ export class NoteDO extends YServer<Env> {
   // ---- loading, seeding, saving ----
 
   // partyserver starts the server again on this instance after a start that threw, so nothing in
-  // memory carries over from a failed run, and the stored state is read whole each time
+  // memory carries over from a failed run, and the stored state is read whole each time; applying
+  // it to a document that already holds it changes nothing
   override async onLoad(): Promise<void> {
     this.document.off("update", this.#onUpdate);
     noteRoot(this.document).unobserve(this.#onRootChange);
@@ -231,11 +232,12 @@ export class NoteDO extends YServer<Env> {
     } else if (meta.seedPending === 1) {
       await this.#confirmSeed();
     }
-    // after the load, so the stored state is not stored again, and before y-partyserver's own
-    // listeners, so a frame's row is written ahead of its broadcast
+    await this.#arm();
+    // after the last await, so a run that throws registers nothing and the stored state is not
+    // stored again, and before y-partyserver's own listeners, so a frame's row is written ahead of
+    // its broadcast
     this.document.on("update", this.#onUpdate);
     noteRoot(this.document).observe(this.#onRootChange);
-    await this.#arm();
   }
 
   // The body the cell kept, persisted before the cell is told it may drop it, so an abort in
