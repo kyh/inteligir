@@ -74,7 +74,7 @@ export const cloudOf = (session: Session, version: string): Cloud => {
 
 // what a call that did not land missed by: a failure every call shares, or a refusal the
 // procedure declares as its own, by its code
-export type Miss = CallFailure | { readonly kind: "refused"; readonly code: string };
+type Miss = CallFailure | { readonly kind: "refused"; readonly code: string };
 
 // how a call went: its answer, or what it missed by
 export type Sent<T> = { readonly kind: "landed"; readonly answer: T } | Miss;
