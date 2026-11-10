@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "exports": {
     "./auth/phone-auth": "./src/auth/phone-auth.ts",
+    "./editor/note-actions": "./src/editor/note-actions.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./test-support/memory-folder": "./src/test-support/memory-folder.ts",
     "./test-support/memory-kv": "./src/test-support/memory-kv.ts"

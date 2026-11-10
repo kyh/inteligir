@@ -11,7 +11,7 @@ import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import type { V1Client } from "@repo/contract/v1";
 import { isOrpcError } from "@repo/contract/v1/errors";
 import type { PhoneLibrary } from "../lib/compose-runtime";
-import type { LibraryActions } from "./page/page-host";
+import type { LibraryActions } from "./page/library-actions";
 
 type ItemAnswer = Awaited<ReturnType<V1Client["library"]["items"]["get"]>>;
 

@@ -8,32 +8,11 @@
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
-import type { LinkTarget } from "@repo/editor/host-io";
 import { noteHolds } from "@repo/editor/item/note-holds";
 import type { LeavingNote } from "@repo/editor/item/note-holds";
-
-interface FileBytes {
-  readonly base64: string;
-  readonly mediaType: string;
-}
-
-// what the page asks of the library, answered by the phone
-export interface LibraryActions {
-  readonly socketTicket: () => Promise<string>;
-  // an item's blocks as the cloud holds them, or as the phone last read them while there is no
-  // connection; null for an item the library holds none of
-  readonly readItem: (itemId: string) => Promise<LibraryBlock[] | null>;
-  readonly linkTargets: () => Promise<LinkTarget[]>;
-  // null while the phone can reach no copy of the file
-  readonly readFile: (sha: string) => Promise<FileBytes | null>;
-  readonly keepFile: (file: FileBytes) => Promise<{ sha: string }>;
-  // made in the open item's folder; answers its id
-  readonly createNote: (note: { title: string; blocks: LibraryBlock[] }) => Promise<string>;
-  readonly openItem: (itemId: string) => void;
-}
+import type { LibraryActions } from "./library-actions";
 
 // where the open note stands for a leave: `editing` while an edit made here may not be held yet
 export type NoteState = "none" | "reading" | "editing";
