@@ -9,9 +9,7 @@ import type { PlateElementProps } from "platejs/react";
 import { titleKey } from "@repo/contract/library/derive-item";
 import { shownTitle } from "@repo/contract/items/item-name";
 
-import { commitComboboxInput } from "@repo/editor/combobox-input";
 import { useLibraryTitles } from "@repo/editor/host";
-import type { LinkTarget } from "@repo/editor/host-io";
 import {
   InlineCombobox,
   InlineComboboxContent,
@@ -30,36 +28,24 @@ const CREATE_VALUE = "__create__";
 /** @internal */
 export const MENTION_PICKER_MAX_ROWS = 50;
 
-// the item a title names by the key the cell resolves a title by, the first the library lists
-const itemTitled = (targets: readonly LinkTarget[], title: string): LinkTarget | null => {
-  const key = titleKey(title);
-  return key === "" ? null : (targets.find((target) => titleKey(target.title) === key) ?? null);
-};
-
 export const MentionInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
-  const targets = useLibraryTitles();
+  const { byKey, targets } = useLibraryTitles();
   const [value, setValue] = useState("");
 
   const typed = value.trim();
 
   // typing `]]` links the item the words name, or leaves them the text they are
-  const onValueChange = (next: string) => {
-    const words = next.endsWith("]]") ? next.slice(0, -2).trim() : "";
-    if (words === "") {
-      setValue(next);
-      return;
-    }
-    commitComboboxInput(editor, element, true);
-    const named = itemTitled(targets, words);
-    if (named === null) {
+  const linkWords = (words: string) => {
+    const named = byKey.get(titleKey(words));
+    if (named === undefined) {
       editor.tf.insertText(`[${words}]]`);
       return;
     }
     insertPageLink(editor, named);
   };
 
-  const createTitle = typed === "" || itemTitled(targets, typed) !== null ? null : typed;
+  const createTitle = typed === "" || byKey.has(titleKey(typed)) ? null : typed;
 
   const shown = rankTitles(targets, typed).slice(0, MENTION_PICKER_MAX_ROWS);
 
@@ -69,7 +55,8 @@ export const MentionInputElement = (props: PlateElementProps) => {
         element={element}
         trigger="["
         value={value}
-        setValue={onValueChange}
+        setValue={setValue}
+        closeOn={{ pick: linkWords, suffix: "]]", words: (words) => words.trim() }}
         filter={false}
       >
         <InlineComboboxInput />

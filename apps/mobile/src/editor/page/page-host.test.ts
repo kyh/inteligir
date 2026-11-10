@@ -188,7 +188,7 @@ describe("the note page's host", () => {
     const { first, host, reads, retitle } = pageOver();
     host.follow(first);
     await nextTask();
-    expect(libraryTitles.getState().targets).toStrictEqual([{ id: NOTE, title: "Plans" }]);
+    expect(libraryTitles.getState().targets).toMatchObject([{ id: NOTE, title: "Plans" }]);
 
     host.follow({ ...first, moved: { ids: [NOTE], seq: 1 } });
     await nextTask();
@@ -198,7 +198,7 @@ describe("the note page's host", () => {
     host.follow({ ...first, moved: { ids: [OTHER], seq: 2 } });
     await nextTask();
     expect(reads()).toBe(2);
-    expect(libraryTitles.getState().targets).toStrictEqual([{ id: OTHER, title: "Later" }]);
+    expect(libraryTitles.getState().targets).toMatchObject([{ id: OTHER, title: "Later" }]);
   });
 
   it("tells native where the open note stands, once each time it moves", () => {

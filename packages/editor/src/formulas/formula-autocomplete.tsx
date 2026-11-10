@@ -1,7 +1,7 @@
 // Picking a variable inserts a linked instance (same id); bound cross-note
 // references stay an authoring act, the picker never guesses identity.
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { SigmaIcon } from "lucide-react";
 import { ElementApi, KEYS, createTSlatePlugin } from "platejs";
 import type { Descendant, PluginConfig, TElement } from "platejs";
@@ -10,7 +10,6 @@ import type { PlateElementProps } from "platejs/react";
 import { withTriggerCombobox } from "@platejs/combobox";
 import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
-import { commitComboboxInput } from "@repo/editor/combobox-input";
 import {
   InlineCombobox,
   InlineComboboxContent,
@@ -68,22 +67,22 @@ const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariab
 const FormulaInputElement = (props: PlateElementProps) => {
   const { element } = props;
   const editor = useEditorRef();
-  const [value, setValue] = useState("");
 
   const variables = useMemo(() => collectNamedVariables(editor.children), [editor.children]);
 
-  const onValueChange = (next: string): void => {
-    if (next.endsWith("}}") && next.slice(0, -2) !== "") {
-      commitComboboxInput(editor, element, true);
-      completeFormulaFromPicker(editor, next.slice(0, -2));
-      return;
-    }
-    setValue(next);
-  };
-
   return (
     <PlateElement {...props} as="span">
-      <InlineCombobox element={element} trigger="{" value={value} setValue={onValueChange}>
+      <InlineCombobox
+        element={element}
+        trigger="{"
+        closeOn={{
+          pick: (body) => {
+            completeFormulaFromPicker(editor, body);
+          },
+          suffix: "}}",
+          words: (body) => body,
+        }}
+      >
         <InlineComboboxInput />
         <InlineComboboxContent>
           <InlineComboboxEmpty>Type an expression, then {"}}"}</InlineComboboxEmpty>
@@ -95,7 +94,6 @@ const FormulaInputElement = (props: PlateElementProps) => {
                 label={variable.name}
                 keywords={[variable.name]}
                 onClick={() => {
-                  commitComboboxInput(editor, element, true);
                   insertFormulaFromPicker(
                     editor,
                     formulaNodeFrom({

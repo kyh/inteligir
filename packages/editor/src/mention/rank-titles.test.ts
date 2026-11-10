@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { rankTitles } from "./rank-titles";
+import { foldTitle, rankTitles } from "./rank-titles";
 
 const ranked = (titles: readonly string[], query: string): string[] =>
   rankTitles(
-    titles.map((title) => ({ title })),
+    titles.map((title) => ({ folded: foldTitle(title), title })),
     query,
   ).map((target) => target.title);
 
