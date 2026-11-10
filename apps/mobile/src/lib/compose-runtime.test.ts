@@ -428,6 +428,33 @@ describe("what the account's socket asks again", () => {
     expect(opened.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
   });
 
+  it("tells a screen which items moved, and that any may have once a frame or an open socket says so", async () => {
+    const { runtime, socket } = await socketPhone();
+    const heard: (string[] | null)[] = [];
+    const stop = signedIn(runtime).onItems((ids) => {
+      heard.push(ids === null ? null : [...ids]);
+    });
+    const other = "0190a000-0000-7000-8000-0000000000ff";
+    socket.message(
+      JSON.stringify({
+        folders: false,
+        items: [
+          { id: NOTE, seq: 3 },
+          { id: other, seq: 4 },
+        ],
+        threads: [],
+        type: "moved",
+      }),
+    );
+    socket.message(JSON.stringify({ folders: true, items: [], threads: [], type: "moved" }));
+    socket.message(JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }));
+    socket.open();
+    expect(heard).toStrictEqual([[NOTE, other], null, null]);
+    stop();
+    socket.open();
+    expect(heard).toHaveLength(3);
+  });
+
   it("holds the reply being written, asking nothing, until a write moves its thread", async () => {
     const { asked, runtime, socket } = await socketPhone();
     const { previews } = signedIn(runtime);

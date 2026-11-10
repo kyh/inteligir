@@ -5,9 +5,9 @@ phone reads it through `/v1` (`@repo/contract`) with TanStack Query, whose
 cache it keeps between launches, so what it last read shows offline. A save,
 a photo and the agent need a connection and say so; only a share from another
 app waits on the phone, in its outbox, until the library can be reached. It
-draws an item read-only in the editor page (`@repo/mobile-editor`, behind
-`@repo/editor-bridge`), which says editing on the phone is coming, and draws
-the built-in agent's conversations from `@repo/agent-panel`.
+edits a note live in the editor every device draws, `@repo/editor` in an Expo
+DOM component, and draws the built-in agent's conversations from
+`@repo/agent-panel`.
 
 Expo + expo-router; the runtime the screens use is composed platform-free
 (`src/lib/compose-runtime.ts`), so the scenario suite runs it under node.
@@ -27,8 +27,10 @@ src/
   login/        signing this phone in to an account, or making one with an invite code
   files/        the library's files by their hash, cached with their thumbnails
                 (expo-file-folder.ts and expo-thumbnail.ts the native halves)
-  editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
-                an item drawn read-only from what the library holds
+  editor/       an item's note: page/ is the DOM component, @repo/editor in a web view
+                (note-page.tsx, its host and its content policy), and beside it the
+                native half: the page's actions over the library, the web view's load
+                policy, and a leave's ask
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
                 the outbox that keeps a share until it lands, the inbox that hands it
                 there, and an item's Info
@@ -41,9 +43,9 @@ src/
                 view/ a file full size, agent/ the agent's conversations; _layout.tsx holds
                 the splash, the query cache, the share provider and the route guard, and
                 +native-intent.ts lands the share extension's handoff on the Library
-plugins/        with-editor-page.js: the built page into the app bundle
 metro.config.js withNativewind, and postcss.config.js Tailwind's PostCSS plugin: the
-                sheet's two compilers; nativewind-env.d.ts gives `className` its types
+                sheet's two compilers; nativewind-env.d.ts gives `className` its types,
+                and inline-fonts.js writes the note page's fonts into its sheet
 ```
 
 ## The look
@@ -96,9 +98,10 @@ build that changes starts it over; a file's address and a write are never
 kept. Its online state is the network's and its focus the app's
 (`src/lib/app-runtime.ts`), so a screen asks again when either comes back.
 
-A write goes at once and says "Needs a connection" when it cannot. The editor
-page takes no edit: it draws the item as the cloud holds it, or as the phone
-last read it, and reads it again when its query moves.
+A write goes at once and says "Needs a connection" when it cannot. A note's
+body is the exception: its page edits the note's live document over the
+note's own socket, which it dials on a ticket the phone fetched, and with no
+connection draws what the phone last read of it, read-only.
 
 The account's socket, dialed by ticket, never by a header, says what each
 write moved, and the queries reading it ask again; an open socket asks
@@ -114,8 +117,8 @@ past what a phone may decode shows the card's placeholder. A screen waiting on
 a file it could not reach asks again once the phone is back online. A file the
 phone sends up is kept as a fetched file is, so it never downloads what it
 sent. A screen draws a file as an item's own, its card's cover or its
-viewer's original, and the item page draws one a note names from the cache
-over its bridge (`readFile`), as the type it was kept or served as. A sign-out moves the cache's generation, so a download begun
+viewer's original, and the note page draws one a note names from the cache
+through its `readFile` action, as the type it was kept or served as. A sign-out moves the cache's generation, so a download begun
 before it lands nothing.
 
 ## Sharing to the phone
@@ -174,16 +177,16 @@ sign-in form never flashes over a device that is signed in.
   again and what the cache keeps, the session's Keychain accessibility (over a
   stand-in Keychain), the sign-in over Better Auth's own client, what each
   `/v1` request carries, the sign-in store, the file cache
-  (the thumbnail, the generation), the editor page's native end (every frame
-  kind to its port, a foreign document's, another load's and a malformed frame
-  dropped, the load policy), the item
-  page's ports, the share payload and the shares' outbox, and the Library's
-  query. Unit tests, no device.
+  (the thumbnail, the generation), the note page's actions over the fake cell
+  (every answer JSON, a file's bytes base64, a refusal its words), its host
+  (what native's props move, a leave's ask answered by where the note
+  stands), its content policy and the web view's load policy, the share
+  payload and the shares' outbox, and the Library's query. Unit tests, no
+  device.
   `tools/e2e/src/scenarios/phone-offline-share.ts`, `phone-save-hosted.ts` and
   `phone-file-ops-hosted.ts` run the same
   composition under node against a real Worker, beside a second device, its
-  sign-in a plain fetch on the Expo client's routes, and
-  `phone-editor-page.ts` loads the built page from `file://`.
+  sign-in a plain fetch on the Expo client's routes.
 - **The store config** (`src/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
@@ -199,15 +202,17 @@ sign-in form never flashes over a device that is signed in.
   class to what they draw, and no multi-line field to `py-*`.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
-  and the stylesheet into it, offline, on Linux and macOS alike.
+  and the stylesheet into it, and the note page's DOM bundle beside it
+  (`dist/www.bundle`, one page and its one script), offline, on Linux and
+  macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
   app actually booting, the held splash and the route guard's redirects, the
   Keychain, the kept cache and the shares waiting in expo-sqlite's key-value
   store, the backup exclusion, the file cache and photos, the resume and the
   reconnect, the socket's upgrade from the device and a Mac's edit arriving on
   it, a share from another app, offline and online, the agent, a live
-  sign-in, an EAS Update landing, the editor on a real WebKit, and how the
-  screens look in light and dark. Each is a check with how to run it and what
+  sign-in, an EAS Update landing, typing in a note on a real WebKit and
+  keyboard, and how the screens look in light and dark. Each is a check with how to run it and what
   passing looks like in `docs/releasing.md` § 5, run on every release's
   internal build; a native module a development build predates needs that
   build rebuilt (`pnpm --filter @repo/mobile ios`).
@@ -215,18 +220,21 @@ sign-in form never flashes over a device that is signed in.
 ## Dev
 
 ```bash
-pnpm --filter @repo/mobile ios                                              # builds the editor page, then the app
+pnpm --filter @repo/mobile ios                                              # a development build
 pnpm --filter @repo/mobile dev                                              # against the production cloud
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The item screen's editor is `@repo/mobile-editor`'s built page, carried in the
-app bundle by `plugins/with-editor-page.js`, so it changes only with a new
-native build: `pnpm --filter @repo/mobile ios` builds the page first, and
-`pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the
-JavaScript alone; there is no dev server for the page (its CSP refuses the
-script a Vite dev page injects), and Safari's Web Inspector reaches it in a
-development build (`webviewDebuggingEnabled`).
+A note's editor is a DOM component (`src/editor/page/note-page.tsx`), which
+Metro serves beside the app's JavaScript, so an edit to it or to
+`@repo/editor` reloads like any other; its content policy is a production
+build's alone, since Metro's own scripts come from its server, and Safari's
+Web Inspector reaches the page in a development build
+(`webviewDebuggingEnabled`). On a physical phone, Metro's address over the
+network is plain http, which is no secure context, so the page has no
+`crypto.randomUUID` or `crypto.subtle` and the editor fails: run
+`pnpm --filter @repo/mobile exec expo start --tunnel`, or use the simulator,
+whose localhost is one.
 
 The stylesheet is compiled from the classes Tailwind found in `src/` when Metro
 last transformed it, so a class just added that draws nothing under a running
@@ -256,9 +264,7 @@ one. The marketing version is `package.json`'s, the product version the Mac
 app and the extension carry (`tools/repo-guards/src/release-versions.test.ts`).
 `eas.json` names the node and pnpm the repo is checked with, and no
 `.easignore`: EAS falls back to `.gitignore`, which keeps `.release/` and
-every `.env*` out of the upload. The editor page is gitignored build output,
-so EAS builds it in the `eas-build-post-install` hook, and `testflight` builds
-it first on this machine too, since the fingerprint below is taken on both.
+every `.env*` out of the upload.
 
 ```bash
 pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
@@ -363,12 +369,10 @@ code fingerprints the same (`runtimeVersion: { policy: "fingerprint" }`), so a
 change to a native module, a config plugin or the SDK needs
 `pnpm testflight:mobile` instead. The script clears `EXPO_PUBLIC_CLOUD_URL`
 because, unlike `eas build`, `eas update` bundles with this shell's environment,
-and a leftover local origin would ship to every phone. The editor page is
-native too: it ships in the binary, so `fingerprint.config.js` adds its build
-to the fingerprint and `hotfix` builds the page before taking it. An update
-bundled beside a changed page matches no installed build and reaches nobody;
-a page change needs `pnpm testflight:mobile`, since the bridge between the
-page and the JavaScript breaks freely between releases. The fingerprint also
+and a leftover local origin would ship to every phone. The editor ships in
+the update: its DOM bundle is exported beside the app's JavaScript, in one
+chunk (`EXPO_NO_BUNDLE_SPLITTING`), so an editor fix is a hotfix too. The
+fingerprint also
 covers the app config, `version` included, so an update bundled after a
 version bump reaches nobody either: a hotfix is published from a branch off
 the tag of the build TestFlight serves (`docs/releasing.md` § Hotfixes).

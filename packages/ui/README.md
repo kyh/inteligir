@@ -10,7 +10,7 @@ attribution header on each file.
 
 - `apps/web/src/library` — the product's page
 - `packages/editor` — note editor
-- `apps/mobile-editor` — the phone's editor page
+- `apps/mobile/src/editor/page` — the phone's DOM component, its note's editor
 - `apps/web` — the site and the auth pages
 - `apps/extension` — the extension's popup and welcome page
 - `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which the orphan guard

@@ -39,19 +39,14 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/db": ["@repo/contract"],
     // the shell is Rust (src-tauri) and holds no src/: the page it shows is the one the site serves
     "@repo/desktop": [],
-    // the @repo/contract edge is `/v1`'s wire, which the scenarios drive a booted Worker over, and
-    // the block hashes and fields the scripted phone answers an item page with; the @repo/mobile
-    // edge is the phone's own platform-free runtime, driven under node against a real Worker, since
-    // no Expo boots headless; the @repo/editor-bridge edge is the page's wire, so the scripted phone
-    // speaks the frames the page parses; the @repo/messages-fake edge is the scripted Claude each
+    // the @repo/contract edge is `/v1`'s wire, which the scenarios drive a booted Worker over; the
+    // @repo/mobile edge is the phone's own platform-free runtime, driven under node against a real
+    // Worker, since no Expo boots headless; the @repo/messages-fake edge is the scripted Claude each
     // Worker it boots runs its built-in agent against.
-    "@repo/e2e": ["@repo/contract", "@repo/editor-bridge", "@repo/messages-fake", "@repo/mobile"],
+    "@repo/e2e": ["@repo/contract", "@repo/messages-fake", "@repo/mobile"],
     // the editor draws with the shared component kit over the library model (@repo/contract);
     // @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/contract", "@repo/ui"],
-    // the phone editor page's wire, zod alone over the library's grammars (@repo/contract), so the
-    // native end parses the frames the page sends without compiling the page
-    "@repo/editor-bridge": ["@repo/contract"],
     // a page read into an item, over the DOM its host hands it: the article is written as the
     // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
     // Worker's fill and the extension's worker run one reading.
@@ -63,14 +58,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/extension": ["@repo/contract", "@repo/page-reader", "@repo/ui"],
     // a `/v1` client, its reads cached by TanStack Query: the @repo/contract edge is the wire and
     // the library model its cards and listing read, the @repo/agent-panel edge the built-in agent's
-    // conversation as every device reads it, and the @repo/editor-bridge edge the editor page's
-    // wire (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it reaches no server
-    // code.
-    "@repo/mobile": ["@repo/agent-panel", "@repo/contract", "@repo/editor-bridge"],
-    // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge (@repo/editor-bridge), so no cloud wire; the @repo/contract edge is the words
-    // and the note's path the editor's host is spelled in.
-    "@repo/mobile-editor": ["@repo/contract", "@repo/editor", "@repo/editor-bridge", "@repo/ui"],
+    // conversation as every device reads it, and the @repo/editor and @repo/ui edges the note's
+    // editor, which only its DOM component draws (oxlint.config.ts holds them to that folder); it
+    // reaches no server code.
+    "@repo/mobile": ["@repo/agent-panel", "@repo/contract", "@repo/editor", "@repo/ui"],
     // a leaf: a scripted Claude Messages API with no model behind it, which the local Worker, the
     // e2e scenarios and the Worker's suites run the built-in agent against
     "@repo/messages-fake": [],
@@ -105,16 +96,6 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
 // window shows may reach it, so the rule is who may, not a row per package that may not
 const SHELL_API = "@tauri-apps/";
 const SHELL_API_PAGE = "apps/web/src/library/";
-
-// The phone's editor page is DOM React built by Vite; a native client that hosts it loads the page
-// as a built bundle and speaks its wire, @repo/editor-bridge. Any import of the page itself would
-// compile DOM code a second way, under the client's own bundler and TypeScript, its tests' included.
-const EDITOR_PAGE_CLIENTS = new Map<string, string>([
-  [
-    "@repo/mobile",
-    "React Native under Metro and TypeScript 6, hosting the page in a WebView from the app bundle",
-  ],
-]);
 
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
@@ -347,33 +328,6 @@ describe("platform purity", () => {
           violations.push(
             `PACKAGE IMPORTS AN APP  ${file} imports "${specifier}"\n` +
               `  rule: packages are consumed BY apps — the arrow only points one way, or the library is an app in disguise`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
-  });
-
-  it("no editor page client imports the page, only its wire", () => {
-    const violations: string[] = [];
-    for (const [name, why] of EDITOR_PAGE_CLIENTS) {
-      const client = workspaces().find((candidate) => candidate.name === name);
-      if (client === undefined) {
-        violations.push(
-          `EDITOR_PAGE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
-            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
-        );
-        continue;
-      }
-      const files = workspaceFiles(client);
-      for (const file of [...files.shipped, ...files.test]) {
-        for (const specifier of importsOf(file)) {
-          if (resolveWorkspace(specifier)?.name !== "@repo/mobile-editor") {
-            continue;
-          }
-          violations.push(
-            `EDITOR PAGE SOURCE IN ITS HOST  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches the page's wire, @repo/editor-bridge, alone — ${why}`,
           );
         }
       }

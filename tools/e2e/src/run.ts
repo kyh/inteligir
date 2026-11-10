@@ -27,7 +27,6 @@ import { linkCapture } from "./scenarios/link-capture";
 import { liveNoteBrowser } from "./scenarios/live-note-browser";
 import { noteLinksBrowser } from "./scenarios/note-links-browser";
 import { notePictureBrowser } from "./scenarios/note-picture-browser";
-import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
 import { phoneOfflineShare } from "./scenarios/phone-offline-share";
 import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
@@ -44,7 +43,6 @@ const SCENARIOS: readonly Scenario[] = [
   fileItems,
   phoneOfflineShare,
   phoneFileOpsHosted,
-  phoneEditorPage,
   phoneSaveHosted,
   accountHosted,
   connectorTools,

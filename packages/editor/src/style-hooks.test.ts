@@ -215,7 +215,7 @@ describe("editor style hooks", () => {
     ).toBeLessThan(firstColoured);
   });
 
-  it.each(["apps/web/src/library/styles/globals.css", "apps/mobile-editor/src/styles/globals.css"])(
+  it.each(["apps/web/src/library/styles/globals.css", "apps/mobile/src/editor/page/note-page.css"])(
     "the host stylesheet %s imports the sheet, so the rules actually ship",
     (host) => {
       const globals = fs.readFileSync(path.join(REPO_ROOT, host), "utf-8");

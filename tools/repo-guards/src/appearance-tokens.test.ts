@@ -12,9 +12,9 @@ const DEFAULTS = "apps/web/src/library/styles/globals.css";
 
 const MEASURE = "--editor-width";
 
-// the phone's editor page is a second host: it imports the editor's sheet, never the desktop's
+// the phone's note page is a second host: it imports the editor's sheet, never the desktop's
 // defaults, so it writes a value of its own for every token that sheet reads
-const PHONE_PAGE = "apps/mobile-editor/src/styles/globals.css";
+const PHONE_PAGE = "apps/mobile/src/editor/page/note-page.css";
 
 const EDITOR_SHEET = "packages/editor/src/styles.css";
 

@@ -31,8 +31,8 @@ the service's (`packages/service/CLAUDE.md`).
   zero-width space Plate writes for an empty line from the text it derives;
   a `#tag` is its text, media a sha or a url. Rejected: the vocabulary
   in `@repo/editor`
-  (the phone's native end parses its item page's blocks by it, and loads no
-  Plate), a tag node (two spellings of
+  (the phone's native end hands its note page an item's blocks typed by it,
+  and loads no Plate), a tag node (two spellings of
   one tag), an id inside a block (Plate names those again in every editor, so
   one block would read apart on each), a wiki link or an opaque source node beside the
   mention (a second spelling of every link, and markup no editor edits), and

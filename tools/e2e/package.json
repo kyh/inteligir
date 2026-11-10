@@ -14,7 +14,6 @@
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
-    "@repo/editor-bridge": "workspace:*",
     "@repo/messages-fake": "workspace:*",
     "@repo/mobile": "workspace:*",
     "@types/node": "catalog:",

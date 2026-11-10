@@ -133,6 +133,9 @@ catalog:
   react: ~19.2.8
   react-dom: ~19.2.8
   react-native: ~0.86.3
+  # the web runtime the phone's DOM component renders on, which Expo's DOM components need outside
+  # Expo Web
+  react-native-web: ~0.21.0
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
   # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
@@ -172,13 +175,12 @@ catalog:
   zustand: ^5.0.16
 
 catalogs:
-  # the SDK-blessed react/typescript; bump only with an Expo SDK upgrade
+  # the SDK-blessed typescript; bump only with an Expo SDK upgrade
   expo:
-    react: 19.2.3
     typescript: ~6.0.3
 
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
-# so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand.
+# so typescript (shared with web) cannot be listed; its `expo:` row is reverted by hand.
 # nativewind too: its `latest` is the Tailwind 3 line, so a sweep would move the phone off Tailwind 4
 update:
   ignoreDeps:

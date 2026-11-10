@@ -22,7 +22,6 @@ const SURFACES = [
   "@repo/editor",
   "@repo/extension",
   "@repo/mobile",
-  "@repo/mobile-editor",
   "@repo/service",
   "@repo/ui",
   "@repo/web",

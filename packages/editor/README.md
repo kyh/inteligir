@@ -13,8 +13,8 @@ what it means**. Splitting it out makes that invariant a package boundary: the
 rule table, the suites that hold its meaning and the kit-parity guards live
 together, and the library's page above it (`apps/web/src/library`) consumes an editor rather
 than containing one. The cell runs the same codec headless
-(`packages/service/src/library/library-router.ts`), and the phone's editor page hosts the
-editor whole (`apps/mobile-editor`).
+(`packages/service/src/library/library-router.ts`), and the phone's DOM component hosts
+the editor whole (`apps/mobile/src/editor/page/note-page.tsx`).
 
 Deps: `@repo/contract` (the library model), `@repo/ui` (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
 `host-io.ts` (`EditorHost`: its `EditorHostIo`, whose `notes` port dials a
@@ -144,7 +144,7 @@ src/
   nothing. Each host installs it once, through `installEditorHost`, ahead of
   the first render (`apps/web/src/library/item/page-editor-host.ts`, over the
   account's cell in a tab and the Mac app's window, and the phone's over its
-  WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), and `host.ts` is
+  native actions, `apps/mobile/src/editor/page/page-host.ts`), and `host.ts` is
   React's door to the titles (`useLibraryTitles`, `useTitleOf`).
 - `item/note-connection.ts` — a note's live document, opened by its item's id
   over the host's `notes` port: y-partyserver's provider dials the note's
@@ -158,7 +158,8 @@ src/
   note it hands its host (`onNote`) answers a leave (`whenSaved`), which
   `item/note-holds.ts` asks before a host lets the note go. A note that cannot
   open while the host is offline draws what the host holds of it through
-  `item/held-item.tsx`, read-only under a line saying why.
+  `item/held-item.tsx`, read-only under a line saying why; the item editor
+  imports it, and no host does.
   `item/item-properties.ts` is the panel's rows over an item's
   fields as its host holds them (`ItemFields`). A link to an item by id shows
   the name the item goes by now, `useTitleOf` over the library's titles. The

@@ -7,9 +7,15 @@ import { router } from "expo-router";
 export const firstParam = (value: string | string[] | undefined): string | null =>
   (Array.isArray(value) ? value[0] : value) ?? null;
 
-// an item in the editor page, by its id
-export const openItem = (itemId: string): void => {
-  router.push({ params: { id: itemId }, pathname: "/item/[id]" });
+// the param an item opened to be written in carries
+export const FOCUS = "1";
+
+// an item in its note page, by its id; `focus`: the caret at the end of its body, the keyboard up
+export const openItem = (itemId: string, options: { readonly focus?: boolean } = {}): void => {
+  router.push({
+    params: options.focus === true ? { focus: FOCUS, id: itemId } : { id: itemId },
+    pathname: "/item/[id]",
+  });
 };
 
 // an item's file full size: a picture, a PDF, a file
