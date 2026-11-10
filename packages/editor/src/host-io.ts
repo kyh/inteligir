@@ -1,6 +1,10 @@
+import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
+
+import { foldTitle } from "@repo/editor/mention/rank-titles";
+import type { FoldedTitle } from "@repo/editor/mention/rank-titles";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep
 // node's click run outside React or with no route to the shell's owner, and host.ts hands
@@ -14,17 +18,23 @@ export interface LinkTarget {
   readonly title: string;
 }
 
-interface LibraryTitles {
+export interface LibraryTitles {
   // in the library's order, which the `[[` picker ranks within
-  readonly targets: readonly LinkTarget[];
+  readonly targets: readonly (LinkTarget & FoldedTitle)[];
   // the name an item goes by now, the one its card shows
   readonly byId: ReadonlyMap<string, string>;
+  // the item words name by `titleKey`, the first the library lists; an untitled one goes by none
+  readonly byKey: ReadonlyMap<string, LinkTarget>;
 }
 
 // Beside the host rather than in it: the titles move with the library while the host never
 // changes, so only a page link and the picker re-render, and the titles outlive a host installed
-// again.
-const titles = createStore<LibraryTitles>()(() => ({ byId: new Map(), targets: [] }));
+// again. Each keystroke in the picker reads them, so every key and fold is made once per listing.
+const titles = createStore<LibraryTitles>()(() => ({
+  byId: new Map(),
+  byKey: new Map(),
+  targets: [],
+}));
 
 export const libraryTitles: Pick<
   StoreApi<LibraryTitles>,
@@ -33,7 +43,18 @@ export const libraryTitles: Pick<
 
 // what a host hands the editor each time its listing of the library's titles answers
 export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
-  titles.setState({ byId: new Map(targets.map((target) => [target.id, target.title])), targets });
+  const byKey = new Map<string, LinkTarget>();
+  for (const target of targets) {
+    const key = titleKey(target.title);
+    if (key !== "" && !byKey.has(key)) {
+      byKey.set(key, target);
+    }
+  }
+  titles.setState({
+    byId: new Map(targets.map((target) => [target.id, target.title])),
+    byKey,
+    targets: targets.map((target) => ({ ...target, folded: foldTitle(target.title) })),
+  });
 };
 
 export interface EditorHostIo {

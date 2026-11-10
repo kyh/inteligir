@@ -1,8 +1,9 @@
-interface Titled {
-  readonly title: string;
+export interface FoldedTitle {
+  // the title case- and accent-blind, as `foldTitle` reads it
+  readonly folded: string;
 }
 
-const fold = (text: string): string =>
+export const foldTitle = (text: string): string =>
   text
     .normalize("NFD")
     .replaceAll(/\p{Mn}+/gu, "")
@@ -21,8 +22,8 @@ const hasWordStart = (text: string, word: string): boolean => {
 
 // Lower ranks first: the title starting with what was typed, every typed word starting a word of
 // it, then a hit mid-word.
-const tierOf = (target: Titled, needle: string, words: readonly string[]): number | null => {
-  const title = fold(target.title);
+const tierOf = (target: FoldedTitle, needle: string, words: readonly string[]): number | null => {
+  const title = target.folded;
   if (title.startsWith(needle)) {
     return 0;
   }
@@ -34,8 +35,8 @@ const tierOf = (target: Titled, needle: string, words: readonly string[]): numbe
 
 // Every title the query matches, case- and accent-blind, best first; a tie keeps the listing's
 // order. A blank query matches every title, in order.
-export const rankTitles = <T extends Titled>(targets: readonly T[], query: string): T[] => {
-  const needle = fold(query.trim());
+export const rankTitles = <T extends FoldedTitle>(targets: readonly T[], query: string): T[] => {
+  const needle = foldTitle(query.trim());
   if (needle === "") {
     return [...targets];
   }

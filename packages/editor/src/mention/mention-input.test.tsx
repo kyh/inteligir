@@ -158,4 +158,11 @@ describe("the [[ picker's keys", () => {
     typeQuery("Someday]]");
     expect(markdown()).toBe("see \\[\\[Someday]]\n");
   });
+
+  it("typing ]] after only spaces keeps the picker open on what was typed", () => {
+    const { markdown } = openPicker([{ id: PLAN, title: "Plan" }]);
+    typeQuery("  ]]");
+    expect(screen.getByRole("combobox")).toHaveProperty("value", "  ]]");
+    expect(markdown()).toBe("see \\[\n");
+  });
 });

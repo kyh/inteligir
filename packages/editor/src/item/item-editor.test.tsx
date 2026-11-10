@@ -27,7 +27,7 @@ import { NOTES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/f
 import { docNodes, liveEditor } from "../test-support/live-notes";
 import { noteServer } from "../test-support/note-server";
 import type { NoteServer } from "../test-support/note-server";
-import { HELD_BACK, ItemEditor, MISSING_ITEM } from "./item-editor";
+import { HELD_BACK, ItemEditor, MISSING_ITEM, REFUSED_EDIT } from "./item-editor";
 import type { OpenNote } from "./item-editor";
 
 const A = "0190a000-0000-7000-8000-00000000000a";
@@ -198,6 +198,21 @@ describe("an item's surface", () => {
     },
   );
 
+  it("says a paste too large for the note was refused, never that it needs a connection", async () => {
+    const server = oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    const [socket] = server.open(A);
+    if (socket === undefined) {
+      throw new Error("an open socket");
+    }
+    server.answer = "hang";
+    server.refuse(socket);
+    await expect(screen.findByText(REFUSED_EDIT)).resolves.toBeDefined();
+    expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
+    expect(editable()).toBeNull();
+  });
+
   it("answers a leave once the note holds every edit made here", async () => {
     const server = oneNote();
     render(<Host itemId={A} />);
@@ -244,6 +259,19 @@ describe("an item's surface with no connection", () => {
     expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
   });
 
+  it("says a note in Deleted is there even with no connection", async () => {
+    const host = installFakeEditorHost();
+    const server = oneNote();
+    server.note(A).greeting = "deleted";
+    render(<Host itemId={A} />);
+    await expect(screen.findByText(HELD_BACK.deleted)).resolves.toBeDefined();
+    act(() => {
+      host.goOffline(true);
+    });
+    expect(screen.getByText(HELD_BACK.deleted)).toBeDefined();
+    expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
+  });
+
   it("says it needs a connection while the note cannot be reached", async () => {
     installFakeEditorHost({ offline: true });
     const server = oneNote();
@@ -253,7 +281,7 @@ describe("an item's surface with no connection", () => {
     expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
   });
 
-  it("draws what the host holds of a note it cannot open, read-only, until the note opens live", async () => {
+  it("draws what the host holds of a note it cannot open, read-only, through its reconnect until it opens", async () => {
     const ticket = deferred<string>();
     const host = installFakeEditorHost({
       itemBlocks: (itemId) => (itemId === A ? [paragraph("a1", "A as held")] : null),
@@ -268,6 +296,10 @@ describe("an item's surface with no connection", () => {
     act(() => {
       host.goOffline(false);
     });
+    await act(async () => {
+      await delay(0);
+    });
+    expect(screen.getByText("A as held")).toBeDefined();
     ticket.resolve("ticket");
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     expect(screen.queryByText("A as held")).toBeNull();
@@ -294,10 +326,13 @@ describe("an item's surface with no connection", () => {
   });
 
   it("finds in the note but offers no replace", async () => {
-    installFakeEditorHost({ offline: true });
+    const host = installFakeEditorHost();
     oneNote();
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
+    act(() => {
+      host.goOffline(true);
+    });
     act(() => {
       openFindBar(editorOf(A), { replace: true });
     });
@@ -307,7 +342,7 @@ describe("an item's surface with no connection", () => {
   });
 
   it("draws no formatting toolbar on a touch screen", async () => {
-    const host = installFakeEditorHost({ offline: true });
+    const host = installFakeEditorHost();
     oneNote();
     render(
       <EditorProfileProvider profile="touch">
@@ -315,6 +350,9 @@ describe("an item's surface with no connection", () => {
       </EditorProfileProvider>,
     );
     await expect(screen.findByText("A one")).resolves.toBeDefined();
+    act(() => {
+      host.goOffline(true);
+    });
     expect(screen.queryByRole("toolbar", { name: "Formatting" })).toBeNull();
     act(() => {
       host.goOffline(false);
@@ -421,10 +459,13 @@ describe("a file still being kept in an open note", () => {
   });
 
   it("keeps no file pasted while there is no connection", async () => {
-    const host = installFakeEditorHost({ offline: true });
+    const host = installFakeEditorHost();
     oneNote();
     render(<Host itemId={A} />);
     await screen.findByText("A one");
+    act(() => {
+      host.goOffline(true);
+    });
     const target = document.querySelector('[data-slate-editor="true"]');
     if (target === null) {
       throw new Error("the surface drew no editor");

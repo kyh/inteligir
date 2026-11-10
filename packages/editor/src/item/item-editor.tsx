@@ -3,9 +3,9 @@
 // nothing is typed into a value the note then replaces. Each item gets a connection of its own, and
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
-// but takes no edit and says why above the text, and a note that cannot open with no connection
-// shows what the host holds of it until it opens. A formula's display follows the pills it names,
-// and the desktop draws the outline beside the text.
+// but takes no edit and says why above the text, and a note whose opening stalled shows what the
+// host holds of it until it opens. A formula's display follows the pills it names, and the desktop
+// draws the outline beside the text.
 
 import {
   useEffect,
@@ -48,7 +48,7 @@ import { TableOfContents } from "@repo/editor/toc";
 
 import { HeldItem } from "./held-item";
 import { noteConnection } from "./note-connection";
-import type { NoteConnection, NoteHeld, NoteStatus } from "./note-connection";
+import type { NoteConnection, NoteEdits, NoteHeld } from "./note-connection";
 import { Notice } from "./notice";
 
 // a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
@@ -67,10 +67,13 @@ export const HELD_BACK: Record<NoteHeld, string> = {
   full: "This note is as long as a note can be, so it takes no more. Copy what you need into a new note. You can still move this one to Deleted.",
 };
 
+// a paste or a drop past what the note takes in one frame, which it refused whole
+/** @internal */
+export const REFUSED_EDIT =
+  "That was too much to add at once, so this note is going back to what it held.";
+
 // the open note as a host reaches it: what it waits on before a leave
-export interface OpenNote {
-  readonly status: () => NoteStatus;
-  readonly subscribe: (listener: () => void) => () => void;
+export interface OpenNote extends Pick<NoteConnection, "status" | "subscribe"> {
   // true once the note holds every edit made here before the call, a file still being kept among
   // them; false when the note closes, or drops what this device held, first
   readonly whenSaved: () => Promise<boolean>;
@@ -114,7 +117,10 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
     connection,
     status: connection.status,
     subscribe: connection.subscribe,
-    unsent: connection.unsent,
+    unsent: () => {
+      const status = connection.status();
+      return status.kind === "open" && status.unsent;
+    },
     whenSaved: async () => {
       while (keeping.size > 0) {
         await Promise.allSettled(keeping);
@@ -220,17 +226,28 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
   );
 };
 
-const noticeOf = (status: Extract<NoteStatus, { kind: "open" }>): string | null => {
-  if (!status.live) {
-    return NEEDS_CONNECTION;
+const noticeOf = (edits: NoteEdits): string | null => {
+  switch (edits.kind) {
+    case "live": {
+      return null;
+    }
+    case "offline": {
+      return NEEDS_CONNECTION;
+    }
+    case "held": {
+      return HELD_BACK[edits.held];
+    }
+    case "refused": {
+      return REFUSED_EDIT;
+    }
+    // no default
   }
-  return status.held === null ? null : HELD_BACK[status.held];
 };
 
-// A note that cannot open with no connection: what the host holds of the item, read once as this
-// mounts, drawn read-only under the words every screen says of it. Nothing held, or a read that
-// fails, leaves the words alone.
-const HeldOffline = ({ itemId }: { itemId: string }) => {
+// A note whose opening stalled, with no connection or no socket within the grace: what the host
+// holds of the item, read once as this mounts and kept until the note opens, drawn read-only under
+// the words every screen says of it. Nothing held, or a read that fails, leaves the words alone.
+const StalledItem = ({ itemId }: { itemId: string }) => {
   const profile = useEditorProfile();
   const [held, setHeld] = useState<readonly LibraryBlock[] | null>(null);
   useEffect(() => {
@@ -265,7 +282,6 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [note] = useState(() => followNote(itemId, host));
   const status = useSyncExternalStore(note.subscribe, note.status);
-  const offline = useSyncExternalStore(host.onOfflineChange, host.offline);
   const announce = useEffectEvent((next: OpenNote | null) => {
     onNote(next);
   });
@@ -285,7 +301,7 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
     );
   }
   if (status.kind === "opening") {
-    return offline ? <HeldOffline itemId={itemId} /> : null;
+    return status.stalled ? <StalledItem itemId={itemId} /> : null;
   }
   return (
     <BoundSurface
@@ -293,7 +309,7 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
       itemId={itemId}
       doc={status.doc}
       note={note}
-      notice={noticeOf(status)}
+      notice={noticeOf(status.edits)}
     />
   );
 };

@@ -62,6 +62,14 @@ const defaultFilter: FilterFn = ({ group, keywords = [], label, value }, search)
   return [...new Set(terms)].some((keyword) => filterWords(keyword, search));
 };
 
+// Typing `suffix` after words closes the picker on them: `words` reads the text typed before it,
+// and a blank answer leaves the suffix typed into the query.
+interface ComboboxCloser {
+  readonly suffix: string;
+  readonly words: (typed: string) => string;
+  readonly pick: (words: string) => void;
+}
+
 interface InlineComboboxProps {
   children: React.ReactNode;
   element: TElement;
@@ -69,10 +77,12 @@ interface InlineComboboxProps {
   filter?: FilterFn | false;
   value?: string;
   setValue?: (value: string) => void;
+  closeOn?: ComboboxCloser;
 }
 
 const OwnedCombobox = ({
   children,
+  closeOn,
   element,
   filter = defaultFilter,
   setValue: setValueProp,
@@ -153,6 +163,14 @@ const OwnedCombobox = ({
 
   const onInputValueChange = React.useCallback(
     (nextValue: string) => {
+      if (closeOn !== undefined && nextValue.endsWith(closeOn.suffix)) {
+        const words = closeOn.words(nextValue.slice(0, -closeOn.suffix.length));
+        if (words !== "") {
+          commit();
+          closeOn.pick(words);
+          return;
+        }
+      }
       const input = inputRef.current;
       if (input && document.activeElement === input) {
         const fixed = reconcileInsertionCaret(valueRef.current, nextValue, input.selectionStart);
@@ -162,7 +180,7 @@ const OwnedCombobox = ({
       }
       setValue(nextValue);
     },
-    [setValue],
+    [closeOn, commit, setValue],
   );
 
   const selected = useSelected();

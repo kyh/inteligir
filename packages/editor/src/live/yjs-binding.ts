@@ -45,9 +45,7 @@ export const yjsBindingPlugin = ({
       editor.setOption(
         NodeIdPlugin,
         "filter",
-        (entry) =>
-          !(YjsEditor.connected(bound) && !YjsEditor.isLocal(bound)) &&
-          (filter === undefined || filter(entry)),
+        (entry) => !appliesRemoteChange(editor) && (filter === undefined || filter(entry)),
       );
       return bound;
     },

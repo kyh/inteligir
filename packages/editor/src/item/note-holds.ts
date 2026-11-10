@@ -3,33 +3,49 @@
 import { deferred } from "@repo/editor/deferred";
 
 import type { OpenNote } from "./item-editor";
-import type { NoteHeld } from "./note-connection";
+import type { NoteStatus } from "./note-connection";
+
+type Undocumented<S> = S extends { readonly doc: unknown } ? Omit<S, "doc"> : S;
 
 // the open note as a leave reads it: where it stands, without the document it binds
-export type LeavingNote = Omit<OpenNote, "status"> & {
-  readonly status: () =>
-    | { readonly kind: "opening" | "missing" }
-    | { readonly kind: "open"; readonly live: boolean; readonly held: NoteHeld | null };
+export type LeavingNote = Pick<OpenNote, "subscribe" | "whenSaved"> & {
+  readonly status: () => Undocumented<NoteStatus>;
+};
+
+// What the status alone says of a leave, or null while only the note's answer can: a note that
+// takes no edit holds all it can, and one with no connection holds all but what was typed then.
+const settledBy = (status: Undocumented<NoteStatus>): boolean | null => {
+  if (status.kind !== "open") {
+    return true;
+  }
+  switch (status.edits.kind) {
+    case "live": {
+      return null;
+    }
+    case "offline": {
+      return !status.unsent;
+    }
+    case "held":
+    case "refused": {
+      return true;
+    }
+    // no default
+  }
 };
 
 // asked of a live note, which answers once it has stored them; a note whose socket goes down
 // meanwhile answers by what reached it before, since an ask on a socket that is gone is never
-// answered. A note that takes no edit holds all it can.
+// answered
 export const noteHolds = async (note: LeavingNote): Promise<boolean> => {
-  const status = note.status();
-  if (status.kind !== "open" || status.held !== null) {
-    return true;
-  }
-  if (!status.live) {
-    return !note.unsent();
+  const now = settledBy(note.status());
+  if (now !== null) {
+    return now;
   }
   const settled = deferred<boolean>();
   const stop = note.subscribe(() => {
-    const now = note.status();
-    if (now.kind !== "open" || now.held !== null) {
-      settled.resolve(true);
-    } else if (!now.live) {
-      settled.resolve(!note.unsent());
+    const next = settledBy(note.status());
+    if (next !== null) {
+      settled.resolve(next);
     }
   });
   try {

@@ -27,7 +27,6 @@ import { readFrontmatter, writeFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
-import { elementsOf } from "./read-markdown";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
 import { leaf } from "./slate-leaves";
 import { writeBlocks } from "./write-blocks";
@@ -179,7 +178,7 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   if (!converted.ok) {
     return null;
   }
-  const drafts = readBlocks(elementsOf(converted.value), PAGE_PORTS);
+  const drafts = readBlocks(converted.value, PAGE_PORTS);
   const named = nameDrafts(drafts, newBlockId);
   return { blocks: named.blocks };
 };
