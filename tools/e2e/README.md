@@ -5,9 +5,9 @@ browser extension, the phone's own runtime and its exported note page on
 scratch dirs, drives them over
 `/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. A scenario is orchestration plus
 plain assertions on purpose — no test framework; the runner exits non-zero on
-any failure with a readable transcript. The harness's own lifecycle, a run's
-scope, has a vitest suite beside it (`pnpm --filter @repo/e2e test`), which
-`pnpm verify` runs.
+any failure with a readable transcript. The harness's own lifecycles, a run's
+scope and the cloud link, have vitest suites beside them (`pnpm --filter
+@repo/e2e test`), which `pnpm verify` runs.
 
 ## Run it
 
@@ -84,7 +84,8 @@ is refused, never left running or printed under the next scenario:
   scenario can cut the cloud and restore it (`src/harness/cloud-link.ts`): a
   cut refuses every new connection and drops every open one, as a device that
   lost its network meets the cloud, and a restore listens on the same port
-  again. Registered for teardown with the scenario.
+  again; a cut asked while a restore listens waits for it, then cuts, and a
+  closed link refuses a restore. Registered for teardown with the scenario.
 - `browser(label, { launchFlags? })` — an agent-browser session registered for
   teardown with the scenario, so a failed or abandoned scenario still closes
   it, its browser launched with the flags named (the extension's profile, or
