@@ -32,8 +32,7 @@ import { z } from "zod";
 
 import { anchorOf, asksCompaction, renderedBlocks } from "./fake-request.ts";
 import type { FakeBlock, FakeRequest } from "./fake-request.ts";
-import { scriptOf, stepAt } from "./fake-script.ts";
-import type { RefusalCategory, StallAt } from "./fake-script.ts";
+import type { RefusalCategory, ScriptedStep, StallAt } from "./fake-script.ts";
 import { signThinking } from "./fake-signature.ts";
 
 export const FAKE_MODEL = "claude-sonnet-5-5";
@@ -162,9 +161,9 @@ const textOfLength = (chars: number): string =>
 const stepReply = (
   request: FakeRequest,
   conversation: Kept,
+  step: ScriptedStep["step"],
   toolIdPrefix: string,
 ): Omit<Reply, "stall"> => {
-  const { step } = stepAt(scriptOf(conversation.person), conversation.replies);
   const base = { refused: null, servedBy: request.model, slow: false };
   if (step === null) {
     return { ...base, blocks: closing(conversation.called), stop: "end_turn" };
@@ -231,10 +230,10 @@ const stepReply = (
 
 // what the step asks for, opened by a compaction when it asks for one and the request does too,
 // before its thinking is signed
-const replyOf = (request: FakeRequest, toolIdPrefix: string): Reply => {
-  const conversation = conversationOf(request);
-  const { compact, stall } = stepAt(scriptOf(conversation.person), conversation.replies);
-  const reply = stepReply(request, conversation, toolIdPrefix);
+const replyOf = (request: FakeRequest, options: ReplyOptions): Reply => {
+  const { conversation, step } = options;
+  const { compact, stall } = step;
+  const reply = stepReply(request, conversation, step.step, options.toolIdPrefix);
   if (!compact || !asksCompaction(request)) {
     return { ...reply, stall };
   }
@@ -407,6 +406,9 @@ export interface StreamPlan {
 }
 
 export interface ReplyOptions {
+  // the request's conversation and the step of its script it asks for, read once a request
+  readonly conversation: Kept;
+  readonly step: ScriptedStep;
   readonly id: string;
   readonly toolIdPrefix: string;
   readonly previousSignature: string | null;
@@ -458,7 +460,7 @@ export const planReply = async (
   request: FakeRequest,
   options: ReplyOptions,
 ): Promise<StreamPlan> => {
-  const reply = replyOf(request, options.toolIdPrefix);
+  const reply = replyOf(request, options);
   const usage = usageOf(request, reply, options.iterating);
   const message: BetaMessage = {
     container: null,

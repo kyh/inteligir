@@ -19,11 +19,10 @@ import {
   requestRefusal,
   requestSchema,
 } from "./fake-request.ts";
-import type { FakeRequest } from "./fake-request.ts";
 import { conversationOf, FAKE_MODEL, planReply } from "./fake-reply.ts";
 import type { StreamPlan } from "./fake-reply.ts";
-import { scriptOf } from "./fake-script.ts";
-import { checkThinking } from "./fake-signature.ts";
+import { scriptOf, stepAt } from "./fake-script.ts";
+import { checkThinking, hex } from "./fake-signature.ts";
 
 const FAKE_STATS_PATH = "/__fake/stats";
 
@@ -85,9 +84,6 @@ const failure = (status: number, message: string, requestId: string): Response =
     { headers: { "request-id": requestId }, status },
   );
 
-const hex = (bytes: ArrayBuffer): string =>
-  [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-
 const bodyHash = async (body: string): Promise<string> =>
   hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body)));
 
@@ -142,14 +138,9 @@ const streamOf = (plan: StreamPlan, signal: AbortSignal): ReadableStream<Uint8Ar
   });
 };
 
-// the person's words the request carries, or its last compaction kept, which its script is read
-// from
-const scriptOfRequest = (request: FakeRequest) => scriptOf(conversationOf(request).person);
-
 export const messagesFake = (): MessagesFake => {
   let requests = 0;
   let drops = 0;
-  let held = 0;
   // per request body: how often a `fail` answered it, and whether a stall held it
   const failed = new Map<string, number>();
   const stalled = new Set<string>();
@@ -201,7 +192,11 @@ export const messagesFake = (): MessagesFake => {
     }
     drops += thinking.failed.length;
     const hash = await bodyHash(raw);
-    const { fail } = scriptOfRequest(request);
+    // the person's words the request carries, or its last compaction kept, which its script is
+    // read from
+    const conversation = conversationOf(request);
+    const script = scriptOf(conversation.person);
+    const { fail } = script;
     const times = failed.get(hash) ?? 0;
     if (fail !== null && times < fail.times) {
       failed.set(hash, times + 1);
@@ -212,18 +207,19 @@ export const messagesFake = (): MessagesFake => {
       );
     }
     const plan = await planReply(request, {
+      conversation,
       dropped: betas.has(BINDING_BETA) ? thinking.failed : null,
       holds: () => {
         if (stalled.has(hash)) {
           return false;
         }
         stalled.add(hash);
-        held += 1;
         return true;
       },
       id: `msg_fake_${String(requests)}`,
       iterating: betas.has(COMPACT_BETA),
       previousSignature: thinking.last,
+      step: stepAt(script, conversation.replies),
       toolIdPrefix: `toolu_fake_${hash.slice(0, 16)}`,
     });
     return new Response(streamOf(plan, incoming.signal), {
@@ -237,7 +233,7 @@ export const messagesFake = (): MessagesFake => {
       const incoming = new Request(input, init);
       const { pathname } = new URL(incoming.url);
       if (incoming.method === "GET" && pathname === FAKE_STATS_PATH) {
-        return Response.json({ drops, held, requests } satisfies FakeStats);
+        return Response.json({ drops, held: stalled.size, requests } satisfies FakeStats);
       }
       if (incoming.method === "POST" && pathname === MESSAGES_PATH) {
         return await answer(incoming);
@@ -253,6 +249,6 @@ export const messagesFake = (): MessagesFake => {
         { status: 404 },
       );
     },
-    stats: () => ({ drops, held, requests }),
+    stats: () => ({ drops, held: stalled.size, requests }),
   };
 };
