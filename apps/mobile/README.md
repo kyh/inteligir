@@ -132,8 +132,9 @@ the phone is back; the Library says how many saves are waiting
 ## The agent
 
 The agent is the account's: the phone lists the same conversations as the
-Mac and draws a thread's events, approvals and the reply being written from
-`@repo/agent-panel`, natively (`src/app/agent/`). Asking about an item sends
+Mac and draws a thread's events and approvals from `@repo/agent-panel`,
+natively (`src/app/agent/`), and the reply being written as the account's
+socket carries it (`src/lib/thread-previews.ts`). Asking about an item sends
 it as the view's context. A send and an approval need a connection and say so
 rather than queue, since a turn runs in the cloud.
 

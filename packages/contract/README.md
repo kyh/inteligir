@@ -135,9 +135,9 @@ src/
   it, but for a route the site's router types, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
   `docs/privacy.md`.
 - **The socket's `moved` frame is a hint, never state.** It says what a write
-  moved, and a client reads that again over `/v1`. A `thread` frame carries the
-  agent's turn as it moves: an event a read of the thread's events answers too,
-  or a preview no read ever does. Each frame is JSON, and one of a type a build does not know is no
+  moved, and a client reads that again over `/v1`. A `preview` frame carries the
+  reply the agent is writing, which no read ever answers, and a `moved` frame
+  naming its thread lets it go. Each frame is JSON, and one of a type a build does not know is no
   frame at all, so a newer cell can add types
   (`library/library-socket.ts`).
 

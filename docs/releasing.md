@@ -863,9 +863,9 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   books no stream cut before it ended, and lets a day's last turn finish past
   its cost, and this limit is what bounds both. Passing: a request without
   `cf-aig-authorization` is refused; one with it, no `x-api-key` and
-  `cf-aig-metadata: {"account":"check"}` answers 200 for `max_tokens: 1`; the
-  gateway's log shows that request with no prompt or reply, and `check` under
-  its metadata's `account`.
+  `cf-aig-metadata: {"account":"check"}` answers 200 for `max_tokens: 1` on
+  `claude-sonnet-5-5`; the gateway's log shows that request with its cost and
+  no prompt or reply, and `check` under its metadata's `account`.
 - **Production's Worker names its gateway.** The newest Deploy run's "Build &
   deploy web" step printed `true` from its gateway check before `cf deploy`,
   and signed in on inteligir.com, `library.agent.send({ text: "Hello." })`
@@ -877,8 +877,9 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   organization is out of the Evaluation tier before the first outside tester.
 - **A real turn runs on a preview.** Signed in on a preview:
   `library.agent.send({ text: "Tag my newest link travel." })`. Passing: the
-  answer is `running`, the account's socket carries `thread` frames with
-  previews before the reply ends, the thread's events land once each
+  answer is `running`, the account's socket carries `preview` frames before
+  the reply ends, and a `moved` frame naming the thread lets them go, the
+  thread's events land once each
   (`library.agent.events`), its one change set is labelled Agent in
   `library.history.list` and Undo this turn takes it back, and
   `library.agent.status` counts one turn less; the gateway's log shows one
@@ -895,6 +896,19 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   turn ends `budget` with twenty replies, the gateway's log shows twenty
   requests for it, the second turn makes the rest, and the day's two turns are
   spent.
+- **A declined turn finishes on the fallback.** On a preview, in a thread that
+  already has one answered turn, ask something Sonnet 5.5 declines under its
+  `cyber` category. Passing: the reply opens with a `fallback` block naming
+  `claude-sonnet-5` and answers, the gateway's log shows that request priced as
+  Sonnet 5's, and the Worker's log has no 400 and no `agent-thinking-dropped`.
+  Sonnet 5 takes no system message mid-conversation, so a 400 here means the
+  per-account words a turn carries must move.
+- **A spent per-account limit ends a turn as unreachable.** On a preview, set
+  the gateway's per-account limit to its least, spend it with one turn, send
+  again, then put the limit back. Passing: the second turn ends `unavailable`
+  after its retries, `library.agent.status` gives that turn back, and the
+  gateway's log shows a 429. Keep that 429's body: it is what would tell the
+  limit from Anthropic's rate limit, which the Worker cannot yet.
 - **Approvals with a real model.** "Delete my oldest note": allow it, then ask
   again and deny, then ask again and leave it ten minutes. Passing: Deleted
   holds one note, the denial and the timeout each leave the note, and the

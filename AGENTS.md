@@ -26,8 +26,8 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(our own agent loop, the phone's editor as a WebView page). Where they
-disagree, these premises win, and the stage's issue says what changes.
+(the phone's editor as a WebView page). Where they disagree, these premises
+win, and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
   Notion.
@@ -391,7 +391,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id over its note's live document, and the grammar, links and a file's facts
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
 - [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the cloud: accounts and sessions, the wire, the library cell (its SQL and undo) and each item's live note, fills, search, the connector, the built-in agent, and its program and suites
-- [`packages/db/CLAUDE.md`](packages/db/CLAUDE.md) — the D1 schema and how it ships, and the cell's and each note's drizzle schema and migrations
+- [`packages/db/CLAUDE.md`](packages/db/CLAUDE.md) — the D1 schema and how it ships, and the cell's, each note's and each conversation's drizzle schema and migrations
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — the site and the Worker: the layout's departures from kyh/init, Start's paths and doors, each program's `Env`, the library's route, and previews

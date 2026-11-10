@@ -657,14 +657,19 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   same bytes for every account. Rejected: the loop in the cell (Lifecycle takes
   its host's one alarm); ThinkHarness (its recovery re-sends a cut reply as a
   prefill Sonnet 5.5 refuses, and it takes an approval answered after a later
-  turn); PiHarness (`drop_block` on every request, a compaction that drops
-  every kept thinking block, a hook that cannot refuse a call); Managed Agents
+  turn); `AIChatAgent` with the AI SDK (its recovery sends a cut reply as a
+  prefill, a new message strips an unanswered tool call, and its provider
+  drops a compaction's encrypted content); PiHarness (`drop_block` on every
+  request, a compaction that drops every kept thinking block, a hook that
+  cannot refuse a call); Managed Agents
   (its credential vault, a public connector, a webhook and an account-wide turn lock to
   attribute writes). `packages/service/src/agent/agent-thread.ts`,
   `library-agent.ts`.
 
 - **A CONVERSATION'S TRANSCRIPT IS CLAUDE'S REPLIES AS RETURNED, ONLY EVER
-  APPENDED TO, AND A CUT CALL IS SENT AGAIN WHOLE.** A reply lands only once
+  APPENDED TO, AND A CUT CALL IS SENT AGAIN WHOLE.** One insert site writes
+  it, and the scripted Claude's chained thinking signatures catch any other
+  edit. A reply lands only once
   its stream ends, in one transaction with its usage; a call stamped by an
   instance that died, or whose reply sent no byte, pings included, for three
   minutes, is cut and its step re-sent byte for byte, every call asking the
@@ -742,6 +747,7 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   its own (a second signal for what the moved frame says); an epoch a push (a
   fence that resets, which a late push of the old one moves back).
   `packages/service/src/agent/agent-turns.ts`, `thread-loop.ts`,
+  `thread-wire.ts`,
   `packages/contract/src/library/agent-events.ts`,
   `packages/contract/src/library/library-socket.ts`.
 
@@ -755,7 +761,9 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   Deploy refuses a Build Output that names none. Rejected: the key on the
   Worker; Unified Billing (a fee, and its fallback is silent); the AI binding
   (it reaches the account in local development); `@ai-sdk/anthropic` (a second
-  conversion of every block). `packages/service/src/agent/anthropic-client.ts`,
+  conversion of every block); reading every 429 as the allowance (Anthropic's
+  rate limit answers 429 too, so one is retried and ends `unavailable`).
+  `packages/service/src/agent/anthropic-client.ts`, `thread-loop.ts`,
   `apps/web/cloudflare.config.ts`, `.github/workflows/deploy.yml`.
 
 - **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE THREAD PATH AGAINST A

@@ -48,6 +48,10 @@ so a hang costs one scenario, not the whole job. Time its build sat queued
 behind another lane's moves the deadline out by as much, since the budget is
 for the scenario's own build.
 
+A scenario that passed still FAILS when any Worker it booted replayed a
+thinking block Claude dropped: the harness reads each Worker's scripted Claude
+for its count once the run passes (`src/harness/scenario.ts`).
+
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
 sweep), but its scenarios boot processes and a browser, so they run only via
