@@ -430,8 +430,12 @@ export class NoteDO extends YServer<Env> {
       return;
     }
     await super.onConnect(connection, context);
+    // ahead of the sync, so a device opening a held note never shows it writable; Deleted first,
+    // since a restore is the person's first step
     if (modeOf(connection) === "read" || this.#deleted) {
       this.sendCustomMessage(connection, NOTE_SOCKET.deleted);
+    } else if (this.#full) {
+      this.sendCustomMessage(connection, NOTE_SOCKET.full);
     }
   }
 

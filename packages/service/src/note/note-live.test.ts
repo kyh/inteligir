@@ -540,7 +540,7 @@ describe("a note's size", () => {
     other.provider.destroy();
   }, 20_000);
 
-  it("turns full past the note's size, every device told, and takes no agent edit", async () => {
+  it("turns full past the note's size, every device told, one opening after too, and takes no agent edit", async () => {
     const { accountId, itemId, ticket } = await signedIn("cap-state@example.test");
     const writer = await openClient(itemId, ticket, "cap-writer");
     const watcher = await openClient(itemId, ticket, "cap-watcher");
@@ -557,8 +557,11 @@ describe("a note's size", () => {
       agentPut("turn-full", before, withText(before, "Too late.")),
     );
     expect(refused).toStrictEqual({ held: "full", kind: "held" });
+    const late = await openClient(itemId, ticket, "cap-late");
+    await until(() => late.messages.includes(NOTE_SOCKET.full));
     writer.provider.destroy();
     watcher.provider.destroy();
+    late.provider.destroy();
   }, 60_000);
 });
 
