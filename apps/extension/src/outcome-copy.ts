@@ -1,7 +1,7 @@
 // what the popup and the toolbar's badge say of how a save went, in one place. A refusal says what
 // the person can do about it, and links where that is done.
 
-import type { Outcome, OutcomeReason } from "./messages";
+import type { Outcome, OutcomeReason, WaitsFor } from "./messages";
 
 export interface OutcomeLine {
   readonly text: string;
@@ -25,7 +25,8 @@ const ALREADY_SAVED = "Already in your library";
 const WAITING_COPY = {
   connection: { signIn: false, text: "Saved when you're back online" },
   "sign-in": { signIn: true, text: "Saved once you sign in to Inteligir again" },
-} satisfies Record<Extract<Outcome, { kind: "queued" }>["waitsFor"], OutcomeLine>;
+  update: { signIn: false, text: "Saved once this extension updates" },
+} satisfies Record<WaitsFor, OutcomeLine>;
 
 export const outcomeLine = (outcome: Outcome): OutcomeLine => {
   switch (outcome.kind) {

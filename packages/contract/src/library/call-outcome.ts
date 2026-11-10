@@ -3,7 +3,7 @@
 // each procedure's own refusals, which its caller reads. A file's upload answers in statuses, the
 // same refusals by number.
 
-import { isOrpcError } from "../v1-errors";
+import { isOrpcError, PayloadTooLargeError, QuotaError } from "../v1-errors";
 import { V1_BLOBS_PATH } from "./library-blobs";
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the session through the
@@ -49,15 +49,24 @@ export const sharedFailure = (error: Error): CallFailure | null => {
     : { kind: "unreachable", message: UNREACHABLE };
 };
 
+// a file refused, by the code `/v1/rpc` answers its status with, and in the person's words
+interface UploadRefusal {
+  readonly code: "BAD_REQUEST" | typeof PayloadTooLargeError.code | typeof QuotaError.code;
+  readonly reason: string;
+}
+
 export type UploadOutcome =
   | { readonly kind: "stored" }
-  | { readonly kind: "refused"; readonly reason: string }
+  | ({ readonly kind: "refused" } & UploadRefusal)
   | { readonly kind: "failed"; readonly failure: CallFailure };
 
-const UPLOAD_REFUSALS: ReadonlyMap<number, string> = new Map([
-  [400, "This file changed on this device before it was sent."],
-  [413, "This file is larger than your library keeps."],
-  [507, "Your library is full."],
+const UPLOAD_REFUSALS: ReadonlyMap<number, UploadRefusal> = new Map([
+  [400, { code: "BAD_REQUEST", reason: "This file changed on this device before it was sent." }],
+  [
+    413,
+    { code: PayloadTooLargeError.code, reason: "This file is larger than your library keeps." },
+  ],
+  [507, { code: QuotaError.code, reason: "Your library is full." }],
 ]);
 
 const UPLOAD_FAILURES: ReadonlyMap<number, CallFailure> = new Map([
@@ -88,9 +97,9 @@ export const uploadBlob = async (
   if (response.status === 201 || response.status === 204) {
     return { kind: "stored" };
   }
-  const reason = UPLOAD_REFUSALS.get(response.status);
-  if (reason !== undefined) {
-    return { kind: "refused", reason };
+  const refusal = UPLOAD_REFUSALS.get(response.status);
+  if (refusal !== undefined) {
+    return { ...refusal, kind: "refused" };
   }
   return {
     failure: UPLOAD_FAILURES.get(response.status) ?? { kind: "unreachable", message: UNREACHABLE },

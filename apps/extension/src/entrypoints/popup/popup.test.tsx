@@ -88,6 +88,15 @@ describe("the popup", () => {
       />,
     );
     await expect(screen.findByText("Saved when you're back online")).resolves.toBeTruthy();
+    cleanup();
+    render(
+      <Popup
+        activeTabId={tabSeven}
+        ask={worker(signedIn, { kind: "queued", waitsFor: "update" }).ask}
+      />,
+    );
+    const update = await screen.findByText("Saved once this extension updates");
+    expect(update.getAttribute("role")).toBe("status");
   });
 
   it("says a save made signed out waits for the sign-in, and links where to sign in", async () => {

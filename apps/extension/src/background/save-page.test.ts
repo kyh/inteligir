@@ -1,10 +1,11 @@
-import { ORPCError } from "@orpc/client";
+import { fileSha } from "@repo/contract/library/file-sha";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
+import type { Outcome } from "../messages";
 import { CAPTURE_DEADLINE_MS } from "./capture-tab";
 import { keepConnection, readConnection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
@@ -14,6 +15,7 @@ import type { SignIn } from "./sign-in";
 import {
   fakeCloud,
   OTHER_SESSION,
+  refusal,
   savedAs,
   SESSION,
   SIGNED_IN,
@@ -69,17 +71,12 @@ const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
   ...overrides,
 });
 
-const badRequest = async (): Promise<never> => {
-  throw new ORPCError("BAD_REQUEST");
-};
+const answering = (status: number) => async () => new Response(null, { status });
 
-const unauthorized = async (): Promise<never> => {
-  throw new ORPCError("UNAUTHORIZED");
-};
-
-const gone = async (): Promise<never> => {
-  throw new ORPCError("GONE");
-};
+const refusedFor = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outcome => ({
+  kind: "refused",
+  reason,
+});
 
 const NONE: SignIn = { kind: "none" };
 
@@ -123,7 +120,7 @@ describe("a tab saved", () => {
     });
     const [save] = cloud.saves;
     expect(save).toMatchObject({
-      coverSha: "c".repeat(64),
+      coverSha: fileSha(PNG),
       facts: { author: "Steph Ango" },
       folderId: null,
       tags: [],
@@ -131,7 +128,7 @@ describe("a tab saved", () => {
       url: URL_SAVED,
     });
     expect(JSON.stringify(save?.article)).toContain(PASSAGE);
-    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png" }]);
+    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png", sha: fileSha(PNG) }]);
     // a public page never sends this browser into the person's own network
     expect(run.covers).toStrictEqual(["https://cdn.example.test/cover.png"]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
@@ -161,6 +158,23 @@ describe("a tab saved", () => {
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toMatchObject({
       created: false,
     });
+  });
+
+  it("is saved without a cover the cloud refuses, and waits with a cover whose session ended", async () => {
+    const refused = fakeCloud({ upload: answering(413) });
+    await expect(saveTab(depsWith(refused).deps, { tab: TAB })).resolves.toMatchObject({
+      kind: "saved",
+    });
+    expect(refused.saves).toStrictEqual([expect.objectContaining({ coverSha: null })]);
+    const ended = fakeCloud({ upload: answering(401) });
+    await expect(saveTab(depsWith(ended).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "queued",
+      waitsFor: "sign-in",
+    });
+    expect(ended.saves).toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      expect.objectContaining({ firstTry: false, url: URL_SAVED }),
+    ]);
   });
 
   it("is saved as its link when it cannot be scripted", async () => {
@@ -215,12 +229,12 @@ describe("a tab saved", () => {
   });
 
   it("is saved as its link when the cloud will not take its reading as a call", async () => {
-    for (const code of ["BAD_REQUEST", "PAYLOAD_TOO_LARGE"]) {
-      const cloud = fakeCloud({
-        save: async () => {
-          throw new ORPCError(code);
-        },
-      });
+    for (const [code, defined] of [
+      ["BAD_REQUEST", false],
+      ["PAYLOAD_TOO_LARGE", true],
+      ["CONFLICT", true],
+    ] as const) {
+      const cloud = fakeCloud({ save: refusal(code, defined) });
       await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toMatchObject({
         created: true,
         kind: "saved",
@@ -237,30 +251,10 @@ describe("a tab saved", () => {
     }
   });
 
-  it("lets go a save whose link the cloud refuses too, and says so", async () => {
-    const cloud = fakeCloud({ save: badRequest, saveLink: badRequest });
-    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
-      kind: "refused",
-      reason: "failed",
-    });
-    expect(cloud.links).toHaveLength(1);
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-  });
-
-  it("sends no link past a refusal the link would meet as well", async () => {
-    for (const [code, reason] of [
-      ["QUOTA", "library-full"],
-      ["CLIENT_OUTDATED", "update-extension"],
-    ] as const) {
-      const cloud = fakeCloud({
-        save: async () => {
-          throw new ORPCError(code);
-        },
-      });
-      await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toStrictEqual({
-        kind: "refused",
-        reason,
-      });
+  it("sends no link past an answer the link would meet as well", async () => {
+    for (const code of ["QUOTA", "CLIENT_OUTDATED", "UNAUTHORIZED", "GONE"]) {
+      const cloud = fakeCloud({ save: refusal(code) });
+      await saveTab(depsWith(cloud).deps, { tab: TAB });
       expect(cloud.links, code).toStrictEqual([]);
     }
   });
@@ -309,19 +303,6 @@ describe("a tab saved", () => {
     expect(alarmAtCall).toBeDefined();
   });
 
-  it("waits for its account to sign in again once the cloud says the session ended", async () => {
-    const cloud = fakeCloud({ save: unauthorized });
-    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
-      kind: "queued",
-      waitsFor: "sign-in",
-    });
-    await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({ email: SESSION.email, firstTry: false, url: URL_SAVED }),
-    ]);
-    await expect(readConnection()).resolves.toStrictEqual(KEPT);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
-  });
-
   it("waits unread, as its address and title, while the browser is signed out of its account", async () => {
     const cloud = fakeCloud({});
     const run = depsWith(cloud, { signIn: SIGNED_OUT });
@@ -343,22 +324,12 @@ describe("a tab saved", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
-  it("lets go a save, and the account, once the cloud says the account was deleted", async () => {
-    const cloud = fakeCloud({ save: gone });
-    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
-      kind: "refused",
-      reason: "not-connected",
-    });
-    await expect(readConnection()).resolves.toBeNull();
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-  });
-
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
     const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
     const cloud = fakeCloud({
       save: async () => {
         await keepConnection(replaced);
-        return await gone();
+        return await refusal("GONE")();
       },
     });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
@@ -420,51 +391,61 @@ describe("a right-click's address or picture", () => {
       created: true,
       kind: "saved",
     });
-    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png" }]);
+    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png", sha: fileSha(PNG) }]);
     expect(cloud.files).toStrictEqual([
-      expect.objectContaining({ name: "file-over-app.png", sha: "c".repeat(64) }),
+      expect.objectContaining({ name: "file-over-app.png", sha: fileSha(PNG) }),
     ]);
   });
 
-  it("asks a picture's account to sign in again, since its bytes wait in no queue", async () => {
+  it("refuses a picture whatever would keep a save waiting, since its bytes wait in no queue", async () => {
+    const rows: readonly (readonly [string, FakeCloud, Outcome, boolean])[] = [
+      ["401", fakeCloud({ upload: answering(401) }), refusedFor("signed-out"), true],
+      ["410", fakeCloud({ upload: answering(410) }), refusedFor("not-connected"), false],
+      ["426", fakeCloud({ upload: answering(426) }), refusedFor("update-extension"), true],
+      ["413", fakeCloud({ upload: answering(413) }), refusedFor("too-large"), true],
+      ["507", fakeCloud({ upload: answering(507) }), refusedFor("library-full"), true],
+      ["400", fakeCloud({ upload: answering(400) }), refusedFor("failed"), true],
+      ["429", fakeCloud({ upload: answering(429) }), refusedFor("needs-connection"), true],
+      ["503", fakeCloud({ upload: answering(503) }), refusedFor("needs-connection"), true],
+      [
+        "no answer",
+        fakeCloud({
+          upload: async () => {
+            throw new TypeError("Failed to fetch");
+          },
+        }),
+        refusedFor("needs-connection"),
+        true,
+      ],
+      [
+        "the file's create refused",
+        fakeCloud({ createFile: refusal("QUOTA") }),
+        refusedFor("library-full"),
+        true,
+      ],
+    ];
+    for (const [met, cloud, outcome, accountKept] of rows) {
+      await keepConnection(KEPT);
+      await expect(
+        savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+        met,
+      ).resolves.toStrictEqual(outcome);
+      await expect(readConnection(), met).resolves.toStrictEqual(accountKept ? KEPT : null);
+      await expect(queuedSaves(), met).resolves.toStrictEqual([]);
+    }
+  });
+
+  it("asks a signed-out picture's account to sign in again before sending anything, and refuses what is no picture", async () => {
     const quiet = fakeCloud({});
     await expect(
       savePicture(depsWith(quiet, { signIn: SIGNED_OUT }).deps, { bytes: PNG, pageUrl: URL_SAVED }),
     ).resolves.toStrictEqual({ kind: "refused", reason: "signed-out" });
-    expect(quiet.uploads).toStrictEqual([]);
-    const ended = fakeCloud({ putFile: unauthorized });
     await expect(
-      savePicture(depsWith(ended).deps, { bytes: PNG, pageUrl: URL_SAVED }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "signed-out" });
-    await expect(readConnection()).resolves.toStrictEqual(KEPT);
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-  });
-
-  it("lets the account go once the cloud says a picture's account was deleted", async () => {
-    const cloud = fakeCloud({ putFile: gone });
-    await expect(
-      savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "not-connected" });
-    await expect(readConnection()).resolves.toBeNull();
-  });
-
-  it("says a picture's bytes need a connection, since they wait in no queue", async () => {
-    const cloud = fakeCloud({
-      putFile: async () => {
-        throw new TypeError("Failed to fetch");
-      },
-    });
-    await expect(
-      savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
-    ).resolves.toStrictEqual({
-      kind: "refused",
-      reason: "needs-connection",
-    });
-    await expect(
-      savePicture(depsWith(fakeCloud({})).deps, {
+      savePicture(depsWith(quiet).deps, {
         bytes: new TextEncoder().encode("not a picture"),
         pageUrl: URL_SAVED,
       }),
     ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
+    expect(quiet.uploads).toStrictEqual([]);
   });
 });

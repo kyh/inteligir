@@ -6,9 +6,11 @@
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { hexFromBytes } from "@repo/contract/bytes";
 import { clientBuildHeaders } from "@repo/contract/client-build";
-import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/v1/errors";
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
+import { sharedFailure, UNREACHABLE, uploadBlob } from "@repo/contract/library/call-outcome";
+import type { CallFailure, V1Transport } from "@repo/contract/library/call-outcome";
+import { isOrpcError } from "@repo/contract/v1/errors";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import type { V1Client } from "@repo/contract/v1";
 
@@ -27,121 +29,89 @@ export interface Saved {
   readonly item: { readonly fields: { readonly title: string } };
 }
 
-// what a save asks of the cloud: the library's two saves and a file's create, and the bytes
+// what a save asks of the cloud: the library's two saves and a file's create, and `/v1` for the
+// bytes
 export interface Cloud {
   readonly save: (input: PageSave) => Promise<Saved>;
   readonly saveLink: (input: LinkSave) => Promise<Saved>;
   readonly createFile: (input: FileCreate) => Promise<Pick<Saved, "item">>;
-  readonly putFile: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<string>;
+  readonly transport: V1Transport;
 }
 
 export const CALL_DEADLINE_MS = 25_000;
 
-// the build every request names: this extension's version, from its manifest
-const buildHeaders = (version: string): Record<string, string> =>
-  clientBuildHeaders({ platform: "extension", version });
-
-const hexOf = (digest: ArrayBuffer): string =>
-  Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-
-// a PUT the cloud answered with something other than a stored file, as a refusal reads
-/** @internal */
-export class FileRefusedError extends Error {
-  readonly status: number;
-  constructor(status: number) {
-    super(`the cloud answered ${String(status)} to a file`);
-    this.name = "FileRefusedError";
-    this.status = status;
-  }
-}
-
 export const cloudOf = (session: Session, version: string): Cloud => {
-  const headers = { ...buildHeaders(version), authorization: `Bearer ${session.bearer}` };
+  const headers = {
+    ...clientBuildHeaders({ platform: "extension", version }),
+    authorization: `Bearer ${session.bearer}`,
+  };
+  const transport: V1Transport = {
+    fetch: async (request) => {
+      const signed = new Headers(request.headers);
+      for (const [name, value] of Object.entries(headers)) {
+        signed.set(name, value);
+      }
+      return await fetch(
+        new Request(request, { headers: signed, signal: AbortSignal.timeout(CALL_DEADLINE_MS) }),
+      );
+    },
+    origin: session.origin,
+  };
   const { items } = createORPCClient<V1Client>(
     new RPCLink({
-      fetch: async (url, init) =>
-        await fetch(url, { ...init, signal: AbortSignal.timeout(CALL_DEADLINE_MS) }),
-      headers,
-      origin: session.origin,
+      fetch: async (url, init) => await transport.fetch(new Request(url, init)),
+      origin: transport.origin,
       url: V1_RPC_PATH,
     }),
   ).library;
   return {
     createFile: async (input) => await items.createFile(input),
-    putFile: async (bytes, mime) => {
-      const sha = hexOf(await crypto.subtle.digest("SHA-256", bytes));
-      const response = await fetch(`${session.origin}${V1_BLOBS_PATH}/${sha}`, {
-        body: bytes,
-        headers: { ...headers, "content-type": mime },
-        method: "PUT",
-        signal: AbortSignal.timeout(CALL_DEADLINE_MS),
-      });
-      await response.arrayBuffer();
-      if (!response.ok) {
-        throw new FileRefusedError(response.status);
-      }
-      return sha;
-    },
     save: async (input) => await items.save(input),
     saveLink: async (input) => await items.saveLink(input),
+    transport,
   };
 };
 
-// what a failed call means for the save that made it
-export type CallFailure =
-  // the session ended, signed out on the site, from another device or by its age: what was saved
-  // under it waits for that account to sign in again
-  | { readonly kind: "signed-out" }
-  // the account was deleted: nothing saved under it can land
-  | { readonly kind: "gone" }
-  // a refusal no resend passes, in the words it names
-  | { readonly kind: "refused"; readonly reason: CallRefusal }
-  // no answer, or one a later try may pass: the save waits to be sent again
-  | { readonly kind: "unanswered" };
+// what a call that did not land missed by: a failure every call shares, or a refusal the
+// procedure declares as its own, by its code
+export type Miss = CallFailure | { readonly kind: "refused"; readonly code: string };
 
-type CallRefusal = "update-extension" | "library-full" | "too-large" | "failed";
+// how a call went: its answer, or what it missed by
+export type Sent<T> = { readonly kind: "landed"; readonly answer: T } | Miss;
 
-// the refusals a person can act on; any other the cloud answered under a 4xx no resend passes
-const REFUSALS = new Map<string, CallRefusal>([
-  ["CLIENT_OUTDATED", "update-extension"],
-  ["PAYLOAD_TOO_LARGE", "too-large"],
-  ["QUOTA", "library-full"],
-]);
+// a call's answer, or what the error it threw says it missed by
+export const sent = async <T>(call: () => Promise<T>): Promise<Sent<T>> => {
+  try {
+    return { answer: await call(), kind: "landed" };
+  } catch (error) {
+    const shared = error instanceof Error ? sharedFailure(error) : null;
+    if (shared !== null) {
+      return shared;
+    }
+    return isOrpcError(error)
+      ? { code: error.code, kind: "refused" }
+      : { kind: "unreachable", message: UNREACHABLE };
+  }
+};
 
-// the status each code is answered under; a code no row names is the cloud's own fault
-const CODE_STATUS = new Map<string, number>(Object.entries(V1_ERROR_STATUS_MAP));
-const FAULT_STATUS = 500;
-
-// a file's statuses, as `/v1/blobs` answers them
-const FILE_REFUSALS = new Map<number, CallFailure>([
-  [401, { kind: "signed-out" }],
-  [410, { kind: "gone" }],
-  [413, { kind: "refused", reason: "too-large" }],
-  [426, { kind: "refused", reason: "update-extension" }],
-  [507, { kind: "refused", reason: "library-full" }],
-]);
-
-export const failureOf = (cause: unknown): CallFailure => {
-  if (cause instanceof FileRefusedError) {
-    return FILE_REFUSALS.get(cause.status) ?? { kind: "unanswered" };
+// a file's bytes up by their SHA-256, which the answer names once the cloud keeps them
+export const sendFile = async (
+  cloud: Cloud,
+  bytes: Uint8Array<ArrayBuffer>,
+  mime: string,
+): Promise<Sent<string>> => {
+  const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const outcome = await uploadBlob(cloud.transport, { bytes, mime, sha });
+  switch (outcome.kind) {
+    case "stored": {
+      return { answer: sha, kind: "landed" };
+    }
+    case "refused": {
+      return { code: outcome.code, kind: "refused" };
+    }
+    case "failed": {
+      return outcome.failure;
+    }
+    // no default
   }
-  // a fetch that threw (no connection, the deadline) never reached the cloud
-  if (!isOrpcError(cause)) {
-    return { kind: "unanswered" };
-  }
-  if (cause.code === "UNAUTHORIZED") {
-    return { kind: "signed-out" };
-  }
-  if (cause.code === "GONE") {
-    return { kind: "gone" };
-  }
-  const reason = REFUSALS.get(cause.code);
-  if (reason !== undefined) {
-    return { kind: "refused", reason };
-  }
-  // the cloud's own fault, or its budget for a minute: a later try may pass
-  const status = CODE_STATUS.get(cause.code) ?? FAULT_STATUS;
-  return status >= FAULT_STATUS || cause.code === "TOO_MANY_REQUESTS"
-    ? { kind: "unanswered" }
-    : { kind: "refused", reason: "failed" };
 };

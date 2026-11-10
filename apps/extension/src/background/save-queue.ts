@@ -6,14 +6,18 @@
 // since the worker dies 30 s after its last event and a timer with it, made as a save is kept and
 // again at every start, since an update or a restart can clear one. A save is sent only under the
 // session of the account it was made under, so one made before a sign-out waits for that account
-// to sign in again, whoever signs in meanwhile.
+// to sign in again, whoever signs in meanwhile. Every try, the first and each resend, settles the
+// save one way (`settle`).
 
+import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { PayloadTooLargeError, QuotaError } from "@repo/contract/v1/errors";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
+import type { OutcomeReason, WaitsFor } from "../messages";
 import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
-import { CALL_DEADLINE_MS, failureOf } from "./cloud";
-import type { CallFailure, Cloud, LinkSave } from "./cloud";
+import { CALL_DEADLINE_MS, sent } from "./cloud";
+import type { Cloud, LinkSave, Saved, Sent } from "./cloud";
 import { forgetConnection, readConnection } from "./connection";
 import type { Session, SignIn } from "./sign-in";
 
@@ -46,7 +50,7 @@ export type QueuedSave = z.infer<typeof queuedSaveSchema>;
 
 const keyOf = (save: Pick<QueuedSave, "opId">): string => `${KEY_PREFIX}${save.opId}`;
 
-export const dropSave = async (save: Pick<QueuedSave, "opId">): Promise<void> => {
+const dropSave = async (save: Pick<QueuedSave, "opId">): Promise<void> => {
   await browser.storage.local.remove(keyOf(save));
 };
 
@@ -101,7 +105,7 @@ export const accountGone = async (email: string): Promise<void> => {
 };
 
 // a try that went unanswered, or a session that ended: the save waits for the alarm
-export const markWaiting = async (save: QueuedSave): Promise<void> => {
+const markWaiting = async (save: QueuedSave): Promise<void> => {
   await keepSave({ ...save, firstTry: false });
 };
 
@@ -114,6 +118,78 @@ export const linkOf = (save: QueuedSave): LinkSave => {
   return link;
 };
 
+type DropReason = Extract<OutcomeReason, "library-full" | "too-large" | "failed">;
+
+// how a try left its save: landed, waiting to be sent again, let go, or gone with its account
+export type Settled<T> =
+  | { readonly kind: "landed"; readonly answer: T }
+  | { readonly kind: "waiting"; readonly for: WaitsFor }
+  | { readonly kind: "dropped"; readonly reason: DropReason }
+  | { readonly kind: "gone" };
+
+// a session's end waits for the person to sign in again or the browser to update the extension,
+// which `storage.local` outlives, but nothing saved under a deleted account can land
+const SESSION_ENDS = {
+  gone: { kind: "gone" },
+  outdated: { for: "update", kind: "waiting" },
+  "signed-out": { for: "sign-in", kind: "waiting" },
+} as const satisfies Record<SessionEnd, Settled<never>>;
+
+// the refusals of the procedure's own a person can act on; any other no resend passes
+const REFUSALS: ReadonlyMap<string, DropReason> = new Map([
+  [PayloadTooLargeError.code, "too-large"],
+  [QuotaError.code, "library-full"],
+]);
+
+// what a try's answer means for the save that made it, whichever try met it
+export const settledBy = <T>(answer: Sent<T>): Settled<T> => {
+  switch (answer.kind) {
+    case "landed": {
+      return answer;
+    }
+    case "session": {
+      return SESSION_ENDS[answer.end];
+    }
+    // the cloud's budget for a minute, or no answer: a later try may pass
+    case "busy":
+    case "unreachable": {
+      return { for: "connection", kind: "waiting" };
+    }
+    case "malformed": {
+      return { kind: "dropped", reason: "failed" };
+    }
+    case "refused": {
+      return { kind: "dropped", reason: REFUSALS.get(answer.code) ?? "failed" };
+    }
+    // no default
+  }
+};
+
+// a kept save's try, the first or a resend, and the one place its answer moves the save
+export const settle = async <T>(
+  save: QueuedSave,
+  send: () => Promise<Sent<T>>,
+): Promise<Settled<T>> => {
+  const settled = settledBy(await send());
+  switch (settled.kind) {
+    case "landed":
+    case "dropped": {
+      await dropSave(save);
+      break;
+    }
+    case "waiting": {
+      await markWaiting(save);
+      break;
+    }
+    case "gone": {
+      await accountGone(save.email);
+      break;
+    }
+    // no default
+  }
+  return settled;
+};
+
 export interface SendDeps {
   readonly cloud: (session: Session) => Cloud;
   readonly now: () => number;
@@ -121,44 +197,28 @@ export interface SendDeps {
   readonly signIn: () => Promise<SignIn | null>;
 }
 
-// a call a later try may pass with nothing asked of the person: no answer, or a build too old for
-// the cloud, which the browser updates by itself while `storage.local` keeps what waits
-const waitsToResend = (failure: CallFailure): boolean =>
-  failure.kind === "unanswered" ||
-  (failure.kind === "refused" && failure.reason === "update-extension");
-
 // every save of the account signed in sent oldest first, until one cannot go yet: the cloud is not
 // there, not for this build, or not for this session, so the rest wait with it. Another account's
-// saves wait for that account
-const sendSignedIn = async (deps: SendDeps, session: Session, saves: QueuedSave[]) => {
-  for (const save of saves.filter((waiting) => waiting.email === session.email)) {
-    const due = !save.firstTry || deps.now() - save.savedAt >= ABANDONED_MS;
-    if (!due) {
-      continue;
-    }
-    try {
-      await deps.cloud(session).saveLink(linkOf(save));
-      await dropSave(save);
-    } catch (error) {
-      const failure = failureOf(error);
-      if (waitsToResend(failure) || failure.kind === "signed-out") {
-        await markWaiting(save);
-        return;
-      }
-      if (failure.kind === "gone") {
-        await accountGone(save.email);
-        return;
-      }
-      await dropSave(save);
-    }
-  }
-};
-
+// saves wait for that account, and a first try still under way for its own answer
 export const sendQueued = async (deps: SendDeps): Promise<void> => {
   const saves = await queuedSaves();
   const signIn = saves.length === 0 ? null : await deps.signIn();
   if (signIn?.kind === "signed-in") {
-    await sendSignedIn(deps, signIn.session, saves);
+    const cloud = deps.cloud(signIn.session);
+    for (const save of saves) {
+      const due = !save.firstTry || deps.now() - save.savedAt >= ABANDONED_MS;
+      if (save.email !== signIn.session.email || !due) {
+        continue;
+      }
+      const settled = await settle(
+        save,
+        async (): Promise<Sent<Saved>> =>
+          await sent(async () => await cloud.saveLink(linkOf(save))),
+      );
+      if (settled.kind === "waiting" || settled.kind === "gone") {
+        break;
+      }
+    }
   }
   await ensureSendAlarm();
 };
