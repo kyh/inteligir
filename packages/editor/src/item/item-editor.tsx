@@ -63,6 +63,7 @@ export const HELD_BACK: Record<NoteHeld, string> = {
 };
 
 // the open note as a host reaches it: what it waits on before a leave
+/** @internal */
 export interface OpenNote {
   readonly status: () => NoteStatus;
   readonly subscribe: (listener: () => void) => () => void;

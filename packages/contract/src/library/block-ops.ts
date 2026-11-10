@@ -27,6 +27,7 @@ export interface ItemState {
 }
 
 // an item's blocks in reading order: note before article, then by order key
+/** @internal */
 export const orderedBlocks = (blocks: ReadonlyMap<string, StoredBlock>): StoredBlock[] =>
   [...blocks.values()].toSorted((a, b) =>
     compareBlockPlaces(

@@ -20,7 +20,6 @@ import { blockOfElement } from "./element-block";
 import { sectionOf, sectioned, setSection } from "./note-section";
 
 // `afterId` null is the top of the note.
-/** @internal */
 export type BodyChange =
   | {
       readonly kind: "put";
@@ -44,7 +43,6 @@ export type BodyChange =
 
 // `moved`: the blocks whose base no longer holds, or that a change names and the note no longer
 // holds once, and none of the changes landed
-/** @internal */
 export type BodyChangeOutcome =
   | { readonly kind: "applied" }
   | { readonly kind: "moved"; readonly blockIds: readonly string[] };
@@ -320,7 +318,6 @@ const move = (editor: SlateEditor, id: string, afterId: string | null): void => 
 // one, so what a person types elsewhere in the block meanwhile stays, and an undo of it takes back
 // only what it changed; one that reshapes it replaces it whole under its id. What lands is
 // in the document when this returns, rather than at the editor's next change.
-/** @internal */
 export const applyBodyChanges = (
   editor: SlateEditor & YjsEditor,
   changes: readonly BodyChange[],

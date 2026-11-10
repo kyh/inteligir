@@ -116,6 +116,7 @@ const assignKeys = (
 // done since lands every block on the key it had. Otherwise the answer that moves fewer blocks
 // wins: the blocks in place stay and the rest find room (a block coming back takes its old key if
 // it still fits), or the old keys come back and the rest find room around them.
+/** @internal */
 export const placeInOrder = (
   order: readonly string[],
   current: ReadonlyMap<string, string>,
