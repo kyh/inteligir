@@ -656,7 +656,7 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   (model, effort, prompt from `@repo/agent-skills`, the tools) is code, the
   same bytes for every account. Rejected: the loop in the cell (Lifecycle takes
   its host's one alarm); ThinkHarness (its recovery re-sends a cut reply as a
-  prefill Opus 5.5 refuses, and it takes an approval answered after a later
+  prefill Sonnet 5.5 refuses, and it takes an approval answered after a later
   turn); PiHarness (`drop_block` on every request, a compaction that drops
   every kept thinking block, a hook that cannot refuse a call); Managed Agents
   (its credential vault, a public connector, a webhook and an account-wide turn lock to
@@ -667,17 +667,19 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   APPENDED TO, AND A CUT CALL IS SENT AGAIN WHOLE.** A reply lands only once
   its stream ends, in one transaction with its usage; a call stamped by an
   instance that died, or whose reply sent no byte, pings included, for three
-  minutes, is cut and its step re-sent byte for byte, its cap the first
-  call's; the model, effort, system and tools a turn started under are
+  minutes, is cut and its step re-sent byte for byte, every call asking the
+  same cap; the model, effort, system and tools a turn started under are
   replayed byte for byte; `cache_control` goes on a copy; per-account words
   ride a system message after the person's, landing with the turn's first
-  reply, so a turn that ends unanswered leaves none last. Rejected: continuing
-  the partial reply (a prefill, a 400 on Opus 5.5); rebuilding messages from
-  rows (one changed byte before a thinking block is a 400); a timeout on the
-  SDK's events (it never hands on a ping, and a long unshown thought is no lost
-  call).
-  `packages/service/src/agent/thread-schema.ts`, `thread-request.ts`,
-  `thread-loop.ts`.
+  reply, so a turn that ends unanswered leaves none last; the object's tables
+  are drizzle's (EACH CONVERSATION'S SCHEMA IS DRIZZLE'S TOO, in
+  `packages/db/CLAUDE.md`). Rejected: continuing the partial reply (a prefill,
+  a 400 on Sonnet 5.5); rebuilding messages from rows (one changed byte before
+  a thinking block is a 400); a timeout on the SDK's events (it never hands on
+  a ping, and a long unshown thought is no lost call).
+  `packages/db/src/thread/schema.ts`,
+  `packages/service/src/agent/thread-db.ts`, `agent-thread.ts`,
+  `thread-request.ts`, `thread-loop.ts`.
 
 - **THE AGENT'S TOOLS ARE THE LIBRARY'S PROCEDURES, RUN BY ITS CELL UNDER A
   PRINCIPAL ONLY `agentTool` MINTS.** The registrar's tool rows, each by its
@@ -702,51 +704,50 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   CANCEL DENIES BEFORE IT STOPS.** `delete_items` and `save_link` are journaled
   awaiting the person under a Lifecycle job that denies at ten minutes; an
   answer decides once; a cancel marks the turn durably, cuts the model call
-  whether it is still being reserved or already streaming, and answers every
+  whether its request is still being built or already streaming, and answers every
   open call `is_error`, so the next request is valid. Rejected: a tool that
   waits in memory (it dies with an eviction); the platform's `auto` judgment
   (not the person). `packages/service/src/agent/agent-thread.ts`,
   `thread-loop.ts`.
 
-- **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
-  GOES** (owner decision: about fifty free turns a month, a day's share first).
-  A send that finds the day's turns or list cost spent is refused
-  `AGENT_BUDGET`; each call's `max_tokens` is what the turn's ceiling and the
-  day's remainder buy after its input, priced as the cache will likely bill
-  it and counted at no fewer tokens than Claude bills: the last call's billed
-  prompt and reply, and what was added since at a token an id's character and
-  a UTF-8 byte beyond ASCII. A call whose estimate reaches the compaction
-  trigger reserves the summary's pass too (the whole prompt read,
-  `max_tokens` written, the summary the answer's input); each reply books its
-  exact usage at list price in micro-cents, a cut call its reservation against
-  the day but not its turn's ceiling, and a turn that cost nothing is
-  refunded. The one pass no reservation holds is a fallback's: it books past
-  what the call reserved, and past the turn's ceiling by one call at most,
-  since the next call then finds nothing left. Rejected: the gateway's spend
-  limit (eventually consistent, a backstop); an estimate booked as spend; one
-  pass priced for a compaction that makes two (a turn would book past what it
-  reserved); reserving the fallback too (a cold first call at the 50-cent
-  ceiling buys under the smallest cap, so every new conversation is refused);
-  characters / 3 (it counted CJK at a quarter of its tokens and ids at a third).
-  `packages/service/src/agent/agent-allowance.ts`, `thread-request.ts`.
+- **EVERY TURN IS COUNTED BEFORE IT STARTS, EVERY STEP CAPPED, AND EVERY
+  REPLY BOOKED ONCE IT LANDS** (owner decision: a daily allowance per account,
+  the gateway's spend limit behind it). A send that finds the day's turns or
+  list cost spent is refused `AGENT_BUDGET`; a turn begun counts against its
+  day, and only one Claude could not be reached for is given back, never one
+  the person stopped; every call asks the same `max_tokens`, and a turn ends
+  `budget` before a call past its twentieth reply, so one turn is bounded by
+  twenty capped steps; each reply's usage is pushed with it and booked at list
+  price in micro-cents on the day its turn started. A cut stream books
+  nothing, so it and a turn's last reply past the day's cost are bounded by
+  the gateway's per-account spend limit, which every request names its account
+  for. Rejected: reserving each call before it goes (an estimate of what
+  Claude bills, each miss a refused turn or one past its ceiling, for a day the
+  gateway's limit already bounds); booking a cut call (no usage reaches the
+  cell for a stream that never ended); giving back a stopped turn (the person
+  asked for it). `packages/service/src/agent/agent-allowance.ts`,
+  `agent-turns.ts`, `library-agent.ts`, `thread-loop.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE THE CELL'S ROWS ITS OBJECT'S
   OUTBOX PUSHES** (owner decision: the phone asks the agent too). The cell stores each
   push once by its seq, in one transaction, as events of our own union, and
   frames each on the sockets after it commits; previews ride the sockets
-  alone. An object that starts over on tables of another version keeps its seq
-  going, and the cell's watch hands it again a turn it lost. Rejected: the
+  alone. An object that starts over on tables of another version is handed
+  again, by the cell's watch, the turn it lost and the last seq the cell
+  landed, which its own seq goes on past. Rejected: the
   Agents SDK's client socket to the thread (a second socket and auth beside
   the account's); Anthropic's event shapes (a vendor's union on every device); an
   epoch a push (a fence that resets, which a late push of the old one moves
-  back). `packages/service/src/agent/agent-turns.ts`, `thread-schema.ts`,
+  back). `packages/service/src/agent/agent-turns.ts`, `thread-loop.ts`,
   `packages/contract/src/library/agent-events.ts`.
 
 - **CLAUDE IS REACHED THROUGH ONE AI GATEWAY A TARGET, WHICH HOLDS THE KEY**
   (owner decision). The provider-native `/anthropic` route, its key stored on
   the gateway with provider credentials required, the gateway authenticated by
-  `AI_GATEWAY_TOKEN`, every request asking it to keep no payload; the SDK sends
-  no key and retries nothing, and a Worker with no gateway fails closed, so
+  `AI_GATEWAY_TOKEN`, every request asking it to keep no payload and naming
+  its account in `cf-aig-metadata`, which the gateway's per-account spend
+  limit splits by; the SDK sends no key and retries nothing, and a Worker with
+  no gateway fails closed, so
   Deploy refuses a Build Output that names none. Rejected: the key on the
   Worker; Unified Billing (a fee, and its fallback is silent); the AI binding
   (it reaches the account in local development); `@ai-sdk/anthropic` (a second
@@ -756,8 +757,9 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
 - **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE THREAD PATH AGAINST A
   SCRIPTED MESSAGES API.** `ANTHROPIC_FAKE_URL`, which `vite dev` alone
   declares and the e2e harness binds, must name this machine, and points the
-  client at `tools/messages-fake`, which refuses what Opus 5.5 refuses and
-  counts every dropped thinking block; the suites reach it through their
+  client at `tools/messages-fake`, which refuses what Sonnet 5.5 refuses and a
+  request that names no account, and counts every dropped thinking block; the
+  suites reach it through their
   outbound service, which refuses every other address, and every suite and
   scenario expects no drop. Rejected: a mock model (the SDK's stream, the
   API's refusals and the transcript rules would be ours to imitate); a
@@ -767,23 +769,19 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
 - **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A DEPLOY'S
   DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for server-side
   compaction at 50,000 input tokens, the API's least (beta
-  `compact-2026-01-12`), since a turn after a pause is reserved with its prompt
-  written to the cache again and the summary's pass beside its answer, which a
-  turn's ceiling holds there in any script, its prompt counted from the last
-  call's billed one; the first call after a deploy moved its definition is
-  counted whole, so past about 66,000 tokens counted (about 37,000 real in a
-  conversation mostly CJK) it is refused, every turn, since no call under the
-  new definition lands to count from. Its `compaction` block lands in the reply
+  `compact-2026-01-12`), since a turn after a pause writes its whole prompt to
+  the 1-hour cache again, about 20 cents at 50,000 tokens against a day of a
+  dollar. Its `compaction` block lands in the reply
   and is replayed, each request carrying the conversation from the last one that
   kept a summary, where the prefix the API checks starts. A thread whose
   definition a deploy changed moves onto the new one at a turn's start, its
   requests from then on leaving out every thinking block before that turn, the
   leading run the API lets go. Rejected: the API's default, 150,000 (a resumed
-  turn's input alone would pass a turn's ceiling, so the thread would end every
-  send `budget`); keep-tail compaction of our own (every kept thinking block is
-  invalid after it); on-demand compaction (its retention standing unsettled);
-  sending what a compaction summarized (the reservation would price input the
-  API ignores); a thread on its first definition for good (its tools drift from
+  turn's prompt written again would cost 60 cents of the day's dollar);
+  keep-tail compaction of our own (every kept thinking block is invalid after
+  it); on-demand compaction (its retention standing unsettled); sending what a
+  compaction summarized (bytes on every request that the API ignores); a
+  thread on its first definition for good (its tools drift from
   the procedures they call). `packages/service/src/agent/thread-request.ts`.
 
 - **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON

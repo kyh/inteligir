@@ -482,8 +482,9 @@ and email delivery). Specifically:
   its address and the address of any cover the save knew of, until our cloud
   has read it or recorded that it could not; its AI Gateway passes each request
   the built-in agent makes to Anthropic, and is asked to keep only its metadata
-  (the model, how many tokens, its status and how long it took), never what it
-  carries; its email sending delivers your
+  (the model, how many tokens, its status, how long it took and your account's
+  id, by which it holds each account to a daily limit of what the agent may
+  spend), never what it carries; its email sending delivers your
   password-reset emails; and it keeps the request log described above.
 - **Anthropic** answers the built-in agent's questions for us, on our account,
   not yours. What you ask it, what you were looking at, and everything it

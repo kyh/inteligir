@@ -158,10 +158,10 @@ are the calls that ask the person first, and it runs on our bill, within the
 account's allowance. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
-Claude ends it, the person stops it, or the allowance does; waiting on an
-approval does not end it. The cell checks the allowance before it starts and
-reserves each model call before it is sent, and its writes are one **change
-set**, which "Undo this turn" reverts. A send while its thread's turn runs
+Claude ends it, the person stops it, or its twentieth step does; waiting on an
+approval does not end it. The cell counts it against the day before it
+starts, caps each step, and books what it cost after, and its writes are one
+**change set**, which "Undo this turn" reverts. A send while its thread's turn runs
 waits its turn (`packages/service/src/agent/agent-turns.ts`). Not a connected
 assistant's call, which is no turn.
 

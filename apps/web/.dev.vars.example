@@ -37,7 +37,9 @@ ANTHROPIC_FAKE_URL=http://127.0.0.1:5177
 # Cloudflare account, never production's or the previews': its provider-native
 # Anthropic route, Authenticated Gateway on and its token below, and your own
 # Anthropic key stored on it with Require provider credentials on, so this
-# Worker holds no key. Nothing outside has to reach localhost: the agent's
-# tools run in this Worker's own cell.
+# Worker holds no key. Every request names its account in `cf-aig-metadata`,
+# which a spend limit split by `account` on your gateway holds each local
+# account to. Nothing outside has to reach localhost: the agent's tools run in
+# this Worker's own cell.
 # AGENT_GATEWAY_URL=https://gateway.ai.cloudflare.com/v1/<your-account-id>/<your-gateway>/anthropic
 # AI_GATEWAY_TOKEN=
