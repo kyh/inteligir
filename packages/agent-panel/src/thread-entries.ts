@@ -31,7 +31,7 @@ export const isWorking = (status: ThreadStatus): boolean =>
   status === "running" || status === "queued";
 
 // a turn is open, a turn waiting on the person among them: Stop ends it, turning down what it
-// asked, and Undo waits for it, since its change set seals only as it ends
+// asked, and the page's Undo waits for it, since its change set seals only as it ends
 export const isUnderWay = (status: ThreadStatus): boolean => status !== "idle";
 
 export interface ThreadEntry {
@@ -156,7 +156,7 @@ export const approvalWords = (
 };
 
 const ENDINGS = {
-  budget: "Stopped: the agent reached what it may spend on one turn or one day.",
+  budget: "Stopped: the agent did as much as one turn may. Ask it to go on.",
   cancelled: "Stopped.",
   done: "",
   failed: "The agent ran into a problem and stopped.",

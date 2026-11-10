@@ -230,7 +230,7 @@ const Composer = ({
     }),
   );
   const submit = (): void => {
-    const input = sendInput({ text, threadId, tidying: false, viewContext: contextOf(fromItem) });
+    const input = sendInput({ text, threadId, viewContext: contextOf(fromItem) });
     if (input !== null && !send.isPending) {
       send.mutate(input);
     }
@@ -243,7 +243,7 @@ const Composer = ({
         <TextInput
           accessibilityLabel="Message the agent"
           className="grow basis-0 rounded-lg border border-input bg-card px-3 pt-2 pb-2 text-16 text-foreground placeholder:text-muted-foreground"
-          placeholder={composerPlaceholder(false, threadId)}
+          placeholder={composerPlaceholder(threadId)}
           multiline
           value={text}
           editable={!send.isPending}

@@ -5,7 +5,7 @@
 // connection. A message carries the screen it was sent from (the open item, or the grid's scope and
 // selection).
 
-import { composerPlaceholder, quotePassage, sendInput } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
   answerWords,
@@ -26,13 +26,6 @@ import {
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
 import { previewOf } from "@repo/agent-panel/thread-previews";
-import {
-  changeSetsOf,
-  conversationUndo,
-  turnUndo,
-  undoBatches,
-} from "@repo/agent-panel/thread-undo";
-import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
@@ -57,6 +50,9 @@ import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context"
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
+import { quotePassage } from "./quote-passage";
+import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
 export interface AgentPanelProps {
@@ -471,7 +467,9 @@ const Composer = ({
       return;
     }
     // a Tidy starts a conversation of its own, from Unsorted, whatever the screen shows
-    const input = sendInput({ text, threadId, tidying, viewContext: viewContext() });
+    const input = tidying
+      ? { text: tidyMessage(text), viewContext: TIDY_VIEW_CONTEXT }
+      : sendInput({ text, threadId, viewContext: viewContext() });
     if (input !== null) {
       send.mutate(input);
     }
@@ -482,7 +480,7 @@ const Composer = ({
         value={text}
         onValueChange={setText}
         onSend={submit}
-        placeholder={composerPlaceholder(tidying, threadId)}
+        placeholder={tidying ? TIDY_PLACEHOLDER : composerPlaceholder(threadId)}
         sendsEmpty={tidying}
         topSlot={tidying ? <TidyChip onDrop={onTidyEnd} /> : undefined}
         sendLabel="Send"

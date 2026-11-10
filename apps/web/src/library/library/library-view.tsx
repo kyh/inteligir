@@ -18,7 +18,7 @@ import {
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
-import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
+import { TIDY_LABEL } from "../agent/tidy-library";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { TopBar } from "../top-bar";
