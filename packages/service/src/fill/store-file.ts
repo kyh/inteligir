@@ -1,11 +1,9 @@
 // A file the cloud kept from a page (its cover, or the picture or PDF a link answered with), put in
-// the library as a device's upload is (`../library/blob-routes`): room asked of the account's cell
-// at its length, the bytes put in R2 under their SHA-256, which R2 checks, and the row settled at
-// the size R2 holds. A file the library already holds is not sent again.
+// the library as a device's upload is (`../library/keep-bytes`), named by its SHA-256.
 
 import { hexFromBytes } from "@repo/contract/bytes";
 
-import { blobKey } from "../library/cell-blobs";
+import { keepBytes, stubPort } from "../library/keep-bytes";
 import type { LibraryDO } from "../library/library-do";
 import { errorFields } from "../log";
 
@@ -18,21 +16,15 @@ export const storeFile = async (
   file: { readonly bytes: Uint8Array; readonly mime: string },
 ): Promise<string | null> => {
   const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", file.bytes)));
-  const room = await cell.reserveBlob({ bytes: file.bytes.byteLength, mime: file.mime, sha });
-  if (!room.ok) {
-    return null;
+  const kept = await keepBytes(bucket, stubPort(cell), {
+    accountId,
+    body: async () => await Promise.resolve(file.bytes),
+    mime: file.mime,
+    sha,
+    size: file.bytes.byteLength,
+  });
+  if (kept.kind === "unput") {
+    console.warn({ event: "fill-file-refused", ...errorFields(kept.error) });
   }
-  if (room.value.held) {
-    return sha;
-  }
-  try {
-    await bucket.put(blobKey(accountId, sha), file.bytes, {
-      httpMetadata: { contentType: file.mime },
-      sha256: sha,
-    });
-  } catch (error) {
-    console.warn({ event: "fill-file-refused", ...errorFields(error) });
-  }
-  const settled = await cell.settleBlob(sha);
-  return settled.ok && settled.value.settled ? sha : null;
+  return kept.kind === "held" || kept.kind === "kept" ? sha : null;
 };
