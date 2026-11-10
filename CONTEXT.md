@@ -48,15 +48,13 @@ each until seven days after it sealed
 `packages/service/src/library/change-set-prune.ts`), and the revert is
 `@repo/service/library/revert-change`'s.
 
-**block** — one top-level node of an item's body, a Plate element stored as a
-row of its own: its id, its fractional order key, its **section**, its JSON
-and its hash. A write names the hash it was computed from, so writes to two
-blocks never meet, and one whose base moved is answered `CONFLICT` with the
-block as it is. A list item is a block, since lists are flat indent lists. Not
-a Plate node at any depth: a block's children are inside its JSON. The model is
-`@repo/contract/library/block-ops`, its vocabulary
-`@repo/contract/library/library-nodes`, the ids the editor's
-(`packages/editor/src/item/item-session.ts`).
+**block** — one top-level element of a note's live document, a Plate element
+named by its id and its **section**. The agent edits a body by block id: a
+change names the block as the writer read it, and one whose block moved since
+is refused with the block as it is. A list item is a block, since lists are
+flat indent lists. Not a Plate node at any depth: a block's children are inside
+it. Its vocabulary is `@repo/contract/library/library-nodes`, how the editor
+reads one `packages/editor/src/live/element-block.ts`.
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a fill wrote. A fill and
@@ -257,12 +255,6 @@ a set of which only kept items remain, since nothing of it went back.
 
 **Deleted** — the rail's row: the items deleted, each restorable, and "Empty
 Deleted…", which removes them for good.
-
-**Also changed elsewhere** — what the open item says when a write of this
-device met another device's change to the same lines of one block: both
-changes elsewhere in the block land, and this device's lines are kept where
-they overlap (`@repo/editor/stale-write`'s block merge). There is no conflict
-state to clear.
 
 **Sign in to Inteligir** — the browser extension's sign-in, which is the
 browser's own: the extension reads that browser's **session** cookie for the
