@@ -31,7 +31,7 @@ export interface Scenario {
 // booted replayed a thinking block Claude dropped
 export interface ScenarioRun {
   readonly context: ScenarioContext;
-  readonly afterRun: () => Promise<void>;
+  readonly afterRun: () => void;
 }
 
 export interface OpenScenarioArgs {
@@ -82,9 +82,9 @@ export const openScenario = (args: OpenScenarioArgs): ScenarioRun => {
     scratchDir: args.scratchDir,
   };
   return {
-    afterRun: async () => {
+    afterRun: () => {
       for (const worker of workers) {
-        await expectNoDroppedThinking(worker);
+        expectNoDroppedThinking(worker);
       }
     },
     context,

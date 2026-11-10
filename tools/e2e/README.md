@@ -76,8 +76,8 @@ is refused, never left running or printed under the next scenario:
   built-in agent runs against its own scripted Messages API
   (`tools/messages-fake`), served in the runner's process on an ephemeral
   port and named to the Worker as `ANTHROPIC_FAKE_URL`, the tools its script
-  names run by that Worker's own cell; its counters answer at
-  `/__fake/stats`. `pages` names public hosts whose pages a loopback server
+  names run by that Worker's own cell; its counters are read in that process
+  (`worker.fakeStats()`). `pages` names public hosts whose pages a loopback server
   answers for the Worker's own fetch (`page-fixture.ts`). Registered for
   teardown with the scenario.
 - `cloudLink(worker)` — a relay to a booted Worker on a port of its own, so a

@@ -307,7 +307,7 @@ const runScenario = async ({
   let teardownClean: boolean;
   try {
     await runWithinDeadline(scenario, context);
-    await afterRun();
+    afterRun();
     outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
     if (error instanceof ScenarioSkipError && !options.noSkip) {

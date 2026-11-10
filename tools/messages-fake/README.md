@@ -77,4 +77,5 @@ e2e harness serves one beside each Worker it boots, on an ephemeral port
 its address with its fetch handler from their outbound service, which refuses
 every other (`packages/service/messages-service.ts`). Its
 counters, the requests answered, the replies a stall held open and the
-thinking blocks dropped, answer at `GET /__fake/stats`.
+thinking blocks dropped, answer at `GET /__fake/stats`, and to a caller in
+the serving process through `serveMessagesFake`'s `stats`.
