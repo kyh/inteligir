@@ -2,8 +2,7 @@ import { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { LIBRARY_SELECTION_MAX } from "@repo/contract/library-scope";
 import { describe, expect, it } from "vitest";
 
-import { composerPlaceholder, quotePassage, sendInput, viewContextOf } from "./agent-send";
-import { TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
+import { composerPlaceholder, sendInput, viewContextOf } from "./agent-send";
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000a1";
 const THREAD = "0199a4c2-0000-7000-8000-000000000001";
@@ -51,46 +50,22 @@ describe("the screen a message leaves from", () => {
 describe("what the composer sends", () => {
   it("sends the person's words on the thread open, from the screen they left", () => {
     const viewContext = { itemId: ITEM, surface: "item" } as const;
-    expect(
-      sendInput({ text: "  File this. ", threadId: THREAD, tidying: false, viewContext }),
-    ).toStrictEqual({ text: "File this.", threadId: THREAD, viewContext });
-    expect(
-      sendInput({ text: "Hi", threadId: null, tidying: false, viewContext: undefined }),
-    ).toStrictEqual({
+    expect(sendInput({ text: "  File this. ", threadId: THREAD, viewContext })).toStrictEqual({
+      text: "File this.",
+      threadId: THREAD,
+      viewContext,
+    });
+    expect(sendInput({ text: "Hi", threadId: null, viewContext: undefined })).toStrictEqual({
       text: "Hi",
     });
   });
 
   it("sends nothing for an empty field", () => {
-    expect(
-      sendInput({ text: "  ", threadId: null, tidying: false, viewContext: undefined }),
-    ).toBeNull();
-  });
-
-  it("sends Tidy's request as a new conversation from Unsorted, empty field or not", () => {
-    const viewContext = { itemId: ITEM, surface: "item" } as const;
-    expect(sendInput({ text: "", threadId: THREAD, tidying: true, viewContext })).toStrictEqual({
-      text: tidyMessage(""),
-      viewContext: TIDY_VIEW_CONTEXT,
-    });
-    expect(
-      sendInput({ text: "Skip recipes", threadId: null, tidying: true, viewContext }),
-    ).toStrictEqual({
-      text: tidyMessage("Skip recipes"),
-      viewContext: TIDY_VIEW_CONTEXT,
-    });
-  });
-
-  it("quotes a passage the person asked about, on lines of its own and once", () => {
-    const quote = "> first\n> second\n\n";
-    expect(quotePassage("", "first\nsecond")).toBe(quote);
-    expect(quotePassage("Compare these.\n", "first\nsecond")).toBe(`Compare these.\n\n${quote}`);
-    expect(quotePassage(quote, "first\nsecond")).toBe(quote);
+    expect(sendInput({ text: "  ", threadId: null, viewContext: undefined })).toBeNull();
   });
 
   it("says what the field asks for", () => {
-    expect(composerPlaceholder(true, THREAD)).toBe(TIDY_PLACEHOLDER);
-    expect(composerPlaceholder(false, null)).toBe("Ask the agent…");
-    expect(composerPlaceholder(false, THREAD)).toBe("Reply…");
+    expect(composerPlaceholder(null)).toBe("Ask the agent…");
+    expect(composerPlaceholder(THREAD)).toBe("Reply…");
   });
 });

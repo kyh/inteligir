@@ -353,8 +353,8 @@ is parsed in `shell/desktop-bridge.ts`.
   socket of the page's own to the conversation's object; one page of sets (a
   long conversation's oldest turns lost their Undo); the list on screen at the
   press (it can be a turn short of the cell, or hold what another device took
-  back). `apps/web/src/library/agent/agent-panel.tsx`, over
-  `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.
+  back). `apps/web/src/library/agent/agent-panel.tsx`, `thread-undo.ts`, over
+  `packages/agent-panel/src/thread-entries.ts`.
 
 - **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
   CELL'S.** The grid's header and ⌘P open the agent's composer on a new
@@ -365,7 +365,7 @@ is parsed in `shell/desktop-bridge.ts`.
   Unsorted is no folder and its items are the ones to file. Rejected: the
   request typed into the field (a person could edit it away); rules in the
   request (a second read beside the turn's).
-  `packages/agent-panel/src/tidy-library.ts`,
+  `apps/web/src/library/agent/tidy-library.ts`,
   `apps/web/src/library/settings/filing-rules.ts`.
 
 - **A FILE IN A NOTE IS READ WHERE THE PAGE DRAWS ITS FILES, AND ONE PASTED

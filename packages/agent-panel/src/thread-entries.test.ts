@@ -125,6 +125,9 @@ describe("a thread's entries", () => {
     expect(toolWords("a_tool_from_later")).toBe("Used the library");
     expect(endingWords("done")).toBe("");
     expect(endingWords("cancelled")).toBe("Stopped.");
+    expect(endingWords("budget")).toBe(
+      "Stopped: the agent did as much as one turn may. Ask it to go on.",
+    );
   });
 
   it("says a finished run of work by its calls, and an answered approval", () => {

@@ -16,7 +16,7 @@ import { PausedWrites } from "../cloud/needs-connection";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";
-import { TIDY_LABEL, TIDY_VIEW_CONTEXT, tidyMessage } from "@repo/agent-panel/tidy-library";
+import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
 afterEach(() => {
   cleanup();
@@ -875,5 +875,40 @@ describe("the agent panel's conversation", () => {
       { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
     ]);
     expect(onTidyEnd).toHaveBeenCalledOnce();
+  });
+
+  it("sends Tidy my library as a new conversation from Unsorted, with what the person adds, whatever is open", async () => {
+    const { calls, library } = fakePageLibrary({
+      answer: (call) =>
+        call.path === "library.agent.send"
+          ? { status: "running", threadId: OTHER_THREAD }
+          : undefined,
+      events: oneFinishedTurn,
+      threads: [thread],
+    });
+    renderOnLibrary(
+      <AgentPanel
+        threadId={THREAD}
+        onThread={vi.fn<(threadId: string | null) => void>()}
+        viewContext={() => ({ itemId: THREAD, surface: "item" })}
+        flushOpen={vi.fn<() => Promise<void>>(async () => {
+          await Promise.resolve();
+        })}
+        tidying
+        onTidyEnd={vi.fn<() => void>()}
+        passage={null}
+        onPassageTaken={vi.fn<() => void>()}
+      />,
+      library,
+    );
+    fireEvent.change(screen.getByPlaceholderText(TIDY_PLACEHOLDER), {
+      target: { value: " Skip recipes " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(callsTo(calls, "library.agent.send")).toStrictEqual([
+        { text: tidyMessage("Skip recipes"), viewContext: TIDY_VIEW_CONTEXT },
+      ]);
+    });
   });
 });

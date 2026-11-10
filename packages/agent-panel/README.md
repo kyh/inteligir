@@ -4,7 +4,9 @@ The built-in agent's panel as every device reads it. A conversation is the
 account's, the same on the Mac, in the browser tab and on the phone, so what a
 panel makes of it is one package: each device draws it in its own way (the
 library's page with `@repo/ui`, the phone with React Native) over the same
-rows, words and sends. It names no platform and no UI.
+rows, words and sends. It names no platform and no UI, and holds only what
+every device draws: Undo and Tidy my library are the page's own
+(`apps/web/src/library/agent/`).
 
 ## Layout
 
@@ -15,12 +17,9 @@ rows, words and sends. It names no platform and no UI.
   words for a tool, an ending, a refused send and a thread's state.
 - `src/thread-previews.ts` — the reply the agent is writing, folded from the
   socket's frames by thread, and let go at the thread's next stored event.
-- `src/thread-undo.ts` — the change sets a turn and a conversation made, from
-  every page of the conversation's sets the cell answered, and the undos that
-  take them back.
 - `src/agent-send.ts` — what a send asks the cell: the person's words, the
-  thread, and the screen they left from (`viewContextOf`).
-- `src/tidy-library.ts` — Tidy my library's request, sent from Unsorted.
+  thread, and the screen they left from (`viewContextOf`), and what the field
+  says before anything is typed.
 
 ## Tests
 

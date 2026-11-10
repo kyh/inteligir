@@ -2,9 +2,9 @@
 // page at a time, each answer naming the cursor of the next, so a conversation of many turns
 // reaches every set the cell keeps.
 
-import { changeSetsOf } from "@repo/agent-panel/thread-undo";
 import { useIsMutating } from "@tanstack/react-query";
 
+import { changeSetsOf } from "../agent/thread-undo";
 import type { CloudWire } from "./v1";
 
 interface ThreadFilter {
