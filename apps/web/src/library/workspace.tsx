@@ -11,8 +11,8 @@ import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import { setLibraryTitles } from "@repo/editor/host-io";
-import type { ItemSession } from "@repo/editor/item/item-session";
-import { getLiveEditor } from "@repo/editor/live-editor";
+import type { OpenNote } from "@repo/editor/item/item-editor";
+import { getLiveEditor, onLiveEditor } from "@repo/editor/live-editor";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -37,9 +37,8 @@ import {
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
-import { leaveItem } from "./item/leave-item";
+import { leaveItem, noteHolds } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
-import type { PageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
@@ -66,10 +65,10 @@ export interface WorkspaceProps {
 // a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
 const DELETE_ASKS_OVER = 50;
 
-// a search's words, which the item it opened lands its find bar on once it has read its blocks
+// a search's words, which the item it opened lands its find bar on once its note has synced
 interface PendingFind {
   readonly itemId: string;
-  readonly query: string;
+  readonly stop: () => void;
 }
 
 // what a tag's verb acts on: each item and the tags its own field holds, which it can take off
@@ -77,35 +76,6 @@ interface TagSubject {
   readonly id: string;
   readonly tags: readonly string[];
 }
-
-// the open item holds an edit its pause has not written yet
-const holdsUnsaved = (session: ItemSession): boolean => {
-  const status = session.status();
-  return status.kind === "open" && status.unsaved;
-};
-
-const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): void => {
-  // answers whether the session is past opening, and lands the bar if it opened the item
-  const landed = (): boolean => {
-    const status = session.status();
-    if (status.kind === "opening" || status.kind === "unread") {
-      return false;
-    }
-    const editor = getLiveEditor(itemId);
-    if (status.kind === "open" && editor !== null) {
-      jumpToFindMatch(editor, query, 0);
-    }
-    return true;
-  };
-  if (landed()) {
-    return;
-  }
-  const stop = session.subscribe(() => {
-    if (landed()) {
-      stop();
-    }
-  });
-};
 
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
   const wire = useWire();
@@ -131,11 +101,10 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [selection] = useState(createLibrarySelection);
-  const sessionRef = useRef<ItemSession | null>(null);
+  const noteRef = useRef<OpenNote | null>(null);
   const findRef = useRef<PendingFind | null>(null);
-  // the open item's session, which Info's properties write through
-  const [session, setSession] = useState<ItemSession | null>(null);
-  const hostRef = useRef<PageEditorHost | null>(null);
+  // the open item's note, which the leave guard asks about what it holds
+  const [note, setNote] = useState<OpenNote | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
@@ -153,7 +122,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   const open = (itemId: string | null): void => {
     void (async () => {
-      if (await leaveItem(sessionRef.current, confirm)) {
+      if (await leaveItem(noteRef.current, confirm)) {
         onOpenItem(itemId);
       }
     })();
@@ -194,59 +163,60 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     storeScope({ kind: "tag", tag });
     open(null);
   });
+  // installed as the workspace first renders: an open item's editor reads the host as it renders,
+  // and the workspace's effects run after its children's first render
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
   useEffect(() => {
-    hostRef.current = installPageEditorHost({
-      askAgent: hostAsksAgent,
-      cloud,
-      openItem: hostOpens,
-      showTag: hostShowsTag,
-      socket,
-      wire,
-    });
+    host.bind({ askAgent: hostAsksAgent, openItem: hostOpens, showTag: hostShowsTag });
     return () => {
-      hostRef.current = null;
+      host.bind(null);
     };
-  }, [cloud, socket, wire]);
+  }, [host]);
   useEffect(() => {
     if (titles !== undefined) {
       setLibraryTitles(titles.targets);
     }
   }, [titles]);
 
-  // CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: the open item's edit counts as
-  // held until its pause writes it, and a tab going out of sight or away writes it at once, since
-  // it may never come back to finish the pause
+  // CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: an edit reaches the note as it is
+  // typed, so the tab holds one only while it was typed with no connection to carry it
   const leave = useLeaveGuard();
   useEffect(
     () =>
-      session === null
-        ? undefined
-        : leave.hold({
-            holding: () => holdsUnsaved(session),
-            onMove: session.subscribe,
-          }),
-    [leave, session],
+      note === null ? undefined : leave.hold({ holding: note.unsent, onMove: note.subscribe }),
+    [leave, note],
   );
-  useEffect(() => {
-    const writeWhenHidden = (): void => {
-      if (document.visibilityState === "hidden") {
-        void sessionRef.current?.flush();
-      }
-    };
-    const writeAsItGoes = (): void => {
-      void sessionRef.current?.flush();
-    };
-    document.addEventListener("visibilitychange", writeWhenHidden);
-    window.addEventListener("pagehide", writeAsItGoes);
-    return () => {
-      document.removeEventListener("visibilitychange", writeWhenHidden);
-      window.removeEventListener("pagehide", writeAsItGoes);
-    };
-  }, []);
 
   useEffect(() => {
-    hostRef.current?.showing(openItem);
+    host.showing(openItem);
+  }, [host, openItem]);
+  useEffect(() => {
+    // a search's find waits for the item it opened, and for no other
+    if (findRef.current !== null && findRef.current.itemId !== openItem) {
+      findRef.current.stop();
+      findRef.current = null;
+    }
   }, [openItem]);
+
+  // lands the find bar on a search's words once the item's editor draws its synced note, a frame
+  // after it first answers, since it answers before Plate has drawn the text
+  const findOnceOpen = (itemId: string, query: string): void => {
+    findRef.current?.stop();
+    findRef.current = null;
+    const pending = {
+      itemId,
+      stop: onLiveEditor(itemId, (editor) => {
+        findRef.current = null;
+        requestAnimationFrame(() => {
+          jumpToFindMatch(editor, query, 0);
+        });
+      }),
+    };
+    if (getLiveEditor(itemId) === null) {
+      findRef.current = pending;
+    }
+  };
 
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
   const listed = view?.items;
@@ -269,10 +239,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   };
 
   const openSettings = (): void => {
-    void (async () => {
-      await sessionRef.current?.flush();
-      await navigate({ search: true, to: "/library/settings" });
-    })();
+    void navigate({ search: true, to: "/library/settings" });
   };
 
   useGlobalShortcuts({ enabled: !covered, modifier }, (action) => {
@@ -664,14 +631,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     onTogglePanel={() => {
                       setPanelOpen(!panelOpen);
                     }}
-                    onSession={(opened) => {
-                      sessionRef.current = opened;
-                      setSession(opened);
-                      const find = findRef.current;
-                      if (opened !== null && find?.itemId === openItem) {
-                        findRef.current = null;
-                        findOnceOpen(opened, find);
-                      }
+                    onNote={(opened) => {
+                      noteRef.current = opened;
+                      setNote(opened);
                     }}
                   />
                 )}
@@ -687,7 +649,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
               <Sidebar side="right" label="Panel" className="h-full print:hidden">
                 <Panel
                   itemId={panelItem}
-                  session={panelItem !== null && panelItem === openItem ? session : null}
                   tab={tab}
                   onTab={setTab}
                   threadId={threadId}
@@ -702,7 +663,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   }}
                   viewContext={viewContext}
                   flushOpen={async () => {
-                    await sessionRef.current?.flush();
+                    if (noteRef.current !== null) {
+                      await noteHolds(noteRef.current);
+                    }
                   }}
                   infoActions={{
                     move: (itemId) => {
@@ -728,13 +691,10 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           askSaveLink,
           newNote,
           openHit: (itemId, query) => {
-            const find = { itemId, query };
-            if (itemId === openItem && sessionRef.current !== null) {
-              findOnceOpen(sessionRef.current, find);
-              return;
+            findOnceOpen(itemId, query);
+            if (itemId !== openItem) {
+              open(itemId);
             }
-            findRef.current = find;
-            open(itemId);
           },
           openSettings,
           saveLink,

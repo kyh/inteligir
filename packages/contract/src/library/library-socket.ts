@@ -36,7 +36,7 @@ export const NOTE_SOCKET = {
   pong: "pong",
   // the note is in Deleted: it takes no edit
   deleted: "deleted",
-  // the note is past its size: it takes no edit until something of it is cut
+  // the note is past its size: it takes no more edit, from any device or the agent
   full: "full",
   // a frame past an update's size was refused, so this socket takes nothing more
   refused: "read-only",

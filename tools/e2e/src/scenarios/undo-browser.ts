@@ -1,6 +1,6 @@
 // Undo in the tab, over the cell's change sets: a turn of the built-in agent rewrites a line of the
-// open item, and the conversation's "Undo this turn", pressed while a line the person typed since
-// still waits on the editor's pause, takes the agent's line back and keeps the person's.
+// open item, and the conversation's "Undo this turn", pressed right after a line the person typed
+// since and before the note's save, takes the agent's line back and keeps the person's.
 
 import { z } from "zod";
 import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
@@ -56,7 +56,7 @@ const untilIdle = async (library: Library, threadId: string): Promise<void> => {
 
 export const undoBrowser: Scenario = {
   description:
-    "in the tab: a built-in agent's turn rewrites a line of the open item; its Undo this turn, pressed inside the editor's pause after a line typed elsewhere in the item, takes the agent's line back and keeps the typed one, in the cell and the editor",
+    "in the tab: a built-in agent's turn rewrites a line of the open item; its Undo this turn, pressed right after a line typed elsewhere in the item and before the note saved it, takes the agent's line back and keeps the typed one, in the cell and the editor",
   name: "undo-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -72,8 +72,7 @@ export const undoBrowser: Scenario = {
     await untilEditor(browser, (text) => text.includes(KEPT), "the item never opened");
 
     ctx.log("a turn of the agent rewrites the first line, and the open item shows it");
-    const { seq } = await library.items.read({ id: itemId });
-    const edit = { baseSeq: seq, edits: [{ newText: SECOND, oldText: FIRST }], id: itemId };
+    const edit = { edits: [{ newText: SECOND, oldText: FIRST }], id: itemId };
     const { threadId } = await library.agent.send({
       text: `Rewrite the draft.\ncall edit_item ${JSON.stringify(edit)}`,
     });
@@ -87,7 +86,7 @@ export const undoBrowser: Scenario = {
     await press(browser, `[data-thread-id="${threadId}"]`);
     await browser(["wait", `[data-thread="${threadId}"] [data-turn-ended]`], DEADLINE_MS);
 
-    ctx.log("a line typed in another paragraph, and Undo this turn inside the editor's pause");
+    ctx.log("a line typed in another paragraph, and Undo this turn before the note saves it");
     await caretToEndOf(browser, KEPT);
     await browser(["keyboard", "type", TYPED]);
     await clickButtonIn(browser, `[data-thread="${threadId}"]`, "Undo this turn");

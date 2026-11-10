@@ -52,24 +52,26 @@ import type { NoteConnection, NoteHeld, NoteStatus } from "./note-connection";
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
 const CHUNK_BLOCKS = 100;
 
-/** @internal */
 export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
 
-// why a note that is open takes no edit, in the person's words
+// why a note that is open takes no edit, in the person's words; a full note stays so for everyone,
+// since 8 MB is past anything typed, and a cut that only shrinks it would cost a copy of the note
+// on every edit
 /** @internal */
 export const HELD_BACK: Record<NoteHeld, string> = {
   deleted: "This item is in Deleted. Restore it to edit it.",
-  full: "This note is as long as a note can be, so it takes no more. Copy what you need into a new note.",
+  full: "This note is as long as a note can be, so it takes no more. Copy what you need into a new note. You can still move this one to Deleted.",
 };
 
 // the open note as a host reaches it: what it waits on before a leave
-/** @internal */
 export interface OpenNote {
   readonly status: () => NoteStatus;
   readonly subscribe: (listener: () => void) => () => void;
   // true once the note holds every edit made here before the call, a file still being kept among
   // them; false when the note closes, or drops what this device held, first
   readonly whenSaved: () => Promise<boolean>;
+  // an edit made here while no connection could carry it, until the socket syncs again
+  readonly unsent: () => boolean;
 }
 
 export interface ItemEditorProps {
@@ -108,6 +110,7 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
     connection,
     status: connection.status,
     subscribe: connection.subscribe,
+    unsent: connection.unsent,
     whenSaved: async () => {
       while (keeping.size > 0) {
         await Promise.allSettled(keeping);
@@ -129,7 +132,8 @@ const FormulaRecompute = ({ itemId }: { itemId: string }) => {
   return null;
 };
 
-const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
+// why the text above takes no edit, held at the top of the scroll
+export const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
   <div
     className={cn(
       editorColumnPx(profile),

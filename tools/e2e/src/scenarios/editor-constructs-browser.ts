@@ -88,7 +88,7 @@ export const editorConstructsBrowser: Scenario = {
       seed: async (seeding) => {
         const { item } = await seeding.items.createNote({ markdown: DOC, title: TITLE });
         itemId = item.id;
-        ({ seq } = await seeding.items.read({ id: item.id }));
+        ({ seq } = await seeding.items.row({ id: item.id }));
       },
     });
     await browser(["wait", `${EDITOR} table`], 30_000);
@@ -123,9 +123,9 @@ export const editorConstructsBrowser: Scenario = {
     );
 
     ctx.log("rendering wrote nothing: the item's sequence is the one it was seeded at");
-    // past the editor's pause before a write
+    // past the note's debounced save
     await delay(2500);
-    const opened = await library.items.read({ id: itemId });
+    const opened = await library.items.row({ id: itemId });
     expectEq(opened.seq, seq, "opening the item wrote to it");
 
     ctx.log("an edit keeps every construct in the item");

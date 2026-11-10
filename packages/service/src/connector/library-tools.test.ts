@@ -83,6 +83,7 @@ const router = os.router({
     organize: os.items.organize.handler(unimplemented),
     purge: os.items.purge.handler(unimplemented),
     read: os.items.read.handler(unimplemented),
+    row: os.items.row.handler(unimplemented),
     refresh: os.items.refresh.handler(unimplemented),
     restore: os.items.restore.handler(unimplemented),
     save: os.items.save.handler(unimplemented),

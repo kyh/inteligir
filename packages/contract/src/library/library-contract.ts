@@ -129,6 +129,13 @@ const itemsContract = {
     .input(z.strictObject({ id: idSchema }))
     .output(liveItemRowSchema.extend({ blocks: z.array(bodyBlockSchema) })),
 
+  // an item's row, its fields and card without its body: what a screen draws beside an open note,
+  // read again each time its card moves, which wakes no note
+  row: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema }))
+    .output(liveItemRowSchema),
+
   // a note a device made, with its blocks
   create: signedBase
     .errors({

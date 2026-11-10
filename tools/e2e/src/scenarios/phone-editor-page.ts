@@ -1,6 +1,6 @@
 // The phone's editor page, built as the app carries it and loaded from `file://` with a scripted
-// phone on its bridge: an item's editor over the blocks the library holds, written back in ops, and
-// read-only while the phone has no connection.
+// phone on its bridge: an item drawn read-only from the blocks the phone holds, drawn again as the
+// item moves, its links opening on the native stack.
 
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,9 +9,7 @@ import { z } from "zod";
 
 import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type { NativeFrame, PageFrame, RequestResult } from "@repo/editor-bridge/protocol";
-import { blockHash } from "@repo/contract/library/block-hash";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
 import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { parseEval } from "../harness/agent-browser";
@@ -25,7 +23,7 @@ import { turboBuildOnce } from "../harness/turbo-build";
 // a cold vite build of the page, pele and katex inlined; a cached one returns at once.
 const BUILD_TIMEOUT_MS = 300_000;
 
-// past the editor's serialize debounce and the item session's write behind it
+// long enough for a frame the page should ignore to have been read
 const SETTLE_MS = 2000;
 
 const NONCE = "e2e-item-nonce-0123456789";
@@ -33,6 +31,8 @@ const ITEM_ID = "0190a000-0000-7000-8000-0000000000e2";
 // the item the link names by its id, which went by another name when the link was written
 const OTHER_ID = "0190a000-0000-7000-8000-0000000000e3";
 const ITEM_PARAGRAPH = "An item's paragraph to type into.";
+// the page's own words for why the text takes no edit (apps/mobile-editor/src/item/item-page.tsx)
+const READS_ONLY = "Editing on the phone is coming.";
 // a picture a note names by its sha, which the page reads from the phone's file cache
 const PICTURE_SHA = "e2".repeat(32);
 // one red pixel, a PNG Chromium decodes
@@ -45,10 +45,8 @@ const PICTURE_BLOCK: LibraryBlock = {
   sha: PICTURE_SHA,
   type: "img",
 };
-const TAB_TEXT = "Tab text.";
 
 type HeldItem = NonNullable<RequestResult<"item">["item"]>;
-type ItemOutcome = RequestResult<"writeItem">;
 
 const paragraphBlock = (id: string, text: string): LibraryBlock => ({
   children: [{ text }],
@@ -56,7 +54,6 @@ const paragraphBlock = (id: string, text: string): LibraryBlock => ({
   type: "p",
 });
 
-const TYPED_BLOCK = paragraphBlock("p1", `${ITEM_PARAGRAPH} Typed.`);
 const LINK_BLOCK: LibraryBlock = {
   children: [
     { text: "See " },
@@ -66,14 +63,7 @@ const LINK_BLOCK: LibraryBlock = {
   id: "p2",
   type: "p",
 };
-// the rich blocks, each locked to typing, and the diagram Pele draws from the page's one script
-const CHART_BLOCK: LibraryBlock = {
-  children: [{ text: "" }],
-  id: "c1",
-  type: "chart_block",
-  value:
-    '{"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}',
-};
+// the diagram Pele draws from the page's one script
 const DIAGRAM_BLOCK: LibraryBlock = {
   children: [
     { children: [{ text: "graph TD;" }], type: "code_line" },
@@ -83,55 +73,33 @@ const DIAGRAM_BLOCK: LibraryBlock = {
   lang: "mermaid",
   type: "code_block",
 };
-const TABS_BLOCK: LibraryBlock = {
-  children: [
-    {
-      children: [{ children: [{ text: TAB_TEXT }], type: "p" }],
-      label: "First",
-      type: "tab_panel",
-    },
-  ],
-  id: "t1",
-  type: "tab_group",
-};
 
-// an item as the library holds it, each block under the hash a write names as its base
+// an item as the library holds it, its blocks in reading order
 const heldOf = (blocks: readonly LibraryBlock[]): HeldItem => ({
-  blocks: blocks.map((block, index) => ({
-    block,
-    hash: blockHash(block),
-    ord: `a${String(index)}`,
-    section: "note",
-  })),
-  bodyHeld: true,
+  blocks: blocks.map((block) => ({ block, section: "note" })),
   fields: noteFields({ title: "Phone item" }),
 });
-
-const RICH = [CHART_BLOCK, DIAGRAM_BLOCK, TABS_BLOCK];
 
 const ITEM = heldOf([
   paragraphBlock("p1", ITEM_PARAGRAPH),
   LINK_BLOCK,
-  ...RICH,
+  DIAGRAM_BLOCK,
   paragraphBlock("p3", "The last line."),
 ]);
 
 // The phone's end of the bridge, run in the page as react-native-webview would host it, standing
-// in for the library and its file cache: it records every frame, answers the item it holds, the
-// items a link can name, the one picture it holds, each write with the outcome the drive queued
-// for it (else taken), through the door the page installed, as the native end's injection does.
+// in for the library and its file cache: it records every frame and answers the item it holds,
+// the items a link can name and the one picture it holds, through the door the page installed, as
+// the native end's injection does.
 const PHONE_SCRIPT = `(() => {
   const nonce = ${JSON.stringify(NONCE)};
   const itemId = ${JSON.stringify(ITEM_ID)};
   const targets = ${JSON.stringify([{ id: OTHER_ID, title: "Other" }])};
   const picture = { base64: ${JSON.stringify(PICTURE_BASE64)}, mediaType: "image/png" };
-  const state = { item: ${JSON.stringify(ITEM)}, outcomes: [], sent: [] };
+  const state = { item: ${JSON.stringify(ITEM)}, sent: [] };
   const answer = (request) => {
     if (request.kind === "item") {
       return { ok: true, result: { item: request.payload.itemId === itemId ? state.item : null } };
-    }
-    if (request.kind === "writeItem") {
-      return { ok: true, result: state.outcomes.shift() ?? { kind: "queued" } };
     }
     if (request.kind === "linkTargets") {
       return { ok: true, result: { targets } };
@@ -196,11 +164,6 @@ const editable = async (browser: ScenarioBrowser): Promise<string> =>
 // the phone asks the agent from the item's own screen, so a selection offers no Ask agent
 const NO_ASK_AGENT = `String(document.querySelector('button[aria-label="Ask agent"]') === null)`;
 
-type WriteItemFrame = Extract<PageFrame, { kind: "writeItem"; type: "request" }>;
-
-const isWriteItem = (frame: PageFrame): frame is WriteItemFrame =>
-  frame.type === "request" && frame.kind === "writeItem";
-
 const isItemRead = (frame: PageFrame): boolean => frame.type === "request" && frame.kind === "item";
 
 const phoneOf = (browser: ScenarioBrowser) => {
@@ -209,18 +172,10 @@ const phoneOf = (browser: ScenarioBrowser) => {
       await browser(["eval", "JSON.stringify(window.__phone.sent)"]),
       z.array(pageFrameSchema),
     );
-  const writes = async (): Promise<WriteItemFrame[]> => {
-    const frames = await sent();
-    return frames.filter(isWriteItem);
-  };
   return {
     buffer: async (): Promise<string> => await browser(["get", "text", EDITOR]),
     inject: async (frame: NativeFrame): Promise<void> => {
       await browser(["eval", nativeFrameScript(frame)]);
-    },
-    // the phone answers the page's next write with this
-    queueOutcome: async (outcome: ItemOutcome): Promise<void> => {
-      await browser(["eval", `window.__phone.outcomes.push(${JSON.stringify(outcome)}); "set"`]);
     },
     readCount: async (): Promise<number> => {
       const frames = await sent();
@@ -231,35 +186,7 @@ const phoneOf = (browser: ScenarioBrowser) => {
       await browser(["eval", `window.__phone.item = ${JSON.stringify(item)}; "set"`]);
     },
     sent,
-    writes,
-    writesAtLeast: async (count: number, what: string): Promise<WriteItemFrame[]> =>
-      await pollUntil(writes, (frames) => frames.length >= count, {
-        deadlineMs: 15_000,
-        describe: (frames) => `${what}: ${String(frames.length)} write(s) reached the phone`,
-      }),
   };
-};
-
-type Phone = ReturnType<typeof phoneOf>;
-
-const typeAt = async (browser: ScenarioBrowser, text: string, typed: string): Promise<void> => {
-  expectEq(
-    parseEval(await browser(["eval", caretScript(text, false)]), z.string()),
-    "placed",
-    `the caret could not be placed after "${text}"`,
-  );
-  await browser(["keyboard", "type", typed]);
-};
-
-const expectNoWriteAfter = async (phone: Phone, what: string, before: number): Promise<void> => {
-  await delay(SETTLE_MS);
-  const writes = await phone.writes();
-  expect(
-    writes.length === before,
-    `${what} changed the item: the page wrote ${JSON.stringify(
-      writes.slice(before).map((frame) => frame.payload.ops),
-    )}`,
-  );
 };
 
 // the page loaded with nothing open, its door installed and waiting for its init
@@ -280,29 +207,20 @@ const openPage = async (browser: ScenarioBrowser, page: string): Promise<void> =
   );
 };
 
-// the item's editor over a scripted phone: it draws the item, its link by the name its item goes
-// by now and its diagram; typing on a locked block writes nothing; a pause writes the one block
-// typed in as a put under the hash the phone gave it; a nonce-less frame is ignored; an announced
-// change is laid in; a write the phone finds changed is written again over what it holds; with no
-// connection it takes no edit and says so; a flush is answered; and a link opens the item it names
-// by id
+// the item over a scripted phone: it draws the item read-only under the page's words, its link by
+// the name its item goes by now and its diagram; typing changes nothing; a nonce-less frame is
+// ignored; an announced change is drawn, its picture read from the phone; and a link opens the
+// item it names by id
 const driveItem = async (
   browser: ScenarioBrowser,
   page: string,
   log: (line: string) => void,
 ): Promise<void> => {
-  log("the page reads the item the library holds");
+  log("the page reads the item the phone holds, and draws it read-only");
   await openPage(browser, page);
   await browser(["eval", PHONE_SCRIPT]);
   const phone = phoneOf(browser);
-  await phone.inject({
-    fileMaxBytes: 100 * 1024 * 1024,
-    focus: null,
-    itemId: ITEM_ID,
-    nonce: NONCE,
-    online: true,
-    type: "init",
-  });
+  await phone.inject({ itemId: ITEM_ID, nonce: NONCE, type: "init" });
   await browser(["wait", EDITOR], 30_000);
   await pollUntil(
     phone.buffer,
@@ -321,37 +239,30 @@ const driveItem = async (
         `the item's diagram never drew: its labels are ${JSON.stringify(labels)}`,
     },
   );
-  await expectNoWriteAfter(phone, "opening the item", 0);
+  const main = await browser(["get", "text", "main"]);
+  expect(main.includes(READS_ONLY), `the page never said why it takes no edit:\n${main}`);
+  expectEq(await editable(browser), "false", "the item's editor");
 
-  // a tap leaves the caret in a locked block's text; the typed paragraph's exact ops below also
-  // catch a keystroke held back here and landed there
-  log("typing in the tab panel and on the chart writes nothing");
-  await browser(["click", `${EDITOR} [data-tab-panel]`]);
-  await browser(["keyboard", "type", " locked"]);
-  await expectNoWriteAfter(phone, "typing in the tab panel", 0);
-  await browser(["click", `${EDITOR} svg[role="img"]`]);
-  await browser(["keyboard", "type", " locked"]);
-  await expectNoWriteAfter(phone, "typing on the chart", 0);
-
-  log("a pause after typing writes the paragraph as one put under its hash");
-  await typeAt(browser, ITEM_PARAGRAPH, " Typed.");
-  const [first] = await phone.writesAtLeast(1, "the typed paragraph");
-  expect(first !== undefined, "the typed paragraph wrote nothing");
-  expectEq(first.payload.itemId, ITEM_ID, "the item the write named");
+  log("typing changes nothing");
+  const before = await phone.buffer();
   expectEq(
-    first.payload.ops,
-    [{ baseHash: blockHash(paragraphBlock("p1", ITEM_PARAGRAPH)), block: TYPED_BLOCK, op: "put" }],
-    "the ops the typed paragraph wrote",
+    parseEval(await browser(["eval", caretScript(ITEM_PARAGRAPH, false)]), z.string()),
+    "placed",
+    `the caret could not be placed after "${ITEM_PARAGRAPH}"`,
   );
+  await browser(["keyboard", "type", " Typed."]);
+  await delay(SETTLE_MS);
+  expectEq(await phone.buffer(), before, "the item's text after typing");
 
   log("a frame with no nonce is ignored");
-  const forged = heldOf([TYPED_BLOCK, LINK_BLOCK, ...RICH, paragraphBlock("p3", "FORGED")]);
-  await phone.replace(forged);
+  await phone.replace(
+    heldOf([...ITEM.blocks.map(({ block }) => block), paragraphBlock("p4", "FORGED")]),
+  );
   const readsBefore = await phone.readCount();
   await browser([
     "eval",
     `window[${JSON.stringify(PAGE_RECEIVER)}](${JSON.stringify(
-      JSON.stringify({ ids: [ITEM_ID], overlapped: [], reset: false, type: "itemChanged" }),
+      JSON.stringify({ ids: [ITEM_ID], reset: false, type: "itemChanged" }),
     )}); "sent"`,
   ]);
   await delay(SETTLE_MS);
@@ -359,22 +270,17 @@ const driveItem = async (
   const unforged = await phone.buffer();
   expect(!unforged.includes("FORGED"), "a nonce-less frame reloaded the item");
 
-  log("a change the phone announces is laid into the editor, its picture read from the phone");
-  const fromMac = heldOf([
-    TYPED_BLOCK,
-    LINK_BLOCK,
-    ...RICH,
-    PICTURE_BLOCK,
-    paragraphBlock("p3", "The last line, from the Mac."),
-  ]);
-  await phone.replace(fromMac);
-  await phone.inject({
-    ids: [ITEM_ID],
-    nonce: NONCE,
-    overlapped: [],
-    reset: false,
-    type: "itemChanged",
-  });
+  log("a change the phone announces is drawn, its picture read from the phone");
+  await phone.replace(
+    heldOf([
+      paragraphBlock("p1", ITEM_PARAGRAPH),
+      LINK_BLOCK,
+      DIAGRAM_BLOCK,
+      PICTURE_BLOCK,
+      paragraphBlock("p3", "The last line, from the Mac."),
+    ]),
+  );
+  await phone.inject({ ids: [ITEM_ID], nonce: NONCE, reset: false, type: "itemChanged" });
   await pollUntil(phone.buffer, (text) => text.includes("from the Mac."), {
     deadlineMs: 15_000,
     describe: (text) => `the announced change never reached the editor:\n${text}`,
@@ -388,32 +294,6 @@ const driveItem = async (
     },
   );
 
-  log("a write the phone finds changed is written again over the item it holds now");
-  const added = heldOf([
-    ...fromMac.blocks.map(({ block }) => block),
-    paragraphBlock("p4", "A line the Mac added."),
-  ]);
-  await phone.replace(added);
-  await phone.queueOutcome({ item: added, kind: "changed" });
-  const { length: writesBefore } = await phone.writes();
-  await typeAt(browser, `${ITEM_PARAGRAPH} Typed.`, " Again.");
-  const writes = await phone.writesAtLeast(writesBefore + 2, "the settled write");
-  expectEq(
-    writes[writesBefore + 1]?.payload.ops,
-    [
-      {
-        baseHash: blockHash(TYPED_BLOCK),
-        block: paragraphBlock("p1", `${ITEM_PARAGRAPH} Typed. Again.`),
-        op: "put",
-      },
-    ],
-    "the ops written over the item the phone holds now",
-  );
-  await pollUntil(phone.buffer, (text) => text.includes("A line the Mac added."), {
-    deadlineMs: 15_000,
-    describe: (text) => `the editor never showed the block the Mac added:\n${text}`,
-  });
-
   log("a selection offers no Ask agent: the phone asks from the item's own screen");
   expectEq(
     parseEval(await browser(["eval", caretScript("paragraph", true)]), z.string()),
@@ -424,39 +304,6 @@ const driveItem = async (
     parseEval(await browser(["eval", NO_ASK_AGENT]), z.string()),
     "true",
     "the toolbar drew Ask agent",
-  );
-
-  log("with no connection the page takes no edit and says so, and takes them again once back");
-  await phone.inject({ nonce: NONCE, online: false, type: "connection" });
-  await pollUntil(
-    async () => await browser(["get", "text", "main"]),
-    (text) => text.includes(NEEDS_CONNECTION),
-    {
-      deadlineMs: 10_000,
-      describe: (text) => `the page never said it needs a connection:\n${text}`,
-    },
-  );
-  expectEq(await editable(browser), "false", "the editor with no connection");
-  await phone.inject({ nonce: NONCE, online: true, type: "connection" });
-  await pollUntil(
-    async () => await editable(browser),
-    (value) => value === "true",
-    {
-      deadlineMs: 10_000,
-      describe: (value) => `the editor never took edits again: contenteditable ${value}`,
-    },
-  );
-
-  log("a flush is answered once the item is written");
-  await phone.inject({ id: 9, nonce: NONCE, type: "flush" });
-  await pollUntil(
-    phone.sent,
-    (frames) => frames.some((frame) => frame.type === "flushed" && frame.id === 9 && frame.ok),
-    {
-      deadlineMs: 10_000,
-      describe: (frames) =>
-        `the flush was never answered ok: ${JSON.stringify(frames.filter((frame) => frame.type === "flushed"))}`,
-    },
   );
 
   log("a link tap asks the native stack to open the item it names by id");
@@ -474,7 +321,7 @@ const driveItem = async (
 
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: an item draws its link by the name its item goes by now and its diagram from the one inlined script, typing on a locked block writes nothing, a pause writes the typed block as one put under the hash the phone gave it, a nonce-less frame is ignored, an announced change is laid in, a write the phone finds changed is written again over what it holds, a selection offers no Ask agent, with no connection the page is read-only and says so, a flush is answered and a link opens its item by id",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: an item draws read-only under the page's words for why, its link by the name its item goes by now and its diagram from the one inlined script, typing changes nothing, a nonce-less frame is ignored, an announced change is drawn with its picture from the phone, a selection offers no Ask agent, and a link opens its item by id",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,

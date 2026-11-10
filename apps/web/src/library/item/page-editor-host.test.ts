@@ -1,6 +1,7 @@
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { onlineManager } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import type { ItemsMoved } from "../cloud/use-library-socket";
@@ -21,10 +22,7 @@ const nothing = (): void => {
 const install = (upload: (request: Request) => Promise<Response>) => {
   const listeners: ((moved: ItemsMoved) => void)[] = [];
   installPageEditorHost({
-    askAgent: nothing,
     cloud: { fetch: upload, onSessionEnd: nothing, origin: ORIGIN },
-    openItem: nothing,
-    showTag: nothing,
     socket: {
       onItems: (listener) => {
         listeners.push(listener);
@@ -48,7 +46,7 @@ const refused = async (): Promise<Response> =>
 describe("the page's editor host", () => {
   it("answers an embedded item's blocks as the cell holds them, and none for an item it lacks", async () => {
     await client.library.items.create({
-      blocks: [{ block: paragraph, ord: "a0", section: "note" }],
+      blocks: [{ block: paragraph, section: "note" }],
       folderId: null,
       id: PLANS,
       savedAt: 1_700_000_000_000,
@@ -73,6 +71,24 @@ describe("the page's editor host", () => {
       sha: fileSha(bytes),
     });
     expect(sent).toStrictEqual([`PUT ${ORIGIN}/v1/blobs/${fileSha(bytes)}`]);
+  });
+
+  it("dials a note on the account socket's ticket, and is offline the moment the browser says so", async () => {
+    install(refused);
+    const { notes } = getEditorHostIo();
+    let heard = 0;
+    const stop = notes.onOfflineChange(() => {
+      heard += 1;
+    });
+
+    await expect(notes.socketTicket()).resolves.toBe("a-ticket");
+    expect(notes.notePath(PLANS)).toBe(`/v1/notes/${PLANS}`);
+    expect(notes.offline()).toBe(false);
+    onlineManager.setOnline(false);
+    expect(notes.offline()).toBe(true);
+    onlineManager.setOnline(true);
+    stop();
+    expect(heard).toBe(2);
   });
 
   it("tells the editor which items the account's socket says moved", () => {

@@ -72,6 +72,7 @@ interface NoteObject {
   greeting: string | null;
 }
 
+/** @internal */
 export interface NoteServer {
   readonly sockets: readonly NoteSocket[];
   answer: DialAnswer;
@@ -185,6 +186,7 @@ class NoteSocket extends EventTarget {
 }
 
 // a server installed as the page's WebSocket until the suite's globals are unstubbed
+/** @internal */
 export const noteServer = (): NoteServer => {
   const sockets: NoteSocket[] = [];
   const notes = new Map<string, NoteObject>();

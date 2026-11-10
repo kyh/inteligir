@@ -9,7 +9,8 @@ import { refusalText } from "@repo/contract/refusal-text";
 import { BULK_ITEMS_MAX, LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
 import type { V1Client } from "@repo/contract/v1";
 import { keptFileType } from "@repo/contract/items/item-kind";
-import { mergeListField } from "@repo/contract/library/field-ops";
+import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import { ordBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { toast } from "@repo/ui/components/sonner";
@@ -27,7 +28,7 @@ import { newId } from "./new-id";
 type Outputs = InferClientOutputs<V1Client>["library"];
 type Inputs = InferClientInputs<V1Client>["library"];
 type ListingAnswer = Outputs["listing"]["page"];
-type ItemAnswer = Outputs["items"]["get"];
+type ItemAnswer = Outputs["items"]["row"];
 type ScopesAnswer = Outputs["listing"]["scopes"];
 type OrganizeInput = Inputs["items"]["organize"];
 type FolderOp = Inputs["folders"]["write"]["ops"][number];
@@ -51,7 +52,7 @@ const layOver = async (
   overlay: Overlay,
 ): Promise<Held> => {
   const listings = { queryKey: orpc.library.listing.page.key({ type: "infinite" }) };
-  const items = { queryKey: orpc.library.items.get.key() };
+  const items = { queryKey: orpc.library.items.row.key() };
   await Promise.all([queryClient.cancelQueries(listings), queryClient.cancelQueries(items)]);
   const held = [...queryClient.getQueriesData(listings), ...queryClient.getQueriesData(items)];
   queryClient.setQueriesData<InfiniteData<ListingAnswer>>(listings, (data) =>
@@ -121,6 +122,19 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
       fields: fields(row.fields),
       tags: retagged(row.tags),
     }),
+  };
+};
+
+// an item's field ops as the cell lands them, over the fields the screen holds; a batch that would
+// not land leaves them as they are, for the read after the refusal to settle
+const fieldsOverlay = (ops: readonly FieldOp[]): Overlay => {
+  const landed = (fields: LibraryItemFields): LibraryItemFields => {
+    const outcome = applyFieldOps(fields, ops);
+    return outcome.kind === "applied" ? outcome.fields : fields;
+  };
+  return {
+    item: (item) => ({ ...item, fields: landed(item.fields) }),
+    row: (row) => ({ ...row, fields: landed(row.fields) }),
   };
 };
 
@@ -194,7 +208,7 @@ export const useLibraryVerbs = () => {
   const readAgain = async (): Promise<void> => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: orpc.library.listing.key() }),
-      queryClient.invalidateQueries({ queryKey: orpc.library.items.get.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.library.items.row.key() }),
     ]);
   };
   const putBack = (held: Held | undefined): void => {
@@ -241,6 +255,18 @@ export const useLibraryVerbs = () => {
       },
       onMutate: async ({ ids }) =>
         await layOver(queryClient, orpc, new Set(ids), { item: (item) => item, row: () => null }),
+      onSettled: readAgain,
+      scope: LIBRARY_WRITES,
+    }),
+  );
+  const writeFields = useMutation(
+    orpc.library.write.mutationOptions<Held>({
+      onError: (cause, _input, held) => {
+        putBack(held);
+        toast.error(refusalText(cause, "That couldn't be changed."));
+      },
+      onMutate: async ({ itemId, ops }) =>
+        await layOver(queryClient, orpc, new Set([itemId]), fieldsOverlay(ops)),
       onSettled: readAgain,
       scope: LIBRARY_WRITES,
     }),
@@ -412,6 +438,10 @@ export const useLibraryVerbs = () => {
         title === null ? link : { ...link, title },
       );
       return { created, id: item.id };
+    },
+    // field ops on one item, each over the value the screen showed (an Info property's edit)
+    writeFields: (itemId: string, ops: readonly FieldOp[]): void => {
+      writeFields.mutate({ itemId, opId: crypto.randomUUID(), ops: [...ops] });
     },
     tag: async (ids: readonly string[], change: TagChange): Promise<void> => {
       await runBulk({

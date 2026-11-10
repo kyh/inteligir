@@ -606,6 +606,7 @@ export const createFakeCell = (): FakeCell => {
             };
           }),
         ),
+        row: os.library.items.row.handler(({ input }) => liveRow(input.id, holding(input.id))),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, savedSchema, () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);

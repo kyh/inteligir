@@ -40,7 +40,6 @@ const answered = (id: number | undefined, title: string): NativeFrame => ({
 const changed = {
   ids: [ITEM],
   nonce: PHONE_NONCE,
-  overlapped: [],
   reset: false,
   type: "itemChanged",
 } satisfies NativeFrame;
@@ -94,7 +93,7 @@ describe("a request", () => {
 
   it("rejects an answer that is not the shape its kind promises", async () => {
     const { bridge, phone } = await connected();
-    phone.answer = () => ({ ok: true, result: { kind: "queued" } });
+    phone.answer = () => ({ ok: true, result: { targets: [] } });
     await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow(
       "expected object, received undefined",
     );
@@ -117,30 +116,31 @@ describe("a request", () => {
     }).not.toThrow();
   });
 
-  // a file the phone is still keeping reported failed would have the editor drop a picture it holds
-  it("waits on a slow keep past the deadline, since the phone keeps the file however long it takes", async () => {
+  // a file still downloading reported failed would have the editor say a picture is missing
+  it("waits on a slow file past the deadline, since the phone fetches it however long it takes", async () => {
     vi.useFakeTimers();
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const keeping = bridge.request("keepFile", { base64: "AA==", mediaType: "image/png" });
+    const sha = "a".repeat(64);
+    const reading = bridge.request("readFile", { sha });
     let settled = false;
-    void keeping.finally(() => {
+    void reading.finally(() => {
       settled = true;
     });
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 2);
     expect(settled).toBe(false);
 
-    const [frame] = phone.requests("keepFile");
-    const sha = "a".repeat(64);
+    const [frame] = phone.requests("readFile");
+    const file = { base64: "AA==", mediaType: "image/png" };
     phone.deliver({
       id: frame?.id ?? -1,
       nonce: PHONE_NONCE,
       ok: true,
-      result: { sha },
+      result: { file },
       type: "response",
     });
-    await expect(keeping).resolves.toStrictEqual({ sha });
+    await expect(reading).resolves.toStrictEqual({ file });
   });
 
   it("refuses a malformed ask before it reaches the phone", async () => {
@@ -155,9 +155,7 @@ describe("a request", () => {
 describe("what the page drops", () => {
   it("a frame with no nonce, or another load's", async () => {
     const { heard, phone } = await listening();
-    phone.deliverText(
-      JSON.stringify({ ids: [ITEM], overlapped: [], reset: false, type: "itemChanged" }),
-    );
+    phone.deliverText(JSON.stringify({ ids: [ITEM], reset: false, type: "itemChanged" }));
     phone.deliver({ ...changed, nonce: "another-load-nonce-000" });
     expect(heard).toStrictEqual([]);
 
@@ -220,19 +218,12 @@ describe("the window transport", () => {
     expect(window[PAGE_RECEIVER]).toBe(door);
 
     // the script the native end injects calls the door with one string literal, the frame's JSON
-    const script = nativeFrameScript({
-      fileMaxBytes: 1024,
-      focus: "body",
-      itemId: ITEM,
-      nonce: PHONE_NONCE,
-      online: true,
-      type: "init",
-    });
+    const script = nativeFrameScript({ itemId: ITEM, nonce: PHONE_NONCE, type: "init" });
     const call = /^window\.(?<door>\w+)\((?<literal>".*")\);true;$/su.exec(script);
     expect(call?.groups?.door).toBe(PAGE_RECEIVER);
     door?.(JSON.parse(call?.groups?.literal ?? '""'));
     const { bridge, init } = await connecting;
-    expect(init).toMatchObject({ focus: "body", itemId: ITEM, online: true });
+    expect(init).toStrictEqual({ itemId: ITEM, nonce: PHONE_NONCE, type: "init" });
 
     bridge.emit({ itemId: OTHER, type: "openItem" });
     expect(JSON.parse(posted.at(-1) ?? "null")).toStrictEqual({

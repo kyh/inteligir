@@ -29,7 +29,7 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
 /** @internal */
-export type NativeEvent = Extract<NativeFrame, { type: "itemChanged" | "flush" | "connection" }>;
+export type NativeEvent = Extract<NativeFrame, { type: "itemChanged" }>;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
 export interface BridgeTransport {
@@ -56,10 +56,9 @@ export interface ConnectedPage {
 export const REQUEST_TIMEOUT_MS = 10_000;
 
 // The native end answers every request, and a file's bytes take as long as the phone's download
-// or their copy across the bridge does, so a file's read and its keep wait rather than report a
-// failure that did not happen, and a picture waits for its bytes rather than say it is missing. A
-// write keeps its deadline: it is guarded by its bases, so its retry finds what landed.
-const NO_DEADLINE: ReadonlySet<RequestKind> = new Set(["keepFile", "readFile"]);
+// or their copy across the bridge does, so a file's read waits rather than report a failure that
+// did not happen, and a picture waits for its bytes rather than say it is missing.
+const NO_DEADLINE: ReadonlySet<RequestKind> = new Set(["readFile"]);
 
 interface Pending {
   readonly answer: Deferred<unknown>;

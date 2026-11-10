@@ -10,5 +10,5 @@ if (container === null) {
 // an IIFE build has no top-level await
 void (async () => {
   const { bridge, init } = await connectPageBridge(windowTransport(window));
-  mountItemPage({ bridge, container, init });
+  mountItemPage({ bridge, container, itemId: init.itemId });
 })();

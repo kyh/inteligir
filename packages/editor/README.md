@@ -155,7 +155,9 @@ src/
   editor per document, drawn once it has synced (or a line saying the library
   holds no such item), read-only while the host is offline, the socket down or
   the note held, and the open note it hands its host (`onNote`) answers a leave
-  (`whenSaved`). `item/item-properties.ts` is the panel's rows over an item's
+  (`whenSaved`). `item/held-item.tsx` draws blocks a host already holds,
+  read-only under a line saying why, for a host that binds no live document,
+  the phone's page. `item/item-properties.ts` is the panel's rows over an item's
   fields as its host holds them (`ItemFields`). A link to an item by id shows
   the name the item goes by now, `useTitleOf` over the library's titles. The
   suites open notes over `test-support/memory-note.tsx` and

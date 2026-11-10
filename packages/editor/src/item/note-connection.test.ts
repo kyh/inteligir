@@ -323,6 +323,32 @@ describe("a note's live document over its socket", () => {
     expect(textOf(server.note("n1").doc)).toBe("baheld");
   });
 
+  it("says an edit made while no socket carried it is unsent, until the next sync hands it over", async () => {
+    const note = await connect(testHost());
+    const { doc } = opened(note.status());
+    let heard = 0;
+    note.subscribe(() => {
+      heard += 1;
+    });
+    doc.getText("probe").insert(0, "sent ");
+    await pass();
+    expect(note.unsent()).toBe(false);
+    server.answer = "hang";
+    server.drop();
+    await pass();
+    expect(note.unsent()).toBe(false);
+    doc.getText("probe").insert(0, "typed ");
+    expect(note.unsent()).toBe(true);
+    const turned = heard;
+    expect(turned).toBeGreaterThan(0);
+    server.answer = "open";
+    server.sockets.at(-1)?.ended(1006);
+    await pass(BACKOFF_MS);
+    expect(note.unsent()).toBe(false);
+    expect(heard).toBeGreaterThan(turned);
+    expect(textOf(server.note("n1").doc)).toBe("typed sent held");
+  });
+
   it("opens no socket when it closes while its ticket is asked for", async () => {
     const ticket = deferred<string>();
     const host: NoteHost = { ...testHost(), socketTicket: async () => await ticket.promise };

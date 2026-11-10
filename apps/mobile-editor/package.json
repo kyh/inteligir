@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/editor-bridge": "workspace:*",
     "@repo/ui": "workspace:*",
@@ -18,7 +19,6 @@
   "devDependencies": {
     "@babel/core": "catalog:",
     "@kyh/tsconfig": "catalog:",
-    "@repo/contract": "workspace:*",
     "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@testing-library/react": "catalog:",

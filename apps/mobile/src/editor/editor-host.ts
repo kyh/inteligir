@@ -4,7 +4,6 @@
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
-import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
 import type {
   ItemInit,
@@ -23,11 +22,11 @@ export type EditorRequestPorts = {
   readonly [K in RequestKind]: (payload: RequestPayload<K>) => Promise<RequestResult<K>>;
 };
 
-// what the page says on its own; a `flushed` is the host's to settle
-export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "flushed" }>;
+// what the page says on its own
+export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" }>;
 
-// what the phone tells a loaded page on its own: an item moved, or the connection did
-type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" | "connection" }>>;
+// what the phone tells a loaded page on its own: an item moved
+type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" }>>;
 
 // the part of the WebView the host drives
 interface EditorView {
@@ -38,15 +37,11 @@ interface EditorView {
 export interface EditorHostArgs {
   // the page's own address: a frame from any other document is dropped
   pageUrl: string;
-  // what the first load's `init` says; a later load opens the same item with no focus, since the
-  // keyboard it would raise is one the person never asked for again. Every load names the
-  // library's size cap, which the page holds a pasted file to, and the connection as it is then
-  init: Omit<ItemInit, "fileMaxBytes" | "nonce" | "online" | "type">;
-  online: () => boolean;
+  // what every load's `init` says
+  init: Omit<ItemInit, "nonce" | "type">;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
-  flushTimeoutMs?: number;
 }
 
 export interface EditorHost {
@@ -56,17 +51,10 @@ export interface EditorHost {
   // a message the WebView delivered, with the address of the document that sent it
   receive: (message: { data: string; url: string }) => void;
   send: (event: EditorNativeEvent) => void;
-  // true once the page says the open item's edits are written; false when it failed, did not
-  // answer in time or went away first. no page loaded holds no edits, so that is true at once.
-  flush: () => Promise<boolean>;
   // iOS killed the page's content process: the page loads again, and nothing is sent until it
   // says `ready`
   reload: () => void;
 }
-
-// long enough for a diff and a write through the bridge, short enough that leaving an item never
-// waits on a page that stopped answering
-const FLUSH_TIMEOUT_MS = 3000;
 
 const isHttpUrl = (url: string): boolean => /^https?:\/\//iu.test(url);
 
@@ -106,23 +94,11 @@ interface RequestOf<K extends RequestKind> {
 }
 
 export const createEditorHost = (args: EditorHostArgs): EditorHost => {
-  const flushTimeoutMs = args.flushTimeoutMs ?? FLUSH_TIMEOUT_MS;
-  const flushes = new Map<number, (ok: boolean) => void>();
   let view: EditorView | null = null;
   let nonce: string | null = null;
-  let loads = 0;
-  let nextFlushId = 0;
 
   const deliver = (frame: NativeFrame): void => {
     view?.injectJavaScript(nativeFrameScript(frame));
-  };
-
-  const settleFlushes = (ok: boolean): void => {
-    const waiting = [...flushes.values()];
-    flushes.clear();
-    for (const settle of waiting) {
-      settle(ok);
-    }
   };
 
   // an answer for a load that has since been replaced reaches nobody who asked
@@ -157,54 +133,17 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     await respond(request, async () => await args.ports[request.kind](request.payload));
   };
 
-  // the page that was loaded holds nothing now
-  const forget = (): void => {
-    nonce = null;
-    settleFlushes(false);
-  };
-
   const connect = (): void => {
-    settleFlushes(false);
     nonce = args.mintNonce();
-    const first = loads === 0;
-    loads += 1;
-    deliver({
-      ...args.init,
-      fileMaxBytes: BLOB_MAX_BYTES,
-      focus: first ? args.init.focus : null,
-      nonce,
-      online: args.online(),
-      type: "init",
-    });
+    deliver({ ...args.init, nonce, type: "init" });
   };
 
   return {
     attach: (next) => {
       if (next === null) {
-        forget();
+        nonce = null;
       }
       view = next;
-    },
-
-    flush: async () => {
-      const stamp = nonce;
-      if (stamp === null) {
-        return true;
-      }
-      const id = nextFlushId;
-      nextFlushId += 1;
-      // oxlint-disable-next-line promise/avoid-new -- the page answers as a frame, which only a promise can hand to an await
-      return await new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => {
-          flushes.delete(id);
-          resolve(false);
-        }, flushTimeoutMs);
-        flushes.set(id, (ok) => {
-          clearTimeout(timer);
-          resolve(ok);
-        });
-        deliver({ id, nonce: stamp, type: "flush" });
-      });
     },
 
     receive: ({ data, url }) => {
@@ -226,17 +165,11 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
         void ask(frame);
         return;
       }
-      if (frame.type === "flushed") {
-        const settle = flushes.get(frame.id);
-        flushes.delete(frame.id);
-        settle?.(frame.ok);
-        return;
-      }
       args.onEvent(frame);
     },
 
     reload: () => {
-      forget();
+      nonce = null;
       view?.reload();
     },
 

@@ -1,18 +1,19 @@
-// CLAUDE.md § AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS. Info reads the item
-// as the cell holds it (its fields, its card's counts) and writes a field as one change the cell
-// makes, laid over what the page shows at once, so a pin, a move or a tag reads as done before it
-// lands. Every part of it is the cell's, so it waits for a connection.
+// CLAUDE.md § AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS. Info reads the item's
+// row as the cell holds it (its fields, its card's counts), read again as either moves, and writes a
+// field as one change the cell makes, laid over what the page shows at once, so a pin, a move, a
+// tag or a property reads as done before it lands. Every part of it is the cell's, so it waits for
+// a connection.
 
 import { isDefinedError } from "@orpc/client";
 import { refusalText } from "@repo/contract/refusal-text";
 import { itemProperties } from "@repo/editor/item/item-properties";
-import type { ItemSession } from "@repo/editor/item/item-session";
+import type { ItemFields } from "@repo/editor/item/item-properties";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { useLibraryQueries, useWire } from "../cloud/library-context";
@@ -49,19 +50,29 @@ const propertyText = (value: PropertyValue): string => {
   return words.success ? words.data : JSON.stringify(value);
 };
 
-export const InfoTab = ({
-  itemId,
-  session,
-  actions,
-}: {
-  itemId: string;
-  session: ItemSession | null;
-  actions: InfoActions;
-}) => {
+// the item's fields as the page's query holds them, and a property's edit written over them
+const useItemFields = (itemId: string): ItemFields => {
+  const queryClient = useQueryClient();
+  const verbs = useLibraryVerbs();
+  const { queryKey } = useLibraryQueries().item(itemId);
+  return {
+    fields: () => queryClient.getQueryData(queryKey)?.fields ?? null,
+    subscribe: (listener) =>
+      queryClient.getQueryCache().subscribe(() => {
+        listener();
+      }),
+    write: (op) => {
+      verbs.writeFields(itemId, [op]);
+    },
+  };
+};
+
+export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActions }) => {
   const queries = useLibraryQueries();
   const verbs = useLibraryVerbs();
   const { orpc } = useWire();
   const item = useQuery(queries.item(itemId));
+  const itemFields = useItemFields(itemId);
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
   const refresh = useMutation(
     orpc.library.items.refresh.mutationOptions({
@@ -129,15 +140,17 @@ export const InfoTab = ({
                 </Button>
               </span>
             </Row>
-            {session === null
-              ? Object.entries(fields.properties).map(([key, value]) => (
+            {fields.deletedAt === null
+              ? null
+              : Object.entries(fields.properties).map(([key, value]) => (
                   <Row key={key} label={key}>
                     {value === undefined ? "" : propertyText(value)}
                   </Row>
-                ))
-              : null}
+                ))}
           </dl>
-          {session === null ? null : <PropertiesPanel source={itemProperties(session)} />}
+          {fields.deletedAt === null ? (
+            <PropertiesPanel source={itemProperties(itemFields)} />
+          ) : null}
           <Switch
             label="Pinned"
             checked={fields.pinnedAt !== null}

@@ -77,6 +77,26 @@ describe("what the apps read of the library", () => {
     });
   });
 
+  it("answers an item's row without its body, and none once it is purged", async () => {
+    await inCell(cellOf(), async (state) => {
+      const { library } = cellIn(state);
+      const { item } = await library.items.createNote({
+        markdown: "# Plans\n\nFirst line.",
+        title: "",
+      });
+      const { blocks, ...whole } = await library.items.get({ id: item.id });
+      const row = await library.items.row({ id: item.id });
+      expect(row).toStrictEqual(whole);
+      expect(row.card.title).toBe("Plans");
+      expect(blocks).toHaveLength(2);
+      expect("blocks" in row).toBe(false);
+
+      await library.items.delete({ ids: [item.id] });
+      await library.items.purge({ ids: [item.id] });
+      await expect(codeOf(library.items.row({ id: item.id }))).resolves.toBe("NOT_FOUND");
+    });
+  });
+
   it("pages a listing from where the last page ended, counting each kind", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = cellIn(state);

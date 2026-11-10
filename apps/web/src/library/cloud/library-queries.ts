@@ -19,7 +19,8 @@ const SEARCH_LIMIT = 20;
 const EVENTS_PAGE = 500;
 
 export const libraryQueries = ({ client, orpc }: CloudWire) => ({
-  item: (id: string) => orpc.library.items.get.queryOptions({ input: { id } }),
+  // an item's row, its fields and card: its body is its note's, which the editor reads live
+  item: (id: string) => orpc.library.items.row.queryOptions({ input: { id } }),
 
   // the scope a page at a time from the cell's own position; a new scope keeps the grid it leaves
   // on screen until its first page answers

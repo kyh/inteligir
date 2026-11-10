@@ -16,10 +16,9 @@ export const LIBRARY_SECTIONS = ["note", "article"] as const;
 export const librarySectionSchema = z.enum(LIBRARY_SECTIONS);
 export type LibrarySection = z.infer<typeof librarySectionSchema>;
 
-// the editor mints a block's id (Plate's nodeId); a newline in one would break the order merge's
-// one-line-per-block reading, and the grammar keeps it a short url-safe token
+// the editor mints a block's id (Plate's nodeId), and the grammar keeps it a short url-safe token
 const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/u;
-export const blockIdSchema = z.string().regex(BLOCK_ID_RE);
+const blockIdSchema = z.string().regex(BLOCK_ID_RE);
 
 // a Durable Object row holds 2 MB; a block holds a quarter of that, so its text column and its
 // JSON fit one row together

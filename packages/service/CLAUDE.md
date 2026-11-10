@@ -184,7 +184,9 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
 
 - **THE APPS READ WHAT THEY SHOW FROM THE CELL, THROUGH ROWS NO TOOL CARRIES.**
   `library.items.get` answers an item whole, its fields and every block, one in
-  Deleted included; `library.listing.page` a page of a screen's listing,
+  Deleted included, and `library.items.row` the same row without its body,
+  which wakes no note, for what a screen draws beside an open note and reads
+  again each time its card moves; `library.listing.page` a page of a screen's listing,
   `scopes` the rail's counts and `titles` every live item a note's links resolve
   against, each over the in-memory listing
   (`@repo/contract/library/library-index`), built over the cell's rows for the one
