@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
 import {
@@ -12,7 +12,7 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { AUTH_FALLBACK_ERROR } from "#lib/auth-client";
 import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
-import { currentSession, ssrWhenSignedOut } from "#lib/session-guard";
+import { redirectWhenSignedIn, ssrWhenSignedOut } from "#lib/session-guard";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
@@ -98,11 +98,6 @@ const SignUpPage = () => {
 export const Route = createFileRoute("/_site/app/sign-up")({
   ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
-  beforeLoad: async ({ search }) => {
-    const session = await currentSession();
-    if (session.kind === "signed-in") {
-      redirect({ href: signedInLanding(search.next), reloadDocument: true, throw: true });
-    }
-  },
+  beforeLoad: redirectWhenSignedIn,
   component: SignUpPage,
 });

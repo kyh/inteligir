@@ -7,6 +7,7 @@
 
 import type { Clock } from "@repo/contract/library/account-socket";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
@@ -22,6 +23,7 @@ import type { FileCloud } from "./cloud/library-files";
 import { pageClock } from "./cloud/page-clock";
 import { createLibrarySocket } from "./cloud/use-library-socket";
 import { createCloudWire, createPageQueryClient } from "./cloud/v1";
+import type { CloudWire } from "./cloud/v1";
 import { installLightPrints } from "./light-prints";
 import { applyStoredSpellcheck } from "./spellcheck";
 
@@ -215,6 +217,27 @@ const open = async (): Promise<TabOpening> => {
     wire,
   };
   return { kind: "open", library, queryClient, session: tab.store };
+};
+
+// what a route's screen reads first, asked once as the route loads over the options the screen
+// reads with, waiting for one answer and not the retries the screen's own query makes; a read whose
+// seed failed draws its own refusal, so it is not the route's failure, and with no connection
+// nothing is awaited and each read says it needs one. `seed` is generic, since the reads answer
+// different shapes and a list of them has no one options type
+export const seedReads = async (
+  opening: TabOpening,
+  reads: (seed: QueryClient["query"], wire: CloudWire) => readonly Promise<unknown>[],
+): Promise<void> => {
+  if (opening.kind !== "open" || !onlineManager.isOnline()) {
+    return;
+  }
+  const { queryClient } = opening;
+  await Promise.allSettled(
+    reads(
+      async (options) => await queryClient.query({ ...options, retry: 0, staleTime: "static" }),
+      opening.library.wire,
+    ),
+  );
 };
 
 let opening: Promise<TabOpening> | undefined;

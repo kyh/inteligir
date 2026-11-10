@@ -100,7 +100,7 @@ const FolderRows = ({
 }) => {
   const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
   const [menu, setMenu] = useState<FolderMenu | null>(null);
-  const countOf = (id: string): number => folders.find((folder) => folder.id === id)?.items ?? 0;
+  const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
   return (
     <>
       <SidebarMenu aria-label="Folders">
@@ -122,7 +122,7 @@ const FolderRows = ({
                 }}
               >
                 {row.name}
-                <Count count={countOf(row.id)} />
+                <Count count={counts.get(row.id) ?? 0} />
               </SidebarMenuButton>
               <SidebarMenuAction
                 showOnHover
