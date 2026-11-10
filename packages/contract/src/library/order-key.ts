@@ -53,6 +53,7 @@ export const ordBetween = (before: string | null, after: string | null): string 
   generateKeyBetween(before, after);
 
 // `count` keys spread evenly between two neighbours, shorter than minting them one by one
+/** @internal */
 export const ordsBetween = (before: string | null, after: string | null, count: number): string[] =>
   generateNKeysBetween(before, after, count);
 

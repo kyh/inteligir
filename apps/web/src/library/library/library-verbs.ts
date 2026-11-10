@@ -127,8 +127,7 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
 
 // an item's field ops as the cell lands them, over the fields the screen holds; a batch that would
 // not land leaves them as they are, for the read after the refusal to settle
-/** @internal */
-export const fieldsOverlay = (ops: readonly FieldOp[]): Overlay => {
+const fieldsOverlay = (ops: readonly FieldOp[]): Overlay => {
   const landed = (fields: LibraryItemFields): LibraryItemFields => {
     const outcome = applyFieldOps(fields, ops);
     return outcome.kind === "applied" ? outcome.fields : fields;

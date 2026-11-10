@@ -16,7 +16,7 @@ const subscribeOnline = (listener: () => void): (() => void) => onlineManager.su
 const readOnline = (): boolean => onlineManager.isOnline();
 
 // the browser's own word on its connection, which TanStack Query pauses its cell calls by
-export const useOnline = (): boolean => useSyncExternalStore(subscribeOnline, readOnline);
+const useOnline = (): boolean => useSyncExternalStore(subscribeOnline, readOnline);
 
 export const CellAnswer = <T,>({
   query,

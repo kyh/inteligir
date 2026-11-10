@@ -127,7 +127,7 @@ export type FieldConflict =
 
 // `satisfied`: what the op would make is already there (a resend after a lost answer, or two
 // writers doing the same thing), so landing it changes nothing
-export type FieldVerdict =
+type FieldVerdict =
   | { readonly kind: "apply" }
   | { readonly kind: "satisfied" }
   | { readonly kind: "conflict"; readonly conflict: FieldConflict };
@@ -138,7 +138,7 @@ const SATISFIED: FieldVerdict = { kind: "satisfied" };
 const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
-export const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
+const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
   switch (op.op) {
     case "set": {
       const current = fields[op.field];
@@ -190,7 +190,7 @@ const withProperty = (
 };
 
 // the fields with one op landed, whose guard already passed
-export const landFieldOp = (fields: LibraryItemFields, op: FieldOp): LibraryItemFields => {
+const landFieldOp = (fields: LibraryItemFields, op: FieldOp): LibraryItemFields => {
   switch (op.op) {
     case "set": {
       return withField(fields, op.field, op.value);
@@ -209,7 +209,7 @@ export const landFieldOp = (fields: LibraryItemFields, op: FieldOp): LibraryItem
 const fieldNameSchema = libraryItemFieldsSchema.keyof();
 
 // the fields an item's caps refuse, by name; none when the fields hold
-export const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
+const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
   const parsed = libraryItemFieldsSchema.safeParse(fields);
   if (parsed.success) {
     return [];

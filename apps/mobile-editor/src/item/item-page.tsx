@@ -105,8 +105,7 @@ export interface MountedPage {
   readonly unmount: () => void;
 }
 
-/** @internal */
-export const ItemPage = ({ bridge, itemId }: { bridge: PageBridge; itemId: string }) => (
+const ItemPage = ({ bridge, itemId }: { bridge: PageBridge; itemId: string }) => (
   <ThemeProvider theme="system" setTheme={keepSystemTheme}>
     <SizeProvider size="compact">
       <MotionPolicy>
