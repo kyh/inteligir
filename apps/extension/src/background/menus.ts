@@ -1,6 +1,7 @@
 // the right-click Save: one item per thing a person can point at, and what a click on each saves.
 // A page is read from the tab; a link or a web picture is saved by the address the click names, which the cloud reads, and a picture a page drew from its own bytes by those bytes.
 
+import { bytesFromBase64 } from "@repo/contract/bytes";
 import { isWebUrl } from "@repo/contract/items/item-url";
 
 export type MenuContext = "page" | "link" | "image";
@@ -30,7 +31,7 @@ const ESCAPE_OR_TEXT = /%(?<hex>[0-9a-f]{2})|(?<text>[^%]+)|%/giu;
 
 const bytesOfBase64 = (base64: string): Uint8Array<ArrayBuffer> | null => {
   try {
-    return Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
+    return bytesFromBase64(base64);
   } catch {
     return null;
   }

@@ -54,7 +54,9 @@ const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status
   );
 };
 
-// what saving the tab answered, with where the library is
+const UNSUPPORTED: Outcome = { kind: "refused", reason: "unsupported-page" };
+
+// what saving the tab answered, with where the library is, asked beside the save
 interface OpenedSave {
   answer: Outcome;
   status: Status | null;
@@ -65,9 +67,11 @@ const saveOpenedTab = async (
   ask: PopupProps["ask"],
 ): Promise<OpenedSave> => {
   const tabId = await activeTabId();
-  const answer: Outcome =
-    tabId === null ? { kind: "refused", reason: "unsupported-page" } : await ask.save(tabId);
-  return { answer, status: await ask.status() };
+  const [answer, status] = await Promise.all([
+    tabId === null ? UNSUPPORTED : ask.save(tabId),
+    ask.status(),
+  ]);
+  return { answer, status };
 };
 
 export const Popup = ({ activeTabId, ask }: PopupProps) => {
