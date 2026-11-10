@@ -396,7 +396,9 @@ alone, and no walk narrows structurally.
   the phone's file cache through its native actions), and a note's socket dials
   the cloud at the host's `socketOrigin`, since the phone's page loads from a
   file. A media block holds `{sha}` (a file its
-  `name`) or a web `{url}`, its type the Blob's. A page link reaches an item by
+  `name`) or a web `{url}`, its type the Blob's. A file whose read failed while
+  the host was offline reads again once it is back, and one that failed online
+  stays unavailable, since no connection brings it. A page link reaches an item by
   its id, the mention's key; a `[[Title]]` in an import or the agent's text
   reaches one by `titleKey`, the key the cell resolves a title by; a markdown
   url resolves by path only in an import. Rejected: paths a host maps to items
