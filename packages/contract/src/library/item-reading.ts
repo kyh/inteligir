@@ -55,7 +55,6 @@ export const readingFields = (reading: Reading): ReadingFields => {
 };
 
 // a page saved or refreshed to be read, read, or tried and failed
-/** @internal */
 export type ReadingEvent =
   | { readonly kind: "asked" }
   | { readonly kind: "read"; readonly at: number }

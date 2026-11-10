@@ -8,14 +8,14 @@ const BACKSTOP_MS = 10_000;
 /** @internal */
 export const RETRY_MS = 30_000;
 
-export type SeedDuty =
+type SeedDuty =
   | { readonly kind: "none" }
   // persisted, its confirm asked now or on the next load
   | { readonly kind: "pending" }
   | { readonly kind: "retry"; readonly at: number };
 
 // `since`: when the note's version first passed what the cell holds
-export type ProjectionDuty =
+type ProjectionDuty =
   | { readonly kind: "clean" }
   | { readonly kind: "due"; readonly since: number }
   | { readonly kind: "retry"; readonly since: number; readonly at: number };

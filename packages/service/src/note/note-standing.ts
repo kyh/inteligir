@@ -9,7 +9,6 @@ export type NoteStanding =
   | { readonly kind: "deleted"; readonly full: boolean }
   | { readonly kind: "gone" };
 
-/** @internal */
 export type StandingEvent =
   | { readonly kind: "deleted" }
   | { readonly kind: "restored" }
@@ -69,7 +68,6 @@ export const standingColumns = (
 });
 
 // who writes: a device's frame or the agent's edit, a page's article read again, a turn's undo
-/** @internal */
 export type NoteWrite = "edit" | "article" | "undo";
 
 // An undo is taken in Deleted, since it may be the step that restores the item, and while full,

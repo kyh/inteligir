@@ -13,7 +13,7 @@ import type { CellActor } from "../library/cell-actor";
 import type { LandingScope } from "../library/cell-landing";
 import { refuse } from "../library/cell-refusal";
 
-export type ThreadStatus = (typeof THREAD_STATUSES)[number];
+type ThreadStatus = (typeof THREAD_STATUSES)[number];
 
 // the built-in agent's change sets' label
 const AGENT_LABEL = "Agent";
@@ -243,7 +243,7 @@ export const dequeueNext = (sql: SqlStatements, first: string | null): QueuedSen
   return send;
 };
 
-export const queuedFor = (sql: SqlStatements, threadId: string): number => {
+const queuedFor = (sql: SqlStatements, threadId: string): number => {
   const [row] = sql.all("SELECT count(*) AS count FROM agent_queue WHERE thread_id = ?", [
     threadId,
   ]);
