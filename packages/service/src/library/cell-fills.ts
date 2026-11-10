@@ -18,13 +18,13 @@ import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
 import { jsonTextSchema } from "./sql-value";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
+import type { NoteArticle } from "./article-landing";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
@@ -224,20 +224,13 @@ export const fillWaits = (storage: CellStorage, itemId: string, url: string): bo
 // the note a reading's article goes to before it lands, when the item waiting for it has opened
 // its note: named by the item's sequence, so the same reading sent again replaces nothing twice,
 // and a reading asked for again replaces it anew
-export const fillForNote = (
-  storage: CellStorage,
-  landing: FillLanding,
-): {
-  readonly itemId: string;
-  readonly fillId: string;
-  readonly article: LibraryBlock[];
-} | null => {
+export const fillForNote = (storage: CellStorage, landing: FillLanding): NoteArticle | null => {
   if (landing.kind !== "read" || landing.article.length === 0) {
     return null;
   }
   const item = readLiveItem(storage.db, landing.itemId);
   return waiting(item, landing.url) && item.body.home === "note"
-    ? { article: landing.article, fillId: `fill:${item.id}:${item.seq}`, itemId: item.id }
+    ? { article: landing.article, itemId: item.id, onceId: `fill:${item.id}:${item.seq}` }
     : null;
 };
 
