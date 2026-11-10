@@ -10,9 +10,8 @@ const nothing = (): void => {
 
 // an open note that stored every edit, or one holding an edit typed with no connection
 const noteThat = (holds: boolean): LeavingNote => ({
-  status: () => ({ held: null, kind: "open", live: holds }),
+  status: () => ({ edits: { kind: holds ? "live" : "offline" }, kind: "open", unsent: !holds }),
   subscribe: () => nothing,
-  unsent: () => !holds,
   whenSaved: async () => await Promise.resolve(true),
 });
 

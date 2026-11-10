@@ -358,28 +358,35 @@ alone, and no walk narrows structurally.
   (`packages/editor/src/item/note-connection.ts`). The item editor binds it
   (`packages/editor/src/item/item-editor.tsx`): a connection per item id, an
   editor per document, drawn anew over each connect, which hands the editor
-  fresh nodes. The status is one value: opening; missing, which the object
-  says by closing the socket 4404, since the provider redials any other close
-  forever; or open, with whether an edit reaches the note now and whether the
-  note holds every edit back (`full`, or `deleted` while the item is in
-  Deleted), which the object says in a custom message, ahead of the sync to a
-  socket that opens on one. A ping every 20 s that no pong answers within 5 s
-  dials a fresh socket over the same document, a page shown again or a
-  connection back probes at once, and a socket down past 3 s turns the editor
-  read-only, so a blip goes unseen. A frame the object refused (`read-only`),
-  or a note grown full under this socket, drops the document for the note's
-  own, shown read-only until it syncs. A leave asks whether the note stored
-  every edit made here (`whenSaved`: `saved?`, answered `saved`) once each file
-  in flight is kept and Slate's unsent change is handed over; a close answers
-  it false, and so does a hold, since the object answers no ask on a socket it
-  holds read-only. A picker's input names the document client that opened it, so
+  fresh nodes. The status is one value, moved by one step that the provider,
+  the timers and the listeners follow: opening; missing, which the object says
+  by closing the socket 4404, since the provider redials any other close
+  forever; or open, with what an edit made now meets and whether one was made
+  while no connection could carry it. An edit is `live`, `offline`, `held`
+  (`full`, or `deleted` while the item is in Deleted, which the object says in
+  a custom message, ahead of the sync to a socket that opens on one) or
+  `refused`, and a hold outranks the connection, since it stands whatever the
+  socket does. While the host says it is offline nothing dials and no ticket
+  is asked, and one dial goes the moment it is back. A ping every 20 s that no
+  pong answers within 5 s dials a fresh socket over the same document, a page
+  shown again or a connection back probes at once, and a socket down past 3 s
+  turns the editor read-only, so a blip goes unseen. A frame the object
+  refused (`read-only`), or a note grown full under this socket, drops the
+  document for the note's own, shown read-only under words saying why until it
+  syncs. A leave asks whether the note stored every edit made here
+  (`whenSaved`: `saved?`, answered `saved`) once each file in flight is kept
+  and Slate's unsent change is handed over; a close answers it false, and so
+  does a hold or a refusal, since the object answers no ask on a socket it
+  holds read-only, and a dropped document takes the asks that counted its
+  edits with it. A picker's input names the document client that opened it, so
   another device draws it inert (`packages/editor/src/live/picker-owner.ts`).
   Rejected: a session writing block ops after a pause (a diff, a merge and a
   conflict path a live document has no need of); seeding a document from a
   device (two opening an empty note would each write one); presence (no
   surface draws it); waiting for a quiet socket's close (it can take minutes);
   the page's own location (a page loaded from a file or a dev server is not
-  the cloud).
+  the cloud); dialing while the host is offline (a ticket asked and a socket
+  tried every few seconds, for nothing).
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
   SHA.** `openItem`, `readItemBlocks`, `onItemsChanged` and `notes` (a note's

@@ -149,12 +149,14 @@ src/
 - `item/note-connection.ts` — a note's live document, opened by its item's id
   over the host's `notes` port: y-partyserver's provider dials the note's
   object at the cloud origin the host names, on a fresh ticket, the document
-  shows once it has synced, a ping every 20 s finds a socket gone quiet, and
-  the status says whether the note is there, whether an edit reaches it now
-  and whether the note holds its edits. `item/item-editor.tsx` is its
+  shows once it has synced, a ping every 20 s finds a socket gone quiet,
+  nothing dials while the host is offline, and the status says whether the
+  note is there and, once it is open, whether an edit made now is live,
+  offline, held or refused. `item/item-editor.tsx` is its
   surface: a connection per item id and an editor per document, drawn once it
   has synced (or a line saying the library holds no such item), read-only
-  while the host is offline, the socket down or the note held, and the open
+  while the host is offline, the socket down, the note held or a frame
+  refused, and the open
   note it hands its host (`onNote`) answers a leave (`whenSaved`), which
   `item/note-holds.ts` asks before a host lets the note go. A note that cannot
   open while the host is offline draws what the host holds of it through

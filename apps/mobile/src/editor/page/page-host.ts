@@ -57,14 +57,23 @@ export interface PageHost {
 }
 
 const stateOf = (note: LeavingNote | null): NoteState => {
-  if (note === null) {
+  const status = note?.status();
+  if (status?.kind !== "open") {
     return "none";
   }
-  const status = note.status();
-  if (status.kind !== "open") {
-    return "none";
+  switch (status.edits.kind) {
+    case "live": {
+      return "editing";
+    }
+    case "offline": {
+      return status.unsent ? "editing" : "reading";
+    }
+    case "held":
+    case "refused": {
+      return "reading";
+    }
+    // no default
   }
-  return status.held === null && (status.live || note.unsent()) ? "editing" : "reading";
 };
 
 // one read at a time, the last signal it missed read once it ends; a read that fails waits for the

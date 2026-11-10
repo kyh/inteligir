@@ -65,7 +65,7 @@ const pageOver = () => {
 };
 
 // an open note whose status the suite moves, and whose save it answers
-const noteAt = (start: Status, { unsent = false } = {}) => {
+const noteAt = (start: Status) => {
   let status = start;
   const saved = deferred<boolean>();
   const listeners = new Set<() => void>();
@@ -77,7 +77,6 @@ const noteAt = (start: Status, { unsent = false } = {}) => {
         listeners.delete(listener);
       };
     },
-    unsent: () => unsent,
     whenSaved: async () => await saved.promise,
   };
   return {
@@ -93,7 +92,11 @@ const noteAt = (start: Status, { unsent = false } = {}) => {
   };
 };
 
-const open = (live: boolean): Status => ({ held: null, kind: "open", live });
+const open = (live: boolean, unsent = false): Status => ({
+  edits: { kind: live ? "live" : "offline" },
+  kind: "open",
+  unsent,
+});
 
 describe("the note page's host", () => {
   it("dials the note's socket at the cloud's origin, on a ticket native fetched", async () => {
@@ -205,7 +208,7 @@ describe("the note page's host", () => {
     host.noteIs(null);
     host.noteIs(live.note);
     live.move(open(true));
-    live.move({ held: "deleted", kind: "open", live: true });
+    live.move({ edits: { held: "deleted", kind: "held" }, kind: "open", unsent: false });
     host.noteIs(null);
 
     expect(states).toStrictEqual(["none", "editing", "reading", "none"]);
@@ -215,9 +218,9 @@ describe("the note page's host", () => {
   it("counts an edit no connection carried yet as editing, and a note that took none as reading", () => {
     const { host, states } = pageOver();
 
-    host.noteIs(noteAt(open(false), { unsent: true }).note);
+    host.noteIs(noteAt(open(false, true)).note);
     host.noteIs(noteAt(open(false)).note);
-    host.noteIs(noteAt({ kind: "opening" }).note);
+    host.noteIs(noteAt({ kind: "opening", stalled: false }).note);
 
     expect(states).toStrictEqual(["editing", "reading", "none"]);
   });
