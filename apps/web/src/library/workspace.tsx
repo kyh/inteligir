@@ -39,7 +39,6 @@ import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
 import { leaveItem, noteHolds } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
-import type { PageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
@@ -106,7 +105,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const findRef = useRef<PendingFind | null>(null);
   // the open item's note, which the leave guard asks about what it holds
   const [note, setNote] = useState<OpenNote | null>(null);
-  const hostRef = useRef<PageEditorHost | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
@@ -165,19 +163,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     storeScope({ kind: "tag", tag });
     open(null);
   });
+  // installed as the workspace first renders: an open item's editor reads the host as it renders,
+  // and the workspace's effects run after its children's first render
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
   useEffect(() => {
-    hostRef.current = installPageEditorHost({
-      askAgent: hostAsksAgent,
-      cloud,
-      openItem: hostOpens,
-      showTag: hostShowsTag,
-      socket,
-      wire,
-    });
+    host.bind({ askAgent: hostAsksAgent, openItem: hostOpens, showTag: hostShowsTag });
     return () => {
-      hostRef.current = null;
+      host.bind(null);
     };
-  }, [cloud, socket, wire]);
+  }, [host]);
   useEffect(() => {
     if (titles !== undefined) {
       setLibraryTitles(titles.targets);
@@ -194,7 +189,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   );
 
   useEffect(() => {
-    hostRef.current?.showing(openItem);
+    host.showing(openItem);
+  }, [host, openItem]);
+  useEffect(() => {
     // a search's find waits for the item it opened, and for no other
     if (findRef.current !== null && findRef.current.itemId !== openItem) {
       findRef.current.stop();

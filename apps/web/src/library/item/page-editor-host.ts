@@ -20,18 +20,25 @@ import type { LibrarySocket } from "../cloud/use-library-socket";
 import type { CloudWire } from "../cloud/v1";
 import { newId } from "../library/new-id";
 
-export interface PageEditorHost {
-  // the item the editor shows now, whose folder a note it makes lands in; null over the library
-  readonly showing: (itemId: string | null) => void;
-}
-
-export interface PageEditorPorts {
-  readonly wire: Pick<CloudWire, "client">;
-  readonly cloud: FileCloud;
-  readonly socket: Pick<LibrarySocket, "onItems">;
+// what a link, Ask the agent and a tag do on the page
+interface PageEditorActions {
   readonly openItem: (itemId: string) => void;
   readonly askAgent: (selection: string) => void;
   readonly showTag: (tag: string) => void;
+}
+
+interface PageEditorHost {
+  // the item the editor shows now, whose folder a note it makes lands in; null over the library
+  readonly showing: (itemId: string | null) => void;
+  // the host is installed before an open item first renders, which is before the workspace's
+  // effects can hand it these; until they are bound, a press does nothing
+  readonly bind: (actions: PageEditorActions | null) => void;
+}
+
+interface PageEditorPorts {
+  readonly wire: Pick<CloudWire, "client">;
+  readonly cloud: FileCloud;
+  readonly socket: Pick<LibrarySocket, "onItems">;
 }
 
 // a read the cell answers NOT_FOUND for is no item, and any other refusal is the read's failure
@@ -49,6 +56,7 @@ const orNone = async <T>(read: Promise<T>): Promise<T | null> => {
 export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost => {
   const { client } = ports.wire;
   let showing: string | null = null;
+  let actions: PageEditorActions | null = null;
 
   const io: EditorHostIo = {
     fileMaxBytes: BLOB_MAX_BYTES,
@@ -69,7 +77,9 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       ports.socket.onItems((moved) => {
         listener(moved === null ? null : new Set(moved.keys()));
       }),
-    openItem: ports.openItem,
+    openItem: (itemId) => {
+      actions?.openItem(itemId);
+    },
     readFile: async (sha) => await readFile(ports.cloud, sha),
     readItemBlocks: async (itemId) => {
       const item = await orNone(client.library.items.get({ id: itemId }));
@@ -80,7 +90,14 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
 
   installEditorHost({
     actions: {
-      agent: { askAboutSelection: ports.askAgent, showTag: ports.showTag },
+      agent: {
+        askAboutSelection: (selection) => {
+          actions?.askAgent(selection);
+        },
+        showTag: (tag) => {
+          actions?.showTag(tag);
+        },
+      },
       items: {
         createNote: async (note) => {
           const beside =
@@ -102,6 +119,9 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   });
 
   return {
+    bind: (next) => {
+      actions = next;
+    },
     showing: (itemId) => {
       showing = itemId;
     },
