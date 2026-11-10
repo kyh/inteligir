@@ -153,11 +153,11 @@ pub fn create_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Brings the window forward; false when there is none.
+/// Brings the window forward, when there is one.
 #[cfg(target_os = "macos")]
-pub fn show_main<R: Runtime>(app: &AppHandle<R>) -> bool {
+pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app.get_webview_window(MAIN) else {
-        return false;
+        return;
     };
     let shown = window
         .unminimize()
@@ -166,7 +166,6 @@ pub fn show_main<R: Runtime>(app: &AppHandle<R>) -> bool {
     if let Err(error) = shown {
         eprintln!("[desktop] could not bring the window forward: {error}");
     }
-    true
 }
 
 /// View › Reload: the page the window shows, or the site's own once a launch with no connection

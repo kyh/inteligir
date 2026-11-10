@@ -10,12 +10,13 @@ import {
   importsOf,
   isTestFile,
   manifestWorkspaceDeps,
+  readJsonFile,
   REPO_ROOT,
   resolveWorkspace,
   sourceOf,
   workspaceFiles,
-  workspaceSourceFiles,
   workspaces,
+  workspaceSourceFiles,
 } from "./repo";
 import type { Workspace } from "./repo";
 import { GALLERY_DIR } from "./ui-package";
@@ -410,8 +411,10 @@ const workspaceExportFile = (specifier: string): string | null => {
   if (workspace === null) {
     return null;
   }
-  const { exports } = exportsSchema.parse(
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, workspace.dir, "package.json"), "utf-8")),
+  const { exports } = readJsonFile(
+    `${workspace.dir}/package.json`,
+    exportsSchema,
+    'a package.json whose "exports", when present, is a map',
   );
   const target = z.string().safeParse(exports?.[`.${specifier.slice(workspace.name.length)}`]);
   return target.success ? path.posix.join(workspace.dir, target.data) : null;

@@ -38,9 +38,9 @@ src/entrypoints/welcome/          the page an install and Options open: whose li
 src/background/connection.ts      the account and the cloud, kept in storage, and the connect page's messages
 src/background/sign-in.ts         the browser's session cookie for the cloud, and whose it is
 src/background/listeners.ts       who the worker hears: its own pages and the one connect page
-src/background/cloud.ts           the /v1 calls, their deadline and what a failure means
+src/background/cloud.ts           the /v1 calls, their deadline and what a call missed by
 src/background/save-page.ts       a tab, a link or a picture saved
-src/background/save-queue.ts      a save that waits, and the alarm that sends it
+src/background/save-queue.ts      how a try settles a save, a save that waits, and the one pass that sends it
 src/background/capture-tab.ts     the capture injected, and a cover's bytes fetched
 src/background/menus.ts           what each right-click item saves
 src/capture/                      the capture's clone of the page and the shape it answers

@@ -80,11 +80,20 @@ a bullet is written and cited.
   Rust drives it all behind three commands and one `update-state` event, which
   the page parses (`apps/web/src/library/shell/desktop-bridge.ts`); the window's
   one capability grants those alone (`apps/desktop/src-tauri/capabilities/web-app.json`),
-  and the app manifest names them (`apps/desktop/src-tauri/build.rs`).
-  Rejected: an update that downloads itself and installs on quit (a timer and a
-  quit hook for what one click does); the plugin's own API in the page (the
-  page deploys apart from the installed shell, so it speaks the shell's
-  contract). `apps/desktop/src-tauri/src/updater.rs`.
+  and the app manifest names them (`apps/desktop/src-tauri/build.rs`). The
+  session is one phase, the found release and its verified bytes held inside
+  the phase that has them, moved by one pure step a command or a download's
+  progress feeds an event: an ask that does not fit the phase is a no-op, so a
+  restart before a download, a second restart or a download no check found
+  moves nothing, and a check again lets the found release go; the step hands
+  back the check, the download or the install to run outside the lock, and
+  installing reads to the page as downloaded until the app restarts. Rejected:
+  an update that downloads itself and installs on quit (a timer and a quit hook
+  for what one click does); the plugin's own API in the page (the page deploys
+  apart from the installed shell, so it speaks the shell's contract); the found
+  update and the download each in a field of its own beside the state (two
+  fields could disagree with the state the page was shown).
+  `apps/desktop/src-tauri/src/updater.rs`.
 
 - **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND A PRINT IS ALWAYS LIGHT** (#889),
   since WKWebView has no session-wide spell-check switch. Spell check is a page
@@ -109,8 +118,8 @@ a bullet is written and cited.
 ## Repo guards, vendoring and tooling
 
 - **THE SHELL IS PROVED BY ITS UNIT TESTS AND THE PACKAGED SMOKE, NEVER ON
-  PRODUCTION.** `cargo test` covers the pin, the local-site override and the
-  update states' wire; `pnpm smoke:desktop`, on CI's macOS job, packs the .app,
+  PRODUCTION.** `cargo test` covers the pin, the local-site override, the
+  update session's step and its wire; `pnpm smoke:desktop`, on CI's macOS job, packs the .app,
   checks its bundle and signature, and opens its window on a Worker the smoke
   boots on this machine (`tools/e2e/src/serve-worker.ts`) until the library's
   page has loaded from it. The page itself is the tab's scenarios' to drive.

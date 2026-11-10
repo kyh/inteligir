@@ -9,16 +9,16 @@ import { expect } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
 const DEADLINE_MS = 30_000;
 const PARAGRAPH = "The heron at the weir, this morning.";
 
-// a 1x1 transparent png
-const PIXEL_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-const PIXEL_SHA = createHash("sha256").update(Buffer.from(PIXEL_BASE64, "base64")).digest("hex");
+const PIXEL = solidPng(1, 1, [0, 0, 0, 0]);
+const PIXEL_BASE64 = Buffer.from(PIXEL).toString("base64");
+const PIXEL_SHA = createHash("sha256").update(PIXEL).digest("hex");
 
 // a screenshot pasted into the note's text as the browser hands one over: a file, and no markup
 const PASTE_PICTURE = `(() => {
@@ -56,18 +56,26 @@ export const notePictureBrowser: Scenario = {
   name: "note-picture-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let noteId = "";
-    const { browser, library, worker } = await openLibraryTab(ctx, "note-picture", {
-      path: () => `?item=${noteId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: noteId,
+      worker,
+    } = await openLibraryTab(
+      ctx,
+      "note-picture",
+      async (seeding) => {
         const { item } = await seeding.items.createNote({
           markdown: `${PARAGRAPH}\n`,
           title: "Field notes",
         });
-        noteId = item.id;
+        return item.id;
       },
-    });
+      {
+        path: (id) => `?item=${id}`,
+        ready: EDITOR,
+      },
+    );
 
     ctx.log("a picture pasted at the end of the paragraph draws at once, from the tab's own bytes");
     await caretToEndOf(browser, PARAGRAPH);

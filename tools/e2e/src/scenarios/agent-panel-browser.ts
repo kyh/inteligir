@@ -7,7 +7,7 @@
 import { modChord, clickButtonIn, untilBodyHolds } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { openLibraryTab } from "../harness/library-tab";
+import { agentSets, isDeleted, openLibraryTab } from "../harness/library-tab";
 import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -21,11 +21,6 @@ const DEADLINE_MS = 60_000;
 const LONG_REPLY_CHARS = 6000;
 const PREVIEW = "[data-agent-preview]";
 
-const isDeleted = async (library: Library, id: string): Promise<boolean> => {
-  const { fields } = await library.items.read({ id });
-  return fields.deletedAt !== null;
-};
-
 const untilDeleted = async (library: Library, id: string, deleted: boolean): Promise<void> => {
   await pollUntil(
     async () => await isDeleted(library, id),
@@ -37,26 +32,27 @@ const untilDeleted = async (library: Library, id: string, deleted: boolean): Pro
   );
 };
 
-// the agent's change sets, newest first
-const agentSets = async (library: Library) => {
-  const { changeSets } = await library.history.list({});
-  return changeSets.filter((set) => set.actor === "agent");
-};
-
 export const agentPanelBrowser: Scenario = {
   description:
     "in the tab, against a scripted Claude: ⌘K opens the panel's composer, a sent message becomes the account's conversation with its turn's work drawn, its reply shown as it is written and gone once the reply lands, the note it writes reaches the grid; a deletion it asks for waits on Approve and runs once allowed; Undo this conversation takes both turns back; and a send past the day's allowance is refused in the person's words",
   name: "agent-panel-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let binId = "";
-    const { browser, library } = await openLibraryTab(ctx, "agent-panel", {
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: binId,
+    } = await openLibraryTab(
+      ctx,
+      "agent-panel",
+      async (seeding) => {
         const { item } = await seeding.items.createNote(BIN);
-        binId = item.id;
+        return item.id;
       },
-      worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
-    });
+      {
+        worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
+      },
+    );
     await browser(["wait", libraryCard(binId)], DEADLINE_MS);
 
     ctx.log("⌘K opens the composer, and a message becomes a conversation");

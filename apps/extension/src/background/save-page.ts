@@ -5,7 +5,8 @@
 // or one whose reading the cloud refuses as a call, is saved as its link, for the cloud's fill to
 // read, and a page with no web address is refused. Every save is queued before its first call
 // (./save-queue), and one the cloud did not answer is sent again as its link, as is one made while
-// its account is signed out, once it signs in again. A link or a picture a right-click names is
+// its account is signed out, once it signs in again, and one met as too old a build, once the
+// browser updates the extension. A link or a picture a right-click names is
 // saved by its address, and a picture a page drew from its own bytes as a file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
@@ -16,16 +17,17 @@ import { originalFileName } from "@repo/contract/items/item-name";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { sniffMedia } from "@repo/contract/items/sniff-media";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
+import { QuotaError } from "@repo/contract/v1/errors";
 import { readHtml } from "@repo/page-reader/read-html";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 
 import type { CapturedPage } from "../capture/captured-page";
-import type { Outcome } from "../messages";
+import type { Outcome, OutcomeReason, WaitsFor } from "../messages";
 import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
-import { failureOf } from "./cloud";
-import type { Cloud, Saved } from "./cloud";
-import { accountGone, dropSave, keepSave, linkOf, markWaiting } from "./save-queue";
-import type { QueuedSave } from "./save-queue";
+import { sendFile, sent } from "./cloud";
+import type { Cloud, Saved, Sent } from "./cloud";
+import { accountGone, keepSave, linkOf, settle, settledBy } from "./save-queue";
+import type { QueuedSave, Settled } from "./save-queue";
 import type { Session, SignIn } from "./sign-in";
 
 export interface SaveDeps {
@@ -52,39 +54,33 @@ const refused = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outco
   reason,
 });
 
-const savedOutcome = (saved: Saved): Outcome => ({
-  created: saved.created,
-  kind: "saved",
-  title: saved.item.fields.title,
-});
-
-// a save that waits for its account to sign in again, which the alarm then sends
-const waitsForSignIn = async (queued: QueuedSave): Promise<Outcome> => {
-  await markWaiting(queued);
-  return { kind: "queued", waitsFor: "sign-in" };
-};
-
-// how a call that did not land ends the save it made
-const settleFailure = async (queued: QueuedSave, cause: unknown): Promise<Outcome> => {
-  const failure = failureOf(cause);
-  switch (failure.kind) {
-    case "unanswered": {
-      await markWaiting(queued);
-      return { kind: "queued", waitsFor: "connection" };
+// how a kept save's try left it, said to the person
+const outcomeOf = (settled: Settled<Saved>): Outcome => {
+  switch (settled.kind) {
+    case "landed": {
+      return {
+        created: settled.answer.created,
+        kind: "saved",
+        title: settled.answer.item.fields.title,
+      };
     }
-    case "signed-out": {
-      return await waitsForSignIn(queued);
+    case "waiting": {
+      return { kind: "queued", waitsFor: settled.for };
+    }
+    case "dropped": {
+      return refused(settled.reason);
     }
     case "gone": {
-      await accountGone(queued.email);
       return refused("not-connected");
-    }
-    case "refused": {
-      await dropSave(queued);
-      return refused(failure.reason);
     }
     // no default
   }
+};
+
+// a save that waits for its account to sign in again, which the alarm then sends
+const waitsForSignIn = async (queued: QueuedSave): Promise<Outcome> => {
+  await keepSave({ ...queued, firstTry: false });
+  return { kind: "queued", waitsFor: "sign-in" };
 };
 
 // the page as the library's read item, or null when it held no text the reader could keep (a shell
@@ -101,23 +97,22 @@ const readCapture = (deps: SaveDeps, html: string, url: string): ExtractedPageBl
 
 // a reading the cloud will not take as a call, such as a list past the blocks one write holds: its
 // address may still land, where a full library or a build too old would be refused the link too
-const refusesReading = (cause: unknown): boolean => {
-  const failure = failureOf(cause);
-  return (
-    failure.kind === "refused" && (failure.reason === "failed" || failure.reason === "too-large")
-  );
-};
+const refusesReading = (answer: Sent<Saved>): boolean =>
+  answer.kind === "malformed" || (answer.kind === "refused" && answer.code !== QuotaError.code);
+
+const NO_COVER = { answer: null, kind: "landed" } as const;
 
 // the first candidate this browser can read that is a picture of a cover's size, kept by its sha;
-// one the cloud refused is no cover, and a call it never answered waits with the save. A page in
-// private space may name a cover there, a public one never, so no page sends this browser into the
-// person's network. No more than COVER_TRIES are fetched, which bounds how long a first try runs
+// one the cloud refused is no cover, and a call that met no answer or an ended session settles the
+// save with it. A page in private space may name a cover there, a public one never, so no page
+// sends this browser into the person's network. No more than COVER_TRIES are fetched, which bounds
+// how long a first try runs
 const keepCover = async (
   deps: SaveDeps,
   cloud: Cloud,
   pageUrl: string,
   candidates: readonly string[],
-): Promise<string | null> => {
+): Promise<Sent<string | null>> => {
   for (const candidate of [...new Set(candidates)].slice(0, COVER_TRIES)) {
     if (!namesPrivateSpace(pageUrl) && namesPrivateSpace(candidate)) {
       continue;
@@ -127,16 +122,10 @@ const keepCover = async (
     if (bytes === null || cover === null) {
       continue;
     }
-    try {
-      return await cloud.putFile(bytes, cover.mime);
-    } catch (error) {
-      if (failureOf(error).kind !== "refused") {
-        throw error;
-      }
-      return null;
-    }
+    const kept = await sendFile(cloud, bytes, cover.mime);
+    return kept.kind === "refused" ? NO_COVER : kept;
   }
-  return null;
+  return NO_COVER;
 };
 
 const queuedFor = (
@@ -155,16 +144,10 @@ const queuedFor = (
   };
 };
 
-// a save kept before its call, sent, and let go once it landed or can never land
-const sendKept = async (queued: QueuedSave, call: () => Promise<Saved>): Promise<Outcome> => {
+// a save kept before its call goes, then settled by the call's answer as every resend is
+const sendKept = async (queued: QueuedSave, send: () => Promise<Sent<Saved>>): Promise<Outcome> => {
   await keepSave(queued);
-  try {
-    const saved = await call();
-    await dropSave(queued);
-    return savedOutcome(saved);
-  } catch (error) {
-    return await settleFailure(queued, error);
-  }
+  return outcomeOf(await settle(queued, send));
 };
 
 export interface TabSave {
@@ -214,29 +197,31 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   const html = page?.html ?? null;
   const read = html === null ? null : readCapture(deps, html, url);
   const cloud = deps.cloud(session);
+  const saveLink = async () => await sent(async () => await cloud.saveLink(linkOf(queued)));
   return await sendKept(queued, async () => {
     if (read === null) {
-      return await cloud.saveLink(linkOf(queued));
+      return await saveLink();
     }
-    try {
-      return await cloud.save({
-        article: [...read.article.blocks],
-        coverSha: await keepCover(deps, cloud, queued.url, read.facts.images),
-        facts: savedFacts(read.facts),
-        folderId: null,
-        id: queued.id,
-        opId: queued.opId,
-        savedAt: queued.savedAt,
-        tags: [],
-        title: fieldLine(read.facts.title) ?? queued.title,
-        url: queued.url,
-      });
-    } catch (error) {
-      if (refusesReading(error)) {
-        return await cloud.saveLink(linkOf(queued));
-      }
-      throw error;
+    const cover = await keepCover(deps, cloud, queued.url, read.facts.images);
+    if (cover.kind !== "landed") {
+      return cover;
     }
+    const reading = await sent(
+      async () =>
+        await cloud.save({
+          article: [...read.article.blocks],
+          coverSha: cover.answer,
+          facts: savedFacts(read.facts),
+          folderId: null,
+          id: queued.id,
+          opId: queued.opId,
+          savedAt: queued.savedAt,
+          tags: [],
+          title: fieldLine(read.facts.title) ?? queued.title,
+          url: queued.url,
+        }),
+    );
+    return refusesReading(reading) ? await saveLink() : reading;
   });
 };
 
@@ -254,15 +239,25 @@ export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome>
     case "signed-in": {
       const queued = queuedFor(deps, signIn.session.email, { title: "", url });
       const cloud = deps.cloud(signIn.session);
-      return await sendKept(queued, async () => await cloud.saveLink(linkOf(queued)));
+      return await sendKept(
+        queued,
+        async () => await sent(async () => await cloud.saveLink(linkOf(queued))),
+      );
     }
     // no default
   }
 };
 
+// a picture's bytes wait in no queue, so what would keep a save waiting refuses a picture
+const PICTURE_WAITS = {
+  connection: "needs-connection",
+  "sign-in": "signed-out",
+  update: "update-extension",
+} as const satisfies Record<WaitsFor, OutcomeReason>;
+
 // a picture a page drew from its own bytes (a data: address) has no address to save, so its
 // bytes go, named after the page it was on; they are never queued, so one the cloud did not take
-// says it needs a connection, or a sign-in
+// says it needs a connection, a sign-in or an update
 export const savePicture = async (
   deps: SaveDeps,
   picture: { readonly bytes: Uint8Array<ArrayBuffer>; readonly pageUrl: string },
@@ -284,35 +279,37 @@ export const savePicture = async (
   }
   const cloud = deps.cloud(session);
   const now = deps.now();
-  try {
-    const sha = await cloud.putFile(picture.bytes, sniffed.mediaType);
-    const made = await cloud.createFile({
-      folderId: null,
-      id: uuidV7(now, deps.randomBytes(16)),
-      name: originalFileName(picture.pageUrl, sniffed.mediaType),
-      opId: uuidV7(now, deps.randomBytes(16)),
-      savedAt: now,
-      sha,
-      tags: [],
-    });
-    return { created: true, kind: "saved", title: made.item.fields.title };
-  } catch (error) {
-    const failure = failureOf(error);
-    switch (failure.kind) {
-      case "signed-out": {
-        return refused("signed-out");
-      }
-      case "gone": {
-        await accountGone(session.email);
-        return refused("not-connected");
-      }
-      case "refused": {
-        return refused(failure.reason);
-      }
-      case "unanswered": {
-        return refused("needs-connection");
-      }
-      // no default
+  const stored = await sendFile(cloud, picture.bytes, sniffed.mediaType);
+  const made =
+    stored.kind === "landed"
+      ? await sent(
+          async () =>
+            await cloud.createFile({
+              folderId: null,
+              id: uuidV7(now, deps.randomBytes(16)),
+              name: originalFileName(picture.pageUrl, sniffed.mediaType),
+              opId: uuidV7(now, deps.randomBytes(16)),
+              savedAt: now,
+              sha: stored.answer,
+              tags: [],
+            }),
+        )
+      : stored;
+  const settled = settledBy(made);
+  switch (settled.kind) {
+    case "landed": {
+      return { created: true, kind: "saved", title: settled.answer.item.fields.title };
     }
+    case "waiting": {
+      return refused(PICTURE_WAITS[settled.for]);
+    }
+    case "dropped": {
+      return refused(settled.reason);
+    }
+    case "gone": {
+      await accountGone(session.email);
+      return refused("not-connected");
+    }
+    // no default
   }
 };

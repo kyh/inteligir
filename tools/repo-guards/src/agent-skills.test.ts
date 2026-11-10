@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT } from "./repo";
+import { readTextFile, REPO_ROOT } from "./repo";
 
 const SKILLS_DIR = "packages/agent-skills/skills";
 const HUB = "inteligir-notes";
@@ -22,8 +22,6 @@ const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
 const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
 
 const AGENT_PROMPT_SCRIPT = "packages/service/scripts/agent-prompt.ts";
-
-const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
 
 const skillDirs = (): string[] =>
   fs
@@ -106,7 +104,7 @@ describe("the agent skills", () => {
   });
 
   describe("the dialect's fence languages", () => {
-    const exported = [...readRepoFile(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
+    const exported = [...readTextFile(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
       (match) => match.groups?.lang ?? "",
     );
 

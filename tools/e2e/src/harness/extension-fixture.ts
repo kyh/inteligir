@@ -10,11 +10,9 @@ import path from "node:path";
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import { EXTENSION_ID } from "@repo/contract/extension/extension-identity";
 import { z } from "zod";
-import { clickButtonIn, parseEval, press, untilBodyHolds } from "./agent-browser";
+import { clickButtonIn, parseEval, submitSiteSignIn, untilBodyHolds } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";
 import { expectEq } from "./assert";
-import { OWNER } from "./cloud-account";
-import { SUBMIT_READY } from "./selectors";
 
 // what the scenario's browser launches with on every call: the profile and the dev build
 export const extensionLaunchFlags = (args: {
@@ -41,14 +39,7 @@ export const asLocalhost = (origin: string): string => {
 // signs the browser in on the site at `cloudOrigin`, as a person does, and lands on the connect
 // page, which the sign-in comes back to
 export const signInOnSite = async (browser: AgentBrowser, cloudOrigin: string): Promise<void> => {
-  const next = new URLSearchParams({ next: CONNECT_EXTENSION_PATH }).toString();
-  await browser(["open", `${cloudOrigin}/app/sign-in?${next}`], 60_000);
-  await browser(["wait", SUBMIT_READY], 60_000);
-  await browser(["fill", "#email", OWNER.email]);
-  await browser(["fill", "#password", OWNER.password]);
-  // pressed in the page, not clicked: the welcome tab the extension opens as it installs can stand
-  // in front of this one, and a hidden tab takes no pointer
-  await press(browser, SUBMIT_READY);
+  await submitSiteSignIn(browser, cloudOrigin, CONNECT_EXTENSION_PATH);
   await untilBodyHolds(browser, ["Connect the browser extension"], 60_000);
 };
 

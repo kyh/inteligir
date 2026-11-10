@@ -95,12 +95,9 @@ export const readFile = async (
   return await fetch(`${worker.origin}${V1_BLOBS_PATH}/${sha}`, { headers: asked });
 };
 
-// an item's every field as the cell holds it, read the way an app opens it, or null for an item it
-// holds no live row of
-export const itemFieldsOf = async (
-  library: V1Client["library"],
-  id: string,
-): Promise<LibraryItemFields | null> => {
+// an item as the cell holds it, read the way an app opens it, or null for an item it holds no live
+// row of
+export const heldItemOf = async (library: V1Client["library"], id: string) => {
   const [error, item] = await safe(library.items.get({ id }));
   if (isDefinedError(error) && error.code === "NOT_FOUND") {
     return null;
@@ -108,7 +105,16 @@ export const itemFieldsOf = async (
   if (error !== null) {
     throw error;
   }
-  return item.fields;
+  return item;
+};
+
+// an item's every field as the cell holds it, or null for an item it holds no live row of
+export const itemFieldsOf = async (
+  library: V1Client["library"],
+  id: string,
+): Promise<LibraryItemFields | null> => {
+  const item = await heldItemOf(library, id);
+  return item?.fields ?? null;
 };
 
 const accountIdSchema = z.object({ accountId: z.string().nullable() });

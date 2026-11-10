@@ -1,47 +1,59 @@
-import { ORPCError } from "@orpc/client";
-import { describe, expect, it } from "vitest";
+import { fileSha } from "@repo/contract/library/file-sha";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { failureOf, FileRefusedError } from "./cloud";
+import { cloudOf, sendFile } from "./cloud";
+import { SESSION } from "./test-support/fake-cloud";
 
-describe("what a failed call means for its save", () => {
-  it("is a sign-in ended for a session the cloud no longer holds", () => {
-    expect(failureOf(new ORPCError("UNAUTHORIZED"))).toStrictEqual({ kind: "signed-out" });
-    expect(failureOf(new FileRefusedError(401))).toStrictEqual({ kind: "signed-out" });
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+// the cloud: every request recorded, a file's bytes stored, and every call answered as `answer` says
+const cloudAnswering = (answer: (request: Request) => Response) => {
+  const asked: Request[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const request = new Request(input, init);
+      asked.push(request);
+      return answer(request);
+    }),
+  );
+  return asked;
+};
+
+describe("the extension's calls to its cloud", () => {
+  it("send a file's bytes by their SHA-256, under the session's bearer and this build, to a deadline", async () => {
+    const asked = cloudAnswering(() => new Response(null, { status: 201 }));
+    const bytes = new Uint8Array([1, 2, 3]);
+    await expect(sendFile(cloudOf(SESSION, "0.6.0"), bytes, "image/png")).resolves.toStrictEqual({
+      answer: fileSha(bytes),
+      kind: "landed",
+    });
+    const [put] = asked;
+    expect(put?.method).toBe("PUT");
+    expect(put?.url).toBe(`${SESSION.origin}/v1/blobs/${fileSha(bytes)}`);
+    expect(put?.headers.get("authorization")).toBe(`Bearer ${SESSION.bearer}`);
+    expect(put?.headers.get("x-inteligir-build")).toBe("0.6.0+extension");
+    expect(put?.headers.get("content-type")).toBe("image/png");
+    expect(put?.signal.aborted).toBe(false);
   });
 
-  it("is an account gone for one the cloud deleted, which no sign-in brings back", () => {
-    expect(failureOf(new ORPCError("GONE"))).toStrictEqual({ kind: "gone" });
-    expect(failureOf(new FileRefusedError(410))).toStrictEqual({ kind: "gone" });
+  it("read a file the cloud refused by the code its call would answer", async () => {
+    cloudAnswering(() => new Response(null, { status: 507 }));
+    await expect(
+      sendFile(cloudOf(SESSION, "0.6.0"), new Uint8Array([1]), "image/png"),
+    ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused" });
   });
 
-  it("is a refusal in the person's words where they can act on it", () => {
-    expect(failureOf(new ORPCError("CLIENT_OUTDATED"))).toStrictEqual({
-      kind: "refused",
-      reason: "update-extension",
-    });
-    expect(failureOf(new ORPCError("QUOTA"))).toStrictEqual({
-      kind: "refused",
-      reason: "library-full",
-    });
-    expect(failureOf(new FileRefusedError(413))).toStrictEqual({
-      kind: "refused",
-      reason: "too-large",
-    });
-    expect(failureOf(new ORPCError("BAD_REQUEST"))).toStrictEqual({
-      kind: "refused",
-      reason: "failed",
-    });
-  });
-
-  it("waits to be sent again when the cloud never answered, or answered a fault of its own", () => {
-    expect(failureOf(new TypeError("Failed to fetch"))).toStrictEqual({ kind: "unanswered" });
-    expect(failureOf(new DOMException("The operation timed out.", "TimeoutError"))).toStrictEqual({
-      kind: "unanswered",
-    });
-    expect(failureOf(new ORPCError("INTERNAL_SERVER_ERROR"))).toStrictEqual({ kind: "unanswered" });
-    expect(failureOf(new ORPCError("TOO_MANY_REQUESTS"))).toStrictEqual({
-      kind: "unanswered",
-    });
-    expect(failureOf(new FileRefusedError(503))).toStrictEqual({ kind: "unanswered" });
+  it("sign every call to the library the same way", async () => {
+    const asked = cloudAnswering(() => Response.json({ json: null }, { status: 500 }));
+    await cloudOf(SESSION, "0.6.0")
+      .saveLink({ id: "x", opId: "y", url: "https://example.test" })
+      .catch(() => null);
+    const [call] = asked;
+    expect(new URL(call?.url ?? "").pathname).toBe("/v1/rpc/library/items/saveLink");
+    expect(call?.headers.get("authorization")).toBe(`Bearer ${SESSION.bearer}`);
+    expect(call?.headers.get("x-inteligir-build")).toBe("0.6.0+extension");
   });
 });

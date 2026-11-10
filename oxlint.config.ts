@@ -180,6 +180,13 @@ const restrictedImports = (patterns: readonly ImportPattern[]) => [
   { paths: ORPC_V1_NAMES, patterns: [SERVER_ONLY, ...patterns] },
 ];
 
+// the Worker's code, which holds the connector's meta SERVER_ONLY keeps from a client, with the stubs
+// a file may not name
+const serviceImports = (...stubs: readonly ImportPattern[]) => [
+  "error",
+  { paths: ORPC_V1_NAMES, patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, ...stubs] },
+];
+
 // A test is one of the package's callers, so it may hand the code under test the platform.
 const platformPurity = (
   dir: string,
@@ -376,51 +383,22 @@ export default defineConfig({
       // after the first of these overrides, whose options this one replaces for the Worker's code
       excludeFiles: [...tests, ...THREAD_STUB_CALLERS, ...NOTE_STUB_CALLERS],
       files: ["packages/service/src/**"],
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          {
-            paths: ORPC_V1_NAMES,
-            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, THREAD_STUB, NOTE_STUB],
-          },
-        ],
-      },
+      rules: { "no-restricted-imports": serviceImports(THREAD_STUB, NOTE_STUB) },
     },
     {
       // the account's cell, which alone names a conversation's object and an item's note
       files: ["packages/service/src/library/library-do.ts"],
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          { paths: ORPC_V1_NAMES, patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK] },
-        ],
-      },
+      rules: { "no-restricted-imports": serviceImports() },
     },
     {
       excludeFiles: NOTE_STUB_CALLERS,
       files: THREAD_STUB_CALLERS,
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          {
-            paths: ORPC_V1_NAMES,
-            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, NOTE_STUB],
-          },
-        ],
-      },
+      rules: { "no-restricted-imports": serviceImports(NOTE_STUB) },
     },
     {
       excludeFiles: THREAD_STUB_CALLERS,
       files: NOTE_STUB_CALLERS,
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          {
-            paths: ORPC_V1_NAMES,
-            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, THREAD_STUB],
-          },
-        ],
-      },
+      rules: { "no-restricted-imports": serviceImports(THREAD_STUB) },
     },
     {
       // the cell's code, every module of which may await a note; its engine, which never awaits,

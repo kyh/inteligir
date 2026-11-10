@@ -6,7 +6,7 @@ import { describeExecError, exec } from "./exec";
 import { OWNER } from "./cloud-account";
 import type { CloudWorker } from "./cloud-worker";
 import { pollUntil } from "./poll";
-import { LIBRARY_RAIL, SUBMIT_READY } from "./selectors";
+import { EDITOR, LIBRARY_RAIL, SUBMIT_READY } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
@@ -53,74 +53,92 @@ export const parseEval = <T>(raw: string, schema: z.ZodType<T>): T => {
   return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
 };
 
-// by exact text inside one scope: a covered workspace may still hold a button of the same name.
-const pressButtonIn = (scope: string, name: string): string => `(() => {
-  const root = document.querySelector(${JSON.stringify(scope)});
-  const button = root ? [...root.querySelectorAll("button")].find((el) => el.textContent.trim() === ${JSON.stringify(name)}) : null;
-  if (!button) return "missing";
-  if (button.disabled) return "disabled";
-  button.click();
-  return "clicked";
-})()`;
-
-// retried until it lands: the button may draw a moment after its scope does, and one pressed a
-// render before its state enables it is refused.
-export const clickButtonIn = async (
-  browser: AgentBrowser,
-  scope: string,
-  name: string,
-  deadlineMs = 30_000,
-): Promise<void> => {
-  await pollUntil(
-    async () => parseEval(await browser(["eval", pressButtonIn(scope, name)]), z.string()),
-    (outcome) => outcome === "clicked",
-    { deadlineMs, describe: (outcome) => `the ${name} button in ${scope} stayed ${outcome}` },
-  );
-};
-
-// the element itself pressed, wherever it is drawn: a pointer's click lands where a sliding surface
-// was a moment ago. Retried until it lands, as `clickButtonIn` is.
-const pressElement = (selector: string): string => `(() => {
-  const element = document.querySelector(${JSON.stringify(selector)});
+// the element `find` evaluates to pressed in the page, wherever it is drawn: a pointer's click lands
+// where a sliding surface was a moment ago
+const pressScript = (find: string): string => `(() => {
+  const element = ${find};
   if (!(element instanceof HTMLElement)) return "missing";
   if (element instanceof HTMLButtonElement && element.disabled) return "disabled";
   element.click();
   return "clicked";
 })()`;
 
+// retried until it lands: the element may draw a moment after its scope does, and a button pressed
+// a render before its state enables it is refused.
+const pressUntilClicked = async (
+  browser: AgentBrowser,
+  find: string,
+  what: string,
+  deadlineMs: number,
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await browser(["eval", pressScript(find)]), z.string()),
+    (outcome) => outcome === "clicked",
+    { deadlineMs, describe: (outcome) => `${what} stayed ${outcome}` },
+  );
+};
+
+// the first button in `scope` whose trimmed text passes `test`, an expression over `text`
+const buttonIn = (scope: string, test: string): string =>
+  `(() => { const root = document.querySelector(${JSON.stringify(scope)}); return root ? [...root.querySelectorAll("button")].find((el) => { const text = el.textContent.trim(); return ${test}; }) : null; })()`;
+
+// by exact text inside one scope: a covered workspace may still hold a button of the same name.
+export const clickButtonIn = async (
+  browser: AgentBrowser,
+  scope: string,
+  name: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pressUntilClicked(
+    browser,
+    buttonIn(scope, `text === ${JSON.stringify(name)}`),
+    `the ${name} button in ${scope}`,
+    deadlineMs,
+  );
+};
+
 export const press = async (
   browser: AgentBrowser,
   selector: string,
   deadlineMs = 30_000,
 ): Promise<void> => {
-  await pollUntil(
-    async () => parseEval(await browser(["eval", pressElement(selector)]), z.string()),
-    (outcome) => outcome === "clicked",
-    { deadlineMs, describe: (outcome) => `${selector} stayed ${outcome}` },
+  await pressUntilClicked(
+    browser,
+    `document.querySelector(${JSON.stringify(selector)})`,
+    selector,
+    deadlineMs,
   );
 };
 
 // a row whose text runs on past its name (a rail row's count, a chip's), found by how it starts
-const pressStartingWith = (scope: string, prefix: string): string => `(() => {
-  const root = document.querySelector(${JSON.stringify(scope)});
-  const button = root ? [...root.querySelectorAll("button")].find((el) => el.textContent.trim().startsWith(${JSON.stringify(prefix)})) : null;
-  if (!button) return "missing";
-  if (button.disabled) return "disabled";
-  button.click();
-  return "clicked";
-})()`;
-
 export const clickStartingWith = async (
   browser: AgentBrowser,
   scope: string,
   prefix: string,
   deadlineMs = 30_000,
 ): Promise<void> => {
-  await pollUntil(
-    async () => parseEval(await browser(["eval", pressStartingWith(scope, prefix)]), z.string()),
-    (outcome) => outcome === "clicked",
-    { deadlineMs, describe: (outcome) => `the ${prefix} row in ${scope} stayed ${outcome}` },
+  await pressUntilClicked(
+    browser,
+    buttonIn(scope, `text.startsWith(${JSON.stringify(prefix)})`),
+    `the ${prefix} row in ${scope}`,
+    deadlineMs,
   );
+};
+
+// the site's own sign-in submitted as the account `signUp` made, coming back to `next` when it names
+// a page; each caller waits for where it lands. Pressed in the page, not clicked: the welcome tab the
+// extension opens as it installs can stand in front of this one, and a hidden tab takes no pointer
+export const submitSiteSignIn = async (
+  browser: AgentBrowser,
+  origin: string,
+  next?: string,
+): Promise<void> => {
+  const query = next === undefined ? "" : `?${new URLSearchParams({ next }).toString()}`;
+  await browser(["open", `${origin}/app/sign-in${query}`], 60_000);
+  await browser(["wait", SUBMIT_READY], 60_000);
+  await browser(["fill", "#email", OWNER.email]);
+  await browser(["fill", "#password", OWNER.password]);
+  await press(browser, SUBMIT_READY);
 };
 
 // longer than slate-react's 100 ms selection throttle, so a read taken this long after a move comes
@@ -195,6 +213,29 @@ export const openItemParam = async (browser: AgentBrowser): Promise<string | nul
     z.string(),
   ) || null;
 
+// the open editor's text, empty while none is drawn
+export const editorText = async (browser: AgentBrowser): Promise<string> =>
+  parseEval(
+    await browser([
+      "eval",
+      `String(document.querySelector(${JSON.stringify(EDITOR)})?.textContent ?? "")`,
+    ]),
+    z.string(),
+  );
+
+// the editor's text once it holds what `holds` waits for, else a failure that says `what` and what
+// the editor held
+export const untilEditorHolds = async (
+  browser: AgentBrowser,
+  holds: (text: string) => boolean,
+  what: string,
+  deadlineMs = 30_000,
+): Promise<string> =>
+  await pollUntil(async () => await editorText(browser), holds, {
+    deadlineMs,
+    describe: (text) => `${what}; the editor holds:\n${text}`,
+  });
+
 export const untilBodyHolds = async (
   browser: AgentBrowser,
   needles: readonly string[],
@@ -259,12 +300,8 @@ export const createScenarioBrowser = (
   launch: ScenarioBrowserOptions = {},
 ): ScenarioBrowser => {
   const run = agentBrowserSession(label, launch.launchFlags);
-  const signIn = async (signInUrl: string): Promise<void> => {
-    await run(["open", signInUrl], 60_000);
-    await run(["wait", SUBMIT_READY], 60_000);
-    await run(["fill", "#email", OWNER.email]);
-    await run(["fill", "#password", OWNER.password]);
-    await run(["click", SUBMIT_READY]);
+  const signIn = async (origin: string, next?: string): Promise<void> => {
+    await submitSiteSignIn(run, origin, next);
     await run(["wait", LIBRARY_RAIL], 90_000);
   };
   const controls: ScenarioBrowserControls = {
@@ -272,14 +309,13 @@ export const createScenarioBrowser = (
       await closeQuietly(run);
     },
     openLibrary: async (worker, options = {}) => {
-      const next = `${LIBRARY_PAGE_PATH}${options.path ?? ""}`;
-      await signIn(`${worker.origin}/app/sign-in?${new URLSearchParams({ next }).toString()}`);
+      await signIn(worker.origin, `${LIBRARY_PAGE_PATH}${options.path ?? ""}`);
       if (options.ready !== undefined) {
         await run(["wait", options.ready], 90_000);
       }
     },
     signInBare: async (worker) => {
-      await signIn(`${worker.origin}/app/sign-in`);
+      await signIn(worker.origin);
     },
   };
   return Object.assign(run, controls);

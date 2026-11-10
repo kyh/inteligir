@@ -16,13 +16,14 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { noteActions } from "@repo/mobile/editor/note-actions";
 import { z } from "zod";
 
-import { caretToEndOf, parseEval } from "../harness/agent-browser";
+import { caretToEndOf, editorText, parseEval, untilEditorHolds } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import { libraryOf, signedInPhone } from "../harness/phone-runtime";
 import { pollUntil } from "../harness/poll";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 import { turboBuildOnce } from "../harness/turbo-build";
@@ -44,9 +45,9 @@ const OTHER_TITLE = "Tide tables";
 const WEB_IMAGE_HOST = "images.example.test";
 const WEB_IMAGE = `https://${WEB_IMAGE_HOST}/heron.png`;
 // one red pixel, a PNG Chromium decodes
-const PIXEL_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
-const PIXEL_SHA = createHash("sha256").update(Buffer.from(PIXEL_BASE64, "base64")).digest("hex");
+const PIXEL = solidPng(1, 1, [255, 0, 0, 255]);
+const PIXEL_BASE64 = Buffer.from(PIXEL).toString("base64");
+const PIXEL_SHA = createHash("sha256").update(PIXEL).digest("hex");
 
 // every function prop the item screen hands the page (apps/mobile/src/editor/use-note-page.ts),
 // each a native action
@@ -185,17 +186,12 @@ const untilBooted = async (page: AgentBrowser): Promise<void> => {
   }
 };
 
-const editorText = async (browser: AgentBrowser): Promise<string> =>
-  await evalString(browser, `document.querySelector(${JSON.stringify(EDITOR)})?.textContent ?? ""`);
-
 const untilShows = async (browser: AgentBrowser, text: string, where: string): Promise<void> => {
-  await pollUntil(
-    async () => await editorText(browser),
+  await untilEditorHolds(
+    browser,
     (shown) => shown.includes(text),
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (shown) => `${where} never showed "${text}"; it holds:\n${shown}`,
-    },
+    `${where} never showed "${text}"`,
+    DEADLINE_MS,
   );
 };
 
@@ -402,29 +398,32 @@ export const phoneNoteEditor: Scenario = {
     });
     const pageUrl = await exportedPage(ctx.repoRoot);
 
-    let itemId = "";
-    let otherId = "";
-    const mac = await openLibraryTab(ctx, "mac", {
-      path: () => `?item=${itemId}`,
-      ready: EDITOR,
-      seed: async (library) => {
+    const mac = await openLibraryTab(
+      ctx,
+      "mac",
+      async (library) => {
         const other = await library.items.createNote({
           markdown: "High water at noon.\n",
           title: OTHER_TITLE,
         });
-        otherId = other.item.id;
-        itemId = newItemId();
+        const id = newItemId();
         await library.items.create({
-          blocks: noteBlocks(otherId).map((block) => ({ block, section: "note" })),
+          blocks: noteBlocks(other.item.id).map((block) => ({ block, section: "note" })),
           folderId: null,
-          id: itemId,
+          id,
           opId: crypto.randomUUID(),
           savedAt: Date.now(),
           tags: [],
           title: "Field notes",
         });
+        return { itemId: id, otherId: other.item.id };
       },
-    });
+      {
+        path: (seeded) => `?item=${seeded.itemId}`,
+        ready: EDITOR,
+      },
+    );
+    const { itemId, otherId } = mac.seeded;
     const cloud = await ctx.cloudLink(mac.worker);
     const phone = await signedInPhone(mac.worker.origin);
     const opened: string[] = [];

@@ -7,5 +7,5 @@
     // it (tools/messages-fake/tsconfig.json)
     "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

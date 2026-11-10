@@ -1,10 +1,10 @@
 import { isDefinedError, safe } from "@orpc/client";
-import type { V1Client } from "@repo/contract/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { signInPhone, signUp } from "../harness/cloud-account";
-import { fakeStats, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { pollUntil } from "../harness/poll";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { agentSets, isDeleted, untilThreadStatus } from "../harness/library-tab";
+import type { Library } from "../harness/library-tab";
 import type { Scenario } from "../harness/scenario";
 import { asPhone, v1Client } from "../harness/v1-wire";
 
@@ -15,9 +15,6 @@ const ALLOWANCE = { concurrentTurns: 2, dayCents: 100, dayTurns: 20 };
 
 // what each costly turn spends of the day's dollar
 const SPEND_CENTS = 30;
-
-type Library = V1Client["library"];
-type ThreadStatus = Awaited<ReturnType<Library["agent"]["list"]>>["threads"][number]["status"];
 
 // the stored events this scenario reads: their type, the call an approval waits on, how a turn
 // ended and how an approval was answered
@@ -37,35 +34,10 @@ const eventsOf = async (library: Library, threadId: string, type?: string) => {
   return type === undefined ? stored : stored.filter(({ event }) => event.type === type);
 };
 
-// the thread as the account lists it, once it reaches the status the turn leaves it in
-const untilStatus = async (
-  library: Library,
-  threadId: string,
-  status: ThreadStatus,
-): Promise<void> => {
-  await pollUntil(
-    async () => {
-      const { threads } = await library.agent.list({});
-      return threads.find((thread) => thread.id === threadId)?.status ?? null;
-    },
-    (current) => current === status,
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (current) => `thread ${threadId} is ${String(current)}, not ${status}`,
-    },
-  );
-};
-
 // how each of the thread's turns ended, in order
 const endingsOf = async (library: Library, threadId: string): Promise<string[]> => {
   const ended = await eventsOf(library, threadId, "turn.ended");
   return ended.map(({ event }) => event.reason ?? "");
-};
-
-// the agent's change sets, newest first
-const agentSets = async (library: Library) => {
-  const { changeSets } = await library.history.list({});
-  return changeSets.filter((set) => set.actor === "agent");
 };
 
 // the approval a paused turn asks the person for, by the event that asked
@@ -78,11 +50,6 @@ const askedCall = async (library: Library, threadId: string): Promise<string> =>
 
 const deleteDirective = (id: string): string =>
   `call delete_items ${JSON.stringify({ ids: [id] })}`;
-
-const isDeleted = async (library: Library, id: string): Promise<boolean> => {
-  const { fields } = await library.items.read({ id });
-  return fields.deletedAt !== null;
-};
 
 export const agentCell: Scenario = {
   description:
@@ -103,7 +70,7 @@ export const agentCell: Scenario = {
       text: 'Make two notes.\ncall create_note {"markdown":"Paris"}\ncall create_note {"markdown":"Lyon"}',
     });
     expectEq(first.status, "running", "the first turn's status");
-    await untilStatus(library, first.threadId, "idle");
+    await untilThreadStatus(library, first.threadId, "idle", DEADLINE_MS);
     const [made, ...older] = await agentSets(library);
     expect(made !== undefined && older.length === 0, "the turn left no change set of its own");
     expectEq(
@@ -122,14 +89,14 @@ export const agentCell: Scenario = {
     const { item: kept } = await library.items.createNote({ markdown: "Keep me.", title: "Keep" });
     const { item: gone } = await library.items.createNote({ markdown: "Bin me.", title: "Bin" });
     const allowed = await library.agent.send({ text: deleteDirective(gone.id) });
-    await untilStatus(library, allowed.threadId, "awaiting_approval");
+    await untilThreadStatus(library, allowed.threadId, "awaiting_approval", DEADLINE_MS);
     expect(!(await isDeleted(library, gone.id)), "the deletion ran before the person answered");
     await library.agent.respond({
       eventId: await askedCall(library, allowed.threadId),
       result: "allow",
       threadId: allowed.threadId,
     });
-    await untilStatus(library, allowed.threadId, "idle");
+    await untilThreadStatus(library, allowed.threadId, "idle", DEADLINE_MS);
     expect(await isDeleted(library, gone.id), "the allowed deletion did not run");
 
     ctx.log("the next one the person denies, and the item stays");
@@ -137,13 +104,13 @@ export const agentCell: Scenario = {
       text: deleteDirective(kept.id),
       threadId: allowed.threadId,
     });
-    await untilStatus(library, denied.threadId, "awaiting_approval");
+    await untilThreadStatus(library, denied.threadId, "awaiting_approval", DEADLINE_MS);
     await library.agent.respond({
       eventId: await askedCall(library, denied.threadId),
       result: "deny",
       threadId: denied.threadId,
     });
-    await untilStatus(library, denied.threadId, "idle");
+    await untilThreadStatus(library, denied.threadId, "idle", DEADLINE_MS);
     expect(!(await isDeleted(library, kept.id)), "the denied deletion ran");
     const answers = await eventsOf(library, denied.threadId, "approval.answered");
     expectEq(
@@ -156,7 +123,7 @@ export const agentCell: Scenario = {
     const stalled = await library.agent.send({ text: "stall" });
     expectEq(stalled.status, "running", "the stalled turn's status");
     await library.agent.cancel({ threadId: stalled.threadId });
-    await untilStatus(library, stalled.threadId, "idle");
+    await untilThreadStatus(library, stalled.threadId, "idle", DEADLINE_MS);
     expectEq(
       await endingsOf(library, stalled.threadId),
       ["cancelled"],
@@ -175,10 +142,10 @@ export const agentCell: Scenario = {
         'call search_library {"query":"kept"}',
       ].join("\n"),
     });
-    await untilStatus(library, compacted.threadId, "idle");
+    await untilThreadStatus(library, compacted.threadId, "idle", DEADLINE_MS);
     const after = await library.agent.send({ text: "And now?", threadId: compacted.threadId });
     expectEq(after, { status: "running", threadId: compacted.threadId }, "the send after it");
-    await untilStatus(library, compacted.threadId, "idle");
+    await untilThreadStatus(library, compacted.threadId, "idle", DEADLINE_MS);
     expectEq(
       await endingsOf(library, compacted.threadId),
       ["done", "done"],
@@ -200,7 +167,7 @@ export const agentCell: Scenario = {
         library.agent.send({ text: `spend ${String(SPEND_CENTS)}` }),
       );
       if (refused === null) {
-        await untilStatus(library, spent.threadId, "idle");
+        await untilThreadStatus(library, spent.threadId, "idle", DEADLINE_MS);
         expectEq(
           await endingsOf(library, spent.threadId),
           ["done"],
@@ -218,7 +185,7 @@ export const agentCell: Scenario = {
     const spentDay = await library.agent.status();
     expectEq(spentDay.turnsLeft, 0, "the turns left once the day's cost is spent");
 
-    const { requests } = await fakeStats(worker);
+    const { requests } = worker.fakeStats();
     expect(requests > 0, "no request reached the scripted API");
   },
 };

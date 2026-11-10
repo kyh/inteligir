@@ -129,17 +129,14 @@ export const browserSmoke: Scenario = {
   name: "browser-smoke",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let welcomeId = "";
-    const tab = await openLibraryTab(ctx, "smoke", {
-      seed: async (library) => {
-        const { item } = await library.items.createNote({
-          markdown: `# ${WELCOME}\n\nStart here.`,
-          title: WELCOME,
-        });
-        welcomeId = item.id;
-      },
+    const tab = await openLibraryTab(ctx, "smoke", async (library) => {
+      const { item } = await library.items.createNote({
+        markdown: `# ${WELCOME}\n\nStart here.`,
+        title: WELCOME,
+      });
+      return item.id;
     });
-    const { browser, library, worker } = tab;
+    const { browser, library, seeded: welcomeId, worker } = tab;
 
     ctx.log("every document carries the nonce policy, and the site's home none of the library");
     await assertDocumentPolicy(worker.origin);

@@ -3,9 +3,11 @@
 Boots the REAL Worker (apps/web's `cf build` output under Miniflare), the
 browser extension, the phone's own runtime and its exported note page on
 scratch dirs, drives them over
-`/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. It is orchestration plus
+`/v1`, the connector and a headless browser, and asserts on the wire, in the cell and on disk. A scenario is orchestration plus
 plain assertions on purpose — no test framework; the runner exits non-zero on
-any failure with a readable transcript.
+any failure with a readable transcript. The harness's own lifecycles, a run's
+scope and the cloud link, have vitest suites beside them (`pnpm --filter
+@repo/e2e test`), which `pnpm verify` runs.
 
 ## Run it
 
@@ -53,15 +55,17 @@ A scenario that passed still FAILS when any Worker it booted replayed a
 thinking block Claude dropped: the harness reads each Worker's scripted Claude
 for its count once the run passes (`src/harness/scenario.ts`).
 
-Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
-the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
-sweep), but its scenarios boot processes and a browser, so they run only via
-`pnpm e2e`.
+Deliberately OUTSIDE `pnpm verify`: the package typechecks, lints, formats
+and runs its harness's suites in the gate, but its scenarios boot processes
+and a browser, so they run only via `pnpm e2e`.
 
 ## What a scenario gets
 
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
-scratch dir and tears everything down afterwards:
+scratch dir and tears everything down afterwards, through its run's scope
+(`src/harness/scope.ts`): what it starts is stopped at teardown, the last
+started first, and an abandoned run's start or line once the teardown began
+is refused, never left running or printed under the next scenario:
 
 - `cloudWorker({ vars?, json?, pages? })` — the product Worker (apps/web), built through
   turbo once per run and booted from its `cf build` output under Miniflare
@@ -72,15 +76,16 @@ scratch dir and tears everything down afterwards:
   built-in agent runs against its own scripted Messages API
   (`tools/messages-fake`), served in the runner's process on an ephemeral
   port and named to the Worker as `ANTHROPIC_FAKE_URL`, the tools its script
-  names run by that Worker's own cell; its counters answer at
-  `/__fake/stats`. `pages` names public hosts whose pages a loopback server
+  names run by that Worker's own cell; its counters are read in that process
+  (`worker.fakeStats()`). `pages` names public hosts whose pages a loopback server
   answers for the Worker's own fetch (`page-fixture.ts`). Registered for
   teardown with the scenario.
 - `cloudLink(worker)` — a relay to a booted Worker on a port of its own, so a
   scenario can cut the cloud and restore it (`src/harness/cloud-link.ts`): a
   cut refuses every new connection and drops every open one, as a device that
   lost its network meets the cloud, and a restore listens on the same port
-  again. Registered for teardown with the scenario.
+  again; a cut asked while a restore listens waits for it, then cuts, and a
+  closed link refuses a restore. Registered for teardown with the scenario.
 - `browser(label, { launchFlags? })` — an agent-browser session registered for
   teardown with the scenario, so a failed or abandoned scenario still closes
   it, its browser launched with the flags named (the extension's profile, or
@@ -94,11 +99,14 @@ scratch dir and tears everything down afterwards:
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
 and fails with what the last read held; `modChord` for the platform's
-modifier key, `clickButtonIn`, `press`, `caretToEndOf` and `untilBodyHolds`
-(`agent-browser.ts`); the library page's selectors (`selectors.ts`); the
-library's tab over a booted Worker, with a session of the account to seed and
-read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
-`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
+modifier key, `clickButtonIn`, `press`, `caretToEndOf`, `untilBodyHolds`,
+the editor's text and a wait on it (`editorText`, `untilEditorHolds`) and the
+site's sign-in (`submitSiteSignIn`) (`agent-browser.ts`); the library page's
+selectors (`selectors.ts`); the library's tab over a booted Worker, with a
+session of the account to seed and read the cell through `/v1`, handing the
+scenario what its seed made (`openLibraryTab` and `untilItemText`), and the conversation and change-set
+reads the agent's scenarios share (`untilThreadStatus`, `isDeleted`,
+`agentSets`) (`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
 Worker (`cloud-account.ts`); `/v1` as a phone or the extension calls it, a file's upload and read and
 an item's fields as the cell holds them (`v1-wire.ts`); the
 phone's own runtime under node over its own database, signed in as the
@@ -109,7 +117,8 @@ scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch reads, on loopback, which the Worker's fill reaches under
 a public name of its own (`page-fixture.ts`); the browser extension's dev build, signed in on the
 site in its own profile and pointed at the Worker by the connect page, and its worker's save (`extension-fixture.ts`); and the
-one-colour PNG a scenario saves (`png-pixels.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
+one-colour PNG a scenario saves (`png-pixels.ts`), and the Raindrop backup an
+import reads (`raindrop-csv.ts`). `pnpm --filter @repo/e2e serve-worker` boots one
 Worker alone, as `cloudWorker` does, and prints its origin: the packaged Mac
 app's smoke (`apps/desktop/scripts/smoke-packaged.ts`) opens its window on it.
 

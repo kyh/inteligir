@@ -13,8 +13,7 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage", "target"]);
 
 // dot-directories wholesale: none of pnpm's globs reaches one, and an agent worktree under .claude
 // is a whole checkout of this repo that would be read as this commit's tree.
-export const isSkippedDir = (name: string): boolean =>
-  name.startsWith(".") || SKIP_DIR_NAMES.has(name);
+const isSkippedDir = (name: string): boolean => name.startsWith(".") || SKIP_DIR_NAMES.has(name);
 
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/u;
 
@@ -47,14 +46,15 @@ const parseManifest = (file: string): Manifest => {
   return manifest.data;
 };
 
+export const readTextFile = (relativePath: string): string =>
+  fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf-8");
+
 export const readJsonFile = <T>(
   relativePath: string,
   schema: z.ZodType<T>,
   expected: string,
 ): T => {
-  const parsed = schema.safeParse(
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf-8")),
-  );
+  const parsed = schema.safeParse(JSON.parse(readTextFile(relativePath)));
   if (!parsed.success) {
     throw new Error(`${relativePath}: expected ${expected}`);
   }
@@ -130,6 +130,14 @@ const walk = (dir: string, matches: RegExp, out: string[]): void => {
   }
 };
 
+// every file under `dir` whose name matches, relative to the repo and sorted, past the same skip
+// list every guard walks by
+export const filesNamed = (dir: string, matches: RegExp): string[] => {
+  const found: string[] = [];
+  walk(dir, matches, found);
+  return found.toSorted();
+};
+
 let cachedTracked: string[] | undefined;
 
 // git's index, not a directory walk, for a guard judging what the repo commits: build output and
@@ -179,37 +187,28 @@ export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
   return files;
 };
 
-const cachedWorkspaceSources = new Map<string, string[]>();
+const cachedWorkspaceListings = new Map<string, string[]>();
+
+const workspaceFilesNamed = (workspace: Workspace, matches: RegExp): string[] => {
+  const key = `${workspace.name}:${matches.source}`;
+  const cached = cachedWorkspaceListings.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const found = filesNamed(path.join(REPO_ROOT, workspace.dir), matches);
+  cachedWorkspaceListings.set(key, found);
+  return found;
+};
 
 // what the workspace holds rather than ships: a smoke script that hand-writes a route path drifts
 // like a handler does, and lives nowhere near src/.
-export const workspaceSourceFiles = (workspace: Workspace): string[] => {
-  const cached = cachedWorkspaceSources.get(workspace.name);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const found: string[] = [];
-  walk(path.join(REPO_ROOT, workspace.dir), SOURCE_FILE, found);
-  const sorted = found.toSorted();
-  cachedWorkspaceSources.set(workspace.name, sorted);
-  return sorted;
-};
-
-const cachedWorkspaceStyles = new Map<string, string[]>();
+export const workspaceSourceFiles = (workspace: Workspace): string[] =>
+  workspaceFilesNamed(workspace, SOURCE_FILE);
 
 // the same walk and skip list as the source, or a build output answers for one half of a token
 // pair.
-export const styleFiles = (workspace: Workspace): string[] => {
-  const cached = cachedWorkspaceStyles.get(workspace.name);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const found: string[] = [];
-  walk(path.join(REPO_ROOT, workspace.dir), STYLE_FILE, found);
-  const sorted = found.toSorted();
-  cachedWorkspaceStyles.set(workspace.name, sorted);
-  return sorted;
-};
+export const styleFiles = (workspace: Workspace): string[] =>
+  workspaceFilesNamed(workspace, STYLE_FILE);
 
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/u;
 const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["'](?<specifier>[^"'\n]+)["']/gu;
@@ -223,8 +222,7 @@ export const sourceOf = (relativePath: string): string => {
   if (cached !== undefined) {
     return cached;
   }
-  const source = fs
-    .readFileSync(path.join(REPO_ROOT, relativePath), "utf-8")
+  const source = readTextFile(relativePath)
     .split("\n")
     .filter((line) => !FULL_LINE_COMMENT.test(line))
     .join("\n");
@@ -232,20 +230,10 @@ export const sourceOf = (relativePath: string): string => {
   return source;
 };
 
-export const importsOf = (relativePath: string): string[] => {
-  const source = sourceOf(relativePath);
-  const specifiers: string[] = [];
-  IMPORT_SPECIFIER.lastIndex = 0;
-  let match = IMPORT_SPECIFIER.exec(source);
-  while (match !== null) {
-    const found = match.groups?.specifier;
-    if (found !== undefined) {
-      specifiers.push(found);
-    }
-    match = IMPORT_SPECIFIER.exec(source);
-  }
-  return specifiers;
-};
+export const importsOf = (relativePath: string): string[] =>
+  [...sourceOf(relativePath).matchAll(IMPORT_SPECIFIER)].flatMap(
+    (match) => match.groups?.specifier ?? [],
+  );
 
 export const resolveWorkspace = (specifier: string): Workspace | null =>
   workspaces().find(

@@ -26,7 +26,7 @@ const keyPromise = crypto.subtle.importKey(
   ["sign"],
 );
 
-const hex = (bytes: ArrayBuffer): string =>
+export const hex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
 const macOf = async (prefix: string, thinking: string, previous: string): Promise<string> =>

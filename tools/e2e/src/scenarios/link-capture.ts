@@ -4,9 +4,7 @@
 // machine's own loopback, a redirect to the cloud's metadata address and a page that is gone each
 // keep their item, saying why it was not read.
 
-import { once } from "node:events";
 import { createServer } from "node:http";
-import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
@@ -14,6 +12,7 @@ import type { CloudWorker } from "../harness/cloud-worker";
 import { startPageFixture } from "../harness/page-fixture";
 import type { PageFixture, PageRoute } from "../harness/page-fixture";
 import { pollUntil } from "../harness/poll";
+import { listenOnLoopback } from "../harness/ports";
 import { solidPng } from "../harness/png-pixels";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
 import { asPhone, itemFieldsOf, readFile, v1Client } from "../harness/v1-wire";
@@ -144,21 +143,20 @@ const articleFills = async (
 // in private space is refused by its spelling, and any port but the web's before that
 const loopbackRefused = async (ctx: ScenarioContext, library: Library) => {
   let reached = 0;
-  const listener = createServer((_request, response) => {
-    reached += 1;
-    response.end("<title>never read</title>");
-  });
-  listener.listen(0, "127.0.0.1");
-  await once(listener, "listening");
-  const { port } = z.object({ port: z.number() }).parse(listener.address());
+  const listener = await listenOnLoopback(
+    createServer((_request, response) => {
+      reached += 1;
+      response.end("<title>never read</title>");
+    }),
+  );
   try {
     ctx.log("a page on this machine's loopback is never fetched, and the item says why");
     await refusedWith(library, "http://localhost/", PRIVATE_NETWORK, "this machine's own name");
     await refusedWith(library, "http://192.168.1.1/", PRIVATE_NETWORK, "a home network's address");
-    await refusedWith(library, `http://127.0.0.1:${String(port)}/`, NOT_A_PAGE, "a loopback port");
+    await refusedWith(library, `${listener.origin}/`, NOT_A_PAGE, "a loopback port");
     expectEq(reached, 0, "requests that reached the loopback listener");
   } finally {
-    listener.close();
+    await listener.close();
   }
 };
 

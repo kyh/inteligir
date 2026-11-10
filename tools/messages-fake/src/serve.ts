@@ -9,11 +9,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 
 import { messagesFake } from "./messages-fake.ts";
-import type { MessagesFake } from "./messages-fake.ts";
+import type { FakeStats, MessagesFake } from "./messages-fake.ts";
 
 export interface ServedFake {
   // what the Worker's client takes as its base URL
   readonly origin: string;
+  // its counters, for a caller in this process; `/__fake/stats` answers them over the wire
+  readonly stats: () => FakeStats;
   readonly close: () => Promise<void>;
 }
 
@@ -96,5 +98,6 @@ export const serveMessagesFake = async (requestedPort: number): Promise<ServedFa
       await closed;
     },
     origin,
+    stats: fake.stats,
   };
 };

@@ -1,40 +1,40 @@
+import { once } from "node:events";
+import { Server as HttpServer } from "node:http";
 import { createServer } from "node:net";
 import type { Server } from "node:net";
+import { z } from "zod";
 
-interface HeldPort {
-  server: Server;
-  port: number;
+// a port on this machine as an origin a client calls
+export const loopbackOrigin = (port: number): string => `http://127.0.0.1:${String(port)}`;
+
+export interface LoopbackListener {
+  readonly port: number;
+  readonly origin: string;
+  // stops listening, and drops what an HTTP server still holds open
+  readonly close: () => Promise<void>;
 }
 
-const listenOnEphemeral = async (): Promise<HeldPort> =>
-  // oxlint-disable-next-line promise/avoid-new -- node:net is event/callback only; listen has no promise form.
-  await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", (error) => {
-      reject(error);
-    });
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!(address instanceof Object)) {
-        server.close();
-        reject(new Error("expected a bound AddressInfo"));
-        return;
-      }
-      resolve({ port: address.port, server });
-    });
-  });
+// `address()` answers a pipe name, an AddressInfo or null; a bound TCP port wants only the second
+const boundPortSchema = z.object({ port: z.number().int().positive() });
 
-const closeServer = async (server: Server): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- node:net is event/callback only; close has no promise form.
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
+// a server listening on this machine's loopback, on `port` or an ephemeral one; refused when the
+// port is taken
+export const listenOnLoopback = async (server: Server, port = 0): Promise<LoopbackListener> => {
+  server.listen(port, "127.0.0.1");
+  await once(server, "listening");
+  const bound = boundPortSchema.parse(server.address()).port;
+  return {
+    close: async () => {
+      const closed = once(server, "close");
+      if (server instanceof HttpServer) {
+        server.closeAllConnections();
       }
-      resolve();
-    });
-  });
+      server.close();
+      await closed;
+    },
+    origin: loopbackOrigin(bound),
+    port: bound,
+  };
 };
 
 // every port this run has handed out: lanes reserve in one process, and the kernel may hand one
@@ -47,11 +47,11 @@ const handedOut = new Set<number>();
 // either runs; the release→spawn window is a race the boot loop retries, against what another
 // process binds meanwhile.
 export const reserveFreePorts = async (count: number): Promise<number[]> => {
-  const held: HeldPort[] = [];
+  const held: LoopbackListener[] = [];
   const fresh: number[] = [];
   try {
     while (fresh.length < count) {
-      const next = await listenOnEphemeral();
+      const next = await listenOnLoopback(createServer());
       held.push(next);
       if (!handedOut.has(next.port)) {
         fresh.push(next.port);
@@ -59,8 +59,8 @@ export const reserveFreePorts = async (count: number): Promise<number[]> => {
     }
   } finally {
     await Promise.all(
-      held.map(async ({ server }) => {
-        await closeServer(server);
+      held.map(async (listener) => {
+        await listener.close();
       }),
     );
   }
@@ -69,6 +69,3 @@ export const reserveFreePorts = async (count: number): Promise<number[]> => {
   }
   return fresh;
 };
-
-// a port on this machine as an origin a client calls
-export const loopbackOrigin = (port: number): string => `http://127.0.0.1:${String(port)}`;

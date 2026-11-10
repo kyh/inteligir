@@ -37,9 +37,14 @@ describe("the toolbar's badge", () => {
     expect(title).toBe("Inteligir can't save this kind of page");
   });
 
-  it("shows a check mark for a save that waits for the cloud, and stays on one that waits for a sign-in", async () => {
+  it("shows a check mark for a save that waits for the cloud or the extension's update, and stays on one that waits for a sign-in", async () => {
     await showOutcome(TAB, { kind: "queued", waitsFor: "connection" });
     await expect(badge()).resolves.toBe("✓");
+    await showOutcome(TAB, { kind: "queued", waitsFor: "update" });
+    await expect(badge()).resolves.toBe("✓");
+    await expect(browser.action.getTitle({ tabId: TAB })).resolves.toBe(
+      "Saved once this extension updates",
+    );
     await showOutcome(TAB, { kind: "queued", waitsFor: "sign-in" });
     await vi.advanceTimersByTimeAsync(2000);
     await expect(badge()).resolves.toBe("!");

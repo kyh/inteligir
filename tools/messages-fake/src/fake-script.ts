@@ -51,11 +51,10 @@ export interface ScriptedStep {
 }
 
 export interface FakeScript {
-  // each step, the stall that holds its reply when one does; a closing reply is the step past them
+  // each step, the stall that holds its reply when one does
   readonly steps: readonly ScriptedStep[];
-  // the stall that holds the closing reply, the one after every step, and whether it compacts
-  readonly closingStall: StallAt | null;
-  readonly closingCompact: boolean;
+  // the reply after every step: no step of its own, its stall and whether it compacts
+  readonly closing: ScriptedStep;
   readonly fail: { readonly status: number; readonly times: number } | null;
 }
 
@@ -129,14 +128,10 @@ export const scriptOf = (text: string): FakeScript => {
       compact = false;
     }
   }
-  return { closingCompact: compact, closingStall: stall, fail, steps };
+  return { closing: { compact, stall, step: null }, fail, steps };
 };
 
 // the step a request asks for: the one after the replies since the person's message, or the
 // closing reply once none is left
 export const stepAt = (script: FakeScript, replies: number): ScriptedStep =>
-  script.steps[replies] ?? {
-    compact: script.closingCompact,
-    stall: script.closingStall,
-    step: null,
-  };
+  script.steps[replies] ?? script.closing;

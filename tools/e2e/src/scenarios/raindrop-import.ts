@@ -3,6 +3,7 @@ import { signInPhone, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { CloudWorker } from "../harness/cloud-worker";
 import { pollUntil } from "../harness/poll";
+import { raindropCsv } from "../harness/raindrop-csv";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
 import { asPhone, uploadFile, v1Client } from "../harness/v1-wire";
 
@@ -10,16 +11,9 @@ import { asPhone, uploadFile, v1Client } from "../harness/v1-wire";
 // socket: each page's fill fails here and nothing leaves the machine. the import itself fetches
 // nothing.
 const LINK_HOST = "http://192.0.2.10";
-const HEADER = "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite";
 const FILL_DEADLINE_MS = 60_000;
 
-// a CSV cell: quoted when it holds a comma, a quote or a line break, its quotes doubled
-const cell = (value: string): string =>
-  /[",\r\n]/u.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-const csvOf = (rows: readonly (readonly string[])[]): string =>
-  `${[HEADER, ...rows.map((row) => row.map(cell).join(","))].join("\n")}\n`;
-
-const BACKUP = csvOf([
+const BACKUP = raindropCsv([
   [
     "1",
     "File over app",

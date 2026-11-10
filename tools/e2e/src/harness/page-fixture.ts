@@ -2,10 +2,9 @@
 // Worker's fill reads it at `PAGE_HOST`, a public name the Worker host answers from this server
 // (`./worker-host.ts`), so the fill's guard judges it as it judges any site's.
 
-import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { z } from "zod";
+import { listenOnLoopback } from "./ports";
 
 // a name in `.test`, which no resolver answers (RFC 6761), so no fetch of it reaches past the
 // Worker host
@@ -50,9 +49,6 @@ const answer = (response: ServerResponse, route: PageRoute | undefined): void =>
   response.end(route.body ?? "");
 };
 
-// `address()` answers a pipe name, an AddressInfo or null; a bound TCP port wants only the second
-const boundPortSchema = z.object({ port: z.number().int() });
-
 export const startPageFixture = async (
   routes: Readonly<Record<string, PageRoute>>,
 ): Promise<PageFixture> => {
@@ -62,17 +58,9 @@ export const startPageFixture = async (
     seen.push(path);
     answer(response, routes[path]);
   });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const { port } = boundPortSchema.parse(server.address());
-  const origin = `http://127.0.0.1:${String(port)}`;
+  const { close, origin } = await listenOnLoopback(server);
   return {
-    async close() {
-      server.closeAllConnections();
-      const closed = once(server, "close");
-      server.close();
-      await closed;
-    },
+    close,
     origin,
     pages: { [PAGE_HOST]: origin },
     publicUrl: (path) => `http://${PAGE_HOST}${path}`,

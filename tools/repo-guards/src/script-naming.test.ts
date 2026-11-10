@@ -1,26 +1,18 @@
 // only suffixes matching a workspace directory are judged: `format:fix` names what it does, and the
 // bare `dev` is the flagship by convention.
 
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { REPO_ROOT, workspaces } from "./repo";
+import { readJsonFile, workspaces } from "./repo";
 
 const ROOT_MANIFEST = "package.json";
 
 const scriptTableSchema = z.looseObject({ scripts: z.record(z.string(), z.string()) });
 
-const rootScripts = (): Record<string, string> => {
-  const file = path.join(REPO_ROOT, ROOT_MANIFEST);
-  const value: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
-  const parsed = scriptTableSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new Error(`${ROOT_MANIFEST}: expected a "scripts" table of strings`);
-  }
-  return parsed.data.scripts;
-};
+const rootScripts = (): Record<string, string> =>
+  readJsonFile(ROOT_MANIFEST, scriptTableSchema, 'a "scripts" table of strings').scripts;
 
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {

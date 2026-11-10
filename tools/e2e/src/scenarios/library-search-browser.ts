@@ -41,19 +41,15 @@ export const librarySearchBrowser: Scenario = {
   name: "library-search-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const ids: string[] = [];
-    const { browser } = await openLibraryTab(ctx, "library-search", {
-      seed: async (library) => {
-        for (const note of [FIRST, SECOND, ELSEWHERE]) {
-          const { item } = await library.items.createNote(note);
-          ids.push(item.id);
-        }
-      },
+    const {
+      browser,
+      seeded: { firstId, secondId },
+    } = await openLibraryTab(ctx, "library-search", async (library) => {
+      const first = await library.items.createNote(FIRST);
+      const second = await library.items.createNote(SECOND);
+      await library.items.createNote(ELSEWHERE);
+      return { firstId: first.item.id, secondId: second.item.id };
     });
-    const [firstId, secondId] = ids;
-    if (firstId === undefined || secondId === undefined) {
-      throw new Error("the seed made no items");
-    }
     await browser(["wait", libraryCard(secondId)], DEADLINE_MS);
 
     ctx.log("the palette lists the two items that hold the words");

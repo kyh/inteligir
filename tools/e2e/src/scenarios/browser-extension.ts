@@ -9,9 +9,6 @@
 // click, as activeTab lets a person's click do on any page.
 
 import { createServer } from "node:http";
-import type { Server } from "node:http";
-import { once } from "node:events";
-import { z } from "zod";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER, signUp } from "../harness/cloud-account";
@@ -28,6 +25,8 @@ import {
   signOutOnSite,
 } from "../harness/extension-fixture";
 import { pollUntil } from "../harness/poll";
+import { listenOnLoopback } from "../harness/ports";
+import type { LoopbackListener } from "../harness/ports";
 import type { Scenario } from "../harness/scenario";
 import { asExtension, v1Client } from "../harness/v1-wire";
 
@@ -54,9 +53,7 @@ const pageOf = (title: string, passage: string): string =>
     "</article></body></html>",
   ].join("\n");
 
-const boundAddressSchema = z.object({ port: z.number().int() });
-
-const startPages = async (): Promise<{ server: Server; origin: string }> => {
+const startPages = async (): Promise<LoopbackListener> => {
   const pages = new Map([
     [ARTICLE_PATH, pageOf(TITLE, PASSAGE)],
     [LATER_PATH, pageOf("Read it later", "A page saved while the cloud was out of reach.")],
@@ -76,10 +73,7 @@ const startPages = async (): Promise<{ server: Server; origin: string }> => {
     });
     response.end(page ?? "");
   });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const { port } = boundAddressSchema.parse(server.address());
-  return { origin: `http://127.0.0.1:${String(port)}`, server };
+  return await listenOnLoopback(server);
 };
 
 // the page open in a tab, then an extension page in front, from which the save is asked
@@ -214,7 +208,7 @@ export const browserExtension: Scenario = {
         "the account the extension saves to again",
       );
     } finally {
-      pages.server.close();
+      await pages.close();
     }
   },
   // it waits on the alarm three times, past the two minutes a scenario's own work is given

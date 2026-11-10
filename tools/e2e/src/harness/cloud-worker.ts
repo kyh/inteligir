@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { FakeStats } from "@repo/messages-fake/messages-fake";
 import { serveMessagesFake } from "@repo/messages-fake/serve";
-import { z } from "zod";
 import { expectEq } from "./assert";
 import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
+import { loopbackOrigin } from "./ports";
 import { turboBuildOnce } from "./turbo-build";
 
 const READY_POLL_INTERVAL_MS = 250;
@@ -14,8 +15,6 @@ const BUILD_TIMEOUT_MS = 300_000;
 const SCHEMA_EXPORT_TIMEOUT_MS = 120_000;
 // the host applies the schema on a first Miniflare, then boots the one that listens.
 const READY_DEADLINE_MS = 120_000;
-// the scripted API answers in this process, so its counters come back at once or not at all
-const FAKE_STATS_TIMEOUT_MS = 10_000;
 
 // a scenario that boots a Worker: the build, the schema export and a cold boot may each spend their
 // whole budget, and two minutes more is the scenario's own work.
@@ -31,8 +30,9 @@ export interface CloudWorker extends TrackedProcess {
   origin: string;
   // the host's own door to what an account holds (`./worker-host.ts`), never the Worker's
   inspectOrigin: string;
-  // the scripted Messages API the Worker's built-in agent calls, whose counters a scenario reads
-  messagesOrigin: string;
+  // the counters of the scripted Messages API the Worker's built-in agent calls, served in this
+  // process: the requests it answered, and the replayed thinking blocks it dropped
+  fakeStats: () => FakeStats;
 }
 
 export interface LaunchCloudWorkerArgs {
@@ -109,21 +109,10 @@ const writeSchema = async (args: LaunchCloudWorkerArgs): Promise<string> => {
   return schemaFile;
 };
 
-const fakeStatsSchema = z.object({ drops: z.number(), requests: z.number() });
-
-// the Worker's scripted Claude's counters: the requests it answered, and the replayed thinking
-// blocks it dropped
-export const fakeStats = async (worker: CloudWorker): Promise<z.infer<typeof fakeStatsSchema>> => {
-  const response = await fetch(`${worker.messagesOrigin}/__fake/stats`, {
-    signal: AbortSignal.timeout(FAKE_STATS_TIMEOUT_MS),
-  });
-  return fakeStatsSchema.parse(await response.json());
-};
-
 // every thinking block the Worker's built-in agent replayed verified: a drop is a request the thread
 // got wrong, which the API refuses unless the request asks it to drop the block
-export const expectNoDroppedThinking = async (worker: CloudWorker): Promise<void> => {
-  const { drops } = await fakeStats(worker);
+export const expectNoDroppedThinking = (worker: CloudWorker): void => {
+  const { drops } = worker.fakeStats();
   expectEq(drops, 0, `the replayed thinking blocks Claude dropped for ${worker.origin}`);
 };
 
@@ -152,7 +141,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
       const inspectPort = ports[2] ?? 0;
-      const origin = `http://127.0.0.1:${String(port)}`;
+      const origin = loopbackOrigin(port);
       const child = spawnSupervised({
         argv: [
           path.join(e2eDir, "src", "harness", "worker-host.ts"),
@@ -183,8 +172,8 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       });
       const handle: CloudWorker = {
         ...child,
-        inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
-        messagesOrigin: messages.origin,
+        inspectOrigin: loopbackOrigin(inspectPort),
+        fakeStats: messages.stats,
         origin,
       };
       args.register(handle);

@@ -18,6 +18,7 @@ import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab } from "../harness/library-tab";
 import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario } from "../harness/scenario";
 import {
   BACK_TO_LIBRARY,
@@ -37,13 +38,7 @@ const ARCHIVE = "Archive";
 const TAG = "field";
 const INFO_TAG = "e2e";
 const RENAMED = "Field journal";
-// a 1x1 transparent png
-const PIXEL = Uint8Array.from(
-  Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-    "base64",
-  ),
-);
+const PIXEL = solidPng(1, 1, [0, 0, 0, 0]);
 
 const CARD_IDS = `JSON.stringify([...document.querySelectorAll('[role="gridcell"][data-item-id]')].map((card) => card.dataset.itemId))`;
 const TITLE_TEXT = `String(document.querySelector('[data-library-scope] h1')?.textContent ?? "")`;
@@ -139,46 +134,41 @@ export const libraryBrowser: Scenario = {
   name: "library-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const ids = { field: "", pier: "", reading: "", welcome: "" };
-    const tab = await openLibraryTab(ctx, "library", {
-      seed: async (library, upload) => {
-        ids.reading = newItemId();
-        await library.folders.write({
-          ops: [
-            {
-              id: ids.reading,
-              name: READING,
-              op: "create",
-              parentId: null,
-              sort: ordBetween(null, null),
-            },
-          ],
-        });
-        const welcome = await library.items.createNote({
-          markdown: "# Welcome\n\nStart here.\n",
-          title: "Welcome",
-        });
-        ids.welcome = welcome.item.id;
-        const field = await library.items.createNote({
-          folder: { id: ids.reading },
-          markdown: "# Field notes\n\nNotes from the field.\n",
-          tags: [TAG],
-          title: "Field notes",
-        });
-        ids.field = field.item.id;
-        const sha = await upload({ bytes: PIXEL, type: "image/png" });
-        const pier = await library.items.createFile({
-          folderId: null,
-          id: newItemId(),
-          name: "pier.png",
-          savedAt: Date.now(),
-          sha,
-          tags: [],
-        });
-        ids.pier = pier.item.id;
-      },
+    const tab = await openLibraryTab(ctx, "library", async (library, upload) => {
+      const reading = newItemId();
+      await library.folders.write({
+        ops: [
+          {
+            id: reading,
+            name: READING,
+            op: "create",
+            parentId: null,
+            sort: ordBetween(null, null),
+          },
+        ],
+      });
+      const welcome = await library.items.createNote({
+        markdown: "# Welcome\n\nStart here.\n",
+        title: "Welcome",
+      });
+      const field = await library.items.createNote({
+        folder: { id: reading },
+        markdown: "# Field notes\n\nNotes from the field.\n",
+        tags: [TAG],
+        title: "Field notes",
+      });
+      const sha = await upload({ bytes: PIXEL, type: "image/png" });
+      const pier = await library.items.createFile({
+        folderId: null,
+        id: newItemId(),
+        name: "pier.png",
+        savedAt: Date.now(),
+        sha,
+        tags: [],
+      });
+      return { field: field.item.id, pier: pier.item.id, reading, welcome: welcome.item.id };
     });
-    const { browser, library } = tab;
+    const { browser, library, seeded: ids } = tab;
 
     ctx.log("the tab opens on the library, one card per item");
     await untilCards(

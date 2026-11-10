@@ -31,15 +31,16 @@ export const tidyLibraryBrowser: Scenario = {
   name: "tidy-library-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let heronId = "";
-    const { browser, library } = await openLibraryTab(ctx, "tidy", {
-      seed: async (seeding) => {
-        const { item } = await seeding.items.createNote({
-          markdown: "A bird by the water.",
-          title: "Heron",
-        });
-        heronId = item.id;
-      },
+    const {
+      browser,
+      library,
+      seeded: heronId,
+    } = await openLibraryTab(ctx, "tidy", async (seeding) => {
+      const { item } = await seeding.items.createNote({
+        markdown: "A bird by the water.",
+        title: "Heron",
+      });
+      return item.id;
     });
     await browser(["wait", libraryCard(heronId)], DEADLINE_MS);
 

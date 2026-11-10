@@ -2,10 +2,8 @@
 // what every client dials. Read from both, a route cannot reach the wire without the page saying
 // what it carries, and a deleted one cannot linger there.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { isTestFile, REPO_ROOT, sourceOf, trackedFiles } from "./repo";
+import { isTestFile, readTextFile, sourceOf, trackedFiles } from "./repo";
 
 const PRIVACY = "docs/privacy.md";
 const APPENDIX_HEADING = "## Every address the app talks to";
@@ -79,8 +77,6 @@ const contractSources = (): Map<string, string> =>
       .map((file) => [file, sourceOf(file)]),
   );
 
-const readPrivacy = (): string => fs.readFileSync(path.join(REPO_ROOT, PRIVACY), "utf-8");
-
 describe("docs/privacy.md names every /v1 route the cloud contract declares", () => {
   it("finds the contract's routes and the appendix", () => {
     const routes = [...contractSources().values()].flatMap((source) =>
@@ -90,11 +86,14 @@ describe("docs/privacy.md names every /v1 route the cloud contract declares", ()
       routes.length,
       `no /v1 literal under ${CONTRACT_DIR} — the sweep is broken, not the tree`,
     ).toBeGreaterThan(0);
-    expect(appendixOf(readPrivacy()), `${PRIVACY} has no "${APPENDIX_HEADING}"`).not.toBeNull();
+    expect(
+      appendixOf(readTextFile(PRIVACY)),
+      `${PRIVACY} has no "${APPENDIX_HEADING}"`,
+    ).not.toBeNull();
   });
 
   it("holds a row for every declared route, and no row for any other", () => {
-    const drift = privacyRouteDrift(contractSources(), readPrivacy());
+    const drift = privacyRouteDrift(contractSources(), readTextFile(PRIVACY));
     expect(drift, `\n${drift.join("\n\n")}\n`).toStrictEqual([]);
   });
 

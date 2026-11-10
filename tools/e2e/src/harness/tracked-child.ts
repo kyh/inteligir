@@ -164,25 +164,59 @@ export interface BootWithPortsArgs<T extends TrackedProcess> {
   ready: (handle: T) => Promise<boolean>;
 }
 
-// retries with fresh ports when the child lost the reserve→bind race (reserveFreePorts releases
-// before returning).
-// a probe that throws has seen something no wait can mend: the child goes with the probe's words
-const readyOrStop = async <T extends TrackedProcess>(
+// the child stopped, and what it last wrote kept in the error that says why
+const stopWith = async (
+  child: SupervisedChild,
+  message: string,
+  cause?: unknown,
+): Promise<never> => {
+  const tail = child.outputTail();
+  await child.stop();
+  throw new Error(`${message}\n${tail}`, { cause });
+};
+
+// polls the child until it answers ready, or lost the port it was handed at bind; any other end
+// stops it. A probe that throws has seen something no wait can mend: the child goes with its words
+const waitReady = async <T extends TrackedProcess>(
   args: BootWithPortsArgs<T>,
   handle: T,
   child: SupervisedChild,
-): Promise<boolean> => {
-  try {
-    return await args.ready(handle);
-  } catch (error) {
-    const tail = child.outputTail();
-    await child.stop();
-    throw new Error(`${args.label} failed before becoming ready: ${String(error)}\n${tail}`, {
-      cause: error,
-    });
+): Promise<"ready" | "port-lost"> => {
+  const deadline = Date.now() + args.deadlineMs;
+  for (;;) {
+    if (child.exited()) {
+      const tail = child.outputTail();
+      if (looksLikePortLost(tail)) {
+        await child.stop();
+        return "port-lost";
+      }
+      return await stopWith(child, `${args.label} exited before becoming ready`);
+    }
+    let ready: boolean;
+    try {
+      ready = await args.ready(handle);
+    } catch (error) {
+      return await stopWith(
+        child,
+        `${args.label} failed before becoming ready: ${String(error)}`,
+        error,
+      );
+    }
+    if (ready) {
+      return "ready";
+    }
+    if (Date.now() > deadline) {
+      return await stopWith(
+        child,
+        `${args.label} did not become ready within ${args.deadlineMs}ms`,
+      );
+    }
+    await delay(args.pollIntervalMs);
   }
 };
 
+// retries with fresh ports when the child lost the reserve→bind race (reserveFreePorts releases
+// before returning).
 export const bootWithPorts = async <T extends TrackedProcess>(
   args: BootWithPortsArgs<T>,
 ): Promise<T> => {
@@ -192,28 +226,7 @@ export const bootWithPorts = async <T extends TrackedProcess>(
       throw new Error("port reservation returned nothing");
     }
     const { handle, child } = args.spawn(ports);
-
-    const deadline = Date.now() + args.deadlineMs;
-    let outcome: "ready" | "port-lost" | null = null;
-    for (; outcome === null;) {
-      if (child.exited()) {
-        const tail = child.outputTail();
-        await child.stop();
-        if (!looksLikePortLost(tail)) {
-          throw new Error(`${args.label} exited before becoming ready\n${tail}`);
-        }
-        outcome = "port-lost";
-      } else if (await readyOrStop(args, handle, child)) {
-        outcome = "ready";
-      } else if (Date.now() > deadline) {
-        const tail = child.outputTail();
-        await child.stop();
-        throw new Error(`${args.label} did not become ready within ${args.deadlineMs}ms\n${tail}`);
-      } else {
-        await delay(args.pollIntervalMs);
-      }
-    }
-    if (outcome === "ready") {
+    if ((await waitReady(args, handle, child)) === "ready") {
       return handle;
     }
     if (attempt >= BOOT_PORT_ATTEMPTS) {

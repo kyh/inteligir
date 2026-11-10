@@ -11,10 +11,10 @@ import { startPageFixture } from "../harness/page-fixture";
 import type { PageRoute } from "../harness/page-fixture";
 import { solidPng } from "../harness/png-pixels";
 import { pollUntil } from "../harness/poll";
+import { raindropCsv } from "../harness/raindrop-csv";
 import type { Scenario } from "../harness/scenario";
 import { asPhone, itemFieldsOf, readFile, uploadFile, v1Client } from "../harness/v1-wire";
 
-const HEADER = "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite";
 const FILL_DEADLINE_MS = 90_000;
 
 const LIVE_TITLE = "File over app";
@@ -56,14 +56,8 @@ const ROUTES = {
   "/essays/file-over-app": { body: LIVE_PAGE },
 } satisfies Record<string, PageRoute>;
 
-// a CSV cell: quoted when it holds a comma, a quote or a line break, its quotes doubled
-const cell = (value: string): string =>
-  /[",\r\n]/u.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-const csvOf = (rows: readonly (readonly string[])[]): string =>
-  `${[HEADER, ...rows.map((row) => row.map(cell).join(","))].join("\n")}\n`;
-
 const backupOf = (url: (at: string) => string): string =>
-  csvOf([
+  raindropCsv([
     [
       "1",
       LIVE_TITLE,

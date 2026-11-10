@@ -5,10 +5,7 @@
 // may script without a click; the cloud reads nothing from such an address, so its text can only
 // be the one the extension read.
 
-import { once } from "node:events";
 import { createServer } from "node:http";
-import type { Server } from "node:http";
-import { z } from "zod";
 import { untilBodyHolds } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
@@ -20,6 +17,7 @@ import {
   extensionPage,
   saveFromWorker,
 } from "../harness/extension-fixture";
+import { listenOnLoopback } from "../harness/ports";
 import type { Scenario } from "../harness/scenario";
 import { asExtension, v1Client } from "../harness/v1-wire";
 
@@ -51,11 +49,9 @@ const ARTICLE = [
   "</body></html>",
 ].join("\n");
 
-const boundAddressSchema = z.object({ port: z.number().int() });
-
 // counts what asks for the article, so the scenario can say who read it
 const startArticleServer = async (): Promise<{
-  server: Server;
+  close: () => Promise<void>;
   url: string;
   articleRequests: () => number;
 }> => {
@@ -70,14 +66,8 @@ const startArticleServer = async (): Promise<{
     response.writeHead(404);
     response.end();
   });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const { port } = boundAddressSchema.parse(server.address());
-  return {
-    articleRequests: () => articleRequests,
-    server,
-    url: `http://127.0.0.1:${String(port)}${ARTICLE_PATH}`,
-  };
+  const { close, origin } = await listenOnLoopback(server);
+  return { articleRequests: () => articleRequests, close, url: `${origin}${ARTICLE_PATH}` };
 };
 
 export const extensionIntegrated: Scenario = {
@@ -126,7 +116,7 @@ export const extensionIntegrated: Scenario = {
         "requests for the article after the save: neither the extension nor the cloud fetched it",
       );
     } finally {
-      article.server.close();
+      await article.close();
     }
   },
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,

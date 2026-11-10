@@ -4,7 +4,7 @@ import { openCloudLink } from "./cloud-link";
 import type { CloudLink } from "./cloud-link";
 import { expectNoDroppedThinking, launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
-import type { TrackedProcess } from "./tracked-child";
+import type { RunScope } from "./scope";
 
 export interface ScenarioContext {
   repoRoot: string;
@@ -31,7 +31,7 @@ export interface Scenario {
 // booted replayed a thinking block Claude dropped
 export interface ScenarioRun {
   readonly context: ScenarioContext;
-  readonly afterRun: () => Promise<void>;
+  readonly afterRun: () => void;
 }
 
 export interface OpenScenarioArgs {
@@ -39,48 +39,28 @@ export interface OpenScenarioArgs {
   scenarioName: string;
   repoRoot: string;
   scratchDir: string;
-  log: (message: string) => void;
-  instances: TrackedProcess[];
-  isClosed: () => boolean;
+  // what the scenario starts and says, until its teardown
+  scope: Pick<RunScope, "log" | "own">;
 }
-
-// a run abandoned at its deadline keeps going, and what it starts once the teardown began would be
-// owned by nothing: it is stopped and refused instead.
-const own = (args: OpenScenarioArgs, instance: TrackedProcess): void => {
-  if (!args.isClosed()) {
-    args.instances.push(instance);
-    return;
-  }
-  void (async () => {
-    try {
-      await instance.stop();
-    } catch (error) {
-      args.log(`teardown: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  })();
-  throw new Error(`${instance.name} started after its scenario was torn down`);
-};
 
 export const openScenario = (args: OpenScenarioArgs): ScenarioRun => {
   const workers: CloudWorker[] = [];
   const context: ScenarioContext = {
     async browser(label, options) {
-      await requireHeadlessBrowser(args.log);
+      await requireHeadlessBrowser(args.scope.log);
       const browser = createScenarioBrowser(`${args.scenarioName}-${label}`, options);
-      own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
+      args.scope.own({ name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
       return browser;
     },
     async cloudLink(worker) {
       const link = await openCloudLink(worker.origin);
-      own(args, { name: "the cloud link", outputTail: () => "", stop: link.close });
+      args.scope.own({ name: "the cloud link", outputTail: () => "", stop: link.close });
       return link;
     },
     async cloudWorker(options) {
       const launch: LaunchCloudWorkerArgs = {
-        onLog: args.log,
-        register: (process) => {
-          own(args, process);
-        },
+        onLog: args.scope.log,
+        register: args.scope.own,
         repoRoot: args.repoRoot,
         scratchDir: args.scratchDir,
       };
@@ -97,14 +77,14 @@ export const openScenario = (args: OpenScenarioArgs): ScenarioRun => {
       workers.push(worker);
       return worker;
     },
-    log: args.log,
+    log: args.scope.log,
     repoRoot: args.repoRoot,
     scratchDir: args.scratchDir,
   };
   return {
-    afterRun: async () => {
+    afterRun: () => {
       for (const worker of workers) {
-        await expectNoDroppedThinking(worker);
+        expectNoDroppedThinking(worker);
       }
     },
     context,

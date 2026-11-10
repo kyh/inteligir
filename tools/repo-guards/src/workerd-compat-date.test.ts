@@ -2,10 +2,8 @@
 // the lockfile resolves, never the newest: a workerd cannot emulate a date it predates, so the date
 // moves forward only as every workerd the tools pull does.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT } from "./repo";
+import { readTextFile } from "./repo";
 
 const LOCKFILE = "pnpm-lock.yaml";
 const COMPATIBILITY = "packages/service/compatibility.ts";
@@ -18,7 +16,7 @@ const EVICTION_FLOOR = "2026-10-01";
 const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(?<stamp>\d{8})\./gu;
 
 const resolvedWorkerdDates = (): string[] => {
-  const source = fs.readFileSync(path.join(REPO_ROOT, LOCKFILE), "utf-8");
+  const source = readTextFile(LOCKFILE);
   const dates = new Set<string>();
   for (const match of source.matchAll(RESOLVED_WORKERD)) {
     const stamp = match.groups?.stamp;
@@ -30,7 +28,7 @@ const resolvedWorkerdDates = (): string[] => {
 };
 
 const declaredCompatibilityDate = (): string => {
-  const source = fs.readFileSync(path.join(REPO_ROOT, COMPATIBILITY), "utf-8");
+  const source = readTextFile(COMPATIBILITY);
   const date = /compatibilityDate = "(?<date>\d{4}-\d{2}-\d{2})"/u.exec(source)?.groups?.date;
   if (date === undefined) {
     throw new Error(`${COMPATIBILITY}: no compatibilityDate to hold against ${LOCKFILE}`);

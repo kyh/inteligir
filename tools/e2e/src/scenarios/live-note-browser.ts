@@ -6,11 +6,16 @@
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
-import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
+import {
+  caretToEndOf,
+  clickButtonIn,
+  parseEval,
+  press,
+  untilEditorHolds,
+} from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { openLibraryTab, untilItemText } from "../harness/library-tab";
-import type { Library } from "../harness/library-tab";
+import { openLibraryTab, untilItemText, untilThreadStatus } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
@@ -33,12 +38,7 @@ const PANEL_TOGGLE = 'button[aria-label="Info and the agent"]';
 const PANEL = '[data-side="right"]';
 const EDITABLE = `String(document.querySelector('${EDITOR}')?.getAttribute("contenteditable"))`;
 const DEADLINE_MS = 30_000;
-
-const editorText = async (browser: AgentBrowser): Promise<string> =>
-  parseEval(
-    await browser(["eval", `String(document.querySelector('${EDITOR}')?.textContent ?? "")`]),
-    z.string(),
-  );
+const itemPath = (id: string): string => `?item=${id}`;
 
 const untilShows = async (
   browser: AgentBrowser,
@@ -46,30 +46,12 @@ const untilShows = async (
   holds: (text: string) => boolean,
   what: string,
 ): Promise<void> => {
-  await pollUntil(async () => await editorText(browser), holds, {
-    deadlineMs: DEADLINE_MS,
-    describe: (text) => `tab ${tab} never showed ${what}; its editor holds:\n${text}`,
-  });
+  await untilEditorHolds(browser, holds, `tab ${tab} never showed ${what}`, DEADLINE_MS);
 };
 
 const typeAfter = async (browser: AgentBrowser, line: string, typed: string): Promise<void> => {
   await caretToEndOf(browser, line);
   await browser(["keyboard", "type", typed]);
-};
-
-// the account's conversation, once its turn has ended
-const untilIdle = async (library: Library, threadId: string): Promise<void> => {
-  await pollUntil(
-    async () => {
-      const { threads } = await library.agent.list({});
-      return threads.find((thread) => thread.id === threadId)?.status ?? null;
-    },
-    (status) => status === "idle",
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (status) => `the turn never ended: the thread is ${String(status)}`,
-    },
-  );
 };
 
 export const liveNoteBrowser: Scenario = {
@@ -78,19 +60,18 @@ export const liveNoteBrowser: Scenario = {
   name: "live-note-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let itemId = "";
-    const path = (): string => `?item=${itemId}`;
-    const a = await openLibraryTab(ctx, "live-a", {
-      path,
-      ready: EDITOR,
-      seed: async (library) => {
+    const a = await openLibraryTab(
+      ctx,
+      "live-a",
+      async (library) => {
         const { item } = await library.items.createNote({ markdown: DOC, title: TITLE });
-        itemId = item.id;
+        return item.id;
       },
-    });
-    const { library, worker } = a;
+      { path: itemPath, ready: EDITOR },
+    );
+    const { library, seeded: itemId, worker } = a;
     const b = await ctx.browser("live-b");
-    await b.openLibrary(worker, { path: path(), ready: EDITOR });
+    await b.openLibrary(worker, { path: itemPath(itemId), ready: EDITOR });
     const opened = (text: string): boolean => text.includes(LINE_THREE);
     await untilShows(a.browser, "A", opened, "the note");
     await untilShows(b, "B", opened, "the note");
@@ -115,7 +96,7 @@ export const liveNoteBrowser: Scenario = {
     });
     await typeAfter(a.browser, `${LINE_ONE}${FROM_A}`, WHILE_AGENT);
     const { threadId } = await sending;
-    await untilIdle(library, threadId);
+    await untilThreadStatus(library, threadId, "idle");
     const both = (text: string): boolean =>
       text.includes(AGENT_LINE) && text.includes(WHILE_AGENT.trim()) && !text.includes(LINE_THREE);
     await untilShows(a.browser, "A", both, "the agent's line beside the typing");
@@ -164,7 +145,7 @@ export const liveNoteBrowser: Scenario = {
 
     ctx.log("moved to Deleted, the note opens read-only and says why");
     await library.items.delete({ ids: [itemId] });
-    await b(["open", `${worker.origin}${LIBRARY_PAGE_PATH}${path()}`]);
+    await b(["open", `${worker.origin}${LIBRARY_PAGE_PATH}${itemPath(itemId)}`]);
     await b(["wait", EDITOR], DEADLINE_MS);
     await pollUntil(
       async () => await b(["get", "text", "body"]),

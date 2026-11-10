@@ -1,25 +1,32 @@
-import { ORPCError } from "@orpc/client";
+import { deferred } from "@repo/contract/test-support/deferred";
 import { beforeEach, describe, expect, it } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
+import type { Outcome } from "../messages";
 import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS } from "./cloud";
+import type { Saved } from "./cloud";
 import { keepConnection, readConnection } from "./connection";
-import { keepSave, markWaiting, queuedSaves, SEND_ALARM, sendQueued } from "./save-queue";
-import type { QueuedSave } from "./save-queue";
+import { saveTab } from "./save-page";
+import { keepSave, queuedSaves, SEND_ALARM, sendQueued } from "./save-queue";
+import type { QueuedSave, SendDeps } from "./save-queue";
 import type { SignIn } from "./sign-in";
 import {
   fakeCloud,
   OTHER_SESSION,
+  refusal,
+  savedAs,
   SESSION,
   SIGNED_IN,
   SIGNED_OUT,
 } from "./test-support/fake-cloud";
 
+const KEPT = { email: SESSION.email, origin: SESSION.origin };
+
 beforeEach(async () => {
   fakeBrowser.reset();
-  await keepConnection({ email: SESSION.email, origin: SESSION.origin });
+  await keepConnection(KEPT);
 });
 
 const NOW = Date.UTC(2026, 10, 5, 12);
@@ -37,19 +44,182 @@ const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   ...overrides,
 });
 
-const depsWith = (cloud: ReturnType<typeof fakeCloud>, signIn: SignIn | null = SIGNED_IN) => ({
-  cloud: () => cloud.cloud,
-  now: () => NOW,
-  signIn: async () => signIn,
+const depsWith = (
+  cloud: ReturnType<typeof fakeCloud>,
+  signIn: SignIn | null = SIGNED_IN,
+): SendDeps & { readonly asked: () => number } => {
+  let asked = 0;
+  return {
+    asked: () => asked,
+    cloud: () => cloud.cloud,
+    now: () => NOW,
+    signIn: async () => {
+      asked += 1;
+      return signIn;
+    },
+  };
+};
+
+// a tab saved as its link, the page unread, so its first try is the very call a resend makes
+const saveTabAsLink = async (cloud: ReturnType<typeof fakeCloud>): Promise<Outcome> =>
+  await saveTab(
+    {
+      capture: async () => null,
+      cloud: () => cloud.cloud,
+      fetchCover: async () => null,
+      newBlockId: () => "block",
+      now: () => NOW,
+      randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+      signIn: async () => SIGNED_IN,
+    },
+    { tab: { id: 7, title: "File over app", url: "https://example.test/file-over-app" } },
+  );
+
+interface Row {
+  readonly met: string;
+  readonly answer: () => Promise<Saved>;
+  // what the popup says of the first try
+  readonly outcome: Outcome;
+  // the save is kept to be sent again, and the account with it, and a pass goes on to the next
+  readonly waits: boolean;
+  readonly accountKept: boolean;
+  readonly passGoesOn: boolean;
+}
+
+const waitingFor = (waitsFor: "connection" | "sign-in" | "update") =>
+  ({ kind: "queued", waitsFor }) as const;
+const refusedFor = (reason: Extract<Outcome, { kind: "refused" }>["reason"]) =>
+  ({ kind: "refused", reason }) as const;
+
+const ROWS: readonly Row[] = [
+  {
+    accountKept: true,
+    answer: async () => savedAs("File over app"),
+    met: "landed",
+    outcome: { created: true, kind: "saved", title: "File over app" },
+    passGoesOn: true,
+    waits: false,
+  },
+  {
+    accountKept: true,
+    answer: refusal("UNAUTHORIZED"),
+    met: "a session the cloud ended",
+    outcome: waitingFor("sign-in"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    // a first try met this way was let go, where a resend waited for the browser's update
+    accountKept: true,
+    answer: refusal("CLIENT_OUTDATED"),
+    met: "a build the cloud calls too old",
+    outcome: waitingFor("update"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    accountKept: true,
+    answer: refusal("TOO_MANY_REQUESTS"),
+    met: "the cloud's budget for a minute",
+    outcome: waitingFor("connection"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    accountKept: true,
+    answer: async () => {
+      throw new TypeError("Failed to fetch");
+    },
+    met: "no connection",
+    outcome: waitingFor("connection"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    accountKept: true,
+    answer: async () => {
+      throw new DOMException("The operation timed out.", "TimeoutError");
+    },
+    met: "the call's deadline",
+    outcome: waitingFor("connection"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    accountKept: true,
+    answer: refusal("INTERNAL_SERVER_ERROR", false),
+    met: "a fault of the cloud's own",
+    outcome: waitingFor("connection"),
+    passGoesOn: false,
+    waits: true,
+  },
+  {
+    accountKept: false,
+    answer: refusal("GONE"),
+    met: "the account deleted",
+    outcome: refusedFor("not-connected"),
+    passGoesOn: false,
+    waits: false,
+  },
+  {
+    accountKept: true,
+    answer: refusal("QUOTA"),
+    met: "a full library",
+    outcome: refusedFor("library-full"),
+    passGoesOn: true,
+    waits: false,
+  },
+  {
+    accountKept: true,
+    answer: refusal("PAYLOAD_TOO_LARGE"),
+    met: "a save past its cap",
+    outcome: refusedFor("too-large"),
+    passGoesOn: true,
+    waits: false,
+  },
+  {
+    accountKept: true,
+    answer: refusal("BAD_REQUEST", false),
+    met: "input the cloud refused",
+    outcome: refusedFor("failed"),
+    passGoesOn: true,
+    waits: false,
+  },
+  {
+    accountKept: true,
+    answer: refusal("CONFLICT"),
+    met: "another refusal of the call's own",
+    outcome: refusedFor("failed"),
+    passGoesOn: true,
+    waits: false,
+  },
+];
+
+describe("a save's try settles it one way, the first and every resend alike", () => {
+  it.each(ROWS)("$met", async (row) => {
+    const first = fakeCloud({ saveLink: row.answer });
+    await expect(saveTabAsLink(first)).resolves.toStrictEqual(row.outcome);
+    const afterFirst = await queuedSaves();
+    expect(afterFirst.map((save) => save.firstTry)).toStrictEqual(row.waits ? [false] : []);
+    await expect(readConnection()).resolves.toStrictEqual(row.accountKept ? KEPT : null);
+
+    fakeBrowser.reset();
+    await keepConnection(KEPT);
+    await keepSave(waiting());
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const resent = fakeCloud({ saveLink: row.answer });
+    await sendQueued(depsWith(resent));
+    expect(resent.links).toHaveLength(row.passGoesOn ? 2 : 1);
+    await expect(queuedSaves()).resolves.toStrictEqual(
+      row.waits ? [waiting(), waiting({ opId: SECOND, savedAt: NOW - 900 })] : [],
+    );
+    await expect(readConnection()).resolves.toStrictEqual(row.accountKept ? KEPT : null);
+    const alarm = await browser.alarms.get(SEND_ALARM);
+    expect(alarm !== undefined).toBe(row.waits);
+  });
 });
 
 describe("a save that waits", () => {
-  it("keeps the address and the title, and holds the alarm while it waits", async () => {
-    await markWaiting(waiting({ firstTry: true }));
-    await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
-  });
-
   it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
     await keepSave(waiting({ firstTry: true }));
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
@@ -72,20 +242,6 @@ describe("a save that waits", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
-  it("waits again, the later ones behind it, while the cloud does not answer", async () => {
-    await keepSave(waiting());
-    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
-    const cloud = fakeCloud({
-      saveLink: async () => {
-        throw new TypeError("Failed to fetch");
-      },
-    });
-    await sendQueued(depsWith(cloud));
-    expect(cloud.links).toHaveLength(1);
-    await expect(queuedSaves()).resolves.toHaveLength(2);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
-  });
-
   it("leaves a first try still under way alone for as long as that try can run", async () => {
     // every cover candidate fetched to its deadline, then the cover's put and the save to theirs
     const longestTry = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
@@ -102,36 +258,10 @@ describe("a save that waits", () => {
     expect(cloud.links).toHaveLength(1);
   });
 
-  it("waits through a build the cloud calls too old, for the update the browser makes", async () => {
-    await keepSave(waiting());
-    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
-    const outdated = fakeCloud({
-      saveLink: async () => {
-        throw new ORPCError("CLIENT_OUTDATED");
-      },
-    });
-    await sendQueued(depsWith(outdated));
-    expect(outdated.links).toHaveLength(1);
-    await expect(queuedSaves()).resolves.toStrictEqual([
-      waiting(),
-      waiting({ opId: SECOND, savedAt: NOW - 900 }),
-    ]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
-    // the updated extension's worker sends both
-    const updated = fakeCloud({});
-    await sendQueued(depsWith(updated));
-    expect(updated.links).toHaveLength(2);
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-  });
-
-  it("is sent only under its own account's session, and lets go one no resend can land", async () => {
+  it("is sent only under its own account's session", async () => {
     await keepSave(waiting({ email: OTHER_SESSION.email }));
     await keepSave(waiting({ opId: THIRD }));
-    const cloud = fakeCloud({
-      saveLink: async () => {
-        throw new ORPCError("QUOTA");
-      },
-    });
+    const cloud = fakeCloud({});
     await sendQueued(depsWith(cloud));
     expect(cloud.links.map((link) => link.opId)).toStrictEqual([THIRD]);
     // the other account's save waits for that account to sign in here again
@@ -156,51 +286,15 @@ describe("a save that waits", () => {
   });
 
   it("asks nobody who is signed in while nothing waits", async () => {
-    let asked = 0;
-    await sendQueued({
-      cloud: () => fakeCloud({}).cloud,
-      now: () => NOW,
-      signIn: async () => {
-        asked += 1;
-        return SIGNED_IN;
-      },
-    });
-    expect(asked).toBe(0);
+    const deps = depsWith(fakeCloud({}));
+    await sendQueued(deps);
+    expect(deps.asked()).toBe(0);
   });
 
-  it("waits for its account to sign in again once the cloud says the session ended", async () => {
+  it("lets go only what waited for the account the cloud deleted", async () => {
     await keepSave(waiting());
-    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
-    const ended = fakeCloud({
-      saveLink: async () => {
-        throw new ORPCError("UNAUTHORIZED");
-      },
-    });
-    await sendQueued(depsWith(ended));
-    expect(ended.links).toHaveLength(1);
-    await expect(queuedSaves()).resolves.toHaveLength(2);
-    await expect(readConnection()).resolves.toStrictEqual({
-      email: SESSION.email,
-      origin: SESSION.origin,
-    });
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
-    // signed in again, both go
-    const again = fakeCloud({});
-    await sendQueued(depsWith(again));
-    expect(again.links).toHaveLength(2);
-    await expect(queuedSaves()).resolves.toStrictEqual([]);
-  });
-
-  it("lets go what waited for an account the cloud deleted, and the account with it", async () => {
-    await keepSave(waiting());
-    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
     await keepSave(waiting({ email: OTHER_SESSION.email, opId: THIRD }));
-    const cloud = fakeCloud({
-      saveLink: async () => {
-        throw new ORPCError("GONE");
-      },
-    });
-    await sendQueued(depsWith(cloud));
+    await sendQueued(depsWith(fakeCloud({ saveLink: refusal("GONE") })));
     await expect(readConnection()).resolves.toBeNull();
     await expect(queuedSaves()).resolves.toStrictEqual([
       waiting({ email: OTHER_SESSION.email, opId: THIRD }),
@@ -213,7 +307,7 @@ describe("a save that waits", () => {
     const cloud = fakeCloud({
       saveLink: async () => {
         await keepConnection(replaced);
-        throw new ORPCError("GONE");
+        return await refusal("GONE")();
       },
     });
     await sendQueued(depsWith(cloud));
@@ -228,5 +322,77 @@ describe("a save that waits", () => {
     // the store holds nothing under the key (WXT's fake answers it undefined, Chrome leaves it out)
     const held = await browser.storage.local.get("save:broken");
     expect(held["save:broken"]).toBeUndefined();
+  });
+});
+
+describe("the queue's passes", () => {
+  it("run one at a time, so four asks at once send each save once", async () => {
+    await keepSave(waiting());
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const held = deferred();
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        return savedAs("File over app");
+      },
+    });
+    const deps = depsWith(cloud);
+    const asks = [sendQueued(deps), sendQueued(deps), sendQueued(deps), sendQueued(deps)];
+    held.resolve();
+    await Promise.all(asks);
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([waiting().opId, SECOND]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("run exactly one more pass for every ask made while one ran, which sends a save kept meanwhile", async () => {
+    await keepSave(waiting());
+    const held = deferred();
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        return savedAs("File over app");
+      },
+    });
+    const deps = depsWith(cloud);
+    const firstAsk = sendQueued(deps);
+    await expect.poll(() => cloud.links.length).toBe(1);
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const laterAsks = [sendQueued(deps), sendQueued(deps)];
+    held.resolve();
+    await Promise.all([firstAsk, ...laterAsks]);
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([waiting().opId, SECOND]);
+    expect(deps.asked()).toBe(2);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("never bring back a save another try let go while its call was on its way", async () => {
+    // a first try whose worker was presumed stopped, sent again by a pass while it still runs
+    const held = deferred();
+    const firstTry = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const old = NOW - 10 * 60_000;
+    const saving = saveTab(
+      {
+        capture: async () => null,
+        cloud: () => firstTry.cloud,
+        fetchCover: async () => null,
+        newBlockId: () => "block",
+        now: () => old,
+        randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+        signIn: async () => SIGNED_IN,
+      },
+      { tab: { id: 7, title: "File over app", url: "https://example.test/file-over-app" } },
+    );
+    await expect.poll(() => firstTry.links.length).toBe(1);
+    const resent = fakeCloud({});
+    await sendQueued(depsWith(resent));
+    expect(resent.links).toHaveLength(1);
+    held.resolve();
+    await expect(saving).resolves.toStrictEqual(waitingFor("connection"));
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 });

@@ -5,10 +5,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
+import { openScenario } from "./harness/scenario";
+import { openScope } from "./harness/scope";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import { hearingBuildQueueWaits } from "./harness/turbo-build";
-import type { TrackedProcess } from "./harness/tracked-child";
-import { openScenario } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { agentCell } from "./scenarios/agent-cell";
@@ -288,40 +288,33 @@ const runScenario = async ({
   const startedAt = Date.now();
   const scratchDir = path.join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
-  const instances: TrackedProcess[] = [];
-  let closed = false;
-  const log = (message: string) => {
-    output.out(`${timestamp()} [${scenario.name}] ${message}`);
-  };
+  const scope = openScope({
+    err: (message) => {
+      output.err(`${timestamp()} [${scenario.name}] ${message}`);
+    },
+    out: (message) => {
+      output.out(`${timestamp()} [${scenario.name}] ${message}`);
+    },
+  });
   const { afterRun, context } = openScenario({
-    instances,
-    isClosed: () => closed,
-    log,
     repoRoot,
     scenarioName: scenario.name,
+    scope,
     scratchDir,
   });
 
   let outcome: ScenarioOutcome;
-  let teardownClean = true;
+  let teardownClean: boolean;
   try {
     await runWithinDeadline(scenario, context);
-    await afterRun();
+    afterRun();
     outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
     if (error instanceof ScenarioSkipError && !options.noSkip) {
       outcome = { durationMs: Date.now() - startedAt, kind: "skip", reason: error.message };
     } else {
       const message = describeFailure(error);
-      const tails = instances
-        .map((instance) => {
-          const tail = instance.outputTail();
-          return tail.length === 0
-            ? ""
-            : `--- instance "${instance.name}" output tail ---\n${tail}`;
-        })
-        .filter((tail) => tail.length > 0)
-        .join("\n");
+      const tails = scope.tails();
       outcome = {
         durationMs: Date.now() - startedAt,
         error: tails.length === 0 ? message : `${message}\n${tails}`,
@@ -329,17 +322,7 @@ const runScenario = async ({
       };
     }
   } finally {
-    closed = true;
-    for (const instance of instances.toReversed()) {
-      try {
-        await instance.stop();
-      } catch (error) {
-        teardownClean = false;
-        output.err(
-          `${timestamp()} [${scenario.name}] teardown: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
+    teardownClean = await scope.close();
     // an undead process could still be writing into the scratch.
     if (!teardownClean) {
       output.err(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);

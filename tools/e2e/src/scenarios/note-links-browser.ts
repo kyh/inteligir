@@ -49,25 +49,32 @@ export const noteLinksBrowser: Scenario = {
   name: "note-links-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let sourceId = "";
-    let sizesId = "";
-    let folderId = "";
-    const { browser, library } = await openLibraryTab(ctx, "note-links", {
-      path: () => `?item=${sourceId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: { folderId, sizesId, sourceId },
+    } = await openLibraryTab(
+      ctx,
+      "note-links",
+      async (seeding) => {
         const sizes = await seeding.items.createNote({ markdown: SIZES, title: "Sizes" });
-        sizesId = sizes.item.id;
         const { item } = await seeding.items.createNote({
           folder: { path: FOLDER },
           markdown: source(sizes.item.id),
           title: "Field notes",
         });
-        sourceId = item.id;
         const { folders } = await seeding.organize.outline();
-        folderId = folders.find((folder) => folder.name === FOLDER)?.id ?? "";
+        const folder = folders.find((each) => each.name === FOLDER);
+        if (folder === undefined) {
+          throw new Error(`the seed's note made no ${FOLDER} folder`);
+        }
+        return { folderId: folder.id, sizesId: sizes.item.id, sourceId: item.id };
       },
-    });
+      {
+        path: (seeded) => `?item=${seeded.sourceId}`,
+        ready: EDITOR,
+      },
+    );
 
     ctx.log("the bound formula reads the other item's pill, and its display reaches the cell");
     await untilItemText(

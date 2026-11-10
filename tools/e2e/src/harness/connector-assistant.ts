@@ -4,7 +4,6 @@
 // code back to a loopback listener, as it does a desktop client's (RFC 8252 §7.3), and the SDK
 // trades it for a token. Every credential is held in memory, one assistant at a time.
 
-import { once } from "node:events";
 import { createServer } from "node:http";
 import {
   Client,
@@ -17,14 +16,11 @@ import type {
   StoredOAuthClientInformation,
   StoredOAuthTokens,
 } from "@modelcontextprotocol/client";
-import { z } from "zod";
 import { expect } from "./assert";
 import { pollUntil } from "./poll";
+import { listenOnLoopback } from "./ports";
 
 const CALLBACK_PATH = "/callback";
-
-// a listener on a port of its own holds an address, never a pipe's path
-const addressSchema = z.object({ port: z.number().int().positive() });
 
 const CLIENT_INFO = { name: "e2e-assistant", version: "1.0.0" } as const;
 
@@ -60,18 +56,8 @@ const listenForCode = async (): Promise<CodeListener> => {
       .writeHead(200, { "content-type": "text/html; charset=utf-8" })
       .end("<!doctype html><title>Connected</title><p>Connected. You can close this window.</p>");
   });
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const { port } = addressSchema.parse(server.address());
-  return {
-    close: async () => {
-      const closed = once(server, "close");
-      server.close();
-      await closed;
-    },
-    received: () => received,
-    redirectUrl: `http://127.0.0.1:${String(port)}${CALLBACK_PATH}`,
-  };
+  const { close, origin } = await listenOnLoopback(server);
+  return { close, received: () => received, redirectUrl: `${origin}${CALLBACK_PATH}` };
 };
 
 export const startAssistant = async (

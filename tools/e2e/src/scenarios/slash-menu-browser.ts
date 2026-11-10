@@ -34,16 +34,23 @@ export const slashMenuBrowser: Scenario = {
   name: "slash-menu-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let itemId = "";
     ctx.log("opening the item by its deep link");
-    const { browser: agentBrowser, library } = await openLibraryTab(ctx, "slash", {
-      path: () => `?item=${itemId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser: agentBrowser,
+      library,
+      seeded: itemId,
+    } = await openLibraryTab(
+      ctx,
+      "slash",
+      async (seeding) => {
         const { item } = await seeding.items.createNote({ markdown: DOC, title: "Plans" });
-        itemId = item.id;
+        return item.id;
       },
-    });
+      {
+        path: (id) => `?item=${id}`,
+        ready: EDITOR,
+      },
+    );
 
     ctx.log("putting the caret at the end of the paragraph and opening a fresh block");
     // an Enter from mid-paragraph splits it, and the block transform eats the tail
