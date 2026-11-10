@@ -1,7 +1,8 @@
 // The built-in agent in the tab's panel, against the scripted Claude the Worker is bound to: a
 // message sent from the composer is a conversation of the account's, its turn's work drawn as it
-// lands; a deletion it asks for waits on the person's Approve; Undo this conversation takes every
-// turn back at once; and a send past the day's allowance says so in the person's words.
+// lands and its reply shown as it is written, until the reply lands; a deletion it asks for waits
+// on the person's Approve; Undo this conversation takes every turn back at once; and a send past
+// the day's allowance says so in the person's words.
 
 import { modChord, clickButtonIn, untilBodyHolds } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
@@ -16,6 +17,9 @@ import { COMPOSER, libraryCard } from "../harness/selectors";
 const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 2 };
 const BIN = { markdown: "# Bin me\n\nThe agent deletes this.\n", title: "Bin me" };
 const DEADLINE_MS = 60_000;
+// a reply the scripted Claude streams for a few seconds, so the panel shows it being written
+const LONG_REPLY_CHARS = 6000;
+const PREVIEW = "[data-agent-preview]";
 
 const isDeleted = async (library: Library, id: string): Promise<boolean> => {
   const { fields } = await library.items.read({ id });
@@ -41,7 +45,7 @@ const agentSets = async (library: Library) => {
 
 export const agentPanelBrowser: Scenario = {
   description:
-    "in the tab, against a scripted Claude: ⌘K opens the panel's composer, a sent message becomes the account's conversation with its turn's work drawn, the note it writes reaches the grid; a deletion it asks for waits on Approve and runs once allowed; Undo this conversation takes both turns back; and a send past the day's allowance is refused in the person's words",
+    "in the tab, against a scripted Claude: ⌘K opens the panel's composer, a sent message becomes the account's conversation with its turn's work drawn, its reply shown as it is written and gone once the reply lands, the note it writes reaches the grid; a deletion it asks for waits on Approve and runs once allowed; Undo this conversation takes both turns back; and a send past the day's allowance is refused in the person's words",
   name: "agent-panel-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -61,11 +65,17 @@ export const agentPanelBrowser: Scenario = {
     await browser([
       "fill",
       COMPOSER,
-      'Make a note.\ncall create_note {"markdown":"Paris in spring."}',
+      `Make a note.\ncall create_note {"markdown":"Paris in spring."}\nlong ${String(LONG_REPLY_CHARS)}`,
     ]);
     await browser(["press", "Enter"]);
+    await browser(["wait", PREVIEW], DEADLINE_MS);
     await browser(["wait", "[data-thread] [data-turn-ended]"], DEADLINE_MS);
     await untilBodyHolds(browser, ["Wrote a note", "Undo this turn"]);
+    await pollUntil(
+      async () => await browser(["get", "count", PREVIEW]),
+      (count) => count.trim() === "0",
+      { deadlineMs: DEADLINE_MS, describe: () => "the reply's preview stayed beside the reply" },
+    );
     const [made] = await agentSets(library);
     const madeId = made?.items[0]?.id;
     expect(madeId !== undefined, "the turn made no change set naming its note");

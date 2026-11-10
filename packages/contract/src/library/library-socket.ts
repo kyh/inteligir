@@ -1,5 +1,5 @@
 // The account's socket: a hint of what the library moved, never its state, which a client reads
-// again over `/v1`, and the built-in agent's turn as it moves. A browser's socket carries no
+// again over `/v1`, and the reply the built-in agent is writing. A browser's socket carries no
 // header, so it opens with a short-lived ticket an authenticated `/v1` call minted
 // (`account.socketTicket`), in the query string the Worker's logs redact. Every frame is JSON; one of a type this build does not know is
 // no frame, so a newer cell can add types.
@@ -62,19 +62,16 @@ const movedFrameSchema = z.object({
 });
 export type MovedFrame = z.infer<typeof movedFrameSchema>;
 
-// the built-in agent's turn moved: an event the cell stored, which a read of the thread's events
-// answers too, or a preview of the agent's message as it is written (`agent.preview`), which no
-// read ever answers. The event is one of `./agent-events`' union, read as JSON, so one this build
-// cannot parse is one it skips
-const threadFrameSchema = z.object({
-  event: z.json(),
-  preview: z.boolean(),
+// the reply the built-in agent is writing in a thread, its text so far, which no read ever answers:
+// a moved frame naming the thread lets it go, since by then the reply landed or the turn moved on
+const previewFrameSchema = z.object({
+  text: z.string(),
   threadId: idSchema,
-  type: z.literal("thread"),
+  type: z.literal("preview"),
 });
 
 export const librarySocketFrameSchema = z.discriminatedUnion("type", [
   movedFrameSchema,
-  threadFrameSchema,
+  previewFrameSchema,
 ]);
 export type LibrarySocketFrame = z.infer<typeof librarySocketFrameSchema>;

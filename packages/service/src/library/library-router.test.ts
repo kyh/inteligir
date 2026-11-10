@@ -702,8 +702,8 @@ describe("the library's procedures", () => {
       // what a turn the cell ran leaves behind: a thread row and the events it stored
       const seedThread = (id: string, updatedAt: number, count: number) => {
         sql.exec(
-          `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
-           VALUES (?, ?, 'idle', ?, ?, 0)`,
+          `INSERT INTO threads (id, title, status, created_at, updated_at)
+           VALUES (?, ?, 'idle', ?, ?)`,
           id,
           `Thread at ${String(updatedAt)}`,
           updatedAt,
@@ -711,8 +711,8 @@ describe("the library's procedures", () => {
         );
         for (let idx = 0; idx < count; idx += 1) {
           sql.exec(
-            `INSERT INTO thread_events (event_id, thread_id, idx, type, json, at, seq)
-             VALUES (?, ?, ?, 'agent.message', ?, ?, 0)`,
+            `INSERT INTO thread_events (event_id, thread_id, idx, type, json, at)
+             VALUES (?, ?, ?, 'agent.message', ?, ?)`,
             `${id}:1:${String(idx)}`,
             id,
             idx,

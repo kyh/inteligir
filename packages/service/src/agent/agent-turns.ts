@@ -11,10 +11,10 @@
 // the next waiting send let in. A watch job asks after a turn whose object it has not heard from
 // in five minutes.
 
-import { agentEventSchema, agentPreviewSchema } from "@repo/contract/library/agent-events";
+import { agentEventSchema } from "@repo/contract/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
+import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import { ORPCError } from "@orpc/server";
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import type { SqlStatements } from "../library/library-sql";
@@ -35,7 +35,6 @@ import type { LibraryEngine } from "../library/library-engine";
 import { filingRules } from "../library/library-rules";
 import { errorFields } from "../log";
 import { pushedEventId, storeEvent, turnEventId } from "./agent-events";
-import type { ThreadEventRow } from "./agent-events";
 import {
   allowanceOf,
   bookCost,
@@ -147,13 +146,6 @@ const statusOf = (sql: SqlStatements, threadId: string): ThreadAnswer => ({
   threadId,
 });
 
-// each stored event told to the account's sockets, once its transaction committed
-const frameEvents = (cell: AgentCell, rows: readonly ThreadEventRow[]): void => {
-  for (const row of rows) {
-    cell.tell({ event: row.event, preview: false, threadId: row.threadId, type: "thread" });
-  }
-};
-
 // where a thread rests between turns: behind a send of its own still waiting, else idle
 const restThread = (scope: LandingScope, threadId: string): void => {
   setThreadStatus(scope, threadId, queuedFor(scope.storage, threadId) > 0 ? "queued" : "idle");
@@ -166,7 +158,7 @@ const restThread = (scope: LandingScope, threadId: string): void => {
 const openTurn = (
   scope: LandingScope,
   send: { readonly threadId: string; readonly message: TurnMessage },
-): ThreadEventRow | null => {
+): void => {
   const { storage, now } = scope;
   const turn = nextTurnNumber(storage, send.threadId);
   insertTurn(storage, { at: now, message: send.message, threadId: send.threadId, turn });
@@ -175,35 +167,25 @@ const openTurn = (
   if (send.message.viewContext !== null) {
     event.viewContext = send.message.viewContext;
   }
-  const row = storeEvent(scope, send.threadId, turnEventId(send.threadId, turn), event);
+  storeEvent(scope, send.threadId, turnEventId(send.threadId, turn), event);
   setThreadStatus(scope, send.threadId, "running");
   scheduleJob(storage.db, deliverJob(send.threadId), now);
   scheduleJob(storage.db, watchJob(send.threadId), now + WATCH_EVERY_MS);
-  return row;
 };
 
 // the sends let in now, as many as the account may run at once: `first`'s before any other, then
 // the longest waiting
-const openWaiting = (
-  scope: LandingScope,
-  allowance: Allowance,
-  first: string | null,
-): ThreadEventRow[] => {
-  const rows: ThreadEventRow[] = [];
+const openWaiting = (scope: LandingScope, allowance: Allowance, first: string | null): void => {
   if (!agentIsOn(scope.storage)) {
-    return rows;
+    return;
   }
   while (openTurnCount(scope.storage) < allowance.concurrentTurns) {
     const next = dequeueNext(scope.storage, first);
     if (next === null) {
-      break;
+      return;
     }
-    const row = openTurn(scope, next);
-    if (row !== null) {
-      rows.push(row);
-    }
+    openTurn(scope, next);
   }
-  return rows;
 };
 
 const setIdSchema = z.object({ id: z.string(), sealed_at: z.number().nullable() });
@@ -327,7 +309,6 @@ export const sendToAgent = async (
   }
   const allowance = allowanceOf(cell.env);
   const message = { text: input.text, viewContext: input.viewContext ?? null };
-  const stored: ThreadEventRow[] = [];
   const landed = cell.library.landApart(
     { answer: threadAnswerSchema, opId: input.opId },
     (scope): ThreadAnswer => {
@@ -357,15 +338,11 @@ export const sendToAgent = async (
         }
         return { status: "queued", threadId };
       }
-      const row = openTurn(scope, { message, threadId });
-      if (row !== null) {
-        stored.push(row);
-      }
+      openTurn(scope, { message, threadId });
       return { status: "running", threadId };
     },
   );
   if (landed.ok && landed.value.status === "running") {
-    frameEvents(cell, stored);
     await deliverTurn(cell, landed.value.threadId);
   }
   return landed;
@@ -500,8 +477,7 @@ export const deleteAgentThread = async (
     return UNAVAILABLE;
   }
   const allowance = allowanceOf(cell.env);
-  const opened: ThreadEventRow[] = [];
-  const landed = cell.library.landApart({ answer: deletedSchema, opId: input.opId }, (scope) => {
+  return cell.library.landApart({ answer: deletedSchema, opId: input.opId }, (scope) => {
     const { storage } = scope;
     knownThread(storage, input.threadId);
     const open = openTurnOf(storage, input.threadId);
@@ -511,13 +487,9 @@ export const deleteAgentThread = async (
     dropQueuedFor(storage, input.threadId);
     forgetPushes(storage, input.threadId);
     deleteThread(scope, input.threadId);
-    opened.push(...openWaiting(scope, allowance, null));
+    openWaiting(scope, allowance, null);
     return { deleted: true as const };
   });
-  if (landed.ok) {
-    frameEvents(cell, opened);
-  }
-  return landed;
 };
 
 // ---- what is left of the day ----
@@ -596,10 +568,7 @@ export const runTurnTool = async (
   return { ok: true, value: await cell.runTool(call) };
 };
 
-const pushOutcomeSchema = z.object({
-  kind: z.enum(["landed", "unknown-thread", "turn-closed"]),
-  rows: z.array(threadEventRowSchema),
-});
+const pushOutcomeSchema = z.object({ kind: z.enum(["landed", "unknown-thread", "turn-closed"]) });
 
 // a reply's usage at list price, booked on the day its turn started; a report this build cannot
 // read books nothing, and is logged
@@ -638,29 +607,29 @@ export const landPush = async (
     (scope): z.infer<typeof pushOutcomeSchema> => {
       const { storage } = scope;
       if (threadState(storage, push.threadId) === null) {
-        return { kind: "unknown-thread", rows: [] };
+        return { kind: "unknown-thread" };
       }
       if (push.seq <= lastPush(storage, push.threadId)) {
-        return { kind: "landed", rows: [] };
+        return { kind: "landed" };
       }
       recordPush(storage, push.threadId, push.seq);
       const named = turnNamed(storage, push);
       if (named.kind !== "open") {
-        return { kind: "turn-closed", rows: [] };
+        return { kind: "turn-closed" };
       }
       heardFrom(storage, push.threadId, scope.now);
-      const rows: ThreadEventRow[] = [];
       let ended: TurnEndReason | null = null;
       for (const [index, entry] of push.entries.entries()) {
         if (entry.kind === "usage") {
           bookUsage(storage, named.turn, entry, prices);
           continue;
         }
-        const id = pushedEventId(push.threadId, push.seq, index);
-        const row = storeEvent(scope, push.threadId, id, entry.event);
-        if (row !== null) {
-          rows.push(row);
-        }
+        storeEvent(
+          scope,
+          push.threadId,
+          pushedEventId(push.threadId, push.seq, index),
+          entry.event,
+        );
         if (entry.event.type === "approval.asked" || entry.event.type === "approval.answered") {
           const status = moveWaiting(
             storage,
@@ -676,21 +645,21 @@ export const landPush = async (
       if (ended !== null) {
         closeTurn(scope, named.turn, ended);
         restThread(scope, push.threadId);
-        rows.push(...openWaiting(scope, allowance, push.threadId));
+        openWaiting(scope, allowance, push.threadId);
       }
-      return { kind: "landed", rows };
+      return { kind: "landed" };
     },
   );
   if (!landed.ok) {
     return gone();
   }
-  frameEvents(cell, landed.value.rows);
   await cell.settle(landed);
   const { kind } = landed.value;
   return kind === "landed" ? { ok: true, value: null } : { ok: false, refusal: kind };
 };
 
-// the reply as it is written, on the account's sockets alone: never stored, never read again
+// the reply as it is written, on the account's sockets alone: never stored, never read again, and
+// let go by each device once the moved frame of a later commit names its thread
 export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswer<null> => {
   const parsed = previewRequestSchema.safeParse(request);
   if (!parsed.success) {
@@ -704,13 +673,7 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
   if (read.value.kind !== "open") {
     return { ok: false, refusal: read.value.kind };
   }
-  cell.tell({
-    // the frame's event spelled once, by the contract its readers parse it with
-    event: agentPreviewSchema.parse({ text: preview.text, type: "agent.preview" }),
-    preview: true,
-    threadId: preview.threadId,
-    type: "thread",
-  });
+  cell.tell({ text: preview.text, threadId: preview.threadId, type: "preview" });
   return { ok: true, value: null };
 };
 

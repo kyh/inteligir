@@ -1,4 +1,3 @@
-import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { fakeClock } from "@repo/contract/test-support/fake-clock";
@@ -8,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary } from "../test-support/fake-page-library";
 import { createLibrarySocket } from "./use-library-socket";
-import type { ItemsMoved } from "./use-library-socket";
+import type { ItemsMoved, ThreadPreview } from "./use-library-socket";
 import { createPageQueryClient } from "./v1";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
@@ -56,12 +55,12 @@ const openSocket = async () => {
     wire,
   });
   const items: ItemsMoved[] = [];
-  const threads: ThreadFrame[] = [];
+  const previews: ThreadPreview[] = [];
   socket.onItems((moved) => {
     items.push(moved);
   });
-  socket.onThread((frame) => {
-    threads.push(frame);
+  socket.onPreview((preview) => {
+    previews.push(preview);
   });
   socket.connect();
   await vi.waitFor(() => {
@@ -82,8 +81,8 @@ const openSocket = async () => {
     note,
     open: dialled.open,
     other,
+    previews,
     staleOf: () => Object.entries(keys).flatMap(([name, key]) => (stale(key) ? [name] : [])),
-    threads,
   };
 };
 
@@ -93,6 +92,7 @@ describe("the account's socket on this page", () => {
 
     socket.open();
 
+    expect(socket.previews).toStrictEqual([{ text: null, threadId: null }]);
     expect(socket.staleOf().toSorted()).toStrictEqual([
       "events",
       "note",
@@ -135,6 +135,7 @@ describe("the account's socket on this page", () => {
 
     expect(socket.staleOf().toSorted()).toStrictEqual(["events", "scopes", "threads"]);
     expect(socket.items).toStrictEqual([]);
+    expect(socket.previews).toStrictEqual([{ text: null, threadId: THREAD }]);
   });
 
   it("reads every item again when a write moved more than a frame names", async () => {
@@ -152,14 +153,20 @@ describe("the account's socket on this page", () => {
     expect(socket.items).toStrictEqual([null]);
   });
 
-  it("reads a thread's stored events again, and hands every thread frame on", async () => {
+  it("hands on the reply being written, reading nothing, until a write moves its thread", async () => {
     const socket = await openSocket();
 
-    socket.hear({ event: { text: "Fil" }, preview: true, threadId: THREAD, type: "thread" });
+    socket.hear({ text: "Fil", threadId: THREAD, type: "preview" });
+    socket.hear({ text: "Filed", threadId: THREAD, type: "preview" });
     expect(socket.staleOf()).toStrictEqual([]);
-    socket.hear({ event: {}, preview: false, threadId: THREAD, type: "thread" });
+    socket.hear({ folders: false, items: [], threads: [THREAD], type: "moved" });
+    socket.hear({ folders: false, items: [], threads: "all", type: "moved" });
 
-    expect(socket.staleOf()).toStrictEqual(["events"]);
-    expect(socket.threads.map((frame) => frame.preview)).toStrictEqual([true, false]);
+    expect(socket.previews).toStrictEqual([
+      { text: "Fil", threadId: THREAD },
+      { text: "Filed", threadId: THREAD },
+      { text: null, threadId: THREAD },
+      { text: null, threadId: null },
+    ]);
   });
 });

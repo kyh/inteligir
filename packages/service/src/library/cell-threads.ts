@@ -17,7 +17,6 @@ type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 const threadSqlSchema = z.object({
   created_at: z.number(),
   id: z.string(),
-  seq: z.number(),
   status: z.enum(THREAD_STATUSES),
   title: z.string(),
   updated_at: z.number(),
@@ -28,26 +27,24 @@ const threadEventSqlSchema = z.object({
   event_id: z.string(),
   idx: z.number(),
   json: z.string(),
-  seq: z.number(),
   thread_id: z.string(),
   type: z.string(),
 });
 
-const THREAD_COLUMNS = "id, title, status, created_at, updated_at, seq";
+const THREAD_COLUMNS = "id, title, status, created_at, updated_at";
 
 const threadRowFrom = (raw: SqlRow): ThreadRow => {
   const row = threadSqlSchema.parse(raw);
   return {
     createdAt: row.created_at,
     id: row.id,
-    seq: row.seq,
     status: row.status,
     title: row.title,
     updatedAt: row.updated_at,
   };
 };
 
-const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at, seq";
+const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at";
 
 const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
   const row = threadEventSqlSchema.parse(raw);
@@ -56,17 +53,9 @@ const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
     event: jsonTextSchema.parse(row.json),
     eventId: row.event_id,
     idx: row.idx,
-    seq: row.seq,
     threadId: row.thread_id,
     type: row.type,
   };
-};
-
-export const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
-  const [raw] = sql.all(`SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE event_id = ?`, [
-    id,
-  ]);
-  return raw === undefined ? null : threadEventRowFrom(raw);
 };
 
 const threadExists = (sql: SqlStatements, threadId: string): boolean =>

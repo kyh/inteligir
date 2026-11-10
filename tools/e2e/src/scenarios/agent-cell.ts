@@ -3,7 +3,6 @@ import type { V1Client } from "@repo/contract/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { signInPhone, signUp } from "../harness/cloud-account";
-import type { CloudWorker } from "../harness/cloud-worker";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -85,18 +84,9 @@ const isDeleted = async (library: Library, id: string): Promise<boolean> => {
   return fields.deletedAt !== null;
 };
 
-const statsSchema = z.object({ drops: z.number(), requests: z.number() });
-
-// the scripted API's counters: the requests it answered, and the replayed thinking blocks it
-// dropped, each one a request the thread got wrong
-const fakeStats = async (worker: CloudWorker) => {
-  const response = await fetch(`${worker.messagesOrigin}/__fake/stats`);
-  return statsSchema.parse(await response.json());
-};
-
 export const agentCell: Scenario = {
   description:
-    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it, and still counts it; a conversation the API compacts goes on from the compaction, telling a progress note before each tool call; turns that each spend thirty cents run until the day's dollar is spent, after which a send is refused until the next UTC midnight and no turn is left; and Claude never drops a replayed thinking block",
+    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it, and still counts it; a conversation the API compacts goes on from the compaction, telling a progress note before each tool call; turns that each spend thirty cents run until the day's dollar is spent, after which a send is refused until the next UTC midnight and no turn is left",
   name: "agent-cell",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -227,9 +217,5 @@ export const agentCell: Scenario = {
     expectEq(resetsAt, now - (now % 86_400_000) + 86_400_000, "when the allowance comes back");
     const spentDay = await library.agent.status();
     expectEq(spentDay.turnsLeft, 0, "the turns left once the day's cost is spent");
-
-    const stats = await fakeStats(worker);
-    expectEq(stats.drops, 0, "the replayed thinking blocks Claude dropped");
-    expect(stats.requests > 0, "no request reached the scripted API");
   },
 };

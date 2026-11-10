@@ -24,8 +24,6 @@ import { sharedFailure, uploadBlob } from "@repo/contract/library/call-outcome";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { V1Client } from "@repo/contract/v1";
-import { createThreadPreviews } from "@repo/agent-panel/thread-previews";
-import type { ThreadFrame, ThreadPreviews } from "@repo/agent-panel/thread-previews";
 import type { PhoneAuth } from "../auth/phone-auth";
 import { createFileCache } from "../files/file-cache";
 import type { FileCache, FileCachePorts, FileFolder } from "../files/file-cache";
@@ -39,6 +37,8 @@ import { messageOf } from "./error-message";
 import { createExternalStore } from "./external-store";
 import type { ReadableStore } from "./external-store";
 import { downloadBlob, phoneTransport, v1ClientOver } from "./phone-transport";
+import { createThreadPreviews } from "./thread-previews";
+import type { ThreadPreviews } from "./thread-previews";
 
 // what the cache keeps between launches, and how long a query it holds is used unasked
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -134,12 +134,8 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     storage: args.storage,
     throttleTime: CACHE_WRITE_MS,
   });
-  // the signed-in library's own: its socket and what its previews hear
-  let opened: {
-    readonly library: PhoneLibrary;
-    readonly socket: SocketHint | null;
-    readonly release: () => void;
-  } | null = null;
+  // the signed-in library's own socket
+  let opened: { readonly library: PhoneLibrary; readonly socket: SocketHint | null } | null = null;
 
   const signedIn = (): PhoneLibrary | null => {
     const current = session.get();
@@ -162,7 +158,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
 
   const stop = (): void => {
     opened?.socket?.close();
-    opened?.release();
     opened = null;
   };
 
@@ -251,7 +246,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       // another account's library, or the last sign-in's, goes before this one's is read
       await forgetAccount(null);
     }
-    const frames = new Set<(frame: ThreadFrame) => void>();
     let library: PhoneLibrary | null = null;
     const client = v1ClientOver(transport, (end) => {
       if (library !== null) {
@@ -282,12 +276,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       storage: args.storage,
     });
     await shares.load();
-    const previews = createThreadPreviews((listener) => {
-      frames.add(listener);
-      return () => {
-        frames.delete(listener);
-      };
-    });
+    const previews = createThreadPreviews();
     const made: PhoneLibrary = {
       client,
       files,
@@ -305,17 +294,20 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
             clock: args.clock,
             dial: args.dial,
             onFrame: (frame) => {
-              if (frame.type === "thread") {
-                for (const listener of frames) {
-                  listener(frame);
-                }
+              if (frame.type === "preview") {
+                previews.hear({ text: frame.text, threadId: frame.threadId });
                 return;
               }
               moved(queries, frame);
+              for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
+                previews.hear({ text: null, threadId });
+              }
             },
-            // a write may have landed while no socket was open to say so
+            // a write may have landed while no socket was open to say so, and a frame that let a
+            // preview go been missed; a reply still being written sends its next one in a moment
             onOpen: () => {
               void queryClient.invalidateQueries({ queryKey: queries.library.key() });
+              previews.hear({ text: null, threadId: null });
             },
             origin: args.cloudUrl,
             ticket: async () => {
@@ -327,7 +319,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
               }
             },
           });
-    opened = { library: made, release: previews.stop, socket };
+    opened = { library: made, socket };
     session.set({ kind: "signed-in", library: made });
     socket?.connect();
     void shares.flush();

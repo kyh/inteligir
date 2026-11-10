@@ -25,7 +25,6 @@ import {
   workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
-import { previewOf } from "@repo/agent-panel/thread-previews";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
@@ -200,10 +199,13 @@ const useLivePreview = (threadId: string | null): string | null => {
   const [preview, setPreview] = useState<{ threadId: string; text: string } | null>(null);
   useEffect(
     () =>
-      socket.onThread((frame) => {
-        const next = frame.threadId === threadId ? previewOf(frame) : null;
-        if (next !== null) {
-          setPreview(next.text === null ? null : { text: next.text, threadId: next.threadId });
+      socket.onPreview((heard) => {
+        if (heard.text !== null) {
+          if (heard.threadId === threadId) {
+            setPreview({ text: heard.text, threadId: heard.threadId });
+          }
+        } else if (heard.threadId === null || heard.threadId === threadId) {
+          setPreview(null);
         }
       }),
     [socket, threadId],

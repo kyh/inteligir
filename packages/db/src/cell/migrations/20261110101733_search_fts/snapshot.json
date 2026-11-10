@@ -1,10 +1,10 @@
 {
+  "id": "d28ee35e-4213-470e-939f-1ef8a6159b83",
+  "prevIds": [
+    "4d74100b-57bf-4053-a057-889f208248d5"
+  ],
   "version": "7",
   "dialect": "sqlite",
-  "id": "e4ac4b93-127e-49da-928f-d524cd4443a2",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
   "ddl": [
     {
       "name": "agent_pushes",
@@ -1501,16 +1501,6 @@
       "table": "thread_events"
     },
     {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "seq",
-      "entityType": "columns",
-      "table": "thread_events"
-    },
-    {
       "type": "text",
       "notNull": false,
       "autoincrement": false,
@@ -1557,16 +1547,6 @@
       "default": null,
       "generated": null,
       "name": "updated_at",
-      "entityType": "columns",
-      "table": "threads"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "seq",
       "entityType": "columns",
       "table": "threads"
     },

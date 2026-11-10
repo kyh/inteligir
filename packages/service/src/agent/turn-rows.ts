@@ -1,8 +1,7 @@
 // The cell's rows of the built-in agent's conversations, read and written inside the cell's
 // transactions: a thread and its status, each thread's one open turn, the sends waiting for a turn,
-// the last push each thread's object landed, and the switch. A thread and its events carry the
-// library's sequence number, as items do, and each write of one tells the sockets the thread moved;
-// the rest are the cell's alone.
+// the last push each thread's object landed, and the switch. Each write of a thread or its events
+// names the thread in the moved frame its commit sends; the rest are the cell's alone.
 
 import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import type { SqlRow, SqlStatements } from "../library/library-sql";
@@ -53,16 +52,14 @@ const titleOf = (text: string): string => {
 };
 
 export const createThread = (scope: LandingScope, threadId: string, text: string): void => {
-  const seq = scope.seq();
   scope.storage.run(
-    `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
-     VALUES (?, ?, 'idle', ?, ?, ?)`,
-    [threadId, titleOf(text), scope.now, scope.now, seq],
+    `INSERT INTO threads (id, title, status, created_at, updated_at)
+     VALUES (?, ?, 'idle', ?, ?)`,
+    [threadId, titleOf(text), scope.now, scope.now],
   );
   scope.moved.thread(threadId);
 };
 
-// a thread's status moved, and with it its sequence
 export const setThreadStatus = (
   scope: LandingScope,
   threadId: string,
@@ -72,11 +69,9 @@ export const setThreadStatus = (
   if (held === null || held.status === status) {
     return;
   }
-  const seq = scope.seq();
-  scope.storage.run("UPDATE threads SET status = ?, updated_at = ?, seq = ? WHERE id = ?", [
+  scope.storage.run("UPDATE threads SET status = ?, updated_at = ? WHERE id = ?", [
     status,
     scope.now,
-    seq,
     threadId,
   ]);
   scope.moved.thread(threadId);
