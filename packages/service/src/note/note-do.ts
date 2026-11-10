@@ -39,6 +39,8 @@ import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { plainText } from "../plain-http";
 import { articleChanges } from "./article-body";
+import { deadline, dutyColumns, dutyOf, stepDuty } from "./note-duty";
+import type { Duty, DutyEvent } from "./note-duty";
 import { openWithSchema } from "../object-schema";
 import { migrateNote, noteDbOf } from "./note-db";
 import type { NoteDb } from "./note-db";
@@ -66,9 +68,6 @@ export const NOTE_UPDATE_CAP = 1024 * 1024;
 export const NOTE_STATE_CAP = 8 * 1024 * 1024;
 // a snapshot part sits well inside a Durable Object's 2 MB row
 const SNAPSHOT_PART_BYTES = 1024 * 1024;
-// past the save's debounce (1 s, at most 5 s), so it projects only what the debounce missed
-const BACKSTOP_MS = 10_000;
-const RETRY_MS = 30_000;
 // the cell keeps a change set this long after it closes, and prunes once a day
 const TURN_LOG_KEPT_MS = UNDO_REACH_MS + PRUNE_EVERY_MS;
 
@@ -178,21 +177,28 @@ export class NoteDO extends YServer<Env> {
     this.#db.update(noteMeta).set(values).where(eq(noteMeta.id, META_ID)).run();
   }
 
+  // what the note owes the cell after `event`, written with `also`; the alarm is the caller's
+  #owe(event: DutyEvent, also: SQLiteUpdateSetSource<typeof noteMeta> = {}): Duty {
+    const duty = stepDuty(dutyOf(this.#meta()), event);
+    this.#setMeta({ ...dutyColumns(duty), ...also });
+    return duty;
+  }
+
+  #step(event: DutyEvent, also: SQLiteUpdateSetSource<typeof noteMeta> = {}): void {
+    this.#rearm(this.#owe(event, also));
+  }
+
   // every update the document takes, stored in the event that took it
   #append(update: Uint8Array, personal: boolean): void {
-    const now = Date.now();
     this.#db.insert(noteUpdates).values({ bytes: update }).run();
-    this.#db
-      .update(noteMeta)
-      .set({
-        dirtyAt: sql`coalesce(${noteMeta.dirtyAt}, ${now})`,
+    this.#step(
+      { at: Date.now(), kind: "appended" },
+      {
         personEdited: personal ? 1 : noteMeta.personEdited,
         version: sql`${noteMeta.version} + 1`,
-      })
-      .where(eq(noteMeta.id, META_ID))
-      .run();
+      },
+    );
     this.#bytes += update.length;
-    this.#armAt(now + BACKSTOP_MS);
   }
 
   // ---- loading, seeding, saving ----
@@ -229,10 +235,10 @@ export class NoteDO extends YServer<Env> {
     }
     if (parts.length === 0 && updates.length === 0 && !this.#gone) {
       await this.#seed();
-    } else if (meta.seedPending === 1) {
+    } else if (dutyOf(meta).seed.kind !== "none") {
       await this.#confirmSeed();
     }
-    await this.#arm();
+    this.#rearm(dutyOf(this.#meta()));
     // after the last await, so a run that throws registers nothing and the stored state is not
     // stored again, and before y-partyserver's own listeners, so a frame's row is written ahead of
     // its broadcast
@@ -253,14 +259,14 @@ export class NoteDO extends YServer<Env> {
     const fresh = new Y.Doc();
     seedDoc(fresh, seed.kind === "seed" ? noteBlocksSchema.parse(seed.blocks) : []);
     const state = Y.encodeStateAsUpdate(fresh);
-    this.ctx.storage.transactionSync(() => {
+    const duty = this.ctx.storage.transactionSync(() => {
       this.#db.insert(noteUpdates).values({ bytes: state }).run();
-      this.#setMeta({
-        dirtyAt: Date.now(),
-        seedPending: 1,
-        version: sql`${noteMeta.version} + 1`,
-      });
+      return this.#owe(
+        { at: Date.now(), kind: "seeded" },
+        { version: sql`${noteMeta.version} + 1` },
+      );
     });
+    this.#rearm(duty);
     this.#bytes += state.length;
     Y.applyUpdate(this.document, state, LOAD);
     await this.#confirmSeed();
@@ -270,10 +276,10 @@ export class NoteDO extends YServer<Env> {
   async #confirmSeed(): Promise<void> {
     try {
       await this.#cell().confirmSeed(this.#note.itemId);
-      this.#setMeta({ seedPending: 0 });
+      this.#step({ kind: "seedConfirmed" });
     } catch (error) {
       console.warn({ event: "note-confirm-failed", ...errorFields(error) });
-      this.#setMeta({ retryAt: Date.now() + RETRY_MS });
+      this.#step({ at: Date.now(), kind: "seedFailed" });
     }
   }
 
@@ -307,7 +313,7 @@ export class NoteDO extends YServer<Env> {
     if (this.#gone) {
       return;
     }
-    if (this.#meta().seedPending === 1) {
+    if (dutyOf(this.#meta()).seed.kind !== "none") {
       await this.#confirmSeed();
     }
     await this.#project();
@@ -321,34 +327,20 @@ export class NoteDO extends YServer<Env> {
       .delete(turnCursors)
       .where(lt(turnCursors.at, Date.now() - TURN_LOG_KEPT_MS))
       .run();
-    await this.#arm();
+    this.#rearm(dutyOf(this.#meta()));
   }
 
-  // the earliest deadline the note holds: a retry, the backstop of a version past the cell's, the
-  // oldest turn log's prune
-  async #arm(): Promise<void> {
-    const meta = this.#meta();
+  // the one alarm, at the earliest of what the note owes and the oldest turn log's prune; one that
+  // fires with nothing left sets no other
+  #rearm(duty: Duty): void {
     const oldest = this.#db
       .select({ at: sql<number | null>`min(${turnCursors.at})` })
       .from(turnCursors)
       .get()?.at;
-    const deadlines = [
-      meta.retryAt,
-      meta.version > meta.projected && meta.dirtyAt !== null ? meta.dirtyAt + BACKSTOP_MS : null,
-      oldest === null || oldest === undefined ? null : oldest + TURN_LOG_KEPT_MS,
-    ].filter((at) => at !== null);
-    if (deadlines.length === 0) {
-      return;
-    }
-    const at = Math.min(...deadlines);
-    this.#alarmAt = null;
-    await this.ctx.storage.setAlarm(at);
-    this.#alarmAt = at;
-  }
-
-  // a deadline set from inside a synchronous write: the alarm moves only to an earlier time
-  #armAt(at: number): void {
-    if (this.#alarmAt !== null && this.#alarmAt <= at) {
+    const owed = deadline(duty);
+    const prune = oldest === null || oldest === undefined ? null : oldest + TURN_LOG_KEPT_MS;
+    const at = owed === null || prune === null ? (owed ?? prune) : Math.min(owed, prune);
+    if (at === null || at === this.#alarmAt) {
       return;
     }
     this.#alarmAt = at;
@@ -374,23 +366,19 @@ export class NoteDO extends YServer<Env> {
     if (meta.version <= meta.projected) {
       return;
     }
+    const at = Date.now();
     const projection = this.#projection();
     try {
       const answer = await this.#cell().projectNote(this.#note.itemId, projection);
       const now = this.#meta();
       const projected = Math.max(now.projected, projection.version);
-      this.#setMeta({
-        dirtyAt: now.version > projected ? now.dirtyAt : null,
-        projected,
-        retryAt: null,
-      });
+      this.#step({ at, kind: "projected", stillDirty: now.version > projected }, { projected });
       if (answer === "gone") {
         this.#gone = true;
       }
     } catch (error) {
       console.warn({ event: "note-project-failed", ...errorFields(error) });
-      this.#setMeta({ retryAt: Date.now() + RETRY_MS });
-      this.#armAt(Date.now() + RETRY_MS);
+      this.#step({ at: Date.now(), kind: "projectFailed" });
     }
   }
 
@@ -642,7 +630,7 @@ export class NoteDO extends YServer<Env> {
         })
         .run();
     });
-    this.#armAt(at + TURN_LOG_KEPT_MS);
+    this.#rearm(dutyOf(this.#meta()));
   }
 
   // a page's article in place of the one the note holds, once per reading
