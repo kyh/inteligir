@@ -6,7 +6,14 @@
 // client resending after a lost answer is told what landed.
 
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
-import { nextHead, readItem, readMeta, storeTombstone, writeMeta } from "./library-queries";
+import {
+  nextHead,
+  readCount,
+  readInstant,
+  readItem,
+  storeTombstone,
+  writeMeta,
+} from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
@@ -141,14 +148,8 @@ const undoSchema = z.object({
 const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
 const answerRowSchema = z.object({ answer: z.string() });
-const deletedAtSchema = z.number().int().nonnegative();
-const headSchema = z.number().int().nonnegative();
-
 // the last sequence number a write took, 0 before the first
-export const libraryHead = (db: CellDb): number => {
-  const head = readMeta(db, "head");
-  return head === null ? 0 : headSchema.parse(head);
-};
+export const libraryHead = (db: CellDb): number => readCount(db, "head");
 
 const PAYLOADS = {
   notePurge: jsonTextSchema.pipe(z.object({ itemId: z.string() })),
@@ -183,10 +184,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, ids, storage } = deps;
   const { db } = storage;
 
-  const deletedAt = (): number | null => {
-    const held = readMeta(db, "deleted_at");
-    return held === null ? null : deletedAtSchema.parse(held);
-  };
+  const deletedAt = (): number | null => readInstant(db, "deleted_at");
 
   // what the op answered when it landed, or null while it has not
   const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {

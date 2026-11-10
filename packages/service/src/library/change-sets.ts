@@ -143,15 +143,20 @@ const writeAfter = (
 };
 
 const sealRowSchema = z.object({ sealed_at: z.number().nullable() });
+
+// whether a change set is sealed, or null for one the library does not keep
+export const setSealed = (storage: CellStorage, setId: string): boolean | null => {
+  const [raw] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [setId]);
+  return raw === undefined ? null : sealRowSchema.parse(raw).sealed_at !== null;
+};
+
 const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z.string() });
 
 // writes the after of each item the set still holds open, and closes the set, unless it was
 // already sealed or never was. An item another set changed since already has its after, written at
 // that change
 export const sealChangeSet = (storage: CellStorage, setId: string, now: number): void => {
-  const [raw] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [setId]);
-  const set = raw === undefined ? null : sealRowSchema.parse(raw);
-  if (set?.sealed_at !== null) {
+  if (setSealed(storage, setId) !== false) {
     dropJob(storage.db, sealJobOf(setId).id);
     return;
   }

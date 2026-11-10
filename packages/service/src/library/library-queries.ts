@@ -542,6 +542,17 @@ export const linksToUrl = (db: CellDb, key: string): string[] =>
 export const readMeta = (db: CellDb, key: string): string | number | null =>
   db.select({ v: meta.v }).from(meta).where(eq(meta.k, key)).get()?.v ?? null;
 
+const instantSchema = z.number().int().nonnegative();
+
+// a meta key holding a time or a count, null before its first write
+export const readInstant = (db: CellDb, key: string): number | null => {
+  const held = readMeta(db, key);
+  return held === null ? null : instantSchema.parse(held);
+};
+
+// a meta key holding a count, 0 before its first write
+export const readCount = (db: CellDb, key: string): number => readInstant(db, key) ?? 0;
+
 export const writeMeta = (db: CellDb, key: string, value: string | number): void => {
   db.insert(meta)
     .values({ k: key, v: value })

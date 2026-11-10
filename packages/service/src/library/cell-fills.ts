@@ -33,6 +33,7 @@ import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { changes, landRead, pageFieldOps } from "./cell-saves";
+import { setSealed } from "./change-sets";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in its change set's words
@@ -139,13 +140,9 @@ export const releaseHeldFills = (
   }
 };
 
-const sealedSchema = z.object({ sealed_at: z.number().nullable() });
-
 // whether a held row's turn has sealed: a set the library no longer keeps holds nothing
-const turnSealed = (storage: CellStorage, changeSetId: string): boolean => {
-  const [row] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [changeSetId]);
-  return row === undefined || sealedSchema.parse(row).sealed_at !== null;
-};
+const turnSealed = (storage: CellStorage, changeSetId: string): boolean =>
+  setSealed(storage, changeSetId) !== false;
 
 export interface ClaimedFill {
   readonly job: DueJob<"fill">;

@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { blobs, blobUploads, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readMeta, writeMeta } from "./library-queries";
+import { readCount, writeMeta } from "./library-queries";
 import { chunkStatement } from "./library-sql";
 import type { SqlStatements } from "./library-sql";
 
@@ -273,18 +273,13 @@ const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
 
 const BLOB_REMOVALS = "blob_removals";
 
-const removalsSchema = z.number().int().nonnegative();
-
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
 const strayJob = (sha: string) =>
   ({ id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) }) as const;
 
 // the removals the cell has finished, which a settle reads before it looks in R2
-export const blobRemovals = (db: CellDb): number => {
-  const held = readMeta(db, BLOB_REMOVALS);
-  return held === null ? 0 : removalsSchema.parse(held);
-};
+export const blobRemovals = (db: CellDb): number => readCount(db, BLOB_REMOVALS);
 
 const strayPending = (db: CellDb, sha: string): boolean =>
   db

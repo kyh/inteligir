@@ -730,7 +730,9 @@ export const purgeThreadObjects = async (
   exports: Cloudflare.Exports,
   accountId: string,
 ): Promise<void> => {
-  for (const threadId of everyThreadId(sql)) {
-    await threadStub(exports, accountId, threadId).purge();
-  }
+  await Promise.all(
+    everyThreadId(sql).map(async (threadId) => {
+      await threadStub(exports, accountId, threadId).purge();
+    }),
+  );
 };
