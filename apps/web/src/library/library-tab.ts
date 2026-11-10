@@ -31,7 +31,7 @@ import { applyStoredSpellcheck } from "./spellcheck";
 // and saying the browser is too old, any other sending the tab to sign in; or left, by this
 // device's own sign-out or its account deleted. The first end wins, and every later one does
 // nothing
-export type TabSession =
+type TabSession =
   | { readonly kind: "live" }
   | { readonly kind: "ended"; readonly why: SessionEnd }
   | { readonly kind: "left" };

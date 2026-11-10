@@ -13,7 +13,7 @@ import type { PageLibrary } from "../cloud/library-context";
 import { createPageQueryClient } from "../cloud/v1";
 import { LibraryLayout, seedScopes } from "../library-layout";
 import { librarySearchSchema } from "../library-search";
-import type { TabOpening, TabSession } from "../library-tab";
+import type { TabOpening } from "../library-tab";
 import { RenderCrash } from "../render-crash";
 import { seedSettings, SettingsRoute } from "../settings/settings-route";
 
@@ -44,7 +44,7 @@ export const createLibraryRouter = (entry: string, open: () => Promise<TabOpenin
 };
 
 // one value, since the layout reads it through useSyncExternalStore
-const LIVE: TabSession = { kind: "live" };
+const LIVE = { kind: "live" } as const;
 
 // a tab opened over a suite's library
 export const openedOver = (library: PageLibrary) => async (): Promise<TabOpening> => {

@@ -37,6 +37,7 @@ export type SocketDial = (url: string) => AccountSocket;
 
 // up: anything may have moved while no socket said so; down: nothing the socket said holds any
 // more, and the reply being written stops arriving
+/** @internal */
 export type SocketStatus = "up" | "down";
 
 // answered by the cell's auto-response table without waking it
