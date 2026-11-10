@@ -196,7 +196,7 @@ describe("the extract", () => {
 
   it("changes nothing when the note is not made, nothing is selected or no item is open", async () => {
     installFakeEditorHost({
-      createNote: async () => await Promise.reject(new Error("the replica is closed")),
+      createNote: async () => await Promise.reject(new Error("the library is unreachable")),
     });
     const editor = editorOver([p("b1", "only")]);
     editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 2, path: [0, 0] } });
