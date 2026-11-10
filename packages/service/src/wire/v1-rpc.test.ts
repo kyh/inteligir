@@ -213,26 +213,23 @@ describe("every refusal's status", () => {
   it("answers the library's refusals under the statuses the wire declares", async () => {
     const { phone } = await signedUp("rpc-statuses@example.test");
     const { item } = await phone.library.items.createNote({ markdown: "One.\n\nTwo." });
-    const { seq } = await phone.library.items.read({ id: item.id });
     await phone.library.items.edit({
-      baseSeq: seq,
       edits: [{ newText: "Two, edited.", oldText: "Two." }],
       id: item.id,
     });
-    const { changeSets } = await phone.library.history.list({});
-    const setIds = changeSets.map((set) => set.id);
-    await phone.library.history.undo({ changeSetIds: setIds });
-    const { seq: now } = await phone.library.items.read({ id: item.id });
+    const undoAll = async () => {
+      const { changeSets } = await phone.library.history.list({});
+      return await phone.library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
+    };
 
     // each call made only when its turn comes, so every status is its own call's
     const refusals = [
       [async () => await phone.library.items.read({ id: crypto.randomUUID() }), "NOT_FOUND", 404],
       [
         async () =>
-          await phone.library.items.edit({
-            baseSeq: seq,
-            edits: [{ newText: "Uno.", oldText: "One." }],
-            id: item.id,
+          await phone.library.write({
+            itemId: item.id,
+            ops: [{ base: "Not its title", field: "title", op: "set", value: "Uno" }],
           }),
         "CONFLICT",
         409,
@@ -240,7 +237,6 @@ describe("every refusal's status", () => {
       [
         async () =>
           await phone.library.items.edit({
-            baseSeq: now,
             edits: [{ newText: "x", oldText: "Not in the item." }],
             id: item.id,
           }),
@@ -261,7 +257,10 @@ describe("every refusal's status", () => {
         409,
       ],
       [
-        async () => await phone.library.history.undo({ changeSetIds: setIds }),
+        async () => {
+          await undoAll();
+          return await undoAll();
+        },
         "ALREADY_UNDONE",
         409,
       ],

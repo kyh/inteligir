@@ -7,7 +7,14 @@ import type { V1Client } from "@repo/contract/v1";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
+import {
+  agentCellIn,
+  cellOf,
+  clockAt,
+  engineIn,
+  inCell,
+  notesIn,
+} from "../test-support/library-cell";
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
@@ -27,6 +34,7 @@ const linkIn = (state: DurableObjectState, bytesCap: number) => {
     agent: agentCellIn(state, library),
     library,
     actor: () => cellActorOf(PRINCIPAL),
+    notes: notesIn(state),
     settle: async <T>(result: T) => await Promise.resolve(result),
   };
   const serve = async (request: Request): Promise<Response> =>

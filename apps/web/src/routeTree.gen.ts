@@ -41,6 +41,7 @@ import { Route as SiteAppSignUpRouteImport } from './routes/_site/app/sign-up'
 import { Route as SiteConnectExtensionRouteImport } from './routes/_site/connect/extension'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 import { Route as V1BlobsSplatRouteImport } from './routes/v1/blobs.$'
+import { Route as V1NotesSplatRouteImport } from './routes/v1/notes.$'
 import { Route as V1RpcSplatRouteImport } from './routes/v1/rpc.$'
 
 const SiteRoute = SiteRouteImport.update({
@@ -204,6 +205,11 @@ const V1BlobsSplatRoute = V1BlobsSplatRouteImport.update({
   path: '/v1/blobs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const V1NotesSplatRoute = V1NotesSplatRouteImport.update({
+  id: '/v1/notes/$',
+  path: '/v1/notes/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const V1RpcSplatRoute = V1RpcSplatRouteImport.update({
   id: '/v1/rpc/$',
   path: '/v1/rpc/$',
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/connect/extension': typeof SiteConnectExtensionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/notes/$': typeof V1NotesSplatRoute
   '/v1/rpc/$': typeof V1RpcSplatRoute
   '/app/': typeof SiteAppIndexRoute
 }
@@ -273,6 +280,7 @@ export interface FileRoutesByTo {
   '/connect/extension': typeof SiteConnectExtensionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/notes/$': typeof V1NotesSplatRoute
   '/v1/rpc/$': typeof V1RpcSplatRoute
   '/app': typeof SiteAppIndexRoute
 }
@@ -309,6 +317,7 @@ export interface FileRoutesById {
   '/_site/connect/extension': typeof SiteConnectExtensionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/v1/blobs/$': typeof V1BlobsSplatRoute
+  '/v1/notes/$': typeof V1NotesSplatRoute
   '/v1/rpc/$': typeof V1RpcSplatRoute
   '/_site/app/': typeof SiteAppIndexRoute
 }
@@ -345,6 +354,7 @@ export interface FileRouteTypes {
     | '/connect/extension'
     | '/api/auth/$'
     | '/v1/blobs/$'
+    | '/v1/notes/$'
     | '/v1/rpc/$'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/connect/extension'
     | '/api/auth/$'
     | '/v1/blobs/$'
+    | '/v1/notes/$'
     | '/v1/rpc/$'
     | '/app'
   id:
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/_site/connect/extension'
     | '/api/auth/$'
     | '/v1/blobs/$'
+    | '/v1/notes/$'
     | '/v1/rpc/$'
     | '/_site/app/'
   fileRoutesById: FileRoutesById
@@ -434,6 +446,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthProtectedResourceConnectorRoute: typeof DotwellKnownOauthProtectedResourceConnectorRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   V1BlobsSplatRoute: typeof V1BlobsSplatRoute
+  V1NotesSplatRoute: typeof V1NotesSplatRoute
   V1RpcSplatRoute: typeof V1RpcSplatRoute
 }
 
@@ -663,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof V1BlobsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v1/notes/$': {
+      id: '/v1/notes/$'
+      path: '/v1/notes/$'
+      fullPath: '/v1/notes/$'
+      preLoaderRoute: typeof V1NotesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/v1/rpc/$': {
       id: '/v1/rpc/$'
       path: '/v1/rpc/$'
@@ -749,6 +769,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthProtectedResourceConnectorRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   V1BlobsSplatRoute: V1BlobsSplatRoute,
+  V1NotesSplatRoute: V1NotesSplatRoute,
   V1RpcSplatRoute: V1RpcSplatRoute,
 }
 export const routeTree = rootRouteImport

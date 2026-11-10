@@ -64,6 +64,42 @@ const THREAD_STUB = {
   regex: "(?:^|/)thread-stub(?:\\.ts)?$",
 };
 
+// An item's note is named only by its account's cell, for an item its rows hold, and by the note's
+// own door once the cell said how it opens (packages/service/CLAUDE.md, EACH NOTE'S BODY IS A LIVE
+// DOCUMENT IN AN OBJECT OF ITS OWN)
+const NOTE_STUB = {
+  message:
+    "only the account's cell names an item's note: library-do.ts, account-purge.ts and the note's own door and object reach it",
+  regex: "(?:^|/)note-stub(?:\\.ts)?$",
+};
+
+// A cold note's load asks its cell for the seed, so a cell blocked on its own events while it
+// awaits a note waits on itself forever
+const NOTE_REENTRY = [
+  {
+    message:
+      "the cell never blocks its own events: a note it awaits calls back into it (object-schema.ts's openWithSchema migrates)",
+    property: "blockConcurrencyWhile",
+  },
+  {
+    message:
+      "the cell writes in transactionSync alone (cell-storage.ts): an async transaction holds the cell while a note it awaits calls back into it",
+    property: "transaction",
+  },
+];
+
+// the files that reach a conversation's object, and those that reach an item's note
+const THREAD_STUB_CALLERS = [
+  "packages/service/src/library/library-do.ts",
+  "packages/service/src/agent/agent-turns.ts",
+];
+const NOTE_STUB_CALLERS = [
+  "packages/service/src/library/library-do.ts",
+  "packages/service/src/library/account-purge.ts",
+  "packages/service/src/note/note-routes.ts",
+  "packages/service/src/note/note-do.ts",
+];
+
 // oRPC v2 still ships its v1 names, untagged, beside the new ones (https://orpc.dev/docs/migrations/from-v1).
 const V1_NAMES_MESSAGE =
   "oRPC v1's name: use v2's (RouterContractClient, InferRouterContractInputs/Outputs, RouterContract, AnyProcedureContract, asyncIteratorObject, PromiseWithError, InferClientError, consumeAsyncIterator)";
@@ -285,12 +321,44 @@ export default defineConfig({
     },
     {
       // after the first of these overrides, whose options this one replaces for the Worker's code
-      excludeFiles: [
-        ...tests,
-        "packages/service/src/library/library-do.ts",
-        "packages/service/src/agent/agent-turns.ts",
-      ],
+      excludeFiles: [...tests, ...THREAD_STUB_CALLERS, ...NOTE_STUB_CALLERS],
       files: ["packages/service/src/**"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: ORPC_V1_NAMES,
+            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, THREAD_STUB, NOTE_STUB],
+          },
+        ],
+      },
+    },
+    {
+      // the account's cell, which alone names a conversation's object and an item's note
+      files: ["packages/service/src/library/library-do.ts"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          { paths: ORPC_V1_NAMES, patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK] },
+        ],
+      },
+    },
+    {
+      excludeFiles: NOTE_STUB_CALLERS,
+      files: THREAD_STUB_CALLERS,
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: ORPC_V1_NAMES,
+            patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK, NOTE_STUB],
+          },
+        ],
+      },
+    },
+    {
+      excludeFiles: THREAD_STUB_CALLERS,
+      files: NOTE_STUB_CALLERS,
       rules: {
         "no-restricted-imports": [
           "error",
@@ -302,17 +370,15 @@ export default defineConfig({
       },
     },
     {
-      // the account's cell, which alone names a conversation's object
-      files: [
-        "packages/service/src/library/library-do.ts",
-        "packages/service/src/agent/agent-turns.ts",
-      ],
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          { paths: ORPC_V1_NAMES, patterns: [SERVICE_PLATFORM, CONFIG_MODULES, AGENTS_SDK] },
-        ],
-      },
+      // the cell's code, every module of which may await a note; its engine, which never awaits,
+      // alone calls the synchronous port's `transaction`
+      excludeFiles: [...tests, "packages/service/src/library/library-engine.ts"],
+      files: ["packages/service/src/library/**"],
+      rules: { "no-restricted-properties": ["error", ...NOTE_REENTRY] },
+    },
+    {
+      files: ["packages/service/src/library/library-engine.ts"],
+      rules: { "no-restricted-properties": ["error", NOTE_REENTRY[0]] },
     },
     {
       // A test is one of the callers, so it may hand the code under test the platform's bytes.

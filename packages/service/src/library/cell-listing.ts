@@ -16,13 +16,8 @@ import {
   listingPageOf,
 } from "@repo/contract/library/library-index";
 import type { ItemListing, ListingPageInput } from "@repo/contract/library/library-index";
-import {
-  literalMatches,
-  readBlocks,
-  readItem,
-  readLiveItems,
-  searchLibrary,
-} from "./library-queries";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+import { literalMatches, readItem, readLiveItems, searchLibrary } from "./library-queries";
 import type { LiteralMatch, SearchSide } from "./library-queries";
 import { runPlan } from "./library-sql";
 import { asc } from "drizzle-orm";
@@ -33,14 +28,15 @@ import { liveFolders } from "./cell-folders";
 import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
-// an item's row and every block it holds; one emptied from Deleted is no item
-export const itemWhole = (storage: CellStorage, id: string) => {
+// an item's row and its body's blocks, read from where the body lives; one emptied from Deleted is
+// no item
+export const itemWhole = (storage: CellStorage, id: string, blocks: readonly BodyBlock[]) => {
   const item = readItem(storage.db, id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
   return {
-    blocks: runPlan(storage, readBlocks(id)),
+    blocks: [...blocks],
     card: answerCard(item.card),
     fields: item.fields,
     id,
@@ -75,11 +71,11 @@ export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
 // ---- search ----
 
 // how many hits a search ranks before its filters, and how many items holding its exact text a
-// read of the blocks names at once
+// read of the bodies' text names at once
 const SEARCH_CANDIDATES = 200;
 const LITERAL_PAGE = 50;
 
-// the line of a block's text that holds the query, as an excerpt around its first match
+// the line of a body's text that holds the query, as an excerpt around its first match
 const lineExcerpt = (text: string, query: string): string | null => {
   for (const line of text.split("\n")) {
     const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
@@ -92,9 +88,9 @@ const lineExcerpt = (text: string, query: string): string | null => {
 };
 
 // each hit's passage, best first: the ranked index, then the live items holding the query's exact
-// text the index's words miss (a part of a word, punctuation, a person's typing its set has not
-// sealed into the index yet), a page of them at a time until the candidates are full, so a common
-// needle reads no more of the library's text than those pages' blocks; only an ascii query on one
+// text the index's words miss (a part of a word, punctuation), a page of them at a time until the
+// candidates are full, so a common needle reads no more of the library's text than those pages'
+// lines; only an ascii query on one
 // line has such a scan, since SQLite folds ascii case alone and a match lives in one line
 export const searchHits = (
   storage: CellStorage,

@@ -14,12 +14,11 @@ import type { ViewPage } from "@repo/editor/codec/item-view";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
-import type { ItemCard } from "@repo/contract/library/derive-item";
+import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
 import type { ItemListing } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
-import { linksTo, linksToUrl, readBlocks, readItem } from "./library-queries";
-import { runPlan } from "./library-sql";
+import { linksTo, linksToUrl, readItem } from "./library-queries";
 import { jsonTextSchema } from "./sql-value";
 import { and, asc, countDistinct, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -241,18 +240,19 @@ export interface ReadInput {
   readonly responseFormat: ResponseFormat;
 }
 
+// the item's markdown from its body's blocks, read from where the body lives
 export const readItemView = (
   storage: CellStorage,
   codec: CellCodec,
   input: ReadInput,
+  blocks: readonly BodyBlock[],
 ): ItemRead => {
   const { db } = storage;
   const item = readItem(db, input.id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
-  const blocks = runPlan(storage, readBlocks(input.id));
-  const view = itemView(new Map(blocks.map((stored) => [stored.block.id, stored])), codec.view);
+  const view = itemView(blocks, codec.view);
   const page = pageWithin(view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
   const out = new Set(
     db
@@ -291,7 +291,6 @@ export const readItemView = (
     },
     id: input.id,
     links: { in: linkedItems(db, into), out: linkedItems(db, out) },
-    seq: item.seq,
     view: { from: page.from, markdown: page.markdown, to: page.to, total: page.total },
   };
 };

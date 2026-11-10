@@ -7,11 +7,9 @@ import { z } from "zod";
 
 import { BLOCK_HASH_RE, blockHash } from "./block-hash";
 import { compareBlockPlaces } from "./block-order";
-import type { JsonValue } from "./canonical-json";
-import { mergeListField, sameList, sameOptionalJson } from "./field-ops";
-import type { ScalarField } from "./field-ops";
-import { libraryItemFieldsSchema, propertyKeySchema } from "./library-item";
-import type { LibraryItemField, LibraryItemFields, PropertyValue } from "./library-item";
+import { fieldOpSchema, fieldVerdict, landFieldOp, refusedFields } from "./field-ops";
+import type { FieldConflict, FieldOp } from "./field-ops";
+import type { LibraryItemField, LibraryItemFields } from "./library-item";
 import { blockIdSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
 import { ordSchema } from "./order-key";
@@ -65,69 +63,9 @@ const moveOpSchema = z.strictObject({
   ord: ordSchema,
 });
 
-const FIELDS = libraryItemFieldsSchema.shape;
-
-const setOf = <F extends ScalarField>(field: F) =>
-  z.strictObject({
-    base: FIELDS[field],
-    field: z.literal(field),
-    op: z.literal("set"),
-    value: FIELDS[field],
-  });
-
-// one variant per field, so a patch's values are its field's own type
-const setOpSchema = z.discriminatedUnion("field", [
-  setOf("author"),
-  setOf("coverSha"),
-  setOf("deletedAt"),
-  setOf("description"),
-  setOf("fetchError"),
-  setOf("fetchState"),
-  setOf("fetchedAt"),
-  setOf("folderId"),
-  setOf("kind"),
-  setOf("lang"),
-  setOf("originalName"),
-  setOf("originalSha"),
-  setOf("pinnedAt"),
-  setOf("published"),
-  setOf("savedAt"),
-  setOf("site"),
-  setOf("title"),
-  setOf("url"),
-]);
-
-// a list field merges as a set: what the writer added goes in, what it took out goes, and what
-// anyone else did since stays, so two devices tagging one item at once both land
-const tagsOpSchema = z.strictObject({
-  base: FIELDS.tags,
-  op: z.literal("tags"),
-  value: FIELDS.tags,
-});
-const aliasesOpSchema = z.strictObject({
-  base: FIELDS.aliases,
-  op: z.literal("aliases"),
-  value: FIELDS.aliases,
-});
-
-// one property by its key; a missing base or value is the property absent. The value's size is
-// the item's to hold: the fields are checked whole once a batch lands
-const propertyOpSchema = z.strictObject({
-  base: z.json().optional(),
-  key: propertyKeySchema,
-  op: z.literal("property"),
-  value: z.json().optional(),
-});
-
-export const libraryOpSchema = z.discriminatedUnion("op", [
-  insertOpSchema,
-  putOpSchema,
-  dropOpSchema,
-  moveOpSchema,
-  setOpSchema,
-  tagsOpSchema,
-  aliasesOpSchema,
-  propertyOpSchema,
+export const libraryOpSchema = z.union([
+  z.discriminatedUnion("op", [insertOpSchema, putOpSchema, dropOpSchema, moveOpSchema]),
+  fieldOpSchema,
 ]);
 export type LibraryOp = z.infer<typeof libraryOpSchema>;
 
@@ -135,8 +73,7 @@ export type LibraryOp = z.infer<typeof libraryOpSchema>;
 type OpConflict =
   | { readonly kind: "block"; readonly blockId: string; readonly current: StoredBlock | null }
   | { readonly kind: "order"; readonly blockId: string; readonly currentOrd: string }
-  | { readonly kind: "field"; readonly field: ScalarField; readonly current: JsonValue }
-  | { readonly kind: "property"; readonly key: string; readonly current: JsonValue | undefined };
+  | FieldConflict;
 
 // `satisfied`: what the op would make is already there (a resend after a lost answer, or two
 // writers doing the same thing), so landing it changes nothing
@@ -152,11 +89,7 @@ const SATISFIED: Verdict = { kind: "satisfied" };
 
 const conflictOf = (conflict: OpConflict): Verdict => ({ conflict, kind: "conflict" });
 
-const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
-  Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
-
-type BlockOp = Extract<LibraryOp, { op: "insert" | "put" | "drop" | "move" }>;
-type FieldOp = Exclude<LibraryOp, BlockOp>;
+type BlockOp = Exclude<LibraryOp, FieldOp>;
 
 const blockVerdict = (state: ItemState, op: BlockOp): Verdict => {
   switch (op.op) {
@@ -201,62 +134,11 @@ const blockVerdict = (state: ItemState, op: BlockOp): Verdict => {
   }
 };
 
-const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): Verdict => {
-  switch (op.op) {
-    case "set": {
-      const current = fields[op.field];
-      if (current === op.base) {
-        return APPLY;
-      }
-      return current === op.value
-        ? SATISFIED
-        : conflictOf({ current, field: op.field, kind: "field" });
-    }
-    case "tags":
-    case "aliases": {
-      const current = fields[op.op];
-      return sameList(mergeListField(op.op, current, op.base, op.value), current)
-        ? SATISFIED
-        : APPLY;
-    }
-    case "property": {
-      const current = propertyAt(fields, op.key);
-      if (sameOptionalJson(current, op.base)) {
-        return APPLY;
-      }
-      return sameOptionalJson(current, op.value)
-        ? SATISFIED
-        : conflictOf({ current, key: op.key, kind: "property" });
-    }
-    // no default
-  }
-};
-
 const isBlockOp = (op: LibraryOp): op is BlockOp =>
   op.op === "insert" || op.op === "put" || op.op === "drop" || op.op === "move";
 
 const verdictOf = (state: ItemState, op: LibraryOp): Verdict =>
   isBlockOp(op) ? blockVerdict(state, op) : fieldVerdict(state.fields, op);
-
-const withField = <F extends ScalarField>(
-  fields: LibraryItemFields,
-  field: F,
-  value: LibraryItemFields[F],
-): LibraryItemFields => ({ ...fields, [field]: value });
-
-const withProperty = (
-  fields: LibraryItemFields,
-  key: string,
-  value: PropertyValue | undefined,
-): LibraryItemFields => {
-  const properties = Object.fromEntries(
-    Object.entries(fields.properties).filter(([name]) => name !== key),
-  );
-  if (value !== undefined) {
-    properties[key] = value;
-  }
-  return { ...fields, properties };
-};
 
 const withBlocks = (
   state: ItemState,
@@ -301,16 +183,11 @@ const landOp = (state: ItemState, op: LibraryOp): ItemState => {
         }
       });
     }
-    case "set": {
-      return { blocks: state.blocks, fields: withField(state.fields, op.field, op.value) };
-    }
+    case "set":
     case "tags":
-    case "aliases": {
-      const merged = mergeListField(op.op, state.fields[op.op], op.base, op.value);
-      return { blocks: state.blocks, fields: { ...state.fields, [op.op]: merged } };
-    }
+    case "aliases":
     case "property": {
-      return { blocks: state.blocks, fields: withProperty(state.fields, op.key, op.value) };
+      return { blocks: state.blocks, fields: landFieldOp(state.fields, op) };
     }
     // no default
   }
@@ -351,24 +228,6 @@ const touchedBy = (op: LibraryOp): { block: string } | { dropped: string } | "fi
     }
     // no default
   }
-};
-
-const fieldNameSchema = libraryItemFieldsSchema.keyof();
-
-// the fields an item's caps refuse, by name; none when the fields hold
-const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
-  const parsed = libraryItemFieldsSchema.safeParse(fields);
-  if (parsed.success) {
-    return [];
-  }
-  const names = new Set<LibraryItemField>();
-  for (const issue of parsed.error.issues) {
-    const name = fieldNameSchema.safeParse(issue.path[0]);
-    if (name.success) {
-      names.add(name.data);
-    }
-  }
-  return [...names].toSorted();
 };
 
 // every op in order, each against the item as the ones before it left it; one conflict lands

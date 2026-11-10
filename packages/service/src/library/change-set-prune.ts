@@ -1,6 +1,6 @@
 // How far back Undo reaches: a change set goes seven days after it closed, its hold on every item
-// it changed with it, and then whatever part or block version of those items no set still names,
-// with the files only they held. The job drops a page of entries per alarm run, again at once while
+// it changed with it, and then whatever fields part of those items no set still names, with the
+// files only they held. The job drops a page of entries per alarm run, again at once while
 // more wait, and otherwise once a day.
 
 import { chunkStatement } from "./library-sql";
@@ -8,11 +8,10 @@ import type { SqlStatements } from "./library-sql";
 import { z } from "zod";
 
 import { dropSetFiles } from "./cell-blobs";
-import { readManifest } from "./cell-parts";
 import type { CellStorage } from "./cell-storage";
 
 const DAY_MS = 24 * 60 * 60_000;
-const UNDO_REACH_MS = 7 * DAY_MS;
+export const UNDO_REACH_MS = 7 * DAY_MS;
 // an op's id answers a resend for this long
 const OP_ANSWER_MS = 30 * DAY_MS;
 // the entries one run drops, well inside an alarm's 30 s of CPU
@@ -42,26 +41,16 @@ const deleteIn = (
   }
 };
 
-// the parts and block versions of the item no change set still names, and what they alone held of
-// the library's files
+// the parts of the item no change set still names, and what they alone held of the library's files
 const collectGarbage = (storage: CellStorage, itemId: string, now: number): void => {
   const named = new Set<string>();
-  const manifests = new Set<string>();
   for (const raw of storage.all(
-    `SELECT before_fields, before_manifest, after_fields, after_manifest FROM change_set_items
-     WHERE item_id = ?`,
+    "SELECT before_fields, after_fields FROM change_set_items WHERE item_id = ?",
     [itemId],
   )) {
-    const row = refsRowSchema.parse(raw);
-    for (const hash of Object.values(row)) {
+    for (const hash of Object.values(refsRowSchema.parse(raw))) {
       if (hash !== null) {
         named.add(hash);
-      }
-    }
-    for (const column of ["before_manifest", "after_manifest"] as const) {
-      const hash = row[column];
-      if (hash !== undefined && hash !== null) {
-        manifests.add(hash);
       }
     }
   }
@@ -70,23 +59,7 @@ const collectGarbage = (storage: CellStorage, itemId: string, now: number): void
     .map((row) => hashRowSchema.parse(row).hash)
     .filter((hash) => !named.has(hash));
   deleteIn(storage, "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (", [itemId], parts);
-  const blocks = new Set<string>();
-  for (const manifest of manifests) {
-    for (const entry of readManifest(storage, itemId, manifest)) {
-      blocks.add(entry.hash);
-    }
-  }
-  const versions = storage
-    .all("SELECT hash FROM block_versions WHERE item_id = ?", [itemId])
-    .map((row) => hashRowSchema.parse(row).hash)
-    .filter((hash) => !blocks.has(hash));
-  deleteIn(
-    storage,
-    "DELETE FROM block_versions WHERE item_id = ? AND hash IN (",
-    [itemId],
-    versions,
-  );
-  dropSetFiles(storage, itemId, [...parts, ...versions], now);
+  dropSetFiles(storage, itemId, parts, now);
 };
 
 // one run's page; whether more wait for the next

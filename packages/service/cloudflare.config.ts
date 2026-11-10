@@ -21,6 +21,7 @@ const worker = defineWorker({
   exports: {
     LibraryDO: exports.durableObject({ storage: "sqlite" }),
     AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
+    NoteDO: exports.durableObject({ storage: "sqlite" }),
   },
 });
 

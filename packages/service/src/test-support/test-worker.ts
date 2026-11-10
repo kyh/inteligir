@@ -9,6 +9,7 @@ import type { FillJob } from "../fill/fill-job";
 // the runtime instantiates each from the entry's exports, by the name the config declares it under
 export { AgentThreadDO } from "../agent/agent-thread";
 export { LibraryDO } from "../library/library-do";
+export { NoteDO } from "../note/note-do";
 
 export default {
   async fetch(request, env, ctx) {

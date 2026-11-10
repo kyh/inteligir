@@ -1,13 +1,14 @@
-// What an account's library may hold: 1 GiB of its files' bytes and its SQLite together, change
-// sets included (owner decision: what Undo keeps counts toward it). The files' bytes, uploads
-// still held open among them, are `meta.bytes_used`; the SQLite is what the Durable Object reports.
-// A write that adds words past the cap, in a block or a field, is refused, and one
-// that frees or keeps them never is, so a full library can still be tidied.
+// What an account's library may hold: 1 GiB of its files' bytes, its SQLite and its notes' together,
+// change sets included (owner decision: what Undo keeps counts toward it). The files' bytes, uploads
+// still held open among them, are `meta.bytes_used`; the SQLite is what the Durable Object reports,
+// and a note's bytes what its object last projected. Only a create past the cap is refused, so a
+// person never loses a word mid-note and a full library can still be tidied.
 
 import { z } from "zod";
 
 import { readMeta, writeMeta } from "./library-queries";
 
+import { noteBytes } from "./cell-body";
 import type { CellDb } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
@@ -26,7 +27,8 @@ export const addFileBytes = (db: CellDb, delta: number): void => {
   writeMeta(db, BYTES_USED, Math.max(0, fileBytes(db) + delta));
 };
 
-const bytesUsed = (storage: CellStorage): number => fileBytes(storage.db) + storage.databaseSize();
+const bytesUsed = (storage: CellStorage): number =>
+  fileBytes(storage.db) + storage.databaseSize() + noteBytes(storage.db);
 
 // refuses `growth` more bytes once they would pass the cap
 export const holdRoomFor = (storage: CellStorage, bytesCap: number, growth: number): void => {

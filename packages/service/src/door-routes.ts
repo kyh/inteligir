@@ -7,7 +7,7 @@
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
-import { V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
+import { V1_NOTES_PATH, V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import type { DoorName } from "./doors-api";
 
@@ -20,6 +20,7 @@ export const DOOR_ROUTES = {
   rpc: `${V1_RPC_PATH}/${SPLAT}`,
   blobs: `${V1_BLOBS_PATH}/${SPLAT}`,
   socket: V1_SOCKET_PATH,
+  note: `${V1_NOTES_PATH}/${SPLAT}`,
   connector: CONNECTOR_PATH,
   // the connector's RFC 9728 document, and the authorization server's RFC 8414 one
   connectorMetadata: `/.well-known/oauth-protected-resource${CONNECTOR_PATH}`,

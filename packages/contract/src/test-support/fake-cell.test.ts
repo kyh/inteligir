@@ -45,11 +45,9 @@ const laptop = () => {
     } = {},
   ): Promise<string> => {
     const id = newId();
-    const ords = ordsBetween(null, null, lines.length);
     await library.items.create({
       blocks: lines.map((text, at) => ({
         block: paragraph(`${id}-${String(at)}`, text),
-        ord: ords[at] ?? "a0",
         section: "note",
       })),
       folderId: filing.folderId ?? null,
@@ -67,11 +65,10 @@ describe("what a client reads of the fake cell", () => {
   it("answers an item whole in reading order, one in Deleted too, and none it lacks", async () => {
     const { library, newId } = laptop();
     const id = newId();
-    const [early = "a0", late = "a1"] = ordsBetween(null, null, 2);
     await library.items.create({
       blocks: [
-        { block: paragraph("second", "Second line."), ord: late, section: "note" },
-        { block: paragraph("first", "First line."), ord: early, section: "note" },
+        { block: paragraph("first", "First line."), section: "note" },
+        { block: paragraph("second", "Second line."), section: "note" },
       ],
       folderId: null,
       id,

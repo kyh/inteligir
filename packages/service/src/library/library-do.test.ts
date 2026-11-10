@@ -280,10 +280,11 @@ describe("the library cell", () => {
 });
 
 describe("deleting the account from its cell", () => {
-  it("runs its steps in order: the tombstone, the agent's conversations, the cell's storage, its files, its grants, its invite", async () => {
+  it("runs its steps in order: the tombstone, the agent's conversations, its notes, the cell's storage, its files, its grants, its invite", async () => {
     expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toStrictEqual([
       "tombstone",
       "agent",
+      "notes",
       "storage",
       "files",
       "grants",
@@ -372,6 +373,7 @@ describe("deleting the account from its cell", () => {
       files: { alarm: null, files: 0, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
       grants: { alarm: null, files: 0, grants: 0, invites: 1, items: 0, read: gone, threads: 0 },
       invite: { alarm: null, files: 0, grants: 0, invites: 0, items: 0, read: gone, threads: 0 },
+      notes: { ...before, alarm: null, read: gone, threads: 0 },
       storage: { alarm: null, files: 1, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
       tombstone: { ...before, read: gone, threads: 2 },
     });

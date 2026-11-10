@@ -1,0 +1,351 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "ddd4e40a-1dc4-4966-8206-4f42240ab491",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "applied_ops",
+      "entityType": "tables"
+    },
+    {
+      "name": "note_meta",
+      "entityType": "tables"
+    },
+    {
+      "name": "note_updates",
+      "entityType": "tables"
+    },
+    {
+      "name": "snapshot_parts",
+      "entityType": "tables"
+    },
+    {
+      "name": "turn_cursors",
+      "entityType": "tables"
+    },
+    {
+      "name": "turn_log",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "op_id",
+      "entityType": "columns",
+      "table": "applied_ops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "answer",
+      "entityType": "columns",
+      "table": "applied_ops"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "version",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "projected",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "dirty_at",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "retry_at",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "seed_pending",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "full",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "deleted",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "purged",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "person_edited",
+      "entityType": "columns",
+      "table": "note_meta"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "note_updates"
+    },
+    {
+      "type": "blob",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "bytes",
+      "entityType": "columns",
+      "table": "note_updates"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "part",
+      "entityType": "columns",
+      "table": "snapshot_parts"
+    },
+    {
+      "type": "blob",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "bytes",
+      "entityType": "columns",
+      "table": "snapshot_parts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "change_set_id",
+      "entityType": "columns",
+      "table": "turn_cursors"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "seq",
+      "entityType": "columns",
+      "table": "turn_cursors"
+    },
+    {
+      "type": "blob",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "state_vector",
+      "entityType": "columns",
+      "table": "turn_cursors"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "at",
+      "entityType": "columns",
+      "table": "turn_cursors"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "change_set_id",
+      "entityType": "columns",
+      "table": "turn_log"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "seq",
+      "entityType": "columns",
+      "table": "turn_log"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "part",
+      "entityType": "columns",
+      "table": "turn_log"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "turn_log"
+    },
+    {
+      "type": "blob",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "bytes",
+      "entityType": "columns",
+      "table": "turn_log"
+    },
+    {
+      "columns": ["change_set_id", "seq", "part"],
+      "nameExplicit": false,
+      "name": "turn_log_pk",
+      "entityType": "pks",
+      "table": "turn_log"
+    },
+    {
+      "columns": ["op_id"],
+      "nameExplicit": false,
+      "name": "applied_ops_pk",
+      "table": "applied_ops",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "note_meta_pk",
+      "table": "note_meta",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "note_updates_pk",
+      "table": "note_updates",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["part"],
+      "nameExplicit": false,
+      "name": "snapshot_parts_pk",
+      "table": "snapshot_parts",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["change_set_id"],
+      "nameExplicit": false,
+      "name": "turn_cursors_pk",
+      "table": "turn_cursors",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "turn_cursors_at",
+      "entityType": "indexes",
+      "table": "turn_cursors"
+    },
+    {
+      "value": "\"id\" = 1",
+      "name": "note_meta_one",
+      "entityType": "checks",
+      "table": "note_meta"
+    },
+    {
+      "value": "\"kind\" IN ('pre', 'turn')",
+      "name": "turn_log_kind",
+      "entityType": "checks",
+      "table": "turn_log"
+    }
+  ],
+  "renames": []
+}

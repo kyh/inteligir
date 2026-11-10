@@ -11,16 +11,10 @@ import { z } from "zod";
 
 import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "../library-scope";
 import { ITEM_KINDS } from "../items/item-kind";
-import { blockHashSchema } from "./block-ops";
 import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
 import { libraryItemFieldsSchema, propertyKeySchema, SHA256_HEX_RE } from "./library-item";
-import {
-  blockIdSchema,
-  libraryBlockSchema,
-  librarySectionSchema,
-  storableBlockSchema,
-} from "./library-nodes";
+import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
 
 // ---- ids, times and counters ----
 
@@ -132,21 +126,19 @@ export const threadEventRowSchema = z.object({
 
 // ---- bodies ----
 
-export const storedBlockSchema = z.object({
+// a top-level block of an item's body as a read answers it, in reading order
+export const bodyBlockSchema = z.object({
   block: libraryBlockSchema,
-  hash: blockHashSchema,
-  ord: ordSchema,
   section: librarySectionSchema,
 });
 
-// a block a write creates, in its place
-export const placedBlockSchema = z.strictObject({
+// a block of the body a write makes, in the order it is sent
+export const newBodyBlockSchema = z.strictObject({
   block: storableBlockSchema,
-  ord: ordSchema,
   section: librarySectionSchema,
 });
 
-// ---- writes beside the block ops ----
+// ---- writes beside the field ops ----
 
 export const folderOpSchema = z.discriminatedUnion("op", [
   z.strictObject({
@@ -174,22 +166,9 @@ export const folderOpSchema = z.discriminatedUnion("op", [
 
 // ---- what a refusal carries ----
 
-// what a write's base met instead, one entry per guarded thing: a block (null when it is gone), a
-// block's place, a field's value, a property (absent when unset), a folder, or an item whose
-// sequence moved past the one an edit was read at
+// what a write's base met instead, one entry per guarded thing: a field's value, a property
+// (absent when unset), a folder, or an item that already holds the id a write would make
 export const conflictCurrentSchema = z.discriminatedUnion("kind", [
-  z.object({
-    blockId: blockIdSchema,
-    current: storedBlockSchema.nullable(),
-    itemId: idSchema,
-    kind: z.literal("block"),
-  }),
-  z.object({
-    blockId: blockIdSchema,
-    currentOrd: ordSchema,
-    itemId: idSchema,
-    kind: z.literal("order"),
-  }),
   z.object({
     current: z.json(),
     field: libraryItemFieldsSchema.keyof(),
@@ -208,11 +187,13 @@ export const conflictCurrentSchema = z.discriminatedUnion("kind", [
 
 // why an agent's edit cannot land: an `old_text` that is empty, stands nowhere or stands more than
 // once, a change to the lines the article opens and closes on, nesting deeper than the editor
-// reads, or text no block can store; `edit` is its index in the request
+// reads, text no block can store, or blocks someone changed while the edit was made twice over,
+// `blocks` naming them as they now are; `edit` is its index in the request
 export const editRefusalSchema = z.object({
+  blocks: z.array(bodyBlockSchema).optional(),
   count: z.number().int().positive().optional(),
   edit: z.number().int().nonnegative(),
-  reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep", "unstorable"]),
+  reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep", "unstorable", "moved"]),
 });
 
 // ---- what the apps list ----
@@ -297,8 +278,6 @@ export const itemReadSchema = z.object({
   }),
   id: idSchema,
   links: z.object({ in: z.array(linkedItemSchema), out: z.array(linkedItemSchema) }),
-  // the sequence an edit names as its base
-  seq: seqSchema,
   // a run of the item's blocks as dialect markdown, its links written `[Title](mention:<id>)`; `from` and
   // `to` are block positions in reading order, so the next page starts at `to`
   view: z.object({

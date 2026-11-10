@@ -1,6 +1,6 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
-// its derived rows and `meta` through drizzle's builders, and its blocks and the search index as
-// raw plans (`./library-sql`). A write binds every value and cuts every many-row statement under a
+// its derived rows and `meta` through drizzle's builders, and its body's text and the search index
+// as raw plans (`./library-sql`). A write binds every value and cuts every many-row statement under a
 // Durable Object's limits (`insertChunks`, `chunkStatement`); a user's text is matched with
 // instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
 // only over an older one, so a write stamped with a sequence the row has passed lands nothing.
@@ -9,32 +9,27 @@ import { and, asc, eq, getColumns, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
-import { items, itemTags, links, meta } from "@repo/db/cell/schema";
+import { BODY_HOMES, items, itemTags, links, meta } from "@repo/db/cell/schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
-import { blockHashSchema, orderedBlocks } from "@repo/contract/library/block-ops";
-import type { ItemState, StoredBlock } from "@repo/contract/library/block-ops";
-import { compareBlockPlaces } from "@repo/contract/library/block-order";
-import { ordSchema } from "@repo/contract/library/order-key";
 import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
-import { itemCardSchema } from "@repo/contract/library/derive-item";
-import type { DerivedItem, ItemCard, ItemSearchText } from "@repo/contract/library/derive-item";
+import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
+import type {
+  BodyDigest,
+  DerivedLink,
+  DerivedTag,
+  ItemCard,
+  ItemSearchText,
+} from "@repo/contract/library/derive-item";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { libraryBlockSchema, librarySectionSchema } from "@repo/contract/library/library-nodes";
-import { all, chunkStatement, LibraryRowError, run, runPlan } from "./library-sql";
-import type { SqlPlan, SqlRow, SqlStatement } from "./library-sql";
+import { all, LibraryRowError, run } from "./library-sql";
+import type { SqlPlan, SqlRow } from "./library-sql";
 
 import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
-
-const runEach = function* runEach(statements: readonly SqlStatement[]): SqlPlan<void> {
-  for (const statement of statements) {
-    yield run(statement.sql, statement.params);
-  }
-};
 
 const parseJsonColumn = <T>(text: string, schema: z.ZodType<T>, what: string): T => {
   let value: unknown;
@@ -62,11 +57,22 @@ const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
 
 // ---- items ----
 
+// Where an item's body lives and what the row keeps of it: `seed`, the cell's own rows until its note
+// first opens, or `note`, its live document, of which the cell holds the projection landed at
+// `version`; the digest its card and index derive from, and the bytes the note's object holds
+export interface ItemBody {
+  readonly home: (typeof BODY_HOMES)[number];
+  readonly digest: BodyDigest;
+  readonly version: number;
+  readonly bytes: number;
+}
+
 // an item's row: its fields, and what its body says that the row carries (its card) beside the
 // url key its fields give, so a listing reads the row alone
 export interface ItemRowWrite {
   readonly id: string;
   readonly fields: LibraryItemFields;
+  readonly body: ItemBody;
   readonly card: ItemCard;
   readonly urlKey: string | null;
   readonly updatedAt: number;
@@ -89,6 +95,10 @@ export const storeItemRow = (db: CellDb, write: ItemRowWrite): boolean => {
     .values({
       aliases: JSON.stringify(fields.aliases),
       author: fields.author,
+      bodyBytes: write.body.bytes,
+      bodyDigest: JSON.stringify(write.body.digest),
+      bodyHome: write.body.home,
+      bodyVersion: write.body.version,
       card: JSON.stringify(write.card),
       coverSha: fields.coverSha,
       deletedAt: fields.deletedAt,
@@ -138,7 +148,7 @@ export interface TombstoneWrite {
 }
 
 // a purged item: its id, sequence and deletion stay forever, and everything it held goes but the
-// files it named, which the cell counts for itself; whether it landed, since a row newer than the
+// files it named, which the cell counts for itself, and its note, which a job empties; whether it landed, since a row newer than the
 // tombstone keeps everything it holds
 export const storeTombstone = (storage: CellStorage, write: TombstoneWrite): boolean => {
   const { db } = storage;
@@ -158,7 +168,9 @@ export const storeTombstone = (storage: CellStorage, write: TombstoneWrite): boo
     return false;
   }
   storage.run(DELETE_SEARCH_ROW, [write.id]);
-  storage.run("DELETE FROM blocks WHERE item_id = ?", [write.id]);
+  for (const table of ["seed_blocks", "body_texts"] as const) {
+    storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [write.id]);
+  }
   db.delete(links).where(eq(links.sourceId, write.id)).run();
   db.delete(itemTags).where(eq(itemTags.itemId, write.id)).run();
   return true;
@@ -168,6 +180,7 @@ export interface LiveStoredItem {
   readonly kind: "live";
   readonly id: string;
   readonly fields: LibraryItemFields;
+  readonly body: ItemBody;
   readonly card: ItemCard;
   readonly urlKey: string | null;
   readonly updatedAt: number;
@@ -221,7 +234,17 @@ const liveItemOf = (row: ItemRow): LiveStoredItem => {
       cause: fields.error,
     });
   }
+  const home = BODY_HOMES.find((one) => one === row.bodyHome);
+  if (home === undefined || row.bodyVersion === null || row.bodyBytes === null) {
+    throw new LibraryRowError(`the item ${row.id} keeps no body`);
+  }
   return {
+    body: {
+      bytes: row.bodyBytes,
+      digest: parseJsonColumn(row.bodyDigest ?? "", bodyDigestSchema, "an item's body digest"),
+      home,
+      version: row.bodyVersion,
+    },
     card: parseJsonColumn(row.card ?? "", itemCardSchema, "an item's card"),
     fields: fields.data,
     id: row.id,
@@ -248,108 +271,21 @@ export const readItem = (db: CellDb, id: string): StoredItem | null => {
   return row === undefined ? null : storedItemOf(row);
 };
 
+// the item while it is not purged, in Deleted or not
+export const readLiveItem = (db: CellDb, id: string): LiveStoredItem | null => {
+  const item = readItem(db, id);
+  return item?.kind === "live" ? item : null;
+};
+
 // every item that is not purged, by id: what the cell's listing is built from
 export const readLiveItems = (db: CellDb): LiveStoredItem[] =>
   db.select().from(items).where(eq(items.purged, 0)).orderBy(asc(items.id)).all().map(liveItemOf);
 
-// ---- blocks ----
-
-export interface BlockWrite {
-  readonly stored: StoredBlock;
-  readonly text: string;
-}
-
-const BLOCK_COLUMNS = "item_id, block_id, ord, section, json, hash, text, seq";
-
-// the blocks of one write, each replacing its own row; `derived` is the item's derivation after
-// the write, which gives each block its text
-export const blockWritesOf = (blocks: readonly StoredBlock[], derived: DerivedItem): BlockWrite[] =>
-  blocks.map((stored) => ({ stored, text: derived.blocks.get(stored.block.id)?.text ?? "" }));
-
-// each block over its own row only when that row is older, so a block is never taken back; a
-// write stores each block once, at its own sequence number
-export const storeBlocks = function* storeBlocks(
-  itemId: string,
-  blocks: readonly BlockWrite[],
-  seq: number,
-): SqlPlan<void> {
-  yield* runEach(
-    chunkStatement({
-      each: "(?, ?, ?, ?, ?, ?, ?, ?)",
-      head: `INSERT INTO blocks (${BLOCK_COLUMNS}) VALUES `,
-      rows: blocks.map(({ stored, text }) => [
-        itemId,
-        stored.block.id,
-        stored.ord,
-        stored.section,
-        canonicalJson(stored.block),
-        stored.hash,
-        text,
-        seq,
-      ]),
-      separator: ", ",
-      tail: ` ON CONFLICT (item_id, block_id) DO UPDATE SET ord = excluded.ord,
-        section = excluded.section, json = excluded.json, hash = excluded.hash,
-        text = excluded.text, seq = excluded.seq
-        WHERE excluded.seq > blocks.seq`,
-    }),
-  );
-};
-
-export const dropBlocks = function* dropBlocks(
-  itemId: string,
-  blockIds: readonly string[],
-): SqlPlan<void> {
-  yield* runEach(
-    chunkStatement({
-      each: "?",
-      head: "DELETE FROM blocks WHERE item_id = ? AND block_id IN (",
-      headParams: [itemId],
-      rows: blockIds.map((id) => [id]),
-      separator: ", ",
-      tail: ")",
-    }),
-  );
-};
-
-const blockRowSchema = z.object({
-  hash: blockHashSchema,
-  json: z.string(),
-  ord: ordSchema,
-  section: librarySectionSchema,
-});
-
-export const readBlocks = function* readBlocks(itemId: string): SqlPlan<StoredBlock[]> {
-  const rows = yield all("SELECT ord, section, json, hash FROM blocks WHERE item_id = ?", [itemId]);
-  const blocks = rows.map((raw): StoredBlock => {
-    const row = parseRow(raw, blockRowSchema, "a block");
-    return {
-      block: parseJsonColumn(row.json, libraryBlockSchema, "a block's JSON"),
-      hash: row.hash,
-      ord: row.ord,
-      section: row.section,
-    };
-  });
-  return orderedBlocks(new Map(blocks.map((stored) => [stored.block.id, stored])));
-};
-
-export const readItemState = (storage: CellStorage, id: string): ItemState | null => {
-  const item = readItem(storage.db, id);
-  if (item?.kind !== "live") {
-    return null;
-  }
-  const blocks = runPlan(storage, readBlocks(id));
-  return {
-    blocks: new Map(blocks.map((stored) => [stored.block.id, stored])),
-    fields: item.fields,
-  };
-};
-
 // ---- derived rows: links and tags ----
 
-export const storeDerived = (db: CellDb, itemId: string, derived: DerivedItem): void => {
+export const storeLinks = (db: CellDb, itemId: string, derived: readonly DerivedLink[]): void => {
   db.delete(links).where(eq(links.sourceId, itemId)).run();
-  const linkRows = derived.links.map((link) => ({
+  const linkRows = derived.map((link) => ({
     sourceId: itemId,
     targetId: link.targetId,
     targetKey: link.targetKey,
@@ -357,8 +293,11 @@ export const storeDerived = (db: CellDb, itemId: string, derived: DerivedItem): 
   for (const chunk of insertChunks(links, linkRows)) {
     db.insert(links).values(chunk).run();
   }
+};
+
+export const storeTags = (db: CellDb, itemId: string, tags: readonly DerivedTag[]): void => {
   db.delete(itemTags).where(eq(itemTags.itemId, itemId)).run();
-  const tagRows = derived.tags.map((tag) => ({ itemId, origin: tag.origin, tag: tag.tag }));
+  const tagRows = tags.map((tag) => ({ itemId, origin: tag.origin, tag: tag.tag }));
   for (const chunk of insertChunks(itemTags, tagRows)) {
     db.insert(itemTags).values(chunk).onConflictDoNothing().run();
   }
@@ -533,22 +472,17 @@ export const searchLibrary = function* searchLibrary(
 
 export interface LiteralMatch {
   readonly itemId: string;
-  // the first of the item's blocks, in reading order, whose text holds the needle
+  // the first line of the item's body that holds the needle
   readonly text: string;
 }
 
 const matchedRowSchema = z.object({ item_id: z.string() });
-const matchedPlaceSchema = z.object({
-  block_id: z.string(),
-  ord: z.string(),
-  section: librarySectionSchema,
-});
-const blockTextSchema = z.object({ text: z.string() });
+const partTextSchema = z.object({ text: z.string() });
 
-// the live items whose blocks hold `needle` (printable ascii, matched case-folded, since SQLite's
+// the live items whose body holds `needle` (printable ascii, matched case-folded, since SQLite's
 // lower() folds ascii alone), in id order after `after` and at most `limit` of them, each with its
-// first such block's text: a line lives in one block, so a match does, and no other block's text
-// is read, whatever the library holds
+// first such line: a body's text is cut into parts at line ends, so a line lives in one part, and
+// only the first part that holds the needle is read, whatever the library holds
 export const literalMatches = function* literalMatches(
   needle: string,
   page: { readonly after: string | null; readonly limit: number },
@@ -556,31 +490,28 @@ export const literalMatches = function* literalMatches(
   const folded = needle.toLowerCase();
   const ids: string[] = [];
   for (const raw of yield all(
-    `SELECT DISTINCT b.item_id FROM blocks b JOIN items i ON i.id = b.item_id
-     WHERE b.item_id > ? AND i.deleted_at IS NULL AND i.purged = 0 AND instr(lower(b.text), ?) > 0
-     ORDER BY b.item_id LIMIT ?`,
+    `SELECT DISTINCT t.item_id FROM body_texts t JOIN items i ON i.id = t.item_id
+     WHERE t.item_id > ? AND i.deleted_at IS NULL AND i.purged = 0 AND instr(lower(t.text), ?) > 0
+     ORDER BY t.item_id LIMIT ?`,
     [page.after ?? "", folded, page.limit],
   )) {
     ids.push(parseRow(raw, matchedRowSchema, "a matched item").item_id);
   }
   const matches: LiteralMatch[] = [];
   for (const itemId of ids) {
-    const places = (yield all(
-      "SELECT block_id, ord, section FROM blocks WHERE item_id = ? AND instr(lower(text), ?) > 0",
+    const [raw] = yield all(
+      `SELECT text FROM body_texts WHERE item_id = ? AND instr(lower(text), ?) > 0
+       ORDER BY part LIMIT 1`,
       [itemId, folded],
-    )).map((raw) => parseRow(raw, matchedPlaceSchema, "a matched block"));
-    const [first] = places
-      .map((place) => ({ blockId: place.block_id, ord: place.ord, section: place.section }))
-      .toSorted(compareBlockPlaces);
-    if (first === undefined) {
-      continue;
-    }
-    const [raw] = yield all("SELECT text FROM blocks WHERE item_id = ? AND block_id = ?", [
-      itemId,
-      first.blockId,
-    ]);
-    if (raw !== undefined) {
-      matches.push({ itemId, text: parseRow(raw, blockTextSchema, "a block's text").text });
+    );
+    const line =
+      raw === undefined
+        ? undefined
+        : parseRow(raw, partTextSchema, "a body's text")
+            .text.split("\n")
+            .find((one) => one.toLowerCase().includes(folded));
+    if (line !== undefined) {
+      matches.push({ itemId, text: line });
     }
   }
   return matches;

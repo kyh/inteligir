@@ -204,7 +204,7 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
   return {
     kind: "landing",
     landing: {
-      article: article.blocks.map(({ block, ord }) => ({ block, ord })),
+      article: [...article.blocks],
       coverSha,
       facts: factsOf(read.facts, oembed),
       finalUrl: landed,

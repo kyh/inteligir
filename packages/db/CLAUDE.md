@@ -40,3 +40,17 @@ wakes. `AGENTS.md` § Decisions says how a bullet is written and cited.
   Rejected: a hand-written DDL versioned by a `meta` row (a second spelling of
   the tables, and every version bump wiped every cell).
   `packages/db/src/cell/schema.ts`, `packages/service/src/library/cell-db.ts`.
+
+- **EACH NOTE'S SCHEMA IS DRIZZLE'S TOO, MIGRATED IN ITS CONSTRUCTOR.**
+  `@repo/db/note/schema` declares a note's tables (its one meta row, the
+  updates it stored since its last snapshot, the snapshot's parts, each
+  turn's log and cursor, and the op ids it answered), and drizzle-kit
+  generates its migrations (`packages/db/drizzle.config.note.ts`). The note
+  runs them in its constructor under `blockConcurrencyWhile`, as the cell
+  does, never in y-partyserver's `onLoad`, which runs only once a socket or a
+  call starts the server. A snapshot part is at most 1 MiB, inside a Durable
+  Object's 2 MB row. Rejected: the note's rows in the cell (every keystroke
+  through the account's one object); migrating in `onLoad` (a plain call that
+  reads no document would meet no tables).
+  `packages/db/src/note/schema.ts`, `packages/service/src/note/note-db.ts`,
+  `packages/service/src/object-schema.ts`.

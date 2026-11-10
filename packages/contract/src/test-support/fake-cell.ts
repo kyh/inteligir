@@ -3,7 +3,7 @@
 // a listing's pages, the rail's counts and every title), and `/v1/blobs/<sha>`, each device
 // reaching it through a transport of its own whose network a suite can take down or whose next
 // answers it can lose after the cell acted. It keeps the rules a client leans on: a write lands
-// only on the bases it names (`@repo/contract/library/block-ops`) and answers CONFLICT with what
+// only on the bases it names (`@repo/contract/library/field-ops`) and answers CONFLICT with what
 // moved, an op id is answered once, a file must be uploaded before a write names it, every write
 // takes the library's next sequence, and a read answers through the cell's own derivation and
 // listing (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). A suite
@@ -33,11 +33,11 @@ import {
 } from "../v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { blockHash } from "../library/block-hash";
-import { applyOps, orderedBlocks } from "../library/block-ops";
-import type { LibraryOp, StoredBlock } from "../library/block-ops";
-import { compareText, ordBetween, ordsBetween } from "../library/order-key";
-import { deriveItem, titleKey } from "../library/derive-item";
+import { applyFieldOps } from "../library/field-ops";
+import type { FieldConflict, FieldOp } from "../library/field-ops";
+import { compareText, ordBetween } from "../library/order-key";
+import { deriveBody, deriveItem, titleKey } from "../library/derive-item";
+import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import {
   blankItemFields,
@@ -55,7 +55,6 @@ import {
 } from "../library/library-index";
 import type { ItemListing } from "../library/library-index";
 import type { LibraryItemFields } from "../library/library-item";
-import type { LibraryBlock, LibrarySection } from "../library/library-nodes";
 import { uuidV7 } from "../library/uuid-v7";
 import { clipSnippet } from "../text/clip-text";
 import { mulberry32 } from "./seeded-random";
@@ -68,7 +67,7 @@ type ListedItem = z.infer<typeof listedItemSchema>;
 type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
-type HeldItem = LiveRow & { readonly blocks: StoredBlock[] };
+type HeldItem = LiveRow & { readonly blocks: BodyBlock[] };
 
 // where a write files an item: a folder by its id or its path, none, or where it stands
 type FolderTarget = { readonly id: string } | { readonly path: string } | null | undefined;
@@ -84,7 +83,7 @@ interface OrganizeInput {
 
 interface CellItem {
   readonly fields: LibraryItemFields;
-  readonly blocks: ReadonlyMap<string, StoredBlock>;
+  readonly blocks: readonly BodyBlock[];
   readonly seq: number;
   readonly updatedAt: number;
 }
@@ -127,21 +126,19 @@ const NOW = 1_700_000_100_000;
 const ORIGIN = "https://cell.test";
 const ID_SEED = 0x5e_ed;
 
-const placed = (block: LibraryBlock, ord: string, section: LibrarySection): StoredBlock => ({
-  block,
-  hash: blockHash(block),
-  ord,
-  section,
-});
-
 // a save's words as the one paragraph the real cell's codec would read them into; blank words are
 // none
-const noteBlocks = (id: string, note: string | undefined): [string, StoredBlock][] => {
+const noteBlocks = (id: string, note: string | undefined): BodyBlock[] => {
   const blockId = `${id}-note`;
-  const [ord] = ordsBetween(null, null, 1);
-  return note === undefined || note.trim() === "" || ord === undefined
+  return note === undefined || note.trim() === ""
     ? []
-    : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, ord, "note")]];
+    : [{ block: { children: [{ text: note }], id: blockId, type: "p" }, section: "note" }];
+};
+
+// an item's card, tags and index text, over its body as the cell derives them
+const derivedOf = (item: CellItem) => {
+  const body = deriveBody(item.blocks);
+  return { ...deriveItem(item.fields, body.digest), text: body.text };
 };
 
 // every sha the blocks a write carries name their bytes by
@@ -192,16 +189,8 @@ const throwConflicts = (current: readonly ConflictCurrent[]): void => {
   }
 };
 
-type OpConflict = Extract<ReturnType<typeof applyOps>, { kind: "conflict" }>["conflicts"][number];
-
-const currentOf = (itemId: string, conflict: OpConflict): ConflictCurrent => {
+const currentOf = (itemId: string, conflict: FieldConflict): ConflictCurrent => {
   switch (conflict.kind) {
-    case "block": {
-      return { blockId: conflict.blockId, current: conflict.current, itemId, kind: "block" };
-    }
-    case "order": {
-      return { blockId: conflict.blockId, currentOrd: conflict.currentOrd, itemId, kind: "order" };
-    }
     case "field": {
       return {
         current: z.json().parse(conflict.current),
@@ -251,7 +240,7 @@ export const createFakeCell = (): FakeCell => {
   };
 
   const liveRow = (id: string, item: CellItem): LiveRow => {
-    const { card } = deriveItem(item.fields, item.blocks);
+    const { card } = derivedOf(item);
     return {
       card: answerCard(card),
       fields: item.fields,
@@ -265,7 +254,7 @@ export const createFakeCell = (): FakeCell => {
   // an item's listing row: it lists each tag it carries, its field's and its body's, once a
   // spelling, as the cell's tag rows hold them
   const listingRow = (id: string, item: CellItem): ItemListing => {
-    const { card, tags } = deriveItem(item.fields, item.blocks);
+    const { card, tags } = derivedOf(item);
     return itemListing(
       { card, fields: item.fields, id, seq: item.seq, updatedAt: item.updatedAt },
       [...new Set(tags.map(({ tag }) => tag))].toSorted(compareText),
@@ -289,10 +278,10 @@ export const createFakeCell = (): FakeCell => {
     const needle = words.toLowerCase();
     const hits = new Map<string, string>();
     for (const [id, item] of items) {
-      const { search } = deriveItem(item.fields, item.blocks);
-      const line = [search.title, search.headings, search.meta, search.body]
-        .flatMap((text) => text.split("\n"))
-        .find((text) => text.toLowerCase().includes(needle));
+      const { search, text } = derivedOf(item);
+      const line = [search.title, search.headings, search.meta, text]
+        .flatMap((part) => part.split("\n"))
+        .find((candidate) => candidate.toLowerCase().includes(needle));
       if ((item.fields.deletedAt !== null) === deleted && line !== undefined) {
         hits.set(id, clipSnippet(line.trim()));
       }
@@ -300,11 +289,7 @@ export const createFakeCell = (): FakeCell => {
     return hits;
   };
 
-  const land = (
-    id: string,
-    fields: LibraryItemFields,
-    blocks: ReadonlyMap<string, StoredBlock>,
-  ) => {
+  const land = (id: string, fields: LibraryItemFields, blocks: readonly BodyBlock[]) => {
     head += 1;
     const item: CellItem = { blocks, fields, seq: head, updatedAt: NOW + head };
     items.set(id, item);
@@ -356,13 +341,13 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  const write = (input: { readonly itemId: string; readonly ops: readonly LibraryOp[] }) => {
+  const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
     const item = items.get(input.itemId);
     if (item === undefined) {
       throw new NotFoundError();
     }
     needsBlobs(shasIn(JSON.stringify(input.ops)));
-    const outcome = applyOps({ blocks: item.blocks, fields: item.fields }, input.ops);
+    const outcome = applyFieldOps(item.fields, input.ops);
     throwConflicts(
       outcome.kind === "conflict"
         ? outcome.conflicts.map((conflict) => currentOf(input.itemId, conflict))
@@ -374,13 +359,12 @@ export const createFakeCell = (): FakeCell => {
     if (outcome.kind !== "applied") {
       throw new Error("a write met a conflict it did not answer");
     }
-    refuseHeldAddress(input.itemId, outcome.state.fields);
-    const { touched } = outcome;
+    refuseHeldAddress(input.itemId, outcome.fields);
     // every op already true, a resend's after its answer was let go: the item as it stands
-    if (touched.blocks.size === 0 && touched.dropped.size === 0 && !touched.fields) {
+    if (!outcome.changed) {
       return { item: liveRow(input.itemId, item) };
     }
-    return land(input.itemId, outcome.state.fields, outcome.state.blocks);
+    return land(input.itemId, outcome.fields, item.blocks);
   };
 
   const holding = (id: string): CellItem => {
@@ -393,7 +377,7 @@ export const createFakeCell = (): FakeCell => {
 
   const held = (id: string): HeldItem => {
     const item = holding(id);
-    return { ...liveRow(id, item), blocks: orderedBlocks(item.blocks) };
+    return { ...liveRow(id, item), blocks: [...item.blocks] };
   };
 
   const made = (id: string): void => {
@@ -432,7 +416,7 @@ export const createFakeCell = (): FakeCell => {
     const removed = new Set((input.removeTags ?? []).map(tagKey));
     return ids.map((itemId) => {
       const { fields } = holding(itemId);
-      const ops: LibraryOp[] = [];
+      const ops: FieldOp[] = [];
       if (input.addTags !== undefined || input.removeTags !== undefined) {
         const kept = fields.tags.filter((tag) => !removed.has(tagKey(tag)));
         const keys = new Set(kept.map(tagKey));
@@ -546,16 +530,7 @@ export const createFakeCell = (): FakeCell => {
           once(input.opId, landedSchema, () => {
             made(input.id);
             needsBlobs(shasIn(JSON.stringify(input.blocks)));
-            return land(
-              input.id,
-              noteFields(input),
-              new Map(
-                input.blocks.map((block) => [
-                  block.block.id,
-                  placed(block.block, block.ord, block.section),
-                ]),
-              ),
-            );
+            return land(input.id, noteFields(input), input.blocks);
           }),
         ),
         createFile: os.library.items.createFile.handler(({ input }) =>
@@ -563,7 +538,7 @@ export const createFakeCell = (): FakeCell => {
             made(input.id);
             needsBlobs([input.sha]);
             const mime = blobs.get(input.sha)?.mime ?? UNKNOWN_FILE_TYPE;
-            return land(input.id, fileFields({ ...input, mime }), new Map());
+            return land(input.id, fileFields({ ...input, mime }), []);
           }),
         ),
         delete: os.library.items.delete.handler(({ input }) => {
@@ -641,17 +616,10 @@ export const createFakeCell = (): FakeCell => {
             made(input.id);
             return {
               created: true,
-              ...land(
-                input.id,
-                pageFields(input, NOW),
-                new Map([
-                  ...input.article.map((block): [string, StoredBlock] => [
-                    block.block.id,
-                    placed(block.block, block.ord, "article"),
-                  ]),
-                  ...noteBlocks(input.id, input.note),
-                ]),
-              ),
+              ...land(input.id, pageFields(input, NOW), [
+                ...noteBlocks(input.id, input.note),
+                ...input.article.map((block): BodyBlock => ({ block, section: "article" })),
+              ]),
             };
           }),
         ),
@@ -675,7 +643,7 @@ export const createFakeCell = (): FakeCell => {
                   title: input.title,
                   url: input.url,
                 }),
-                new Map(noteBlocks(id, input.note)),
+                noteBlocks(id, input.note),
               ),
             };
           }),
@@ -794,7 +762,7 @@ export const createFakeCell = (): FakeCell => {
       },
       item: (fields = {}) => {
         const id = mintId();
-        land(id, { ...blankItemFields(NOW), ...fields }, new Map());
+        land(id, { ...blankItemFields(NOW), ...fields }, []);
         return id;
       },
     },

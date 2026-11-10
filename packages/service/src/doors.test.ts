@@ -25,6 +25,7 @@ const WRONG_METHODS = {
   rpc: { method: "GET", path: "/v1/rpc/account/devices/list", status: 404, withBuild: true },
   blobs: { method: "DELETE", path: `/v1/blobs/${SHA}`, status: 405, withBuild: true },
   socket: { method: "POST", path: "/v1/socket", status: 400 },
+  note: { method: "POST", path: "/v1/notes/0190a3f2-7c4e-7d1a-9b2c-3e4f5a6b7c8d", status: 400 },
   connector: { method: "DELETE", path: "/connector", status: 401 },
   connectorMetadata: {
     method: "POST",
@@ -48,6 +49,7 @@ const BEYOND_ITS_ROW = [
   ["rpc", "/v1/rpc"],
   ["blobs", "/v1/blobs"],
   ["socket", "/v1/socket/"],
+  ["note", "/v1/notes"],
   ["connector", "/connector/"],
   ["consent", "/Connect/Authorize"],
 ] as const satisfies readonly (readonly [DoorName, string])[];

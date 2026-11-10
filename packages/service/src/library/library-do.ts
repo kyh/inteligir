@@ -38,8 +38,17 @@ import { authInfoOf, createConnectorHandler } from "../connector/connector-serve
 import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
+import { noteStub } from "../note/note-stub";
+import type {
+  NoteOpening,
+  NoteProjection,
+  NoteReach,
+  ProjectAnswer,
+  SeedAnswer,
+} from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
+import { fillForNote } from "./cell-fills";
 import {
   logJobFailure,
   openCellLibrary,
@@ -52,6 +61,7 @@ import {
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
 import { EVERYTHING_MOVED } from "./cell-moved";
+import { openWithSchema } from "../object-schema";
 import { migrateCell } from "./cell-db";
 import {
   acceptSocket,
@@ -90,21 +100,16 @@ export class LibraryDO extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(SOCKET_KEEPALIVE_PING, SOCKET_KEEPALIVE_PONG),
     );
-    // the runtime holds every event until this settles; a throw resets the cell, and the next
-    // event opens it again
-    void ctx.blockConcurrencyWhile(async () => {
-      try {
-        await migrateCell(ctx.storage);
-      } catch (error) {
-        console.error({ event: "library-cell-open-failed", ...errorFields(error) });
-        throw error;
-      }
-    });
+    openWithSchema(ctx, "library-cell", migrateCell);
   }
 
   get #accountId(): string {
     return cellAccountId(this.ctx.id.name);
   }
+
+  // each item's note, which this cell alone names for the items its rows hold
+  readonly #notes: NoteReach = (itemId) =>
+    noteStub(this.ctx.exports, { accountId: this.#accountId, itemId });
 
   // the requests that stay HTTP: an app's library call on `/v1/rpc/library` and an assistant's on
   // the connector, each with its principal, and the socket upgrade with its holder, each stamped by
@@ -169,6 +174,7 @@ export class LibraryDO extends DurableObject<Env> {
       actor: LibraryDO.#actorOf(principal, library),
       agent: this.#agentCell(library),
       library,
+      notes: this.#notes,
       settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
     };
   }
@@ -240,6 +246,7 @@ export class LibraryDO extends DurableObject<Env> {
         now: Date.now,
       });
       await sendFills(this.ctx, this.env, library);
+      await this.#purgeNotes(library);
       if (library.head() !== head) {
         tellSockets(this.ctx, EVERYTHING_MOVED);
       }
@@ -251,10 +258,57 @@ export class LibraryDO extends DurableObject<Env> {
     }
   }
 
-  // the sockets of a holder whose session ended after its upgrade; its next request meets the end
-  // itself (`./socket-routes`)
-  sever(holder: SocketHolder): void {
+  // the purged items' notes, emptied between two transactions; one that fails waits its turn again
+  async #purgeNotes(library: LibraryEngine): Promise<void> {
+    for (const purge of library.claimNotePurges()) {
+      try {
+        await this.#notes(purge.itemId).purge();
+        library.notePurged(purge, true);
+      } catch (error) {
+        logJobFailure(purge.job, error);
+        library.notePurged(purge, false);
+      }
+    }
+  }
+
+  // the sockets of a holder whose session ended after its upgrade, the account's and each note's
+  // it opened; its next request meets the end itself (`./socket-routes`)
+  async sever(holder: SocketHolder): Promise<void> {
     severHolder(this.ctx, holder);
+    for (const itemId of openCellLibrary(this.ctx, this.env).sessionNotes(holder.id)) {
+      try {
+        await this.#notes(itemId).sever(holder.id);
+      } catch (error) {
+        console.warn({ event: "note-sever-failed", ...errorFields(error) });
+      }
+    }
+  }
+
+  // ---- what each item's note asks (`../note/note-do`) ----
+
+  // how a session's socket on an item's note opens, asked by the note's door
+  openNote(sessionId: string, itemId: string): NoteOpening {
+    return openCellLibrary(this.ctx, this.env).noteOpening(sessionId, itemId);
+  }
+
+  readSeed(itemId: string): SeedAnswer {
+    return openCellLibrary(this.ctx, this.env).seedFor(itemId);
+  }
+
+  confirmSeed(itemId: string): void {
+    openCellLibrary(this.ctx, this.env).seedTaken(itemId);
+  }
+
+  // a note's save; `gone` once the account's deletion began, so the note stops pushing
+  async projectNote(itemId: string, projection: NoteProjection): Promise<ProjectAnswer> {
+    const library = openCellLibrary(this.ctx, this.env);
+    const result = await settleCommit(
+      this.ctx,
+      this.env,
+      library,
+      library.projectNote(itemId, projection),
+    );
+    return result.ok ? result.value : "gone";
   }
 
   // the account's deletion, every step in order (`./account-purge`)
@@ -315,6 +369,23 @@ export class LibraryDO extends DurableObject<Env> {
       return { moved: null, ok: true, value: { kind: "stale" } };
     }
     const library = openCellLibrary(this.ctx, this.env);
-    return await settleCommit(this.ctx, this.env, library, library.landReading(parsed.data));
+    const reading = parsed.data;
+    // an article for an opened note goes in the note first, once per reading, outside any
+    // transaction; a note that opened since the look goes again by the note
+    const landOnce = async (): Promise<CellResult<FillLanded>> => {
+      const target = library.read((storage) => fillForNote(storage, reading));
+      let inNote: NoteProjection | null = null;
+      if (target.ok && target.value !== null) {
+        const reply = await this.#notes(target.value.itemId).replaceArticle(
+          target.value.article,
+          target.value.fillId,
+        );
+        inNote = reply.kind === "applied" ? reply.projection : null;
+      }
+      return library.landReading(reading, inNote);
+    };
+    const first = await landOnce();
+    const landed = !first.ok && first.refusal.kind === "note-opened" ? await landOnce() : first;
+    return await settleCommit(this.ctx, this.env, library, landed);
   }
 }

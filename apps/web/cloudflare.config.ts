@@ -38,6 +38,9 @@ const worker = defineWorker({
     // each conversation with the built-in agent, which only its account's cell names
     // (packages/service/src/agent/agent-thread.ts)
     AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
+    // each note's live body, which only its account's cell and the note's door name
+    // (packages/service/src/note/note-do.ts)
+    NoteDO: exports.durableObject({ storage: "sqlite" }),
     // deleted classes: each namespace is a tombstone, its class in no entry, until a deploy's
     // response names it safe to drop from this map (docs/releasing.md § 5)
     ThreadSyncDO: exports.durableObject({ state: "deleted" }),

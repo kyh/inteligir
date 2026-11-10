@@ -1,17 +1,15 @@
 // The library's item writes beyond a device's own ops, each landed inside one write's transaction
-// by the rules every write meets (`./cell-landing`): a note or a file made whole, an agent's edit
-// of an item's markdown, a bulk organize, Deleted and back, and a url item's page asked for again. The markdown an agent reads and writes goes through the codec
-// (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`).
+// by the rules every write meets (`./cell-landing`): a note or a file made whole, a bulk organize,
+// Deleted and back, and a url item's page asked for again. The markdown an agent writes goes through
+// the codec (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's
+// body is the note's (`./cell-edits`).
 
-import type { EditOutcome } from "@repo/editor/codec/item-edit";
-import { editItemView } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
-import { blockHash } from "@repo/contract/library/block-hash";
-import type { ItemState, LibraryOp } from "@repo/contract/library/block-ops";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
-import { readItem, readItemState } from "./library-queries";
+import { readItem, readLiveItem } from "./library-queries";
 
 import { readBlobRow } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
@@ -23,40 +21,21 @@ import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
 
-export interface PlacedBlock {
-  readonly block: LibraryBlock;
-  readonly ord: string;
-  readonly section: LibrarySection;
-}
-
 export interface NewItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
-  readonly blocks: readonly PlacedBlock[];
+  // its body in reading order, which the cell keeps until its note first opens
+  readonly blocks: readonly BodyBlock[];
 }
 
-const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]): ItemState => ({
-  blocks: new Map(
-    blocks.map(({ block, ord, section }) => [
-      block.id,
-      { block, hash: blockHash(block), ord, section },
-    ]),
-  ),
-  fields,
-});
-
-// an item the write makes, with its blocks; an id the library holds already is a conflict naming
+// an item the write makes, with its body; an id the library holds already is a conflict naming
 // that item
 export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
   const held = readItem(scope.storage.db, item.id);
   if (held !== null) {
     refuse({ current: [{ itemId: item.id, kind: "item", seq: held.seq }], kind: "conflict" });
   }
-  return landItem(scope, {
-    after: placedState(item.fields, item.blocks),
-    before: null,
-    itemId: item.id,
-  });
+  return landItem(scope, { before: null, fields: item.fields, itemId: item.id, seed: item.blocks });
 };
 
 // a person's markdown as note blocks; its frontmatter, if any, names nothing here, since the
@@ -65,7 +44,7 @@ export const noteBlocksOf = (
   scope: LandingScope,
   codec: CellCodec,
   markdown: string,
-): readonly PlacedBlock[] => {
+): readonly BodyBlock[] => {
   const read = importItem({ name: "", text: markdown }, codec.importing(scope.now));
   if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
@@ -135,45 +114,6 @@ export const createFile = (scope: LandingScope, input: CreateFileInput): LiveIte
   });
 };
 
-type EditRefusal = Extract<EditOutcome, { kind: "refused" }>["refusal"];
-
-const editRefusalOf = (refusal: EditRefusal) =>
-  refusal.kind === "ambiguous"
-    ? { count: refusal.count, edit: refusal.edit, reason: refusal.kind }
-    : { edit: refusal.edit, reason: refusal.kind };
-
-export interface EditInput {
-  readonly id: string;
-  readonly baseSeq: number;
-  readonly edits: readonly { readonly oldText: string; readonly newText: string }[];
-}
-
-export interface EditAnswer {
-  readonly seq: number;
-}
-
-// an agent's exact passages replaced on the item's markdown as it read it at `baseSeq`: an item
-// changed since is a conflict naming its sequence, so the agent reads it again
-export const editItem = (scope: LandingScope, codec: CellCodec, input: EditInput): EditAnswer => {
-  const item = readItem(scope.storage.db, input.id);
-  if (item?.kind !== "live") {
-    return refuse({ kind: "not-found" });
-  }
-  if (item.seq !== input.baseSeq) {
-    refuse({ current: [{ itemId: input.id, kind: "item", seq: item.seq }], kind: "conflict" });
-  }
-  const state = readItemState(scope.storage, input.id);
-  if (state === null) {
-    return refuse({ kind: "not-found" });
-  }
-  const outcome = editItemView(state.blocks, input.edits, codec.edit);
-  if (outcome.kind === "refused") {
-    return refuse({ kind: "edit-refused", refusal: editRefusalOf(outcome.refusal) });
-  }
-  const row = landWrite(scope, { itemId: input.id, ops: outcome.ops });
-  return { seq: row.seq };
-};
-
 export interface OrganizeInput {
   readonly ids: readonly string[];
   readonly addTags?: readonly string[] | undefined;
@@ -195,12 +135,12 @@ export const organizeItems = (
   const folderId = folderOfTarget(scope, input.folder, ids.item);
   const removed = new Set((input.removeTags ?? []).map(tagKey));
   return [...new Set(input.ids)].map((itemId) => {
-    const state = readItemState(scope.storage, itemId);
-    if (state === null) {
+    const item = readLiveItem(scope.storage.db, itemId);
+    if (item === null) {
       return refuse({ kind: "not-found" });
     }
-    const { fields } = state;
-    const ops: LibraryOp[] = [];
+    const { fields } = item;
+    const ops: FieldOp[] = [];
     if (input.addTags !== undefined || input.removeTags !== undefined) {
       const kept = fields.tags.filter((tag) => !removed.has(tagKey(tag)));
       const held = new Set(kept.map(tagKey));
@@ -243,8 +183,8 @@ export const setDeleted = (
   const landed: LiveItemRow[] = [];
   const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
-    const item = readItem(scope.storage.db, itemId);
-    if (item?.kind !== "live") {
+    const item = readLiveItem(scope.storage.db, itemId);
+    if (item === null) {
       missing.push(itemId);
       continue;
     }
@@ -275,12 +215,12 @@ export const setDeleted = (
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no
 // address has no page to read
 export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const state = readItemState(scope.storage, itemId);
-  if (state === null || state.fields.url === null) {
+  const item = readLiveItem(scope.storage.db, itemId);
+  if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }
-  const { fields } = state;
-  const ops: LibraryOp[] = [
+  const { fields } = item;
+  const ops: FieldOp[] = [
     { base: fields.fetchState, field: "fetchState", op: "set", value: "pending" },
     { base: fields.fetchError, field: "fetchError", op: "set", value: null },
   ];

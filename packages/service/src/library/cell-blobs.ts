@@ -13,10 +13,8 @@ import { and, eq, exists, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { blobs, blobUploads, itemBlobs, jobs } from "@repo/db/cell/schema";
-import type { ItemState } from "@repo/contract/library/block-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readMeta, writeMeta } from "./library-queries";
-import { collectFileShas } from "@repo/contract/library/library-nodes";
 import { chunkStatement } from "./library-sql";
 import type { SqlStatements } from "./library-sql";
 
@@ -35,14 +33,10 @@ export const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): stri
   [originalSha, coverSha].filter((sha) => sha !== null);
 
 // every file an item names: its original and cover by field, and each image, video or file its
-// body embeds
-export const itemFilesOf = (state: ItemState): string[] => {
-  const shas = new Set(fieldFilesOf(state.fields));
-  for (const stored of state.blocks.values()) {
-    collectFileShas(stored.block, shas);
-  }
-  return [...shas];
-};
+// body embeds, as its digest last read the body
+export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]): string[] => [
+  ...new Set([...fieldFilesOf(fields), ...bodyFiles]),
+];
 
 const shaRowSchema = z.object({ sha256: z.string() });
 

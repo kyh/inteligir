@@ -23,6 +23,34 @@ export const SOCKET_REVOKED_CLOSE_CODE = 1008;
 // the most ids a moved frame names in one list; past it the list says "all"
 export const MOVED_IDS_MAX = 200;
 
+// An item's note, edited live: a socket of its own at `/v1/notes/<itemId>`, opened on the same
+// ticket as the account's, carrying y-sync to and from the note's object.
+export const V1_NOTES_PATH = "/v1/notes";
+
+export const notePath = (itemId: string): string => `${V1_NOTES_PATH}/${itemId}`;
+
+// What a note's socket says beside y-sync: the ping its object answers without waking, the words
+// it sends as text, and the codes it closes with.
+export const NOTE_SOCKET = {
+  ping: "ping",
+  pong: "pong",
+  // the note is in Deleted: it takes no edit
+  deleted: "deleted",
+  // the note is past its size: it takes no edit until something of it is cut
+  full: "full",
+  // a frame past an update's size was refused, so this socket takes nothing more
+  refused: "read-only",
+  // asked by a client about to close, answered once every frame it sent is stored
+  savedAsk: "saved?",
+  saved: "saved",
+  // the item is not in the library: a client stops dialing
+  missingCode: 4404,
+  // the item came back from Deleted: a client dials again, writable
+  reopenCode: 4000,
+  // the session that opened the socket ended
+  revokedCode: SOCKET_REVOKED_CLOSE_CODE,
+} as const;
+
 // what one landed write moved, so a client refetches only what it shows of that: each item at the
 // sequence it now holds, whether any folder moved, and which threads did; "all" when the write
 // moved more than a frame names. No client bounds the lists, so a cell may raise the cap

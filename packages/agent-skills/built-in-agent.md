@@ -29,9 +29,10 @@ saved link's page is read by the library in the background, never by you.
   back, tell them to press it.
 - `delete_items` and `save_link` wait for the person to approve them. Ask only for what they asked
   you to remove or save, and name the items or the address in your reply.
-- Read before you change: `read_item` answers the sequence an edit names as its base, and an edit
-  replaces passages exactly as you read them. A write that meets a change made since answers
-  `CONFLICT` with what is there now: read the item again, then retry your edit on what it holds.
+- Read before you change: an edit replaces passages exactly as `read_item` showed them, in the
+  item as it stands when the edit lands, and leaves what the person writes meanwhile as it is. An
+  edit whose passage the person changed since is refused with that block as it is now: read the
+  item again, then retry your edit on what it holds.
 - Lists and reads come a page at a time. Ask for the next page with the cursor or the block
   position an answer gave, and stop once you have what the task needs.
 

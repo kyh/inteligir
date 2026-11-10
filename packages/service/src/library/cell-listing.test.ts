@@ -7,7 +7,14 @@ import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 
-import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
+import {
+  agentCellIn,
+  cellOf,
+  clockAt,
+  engineIn,
+  inCell,
+  notesIn,
+} from "../test-support/library-cell";
 import { cellActorOf } from "./library-principal";
 import { libraryRouter } from "./library-router";
 
@@ -26,6 +33,7 @@ const cellIn = (state: DurableObjectState) => {
         }),
       agent: agentCellIn(state, engine, { clock }),
       library: engine,
+      notes: notesIn(state),
       settle: async (result) => result,
     },
   });

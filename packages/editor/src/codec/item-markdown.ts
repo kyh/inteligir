@@ -7,9 +7,7 @@ import type { TElement } from "platejs";
 
 import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import { orderedBlocks } from "@repo/contract/library/block-ops";
-import type { StoredBlock } from "@repo/contract/library/block-ops";
-import { ordsBetween } from "@repo/contract/library/order-key";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
@@ -58,18 +56,12 @@ export interface ItemSource {
   readonly name: string;
 }
 
-// a block in its place, as an insert lands it
-interface PlacedBlock {
-  readonly block: LibraryBlock;
-  readonly ord: string;
-  readonly section: LibrarySection;
-}
-
 export type ImportedFields = Omit<LibraryItemFields, "deletedAt" | "folderId">;
 
 export interface ImportedItem {
   readonly fields: ImportedFields;
-  readonly blocks: readonly PlacedBlock[];
+  // in reading order
+  readonly blocks: readonly BodyBlock[];
   // what the file held that the item cannot: each block no store takes
   readonly leftOut: number;
 }
@@ -126,10 +118,8 @@ const takeHeldFiles = (
   return held;
 };
 
-const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): PlacedBlock[] => {
-  const ords = blocks.length === 0 ? [] : ordsBetween(null, null, blocks.length);
-  return blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section }));
-};
+const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): BodyBlock[] =>
+  blocks.map((block) => ({ block, section }));
 
 const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
   ...fields,
@@ -180,11 +170,10 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
 const PAGE_PORTS = { image: (): null => null, item: (): null => null };
 
 export interface ArticleBlocks {
-  readonly blocks: readonly PlacedBlock[];
+  readonly blocks: readonly LibraryBlock[];
 }
 
-// a page a fill read (the reader's canonical markdown) as its item's article section, keys minted
-// apart from the note's, so a fill never threads its blocks through the person's
+// a page a fill read (the reader's canonical markdown) as its item's article section, in order
 export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
   const converted = parseMarkdown(markdown);
   if (!converted.ok) {
@@ -192,14 +181,15 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   }
   const drafts = readBlocks(elementsOf(converted.value), PAGE_PORTS);
   const named = nameDrafts(drafts, newBlockId);
-  return { blocks: placed(named.blocks, "article") };
+  return { blocks: named.blocks };
 };
 
 /** @internal */
 export interface ExportItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
-  readonly blocks: ReadonlyMap<string, StoredBlock>;
+  // in reading order
+  readonly blocks: readonly BodyBlock[];
 }
 
 // a file the item holds whole, by its role: an original by the name it was saved under too, null
@@ -235,9 +225,8 @@ export const exportItem = (
   ports: ExportPorts,
   title: string | null,
 ): ExportedItem => {
-  const blocks = orderedBlocks(item.blocks);
   const of = (section: LibrarySection): LibraryBlock[] =>
-    blocks.filter((stored) => stored.section === section).map((stored) => stored.block);
+    item.blocks.filter((body) => body.section === section).map((body) => body.block);
   const note = writeBlocks(of("note"), ports);
   const article = writeBlocks(of("article"), ports);
   const { fields } = item;

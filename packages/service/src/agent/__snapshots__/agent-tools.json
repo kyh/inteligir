@@ -90,15 +90,10 @@
     "name": "delete_items"
   },
   {
-    "description": "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages are left as they are. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
+    "description": "Replaces exact passages of an item's markdown, as read_item returned it. Each old text must stand exactly once in the item as it is now; other passages, and anything written there meanwhile, are left as they are. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
-        "baseSeq": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
         "edits": {
           "minItems": 1,
           "maxItems": 50,
@@ -129,7 +124,6 @@
       },
       "type": "object",
       "required": [
-        "baseSeq",
         "edits",
         "id"
       ]

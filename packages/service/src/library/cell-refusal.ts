@@ -17,7 +17,7 @@ export type CellRefusal =
   | { readonly kind: "not-found" }
   // what each guarded thing holds now, so the writer merges and sends again
   | { readonly kind: "conflict"; readonly current: readonly ConflictCurrent[] }
-  // a block, an item's text or its manifest past its cap
+  // a block, an item's text or its fields past their cap
   | { readonly kind: "too-large" }
   | { readonly kind: "quota"; readonly bytesUsed: number; readonly bytesCap: number }
   // files the write names that were never uploaded
@@ -33,7 +33,10 @@ export type CellRefusal =
   // object could not be reached, or the person turned it off
   | { readonly kind: "agent-unavailable" }
   // the day's allowance of the built-in agent is spent, until `resetsAt`
-  | { readonly kind: "agent-budget"; readonly resetsAt: number };
+  | { readonly kind: "agent-budget"; readonly resetsAt: number }
+  // the write would have kept a body in the cell for an item whose note opened since it looked, so
+  // it goes again by the note
+  | { readonly kind: "note-opened"; readonly itemId: string };
 
 // `moved` is what the write moved, which the sockets are told once it commits, or null when it
 // moved nothing

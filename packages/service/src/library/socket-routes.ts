@@ -19,9 +19,9 @@ import { libraryCell } from "./library-cell";
 import { headersForCell, SOCKET_HOLDER_HEADER } from "./library-principal";
 import { readSocketTicket } from "./socket-ticket";
 
-const NOT_AN_UPGRADE = "This route only upgrades to a WebSocket.";
+export const NOT_AN_UPGRADE = "This route only upgrades to a WebSocket.";
 
-const isUpgrade = (request: Request): boolean =>
+export const isUpgrade = (request: Request): boolean =>
   request.method === "GET" && request.headers.get("upgrade")?.toLowerCase() === "websocket";
 
 // the upgrade forwarded whole for its handshake headers, with the verified holder stamped
@@ -39,7 +39,7 @@ const forwardToCell = async (
 };
 
 // the ticket's session still stands: an end since it was minted shuts the socket out
-const holderStands = async (
+export const holderStands = async (
   db: Db,
   accountId: string,
   holder: SocketHolder,

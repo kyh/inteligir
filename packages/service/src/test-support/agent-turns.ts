@@ -20,7 +20,7 @@ import type { CellResult } from "../library/cell-refusal";
 import type { LibraryDO } from "../library/library-do";
 import { cellActorOf } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
-import { agentCellIn, cellOf, inCell, newAccountId } from "./library-cell";
+import { agentCellIn, cellOf, inCell, newAccountId, notesIn } from "./library-cell";
 
 export const valueOf = <T>(result: CellResult<T>): T => {
   if (!result.ok) {
@@ -52,7 +52,7 @@ const laptopClient = (
     actor: { door: "page", kind: "session", sessionId: "laptop-1" },
   });
   return createRouterClient(libraryRouter, {
-    context: { actor: () => actor, agent, library, settle: agent.settle },
+    context: { actor: () => actor, agent, library, notes: notesIn(state), settle: agent.settle },
   });
 };
 

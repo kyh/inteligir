@@ -6,9 +6,9 @@ import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
-import { readBlocks, readItem } from "../library/library-queries";
+import { heldBody } from "../library/cell-body";
+import { readItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
-import { runPlan } from "../library/library-sql";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 
@@ -27,9 +27,9 @@ import { cellAccountId, libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { landedSchema, openLibraryEngine } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
+import { noteStub } from "../note/note-stub";
+import type { NoteReach } from "../note/note-wire";
 import { libraryRouter } from "../library/library-router";
-
-export { blockHash as hashOf } from "@repo/contract/library/block-hash";
 
 const GiB = 1024 * 1024 * 1024;
 
@@ -52,6 +52,12 @@ export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB
     now: () => clock.now,
     storage: cellStorageOf(state.storage),
   });
+
+// each item's note as the cell under test reaches it
+export const notesIn =
+  (state: DurableObjectState): NoteReach =>
+  (itemId) =>
+    noteStub(state.exports, { accountId: cellAccountId(state.id.name), itemId });
 
 // the built-in agent in a cell under test, as the cell makes it (`../library/library-do`): its
 // conversations' objects reached through the cell's own `exports`, its sockets, which a test may
@@ -78,7 +84,13 @@ export const agentCellIn = (
     runTool: async (request) =>
       await runAgentTool(
         libraryRouter,
-        { actor: turnActorOf(library, request), agent: cell, library, settle },
+        {
+          actor: turnActorOf(library, request),
+          agent: cell,
+          library,
+          notes: notesIn(state),
+          settle,
+        },
         request,
       ),
     settle,
@@ -112,6 +124,13 @@ export const createItem = (
   library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
     item: landNew(scope, input),
   }));
+
+// an undo of sets that wrote no note's body, so no note has anything to answer first
+export const undoFields = (
+  library: LibraryEngine,
+  actor: CellActor,
+  changeSetIds: readonly string[],
+) => library.undo(actor, { changeSetIds }, { notes: new Map(), undoSetId: crypto.randomUUID() });
 
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
@@ -170,11 +189,15 @@ export const refusalOf = <T>(result: CellResult<T>) => {
   return result.refusal;
 };
 
-// an item's blocks as the cell holds them, in order
-export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[] =>
-  landedValue(library.read((sql) => runPlan(sql, readBlocks(itemId)))).map(
-    (stored) => stored.block,
-  );
+// an item's blocks as the cell's seed holds them, in order; an item whose body went to its note
+// holds none here
+export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[] => {
+  const held = landedValue(library.read((storage) => heldBody(storage.db, itemId)));
+  if (held?.kind !== "seed") {
+    throw new Error(`the cell holds no seed for ${itemId}`);
+  }
+  return held.blocks.map((stored) => stored.block);
+};
 
 // an item's row as the cell holds it, or null for none
 export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>

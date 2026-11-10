@@ -1,4 +1,5 @@
-// An agent's edit to an item, made on its view (`item-view.ts`) and landed as block ops. Each
+// An agent's edit to an item, made on its view (`item-view.ts`) and landed as changes to its live
+// body by block id (`../live/body-change`), each naming the block as the view read it. Each
 // `old_text` must stand exactly once in the view as the edits before it left it; the blocks the
 // edited text touches (a list whole) are read again from the new text and no others, so every
 // other block keeps its id and its place. The blocks read again keep the ids of the old ones they
@@ -9,9 +10,8 @@
 import type { TElement } from "platejs";
 
 import type { FileKind } from "@repo/contract/items/item-kind";
-import type { LibraryOp, StoredBlock } from "@repo/contract/library/block-ops";
-import { placeInOrder } from "@repo/contract/library/block-order";
 import { canonicalJson } from "@repo/contract/library/canonical-json";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type {
   LibraryBlock,
   LibraryNode,
@@ -31,6 +31,7 @@ import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import type { LibraryFile, LinkedItem, ReadPorts } from "./read-blocks";
 import { elementsOf } from "./read-markdown";
+import type { BodyChange } from "../live/body-change";
 
 export interface ViewEdit {
   readonly oldText: string;
@@ -65,7 +66,7 @@ interface Unstorable {
 
 interface ViewChange {
   readonly kind: "changed";
-  readonly ops: readonly LibraryOp[];
+  readonly changes: readonly BodyChange[];
 }
 
 export type EditOutcome = ViewChange | { readonly kind: "refused"; readonly refusal: EditRefusal };
@@ -324,7 +325,7 @@ const readPiece = (piece: EditedStretch, ports: EditPorts, links: LibraryLinks) 
   );
 
 interface Lined {
-  readonly ops: LibraryOp[];
+  readonly changes: BodyChange[];
   // the id each new block stands under, in order: the old one's it lines up with, else its own
   readonly ids: readonly string[];
   // the new blocks that line up with no old one
@@ -338,7 +339,7 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
     old.map((one) => contentKey(one.block)),
     fresh.map(contentKey),
   );
-  const ops: LibraryOp[] = [];
+  const changes: BodyChange[] = [];
   const ids = fresh.map((block) => block.id);
   const standsAs = (at: number, was: ViewBlock | undefined): void => {
     if (was !== undefined) {
@@ -359,18 +360,23 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
       const was = old[hunk.baseStart + index];
       const now = fresh[hunk.sideStart + index];
       if (was !== undefined && now !== undefined) {
-        ops.push({ baseHash: was.hash, block: { ...now, id: was.block.id }, op: "put" });
+        changes.push({
+          base: was.block,
+          block: { ...now, id: was.block.id },
+          blockId: was.block.id,
+          kind: "put",
+        });
         standsAs(hunk.sideStart + index, was);
       }
     }
     for (const was of old.slice(hunk.baseStart + paired, hunk.baseEnd)) {
-      ops.push({ baseHash: was.hash, blockId: was.block.id, op: "drop" });
+      changes.push({ base: was.block, blockId: was.block.id, kind: "drop" });
     }
     oldAt = hunk.baseEnd;
     freshAt = hunk.sideEnd;
   }
   keep(old.length);
-  return { ids, inserts: fresh.filter((block, index) => ids[index] === block.id), ops };
+  return { changes, ids, inserts: fresh.filter((block, index) => ids[index] === block.id) };
 };
 
 // the blocks an edited piece's text reads as, lined up with the ones it replaced
@@ -384,45 +390,33 @@ const changeOf = (piece: EditedStretch, ports: EditPorts, links: LibraryLinks): 
   };
 };
 
-// a section's new blocks in their places. Two devices can mint one key, so what stands either side
-// of a new block may hold one key and leave no room: `placeInOrder` moves one of them, as a save
-// from the editor does
-const placementOf = (
-  section: LibrarySection,
+// each new block after the one it follows once every edit landed, in reading order, so the block
+// it names is in the body by then: one standing there already, or one inserted before it
+const insertsOf = (
   pieces: readonly Piece[],
   changes: ReadonlyMap<Piece, PieceChange>,
-  view: ItemView,
-): LibraryOp[] => {
-  const order = pieces
-    .filter(isStretch)
-    .filter((piece) => piece.section === section)
-    .flatMap((piece) => changes.get(piece)?.ids ?? piece.blocks.map((one) => one.block.id));
-  const stands = new Set(order);
-  const current = new Map(
-    view.blocks
-      .filter((one) => one.section === section && stands.has(one.block.id))
-      .map((one) => [one.block.id, one.ord]),
-  );
+): BodyChange[] => {
   const inserts = new Map(
     [...changes.values()].flatMap((change) => change.inserts).map((block) => [block.id, block]),
   );
-  return [...placeInOrder(order, current, new Map())].flatMap(([id, ord]): LibraryOp[] => {
-    const block = inserts.get(id);
-    if (block !== undefined) {
-      return [{ block, op: "insert", ord, section }];
+  const out: BodyChange[] = [];
+  let afterId: string | null = null;
+  for (const piece of pieces.filter(isStretch)) {
+    for (const id of changes.get(piece)?.ids ?? piece.blocks.map((one) => one.block.id)) {
+      const block = inserts.get(id);
+      if (block !== undefined) {
+        out.push({ afterId, block, kind: "insertAfter", section: piece.section });
+      }
+      afterId = id;
     }
-    const baseOrd = current.get(id);
-    return baseOrd === undefined || baseOrd === ord
-      ? []
-      : [{ baseOrd, blockId: id, op: "move", ord }];
-  });
+  }
+  return out;
 };
 
 // every edited piece landed. Text no block can store lands nothing, since the old block would go
 // with no new one in its place
 const changesOf = (
   pieces: readonly Piece[],
-  view: ItemView,
   ports: EditPorts,
   links: LibraryLinks,
 ): ViewChange | Unstorable => {
@@ -433,23 +427,16 @@ const changesOf = (
   if (refused !== undefined) {
     return { edit: refused.edit, kind: "unstorable" };
   }
-  const adding = new Set(
-    edited
-      .filter((piece) => (byPiece.get(piece)?.inserts.length ?? 0) > 0)
-      .map((piece) => piece.section),
-  );
   return {
+    changes: [...changes.flatMap((change) => change.changes), ...insertsOf(pieces, byPiece)],
     kind: "changed",
-    ops: [
-      ...changes.flatMap((change) => change.ops),
-      ...[...adding].flatMap((section) => placementOf(section, pieces, byPiece, view)),
-    ],
   };
 };
 
-// the agent's edits, in order, each against the text the ones before it left
+// the agent's edits, in order, each against the text the ones before it left, over the body's
+// blocks in reading order
 export const editItemView = (
-  blocks: ReadonlyMap<string, StoredBlock>,
+  blocks: readonly BodyBlock[],
   edits: readonly ViewEdit[],
   ports: EditPorts,
 ): EditOutcome => {
@@ -479,6 +466,6 @@ export const editItemView = (
     }
     ({ pieces } = next);
   }
-  const change = changesOf(pieces, view, ports, links);
+  const change = changesOf(pieces, ports, links);
   return change.kind === "changed" ? change : { kind: "refused", refusal: change };
 };

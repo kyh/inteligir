@@ -56,7 +56,7 @@ const PAST_A_ROW = 3 * 1024 * 1024;
 
 const blocksIn = async (accountId: string) =>
   await inCell(cellOf(accountId), (state) =>
-    JSON.stringify(state.storage.sql.exec("SELECT json FROM blocks").toArray()),
+    JSON.stringify(state.storage.sql.exec("SELECT json FROM seed_blocks").toArray()),
   );
 
 const importedZip = async (files: Readonly<Record<string, Uint8Array>>) => {

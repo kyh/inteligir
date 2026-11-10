@@ -220,7 +220,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
     }
     try {
       return await cloud.save({
-        article: read.article.blocks.map(({ block, ord }) => ({ block, ord })),
+        article: [...read.article.blocks],
         coverSha: await keepCover(deps, cloud, queued.url, read.facts.images),
         facts: savedFacts(read.facts),
         folderId: null,
