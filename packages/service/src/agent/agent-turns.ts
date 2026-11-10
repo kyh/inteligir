@@ -18,12 +18,11 @@ import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import { ORPCError } from "@orpc/server";
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import type { SqlStatements } from "../library/library-sql";
-import { jsonTextSchema } from "../library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";
 import { dropJob, deferJob, dueJobs, retryJob, scheduleJob } from "../library/cell-jobs";
-import type { DueJob } from "../library/cell-jobs";
+import type { DueJob, JobRequest } from "../library/cell-jobs";
 import { releaseHeldFills } from "../library/cell-fills";
 import type { LandingScope } from "../library/cell-landing";
 import type { CellStorage } from "../library/cell-storage";
@@ -111,21 +110,17 @@ const WATCH_EVERY_MS = 5 * 60_000;
 // a delivery that did not land goes again this long after
 const DELIVER_AGAIN_MS = 30_000;
 
-const jobPayloadSchema = z.object({ threadId: z.string().min(1) });
+const deliverJob = (threadId: string): JobRequest<"agent-deliver"> => ({
+  id: `agent-deliver:${threadId}`,
+  kind: "agent-deliver",
+  payload: { threadId },
+});
 
-const deliverJob = (threadId: string) =>
-  ({
-    id: `agent-deliver:${threadId}`,
-    kind: "agent-deliver",
-    payload: JSON.stringify({ threadId }),
-  }) as const;
-
-const watchJob = (threadId: string) =>
-  ({
-    id: `agent-watch:${threadId}`,
-    kind: "agent-watch",
-    payload: JSON.stringify({ threadId }),
-  }) as const;
+const watchJob = (threadId: string): JobRequest<"agent-watch"> => ({
+  id: `agent-watch:${threadId}`,
+  kind: "agent-watch",
+  payload: { threadId },
+});
 
 // a call answered before under `opId` answers the same again
 const answeredBefore = <T>(
@@ -699,7 +694,7 @@ const runAgentJob = async (
   cell: AgentCell,
   job: DueJob<(typeof AGENT_JOBS)[number]>,
 ): Promise<void> => {
-  const { threadId } = jsonTextSchema.pipe(jobPayloadSchema).parse(job.payload);
+  const { threadId } = job.payload;
   await (job.kind === "agent-deliver" ? deliverTurn(cell, threadId) : watchTurn(cell, threadId));
 };
 

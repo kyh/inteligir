@@ -667,3 +667,30 @@ describe("change sets and undo", () => {
     });
   });
 });
+
+describe("the cell's alarm", () => {
+  it("drops a job whose payload its kind no longer reads, so no run fails on it again", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt();
+      const library = engineIn(state, clock);
+      for (const [id, kind] of [
+        ["seal:unread", "seal"],
+        ["stray:unread", "stray"],
+      ] as const) {
+        state.storage.sql.exec(
+          "INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, '{}', 0, ?)",
+          id,
+          kind,
+          clock.now,
+        );
+      }
+      const failed: string[] = [];
+      library.runDueJobs((job) => {
+        failed.push(job.id);
+      });
+      expect(library.beginStrayRemovals()).toStrictEqual([]);
+      expect(failed).toStrictEqual([]);
+      expect(state.storage.sql.exec("SELECT id FROM jobs").toArray()).toStrictEqual([]);
+    });
+  });
+});

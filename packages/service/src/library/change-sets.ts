@@ -14,17 +14,14 @@ import { z } from "zod";
 import { SEAL_POLICIES } from "./cell-actor";
 import type { CellActor, ChangeSetActor, SealPolicy } from "./cell-actor";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
+import type { JobRequest } from "./cell-jobs";
 import { storeFieldsPart } from "./cell-parts";
 import type { CellStorage } from "./cell-storage";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
 
 // the change-set prune's job, made by whichever lands first, a sealed set or an op's answer,
 // either of which it bounds, and run once a day
-export const PRUNE_JOB = {
-  id: "prune",
-  kind: "prune",
-  payload: "{}",
-} as const;
+export const PRUNE_JOB: JobRequest<"prune"> = { id: "prune", kind: "prune", payload: {} };
 
 export interface OpenSet {
   readonly id: string;
@@ -76,8 +73,11 @@ const openRowSchema = z.object({
   touched_at: z.number(),
 });
 
-const sealJobOf = (id: string) =>
-  ({ id: `seal:${id}`, kind: "seal", payload: JSON.stringify({ changeSetId: id }) }) as const;
+const sealJobOf = (id: string): JobRequest<"seal"> => ({
+  id: `seal:${id}`,
+  kind: "seal",
+  payload: { changeSetId: id },
+});
 
 // a quiet set closes after its quiet, or at its cap counted from its first write
 const quietDeadline = (

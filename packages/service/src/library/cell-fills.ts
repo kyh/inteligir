@@ -12,7 +12,6 @@
 // landing (`fillForNote`).
 
 import { and, eq, sql } from "drizzle-orm";
-import { z } from "zod";
 
 import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
@@ -20,7 +19,6 @@ import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
-import { jsonTextSchema } from "./sql-value";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
@@ -29,7 +27,7 @@ import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
-import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
+import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { changes, landRead, pageFieldOps } from "./cell-saves";
@@ -51,14 +49,6 @@ interface FillRequest {
 
 const fillJobId = (itemId: string): string => `fill:${itemId}`;
 
-// a row the built-in agent's turn holds names its change set, and waits until the set seals
-const requestSchema = z.strictObject({
-  coverHint: z.string().nullable(),
-  heldBy: z.string().nullable(),
-  itemId: z.string(),
-  url: z.string(),
-});
-
 // how long a held row waits before it is looked at again, should its turn somehow never seal: the
 // seal re-times every row it holds to now
 const HELD_MS = 24 * 60 * 60_000;
@@ -75,7 +65,7 @@ const queueFill = (
     {
       id: fillJobId(request.itemId),
       kind: "fill",
-      payload: JSON.stringify(requestSchema.parse(request)),
+      payload: request,
     },
     at,
   );
@@ -155,7 +145,7 @@ export interface ClaimedFill {
 // again by the alarm and two commits in flight do not both send one
 export const claimFills = (storage: CellStorage, now: number): ClaimedFill[] =>
   dueJobs(storage.db, now, ["fill"]).flatMap((job) => {
-    const { heldBy, ...request } = jsonTextSchema.pipe(requestSchema).parse(job.payload);
+    const { heldBy, ...request } = job.payload;
     if (heldBy !== null && !turnSealed(storage, heldBy)) {
       deferJob(storage.db, job.id, now + HELD_MS);
       return [];
@@ -173,7 +163,7 @@ export const sentFills = (db: CellDb, claimed: readonly ClaimedFill[]): void => 
         and(
           eq(jobs.id, fill.job.id),
           eq(jobs.nextAt, fill.resendAt),
-          eq(jobs.payload, fill.job.payload),
+          eq(jobs.payload, payloadText("fill", fill.job.payload)),
         ),
       )
       .run();

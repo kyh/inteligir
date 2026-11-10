@@ -151,14 +151,6 @@ const answerRowSchema = z.object({ answer: z.string() });
 // the last sequence number a write took, 0 before the first
 export const libraryHead = (db: CellDb): number => readCount(db, "head");
 
-const PAYLOADS = {
-  notePurge: jsonTextSchema.pipe(z.object({ itemId: z.string() })),
-  seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
-  stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-  unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-  upload: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-};
-
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
 // runs it between two (`removeStrays` in `./cell-library`)
 const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
@@ -298,7 +290,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         if (bodyInNote(item)) {
           scheduleJob(
             db,
-            { id: `note-purge:${id}`, kind: "note-purge", payload: JSON.stringify({ itemId: id }) },
+            { id: `note-purge:${id}`, kind: "note-purge", payload: { itemId: id } },
             scope.now,
           );
         }
@@ -358,7 +350,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const beginStrayRemovals = (): StrayRemoval[] =>
     storage.transaction(() =>
       dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
-        const { sha } = PAYLOADS.stray.parse(job.payload);
+        const { sha } = job.payload;
         return beginRemoval(db, sha) ? [{ job, sha }] : [];
       }),
     );
@@ -438,15 +430,15 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
-        sealChangeSet(storage, PAYLOADS.seal.parse(job.payload).changeSetId, now);
+        sealChangeSet(storage, job.payload.changeSetId, now);
         break;
       }
       case "upload": {
-        releaseUpload(db, PAYLOADS.upload.parse(job.payload).sha, now);
+        releaseUpload(db, job.payload.sha, now);
         break;
       }
       case "unnamed": {
-        const { sha } = PAYLOADS.unnamed.parse(job.payload);
+        const { sha } = job.payload;
         if (importsRunning(db)) {
           awaitNameAgain(db, sha, now + PLAN_AGAIN_MS);
         } else {
@@ -510,7 +502,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       const now = deps.now();
       return dueJobs(db, now, ["note-purge"]).map((job) => {
         deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
-        return { itemId: PAYLOADS.notePurge.parse(job.payload).itemId, job };
+        return { itemId: job.payload.itemId, job };
       });
     });
 
