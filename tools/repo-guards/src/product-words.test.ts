@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
+import { readTextFile, REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
 // site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
@@ -220,8 +220,7 @@ const scanScript = (file: string, lines: readonly string[], jsx: boolean): Hit[]
 // sourceOf drops whole-line comments but keeps every other line, so a hit's number is the file's
 const scriptHits = (file: string): Hit[] => {
   const kept = new Set(sourceOf(file).split("\n"));
-  const lines = fs
-    .readFileSync(path.join(REPO_ROOT, file), "utf-8")
+  const lines = readTextFile(file)
     .split("\n")
     .map((line) => (kept.has(line) ? line : ""));
   return scanScript(file, lines, file.endsWith(".tsx"));
@@ -231,8 +230,7 @@ const scriptHits = (file: string): Hit[] => {
 const LINK_TARGET = /\]\([^)]*\)/gu;
 
 const markdownHits = (file: string): Hit[] =>
-  fs
-    .readFileSync(path.join(REPO_ROOT, file), "utf-8")
+  readTextFile(file)
     .split("\n")
     .flatMap((line, index) =>
       hitsIn(file, line.replaceAll(LINK_TARGET, "]")).map((hit) => ({ ...hit, line: index + 1 })),
@@ -240,7 +238,7 @@ const markdownHits = (file: string): Hit[] =>
 
 // a Rust file's tests sit in its trailing `#[cfg(test)]` module, read by no one but cargo
 const rustHits = (file: string): Hit[] => {
-  const all = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8").split("\n");
+  const all = readTextFile(file).split("\n");
   const testsAt = all.findIndex((line) => line.trim() === "#[cfg(test)]");
   const shipped = (testsAt === -1 ? all : all.slice(0, testsAt)).map((line) =>
     /^\s*\/\//u.test(line) ? "" : line,

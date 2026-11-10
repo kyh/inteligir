@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { readJsonFile, REPO_ROOT } from "./repo";
+import { readJsonFile, readTextFile, REPO_ROOT } from "./repo";
 
 const CHANGELOG = "CHANGELOG.md";
 const DESKTOP_MANIFEST = "apps/desktop/package.json";
@@ -78,8 +78,6 @@ const isNewer = (a: Release, b: Release): boolean => {
   return false;
 };
 
-const readChangelog = (): string => fs.readFileSync(path.join(REPO_ROOT, CHANGELOG), "utf-8");
-
 const desktopVersion = (): string =>
   readJsonFile(DESKTOP_MANIFEST, z.looseObject({ version: z.string() }), 'a string "version"')
     .version;
@@ -119,7 +117,7 @@ const runStaged = (changelog: string, version: string): Run => {
 
 describe("the changelog", () => {
   it("is titled, and every section is Unreleased or a dated release", () => {
-    const text = readChangelog();
+    const text = readTextFile(CHANGELOG);
     const sections = sectionsOf(text);
     expect(sections.length, `${CHANGELOG} has no "## " section`).toBeGreaterThan(0);
 
@@ -147,7 +145,7 @@ describe("the changelog", () => {
   });
 
   it("lists releases newest first", () => {
-    const releases = releasesOf(sectionsOf(readChangelog()));
+    const releases = releasesOf(sectionsOf(readTextFile(CHANGELOG)));
     const violations: string[] = [];
     for (const [index, release] of releases.entries()) {
       const below = releases[index + 1];
@@ -164,7 +162,7 @@ describe("the changelog", () => {
   });
 
   it("dates a section for the version the app ships as", () => {
-    const [newest] = releasesOf(sectionsOf(readChangelog()));
+    const [newest] = releasesOf(sectionsOf(readTextFile(CHANGELOG)));
     if (newest === undefined) {
       return;
     }
@@ -209,7 +207,7 @@ describe("the release notes script", () => {
   });
 
   it("agrees with the repo's own changelog", () => {
-    const [top] = sectionsOf(readChangelog());
+    const [top] = sectionsOf(readTextFile(CHANGELOG));
     expect(top, `${CHANGELOG} has no "## " section`).toBeDefined();
     const run = runScript(path.join(REPO_ROOT, RELEASE_NOTES_SCRIPT));
     // an unreleased top section has no notes to print, and the script says why on stderr

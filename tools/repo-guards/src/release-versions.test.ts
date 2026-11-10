@@ -2,12 +2,10 @@
 // toolchain this repo is checked with. apps/web is not a release artifact: the Worker deploys on
 // every push to main.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { readJsonFile, REPO_ROOT, WORKSPACE_MANIFEST } from "./repo";
+import { readJsonFile, readTextFile, WORKSPACE_MANIFEST } from "./repo";
 
 const ROOT_MANIFEST = "package.json";
 const EAS_CONFIG = "apps/mobile/eas.json";
@@ -47,9 +45,7 @@ const easConfig = () =>
   );
 
 const catalog = (): Record<string, string> => {
-  const parsed = catalogSchema.safeParse(
-    parseYaml(fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf-8")),
-  );
+  const parsed = catalogSchema.safeParse(parseYaml(readTextFile(WORKSPACE_MANIFEST)));
   if (!parsed.success) {
     throw new Error(`${WORKSPACE_MANIFEST}: expected a "catalog" of string versions`);
   }

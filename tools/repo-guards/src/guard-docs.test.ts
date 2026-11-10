@@ -2,10 +2,8 @@
 // dangling-reference sweep reads paths, not names: a guard the list leaves out, or a table no source
 // holds, is a promise nothing keeps.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
+import { readTextFile, sourceOf, trackedFiles } from "./repo";
 
 const GUARD_DIR = "tools/repo-guards/src/";
 const SELF = `${GUARD_DIR}guard-docs.test.ts`;
@@ -25,8 +23,6 @@ const LISTED_GUARD = /^- `(?<guard>[a-z0-9-]+\.test\.ts)`:/gmu;
 const CITED_NAME = /`(?<name>[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)`/gu;
 const SOURCE_NAME = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*\b/gu;
 const SOURCE_FILE = /\.tsx?$/u;
-
-const readDoc = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
 
 const captured = (text: string, pattern: RegExp, group: string): string[] =>
   [...text.matchAll(pattern)].flatMap((match) => match.groups?.[group] ?? []);
@@ -51,7 +47,7 @@ describe("the guards' docs", () => {
     if (!onDisk.includes(ANCHOR_GUARD)) {
       throw new Error(`${GUARD_DIR} holds no ${ANCHOR_GUARD} — the sweep is broken, not the tree`);
     }
-    const listed = captured(readDoc(README), LISTED_GUARD, "guard");
+    const listed = captured(readTextFile(README), LISTED_GUARD, "guard");
     expect(
       {
         gone: listed.filter((guard) => !onDisk.includes(guard)),
@@ -65,7 +61,7 @@ describe("the guards' docs", () => {
 
   it("cites only names the source holds", () => {
     const cited = DOCS.flatMap((doc) =>
-      captured(readDoc(doc), CITED_NAME, "name").map((name) => ({ doc, name })),
+      captured(readTextFile(doc), CITED_NAME, "name").map((name) => ({ doc, name })),
     );
     if (!cited.some(({ name }) => name === ANCHOR_TABLE)) {
       throw new Error(`no doc cites ${ANCHOR_TABLE} — the sweep is broken, not the tree`);

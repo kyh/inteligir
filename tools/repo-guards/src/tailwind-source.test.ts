@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, styleFiles, workspaces } from "./repo";
+import { readTextFile, REPO_ROOT, styleFiles, workspaces } from "./repo";
 
 // `inline(...)` embeds candidates (no path); `not "..."` still names a base that must exist, or the
 // exclusion is the same silent no-op.
@@ -32,7 +32,7 @@ describe("tailwind @source bases", () => {
     const violations: string[] = [];
     for (const file of files) {
       const absolute = path.join(REPO_ROOT, file);
-      const text = fs.readFileSync(absolute, "utf-8");
+      const text = readTextFile(file);
       for (const line of text.split("\n")) {
         if (SOURCE_INLINE.test(line)) {
           continue;

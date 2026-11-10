@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
-import { REPO_ROOT } from "./repo";
+import { readJsonFile } from "./repo";
 
 export const UI_DIR = "packages/ui";
 export const UI_PACKAGE = "@repo/ui";
@@ -16,15 +14,14 @@ export interface UiRoot {
 }
 
 export const sweptRoots = (): UiRoot[] => {
-  const manifestPath = path.join(REPO_ROOT, UI_DIR, "package.json");
-  const parsed = z
-    .looseObject({ exports: z.record(z.string(), z.string()) })
-    .safeParse(JSON.parse(fs.readFileSync(manifestPath, "utf-8")));
-  if (!parsed.success) {
-    throw new Error(`${manifestPath}: expected an "exports" map of subpath → file`);
-  }
+  const manifestPath = `${UI_DIR}/package.json`;
+  const { exports } = readJsonFile(
+    manifestPath,
+    z.looseObject({ exports: z.record(z.string(), z.string()) }),
+    'an "exports" map of subpath → file',
+  );
   const roots: UiRoot[] = [];
-  for (const [key, target] of Object.entries(parsed.data.exports)) {
+  for (const [key, target] of Object.entries(exports)) {
     const dir = /^\.\/(?<dir>[\w-]+)\/\*$/u.exec(key)?.groups?.dir;
     if (dir !== undefined && target.startsWith("./src/")) {
       roots.push({ dir, subpath: dir });

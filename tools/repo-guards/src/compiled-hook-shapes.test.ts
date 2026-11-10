@@ -2,10 +2,8 @@
 // ReferenceError. the population is every non-test source importing react: the only files the
 // transform touches.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { isTestFile, REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
+import { isTestFile, readTextFile, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
 
 const HOOK_DEFINITION = /\b(?:function\s+|(?:const|let|var)\s+)(?<name>use[A-Z]\w*)\b/gu;
 const REACT_IMPORT = /from\s+["']react["']/u;
@@ -153,7 +151,7 @@ describe("hooks in compiled sources are defined at module scope", () => {
 
   it("no react-importing source file defines a hook inside another function", () => {
     const offenders = compiledSourceFiles().flatMap((file) =>
-      nestedHookDefinitions(fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")).map(
+      nestedHookDefinitions(readTextFile(file)).map(
         (hook) => `  ${file}:${hook.line} — ${hook.name}`,
       ),
     );

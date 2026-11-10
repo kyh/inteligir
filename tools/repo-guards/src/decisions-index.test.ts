@@ -2,10 +2,9 @@
 // opening that directory, so AGENTS.md § Decisions is how an agent elsewhere finds one. The root is
 // loaded into every session: a group pasted back into it costs every session its tokens again.
 
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, trackedFiles } from "./repo";
+import { readTextFile, trackedFiles } from "./repo";
 
 const ROOT_GUIDE = "AGENTS.md";
 const ROOT_CLAUDE_MD = "CLAUDE.md";
@@ -13,10 +12,8 @@ const SECTION_HEADING = "## Decisions";
 const INDEX_ENTRY = /^- \[`(?<file>[^`]+)`\]\(\k<file>\)/u;
 const DECISION_GROUP = /^(?:### |- \*\*)/u;
 
-const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
-
 const decisionsSection = (): string[] => {
-  const lines = readRepoFile(ROOT_GUIDE).split("\n");
+  const lines = readTextFile(ROOT_GUIDE).split("\n");
   const start = lines.indexOf(SECTION_HEADING);
   if (start === -1) {
     throw new Error(
@@ -58,7 +55,7 @@ describe(`${ROOT_GUIDE} § Decisions`, () => {
 
   it("leaves no decision in the root", () => {
     expect(
-      readRepoFile(ROOT_CLAUDE_MD),
+      readTextFile(ROOT_CLAUDE_MD),
       `the root ${ROOT_CLAUDE_MD} is the one import of ${ROOT_GUIDE}.\n` +
         `  fix: move what was added to ${ROOT_GUIDE}, or to the CLAUDE.md beside the code it governs`,
     ).toBe(`@${ROOT_GUIDE}\n`);

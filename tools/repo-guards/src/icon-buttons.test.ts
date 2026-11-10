@@ -3,11 +3,9 @@
 // One with no label has neither; one a <Tooltip> wraps shows two at once. The rule is every
 // bundle's, the gallery's demos included, since a demo is the pattern the next screen copies.
 
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, workspaceFiles, workspaces } from "./repo";
+import { readTextFile, workspaceFiles, workspaces } from "./repo";
 
 // an opening tag: `<Button` through its closing `>`, attributes included; `=>` is taken whole so an
 // arrow in an attribute cannot end the tag early.
@@ -42,7 +40,7 @@ const drawn = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)
   .filter((file) => file.endsWith(".tsx"))
   .toSorted()
-  .map((file) => ({ file, source: fs.readFileSync(path.join(REPO_ROOT, file), "utf-8") }));
+  .map((file) => ({ file, source: readTextFile(file) }));
 
 const offenders = (lines: (source: string) => number[]): string[] =>
   drawn.flatMap(({ file, source }) => lines(source).map((line) => `${file}:${String(line)}`));

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, trackedFiles, workspaceGroups, workspaces } from "./repo";
+import { readTextFile, REPO_ROOT, trackedFiles, workspaceGroups, workspaces } from "./repo";
 
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
@@ -80,7 +80,7 @@ interface Reference {
 
 const referencesIn = (file: string, pattern: RegExp): Reference[] => {
   const found: Reference[] = [];
-  const lines = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8").split("\n");
+  const lines = readTextFile(file).split("\n");
   for (const [index, text] of lines.entries()) {
     pattern.lastIndex = 0;
     let match = pattern.exec(text);

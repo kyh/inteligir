@@ -3,32 +3,13 @@
 // and walked by no guard. workspaceFiles walks src/** only: build scripts, configs and .github are
 // outside every guard built on it.
 
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, isSkippedDir, WORKSPACE_MANIFEST, workspaces } from "./repo";
+import { filesNamed, REPO_ROOT, WORKSPACE_MANIFEST, workspaces } from "./repo";
 
 // except the repo root's, which is a member of no glob.
-const manifestsOnDisk = (): string[] => {
-  const found: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (isSkippedDir(entry.name)) {
-          continue;
-        }
-        walk(path.join(dir, entry.name));
-      } else if (entry.name === "package.json") {
-        const relative = path.relative(REPO_ROOT, path.join(dir, entry.name));
-        if (relative !== "package.json") {
-          found.push(relative);
-        }
-      }
-    }
-  };
-  walk(REPO_ROOT);
-  return found.toSorted();
-};
+const manifestsOnDisk = (): string[] =>
+  filesNamed(REPO_ROOT, /^package\.json$/u).filter((manifest) => manifest !== "package.json");
 
 describe("the guards' tree walk", () => {
   it("every package.json on disk is a pnpm workspace", () => {
