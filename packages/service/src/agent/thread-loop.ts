@@ -63,6 +63,8 @@ import type {
   TranscriptMessage,
 } from "./thread-request";
 import { pushEntrySchema } from "./thread-wire";
+import { toolCallNext, toolCallOf } from "./tool-call";
+import type { ToolCall, ToolCallEvent } from "./tool-call";
 import { RULES_CLEARED } from "./turn-message";
 import type {
   CellAnswer,
@@ -88,10 +90,11 @@ const PREVIEW_EVERY_MS = 250;
 // a reply this long without a byte, the API's pings included, is taken for a lost connection
 const SILENCE_MS = 3 * 60_000;
 
-const DECLINED = "The person declined this, so it did not run.";
-const STOPPED = "The person stopped this turn before this ran.";
 const CUT_OFF = "Not run: the reply was cut off.";
-const TURN_CLOSED = "This turn has ended, so this did not run.";
+const TURN_CLOSED: ToolAnswer = {
+  content: "This turn has ended, so this did not run.",
+  isError: true,
+};
 
 // what the thread's cell answers it, by Durable Object RPC (`../library/library-do`)
 /** @internal */
@@ -805,28 +808,41 @@ type ToolRow = typeof toolCalls.$inferSelect;
 const toolRowsOf = (db: ThreadDb, msgSeq: number): ToolRow[] =>
   db.select().from(toolCalls).where(eq(toolCalls.msgSeq, msgSeq)).orderBy(asc(toolCalls.idx)).all();
 
-const finishTool = (
+const RUN: ToolCallEvent = { kind: "run" };
+const STOP: ToolCallEvent = { kind: "stop" };
+
+const keepAnswer = (db: ThreadDb, toolUseId: string, answer: ToolAnswer): void => {
+  db.update(toolCalls)
+    .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
+    .where(eq(toolCalls.toolUseId, toolUseId))
+    .run();
+};
+
+// the call moved by `event` in one transaction, its answer kept and pushed where the move answers
+// it; a move the call cannot take writes nothing
+const answerCall = (
   host: ThreadHost,
   turn: number,
-  answer: { readonly toolUseId: string; readonly content: string; readonly isError: boolean },
+  toolUseId: string,
+  event: ToolCallEvent,
 ): void => {
   host.transaction(() => {
-    host.db
-      .update(toolCalls)
-      .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
-      .where(eq(toolCalls.toolUseId, answer.toolUseId))
-      .run();
-    enqueue(host.db, turn, [resultEvent(answer.toolUseId, answer.content, answer.isError)]);
+    const row = host.db.select().from(toolCalls).where(eq(toolCalls.toolUseId, toolUseId)).get();
+    const next = row === undefined ? null : toolCallNext(toolCallOf(row), event);
+    if (next?.kind === "answered") {
+      keepAnswer(host.db, toolUseId, next.answer);
+      enqueue(host.db, turn, [resultEvent(toolUseId, next.answer.content, next.answer.isError)]);
+    }
   });
 };
 
-const resultBlock = (row: ToolRow): ToolResultBlock => {
+const resultBlock = (toolUseId: string, answer: ToolAnswer): ToolResultBlock => {
   const block: ToolResultBlock = {
-    content: row.result ?? "",
-    tool_use_id: row.toolUseId,
+    content: answer.content,
+    tool_use_id: toolUseId,
     type: "tool_result",
   };
-  if (row.isError === 1) {
+  if (answer.isError) {
     block.is_error = true;
   }
   return block;
@@ -883,15 +899,12 @@ const toolRound = async (
     await host.jobs.approvalAt(toolUseId, until);
   }
   for (const row of toolRowsOf(db, reply.seq)) {
-    if (row.status === "done" || (row.status === "awaiting_approval" && row.decision === null)) {
+    const next = toolCallNext(toolCallOf(row), RUN);
+    if (next === null) {
       continue;
     }
-    if (row.decision === "denied") {
-      finishTool(host, turn.turn, {
-        content: row.reason === null ? DECLINED : `${DECLINED} ${row.reason}`,
-        isError: true,
-        toolUseId: row.toolUseId,
-      });
+    if (next.kind === "answered") {
+      answerCall(host, turn.turn, row.toolUseId, RUN);
       continue;
     }
     if (openTurnOf(db)?.cancelRequested !== false) {
@@ -920,14 +933,17 @@ const toolRound = async (
       await host.purge();
       return "purged";
     }
-    finishTool(host, turn.turn, {
-      content: answer.ok ? answer.value.content : TURN_CLOSED,
-      isError: answer.ok ? answer.value.isError : true,
-      toolUseId: row.toolUseId,
+    answerCall(host, turn.turn, row.toolUseId, {
+      answer: answer.ok ? answer.value : TURN_CLOSED,
+      kind: "result",
     });
   }
   const rows = toolRowsOf(db, reply.seq);
-  if (rows.some((row) => row.status !== "done")) {
+  const results = rows.flatMap((row) => {
+    const call = toolCallOf(row);
+    return call.kind === "answered" ? [resultBlock(row.toolUseId, call.answer)] : [];
+  });
+  if (results.length < rows.length) {
     db.update(threadTurns)
       .set({ status: "awaiting_approval" })
       .where(eq(threadTurns.turn, turn.turn))
@@ -935,7 +951,7 @@ const toolRound = async (
     return "paused";
   }
   host.transaction(() => {
-    append(db, { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn });
+    append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
     db.update(threadTurns)
       .set({ status: "running" })
       .where(and(eq(threadTurns.turn, turn.turn), ne(threadTurns.status, "ended")))
@@ -959,12 +975,13 @@ export const decideCall = async (
 ): Promise<boolean> => {
   const { db } = host;
   const decided = host.transaction(() => {
-    const row = db
-      .select({ decision: toolCalls.decision, status: toolCalls.status, turn: toolCalls.turn })
-      .from(toolCalls)
-      .where(eq(toolCalls.toolUseId, answer.toolUseId))
-      .get();
-    if (row?.status !== "awaiting_approval" || row.decision !== null) {
+    const row = db.select().from(toolCalls).where(eq(toolCalls.toolUseId, answer.toolUseId)).get();
+    const decide: ToolCallEvent = {
+      approved: answer.approved,
+      kind: "decide",
+      reason: answer.reason,
+    };
+    if (row === undefined || toolCallNext(toolCallOf(row), decide) === null) {
       return false;
     }
     db.update(toolCalls)
@@ -1018,12 +1035,12 @@ const settleCancel = async (
       const uses = last.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
       const rows = new Map(toolRowsOf(db, last.seq).map((row) => [row.toolUseId, row]));
       const entries: PushEntry[] = [];
-      const results = uses.map((use) => {
+      const results: ToolResultBlock[] = [];
+      for (const use of uses) {
         const row = rows.get(use.id);
-        if (row?.status === "done") {
-          return resultBlock(row);
-        }
-        if (row?.status === "awaiting_approval" && row.decision === null) {
+        // a reply's call no round journaled yet is one it asked for
+        const call: ToolCall = row === undefined ? { kind: "asked" } : toolCallOf(row);
+        if (call.kind === "awaiting") {
           waited.push(use.id);
           entries.push(
             eventEntry({
@@ -1034,18 +1051,16 @@ const settleCancel = async (
             }),
           );
         }
-        entries.push(resultEvent(use.id, STOPPED, true));
-        return {
-          content: STOPPED,
-          is_error: true,
-          tool_use_id: use.id,
-          type: "tool_result" as const,
-        };
-      });
-      db.update(toolCalls)
-        .set({ isError: 1, result: STOPPED, status: "done" })
-        .where(and(eq(toolCalls.msgSeq, last.seq), ne(toolCalls.status, "done")))
-        .run();
+        const next = toolCallNext(call, STOP);
+        if (next?.kind === "answered") {
+          keepAnswer(db, use.id, next.answer);
+          entries.push(resultEvent(use.id, next.answer.content, next.answer.isError));
+        }
+        const settled = next ?? call;
+        if (settled.kind === "answered") {
+          results.push(resultBlock(use.id, settled.answer));
+        }
+      }
       append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
       enqueue(db, turn.turn, entries);
     }

@@ -22,6 +22,7 @@ import { z } from "zod";
 import { isLibraryTool, libraryTools } from "../connector/library-tools";
 import { AGENT_TOOL_POLICIES, isAgentToolName } from "./library-agent";
 import type { AgentToolName } from "./library-agent";
+import type { ToolAnswer, ToolRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 // what one result may carry: its JSON as the tool_result's text
@@ -149,11 +150,6 @@ const fitAgentResult: ProcedureClientInterceptor<Context, AnySchema, ErrorMap> =
   });
 };
 
-export interface AgentToolResult {
-  readonly content: string;
-  readonly isError: boolean;
-}
-
 const issuesSchema = z.object({
   issues: z.array(z.looseObject({ message: z.string(), path: z.array(z.unknown()).optional() })),
 });
@@ -186,19 +182,12 @@ export const agentOpId = async (threadId: string, toolUseId: string): Promise<st
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 };
 
-export interface AgentToolCall {
-  readonly threadId: string;
-  readonly toolUseId: string;
-  readonly name: string;
-  readonly input: unknown;
-}
-
 // one call run through the router as `context`'s actor, its answer as the agent reads it
 export const runAgentTool = async (
   router: AnyRouter,
   context: Context,
-  request: AgentToolCall,
-): Promise<AgentToolResult> => {
+  request: Omit<ToolRequest, "turn">,
+): Promise<ToolAnswer> => {
   const row = AGENT_TOOL_ROWS.find((candidate) => candidate.name === request.name);
   const procedure = row === undefined ? null : procedureAt(router, row.path);
   if (row === undefined || procedure === null) {
