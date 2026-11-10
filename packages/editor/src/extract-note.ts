@@ -1,22 +1,21 @@
 // The new note holds the very blocks that leave, as the item stores them, under the title their
 // first heading or first line gives; their removal and the link that replaces them land in one
-// change, which is one undo step and the session's next write. The note is not undone with them:
-// the host's create and this item's write are two writes, and a note that exists is truer than an
-// edit that never happened. So the item is touched only once the note is made and the blocks are
-// still the ones it holds.
+// change, an undo step of its own. The note is not undone with them: the host's create and this
+// note's edit are two writes, and a note that exists is truer than an edit that never happened.
+// So the item is touched only once the note is made and the blocks are still the ones it holds.
 
 import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
 import { shownTitle } from "@repo/contract/items/item-name";
-import { ordsBetween } from "@repo/contract/library/order-key";
+import { sameJson } from "@repo/contract/library/canonical-json";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
+import { blockOfElement } from "@repo/editor/live/element-block";
+import { ownUndoStep } from "@repo/editor/live/yjs-binding";
 import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
-
-import { readElement } from "./item/item-diff";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
 const TITLE_MAX_CHARS = 80;
@@ -48,23 +47,14 @@ const blocksAt = (editor: SlateEditor, paths: readonly Path[]): TElement[] =>
 const storedBlocks = (elements: readonly TElement[]): LibraryBlock[] | null => {
   const blocks: LibraryBlock[] = [];
   for (const element of elements) {
-    const read = readElement(element);
-    if (read.kind === "refused") {
+    const block = blockOfElement(element);
+    if (block === null) {
       return null;
     }
-    blocks.push(read.block);
+    blocks.push(block);
   }
   return blocks;
 };
-
-// what the blocks are, by their stored hashes, so a change while the note is made is seen
-const signatureOf = (elements: readonly TElement[]): string =>
-  elements
-    .map((element) => {
-      const read = readElement(element);
-      return read.kind === "block" ? read.hash : "";
-    })
-    .join(" ");
 
 // the page link Plate's mention insert writes: the note by its id, under the title it was made with
 const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
@@ -93,19 +83,11 @@ export const extractBlocksToNote = async (
     return null;
   }
   const title = extractionTitle(elements);
-  const signature = signatureOf(elements);
-  const ords = ordsBetween(null, null, blocks.length);
   // typing, a change from elsewhere or leaving the item can move the blocks while the note is made
   const refs = sorted.map((path) => editor.api.pathRef(path));
   let created: string;
   try {
-    created = await getEditorHostActions().items.createNote({
-      blocks: blocks.flatMap((block, index) => {
-        const ord = ords[index];
-        return ord === undefined ? [] : [{ block, ord }];
-      }),
-      title,
-    });
+    created = await getEditorHostActions().items.createNote({ blocks, title });
   } catch {
     for (const ref of refs) {
       ref.unref();
@@ -120,22 +102,26 @@ export const extractBlocksToNote = async (
     })
     .toSorted(PathApi.compare);
   const [at] = current;
+  const now = storedBlocks(blocksAt(editor, current));
   const unchanged =
     at !== undefined &&
     current.length === refs.length &&
     getLiveEditor(itemId) === editor &&
-    signatureOf(blocksAt(editor, current)) === signature;
+    now !== null &&
+    sameJson(now, blocks);
   if (!unchanged) {
     toast.warning(
       `Made ${shownTitle(title)}, but this item changed meanwhile, so the blocks stayed.`,
     );
     return null;
   }
-  editor.tf.withoutNormalizing(() => {
-    for (const path of current.toReversed()) {
-      editor.tf.removeNodes({ at: path });
-    }
-    editor.tf.insertNodes(linkParagraph(editor, created, title), { at });
+  ownUndoStep(editor, () => {
+    editor.tf.withoutNormalizing(() => {
+      for (const path of current.toReversed()) {
+        editor.tf.removeNodes({ at: path });
+      }
+      editor.tf.insertNodes(linkParagraph(editor, created, title), { at });
+    });
   });
   const end = editor.api.end(at);
   if (end !== undefined) {

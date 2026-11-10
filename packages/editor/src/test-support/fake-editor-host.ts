@@ -7,6 +7,7 @@ import type {
   EditorHostIo,
   ItemActions,
   LinkTarget,
+  NoteHost,
 } from "@repo/editor/host-io";
 
 type HostCall =
@@ -30,6 +31,10 @@ export interface FakeEditorHostOptions {
   // refuse it
   readonly createNote?: ItemActions["createNote"];
   readonly agent?: AgentRequestActions;
+  // whether the host starts with no connection, which `goOffline` changes
+  readonly offline?: boolean;
+  // answers a note socket's ticket in place of a fresh one, so a case can hold a dial
+  readonly socketTicket?: NoteHost["socketTicket"];
 }
 
 const ignore = (): void => {
@@ -41,15 +46,37 @@ const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 // Installs the singleton the hooks read and hands the editor the library's titles; the io half
 // answers from the items and files it is handed, keeps a file by its real sha and then draws it
-// (refusing one with no type, as the hosts do), the shell hears every other ask as nothing, and an
-// open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
-// host's change feed does.
+// (refusing one with no type, as the hosts do), dials a note at the Worker's path on a fresh
+// ticket each time, the shell hears every other ask as nothing, and an open, a new note and a kept
+// file are recorded in `calls`. `changed` says items moved, as a host's change feed does, and
+// `goOffline` that the connection went or came back.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const files = new Map(options.files);
   const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
+  const offlineListeners = new Set<() => void>();
+  let offline = options.offline ?? false;
   let made = 0;
+  let tickets = 0;
+
+  const notes: NoteHost = {
+    notePath: (itemId) => `/v1/notes/${itemId}`,
+    offline: () => offline,
+    onOfflineChange: (listener) => {
+      offlineListeners.add(listener);
+      return () => {
+        offlineListeners.delete(listener);
+      };
+    },
+    socketTicket: async () => {
+      tickets += 1;
+      if (options.socketTicket !== undefined) {
+        return await options.socketTicket();
+      }
+      return await Promise.resolve(`ticket-${String(tickets)}`);
+    },
+  };
 
   const items: ItemActions = {
     createNote: async (note) => {
@@ -93,6 +120,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         ? Promise.reject(new Error(`no file ${sha}`))
         : Promise.resolve(file));
     },
+    notes,
     readItemBlocks: async (itemId) => await Promise.resolve(options.itemBlocks?.(itemId) ?? null),
     savesFiles: options.savesFiles ?? true,
   };
@@ -113,5 +141,11 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       }
     },
     files,
+    goOffline: (next: boolean) => {
+      offline = next;
+      for (const listener of offlineListeners) {
+        listener();
+      }
+    },
   };
 };

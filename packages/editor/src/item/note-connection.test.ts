@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
+import { deferred } from "@repo/editor/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
 import {
   DOWN_GRACE_MS,
@@ -9,7 +10,7 @@ import {
   PING_EVERY_MS,
   PONG_WITHIN_MS,
   REDIAL_MS,
-  openNote,
+  noteConnection,
 } from "@repo/editor/item/note-connection";
 import type { NoteConnection, NoteStatus } from "@repo/editor/item/note-connection";
 
@@ -67,20 +68,26 @@ const opened = (status: NoteStatus) => {
   return status;
 };
 
-const textOf = (doc: Y.Doc): string => doc.getText("probe").toString();
+const textOf = (doc: Y.Doc): string => doc.getText("probe").toJSON();
 
 let server: NoteServer;
 let connection: NoteConnection | null = null;
 
-const connect = async (host: NoteHost, itemId = "n1"): Promise<NoteConnection> => {
-  connection = openNote(itemId, host);
-  await pass();
+const openNote = (itemId: string, host: NoteHost): NoteConnection => {
+  connection = noteConnection(itemId, host);
+  connection.start();
   return connection;
+};
+
+const connect = async (host: NoteHost, itemId = "n1"): Promise<NoteConnection> => {
+  const note = openNote(itemId, host);
+  await pass();
+  return note;
 };
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.spyOn(console, "error").mockReturnValue(undefined);
+  vi.spyOn(console, "error").mockReturnValue();
   server = noteServer();
   server.note("n1").doc.getText("probe").insert(0, "held");
 });
@@ -96,7 +103,6 @@ afterEach(() => {
 describe("a note's live document over its socket", () => {
   it("opens on the note's own document once it has synced, writing nothing", async () => {
     const note = openNote("n1", testHost());
-    connection = note;
     expect(note.status()).toStrictEqual({ kind: "opening" });
     const before = Y.encodeStateVector(server.note("n1").doc);
     await pass();
@@ -105,6 +111,7 @@ describe("a note's live document over its socket", () => {
     expect(textOf(status.doc)).toBe("held");
     expect(Y.encodeStateVector(server.note("n1").doc)).toStrictEqual(before);
     expect(server.awarenessFrames()).toBe(0);
+    expect(server.sockets[0]?.binaryType).toBe("arraybuffer");
     expect(server.sockets[0]?.url).toMatch(/^ws:\/\/localhost:3000\/v1\/notes\/n1\?/u);
   });
 
@@ -191,6 +198,25 @@ describe("a note's live document over its socket", () => {
     expect(opened(note.status()).live).toBe(true);
   });
 
+  it("dials a fresh socket over the same document when a quiet one never says it closed", async () => {
+    const note = await connect(testHost());
+    const { doc } = opened(note.status());
+    const [first] = server.sockets;
+    if (first === undefined) {
+      throw new Error("a socket");
+    }
+    server.silence(first);
+    await pass(PING_EVERY_MS);
+    await pass(PONG_WITHIN_MS);
+    expect(first.readyState).toBe(WebSocket.CLOSING);
+    expect(server.open()).toHaveLength(1);
+    expect(server.open()[0]).not.toBe(first);
+    expect(opened(note.status())).toMatchObject({ doc, live: true });
+    doc.getText("probe").insert(0, "still ");
+    await pass();
+    expect(textOf(server.note("n1").doc)).toBe("still held");
+  });
+
   it("probes at once when the page is shown again or the connection is back", async () => {
     await connect(testHost());
     const [first] = server.sockets;
@@ -237,6 +263,9 @@ describe("a note's live document over its socket", () => {
     expect(after).toMatchObject({ held: "full", live: true });
     expect(after.doc).not.toBe(before);
     expect(textOf(after.doc)).toBe("held");
+    const dials = server.sockets.length;
+    await pass(BACKOFF_MS * 4);
+    expect(server.sockets).toHaveLength(dials);
   });
 
   it("drops the document a refused frame was in, and what it held with it", async () => {
@@ -291,6 +320,29 @@ describe("a note's live document over its socket", () => {
     await pass(BACKOFF_MS);
     expect(saved).toBe(true);
     expect(textOf(server.note("n1").doc)).toBe("baheld");
+  });
+
+  it("opens no socket when it closes while its ticket is asked for", async () => {
+    const ticket = deferred<string>();
+    const host: NoteHost = { ...testHost(), socketTicket: async () => await ticket.promise };
+    const note = openNote("n1", host);
+    note.close();
+    ticket.resolve("late");
+    await pass(BACKOFF_MS * 2);
+    expect(server.open()).toStrictEqual([]);
+  });
+
+  it("opens afresh when it starts again after a close, as a remount does", async () => {
+    const note = await connect(testHost());
+    const before = opened(note.status()).doc;
+    note.close();
+    note.start();
+    expect(note.status()).toStrictEqual({ kind: "opening" });
+    await pass();
+    const after = opened(note.status());
+    expect(after).toMatchObject({ held: null, live: true });
+    expect(after.doc).not.toBe(before);
+    expect(server.open()).toHaveLength(1);
   });
 
   it("answers whenSaved false when the note closes first", async () => {

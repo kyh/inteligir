@@ -27,6 +27,7 @@ import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { PickerRaceKit } from "@repo/editor/combobox-input";
 import { NoteSectionPlugin } from "@repo/editor/live/note-section";
+import { PickerOwnerPlugin } from "@repo/editor/live/picker-owner";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations and the
 // markdown wiring. Every surface composes this whole, so a note reads
@@ -55,6 +56,7 @@ export const CONTENT_KIT = [
   ...TagChipKit,
   ...MarkdownKit,
   NoteSectionPlugin,
+  PickerOwnerPlugin,
 ];
 
 // A later plugin's aboveNodes wraps an earlier one's, so the fold stays inside the drag handle.

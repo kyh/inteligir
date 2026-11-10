@@ -1,9 +1,9 @@
 // A note's live document, opened by its item's id: y-partyserver's provider dials the note's object
-// on the account socket's ticket, and the editor binds to the document only once it has synced, so
-// a device never seeds a note. On top of the provider's own redial, a ping every 20 s finds a
-// socket gone quiet, and a page shown again or a connection back probes at once. The status is one
-// value: whether the note is there, whether an edit reaches it now, and whether the note holds
-// every edit back, which the note's object says itself.
+// on the account socket's ticket, and a document is shown only once it has synced, so a device
+// never seeds a note. On top of the provider's own redial, a ping every 20 s finds a socket gone
+// quiet, and a page shown again or a connection back probes at once. The status is one value:
+// whether the note is there, whether an edit reaches it now, and whether the note holds every edit
+// back, which the note's object says itself.
 
 import YProvider from "y-partyserver/provider";
 import * as Y from "yjs";
@@ -34,6 +34,8 @@ export interface NoteConnection {
   // true once the note has stored every edit this device made before the call; false when the
   // connection closes, or drops the document, first
   readonly whenSaved: () => Promise<boolean>;
+  // dials, and follows the note until `close`; a start after a close opens it afresh
+  readonly start: () => void;
   readonly close: () => void;
 }
 
@@ -64,18 +66,22 @@ export const DOWN_GRACE_MS = 3000;
 /** @internal */
 export const REDIAL_MS = 2500;
 
-// what the provider's events carry (y-partyserver's WebsocketProvider)
+// what the provider's status event carries
 interface ProviderStatus {
   readonly status: "connecting" | "connected" | "disconnected";
 }
 
-// one document and the socket that dials it: a reopen makes another beside the one still shown
+// one provider and the document it dials: a redial makes another over the same document, a reopen
+// another over a fresh one
 interface Link {
   readonly doc: Y.Doc;
   readonly provider: YProvider;
+  // replaced, so nothing it says or does reaches the note's state
+  dead: boolean;
+  // what the note said holds it since this socket opened, which stands once it has synced
+  greeted: NoteHeld | null;
+  // this socket has synced, so a word from the note now is about what this document holds
   synced: boolean;
-  // what this socket's note said holds it, since the socket opened
-  held: NoteHeld | null;
   // the edits asked about on this socket, oldest first, each by the count it covers
   readonly asked: number[];
 }
@@ -86,13 +92,16 @@ interface Waiter {
 }
 
 class LiveNote implements NoteConnection {
+  private readonly itemId: string;
+  private readonly host: NoteHost;
   private readonly listeners = new Set<() => void>();
   private current: NoteStatus = { kind: "opening" };
-  private closed = false;
-  // the document the editor shows, and the one dialed, which differ while a reopen syncs
-  private shown: Link | null = null;
-  private link: Link;
-  private connected = false;
+  private running = false;
+  private link: Link | null = null;
+  // the document the editor shows: the first to sync, until a reopen's syncs in its place
+  private shown: Y.Doc | null = null;
+  private held: NoteHeld | null = null;
+  private socketUp = false;
   private pastGrace = false;
   private graceTimer: ReturnType<typeof setTimeout> | undefined;
   private pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -102,24 +111,11 @@ class LiveNote implements NoteConnection {
   private edits = 0;
   private confirmed = 0;
   private waiters: Waiter[] = [];
-  private readonly stopOffline: () => void;
-  private readonly itemId: string;
-  private readonly host: NoteHost;
+  private stopOffline: (() => void) | null = null;
 
   constructor(itemId: string, host: NoteHost) {
     this.itemId = itemId;
     this.host = host;
-    this.stopOffline = host.onOfflineChange(() => {
-      if (!host.offline()) {
-        this.probe();
-      }
-      this.refresh();
-    });
-    window.addEventListener("online", this.probe);
-    window.addEventListener("pageshow", this.probe);
-    document.addEventListener("visibilitychange", this.onVisibility);
-    this.link = this.open();
-    void this.dial(this.link);
   }
 
   readonly status = (): NoteStatus => this.current;
@@ -132,7 +128,7 @@ class LiveNote implements NoteConnection {
   };
 
   readonly whenSaved = async (): Promise<boolean> => {
-    if (this.closed || this.current.kind === "missing") {
+    if (!this.running || this.link === null) {
       return false;
     }
     if (this.edits <= this.confirmed) {
@@ -144,18 +140,64 @@ class LiveNote implements NoteConnection {
     return await promise;
   };
 
-  readonly close = (): void => {
-    if (this.closed) {
+  readonly start = (): void => {
+    if (this.running) {
       return;
     }
-    this.teardown();
-    this.closed = true;
-    this.listeners.clear();
+    this.running = true;
+    this.shown = null;
+    this.held = null;
+    this.edits = 0;
+    this.confirmed = 0;
+    this.setStatus({ kind: "opening" });
+    this.stopOffline = this.host.onOfflineChange(() => {
+      if (!this.host.offline()) {
+        this.probe();
+      }
+      this.refresh();
+    });
+    window.addEventListener("online", this.probe);
+    window.addEventListener("pageshow", this.probe);
+    document.addEventListener("visibilitychange", this.onVisibility);
+    this.replaceLink(new Y.Doc());
   };
 
-  private open(): Link {
-    const doc = new Y.Doc();
+  readonly close = (): void => {
+    if (!this.running) {
+      return;
+    }
+    this.running = false;
+    clearTimeout(this.graceTimer);
+    clearTimeout(this.redialTimer);
+    this.graceTimer = undefined;
+    this.redialTimer = undefined;
+    this.stopHeartbeat();
+    window.removeEventListener("online", this.probe);
+    window.removeEventListener("pageshow", this.probe);
+    document.removeEventListener("visibilitychange", this.onVisibility);
+    this.stopOffline?.();
+    this.stopOffline = null;
+    this.drop();
+    this.socketUp = false;
+    this.pastGrace = false;
+    this.settle(false);
+  };
+
+  private drop(): void {
+    if (this.link !== null) {
+      this.link.dead = true;
+      this.link.provider.destroy();
+      this.link = null;
+    }
+  }
+
+  // a provider over `doc` in place of the one dialing now, dialed at once
+  private replaceLink(doc: Y.Doc): void {
+    this.drop();
+    this.socketUp = false;
+    this.stopHeartbeat();
     const provider = new YProvider(location.host, this.itemId, doc, {
+      // read at each dial rather than when the module loaded, as the provider's default is
       WebSocketPolyfill: WebSocket,
       connect: false,
       disableBc: true,
@@ -165,39 +207,60 @@ class LiveNote implements NoteConnection {
     });
     // presence is off: the default awareness stays, holding nothing of this device
     provider.awareness.setLocalState(null);
-    const link: Link = { asked: [], doc, held: null, provider, synced: false };
+    const link: Link = { asked: [], dead: false, doc, greeted: null, provider, synced: false };
+    this.link = link;
     doc.on("update", (_update, origin) => {
-      if (origin !== provider && link === this.shown) {
+      if (origin !== provider && !link.dead && doc === this.shown) {
         this.edits += 1;
       }
     });
     provider.on("status", ({ status }: ProviderStatus) => {
-      if (link === this.link) {
+      if (!link.dead) {
         this.onSocket(link, status);
       }
     });
     provider.on("synced", (synced: boolean) => {
-      if (synced && link === this.link) {
+      if (synced && !link.dead) {
         this.onSynced(link);
       }
     });
     provider.on("custom-message", (message: string) => {
-      if (link === this.link) {
+      if (!link.dead) {
         this.onMessage(link, message);
       }
     });
     provider.on("connection-close", (event: CloseEvent) => {
-      if (link === this.link && event.code === NOTE_SOCKET.missingCode) {
+      if (!link.dead && event.code === NOTE_SOCKET.missingCode) {
         this.gone();
       }
     });
-    return link;
+    void this.dial(link);
+  }
+
+  private async dial(link: Link): Promise<void> {
+    clearTimeout(this.redialTimer);
+    this.redialTimer = undefined;
+    try {
+      await link.provider.connect();
+    } catch {
+      // no ticket to dial with, and the provider schedules nothing after a first dial's failure
+      if (!link.dead) {
+        this.redialTimer = setTimeout(() => {
+          void this.dial(link);
+        }, REDIAL_MS);
+      }
+    }
+    // a close while the ticket was asked for: the provider opened its socket after its destroy
+    if (link.dead) {
+      link.provider.destroy();
+    }
   }
 
   private onSocket(link: Link, status: ProviderStatus["status"]): void {
     switch (status) {
       case "connecting": {
-        link.held = null;
+        link.greeted = null;
+        link.synced = false;
         link.asked.length = 0;
         // a raw frame the provider passes over: the object's answer to a ping
         link.provider.ws?.addEventListener("message", (event) => {
@@ -209,19 +272,17 @@ class LiveNote implements NoteConnection {
         break;
       }
       case "connected": {
-        this.connected = true;
+        this.socketUp = true;
         clearTimeout(this.graceTimer);
         this.graceTimer = undefined;
         this.pastGrace = false;
-        this.pingTimer = setInterval(() => {
-          this.ping(link);
-        }, PING_EVERY_MS);
+        this.pingTimer = setInterval(this.ping, PING_EVERY_MS);
         this.refresh();
         break;
       }
       case "disconnected": {
         link.asked.length = 0;
-        this.goneDown();
+        this.socketDown();
         break;
       }
       // no default
@@ -230,10 +291,9 @@ class LiveNote implements NoteConnection {
 
   private onSynced(link: Link): void {
     link.synced = true;
-    if (this.shown !== link) {
-      // the document a reopen replaces goes with what the note refused in it
-      this.shown?.provider.destroy();
-      this.shown = link;
+    this.held = link.greeted;
+    if (this.shown !== link.doc) {
+      this.shown = link.doc;
       this.edits = 0;
       this.confirmed = 0;
     }
@@ -248,14 +308,16 @@ class LiveNote implements NoteConnection {
         this.settle(null);
         break;
       }
-      case NOTE_SOCKET.deleted: {
-        link.held = "deleted";
-        this.refresh();
-        break;
-      }
+      case NOTE_SOCKET.deleted:
       case NOTE_SOCKET.full: {
-        link.held = "full";
-        this.reopen();
+        link.greeted = message;
+        this.held = message;
+        // a full note greets every socket so; only one that synced may hold what it refused
+        if (message === NOTE_SOCKET.full && link.synced) {
+          this.reopen();
+        } else {
+          this.refresh();
+        }
         break;
       }
       case NOTE_SOCKET.refused: {
@@ -266,63 +328,40 @@ class LiveNote implements NoteConnection {
     }
   }
 
-  // The note refused what this document holds, so it is dropped for the note's own: shown as it
-  // was, taking no edit, until the new one syncs.
+  // The note refused what this document holds, so it is dropped for the note's own: still shown,
+  // taking no edit, until the new one syncs.
   private reopen(): void {
-    const dropped = this.link;
-    dropped.provider.disconnect();
     this.settle(false);
-    this.connected = false;
-    this.stopHeartbeat();
-    this.link = this.open();
-    this.link.held = dropped.held;
+    this.replaceLink(new Y.Doc());
     this.refresh();
-    void this.dial(this.link);
   }
+
+  // A socket gone quiet can take minutes to say it closed, so a fresh one dials beside it, over
+  // the same document.
+  private readonly redial = (): void => {
+    const { link } = this;
+    if (link === null) {
+      return;
+    }
+    this.replaceLink(link.doc);
+    this.socketDown();
+  };
 
   private gone(): void {
-    this.teardown();
-    this.shown = null;
+    this.close();
     this.setStatus({ kind: "missing" });
-  }
-
-  private teardown(): void {
-    clearTimeout(this.graceTimer);
-    clearTimeout(this.redialTimer);
-    this.stopHeartbeat();
-    window.removeEventListener("online", this.probe);
-    window.removeEventListener("pageshow", this.probe);
-    document.removeEventListener("visibilitychange", this.onVisibility);
-    this.stopOffline();
-    this.link.provider.destroy();
-    this.shown?.provider.destroy();
-    this.settle(false);
-  }
-
-  private async dial(link: Link): Promise<void> {
-    clearTimeout(this.redialTimer);
-    this.redialTimer = undefined;
-    try {
-      await link.provider.connect();
-    } catch {
-      // no ticket to dial with, and the provider schedules nothing after a first dial's failure
-      if (!this.closed && link === this.link && this.current.kind !== "missing") {
-        this.redialTimer = setTimeout(() => {
-          void this.dial(link);
-        }, REDIAL_MS);
-      }
-    }
   }
 
   // a page shown again or a connection back: a quiet socket is asked now, and a dropped one dialed
   private readonly probe = (): void => {
-    if (this.closed || this.current.kind === "missing") {
+    const { link } = this;
+    if (link === null) {
       return;
     }
-    if (this.connected) {
-      this.ping(this.link);
-    } else if (this.link.provider.ws === null) {
-      void this.dial(this.link);
+    if (this.socketUp) {
+      this.ping();
+    } else if (link.provider.ws === null) {
+      void this.dial(link);
     }
   };
 
@@ -332,18 +371,17 @@ class LiveNote implements NoteConnection {
     }
   };
 
-  private ping(link: Link): void {
-    const socket = link.provider.ws;
+  private readonly ping = (): void => {
+    const socket = this.link?.provider.ws ?? null;
     if (socket === null || socket.readyState !== socket.OPEN) {
       return;
     }
     socket.send(NOTE_SOCKET.ping);
     this.pongTimer ??= setTimeout(() => {
       this.pongTimer = undefined;
-      socket.close();
-      this.goneDown();
+      this.redial();
     }, PONG_WITHIN_MS);
-  }
+  };
 
   private stopHeartbeat(): void {
     clearInterval(this.pingTimer);
@@ -352,8 +390,8 @@ class LiveNote implements NoteConnection {
     this.pongTimer = undefined;
   }
 
-  private goneDown(): void {
-    this.connected = false;
+  private socketDown(): void {
+    this.socketUp = false;
     this.stopHeartbeat();
     if (this.graceTimer === undefined && !this.pastGrace) {
       this.graceTimer = setTimeout(() => {
@@ -367,7 +405,7 @@ class LiveNote implements NoteConnection {
 
   // asks the note whether it stored what this device edited, once the socket can carry the ask
   private ask(link: Link): void {
-    if (this.waiters.length === 0 || link !== this.shown || !this.connected || !link.synced) {
+    if (this.waiters.length === 0 || link.doc !== this.shown || !this.socketUp) {
       return;
     }
     link.asked.push(this.edits);
@@ -384,16 +422,12 @@ class LiveNote implements NoteConnection {
   }
 
   private refresh(): void {
-    const { shown } = this;
-    if (this.closed || shown === null || this.current.kind === "missing") {
+    const { link, shown } = this;
+    if (!this.running || shown === null) {
       return;
     }
-    const live =
-      shown === this.link &&
-      shown.synced &&
-      !this.host.offline() &&
-      (this.connected || !this.pastGrace);
-    this.setStatus({ doc: shown.doc, held: shown.held, kind: "open", live });
+    const live = link?.doc === shown && !this.host.offline() && (this.socketUp || !this.pastGrace);
+    this.setStatus({ doc: shown, held: this.held, kind: "open", live });
   }
 
   private setStatus(next: NoteStatus): void {
@@ -415,5 +449,6 @@ class LiveNote implements NoteConnection {
   }
 }
 
-export const openNote = (itemId: string, host: NoteHost): NoteConnection =>
+// inert until `start`, so a connection a discarded render makes leaves nothing running
+export const noteConnection = (itemId: string, host: NoteHost): NoteConnection =>
   new LiveNote(itemId, host);

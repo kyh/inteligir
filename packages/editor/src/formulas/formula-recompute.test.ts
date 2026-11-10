@@ -1,11 +1,9 @@
 import { deferred } from "@repo/editor/deferred";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
 
-import { blockHash } from "@repo/contract/library/block-hash";
-import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
-import { noteFields } from "@repo/contract/test-support/library-items";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { formulasIn } from "@repo/editor/test-support/formulas-in";
 import {
   followItemFormulas,
@@ -13,10 +11,15 @@ import {
   scheduleFormulaRecompute,
 } from "@repo/editor/formulas/formula-recompute";
 import type { FormulaReads } from "@repo/editor/formulas/formula-recompute";
-import type { HeldItem, ItemStore, ItemStoreChange } from "@repo/editor/item/item-session";
+import type { EditorHostIo } from "@repo/editor/host-io";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
+import { seedDoc } from "@repo/editor/live/note-blocks";
+import { undoStackSizes } from "@repo/editor/live/yjs-binding";
+import { liveEditor } from "../test-support/live-notes";
+import { YjsEditor } from "@slate-yjs/core";
+import * as Y from "yjs";
 
 const editorWith = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -26,9 +29,7 @@ const editorWith = (md: string) => {
   return createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
 };
 
-type Editor = ReturnType<typeof editorWith>;
-
-const pills = (editor: Editor): { display: string; meta: string }[] => {
+const pills = (editor: SlateEditor): { display: string; meta: string }[] => {
   const out: { display: string; meta: string }[] = [];
   for (const [node] of editor.api.nodes<TElement>({ at: [], match: { type: "formulaPill" } })) {
     if (ElementApi.isElement(node)) {
@@ -41,7 +42,7 @@ const pills = (editor: Editor): { display: string; meta: string }[] => {
   return out;
 };
 
-const lastPill = (editor: Editor) => pills(editor).at(-1);
+const lastPill = (editor: SlateEditor) => pills(editor).at(-1);
 
 // the item the editor holds is `selfId`; every other item, by its id, answered as the store would:
 // its collected formulas
@@ -152,7 +153,7 @@ describe("the item a bound ref names", () => {
   });
 });
 
-// a paragraph holding one pill, as the store holds it
+// a paragraph holding one pill, as the library holds it
 const pillBlock = (id: string, source: string, display: string, meta: string): LibraryBlock => ({
   children: [
     { text: "" },
@@ -163,40 +164,28 @@ const pillBlock = (id: string, source: string, display: string, meta: string): L
   type: "p",
 });
 
-const heldOf = (blocks: readonly { block: LibraryBlock; section: LibrarySection }[]): HeldItem => ({
-  blocks: blocks.map(({ block, section }, at) => ({
-    block,
-    hash: blockHash(block),
-    ord: `a${String(at)}`,
-    section,
-  })),
-  bodyHeld: true,
-  fields: noteFields({ title: "B" }),
-});
-
-// a store holding the items named, which the case changes and announces
-const storeOf = (items: Map<string, HeldItem>) => {
-  const listeners = new Set<(change: ItemStoreChange) => void>();
+// the host's reads of the items named, which the case changes and announces
+const hostOf = (items: Map<string, readonly LibraryBlock[]>) => {
+  const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
   const asked: string[] = [];
-  const store: ItemStore = {
-    item: async (itemId) => {
-      asked.push(itemId);
-      return await Promise.resolve(items.get(itemId) ?? null);
-    },
-    onChange: (listener) => {
+  const host: Pick<EditorHostIo, "readItemBlocks" | "onItemsChanged"> = {
+    onItemsChanged: (listener) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    write: async () => await Promise.resolve({ kind: "queued" }),
+    readItemBlocks: async (itemId) => {
+      asked.push(itemId);
+      return await Promise.resolve(items.get(itemId) ?? null);
+    },
   };
-  const announce = (ids: readonly string[]): void => {
+  const announce = (ids: readonly string[] | null): void => {
     for (const listener of listeners) {
-      listener({ ids: new Set(ids), overlapped: new Set(), reset: false });
+      listener(ids === null ? null : new Set(ids));
     }
   };
-  return { announce, asked, listeners, store };
+  return { announce, asked, host, listeners };
 };
 
 describe("following an item's formulas", () => {
@@ -204,46 +193,56 @@ describe("following an item's formulas", () => {
     vi.useRealTimers();
   });
 
-  it("reads the note of the item a ref names, and runs again when another item changes", async () => {
+  it("reads the item a ref names, and runs again when another item changes", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const items = new Map([
-      [
-        "B",
-        heldOf([
-          { block: pillBlock("b1", "40", "40", "id=fb;name=b"), section: "note" },
-          // a fill's article holds no pill a ref may name
-          { block: pillBlock("b2", "99", "99", "id=fz;name=z"), section: "article" },
-        ]),
-      ],
-    ]);
-    const { announce, asked, listeners, store } = storeOf(items);
-    const editor = editorWith(
-      ':formula[0]{source="@(b#B#fb)+2" meta="id=fa;name=a"} :formula[0]{source="@(z#B#fz)" meta="id=fy;name=y"}\n',
-    );
+    const items = new Map([["B", [pillBlock("b1", "40", "40", "id=fb;name=b")]]]);
+    const { announce, asked, host, listeners } = hostOf(items);
+    const editor = editorWith(':formula[0]{source="@(b#B#fb)+2" meta="id=fa;name=a"}\n');
 
-    const stop = followItemFormulas(editor, "A", store);
+    const stop = followItemFormulas(editor, "A", host);
     await vi.advanceTimersByTimeAsync(400);
-    expect(pills(editor)).toStrictEqual([
-      { display: "42", meta: "id=fa;name=a" },
-      { display: "0", meta: "id=fy;name=y;stale=1" },
-    ]);
+    expect(pills(editor)).toStrictEqual([{ display: "42", meta: "id=fa;name=a" }]);
 
-    // this item's own write moves nothing a pill reads elsewhere; another item's does
-    items.set(
-      "B",
-      heldOf([{ block: pillBlock("b1", "50", "50", "id=fb;name=b"), section: "note" }]),
-    );
+    // this item's own change moves nothing a pill reads elsewhere; another item's does, and so
+    // does a word that any item may have moved
+    items.set("B", [pillBlock("b1", "50", "50", "id=fb;name=b")]);
     announce(["A"]);
     await vi.advanceTimersByTimeAsync(400);
     expect(asked).toStrictEqual(["B"]);
     announce(["B"]);
     await vi.advanceTimersByTimeAsync(400);
     expect(pills(editor)[0]?.display).toBe("52");
+    items.set("B", [pillBlock("b1", "60", "60", "id=fb;name=b")]);
+    announce(null);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(pills(editor)[0]?.display).toBe("62");
 
     stop();
     expect(listeners.size).toBe(0);
     scheduleFormulaRecompute(editor);
     await vi.advanceTimersByTimeAsync(400);
-    expect(asked).toStrictEqual(["B", "B"]);
+    expect(asked).toStrictEqual(["B", "B", "B"]);
+  });
+
+  it("writes the display outside a live note's undo, so an undo reaches the person's own edit", async () => {
+    const doc = new Y.Doc();
+    seedDoc(doc, [
+      {
+        block: pillBlock("0190a000-0000-7000-8000-0000000000f1", "2+2", "5", "id=fa;name=a"),
+        section: "note",
+      },
+    ]);
+    const editor = liveEditor(doc, { kit: EDITOR_KIT });
+    editor.tf.insertText("!", { at: editor.api.end([0]) });
+    YjsEditor.flushLocalChanges(editor);
+
+    await recomputeFormulas(editor, readsOver("A", {}).reads);
+    YjsEditor.flushLocalChanges(editor);
+    expect(lastPill(editor)?.display).toBe("4");
+
+    editor.undo();
+    expect(editor.api.string([0])).not.toContain("!");
+    expect(lastPill(editor)?.display).toBe("4");
+    expect(undoStackSizes(editor)).toStrictEqual({ redos: 1, undos: 0 });
   });
 });

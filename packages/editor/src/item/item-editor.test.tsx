@@ -1,55 +1,34 @@
 // @vitest-environment jsdom
 
-// The item surface as a host mounts it: one editor and one session per item, drawn only once the
-// item's blocks are in, over items held in memory whose reads and writes a case can hold.
+// The item surface as a host mounts it: one connection and one editor per item, drawn only once
+// the note's document has synced, over notes' objects held in memory behind a fake socket.
 
 import { setTimeout as delay } from "node:timers/promises";
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { KEYS } from "platejs";
 import type { SlateEditor } from "platejs";
-import type * as PlateReact from "platejs/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { YjsEditor } from "@slate-yjs/core";
+import { Node } from "slate";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as Y from "yjs";
 
-import { blockHash } from "@repo/contract/library/block-hash";
-import { orderedBlocks } from "@repo/contract/library/block-ops";
-import type { ItemState } from "@repo/contract/library/block-ops";
-import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
-import { noteFields } from "@repo/contract/test-support/library-items";
 
 import { deferred } from "@repo/editor/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { openFindBar } from "@repo/editor/find-bar";
+import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { memoryItems } from "../test-support/memory-item";
-import type { MemoryItems } from "../test-support/memory-item";
-import { ItemEditor, MISSING_ITEM } from "./item-editor";
-import { BLOCK_HELD_BACK, ITEM_UNREAD, ITEM_UNSAVED } from "./item-session";
-import type { ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
-
-// every editor the surface makes, in the order it makes them, so a case can type into one
-interface MadeEditors {
-  readonly editors: SlateEditor[];
-}
-const made = vi.hoisted((): MadeEditors => ({ editors: [] }));
-
-// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for a few of platejs/react's exports alone, which the typed import() form refuses unless the whole module is stubbed
-vi.mock("platejs/react", async (importOriginal) => {
-  const actual = await importOriginal<typeof PlateReact>();
-  return {
-    ...actual,
-    // with Plate's ids on as the app runs it: Plate turns its id plugin off under NODE_ENV=test
-    usePlateEditor: (...[options, deps]: Parameters<typeof PlateReact.usePlateEditor>) => {
-      const editor = actual.usePlateEditor({ ...options, nodeId: true }, deps);
-      if (editor !== null && !made.editors.includes(editor)) {
-        made.editors.push(editor);
-      }
-      return editor;
-    },
-  };
-});
+import { docNodes, liveEditor } from "../test-support/live-notes";
+import { noteServer } from "../test-support/note-server";
+import type { NoteServer } from "../test-support/note-server";
+import { HELD_BACK, ItemEditor, MISSING_ITEM } from "./item-editor";
+import type { OpenNote } from "./item-editor";
 
 const A = "0190a000-0000-7000-8000-00000000000a";
 const B = "0190a000-0000-7000-8000-00000000000b";
@@ -60,57 +39,56 @@ const paragraph = (id: string, text: string): LibraryBlock => ({
   type: "p",
 });
 
-const itemOf = (title: string, ...blocks: LibraryBlock[]): ItemState => ({
-  blocks: new Map(
-    blocks.map((block, index) => [
-      block.id,
-      { block, hash: blockHash(block), ord: `a${String(index)}`, section: "note" as const },
-    ]),
-  ),
-  fields: noteFields({ title }),
-});
+// the notes' objects, each seeded with its blocks
+const serve = (notes: Record<string, readonly LibraryBlock[]>): NoteServer => {
+  const server = noteServer();
+  for (const [itemId, blocks] of Object.entries(notes)) {
+    seedDoc(
+      server.note(itemId).doc,
+      blocks.map((block) => ({ block, section: "note" as const })),
+    );
+  }
+  return server;
+};
 
-const textsOf = (state: ItemState | undefined): string[] =>
-  orderedBlocks(state?.blocks ?? new Map()).map(({ block }) =>
-    block.children.map((child) => ("text" in child ? child.text : "")).join(""),
-  );
+const oneNote = (): NoteServer => serve({ [A]: [paragraph("a1", "A one")] });
 
-// a pause that never comes: a case writes by flushing
-const portsOver = (store: ItemStore): ItemSessionPorts => ({
-  after: () => () => {},
-  notifyOverlap: () => {},
-  store,
-});
+const textsOf = (doc: Y.Doc): string[] => docNodes(doc).map((node) => Node.string(node));
 
-const sessions: (ItemSession | null)[] = [];
+const announced: (OpenNote | null)[] = [];
 
-const Host = ({
-  itemId,
-  ports,
-  offline,
-}: {
-  itemId: string;
-  ports: ItemSessionPorts;
-  offline?: boolean;
-}) => (
+const Host = ({ itemId }: { itemId: string }) => (
   <ItemEditor
     itemId={itemId}
-    ports={ports}
-    offline={offline}
-    onSession={(session) => {
-      sessions.push(session);
+    onNote={(note) => {
+      announced.push(note);
     }}
   />
 );
 
 const editable = (): Element | null => document.querySelector('[contenteditable="true"]');
 
-const lastSession = (): ItemSession => {
-  const session = sessions.findLast((one) => one !== null);
-  if (session === undefined || session === null) {
-    throw new Error("no session followed the item");
+const editorOf = (itemId: string): SlateEditor => {
+  const editor = getLiveEditor(itemId);
+  if (editor === null) {
+    throw new Error("the surface drew no editor");
   }
-  return session;
+  return editor;
+};
+
+const lastNote = (): OpenNote => {
+  const note = announced.findLast((one) => one !== null);
+  if (note === undefined || note === null) {
+    throw new Error("no note followed the item");
+  }
+  return note;
+};
+
+const typeInto = (itemId: string, text: string): void => {
+  act(() => {
+    const editor = editorOf(itemId);
+    editor.tf.insertText(text, { at: editor.api.end([0]) });
+  });
 };
 
 beforeAll(() => {
@@ -123,12 +101,10 @@ beforeAll(() => {
   }
   /* oxlint-enable class-methods-use-this */
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
-  installFakeEditorHost();
 });
 
-afterEach(() => {
-  sessions.length = 0;
-  made.editors.length = 0;
+beforeEach(() => {
+  announced.length = 0;
 });
 
 afterAll(() => {
@@ -136,115 +112,103 @@ afterAll(() => {
 });
 
 describe("an item's surface", () => {
-  it("keeps each item's own blocks when it moves to another item mid-write", async () => {
-    const memory = memoryItems([
-      [A, itemOf("A", paragraph("a1", "A one"), paragraph("a2", "A two"))],
-      [B, itemOf("B", paragraph("b1", "B one"), paragraph("b2", "B two"))],
-    ]);
-    const ports = portsOver(memory.store);
-    const view = render(<Host itemId={A} ports={ports} />);
+  beforeEach(() => {
+    installFakeEditorHost();
+  });
+
+  it("writes an edit typed just before it moves to another item into the item it was typed in", async () => {
+    const server = serve({ [A]: [paragraph("a1", "A one")], [B]: [paragraph("b1", "B one")] });
+    const view = render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const editorA = made.editors.at(-1);
-    const sessionA = lastSession();
-    const write = deferred<null>();
-    memory.held.write = write;
-    act(() => {
-      editorA?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
-    });
-    const writing = sessionA.flush();
-    view.rerender(<Host itemId={B} ports={ports} />);
+    const editorA = editorOf(A);
+    typeInto(A, "!");
+    view.rerender(<Host itemId={B} />);
     await expect(screen.findByText("B one")).resolves.toBeDefined();
-    expect(made.editors.at(-1)).not.toBe(editorA);
-    write.resolve(null);
-    await writing;
+    expect(editorOf(B)).not.toBe(editorA);
     await waitFor(() => {
-      expect(textsOf(memory.item(A))).toStrictEqual(["A one!", "A two"]);
+      expect(textsOf(server.note(A).doc)).toStrictEqual(["A one!"]);
     });
-    expect(textsOf(memory.item(B))).toStrictEqual(["B one", "B two"]);
+    expect(textsOf(server.note(B).doc)).toStrictEqual(["B one"]);
+    expect(server.open(A)).toStrictEqual([]);
   });
 
-  it("keeps its session when the host hands it the same ports anew", async () => {
-    const { store } = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    const view = render(<Host itemId={A} ports={portsOver(store)} />);
+  it("keeps its note when the host draws it again", async () => {
+    oneNote();
+    const view = render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const announced = sessions.length;
-    view.rerender(<Host itemId={A} ports={portsOver(store)} />);
-    expect(sessions).toHaveLength(announced);
+    const count = announced.length;
+    view.rerender(<Host itemId={A} />);
+    expect(announced).toHaveLength(count);
   });
 
-  it("draws no editor until the item's blocks are in it", async () => {
-    const { held, store } = memoryItems([[A, itemOf("A", paragraph("a1", "the item's text"))]]);
-    const read = deferred<null>();
-    held.read = read;
-    render(<Host itemId={A} ports={portsOver(store)} />);
+  it("draws no editor until the note's document has synced", async () => {
+    const ticket = deferred<string>();
+    installFakeEditorHost({ socketTicket: async () => await ticket.promise });
+    oneNote();
+    render(<Host itemId={A} />);
     await act(async () => {
-      await Promise.resolve();
+      await delay(0);
     });
-    expect(editable()).toBeNull();
-    read.resolve(null);
-    await expect(screen.findByText("the item's text")).resolves.toBeDefined();
+    expect(screen.queryByText("A one")).toBeNull();
+    expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
+    ticket.resolve("ticket");
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
     expect(editable()).not.toBeNull();
   });
 
-  it("says beside the text why an edit is not saved, until it is", async () => {
-    const { store } = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    render(<Host itemId={A} ports={portsOver(store)} />);
-    await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const editor = made.editors.at(-1);
-    const session = lastSession();
-    act(() => {
-      editor?.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
-    });
-    await act(async () => {
-      await session.flush();
-    });
-    expect(screen.getByRole("alert").textContent).toBe(BLOCK_HELD_BACK);
-    act(() => {
-      editor?.undo();
-    });
-    await act(async () => {
-      await session.flush();
-    });
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("says a first read that failed, and offers to read the item again", async () => {
-    const { held, store } = memoryItems([[A, itemOf("A", paragraph("a1", "the item's text"))]]);
-    const read = deferred<null>();
-    held.read = read;
-    render(<Host itemId={A} ports={portsOver(store)} />);
-    read.reject(new Error("the page gave up waiting for the phone"));
-    await expect(screen.findByText(ITEM_UNREAD)).resolves.toBeDefined();
-    expect(editable()).toBeNull();
-    held.read = null;
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await expect(screen.findByText("the item's text")).resolves.toBeDefined();
-    expect(screen.queryByText(ITEM_UNREAD)).toBeNull();
-  });
-
-  it("says an item this device does not hold is not here, with no editor to type into", async () => {
-    const { store } = memoryItems();
-    render(<Host itemId={A} ports={portsOver(store)} />);
+  it("says an item with no note is not here, with no editor to type into", async () => {
+    const server = noteServer();
+    server.answer = "missing";
+    render(<Host itemId={A} />);
     await expect(screen.findByText(MISSING_ITEM)).resolves.toBeDefined();
-    expect(editable()).toBeNull();
+    expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
+  });
+
+  it("lays in another device's edit as it lands", async () => {
+    const server = oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    const elsewhere = liveEditor(server.note(A).doc, { kit: EDITOR_KIT });
+    act(() => {
+      elsewhere.tf.insertText(" and more", { at: elsewhere.api.end([0]) });
+      YjsEditor.flushLocalChanges(elsewhere);
+    });
+    await expect(screen.findByText("A one and more")).resolves.toBeDefined();
+  });
+
+  it.each(["deleted", "full"] as const)(
+    "reads a note held as %s, takes no edit and says why",
+    async (held) => {
+      const server = oneNote();
+      server.note(A).greeting = held;
+      render(<Host itemId={A} />);
+      await expect(screen.findByText("A one")).resolves.toBeDefined();
+      expect(screen.getByText(HELD_BACK[held])).toBeDefined();
+      expect(editable()).toBeNull();
+    },
+  );
+
+  it("answers a leave once the note holds every edit made here", async () => {
+    const server = oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    typeInto(A, "!");
+    await expect(lastNote().whenSaved()).resolves.toBe(true);
+    expect(textsOf(server.note(A).doc)).toStrictEqual(["A one!"]);
+  });
+
+  it("answers a leave the note never confirms as unsaved once the surface closes", async () => {
+    const server = oneNote();
+    server.answersSaved = false;
+    const view = render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    typeInto(A, "!");
+    const saving = lastNote().whenSaved();
+    view.unmount();
+    await expect(saving).resolves.toBe(false);
+    expect(announced.at(-1)).toBeNull();
   });
 });
-
-// the store as a host hands it over, refusing every write while the connection is gone
-const connectionOver = (memory: MemoryItems) => {
-  const connection = { up: true };
-  const store: ItemStore = {
-    item: memory.store.item,
-    onChange: memory.store.onChange,
-    write: async (itemId, input) => {
-      if (!connection.up) {
-        throw new Error("Failed to fetch");
-      }
-      return await memory.store.write(itemId, input);
-    },
-  };
-  return { connection, ports: portsOver(store) };
-};
 
 describe("an item's surface with no connection", () => {
   beforeAll(() => {
@@ -252,52 +216,40 @@ describe("an item's surface with no connection", () => {
     window.HTMLElement.prototype.scrollIntoView = () => {};
   });
 
-  it("reads the item but takes no edit, and says it needs a connection", async () => {
-    const { store } = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    const view = render(<Host itemId={A} ports={portsOver(store)} offline />);
+  it("reads the note but takes no edit, and says it needs a connection", async () => {
+    const host = installFakeEditorHost();
+    oneNote();
+    render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
+    expect(editable()).not.toBeNull();
+    act(() => {
+      host.goOffline(true);
+    });
     expect(editable()).toBeNull();
     expect(screen.getByText(NEEDS_CONNECTION)).toBeDefined();
-    view.rerender(<Host itemId={A} ports={portsOver(store)} />);
+    act(() => {
+      host.goOffline(false);
+    });
     expect(editable()).not.toBeNull();
     expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
   });
 
-  it("writes an edit typed before the connection went as soon as it is back", async () => {
-    const memory = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    const { connection, ports } = connectionOver(memory);
-    const view = render(<Host itemId={A} ports={ports} />);
-    await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const session = lastSession();
-    act(() => {
-      made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
-    });
-    connection.up = false;
-    view.rerender(<Host itemId={A} ports={ports} offline />);
-    await act(async () => {
-      await session.flush();
-    });
-    expect(screen.getByRole("alert").textContent).toBe(ITEM_UNSAVED);
-    expect(textsOf(memory.item(A))).toStrictEqual(["A one"]);
-
-    connection.up = true;
-    view.rerender(<Host itemId={A} ports={ports} />);
-    await waitFor(() => {
-      expect(textsOf(memory.item(A))).toStrictEqual(["A one!"]);
-    });
-    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+  it("says it needs a connection while the note cannot be reached", async () => {
+    installFakeEditorHost({ offline: true });
+    const server = oneNote();
+    server.answer = "hang";
+    render(<Host itemId={A} />);
+    await expect(screen.findByText(NEEDS_CONNECTION)).resolves.toBeDefined();
+    expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
   });
 
-  it("finds in the item but offers no replace", async () => {
-    const { store } = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    render(<Host itemId={A} ports={portsOver(store)} offline />);
+  it("finds in the note but offers no replace", async () => {
+    installFakeEditorHost({ offline: true });
+    oneNote();
+    render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
-    const editor = made.editors.at(-1);
-    if (editor === undefined) {
-      throw new Error("the surface drew no editor");
-    }
     act(() => {
-      openFindBar(editor, { replace: true });
+      openFindBar(editorOf(A), { replace: true });
     });
     expect(screen.getByRole("textbox", { name: "Find" })).toBeDefined();
     expect(screen.queryByRole("textbox", { name: "Replace with" })).toBeNull();
@@ -305,23 +257,25 @@ describe("an item's surface with no connection", () => {
   });
 
   it("draws no formatting toolbar on a touch screen", async () => {
-    const { store } = memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-    const surface = (offline: boolean) => (
+    const host = installFakeEditorHost({ offline: true });
+    oneNote();
+    render(
       <EditorProfileProvider profile="touch">
-        <Host itemId={A} ports={portsOver(store)} offline={offline} />
-      </EditorProfileProvider>
+        <Host itemId={A} />
+      </EditorProfileProvider>,
     );
-    const view = render(surface(true));
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     expect(screen.queryByRole("toolbar", { name: "Formatting" })).toBeNull();
-    view.rerender(surface(false));
+    act(() => {
+      host.goOffline(false);
+    });
     expect(screen.getByRole("toolbar", { name: "Formatting" })).toBeDefined();
   });
 });
 
 const SHA = "a".repeat(64);
 
-const pastePicture = (target: HTMLElement): void => {
+const pastePicture = (target: Element): void => {
   fireEvent.paste(target, {
     clipboardData: {
       files: [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })],
@@ -331,30 +285,27 @@ const pastePicture = (target: HTMLElement): void => {
   });
 };
 
-// the item open with a picture pasted into it, its bytes not yet kept
-const pasteHeld = async (memory: MemoryItems) => {
+// the note open with a picture pasted into it, its bytes not yet kept
+const pasteHeld = async () => {
   const kept = deferred<{ readonly sha: string }>();
-  installFakeEditorHost({ keepFile: async () => await kept.promise });
-  const view = render(<Host itemId={A} ports={portsOver(memory.store)} />);
+  const host = installFakeEditorHost({ keepFile: async () => await kept.promise });
+  const server = oneNote();
+  const view = render(<Host itemId={A} />);
   await screen.findByText("A one");
-  const editor = made.editors.at(-1);
+  const editor = editorOf(A);
   const target = editable();
-  if (editor === undefined || !(target instanceof HTMLElement)) {
+  if (target === null) {
     throw new Error("the surface drew no editor");
   }
   editor.tf.select(editor.api.end([0]));
   pastePicture(target);
-  return { held: memory.held, kept, view };
+  return { host, kept, server, view };
 };
 
-const storedShas = (memory: MemoryItems): readonly unknown[] =>
-  [...(memory.item(A)?.blocks.values() ?? [])].flatMap(({ block }) =>
-    block.type === "img" ? [block.sha] : [],
-  );
+const storedShas = (server: NoteServer): unknown[] =>
+  readBlocks(server.note(A).doc).flatMap(({ block }) => (block.type === "img" ? [block.sha] : []));
 
-const oneItem = (): MemoryItems => memoryItems([[A, itemOf("A", paragraph("a1", "A one"))]]);
-
-describe("a file still being kept in an open item", () => {
+describe("a file still being kept in an open note", () => {
   // jsdom has no object URLs, and no isContentEditable, without which slate hands no paste on
   beforeAll(() => {
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:kept" });
@@ -371,19 +322,15 @@ describe("a file still being kept in an open item", () => {
     Reflect.deleteProperty(URL, "createObjectURL");
     Reflect.deleteProperty(URL, "revokeObjectURL");
     Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
-    installFakeEditorHost();
   });
 
-  it("counts as unsaved, and a leave waits to write the block that names it", async () => {
-    const memory = oneItem();
-    const { kept } = await pasteHeld(memory);
-    const session = lastSession();
-    expect(session.status()).toMatchObject({ kind: "open", unsaved: true });
-
+  it("holds a leave until the note holds the block that names it", async () => {
+    const { kept, server } = await pasteHeld();
     let left = false;
     const leaving = (async () => {
-      await session.flush();
+      const saved = await lastNote().whenSaved();
       left = true;
+      return saved;
     })();
     await act(async () => {
       await delay(0);
@@ -392,120 +339,75 @@ describe("a file still being kept in an open item", () => {
 
     kept.resolve({ sha: SHA });
     await act(async () => {
-      await leaving;
+      await expect(leaving).resolves.toBe(true);
     });
-
-    expect(storedShas(memory)).toStrictEqual([SHA]);
+    expect(storedShas(server)).toStrictEqual([SHA]);
   });
 
-  it("lets what was typed go at once, ahead of the block a leave waits for", async () => {
-    const memory = oneItem();
-    const { kept } = await pasteHeld(memory);
-    const session = lastSession();
-    made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
-
-    const leaving = session.flush();
-    await act(async () => {
-      await delay(0);
+  it("adds no block for a file kept once the note took no more edits", async () => {
+    const { host, kept, server } = await pasteHeld();
+    act(() => {
+      host.goOffline(true);
     });
-    expect(textsOf(memory.item(A))).toContain("A one!");
-    expect(storedShas(memory)).toStrictEqual([]);
-
-    kept.resolve({ sha: SHA });
-    await act(async () => {
-      await leaving;
-    });
-    expect(storedShas(memory)).toStrictEqual([SHA]);
-  });
-
-  it("writes its block once kept, with no pause and no leave to ask", async () => {
-    const memory = oneItem();
-    const { kept } = await pasteHeld(memory);
-
-    kept.resolve({ sha: SHA });
-
-    await waitFor(() => {
-      expect(storedShas(memory)).toStrictEqual([SHA]);
-    });
-    expect(lastSession().status()).toMatchObject({ kind: "open", unsaved: false });
-  });
-
-  it("writes its block when it is kept under a leave's first write", async () => {
-    const memory = oneItem();
-    const { held, kept } = await pasteHeld(memory);
-    const session = lastSession();
-    made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
-    const firstWrite = deferred<null>();
-    held.write = firstWrite;
-
-    const leaving = session.flush();
     kept.resolve({ sha: SHA });
     await act(async () => {
       await delay(0);
     });
-    firstWrite.resolve(null);
-    await act(async () => {
-      await leaving;
+    act(() => {
+      host.goOffline(false);
     });
-
-    expect(textsOf(memory.item(A))).toContain("A one!");
-    expect(storedShas(memory)).toStrictEqual([SHA]);
+    await expect(lastNote().whenSaved()).resolves.toBe(true);
+    expect(storedShas(server)).toStrictEqual([]);
   });
 
-  it("holds a leave, and counts as unsaved, until the write behind it is done", async () => {
-    const memory = oneItem();
-    const { held, kept } = await pasteHeld(memory);
-    const session = lastSession();
-
-    let left = false;
-    const leaving = (async () => {
-      await session.flush();
-      left = true;
-    })();
-    await act(async () => {
-      await delay(0);
-    });
-    const keptWrite = deferred<null>();
-    held.write = keptWrite;
-    kept.resolve({ sha: SHA });
-    await act(async () => {
-      await delay(0);
-    });
-    expect(left).toBe(false);
-    expect(session.status()).toMatchObject({ kind: "open", unsaved: true });
-
-    keptWrite.resolve(null);
-    await act(async () => {
-      await leaving;
-    });
-    expect(storedShas(memory)).toStrictEqual([SHA]);
-    expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
-  });
-
-  it("is written when the surface closed before it was kept", async () => {
-    const memory = oneItem();
-    const { kept, view } = await pasteHeld(memory);
-
+  it("adds no block for a file kept after the surface closed", async () => {
+    const { kept, server, view } = await pasteHeld();
     view.unmount();
     kept.resolve({ sha: SHA });
-
-    await waitFor(() => {
-      expect(storedShas(memory)).toStrictEqual([SHA]);
+    await act(async () => {
+      await delay(0);
     });
+    expect(storedShas(server)).toStrictEqual([]);
   });
 
   it("keeps no file pasted while there is no connection", async () => {
-    const host = installFakeEditorHost();
-    render(<Host itemId={A} ports={portsOver(oneItem().store)} offline />);
+    const host = installFakeEditorHost({ offline: true });
+    oneNote();
+    render(<Host itemId={A} />);
     await screen.findByText("A one");
     const target = document.querySelector('[data-slate-editor="true"]');
-    if (!(target instanceof HTMLElement)) {
-      throw new TypeError("the surface drew no editor");
+    if (target === null) {
+      throw new Error("the surface drew no editor");
     }
     pastePicture(target);
     await act(async () => {
       await delay(0);
     });
     expect(host.calls).toStrictEqual([]);
+  });
+});
+
+describe("a picker another device opened", () => {
+  beforeEach(() => {
+    installFakeEditorHost();
+  });
+
+  it("draws as its trigger alone, with no input to take the caret", async () => {
+    const server = oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    const elsewhere = liveEditor(server.note(A).doc, { kit: EDITOR_KIT });
+    act(() => {
+      elsewhere.tf.insertNodes(
+        { children: [{ text: "" }], type: KEYS.slashInput },
+        { at: elsewhere.api.end([0]) },
+      );
+      YjsEditor.flushLocalChanges(elsewhere);
+    });
+    await waitFor(() => {
+      expect(editorOf(A).api.some({ at: [], match: { type: KEYS.slashInput } })).toBe(true);
+    });
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(editable()?.textContent).toContain("A one/");
   });
 });

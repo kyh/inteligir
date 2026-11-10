@@ -11,7 +11,7 @@ import { ElementApi } from "platejs";
 import { stringProp } from "@repo/editor/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { readElement } from "./item/item-diff";
+import { blockOfElement } from "./live/element-block";
 import { EditorHarness } from "./test-support/editor-harness";
 
 beforeAll(() => {
@@ -54,7 +54,7 @@ const listStyles = (editor: PlateEditor): (string | undefined)[] =>
   editor.children.map((node) => stringProp(node, "listStyleType"));
 
 const storesEveryBlock = (editor: PlateEditor): boolean =>
-  editor.children.every((node) => ElementApi.isElement(node) && readElement(node).kind === "block");
+  editor.children.every((node) => ElementApi.isElement(node) && blockOfElement(node) !== null);
 
 // a nested list as Google Docs copies it: each level its own list, styled inline
 const DOCS_LIST =

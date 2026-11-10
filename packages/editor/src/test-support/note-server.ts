@@ -64,9 +64,9 @@ const readBytes = (reader: Reader): Uint8Array => {
 
 // how the object answers a dial: opened, refused before the upgrade (a browser reads a plain
 // failure), never answered, or opened and closed as a note that is not there
-export type DialAnswer = "open" | "refuse" | "hang" | "missing";
+type DialAnswer = "open" | "refuse" | "hang" | "missing";
 
-export interface NoteObject {
+interface NoteObject {
   readonly doc: Y.Doc;
   // said to each socket as it opens, ahead of the sync: the note is held
   greeting: string | null;
@@ -86,6 +86,8 @@ export interface NoteServer {
   readonly say: (itemId: string, message: string) => void;
   // holds a socket read-only: what it sends lands nothing, and the object says so
   readonly refuse: (socket: NoteSocket) => void;
+  // a socket whose connection died unseen: nothing crosses it, and its close never completes
+  readonly silence: (socket: NoteSocket) => void;
   // every open socket closed by the object, as a deploy or a lost connection closes them
   readonly drop: (code?: number) => void;
   readonly dialed: (socket: NoteSocket) => void;
@@ -94,7 +96,7 @@ export interface NoteServer {
 
 let serving: NoteServer | null = null;
 
-export class NoteSocket extends EventTarget {
+class NoteSocket extends EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
   static readonly CLOSING = 2;
@@ -105,6 +107,7 @@ export class NoteSocket extends EventTarget {
   readonly url: string;
   // every text frame this socket sent, the provider's custom messages among them
   readonly texts: string[] = [];
+  silent = false;
   private readonly server: NoteServer;
 
   constructor(url: string) {
@@ -132,8 +135,9 @@ export class NoteSocket extends EventTarget {
     if (!ArrayBuffer.isView(data)) {
       this.texts.push(data);
     }
+    // a frame sent before a close still arrives, as a browser sends what it buffered first
     queueMicrotask(() => {
-      if (this.readyState === NoteSocket.OPEN) {
+      if (!this.silent) {
         this.server.received(this, data);
       }
     });
@@ -144,6 +148,9 @@ export class NoteSocket extends EventTarget {
       return;
     }
     this.readyState = NoteSocket.CLOSING;
+    if (this.silent) {
+      return;
+    }
     queueMicrotask(() => {
       this.ended(code);
     });
@@ -158,7 +165,7 @@ export class NoteSocket extends EventTarget {
 
   deliver(data: string | ArrayBuffer): void {
     queueMicrotask(() => {
-      if (this.readyState === NoteSocket.OPEN) {
+      if (this.readyState === NoteSocket.OPEN && !this.silent) {
         this.dispatchEvent(new MessageEvent("message", { data }));
       }
     });
@@ -277,6 +284,9 @@ export const noteServer = (): NoteServer => {
     refuse: (socket) => {
       refusing.add(socket);
       socket.deliver(`${CUSTOM}${NOTE_SOCKET.refused}`);
+    },
+    silence: (socket) => {
+      socket.silent = true;
     },
     say: (itemId, message) => {
       for (const socket of open(itemId)) {
