@@ -155,6 +155,7 @@ which is how the e2e points the dev build at the Worker it boots
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
 | Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables migrated from `packages/db/src/cell/migrations` as it wakes                                       |
 | Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables migrated from `packages/db/src/note/migrations` as it wakes                                             |
+| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables migrated from `packages/db/src/thread/migrations` as it wakes                                  |
 | Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates

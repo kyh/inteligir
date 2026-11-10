@@ -825,7 +825,7 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   routes are held to, without the site, whose SSR needs what only Start's vite
   plugin supplies. `vitest.config.ts` adds only what a config cannot hold: the
   D1 schema's DDL (`TEST_SCHEMA`), the cell's namespace by the name
-  `listDurableObjectIds` reads, the cell's migrations as text and the outbound
+  `listDurableObjectIds` reads, every object's migrations as text and the outbound
   service. A suite reaches the Worker by `exports.default.fetch()` and reads
   every body to the end (`drained`), as per-file storage isolation needs; the
   suites that open the account's socket share one storage in a project of

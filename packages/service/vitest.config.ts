@@ -41,7 +41,7 @@ const workerd = cloudflareTest({
     // also makes ctx.exports.LibraryDO a SQLite namespace (test-support/env.d.ts)
     durableObjects: { LIBRARY_CELL: { className: "LibraryDO", useSQLite: true } },
     bindings: { TEST_SCHEMA },
-    // the cell's migrations, which @repo/db's migrations.js imports as text; the plugin takes module
+    // every object's migrations, which @repo/db's migrations.js imports as text; the plugin takes module
     // rules from here or a Wrangler file alone, and parses a .sql as JavaScript otherwise
     modulesRules: [{ include: ["**/*.sql"], type: "Text" }],
   },

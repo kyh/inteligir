@@ -17,9 +17,9 @@ const instant = z.number().int().nonnegative();
 const toolUseIdSchema = z.string().min(1).max(128);
 const toolNameSchema = z.string().min(1).max(128);
 
-// why a turn ended: Claude ended it; the person stopped it; the allowance did; Claude's reply ran
-// out of room, refused, or outgrew the conversation's window; Claude could not be reached; or the
-// request itself failed
+// why a turn ended: Claude ended it; the person stopped it; it reached the steps one turn may take;
+// Claude's reply ran out of room, refused, or outgrew the conversation's window; Claude could not
+// be reached; or the request itself failed
 const TURN_END_REASONS = [
   "done",
   "cancelled",
