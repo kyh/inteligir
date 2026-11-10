@@ -23,7 +23,7 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -50,6 +50,7 @@ import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialog
 import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
+import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
 import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
@@ -85,6 +86,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const cloud = useCloud();
   const socket = useSocket();
   const queries = useLibraryQueries();
+  const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
@@ -152,12 +154,23 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     storeScope({ kind: "tag", tag });
     open(null);
   });
+  // in the folder of the item open now, whose row its view has read
+  const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
+    const beside =
+      openItem === null ? undefined : queryClient.getQueryData(queries.item(openItem).queryKey);
+    return await verbs.createNote({ folderId: beside?.fields.folderId ?? null, tags: [] }, made);
+  });
   // installed as the workspace first renders: an open item's editor reads the host as it renders,
   // and the workspace's effects run after its children's first render
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
   useEffect(() => {
-    host.bind({ askAgent: hostAsksAgent, openItem: hostOpens, showTag: hostShowsTag });
+    host.bind({
+      askAgent: hostAsksAgent,
+      createNote: hostMakesNote,
+      openItem: hostOpens,
+      showTag: hostShowsTag,
+    });
     return () => {
       host.bind(null);
     };
@@ -177,9 +190,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     [leave, note],
   );
 
-  useEffect(() => {
-    host.showing(openItem);
-  }, [host, openItem]);
   useEffect(() => {
     // a search's find waits for the item it opened, and for no other
     if (findRef.current !== null && findRef.current.itemId !== openItem) {
@@ -386,17 +396,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     })();
   };
 
-  const refreshCall = useMutation(
-    wire.orpc.library.items.refresh.mutationOptions({
-      onError: (cause) => {
-        toast.error(refusalText(cause, "The page couldn't be read again."));
-      },
-      onSuccess: () => {
-        toast.success("Reading the page again.");
-      },
-    }),
-  );
-
   const purge = (ids: readonly string[]): void => {
     void (async () => {
       if (
@@ -474,7 +473,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       purge(rows.map((row) => row.id));
     },
     refresh: (row) => {
-      refreshCall.mutate({ id: row.id });
+      verbs.refresh(row.id);
     },
     remove: (rows) => {
       removeItems(rows.map((row) => row.id));

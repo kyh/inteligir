@@ -41,9 +41,6 @@ import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
 
-// a refused send, the allowance's words naming when it fills again from now
-const refusalNow = (cause: unknown): string => sendRefusalWords(cause, Date.now());
-
 // the screen a message leaves from: the item it was asked about, else the whole library
 const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
   viewContextOf({ kind: null, openItem: fromItem, scope: { kind: "all" }, selected: [] });
@@ -210,17 +207,10 @@ const Composer = ({
 }) => {
   const { queries } = useLibrary();
   const [text, setText] = useState("");
-  // what the last send's refusal said, in the person's words; read when it failed, since the
-  // allowance's words name the time it fills again
-  const [refused, setRefused] = useState<string | null>(null);
   const send = useMutation(
     queries.library.agent.send.mutationOptions({
-      onError: (cause) => {
-        setRefused(refusalNow(cause));
-      },
       onSuccess: (answer) => {
         setText("");
-        setRefused(null);
         onThread(answer.threadId);
       },
     }),
@@ -231,6 +221,9 @@ const Composer = ({
       send.mutate(input);
     }
   };
+  // the last send's refusal in the person's words, the allowance's naming when it fills again
+  // from when that send went
+  const refused = send.error === null ? null : sendRefusalWords(send.error, send.submittedAt);
   const said = send.isPaused ? NEEDS_CONNECTION : refused;
   return (
     <View className="gap-1 border-t border-border px-4 pt-2 pb-3">
