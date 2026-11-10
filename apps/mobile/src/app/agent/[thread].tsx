@@ -19,16 +19,14 @@ import {
   answerWords,
   approvalWords,
   callRefusalWords,
+  conversationOf,
   EMPTY_WORDS,
   endingWords,
   isUnderWay,
   isWorking,
   sendRefusalWords,
   statusWords,
-  threadBlocks,
-  threadEntries,
   toolWords,
-  waitingApprovals,
   workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, WaitingApproval } from "@repo/agent-panel/thread-entries";
@@ -67,10 +65,10 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
         {block.uses.map((use) => (
           <Text
             key={use.toolUseId}
-            className={`text-13 ${use.failure === null ? "text-muted-foreground" : "text-destructive"}`}
+            className={`text-13 ${use.kind === "failed" ? "text-destructive" : "text-muted-foreground"}`}
           >
-            {`${toolWords(use.name)}${use.answered ? "" : "…"}`}
-            {use.failure === null ? "" : `: ${use.failure}`}
+            {`${toolWords(use.name)}${use.kind === "running" ? "…" : ""}`}
+            {use.kind === "failed" ? `: ${use.message}` : ""}
           </Text>
         ))}
       </View>
@@ -96,7 +94,7 @@ const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
       );
     }
     case "approval.answered": {
-      return <Text className="text-13 text-muted-foreground">{answerWords(event.result)}</Text>;
+      return <Text className="text-13 text-muted-foreground">{answerWords(event)}</Text>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -154,9 +152,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const { queries } = useLibrary();
   const rows = useThreadEvents(threadId) ?? [];
   const thread = useThreads().threads?.find((row) => row.id === threadId);
-  const entries = threadEntries(rows);
-  const blocks = threadBlocks(entries);
-  const waiting = waitingApprovals(entries);
+  const { blocks, waiting } = conversationOf(rows);
   const preview = usePreview(threadId);
   const respond = useMutation(queries.library.agent.respond.mutationOptions());
   const cancel = useMutation(queries.library.agent.cancel.mutationOptions());

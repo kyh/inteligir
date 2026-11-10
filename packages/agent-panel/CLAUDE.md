@@ -32,3 +32,16 @@ says how a bullet is written and cited.
   a fixed sentence per tool beside the agent's own reply (the reply is what such
   a page writes); a title the cell puts on the event (every device already
   holds it). `packages/agent-panel/src/thread-entries.ts`.
+
+- **A CONVERSATION IS READ ONCE, IN ORDER, AND EACH APPROVAL AND CALL HAS ONE
+  STATE.** `conversationOf` is every device's one way in: an approval waits
+  until the person answers it or its turn ends, which lapses it, so a turn that
+  stopped or failed leaves no card to answer; a call runs until its one result,
+  which lands on it wherever its run is drawn, since a call that waited on the
+  person answers after its approval closed that run; an answer or a result
+  before its ask or its call is skipped. An approval's row says who settled
+  it: the person, its time running out, or the turn stopped. Rejected: the
+  answered calls as a set over the whole thread (an answer before its ask hid
+  the ask, and a question its turn outlived stayed up); a result matched within
+  its own run alone (a call the person approved stayed running for good).
+  `packages/agent-panel/src/thread-entries.ts`.

@@ -1,9 +1,10 @@
 // A conversation with the built-in agent as every device's panel reads it: the thread's stored
 // events, each parsed by the one union every device reads
-// (`@repo/contract/library/agent-events`), and what they say together (the approval still
-// waiting, how each turn ended, the runs of work between two messages). An event this build cannot
-// parse is skipped, so a newer cell may add kinds. The words for each refusal, each ending and each
-// thread's state are the person's, never the wire's; each device draws them its own way.
+// (`@repo/contract/library/agent-events`), and what they say together (`conversationOf`: the
+// approvals still waiting, how each turn ended, the runs of work between two messages). An event
+// this build cannot parse is skipped, so a newer cell may add kinds. The words for each refusal,
+// each ending and each thread's state are the person's, never the wire's; each device draws them
+// its own way.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
@@ -40,7 +41,7 @@ export interface ThreadEntry {
   readonly event: AgentEvent;
 }
 
-export const threadEntries = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
+const entriesOf = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
   rows
     .toSorted((a, b) => a.idx - b.idx)
     .flatMap((row) => {
@@ -73,18 +74,39 @@ const askOf = ({ input, name }: Extract<AgentEvent, { type: "approval.asked" }>)
 export interface WaitingApproval {
   readonly ask: ApprovalAsk;
   readonly eventId: string;
-  readonly until: number;
 }
 
-export const waitingApprovals = (entries: readonly ThreadEntry[]): WaitingApproval[] => {
-  const answered = new Set(
-    entries.flatMap(({ event }) => (event.type === "approval.answered" ? [event.toolUseId] : [])),
-  );
-  return entries.flatMap(({ event, eventId }) =>
-    event.type === "approval.asked" && !answered.has(event.toolUseId)
-      ? [{ ask: askOf(event), eventId, until: event.until }]
-      : [],
-  );
+// a call that waited on the person: it waits until they answer it or its turn ends, which lapses
+// it, since an ended turn runs nothing more and a card left up would answer nothing
+type Approval =
+  | ({ readonly kind: "waiting" } & WaitingApproval)
+  | { readonly kind: "answered" }
+  | { readonly kind: "lapsed" };
+
+type ApprovalEvent = Extract<
+  AgentEvent,
+  { type: "approval.asked" | "approval.answered" | "turn.ended" }
+>;
+
+// the approval an event leaves: asked once, answered only while it waits, lapsed by its turn's
+// end; an answer to a call never asked leaves none
+const approvalNext = (
+  approval: Approval | undefined,
+  event: ApprovalEvent,
+  eventId: string,
+): Approval | undefined => {
+  switch (event.type) {
+    case "approval.asked": {
+      return approval ?? { ask: askOf(event), eventId, kind: "waiting" };
+    }
+    case "approval.answered": {
+      return approval?.kind === "waiting" ? { kind: "answered" } : approval;
+    }
+    case "turn.ended": {
+      return approval?.kind === "waiting" ? { kind: "lapsed" } : approval;
+    }
+    // no default
+  }
 };
 
 // what a tool's name says to the person
@@ -172,10 +194,17 @@ export const endingWords = (reason: TurnEndReason): string => ENDINGS[reason];
 // what a screen with no conversation on it says
 export const EMPTY_WORDS = "Ask the agent to file, tag, find or summarize what you have saved.";
 
-// how the person answered an approval
-export const answerWords = (
-  result: Extract<AgentEvent, { type: "approval.answered" }>["result"],
-) => (result === "allow" ? "Allowed." : "Declined.");
+type ApprovalAnswer = Extract<AgentEvent, { type: "approval.answered" }>;
+
+const DENIALS = {
+  cancel: "Stopped before you answered, so it didn't run.",
+  person: "Declined.",
+  timeout: "Not answered in time, so it didn't run.",
+} satisfies Record<ApprovalAnswer["by"], string>;
+
+// how an approval was settled: the person's answer, its time running out, or the turn stopped
+export const answerWords = ({ by, result }: Pick<ApprovalAnswer, "by" | "result">): string =>
+  result === "allow" ? "Allowed." : DENIALS[by];
 
 // a finished run of work in a line, by the calls it made
 export const workWords = (steps: number): string => {
@@ -213,14 +242,27 @@ export const sendRefusalWords = (cause: unknown, nowMs: number): string => {
   return callRefusalWords(cause);
 };
 
-// one call the agent made, as a run of work shows it
-export interface ToolUse {
-  readonly toolUseId: string;
-  readonly name: string;
-  // the result's first characters when the call failed, null while it runs or once it landed
-  readonly failure: string | null;
-  readonly answered: boolean;
-}
+// one call the agent made, as a run of work shows it: running until its result lands, which says
+// whether it failed, and in its first characters why
+export type ToolUse = { readonly toolUseId: string; readonly name: string } & (
+  | { readonly kind: "running" }
+  | { readonly kind: "done" }
+  | { readonly kind: "failed"; readonly message: string }
+);
+
+// the use a result leaves: one result lands, on a call still running
+const toolUseNext = (
+  use: ToolUse,
+  { isError, summary }: Extract<AgentEvent, { type: "agent.tool_result" }>,
+): ToolUse | null => {
+  if (use.kind !== "running") {
+    return null;
+  }
+  const { name, toolUseId } = use;
+  return isError
+    ? { kind: "failed", message: summary, name, toolUseId }
+    : { kind: "done", name, toolUseId };
+};
 
 // a progress note of the agent's, keyed by the event that carried it
 interface WorkNote {
@@ -228,10 +270,16 @@ interface WorkNote {
   readonly text: string;
 }
 
+interface EntryBlock {
+  readonly kind: "entry";
+  readonly key: string;
+  readonly entry: ThreadEntry;
+}
+
 // what a conversation draws, in order: a message either way, a run of the agent's work between
 // them (its notes and its calls), an answered approval, and a turn's end
 export type ThreadBlock =
-  | { readonly kind: "entry"; readonly key: string; readonly entry: ThreadEntry }
+  | EntryBlock
   | {
       readonly kind: "work";
       readonly key: string;
@@ -239,49 +287,108 @@ export type ThreadBlock =
       readonly uses: readonly ToolUse[];
     };
 
-const isWork = (entry: ThreadEntry): boolean =>
-  entry.event.type === "agent.progress" ||
-  entry.event.type === "agent.tool_use" ||
-  entry.event.type === "agent.tool_result";
+// a run of work as it is read, its calls named by id until every result is in
+interface Run {
+  readonly kind: "run";
+  readonly key: string;
+  readonly notes: WorkNote[];
+  readonly useIds: string[];
+}
 
-export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => {
-  const blocks: ThreadBlock[] = [];
-  let notes: WorkNote[] = [];
-  let uses: ToolUse[] = [];
-  let key: string | null = null;
-  const close = (): void => {
-    if (key !== null) {
-      blocks.push({ key, kind: "work", notes, uses });
-    }
-    notes = [];
-    uses = [];
-    key = null;
+// a conversation as every device draws it: its blocks, and the approvals still waiting on the
+// person, in the order they were asked
+export interface Conversation {
+  readonly blocks: readonly ThreadBlock[];
+  readonly waiting: readonly WaitingApproval[];
+}
+
+// a thread's stored events read once, in order. A result lands on its call wherever that call's
+// run is, since a call that waited on the person answers after an asked approval closed its run;
+// an answer or a result before its ask or its call is skipped
+export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation => {
+  const approvals = new Map<string, Approval>();
+  const uses = new Map<string, ToolUse>();
+  const drafts: (Run | EntryBlock)[] = [];
+  let run: Run | null = null;
+  const openRun = (key: string): Run => {
+    const opened: Run = { key, kind: "run", notes: [], useIds: [] };
+    drafts.push(opened);
+    return opened;
   };
-  for (const entry of entries) {
-    if (!isWork(entry)) {
-      close();
-      // an asked approval is drawn as the card that answers it, never as a row
-      if (entry.event.type !== "approval.asked") {
-        blocks.push({ entry, key: entry.eventId, kind: "entry" });
+  for (const entry of entriesOf(rows)) {
+    const { event, eventId } = entry;
+    switch (event.type) {
+      case "agent.progress": {
+        run ??= openRun(eventId);
+        run.notes.push({ eventId, text: event.text });
+        break;
       }
-      continue;
-    }
-    key ??= entry.eventId;
-    const { event } = entry;
-    if (event.type === "agent.progress") {
-      notes.push({ eventId: entry.eventId, text: event.text });
-    } else if (event.type === "agent.tool_use") {
-      uses.push({ answered: false, failure: null, name: event.name, toolUseId: event.toolUseId });
-    } else if (event.type === "agent.tool_result") {
-      uses = uses.map((use) =>
-        use.toolUseId === event.toolUseId
-          ? { ...use, answered: true, failure: event.isError ? event.summary : null }
-          : use,
-      );
+      case "agent.tool_use": {
+        run ??= openRun(eventId);
+        if (!uses.has(event.toolUseId)) {
+          const { name, toolUseId } = event;
+          uses.set(toolUseId, { kind: "running", name, toolUseId });
+          run.useIds.push(toolUseId);
+        }
+        break;
+      }
+      case "agent.tool_result": {
+        const use = uses.get(event.toolUseId);
+        const next = use === undefined ? null : toolUseNext(use, event);
+        if (next !== null) {
+          uses.set(event.toolUseId, next);
+        }
+        break;
+      }
+      // an asked approval is drawn as the card that answers it, never as a row
+      case "approval.asked":
+      case "approval.answered": {
+        run = null;
+        const before = approvals.get(event.toolUseId);
+        const after = approvalNext(before, event, eventId);
+        if (after !== undefined && after !== before) {
+          approvals.set(event.toolUseId, after);
+          if (event.type === "approval.answered") {
+            drafts.push({ entry, key: eventId, kind: "entry" });
+          }
+        }
+        break;
+      }
+      case "turn.ended": {
+        run = null;
+        for (const [toolUseId, approval] of approvals) {
+          approvals.set(toolUseId, approvalNext(approval, event, eventId) ?? approval);
+        }
+        drafts.push({ entry, key: eventId, kind: "entry" });
+        break;
+      }
+      case "user.message":
+      case "agent.message": {
+        run = null;
+        drafts.push({ entry, key: eventId, kind: "entry" });
+        break;
+      }
+      // no default
     }
   }
-  close();
-  return blocks;
+  return {
+    blocks: drafts.map((draft) =>
+      draft.kind === "entry"
+        ? draft
+        : {
+            key: draft.key,
+            kind: "work",
+            notes: draft.notes,
+            uses: draft.useIds.flatMap((toolUseId) => {
+              const use = uses.get(toolUseId);
+              return use === undefined ? [] : [use];
+            }),
+          },
+    ),
+    waiting: [...approvals.values()].flatMap((approval) =>
+      approval.kind === "waiting" ? [{ ask: approval.ask, eventId: approval.eventId }] : [],
+    ),
+  };
 };
 
 // the calls that only read the library, drawn with the read icon; every other one writes

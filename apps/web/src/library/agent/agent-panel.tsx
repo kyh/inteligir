@@ -11,6 +11,7 @@ import {
   answerWords,
   approvalWords,
   callRefusalWords,
+  conversationOf,
   EMPTY_WORDS,
   endingWords,
   isUnderWay,
@@ -18,10 +19,7 @@ import {
   readsOnly,
   sendRefusalWords,
   statusWords,
-  threadBlocks,
-  threadEntries,
   toolWords,
-  waitingApprovals,
   workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
@@ -97,7 +95,7 @@ const EntryRow = ({
         />
       );
     }
-    // a run of work and an asked approval draw as blocks of their own (`threadBlocks`)
+    // a run of work and an asked approval draw as blocks of their own (`conversationOf`)
     case "agent.progress":
     case "agent.tool_use":
     case "agent.tool_result":
@@ -105,7 +103,7 @@ const EntryRow = ({
       return null;
     }
     case "approval.answered": {
-      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event.result)}</p>;
+      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event)}</p>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -129,10 +127,10 @@ const ToolRow = ({ use }: { use: ToolUse }) => (
   <ToolChip
     icon={readsOnly(use.name) ? "read" : "write"}
     label={toolWords(use.name)}
-    chip={use.answered ? "" : "…"}
-    failed={use.failure !== null}
+    chip={use.kind === "running" ? "…" : ""}
+    failed={use.kind === "failed"}
   >
-    {use.failure === null ? null : <ToolChipDetail>{use.failure}</ToolChipDetail>}
+    {use.kind === "failed" ? <ToolChipDetail>{use.message}</ToolChipDetail> : null}
   </ToolChip>
 );
 
@@ -231,9 +229,7 @@ const Conversation = ({
   const rows = stored.data?.events ?? [];
   const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
   const titles = useQuery(queries.titles()).data?.targets ?? [];
-  const entries = threadEntries(rows);
-  const blocks = threadBlocks(entries);
-  const waiting = waitingApprovals(entries);
+  const { blocks, waiting } = conversationOf(rows);
   const preview = useLivePreview(threadId);
   // the conversation's sets, every page of them: each finished turn's Undo and the whole
   // conversation's need them all
@@ -249,7 +245,9 @@ const Conversation = ({
   }, [dataUpdatedAt, fetchNextPage, hasNextPage, isFetching]);
   // a turn's change set seals in the push that ends it, so the sets are asked again as each turn
   // ends after the conversation was read, what was read shown meanwhile
-  const ended = entries.filter((entry) => entry.event.type === "turn.ended").length;
+  const ended = blocks.filter(
+    (block) => block.kind === "entry" && block.entry.event.type === "turn.ended",
+  ).length;
   const endedRead = useRef<number | null>(null);
   const eventsRead = stored.data !== undefined;
   const setsKey = setPages.queryKey;
