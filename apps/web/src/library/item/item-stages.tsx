@@ -2,6 +2,8 @@
 // download the file, from the library's files (the cloud's own route under the page's cookie); and
 // what a saved page shows before its text arrives.
 
+import { readingOf } from "@repo/contract/library/item-reading";
+import type { Reading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -128,9 +130,30 @@ export const SourceHeader = ({ fields }: { fields: LibraryItemFields }) => {
   );
 };
 
-// a link saved but not read yet: the cloud reads it, and its text lands under the note
-export const PendingNotice = ({ failed }: { failed: string | null }) => (
-  <p className="m-0 px-8 pt-3 text-body text-muted-foreground" data-fetch-state="pending">
-    {failed ?? "Not read yet. The page is read in the cloud, and its text appears here soon."}
-  </p>
-);
+// what a link whose page is not read says: that the cloud reads it and its text lands under the
+// note, or why the reading failed
+export const readingNotice = (reading: Reading): string | null => {
+  switch (reading.state) {
+    case "pending": {
+      return "Not read yet. The page is read in the cloud, and its text appears here soon.";
+    }
+    case "failed": {
+      return reading.error;
+    }
+    case "none":
+    case "read": {
+      return null;
+    }
+    // no default
+  }
+};
+
+export const ReadingNotice = ({ fields }: { fields: LibraryItemFields }) => {
+  const reading = readingOf(fields);
+  const notice = readingNotice(reading);
+  return notice === null ? null : (
+    <p className="m-0 px-8 pt-3 text-body text-muted-foreground" data-fetch-state={reading.state}>
+      {notice}
+    </p>
+  );
+};

@@ -1,6 +1,7 @@
 // The cell's rows of the built-in agent's conversations, read and written inside the cell's
 // transactions: a thread and its status, each thread's one open turn, the sends waiting for a turn,
-// the last push each thread's object landed, and the switch. Each write of a thread or its events
+// the last push each thread's object landed, and the switch. A thread's status is what its open
+// turn and its queued sends say, written by `restatus` alone. Each write of a thread or its events
 // names the thread in the moved frame its commit sends; the rest are the cell's alone.
 
 import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/library/library-wire";
@@ -12,7 +13,7 @@ import type { CellActor } from "../library/cell-actor";
 import type { LandingScope } from "../library/cell-landing";
 import { refuse } from "../library/cell-refusal";
 
-export type ThreadStatus = (typeof THREAD_STATUSES)[number];
+type ThreadStatus = (typeof THREAD_STATUSES)[number];
 
 // the built-in agent's change sets' label
 const AGENT_LABEL = "Agent";
@@ -57,23 +58,6 @@ export const createThread = (scope: LandingScope, threadId: string, text: string
      VALUES (?, ?, 'idle', ?, ?)`,
     [threadId, titleOf(text), scope.now, scope.now],
   );
-  scope.moved.thread(threadId);
-};
-
-export const setThreadStatus = (
-  scope: LandingScope,
-  threadId: string,
-  status: ThreadStatus,
-): void => {
-  const held = threadState(scope.storage, threadId);
-  if (held === null || held.status === status) {
-    return;
-  }
-  scope.storage.run("UPDATE threads SET status = ?, updated_at = ? WHERE id = ?", [
-    status,
-    scope.now,
-    threadId,
-  ]);
   scope.moved.thread(threadId);
 };
 
@@ -173,13 +157,14 @@ export const heardFrom = (sql: SqlStatements, threadId: string, now: number): vo
   sql.run("UPDATE agent_turns SET heard_at = ? WHERE thread_id = ?", [now, threadId]);
 };
 
-// a call of the turn began waiting on the person, or stopped waiting; what that leaves the thread
-export const moveWaiting = (sql: SqlStatements, threadId: string, by: 1 | -1): ThreadStatus => {
-  sql.run("UPDATE agent_turns SET waiting = max(0, waiting + ?) WHERE thread_id = ?", [
+// a call of the turn began waiting on the person, or stopped waiting; an answer with no call
+// waiting moves nothing, so a second answer to one ask never hides the next ask
+export const moveWaiting = (sql: SqlStatements, threadId: string, by: 1 | -1): void => {
+  sql.run("UPDATE agent_turns SET waiting = waiting + ? WHERE thread_id = ? AND waiting + ? >= 0", [
     by,
     threadId,
+    by,
   ]);
-  return (openTurnOf(sql, threadId)?.waiting ?? 0) > 0 ? "awaiting_approval" : "running";
 };
 
 export const markCancel = (sql: SqlStatements, threadId: string): void => {
@@ -258,7 +243,7 @@ export const dequeueNext = (sql: SqlStatements, first: string | null): QueuedSen
   return send;
 };
 
-export const queuedFor = (sql: SqlStatements, threadId: string): number => {
+const queuedFor = (sql: SqlStatements, threadId: string): number => {
   const [row] = sql.all("SELECT count(*) AS count FROM agent_queue WHERE thread_id = ?", [
     threadId,
   ]);
@@ -267,6 +252,39 @@ export const queuedFor = (sql: SqlStatements, threadId: string): number => {
 
 export const dropQueuedFor = (sql: SqlStatements, threadId: string): void => {
   sql.run("DELETE FROM agent_queue WHERE thread_id = ?", [threadId]);
+};
+
+// ---- a thread's status ----
+
+// waiting on the person while a call of its open turn waits, running while a turn is open, queued
+// behind a send of its own, else idle
+/** @internal */
+export const threadStatusOf = (rows: {
+  readonly open: Pick<OpenTurn, "waiting"> | null;
+  readonly queued: number;
+}): ThreadStatus => {
+  if (rows.open !== null) {
+    return rows.open.waiting > 0 ? "awaiting_approval" : "running";
+  }
+  return rows.queued > 0 ? "queued" : "idle";
+};
+
+// the thread's status as its rows say it now, after any change to its turn or its queue
+export const restatus = (scope: LandingScope, threadId: string): void => {
+  const held = threadState(scope.storage, threadId);
+  const status = threadStatusOf({
+    open: openTurnOf(scope.storage, threadId),
+    queued: queuedFor(scope.storage, threadId),
+  });
+  if (held === null || held.status === status) {
+    return;
+  }
+  scope.storage.run("UPDATE threads SET status = ?, updated_at = ? WHERE id = ?", [
+    status,
+    scope.now,
+    threadId,
+  ]);
+  scope.moved.thread(threadId);
 };
 
 // ---- pushes ----

@@ -44,6 +44,7 @@ import type {
   SeedAnswer,
 } from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
+import { articleThenLand } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
 import { fillForNote } from "./cell-fills";
 import {
@@ -362,22 +363,13 @@ export class LibraryDO extends DurableObject<Env> {
     }
     const library = openCellLibrary(this.ctx, this.env);
     const reading = parsed.data;
-    // an article for an opened note goes in the note first, once per reading, outside any
-    // transaction; a note that opened since the look goes again by the note
-    const landOnce = async (): Promise<CellResult<FillLanded>> => {
-      const target = library.read((storage) => fillForNote(storage, reading));
-      let inNote: NoteProjection | null = null;
-      if (target.ok && target.value !== null) {
-        const reply = await this.#notes(target.value.itemId).replaceArticle(
-          target.value.article,
-          target.value.fillId,
-        );
-        inNote = reply.kind === "applied" ? reply.projection : null;
-      }
-      return library.landReading(reading, inNote);
-    };
-    const first = await landOnce();
-    const landed = !first.ok && first.refusal.kind === "note-opened" ? await landOnce() : first;
+    const landed = await articleThenLand(this.#notes, {
+      land: (inNote) => library.landReading(reading, inNote?.projection ?? null),
+      target: () => {
+        const target = library.read((storage) => fillForNote(storage, reading));
+        return target.ok ? target.value : null;
+      },
+    });
     return await settleCommit(this.ctx, this.env, library, landed);
   }
 }

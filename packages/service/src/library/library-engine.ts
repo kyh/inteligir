@@ -6,7 +6,14 @@
 // client resending after a lost answer is told what landed.
 
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
-import { nextHead, readItem, readMeta, storeTombstone, writeMeta } from "./library-queries";
+import {
+  nextHead,
+  readCount,
+  readInstant,
+  readItem,
+  storeTombstone,
+  writeMeta,
+} from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
@@ -141,22 +148,8 @@ const undoSchema = z.object({
 const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
 const answerRowSchema = z.object({ answer: z.string() });
-const deletedAtSchema = z.number().int().nonnegative();
-const headSchema = z.number().int().nonnegative();
-
 // the last sequence number a write took, 0 before the first
-export const libraryHead = (db: CellDb): number => {
-  const head = readMeta(db, "head");
-  return head === null ? 0 : headSchema.parse(head);
-};
-
-const PAYLOADS = {
-  notePurge: jsonTextSchema.pipe(z.object({ itemId: z.string() })),
-  seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
-  stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-  unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-  upload: jsonTextSchema.pipe(z.object({ sha: z.string() })),
-};
+export const libraryHead = (db: CellDb): number => readCount(db, "head");
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
 // runs it between two (`removeStrays` in `./cell-library`)
@@ -183,10 +176,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, ids, storage } = deps;
   const { db } = storage;
 
-  const deletedAt = (): number | null => {
-    const held = readMeta(db, "deleted_at");
-    return held === null ? null : deletedAtSchema.parse(held);
-  };
+  const deletedAt = (): number | null => readInstant(db, "deleted_at");
 
   // what the op answered when it landed, or null while it has not
   const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {
@@ -300,7 +290,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         if (bodyInNote(item)) {
           scheduleJob(
             db,
-            { id: `note-purge:${id}`, kind: "note-purge", payload: JSON.stringify({ itemId: id }) },
+            { id: `note-purge:${id}`, kind: "note-purge", payload: { itemId: id } },
             scope.now,
           );
         }
@@ -360,7 +350,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const beginStrayRemovals = (): StrayRemoval[] =>
     storage.transaction(() =>
       dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
-        const { sha } = PAYLOADS.stray.parse(job.payload);
+        const { sha } = job.payload;
         return beginRemoval(db, sha) ? [{ job, sha }] : [];
       }),
     );
@@ -440,15 +430,15 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
-        sealChangeSet(storage, PAYLOADS.seal.parse(job.payload).changeSetId, now);
+        sealChangeSet(storage, job.payload.changeSetId, now);
         break;
       }
       case "upload": {
-        releaseUpload(db, PAYLOADS.upload.parse(job.payload).sha, now);
+        releaseUpload(db, job.payload.sha, now);
         break;
       }
       case "unnamed": {
-        const { sha } = PAYLOADS.unnamed.parse(job.payload);
+        const { sha } = job.payload;
         if (importsRunning(db)) {
           awaitNameAgain(db, sha, now + PLAN_AGAIN_MS);
         } else {
@@ -512,7 +502,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       const now = deps.now();
       return dueJobs(db, now, ["note-purge"]).map((job) => {
         deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
-        return { itemId: PAYLOADS.notePurge.parse(job.payload).itemId, job };
+        return { itemId: job.payload.itemId, job };
       });
     });
 

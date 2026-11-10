@@ -2,8 +2,8 @@
 // authenticated `/v1` call (`account.socketTicket`) mints one and the socket's query string brings
 // it back. It names the account and the credential that asked, expires in a minute, and is signed
 // with HMAC-SHA-256 under a key derived from the Worker's secret by HKDF, all Web Crypto
-// (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/); its signature is compared
-// as hashes with `timingSafeEqual`, so the comparison takes the same time whatever was presented.
+// (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/); its signature is checked by
+// `crypto.subtle.verify`, which takes the same time whatever was presented.
 
 import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { z } from "zod";
@@ -48,15 +48,12 @@ const ticketKey = async (secret: string): Promise<CryptoKey> => {
     material,
     { hash: "SHA-256", length: 256, name: "HMAC" },
     false,
-    ["sign"],
+    ["sign", "verify"],
   );
 };
 
 const signatureOf = async (key: CryptoKey, payload: string): Promise<Uint8Array> =>
   new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(payload)));
-
-const digest = async (bytes: Uint8Array): Promise<ArrayBuffer> =>
-  await crypto.subtle.digest("SHA-256", bytes);
 
 export const mintSocketTicket = async (
   secret: string,
@@ -86,9 +83,8 @@ export const readSocketTicket = async (
   if (presented === null || body === null) {
     return null;
   }
-  const expected = await signatureOf(await ticketKey(secret), payload);
-  const [left, right] = await Promise.all([digest(expected), digest(presented)]);
-  if (!crypto.subtle.timingSafeEqual(left, right)) {
+  const key = await ticketKey(secret);
+  if (!(await crypto.subtle.verify("HMAC", key, presented, encoder.encode(payload)))) {
     return null;
   }
   let raw: unknown;

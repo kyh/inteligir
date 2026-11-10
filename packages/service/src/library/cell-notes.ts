@@ -8,22 +8,21 @@
 // moved.
 
 import { and, eq, ne } from "drizzle-orm";
-import { z } from "zod";
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { deriveItem, itemCardSchema } from "@repo/contract/library/derive-item";
 import type { DerivedLink, ItemCard } from "@repo/contract/library/derive-item";
-import { items, jobs, links, noteSockets } from "@repo/db/cell/schema";
+import { items, links, noteSockets } from "@repo/db/cell/schema";
 
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import { dropSeed, readSeedBlocks, storeBodyText } from "./cell-body";
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
+import { waitingPayloads } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { readItem, readLiveItem, storeLinks, storeSearchRow, storeTags } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
 import { runPlan } from "./library-sql";
-import { jsonTextSchema } from "./sql-value";
 
 // a session's socket on an item's note: writable, read-only while the item is in Deleted, or none
 // for an item the library does not hold; recorded, so the session's end closes it
@@ -157,8 +156,6 @@ export const landProjection = (
   return "landed";
 };
 
-const purgeJobSchema = jsonTextSchema.pipe(z.object({ itemId: z.string() }));
-
 // every item whose note holds a body: a live item's that opened, and a purged one's the alarm has
 // yet to empty
 export const notesHeld = (db: CellDb): string[] => [
@@ -169,11 +166,6 @@ export const notesHeld = (db: CellDb): string[] => [
       .where(and(eq(items.purged, 0), ne(items.bodyHome, "seed")))
       .all()
       .map((row) => row.id),
-    ...db
-      .select({ payload: jobs.payload })
-      .from(jobs)
-      .where(eq(jobs.kind, "note-purge"))
-      .all()
-      .map((row) => purgeJobSchema.parse(row.payload).itemId),
+    ...waitingPayloads(db, "note-purge").map((payload) => payload.itemId),
   ]),
 ];

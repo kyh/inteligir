@@ -431,7 +431,7 @@ describe("deleting the account from its cell", () => {
       });
       scheduleJob(
         cellStorageOf(state.storage).db,
-        { id: "agent-watch:left", kind: "agent-watch", payload: "{}" },
+        { id: "agent-watch:left", kind: "agent-watch", payload: { threadId: "left" } },
         Date.now(),
       );
       await state.storage.setAlarm(Date.now() + 60_000);

@@ -10,7 +10,6 @@ import { apart } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import {
   dropImportRuns,
-  importJobIdOf,
   importsRunning,
   insertImportJob,
   readImportJob,
@@ -133,7 +132,7 @@ export const runImports = async (host: ImportHost): Promise<void> => {
     return;
   }
   for (const alarmJob of due.value) {
-    const id = importJobIdOf(alarmJob.payload);
+    const id = alarmJob.payload.jobId;
     if (alarmJob.attempts >= ATTEMPTS_MAX) {
       apart(host.library, (scope) => {
         stopImport(scope.storage.db, id, { message: STOPPED, state: "failed" }, scope.now);

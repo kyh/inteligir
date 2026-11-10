@@ -5,6 +5,7 @@
 import { fileKindOf, fileKindOfMime } from "../items/item-kind";
 import { itemNameFromUrl } from "../items/item-name";
 import { cleanUrl, kindForUrl } from "../items/item-url";
+import { readingFields } from "./item-reading";
 import type { LibraryItemFields } from "./library-item";
 
 // where a make files what it makes
@@ -21,9 +22,7 @@ export const blankItemFields = (savedAt: number): LibraryItemFields => ({
   coverSha: null,
   deletedAt: null,
   description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
+  ...readingFields({ state: "none" }),
   folderId: null,
   kind: "note",
   lang: null,
@@ -55,7 +54,7 @@ export const stubFields = (
   input: Filing & { readonly url: string; readonly title?: string | undefined },
 ): LibraryItemFields => ({
   ...filedFields(input),
-  fetchState: "pending",
+  ...readingFields({ at: null, state: "pending" }),
   kind: kindForUrl(input.url),
   title: input.title ?? itemNameFromUrl(input.url),
   url: cleanUrl(input.url),
@@ -76,8 +75,7 @@ export const pageFields = (
   ...filedFields(input),
   ...input.facts,
   coverSha: input.coverSha,
-  fetchState: "filled",
-  fetchedAt,
+  ...readingFields({ at: fetchedAt, state: "read" }),
   kind: kindForUrl(input.url),
   title: input.title === "" ? itemNameFromUrl(input.url) : input.title,
   url: cleanUrl(input.url),

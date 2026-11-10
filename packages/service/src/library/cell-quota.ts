@@ -4,9 +4,7 @@
 // and a note's bytes what its object last projected. Only a create past the cap is refused, so a
 // person never loses a word mid-note and a full library can still be tidied.
 
-import { z } from "zod";
-
-import { readMeta, writeMeta } from "./library-queries";
+import { readCount, writeMeta } from "./library-queries";
 
 import { noteBytes } from "./cell-body";
 import type { CellDb } from "./cell-db";
@@ -15,13 +13,8 @@ import { refuse } from "./cell-refusal";
 
 const BYTES_USED = "bytes_used";
 
-const countSchema = z.number().int().nonnegative();
-
 // the files' bytes the library holds or holds room for
-const fileBytes = (db: CellDb): number => {
-  const held = readMeta(db, BYTES_USED);
-  return held === null ? 0 : countSchema.parse(held);
-};
+const fileBytes = (db: CellDb): number => readCount(db, BYTES_USED);
 
 export const addFileBytes = (db: CellDb, delta: number): void => {
   writeMeta(db, BYTES_USED, Math.max(0, fileBytes(db) + delta));

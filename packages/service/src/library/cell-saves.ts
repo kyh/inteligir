@@ -13,6 +13,7 @@ import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
+import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
@@ -75,12 +76,6 @@ const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as co
 // anything (a value it did not give never removes one an import gave), its cover where it brought
 // one, the reading's own state, and its title (empty when it gave none) only over the address the
 // item is still named by
-export const readOps = (fields: LibraryItemFields, now: number): FieldOp[] => [
-  { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-  { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-  { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-];
-
 export const pageFieldOps = (
   fields: LibraryItemFields,
   page: Pick<ReadPage, "coverSha" | "facts" | "title">,
@@ -96,7 +91,7 @@ export const pageFieldOps = (
   if (page.coverSha !== null) {
     ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
   }
-  ops.push(...readOps(fields, now));
+  ops.push(...readingOps(fields, { at: now, kind: "read" }));
   if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
     ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
   }
@@ -140,9 +135,10 @@ export const landRead = (
 };
 
 // whether an item still has its page to be read: no article yet, its reading waiting or failed
-const awaitsRead = (item: LiveStoredItem): boolean =>
-  (item.fields.fetchState === "pending" || item.fields.fetchState === "failed") &&
-  !item.body.digest.article;
+const awaitsRead = (item: LiveStoredItem): boolean => {
+  const { state } = readingOf(item.fields);
+  return (state === "pending" || state === "failed") && !item.body.digest.article;
+};
 
 // the item a device's read of `url` would land on, its article bound for the item's note: one that
 // holds the address, waits for its page and has opened its note

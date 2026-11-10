@@ -14,13 +14,14 @@ import { z } from "zod";
 
 import { blobs, blobUploads, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { readMeta, writeMeta } from "./library-queries";
+import { readCount, writeMeta } from "./library-queries";
 import { chunkStatement } from "./library-sql";
 import type { SqlStatements } from "./library-sql";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
+import type { JobRequest } from "./cell-jobs";
 import { addFileBytes, holdRoomFor } from "./cell-quota";
 import type { CellStorage } from "./cell-storage";
 
@@ -98,8 +99,11 @@ const UNNAMED_HOLD_MS = 24 * 60 * 60_000;
 
 const unnamedJobId = (sha: string): string => `unnamed:${sha}`;
 
-const unnamedJob = (sha: string) =>
-  ({ id: unnamedJobId(sha), kind: "unnamed", payload: JSON.stringify({ sha }) }) as const;
+const unnamedJob = (sha: string): JobRequest<"unnamed"> => ({
+  id: unnamedJobId(sha),
+  kind: "unnamed",
+  payload: { sha },
+});
 
 // a file just landed, or one an item just stopped naming, waits for an item to name it
 const awaitName = (db: CellDb, sha: string, now: number): void => {
@@ -251,7 +255,7 @@ export const reserveUpload = (
   addFileBytes(db, growth);
   scheduleJob(
     db,
-    { id: uploadJobId(request.sha), kind: "upload", payload: JSON.stringify({ sha: request.sha }) },
+    { id: uploadJobId(request.sha), kind: "upload", payload: { sha: request.sha } },
     now + UPLOAD_HOLD_MS,
   );
   return { held: false };
@@ -273,18 +277,16 @@ const releaseHeld = (db: CellDb, sha: string, bytes: number): void => {
 
 const BLOB_REMOVALS = "blob_removals";
 
-const removalsSchema = z.number().int().nonnegative();
-
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
-const strayJob = (sha: string) =>
-  ({ id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) }) as const;
+const strayJob = (sha: string): JobRequest<"stray"> => ({
+  id: strayJobId(sha),
+  kind: "stray",
+  payload: { sha },
+});
 
 // the removals the cell has finished, which a settle reads before it looks in R2
-export const blobRemovals = (db: CellDb): number => {
-  const held = readMeta(db, BLOB_REMOVALS);
-  return held === null ? 0 : removalsSchema.parse(held);
-};
+export const blobRemovals = (db: CellDb): number => readCount(db, BLOB_REMOVALS);
 
 const strayPending = (db: CellDb, sha: string): boolean =>
   db

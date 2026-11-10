@@ -7,17 +7,11 @@
 // too (`../library/library-do`'s `sever`).
 
 import { idSchema } from "@repo/contract/library/library-wire";
-import {
-  NOTE_SOCKET,
-  notePath,
-  SOCKET_TICKET_PARAM,
-  V1_NOTES_PATH,
-} from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, notePath, V1_NOTES_PATH } from "@repo/contract/library/library-socket";
 
-import { createDb } from "@repo/db/d1/client";
 import { libraryCell } from "../library/library-cell";
-import { holderStands, isUpgrade, NOT_AN_UPGRADE, severSockets } from "../library/socket-routes";
-import { readSocketTicket } from "../library/socket-ticket";
+import { isUpgrade, NOT_AN_UPGRADE, openForHolder } from "../library/socket-routes";
+import type { SocketClaim } from "../library/socket-ticket";
 import { plainText } from "../plain-http";
 import { noteStub } from "./note-stub";
 import { NOTE_HOLDER_HEADER, NOTE_MODE_HEADER } from "./note-wire";
@@ -40,6 +34,31 @@ const closedAsMissing = (): Response => {
   return new Response(null, { status: 101, webSocket: client });
 };
 
+// the note opened as the cell says the holder's session may open it, forwarded with only the
+// holder and mode verified
+const openNote = async (
+  ctx: ExecutionContext,
+  url: URL,
+  itemId: string,
+  { accountId, holder }: SocketClaim,
+): Promise<Response> => {
+  const opening = await libraryCell(ctx.exports, accountId).openNote(holder.id, itemId);
+  if (opening === "missing") {
+    return closedAsMissing();
+  }
+  const forward = new URL(`https://note${notePath(itemId)}`);
+  const connection = url.searchParams.get(CONNECTION_PARAM);
+  if (connection !== null) {
+    forward.searchParams.set(CONNECTION_PARAM, connection);
+  }
+  const headers = new Headers({ upgrade: "websocket" });
+  headers.set(NOTE_HOLDER_HEADER, holder.id);
+  headers.set(NOTE_MODE_HEADER, opening);
+  return await noteStub(ctx.exports, { accountId, itemId }).fetch(
+    new Request(forward, { headers }),
+  );
+};
+
 export const handleNoteSocket = async (
   request: Request,
   env: Env,
@@ -53,34 +72,10 @@ export const handleNoteSocket = async (
   if (itemId === null) {
     return plainText(404, "not found");
   }
-  const now = Date.now();
-  const ticket = url.searchParams.get(SOCKET_TICKET_PARAM);
-  const claim =
-    ticket === null ? null : await readSocketTicket(env.BETTER_AUTH_SECRET, ticket, now);
-  const db = createDb(env.DB);
-  if (claim === null || !(await holderStands(db, claim.accountId, claim.holder, now))) {
-    return plainText(401, "You're signed out. Sign in again.");
-  }
-  const { accountId, holder } = claim;
-  const opening = await libraryCell(ctx.exports, accountId).openNote(holder.id, itemId);
-  if (opening === "missing") {
-    return closedAsMissing();
-  }
-  const forward = new URL(`https://note${notePath(itemId)}`);
-  const connection = url.searchParams.get(CONNECTION_PARAM);
-  if (connection !== null) {
-    forward.searchParams.set(CONNECTION_PARAM, connection);
-  }
-  const headers = new Headers({ upgrade: "websocket" });
-  headers.set(NOTE_HOLDER_HEADER, holder.id);
-  headers.set(NOTE_MODE_HEADER, opening);
-  const opened = await noteStub(ctx.exports, { accountId, itemId }).fetch(
-    new Request(forward, { headers }),
+  return await openForHolder(
+    env,
+    ctx,
+    url,
+    async (claim) => await openNote(ctx, url, itemId, claim),
   );
-  // a sever closes only the sockets already accepted, so an end between the check and the accept is
-  // seen here, or its sever sees this socket
-  if (opened.status === 101 && !(await holderStands(db, accountId, holder, now))) {
-    await severSockets(ctx.exports, accountId, holder);
-  }
-  return opened;
 };

@@ -39,7 +39,8 @@ import {
 import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { noteBlocksSchema } from "../note/note-wire";
-import type { NoteProjection, NoteReach, TurnUndone } from "../note/note-wire";
+import type { NoteReach, TurnUndone } from "../note/note-wire";
+import { articleThenLand } from "./article-landing";
 import { heldBody } from "./cell-body";
 import { cellCodec } from "./cell-codec";
 import { editByNote } from "./cell-edits";
@@ -211,12 +212,6 @@ const tellNotesDeleted = async (
       console.warn({ deleted, event: "note-deleted-unsent", ...errorFields(error) });
     }
   }
-};
-
-// a write that met a body gone to its note since it looked runs once more, by the note
-const byNoteOnce = async <T>(run: () => Promise<CellResult<T>>): Promise<CellResult<T>> => {
-  const first = await run();
-  return !first.ok && first.refusal.kind === "note-opened" ? await run() : first;
 };
 
 // the cloud's reading of a link a write left waiting: a built-in agent's turn holds it until the
@@ -483,27 +478,26 @@ export const libraryRouter = os.router({
     // a page read into an item whose note opened puts its article in the note first, once per op
     save: os.items.save.handler(async ({ context, input }) => {
       const { library } = context;
-      const saveOnce = async () => {
-        const target = answer(library.read((storage) => pageForNote({ storage }, input.url)));
-        let inNote: NoteProjection | null = null;
-        if (target !== null) {
-          const reply = await context
-            .notes(target.id)
-            .replaceArticle(input.article, `save:${input.opId}`);
-          inNote = reply.kind === "applied" ? reply.projection : null;
-        }
-        return library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
-          const saved = savePage(scope, cellCodec(scope.storage.db, library.ids), {
-            ...input,
-            articleInNote: inNote !== null,
-          });
-          if (target !== null && inNote !== null) {
-            landProjection(scope, target.id, inNote);
-          }
-          return saved;
-        });
-      };
-      return await committed(context, await byNoteOnce(saveOnce));
+      const saved = await articleThenLand(context.notes, {
+        land: (inNote) =>
+          library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
+            const page = savePage(scope, cellCodec(scope.storage.db, library.ids), {
+              ...input,
+              articleInNote: inNote !== null,
+            });
+            if (inNote !== null) {
+              landProjection(scope, inNote.itemId, inNote.projection);
+            }
+            return page;
+          }),
+        target: () => {
+          const item = answer(library.read((storage) => pageForNote({ storage }, input.url)));
+          return item === null
+            ? null
+            : { article: input.article, itemId: item.id, onceId: `save:${input.opId}` };
+        },
+      });
+      return await committed(context, saved);
     }),
     // a stub saved to read later lands `pending`; the cloud's read of its page follows the commit
     saveLink: os.items.saveLink.handler(async ({ context, input }) => {

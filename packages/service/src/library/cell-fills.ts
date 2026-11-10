@@ -12,26 +12,26 @@
 // landing (`fillForNote`).
 
 import { and, eq, sql } from "drizzle-orm";
-import { z } from "zod";
 
 import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
+import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
-import { jsonTextSchema } from "./sql-value";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
+import type { NoteArticle } from "./article-landing";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
-import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
+import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { changes, landRead, pageFieldOps, readOps } from "./cell-saves";
+import { changes, landRead, pageFieldOps } from "./cell-saves";
+import { setSealed } from "./change-sets";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in its change set's words
@@ -49,14 +49,6 @@ interface FillRequest {
 
 const fillJobId = (itemId: string): string => `fill:${itemId}`;
 
-// a row the built-in agent's turn holds names its change set, and waits until the set seals
-const requestSchema = z.strictObject({
-  coverHint: z.string().nullable(),
-  heldBy: z.string().nullable(),
-  itemId: z.string(),
-  url: z.string(),
-});
-
 // how long a held row waits before it is looked at again, should its turn somehow never seal: the
 // seal re-times every row it holds to now
 const HELD_MS = 24 * 60 * 60_000;
@@ -73,7 +65,7 @@ const queueFill = (
     {
       id: fillJobId(request.itemId),
       kind: "fill",
-      payload: JSON.stringify(requestSchema.parse(request)),
+      payload: request,
     },
     at,
   );
@@ -84,7 +76,7 @@ const waitsForFill = (
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
 } =>
-  item.fields.fetchState === "pending" &&
+  readingOf(item.fields).state === "pending" &&
   item.fields.url !== null &&
   item.fields.deletedAt === null;
 
@@ -138,13 +130,9 @@ export const releaseHeldFills = (
   }
 };
 
-const sealedSchema = z.object({ sealed_at: z.number().nullable() });
-
 // whether a held row's turn has sealed: a set the library no longer keeps holds nothing
-const turnSealed = (storage: CellStorage, changeSetId: string): boolean => {
-  const [row] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [changeSetId]);
-  return row === undefined || sealedSchema.parse(row).sealed_at !== null;
-};
+const turnSealed = (storage: CellStorage, changeSetId: string): boolean =>
+  setSealed(storage, changeSetId) !== false;
 
 export interface ClaimedFill {
   readonly job: DueJob<"fill">;
@@ -157,7 +145,7 @@ export interface ClaimedFill {
 // again by the alarm and two commits in flight do not both send one
 export const claimFills = (storage: CellStorage, now: number): ClaimedFill[] =>
   dueJobs(storage.db, now, ["fill"]).flatMap((job) => {
-    const { heldBy, ...request } = jsonTextSchema.pipe(requestSchema).parse(job.payload);
+    const { heldBy, ...request } = job.payload;
     if (heldBy !== null && !turnSealed(storage, heldBy)) {
       deferJob(storage.db, job.id, now + HELD_MS);
       return [];
@@ -175,7 +163,7 @@ export const sentFills = (db: CellDb, claimed: readonly ClaimedFill[]): void => 
         and(
           eq(jobs.id, fill.job.id),
           eq(jobs.nextAt, fill.resendAt),
-          eq(jobs.payload, fill.job.payload),
+          eq(jobs.payload, payloadText("fill", fill.job.payload)),
         ),
       )
       .run();
@@ -213,7 +201,7 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
-    item.fields.fetchState === "pending" &&
+    readingOf(item.fields).state === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)
   );
@@ -226,20 +214,13 @@ export const fillWaits = (storage: CellStorage, itemId: string, url: string): bo
 // the note a reading's article goes to before it lands, when the item waiting for it has opened
 // its note: named by the item's sequence, so the same reading sent again replaces nothing twice,
 // and a reading asked for again replaces it anew
-export const fillForNote = (
-  storage: CellStorage,
-  landing: FillLanding,
-): {
-  readonly itemId: string;
-  readonly fillId: string;
-  readonly article: LibraryBlock[];
-} | null => {
+export const fillForNote = (storage: CellStorage, landing: FillLanding): NoteArticle | null => {
   if (landing.kind !== "read" || landing.article.length === 0) {
     return null;
   }
   const item = readLiveItem(storage.db, landing.itemId);
   return waiting(item, landing.url) && item.body.home === "note"
-    ? { article: landing.article, fillId: `fill:${item.id}:${item.seq}`, itemId: item.id }
+    ? { article: landing.article, itemId: item.id, onceId: `fill:${item.id}:${item.seq}` }
     : null;
 };
 
@@ -273,12 +254,8 @@ export const landFill = (
   const { fields } = item;
   switch (landing.kind) {
     case "failed": {
-      const ops: FieldOp[] = [
-        { base: fields.fetchState, field: "fetchState", op: "set", value: "failed" },
-        { base: fields.fetchError, field: "fetchError", op: "set", value: landing.sentence },
-        { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
-      ];
-      landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
+      const ops = readingOps(fields, { at: scope.now, error: landing.sentence, kind: "failed" });
+      landWrite(scope, { itemId: item.id, ops });
       return { kind: "failed" };
     }
     case "file": {
@@ -297,7 +274,7 @@ export const landFill = (
           op: "set",
           value: landing.originalName,
         },
-        ...readOps(fields, scope.now),
+        ...readingOps(fields, { at: scope.now, kind: "read" }),
       ];
       landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };

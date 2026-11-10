@@ -3,11 +3,13 @@
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
 import { shownTitle } from "@repo/contract/items/item-name";
+import { readingOf } from "@repo/contract/library/item-reading";
 import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { KeyboardEvent } from "react";
 
+import { readingNotice } from "../item/item-stages";
 import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, KIND_LABELS } from "./item-labels";
@@ -25,6 +27,7 @@ export interface QuickLookProps {
 const Look = ({ row }: { row: ListedItem }) => {
   const nowMs = useNow();
   const cover = coverOf(row);
+  const notice = readingNotice(readingOf(row.fields));
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {cover === null ? null : (
@@ -34,11 +37,7 @@ const Look = ({ row }: { row: ListedItem }) => {
         <Badge variant="outline">{KIND_LABELS[row.fields.kind]}</Badge>
         <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
       </div>
-      {row.fields.fetchState === "pending" ? (
-        <p className="m-0 text-body text-muted-foreground">
-          Not read yet: the page is read in the cloud, and its text lands here soon.
-        </p>
-      ) : null}
+      {notice === null ? null : <p className="m-0 text-body text-muted-foreground">{notice}</p>}
       {row.card.preview === "" ? null : (
         <p className="m-0 text-subtitle break-words text-ink-2 select-text">{row.card.preview}</p>
       )}

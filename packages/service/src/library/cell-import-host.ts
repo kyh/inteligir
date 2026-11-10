@@ -6,12 +6,13 @@
 import { z } from "zod";
 
 import type { CellActor } from "./cell-actor";
-import { blobKey } from "./cell-blobs";
 import { advanceImport } from "./cell-import-jobs";
 import type { ImportJob, ImportStep } from "./cell-import-jobs";
 import type { LandingScope } from "./cell-landing";
 import { settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
+import { keepBytes } from "./keep-bytes";
+import type { KeepPort } from "./keep-bytes";
 import type { LibraryEngine } from "./library-engine";
 
 export interface ImportHost {
@@ -98,9 +99,9 @@ export const landingOutcome = (
     : passOver(library, job, idx, { unreadable: 1 });
 };
 
-// a file the import brings, put in the library as a device's upload is: room asked at its size,
-// the bytes put in R2 under their sha, which R2 checks, and the row settled at what R2 holds;
-// `full` when the library has no room for it
+// a file the import brings, put in the library as a device's upload is (`./keep-bytes`); `full`
+// when the library has no room for it. A put R2 failed throws once its room is given back, so the
+// run that met it is run again
 export const keepFile = async (
   host: ImportHost,
   file: {
@@ -110,20 +111,25 @@ export const keepFile = async (
     readonly body: () => Promise<ReadableStream<Uint8Array> | Uint8Array>;
   },
 ): Promise<"kept" | "full" | "lost"> => {
-  const room = host.library.reserve({ bytes: file.size, mime: file.mime, sha: file.sha });
-  if (!room.ok) {
-    return room.refusal.kind === "quota" ? "full" : "lost";
+  const engine: KeepPort = {
+    reserve: (request) => host.library.reserve(request),
+    settle: async (sha) => await settleStored(host.env, host.accountId, host.library, sha),
+  };
+  const kept = await keepBytes(host.env.BLOBS, engine, { ...file, accountId: host.accountId });
+  switch (kept.kind) {
+    case "held":
+    case "kept": {
+      return "kept";
+    }
+    case "refused": {
+      return kept.refusal.kind === "quota" ? "full" : "lost";
+    }
+    case "raced": {
+      return "lost";
+    }
+    case "unput": {
+      throw new Error("an import's file did not reach R2", { cause: kept.error });
+    }
+    // no default
   }
-  if (room.value.held) {
-    return "kept";
-  }
-  await host.env.BLOBS.put(blobKey(host.accountId, file.sha), await file.body(), {
-    httpMetadata: { contentType: file.mime },
-    sha256: file.sha,
-  });
-  const settled = await settleStored(host.env, host.accountId, host.library, file.sha);
-  if (!settled.ok) {
-    return settled.refusal.kind === "quota" ? "full" : "lost";
-  }
-  return settled.value.settled ? "kept" : "lost";
 };

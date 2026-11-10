@@ -6,7 +6,7 @@
 
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { importJobs, importRows as planRows, jobs } from "@repo/db/cell/schema";
 import type {
@@ -16,7 +16,6 @@ import type {
   IMPORT_STATES,
 } from "@repo/contract/library/library-wire";
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
-import { jsonTextSchema } from "./sql-value";
 
 import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -61,18 +60,9 @@ export const latestImportJob = (db: CellDb): ImportJob | null =>
 
 const alarmJobId = (id: string): string => `import:${id}`;
 
-const alarmJobSchema = z.object({ jobId: z.string() });
-
-export const importJobIdOf = (payload: string): string =>
-  jsonTextSchema.pipe(alarmJobSchema).parse(payload).jobId;
-
 // the import's next run, at once: a run does one page and asks for the next
 export const runImportNext = (db: CellDb, id: string, now: number): void => {
-  scheduleJob(
-    db,
-    { id: alarmJobId(id), kind: "import", payload: JSON.stringify({ jobId: id }) },
-    now,
-  );
+  scheduleJob(db, { id: alarmJobId(id), kind: "import", payload: { jobId: id } }, now);
 };
 
 export const insertImportJob = (

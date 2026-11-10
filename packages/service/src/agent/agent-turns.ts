@@ -18,12 +18,11 @@ import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
 import { ORPCError } from "@orpc/server";
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import type { SqlStatements } from "../library/library-sql";
-import { jsonTextSchema } from "../library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";
 import { dropJob, deferJob, dueJobs, retryJob, scheduleJob } from "../library/cell-jobs";
-import type { DueJob } from "../library/cell-jobs";
+import type { DueJob, JobRequest } from "../library/cell-jobs";
 import { releaseHeldFills } from "../library/cell-fills";
 import type { LandingScope } from "../library/cell-landing";
 import type { CellStorage } from "../library/cell-storage";
@@ -67,9 +66,8 @@ import {
   nextTurnNumber,
   openTurnCount,
   openTurnOf,
-  queuedFor,
   recordPush,
-  setThreadStatus,
+  restatus,
   threadState,
   turnActor,
 } from "./turn-rows";
@@ -112,21 +110,17 @@ const WATCH_EVERY_MS = 5 * 60_000;
 // a delivery that did not land goes again this long after
 const DELIVER_AGAIN_MS = 30_000;
 
-const jobPayloadSchema = z.object({ threadId: z.string().min(1) });
+const deliverJob = (threadId: string): JobRequest<"agent-deliver"> => ({
+  id: `agent-deliver:${threadId}`,
+  kind: "agent-deliver",
+  payload: { threadId },
+});
 
-const deliverJob = (threadId: string) =>
-  ({
-    id: `agent-deliver:${threadId}`,
-    kind: "agent-deliver",
-    payload: JSON.stringify({ threadId }),
-  }) as const;
-
-const watchJob = (threadId: string) =>
-  ({
-    id: `agent-watch:${threadId}`,
-    kind: "agent-watch",
-    payload: JSON.stringify({ threadId }),
-  }) as const;
+const watchJob = (threadId: string): JobRequest<"agent-watch"> => ({
+  id: `agent-watch:${threadId}`,
+  kind: "agent-watch",
+  payload: { threadId },
+});
 
 // a call answered before under `opId` answers the same again
 const answeredBefore = <T>(
@@ -146,11 +140,6 @@ const statusOf = (sql: SqlStatements, threadId: string): ThreadAnswer => ({
   threadId,
 });
 
-// where a thread rests between turns: behind a send of its own still waiting, else idle
-const restThread = (scope: LandingScope, threadId: string): void => {
-  setThreadStatus(scope, threadId, queuedFor(scope.storage, threadId) > 0 ? "queued" : "idle");
-};
-
 // ---- opening a turn ----
 
 // the turn, the send's: counted against the day as it begins, the person's message its first
@@ -168,7 +157,7 @@ const openTurn = (
     event.viewContext = send.message.viewContext;
   }
   storeEvent(scope, send.threadId, turnEventId(send.threadId, turn), event);
-  setThreadStatus(scope, send.threadId, "running");
+  restatus(scope, send.threadId);
   scheduleJob(storage.db, deliverJob(send.threadId), now);
   scheduleJob(storage.db, watchJob(send.threadId), now + WATCH_EVERY_MS);
 };
@@ -333,9 +322,7 @@ export const sendToAgent = async (
           queuedAt: scope.now,
           threadId,
         });
-        if (!ownOpen) {
-          setThreadStatus(scope, threadId, "queued");
-        }
+        restatus(scope, threadId);
         return { status: "queued", threadId };
       }
       openTurn(scope, { message, threadId });
@@ -424,7 +411,7 @@ export const cancelTurn = async (
       knownThread(storage, input.threadId);
       dropQueuedFor(storage, input.threadId);
       if (openTurnOf(storage, input.threadId) === null) {
-        restThread(scope, input.threadId);
+        restatus(scope, input.threadId);
       } else {
         markCancel(storage, input.threadId);
         scheduleJob(storage.db, deliverJob(input.threadId), scope.now);
@@ -444,7 +431,7 @@ export const stopEveryTurn = (scope: LandingScope): void => {
   for (const threadId of everyThreadId(storage)) {
     dropQueuedFor(storage, threadId);
     if (openTurnOf(storage, threadId) === null) {
-      restThread(scope, threadId);
+      restatus(scope, threadId);
     } else {
       markCancel(storage, threadId);
       scheduleJob(storage.db, deliverJob(threadId), scope.now);
@@ -631,12 +618,8 @@ export const landPush = async (
           entry.event,
         );
         if (entry.event.type === "approval.asked" || entry.event.type === "approval.answered") {
-          const status = moveWaiting(
-            storage,
-            push.threadId,
-            entry.event.type === "approval.asked" ? 1 : -1,
-          );
-          setThreadStatus(scope, push.threadId, status);
+          moveWaiting(storage, push.threadId, entry.event.type === "approval.asked" ? 1 : -1);
+          restatus(scope, push.threadId);
         }
         if (entry.event.type === "turn.ended") {
           ended = entry.event.reason;
@@ -644,7 +627,7 @@ export const landPush = async (
       }
       if (ended !== null) {
         closeTurn(scope, named.turn, ended);
-        restThread(scope, push.threadId);
+        restatus(scope, push.threadId);
         openWaiting(scope, allowance, push.threadId);
       }
       return { kind: "landed" };
@@ -711,7 +694,7 @@ const runAgentJob = async (
   cell: AgentCell,
   job: DueJob<(typeof AGENT_JOBS)[number]>,
 ): Promise<void> => {
-  const { threadId } = jsonTextSchema.pipe(jobPayloadSchema).parse(job.payload);
+  const { threadId } = job.payload;
   await (job.kind === "agent-deliver" ? deliverTurn(cell, threadId) : watchTurn(cell, threadId));
 };
 
@@ -742,7 +725,9 @@ export const purgeThreadObjects = async (
   exports: Cloudflare.Exports,
   accountId: string,
 ): Promise<void> => {
-  for (const threadId of everyThreadId(sql)) {
-    await threadStub(exports, accountId, threadId).purge();
-  }
+  await Promise.all(
+    everyThreadId(sql).map(async (threadId) => {
+      await threadStub(exports, accountId, threadId).purge();
+    }),
+  );
 };

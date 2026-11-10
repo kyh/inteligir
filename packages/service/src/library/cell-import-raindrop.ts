@@ -16,6 +16,7 @@ import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { kindForUrl } from "@repo/contract/items/item-url";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { blankItemFields } from "@repo/contract/library/item-makes";
+import { readingFields } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
@@ -114,7 +115,7 @@ const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedIte
     fields: {
       ...blankItemFields(scope.now),
       description: planned.description,
-      fetchState: "pending",
+      ...readingFields({ at: null, state: "pending" }),
       folderId:
         folderOfTarget(
           scope,

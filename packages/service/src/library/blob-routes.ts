@@ -20,6 +20,7 @@ import { spendHolderBudget } from "../rate-limit";
 import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
+import { keepBytes, stubPort } from "./keep-bytes";
 import { libraryCell } from "./library-cell";
 import type { AppPrincipal } from "./library-principal";
 
@@ -205,11 +206,6 @@ const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
   }
 };
 
-// R2's BadDigest (https://developers.cloudflare.com/r2/api/error-codes/), bytes that do not hash to
-// the sha asked for; every other failure of a put says nothing of them. The runtime throws a plain
-// Error whose message ends in R2's code, whatever `code` its types name
-const badDigestSchema = z.object({ message: z.string().endsWith("(10037)") });
-
 const writeBlob = async (
   request: Request,
   env: Env,
@@ -224,45 +220,40 @@ const writeBlob = async (
     return plainText(413, "This file is larger than the library keeps.");
   }
   const { accountId, sha } = upload;
-  const cell = libraryCell(ctx.exports, accountId);
-  const room = await cell.reserveBlob({
-    bytes,
+  const { body } = request;
+  const kept = await keepBytes(env.BLOBS, stubPort(libraryCell(ctx.exports, accountId)), {
+    accountId,
+    body: async () => await Promise.resolve(body),
     mime: mediaTypeOf(request.headers.get("content-type")),
     sha,
+    size: bytes,
   });
-  if (!room.ok) {
-    return refusalAnswer(room.refusal);
+  switch (kept.kind) {
+    case "refused": {
+      return refusalAnswer(kept.refusal);
+    }
+    case "held": {
+      await body.cancel();
+      return new Response(null, { status: 204 });
+    }
+    case "unput": {
+      console.warn({
+        event: kept.badDigest ? "blob-upload-refused" : "blob-upload-failed",
+        ...errorFields(kept.error),
+      });
+      // a device parks a refusal for good and sends a fault again, on its doubling wait
+      return kept.badDigest
+        ? plainText(400, "The file's bytes don't match the address they were sent to.")
+        : plainText(500, "This file couldn't be stored just now. Try again.");
+    }
+    case "raced": {
+      return plainText(503, "Send the file again.", { "retry-after": "1" });
+    }
+    case "kept": {
+      return new Response(null, { status: 201 });
+    }
+    // no default
   }
-  if (room.value.held) {
-    await request.body.cancel();
-    return new Response(null, { status: 204 });
-  }
-  try {
-    await env.BLOBS.put(blobKey(accountId, sha), request.body, {
-      httpMetadata: { contentType: mediaTypeOf(request.headers.get("content-type")) },
-      sha256: sha,
-    });
-  } catch (error) {
-    const refused = badDigestSchema.safeParse(error).success;
-    console.warn({
-      event: refused ? "blob-upload-refused" : "blob-upload-failed",
-      ...errorFields(error),
-    });
-    // a settle finds what R2 kept under the key, and lets the room go if that is nothing
-    await cell.settleBlob(sha);
-    // a device parks a refusal for good and sends a fault again, on its doubling wait
-    return refused
-      ? plainText(400, "The file's bytes don't match the address they were sent to.")
-      : plainText(500, "This file couldn't be stored just now. Try again.");
-  }
-  const settled = await cell.settleBlob(sha);
-  if (!settled.ok) {
-    return refusalAnswer(settled.refusal);
-  }
-  // a removal of these bytes raced the upload: the room still stands, so the device sends again
-  return settled.value.settled
-    ? new Response(null, { status: 201 })
-    : plainText(503, "Send the file again.", { "retry-after": "1" });
 };
 
 export const handleBlobRoute = async (

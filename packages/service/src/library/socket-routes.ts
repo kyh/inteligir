@@ -18,6 +18,7 @@ import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
 import { headersForCell, SOCKET_HOLDER_HEADER } from "./library-principal";
 import { readSocketTicket } from "./socket-ticket";
+import type { SocketClaim } from "./socket-ticket";
 
 export const NOT_AN_UPGRADE = "This route only upgrades to a WebSocket.";
 
@@ -39,7 +40,7 @@ const forwardToCell = async (
 };
 
 // the ticket's session still stands: an end since it was minted shuts the socket out
-export const holderStands = async (
+const holderStands = async (
   db: Db,
   accountId: string,
   holder: SocketHolder,
@@ -74,17 +75,16 @@ export const severSockets = async (
   }
 };
 
-// the ticket in the query string, which the logs redact; the build floor does not apply, since a
-// browser's socket cannot name its build and the ticket came from a call that met it
-export const handleLibrarySocket = async (
-  request: Request,
+// A socket `open` upgrades for the holder its ticket names, while that holder's session stands,
+// for the account's door and each note's. The ticket rides the query string, which the logs
+// redact; the build floor does not apply, since a browser's socket cannot name its build and the
+// ticket came from a call that met it.
+export const openForHolder = async (
   env: Env,
   ctx: ExecutionContext,
   url: URL,
+  open: (claim: SocketClaim) => Promise<Response>,
 ): Promise<Response> => {
-  if (!isUpgrade(request)) {
-    return plainText(400, NOT_AN_UPGRADE);
-  }
   const now = Date.now();
   const ticket = url.searchParams.get(SOCKET_TICKET_PARAM);
   const claim =
@@ -93,7 +93,7 @@ export const handleLibrarySocket = async (
   if (claim === null || !(await holderStands(db, claim.accountId, claim.holder, now))) {
     return plainText(401, "You're signed out. Sign in again.");
   }
-  const opened = await forwardToCell(request, ctx, claim.accountId, claim.holder);
+  const opened = await open(claim);
   // a sever closes only the sockets already accepted, so an end that came between the check and the
   // accept closed nothing; read after the accept, that end is seen here or its sever sees the socket
   if (opened.status === 101 && !(await holderStands(db, claim.accountId, claim.holder, now))) {
@@ -101,3 +101,18 @@ export const handleLibrarySocket = async (
   }
   return opened;
 };
+
+export const handleLibrarySocket = async (
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  url: URL,
+): Promise<Response> =>
+  isUpgrade(request)
+    ? await openForHolder(
+        env,
+        ctx,
+        url,
+        async ({ accountId, holder }) => await forwardToCell(request, ctx, accountId, holder),
+      )
+    : plainText(400, NOT_AN_UPGRADE);
