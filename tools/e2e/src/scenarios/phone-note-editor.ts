@@ -135,10 +135,10 @@ const PASTE_PICTURE = `(() => {
 })()`;
 
 // the pasted picture as the page drew it: from an object URL of its own, decoded
-const BLOB_PICTURE_WIDTH = `String((() => {
+const BLOB_PICTURE_WIDTH = `(() => {
   const img = [...document.querySelectorAll(${JSON.stringify(`${EDITOR} img`)})].find((el) => el.src.startsWith("blob:"));
   return img === undefined ? -1 : img.complete ? img.naturalWidth : 0;
-})())`;
+})()`;
 
 const LOADED_FACES = `JSON.stringify([...document.fonts].filter((face) => face.status === "loaded").map((face) => face.family.replaceAll('"', "")))`;
 
