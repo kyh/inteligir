@@ -89,25 +89,20 @@ const ItemScreen = () => {
     deep: depth >= RELEASE_DEPTH,
     focus: firstParam(params.focus) === FOCUS,
   });
-  const { ask, editing } = page;
+  const { guarded, leave } = page;
 
-  usePreventRemove(editing, ({ data }) => {
-    ask((holds) => {
-      if (holds) {
+  usePreventRemove(guarded, ({ data }) => {
+    leave(
+      () => {
         navigation.dispatch(data.action);
-        return;
-      }
-      Alert.alert(LEAVE_TITLE, LEAVE_BODY, [
-        { style: "cancel", text: "Stay" },
-        {
-          onPress: () => {
-            navigation.dispatch(data.action);
-          },
-          style: "destructive",
-          text: "Discard edits",
-        },
-      ]);
-    });
+      },
+      (discard) => {
+        Alert.alert(LEAVE_TITLE, LEAVE_BODY, [
+          { style: "cancel", text: "Stay" },
+          { onPress: discard, style: "destructive", text: "Discard edits" },
+        ]);
+      },
+    );
   });
 
   const moveToDeleted = (): void => {

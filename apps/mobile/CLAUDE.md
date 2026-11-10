@@ -53,15 +53,21 @@ written and cited.
   socket, so the note turns read-only at once and redials on the way back
   (`apps/mobile/src/editor/use-note-page.ts`); an item opened with none draws
   the blocks the phone last read, read-only under "Needs a connection". A
-  leave while an edit made here may not be held asks the page, which answers
-  once the note holds it, and one it does not hold within 5 s offers Stay or
-  Discard edits in the library tab's words (`apps/mobile/src/app/item/[id].tsx`,
-  `apps/mobile/src/editor/leave-asks.ts`); an item deep under other screens
-  lets its web view go once the note holds. New note opens with the caret at
-  the end of its body and the keyboard up, and a tag chip does nothing on the
-  phone (owner decision). Rejected: a socket of native's own beside the page's
-  (two connections to one note); queueing edits offline (the cloud is the
-  truth).
+  leave while an edit made here may not be held asks the page once, however
+  many times Back is pressed, and the page answers once the note holds it; one
+  it does not hold within 5 s offers Stay or Discard edits in the library tab's
+  words, and the next Back asks again (`apps/mobile/src/app/item/[id].tsx`). An
+  item deep under other screens lets its web view go once the note holds, and
+  asks again as the connection returns. A note page's life is one value
+  (reading, editing, asking, leaving or released) moved by one step, so a
+  second ask, a second leave and a page released while drawn cannot be held
+  (`apps/mobile/src/editor/note-page-life.ts`). New note opens with the caret
+  at the end of its body and the keyboard up, and a tag chip does nothing on
+  the phone (owner decision). Rejected: a socket of native's own beside the
+  page's (two connections to one note); queueing edits offline (the cloud is
+  the truth); the page's report copied into a state native also wrote to
+  release it, beside a count and a timer per ask (a second Back asked again
+  and could leave twice).
 
 ## Cloud, sync and accounts
 
