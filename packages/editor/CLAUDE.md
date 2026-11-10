@@ -370,7 +370,8 @@ alone, and no walk narrows structurally.
   own, shown read-only until it syncs. A leave asks whether the note stored
   every edit made here (`whenSaved`: `saved?`, answered `saved`) once each file
   in flight is kept and Slate's unsent change is handed over; a close answers
-  it false. A picker's input names the document client that opened it, so
+  it false, and so does a hold, since the object answers no ask on a socket it
+  holds read-only. A picker's input names the document client that opened it, so
   another device draws it inert (`packages/editor/src/live/picker-owner.ts`).
   Rejected: a session writing block ops after a pause (a diff, a merge and a
   conflict path a live document has no need of); seeding a document from a
