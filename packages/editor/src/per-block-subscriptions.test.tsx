@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { indexNoToggles, wrapNoBlock } from "@repo/editor/kits/toggle-kit";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { mountItem } from "./test-support/memory-item";
+import { mountNote } from "./test-support/memory-note";
 
 describe("the per-block store work a keystroke would pay", () => {
   beforeAll(() => {
@@ -29,7 +29,7 @@ describe("the per-block store work a keystroke would pay", () => {
   });
 
   it("is off in the editor the app mounts: no navigation flash, no flat-model toggle hider", async () => {
-    const { editor } = await mountItem("note", "# Note\n\nBody.\n");
+    const { editor } = await mountNote("note", "# Note\n\nBody.\n");
     // a plugin switched off is never registered
     expect(Object.keys(editor.plugins)).not.toContain(NavigationFeedbackPlugin.key);
     expect(Object.keys(createPlateEditor().plugins)).toContain(NavigationFeedbackPlugin.key);

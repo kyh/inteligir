@@ -6,12 +6,14 @@ import type { AnyPluginConfig, Descendant, SlateEditor, TElement } from "platejs
 import { MarkdownPlugin, defaultRules } from "@platejs/markdown";
 import { z } from "zod";
 
+import { libraryBlockSchema } from "@repo/contract/library/library-nodes";
+
 import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { blockOfElement } from "@repo/editor/live/note-blocks";
+import { blockOfElement } from "@repo/editor/live/element-block";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -213,6 +215,19 @@ const normalized = (plugins: readonly AnyPluginConfig[], value: readonly TElemen
   return editor.children;
 };
 
+// the block types the model lets carry a prop, which a plugin targeting fewer strips
+const carrying = (prop: string): string[] =>
+  libraryBlockSchema.options
+    .flatMap((option) => (prop in option.shape ? [option.shape.type.value] : []))
+    .toSorted();
+
+const targets = (plugins: readonly AnyPluginConfig[], key: string): string[] => {
+  const editor = editorOf(plugins);
+  return [...(editor.getPlugin({ key }).inject.targetPlugins ?? [])]
+    .map((target) => editor.getType(target))
+    .toSorted();
+};
+
 // Every editor of a note, the note's own headless one included, edits one live document: each
 // must read a node as the others do and write the same fix for the same state, or a reader fixes
 // what its writer left and two readers fix it twice.
@@ -243,6 +258,14 @@ describe("kit parity (one live document)", () => {
       })),
     },
   ];
+
+  it.each(Object.entries({ base: BASE_KIT, ...KITS }))(
+    "the %s kit indents and lists every block the model lets carry it",
+    (_, kit) => {
+      expect(targets(kit, KEYS.indent)).toStrictEqual(carrying("indent"));
+      expect(targets(kit, KEYS.list)).toStrictEqual(carrying("listStyleType"));
+    },
+  );
 
   it.each(Object.entries(KITS))("the %s kit holds every element as BASE_KIT does", (_, kit) => {
     expect(schemaOf(kit)).toStrictEqual(schemaOf(BASE_KIT));

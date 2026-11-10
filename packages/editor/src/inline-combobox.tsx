@@ -22,6 +22,8 @@ import {
 } from "@repo/editor/combobox-input";
 import type { ComboboxCancelCause } from "@repo/editor/combobox-input";
 import { matchesHotkey } from "@repo/editor/editor-shortcuts";
+import { ownsPicker } from "@repo/editor/live/picker-owner";
+import { undoStackSizes } from "@repo/editor/live/yjs-binding";
 
 interface FilterItem {
   value: string;
@@ -69,7 +71,7 @@ interface InlineComboboxProps {
   setValue?: (value: string) => void;
 }
 
-const InlineCombobox = ({
+const OwnedCombobox = ({
   children,
   element,
   filter = defaultFilter,
@@ -194,8 +196,9 @@ const InlineCombobox = ({
         cancel("arrowRight");
         return;
       }
-      const isUndo = Hotkeys.isUndo(event) && editor.history.undos.length > 0;
-      const isRedo = Hotkeys.isRedo(event) && editor.history.redos.length > 0;
+      const { undos, redos } = undoStackSizes(editor);
+      const isUndo = Hotkeys.isUndo(event) && undos > 0;
+      const isRedo = Hotkeys.isRedo(event) && redos > 0;
       if (isUndo || isRedo) {
         event.preventDefault();
         if (isUndo) {
@@ -252,6 +255,17 @@ const InlineCombobox = ({
         <InlineComboboxContext value={contextValue}>{children}</InlineComboboxContext>
       </Combobox.Root>
     </span>
+  );
+};
+
+// Another device's open picker draws as its trigger alone: its query is that device's, and an input
+// here would take the caret into it.
+const InlineCombobox = (props: InlineComboboxProps) => {
+  const editor = useEditorRef();
+  return ownsPicker(editor, props.element) ? (
+    <OwnedCombobox {...props} />
+  ) : (
+    <span contentEditable={false}>{props.trigger}</span>
   );
 };
 

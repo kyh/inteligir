@@ -39,8 +39,8 @@ export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
 export interface EditorHostIo {
   // shows the item a link, an embed or a chip names
   readonly openItem: (itemId: string) => void;
-  // an embedded item's blocks in reading order, as this device holds them now; null for an item it
-  // holds none of, or whose body it has still to pull
+  // another item's blocks in reading order, as the library holds them now: an embed's, or a pill's
+  // a formula names; null for an item the library holds none of
   readonly readItemBlocks: (itemId: string) => Promise<readonly LibraryBlock[] | null>;
   // these items moved, or `null`: any of them may have
   readonly onItemsChanged: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
@@ -58,6 +58,19 @@ export interface EditorHostIo {
   // whether a file card can hand a file's bytes to the system to save, as a browser tab and the
   // Mac's window can; the phone's page cannot
   readonly savesFiles: boolean;
+  readonly notes: NoteHost;
+}
+
+// How a note's live document is reached (`item/note-connection.ts`): its socket dials the page's
+// own host, at the path the Worker answers the note at, on the account socket's ticket.
+export interface NoteHost {
+  // asked again on every dial, so a ticket that ran out is never sent twice
+  readonly socketTicket: () => Promise<string>;
+  readonly notePath: (itemId: string) => string;
+  // the host's own word that it has no connection, which turns an open note read-only at once,
+  // ahead of any socket noticing
+  readonly offline: () => boolean;
+  readonly onOfflineChange: (listener: () => void) => () => void;
 }
 
 export interface AgentRequestActions {
@@ -67,17 +80,15 @@ export interface AgentRequestActions {
 }
 
 // a note a host makes of blocks the editor moves out of an item: its title, and its blocks in
-// reading order, each at the order key it is placed by
+// reading order, all of them the person's writing
 interface NewNote {
   readonly title: string;
-  readonly blocks: readonly { readonly block: LibraryBlock; readonly ord: string }[];
+  readonly blocks: readonly LibraryBlock[];
 }
 
 export interface ItemActions {
-  /**
-   * Makes `note` in the folder of the item the editor shows, through the replica's outbox, and
-   * answers its id; rejects when the note was not made.
-   */
+  // makes `note` in the folder of the item the editor shows and answers its id; rejects when the
+  // note was not made
   readonly createNote: (note: NewNote) => Promise<string>;
 }
 

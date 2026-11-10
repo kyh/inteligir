@@ -15,7 +15,7 @@ import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
 import { blockId } from "@repo/editor/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { mountItem } from "./test-support/memory-item";
+import { mountNote } from "./test-support/memory-note";
 
 import { generateLongNote } from "./test-support/markdown-doc-generator";
 
@@ -29,7 +29,7 @@ const SEED = 704;
 const LONG_LINES = 10_000;
 const SHORT_LINES = LONG_LINES / 8;
 const KEYSTROKES = 6;
-// past the item's pause before it writes, and the formula recompute beside it
+// past the formula recompute's pause after typing
 const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
@@ -39,15 +39,16 @@ const WATCHED_BLOCK =
 // is not the last one
 const CLOSING_BLOCK = "The end.";
 
-// Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded: a
-// keystroke costs 25ms in the long note against 10ms in the short one, 2.6x for eight times the
-// lines, and 0.013 of a 1,860ms parse of the note; the settle costs 470ms, a quarter of that parse,
-// and without patches/@platejs__core@53.5.2.patch three times it. A pass quadratic in the note is
-// 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
-// navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse. A
-// memory-starved CI runner's garbage collection pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
-// sit well under those atoms' cost; the two atoms read no block's content, so this suite's watched
-// block never names them, and per-block-subscriptions.test.tsx holds them off by name.
+// Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded,
+// with the editor bound to the note's live document: a keystroke costs 12ms in the long note
+// against 5ms in the short one, 2.5x for eight times the lines, and 0.016 of a 740ms parse of the
+// note; the settle costs 13ms, 0.02 of that parse. A pass quadratic in the note is 64x. A store
+// atom every block holds is recomputed on every change: Plate's toggle hider or its navigation
+// flash alone put a keystroke at 6-7x and 0.06 of the parse. A memory-starved CI runner's garbage
+// collection pushes a ratio up by about half, so the ceilings leave that room over the recorded
+// costs, and sit well under those atoms' cost; the two atoms read no block's content, so this
+// suite's watched block never names them, and per-block-subscriptions.test.tsx holds them off by
+// name.
 const KEYSTROKE_GROWTH_CEILING = 5;
 const KEYSTROKE_TO_PARSE_CEILING = 0.035;
 const SETTLE_TO_PARSE_CEILING = 1;
@@ -265,13 +266,7 @@ const moveCaret = async (editor: SlateEditor, to: Point): Promise<void> => {
 };
 
 const openNote = async (itemId: string, lines: number): Promise<OpenNote> => {
-  // Plate leaves NodeIdPlugin off under NODE_ENV=test; the app runs it, and the fold and the drag
-  // handle key every block by its id, so without it they would do none of their work here. The
-  // editor is made in the mount's first render, before the item's read is awaited.
-  vi.stubEnv("NODE_ENV", "development");
-  const mounting = mountItem(itemId, noteOf(lines));
-  vi.unstubAllEnvs();
-  const { editor, unmount } = await mounting;
+  const { editor, unmount } = await mountNote(itemId, noteOf(lines));
   await settle();
   const watched = editor.children.at(-2);
   const closing = editor.children.at(-1);

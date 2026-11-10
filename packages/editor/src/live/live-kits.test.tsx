@@ -12,7 +12,8 @@ import * as Y from "yjs";
 import { recomputeFormulas } from "@repo/editor/formulas/formula-recompute";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
-import { blockOfElement, readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
+import { blockOfElement } from "@repo/editor/live/element-block";
+import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
 import { YHistoryPlugin, noteRoot, yjsBindingPlugin } from "@repo/editor/live/yjs-binding";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 

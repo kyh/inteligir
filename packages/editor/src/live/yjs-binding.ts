@@ -25,7 +25,6 @@ export const appliesRemoteChange = (editor: SlateEditor): boolean =>
 // `localOrigin` names this editor's writes in the document, which its undo tracks and every other
 // editor reads as remote. The host connects it (`YjsEditor.connect`) once the document has synced,
 // so an editor never seeds a document it has yet to read.
-/** @internal */
 export const yjsBindingPlugin = ({
   root,
   localOrigin,
@@ -56,6 +55,43 @@ export const yjsBindingPlugin = ({
     priority: INNERMOST,
   });
 
+// Whether an edit made now reaches the note: an editor shown read-only takes none, and a bound one
+// that is not connected writes nothing to its document.
+export const editsReachNote = (editor: SlateEditor): boolean =>
+  !editor.dom.readOnly && (!YjsEditor.isYjsEditor(editor) || YjsEditor.connected(editor));
+
+// Hands the document every edit Slate has yet to settle, which it otherwise hands over a moment
+// after the edit, once its change settles.
+export const flushEdits = (editor: SlateEditor): void => {
+  if (YjsEditor.isYjsEditor(editor) && YjsEditor.connected(editor)) {
+    YjsEditor.flushLocalChanges(editor);
+  }
+};
+
+// What this editor's undo and redo would take back: the document's stacks for a bound editor,
+// Plate's own for one that is not.
+export const undoStackSizes = (editor: SlateEditor): { undos: number; redos: number } =>
+  YHistoryEditor.isYHistoryEditor(editor)
+    ? {
+        redos: editor.undoManager.redoStack.length,
+        undos: editor.undoManager.undoStack.length,
+      }
+    : { redos: editor.history.redos.length, undos: editor.history.undos.length };
+
+// Runs `fn` as an undo step of its own: the UndoManager merges changes that come within its
+// capture window, so the typing just before and just after would otherwise join it.
+export const ownUndoStep = (editor: SlateEditor, fn: () => void): void => {
+  if (!YHistoryEditor.isYHistoryEditor(editor)) {
+    fn();
+    return;
+  }
+  flushEdits(editor);
+  editor.undoManager.stopCapturing();
+  fn();
+  flushEdits(editor);
+  editor.undoManager.stopCapturing();
+};
+
 // Runs `fn` so its writes stay out of this editor's undo; on throw too, since the origin
 // slate-yjs swaps in is not restored when `fn` throws, and every later edit would go untracked.
 const untracked = (editor: YHistoryEditor, fn: () => void): void => {
@@ -77,7 +113,6 @@ const untracked = (editor: YHistoryEditor, fn: () => void): void => {
 // back this editor's changes and no one else's. `editor.tf.withoutSaving` keeps a write out of it
 // (a formula's display). It sits beside Plate's HistoryPlugin rather than replacing it, since
 // Plate's own readers of `editor.history` stay, as @platejs/yjs's history does.
-/** @internal */
 export const YHistoryPlugin = createSlatePlugin({
   extendEditor: ({ editor }) => {
     if (!YjsEditor.isYjsEditor(editor)) {

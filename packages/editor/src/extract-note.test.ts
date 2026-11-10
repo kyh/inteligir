@@ -4,6 +4,8 @@ import { createPlateEditor } from "platejs/react";
 import { KEYS } from "platejs";
 import type { TElement, Value } from "platejs";
 
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import {
   extractBlocksToNote,
@@ -13,6 +15,11 @@ import {
 import type { ItemActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { seedDoc } from "@repo/editor/live/note-blocks";
+import { YjsEditor } from "@slate-yjs/core";
+import * as Y from "yjs";
+
+import { liveEditor } from "./test-support/live-notes";
 
 type NewNote = Parameters<ItemActions["createNote"]>[0];
 
@@ -74,13 +81,11 @@ describe("the extract", () => {
     const [note] = made;
     expect(note).toMatchObject({
       blocks: [
-        { block: { children: [{ text: "one" }], id: "b2", type: "p" } },
-        { block: { children: [{ text: "two" }], id: "b3", type: "p" } },
+        { children: [{ text: "one" }], id: "b2", type: "p" },
+        { children: [{ text: "two" }], id: "b3", type: "p" },
       ],
       title: "one",
     });
-    const ords = note?.blocks.map(({ ord }) => ord) ?? [];
-    expect(ords).toStrictEqual(ords.toSorted());
     expect(texts(editor)).toStrictEqual(["Plan", ""]);
     expect(linkAt(editor, [1])).toMatchObject({ key: "note-1", type: KEYS.mention, value: "one" });
   });
@@ -109,6 +114,34 @@ describe("the extract", () => {
     expect(editor.children).toHaveLength(2);
     editor.undo();
     expect(texts(editor)).toStrictEqual(["Plan", "one", "two"]);
+  });
+
+  it("takes back the removal and the link of a live note in one undo, and leaves the typing before it", async () => {
+    installFakeEditorHost();
+    const doc = new Y.Doc();
+    const blocks: LibraryBlock[] = [
+      { children: [{ text: "Plan" }], id: "b1", type: "h2" },
+      { children: [{ text: "one" }], id: "b2", type: "p" },
+      { children: [{ text: "two" }], id: "b3", type: "p" },
+    ];
+    seedDoc(
+      doc,
+      blocks.map((block) => ({ block, section: "note" })),
+    );
+    const editor = liveEditor(doc, { kit: EDITOR_KIT });
+    registerLiveEditor("item-1", editor);
+    editor.tf.insertText("!", { at: editor.api.end([0]) });
+
+    await extractBlocksToNote(editor, [[1], [2]]);
+    YjsEditor.flushLocalChanges(editor);
+    expect(editor.children).toHaveLength(2);
+
+    editor.undo();
+    expect(editor.children.map((block) => editor.api.string(block))).toStrictEqual([
+      "Plan!",
+      "one",
+      "two",
+    ]);
   });
 
   it("refuses a block no item can store yet", async () => {

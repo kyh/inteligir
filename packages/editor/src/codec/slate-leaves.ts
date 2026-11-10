@@ -35,7 +35,7 @@ export const marksOf = (node: TText): Marks => {
 
 export const leaf = (text: string, marks: Marks): TText => ({ ...marks, text });
 
-const sameMarks = (a: TText, b: TText): boolean =>
+export const sameMarks = (a: TText, b: TText): boolean =>
   MARK_KEYS.every((key) => (a[key] === true) === (b[key] === true));
 
 // a run of text and inline nodes as Slate keeps it: neighbours with the same marks joined, an

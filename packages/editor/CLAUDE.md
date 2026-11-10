@@ -1,6 +1,6 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it reads and writes, an open item's merge, and the
+The editor, the dialect it reads and writes, an item's live note, and the
 dialect's one grammar with the links and a file's facts it reads.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
@@ -9,8 +9,8 @@ dialect's one grammar with the links and a file's facts it reads.
 The Plate WYSIWYG: kits and nodes for every dialect construct, the md-rules
 table over Plate's stock markdown and the suites that hold what it means, and
 an item's editor
-(`packages/editor/src/item/item-editor.tsx`) a host drives through its
-session's ports and the `EditorHost` singleton
+(`packages/editor/src/item/item-editor.tsx`) bound to its note's live document,
+which a host drives through the `EditorHost` singleton
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
 one `installEditorHost` call per host. Its
 `EditorHostIo` reads the library by its own keys (THE EDITOR'S HOST SPEAKS THE
@@ -28,41 +28,41 @@ alone, and no walk narrows structurally.
 
 ## Editor and dialect
 
-- **THE EDITOR IS A WYSIWYG OVER AN ITEM'S BLOCKS, AND EVERY MARKDOWN THE
-  CODEC WRITES GOES THROUGH `serializeNote`** (epic #579, owner decision).
-  Plate.js over Plate's stock markdown: one remark plugin list
+- **THE EDITOR IS A WYSIWYG OVER AN ITEM'S BLOCKS, AND EVERY MARKDOWN THE CODEC
+  WRITES GOES THROUGH `serializeNote`** (epic #579, owner decision). Plate.js
+  over Plate's stock markdown: one remark plugin list
   (`@repo/editor/markdown/md-plugins`) and one rule table
   (`@repo/editor/markdown/md-rules`) for the nodes Plate's own table lacks or
-  gets wrong. The live editor writes block ops, never markdown (AN ITEM IS
-  EDITED BY ITS ID); the codec's import and export, the agent's view and edits,
-  and the block merge's markdown all call `serializeNote`, since the rule table
-  expects its whole-value pre-pass (a block nested in a list, an empty
-  equation). Meaning is the codec's tested contract, never bytes: a read keeps
-  every letter a person wrote, a write is its own fixpoint, and what a value
-  means survives a write and a read, over every node the model holds
+  gets wrong. The live editor writes the note's document, never markdown (AN
+  ITEM IS EDITED BY ITS ID); the codec's import and export and the agent's view
+  and edits all call `serializeNote`, since the rule table expects its
+  whole-value pre-pass (a block nested in a list, an empty equation). Meaning is
+  the codec's tested contract, never bytes: a read keeps every letter a person
+  wrote, a write is its own fixpoint, and what a value means survives a write
+  and a read, over every node the model holds
   (`packages/editor/src/markdown/md-matrix.test.ts`), the corpus
-  (`md-corpus.test.ts`) and typed text (`md-text-safety.test.ts`); the
-  fixtures are formatter-exempt. `readMarkdown` refuses with a typed reason, never
-  a throw: a file nested past what the conversion and the writer hold is
-  `too-deep` and a rule that throws is `failed`, and every caller treats
-  either as a refusal (an import leaves the file out, an agent's edit is turned
-  down, a paste lands as plain text). A list is flat in the model, so nothing
-  but a cap holds it inside the writer's recursion: `LIST_MAX_INDENT`, which
-  the read refuses past, the vocabulary stores no deeper than and a Tab stops
-  at. Any other nesting is refused past the depth a storable item reads as
+  (`md-corpus.test.ts`) and typed text (`md-text-safety.test.ts`); the fixtures
+  are formatter-exempt. `readMarkdown` refuses with a typed reason, never a
+  throw: a file nested past what the conversion and the writer hold is
+  `too-deep` and a rule that throws is `failed`, and every caller treats either
+  as a refusal (an import leaves the file out, an agent's edit is turned down, a
+  paste lands as plain text). A list is flat in the model, so nothing but a cap
+  holds it inside the writer's recursion: `LIST_MAX_INDENT`, which the read
+  refuses past, the vocabulary stores no deeper than and a Tab stops at. Any
+  other nesting is refused past the depth a storable item reads as
   (`READ_MAX_DEPTH`), measured on the parsed tree before Plate builds a node,
   since that build costs more than linear in depth and its stack runs out where
   each platform's frames put it; a stack that still runs out in the parse is
-  refused too, which V8 says as a RangeError or, compiling a regular
-  expression, as a SyntaxError (`withinStack`). Rejected: a byte-exact codec of
-  our own (most of the editor's code, for round trips no reader needs); a raw
-  editor beside the rich one (markdown is not at rest); Plate's bare
-  `serialize` (no pre-pass); a catch per item around a write (a list a writer
-  cannot hold would land, and read nowhere after); and refusing only where a
-  stack runs out (a quote 6,000 deep builds for seconds on x64 first, and one
-  platform reads what another refuses). `packages/editor/src/markdown/markdown-doc.ts`,
-  `packages/editor/src/markdown/md-read.ts`, `packages/editor/README.md`
-  § Invariants.
+  refused too, which V8 says as a RangeError or, compiling a regular expression,
+  as a SyntaxError (`withinStack`). Rejected: a byte-exact codec of our own
+  (most of the editor's code, for round trips no reader needs); a raw editor
+  beside the rich one (markdown is not at rest); Plate's bare `serialize` (no
+  pre-pass); a catch per item around a write (a list a writer cannot hold would
+  land, and read nowhere after); and refusing only where a stack runs out (a
+  quote 6,000 deep builds for seconds on x64 first, and one platform reads what
+  another refuses). `packages/editor/src/markdown/markdown-doc.ts`,
+  `packages/editor/src/markdown/md-read.ts`, `packages/editor/README.md` §
+  Invariants.
 
 - **THE MARKDOWN RUNS HEADLESS, AND AN IMPORTED PAGE IS WRITTEN AS ITS OWN
   FIXPOINT.** The base kits are headless files
@@ -89,27 +89,27 @@ alone, and no walk narrows structurally.
   DIRECTIVES** (#931, owner decision). CommonMark and GFM as Plate writes them;
   a page link is Plate's mention, written `[Title](mention:<id>)`, an untitled
   item's as `[Untitled](…)`, which reads back as no title; `:date[2026-08-22]`
-  date chips and `:formula[display]{source="…" meta="…"}` formula pills;
-  inline math `$$…$$` (a single `$` is text); GitHub alerts (`> [!NOTE]` …
-  `> [!CAUTION]`) as THE callout; `inteligir-chart` / `inteligir-canvas` /
+  date chips and `:formula[display]{source="…" meta="…"}` formula pills; inline
+  math `$$…$$` (a single `$` is text); GitHub alerts (`> [!NOTE]` … `>
+  [!CAUTION]`) as THE callout; `inteligir-chart` / `inteligir-canvas` /
   `inteligir-html` fences, and Mermaid a stock code block; the `::::tabs` of
   `:::tab[Label]` panels, `:::toggle` and the `::::columns` of
   `:::column{width="40%"}` containers; the top-level `article` container that
   holds the page a fill read, the article through the codec alone (the live
-  editor holds no section); and `![](url)` embeds. A bare url is written
-  `<url>`. Only a web url embeds (`![](path)` is a file the import resolves to
-  its bytes; alt text or a title keeps a web image an image). What markdown
-  cannot spell is lost on a write, each loss in the changelog: underline, a
-  link's title, a table's alignment, an image's width, a web file's name, an
-  ordered list's restart inside a run, and a heading or a quote as a list item,
-  which stands outside the list. Every fence name lives in
+  document holds no container, only each block's `section`); and `![](url)`
+  embeds. A bare url is written `<url>`. Only a web url embeds (`![](path)` is a
+  file the import resolves to its bytes; alt text or a title keeps a web image
+  an image). What markdown cannot spell is lost on a write, each loss in the
+  changelog: underline, a link's title, a table's alignment, an image's width, a
+  web file's name, an ordered list's restart inside a run, and a heading or a
+  quote as a list item, which stands outside the list. Every fence name lives in
   `@repo/editor/markdown/fence-langs`, which
   `tools/repo-guards/src/agent-skills.test.ts` holds the skills to, and the
   skills' examples read as the constructs they show
   (`packages/editor/src/skill-examples.test.ts`). The codec writes plain `.md`:
   no bundles, no meta.json. Rejected: transclusion (`![[Note]]` reads as a link,
-  and nothing draws another item's text inside one); an owned grammar for any
-  of it (STOCK BEFORE CUSTOM, in `AGENTS.md`).
+  and nothing draws another item's text inside one); an owned grammar for any of
+  it (STOCK BEFORE CUSTOM, in `AGENTS.md`).
   `packages/editor/src/markdown/md-plugins.ts`,
   `packages/editor/src/markdown/md-rules.ts`.
 
@@ -149,14 +149,14 @@ alone, and no walk narrows structurally.
   `packages/editor/src/markdown/md-alerts.test.ts`.
 
 - **AN ITEM'S PROPERTIES ARE ITS FIELDS, AND THE PANEL DRAWS ANY SOURCE OF
-  ROWS**: an item opened by id reads and patches its own `properties` field,
-  each row's edit one property op over the value the item holds, a row typed
-  by the frontmatter reader's own rules and a value no row can edit (an
-  object, a list that is not all words) drawn as it is and never written
+  ROWS**: the panel reads an item's own `properties` field as its host holds it
+  (`ItemFields`), each row's edit one property op over the value the item holds,
+  a row typed by the frontmatter reader's own rules and a value no row can edit
+  (an object, a list that is not all words) drawn as it is and never written
   (`packages/editor/src/item/item-properties.ts`). The panel reads whatever
-  source it is handed (`packages/editor/src/properties/property-source.ts`),
-  and an item's own fields (its title, tags, folder and pin) are Info's, so no
-  key has two editors. Only a file has frontmatter: a `---` fence that opens a
+  source it is handed (`packages/editor/src/properties/property-source.ts`), and
+  an item's own fields (its title, tags, folder and pin) are Info's, so no key
+  has two editors. Only a file has frontmatter: a `---` fence that opens a
   paste, an agent's text or a page is that text's own lines, read as a YAML code
   block (`packages/editor/src/markdown/md-rules.ts`). Rejected: a frontmatter
   block in an item (its keys are columns).
@@ -193,26 +193,27 @@ alone, and no walk narrows structurally.
   `apps/web/src/library/library/library-verbs.ts`). Rejected: a Pinned
   heading (more height than it explains).
 
-- **AN EXTRACT IS ONE HISTORY BATCH, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
+- **AN EXTRACT IS ONE UNDO STEP, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
   extract asks the host for a note of the very blocks it moves, as the item
   stores them, in the open item's folder (`items.createNote`, which a link's
   Create asks too), before touching the item, and lands the removal and a link
-  to the note by its id in one change, so one undo restores both and the next
-  pause writes them. The note stays: its create and the item's write are two
-  writes. Rejected: create-or-reuse by title (an item of that name counts as
-  success and the blocks are lost); the blocks sent as markdown (their ids and
-  marks would turn over). `packages/editor/src/extract-note.ts`.
+  to the note by its id as an undo step of its own (`ownUndoStep`, since the
+  note's undo joins whatever lands within its capture window), so one undo
+  restores both and keeps the typing either side. The note stays: its create and
+  the item's edit are two writes. Rejected: create-or-reuse by title (an item of
+  that name counts as success and the blocks are lost); the blocks sent as
+  markdown (their ids and marks would turn over).
+  `packages/editor/src/extract-note.ts`.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S ITEM IS FOUND BY ID.**
-  A bound ref names an item by its id, so a pass reads only the items its
-  pills name, each one's note through the store the open item's session reads,
-  this item's own pills from the live value, and runs again when another item
-  changes (`followItemFormulas`). The display a recompute rewrites lands
-  outside the undo history, since the user never typed it and one undo must
-  reach their own last edit. Rejected: reading every item to find one id (a
-  recompute runs after each typing pause); a host read of its own (the
-  session's store already answers every item the device holds).
-  `packages/editor/src/formulas/formula-recompute.ts`.
+  A bound ref names an item by its id, so a pass reads only the items its pills
+  name, each one's blocks through the host's `readItemBlocks`, this item's own
+  pills from the live value, and runs again when another item changes
+  (`followItemFormulas`). The display a recompute rewrites lands outside the
+  note's undo (`withoutSaving`, which `YHistoryPlugin` carries to the document's
+  undo), since the user never typed it and one undo must reach their own last
+  edit. Rejected: reading every item to find one id (a recompute runs after each
+  typing pause). `packages/editor/src/formulas/formula-recompute.ts`.
 
 - **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE DOCUMENT.**
   A path goes stale after an insert above, since Plate re-renders a block only
@@ -347,55 +348,47 @@ alone, and no walk narrows structurally.
   `packages/editor/src/codec/item-edit.ts`,
   `packages/editor/src/codec/library-links.ts`.
 
-- **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
-  OPS.** `createItemSession` opens an item over its host's read, write and word
-  of what moved (`ItemStore`): each top-level element is the block its Plate node
-  id names, the ids inside one the editor's alone, and 800 ms after the last
-  keystroke the ops of what changed since the blocks last acknowledged go to the
-  store, decided by hash; a field patch goes at once, under its base. A change
-  from elsewhere is laid in outside the undo and starts it over, since an undo
-  replays each edit at the path it was recorded at, a block both sides changed
-  merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), as a write the
-  store refused on a moved base is settled too. Each item gets its own editor
-  and session, drawn once its blocks are in
-  (`packages/editor/src/item/item-editor.tsx`). A
-  block no write can store stays as the person left it and counts as a failure
-  and as unsaved, so the surface says so on every host and each host holds the
-  leave;
-  a picker open in a block is read around, since its query is nobody's writing.
-  A write the store rejects stays unsaved and goes again after a pause, and a
-  first read that fails says so and offers another, each in the person's words.
-  The block that names a file is in no value until the file is kept, so the keep
-  writes it, surface or none, and counts as unsaved until that write is done; a
-  leave writes what the value holds at once and waits for each keep's write.
-  An edit over a body the store has yet to bring waits on it, unsaved and said
-  so a leave holds, and goes after the next pause once it lands.
-  A block keeps its section wherever it stands, and a new one is the note's, so
-  a read of the page never takes what the person typed under it, which reads
-  above the article when the item opens again. Rejected: the value mirrored
-  into React state (a render per keystroke); a whole-item write (two devices'
-  edits to different blocks would meet); one editor handed from item to item
-  (a closing write would diff the next one's blocks); a section by where a block
-  stands (a read deleted what was typed below the article); rebasing the undo
-  through a landing (each recorded batch would be transformed against it); a
-  leave writing what a keep brought (a keep landing under its first write needs
-  a flag between the two, and a closed surface has no leave); settling over a
-  body not yet here (its blocks left the editor, and the edit met the cell as a
-  new block, which a CONFLICT drops).
-  `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
+- **AN ITEM IS EDITED BY ITS ID, OVER ITS NOTE'S LIVE DOCUMENT, DRAWN ONCE
+  THAT HAS SYNCED.** `noteConnection` dials the note's object with
+  y-partyserver's provider through the host's `notes` port (`NoteHost`: a
+  fresh ticket each dial, the note's path, whether the host is offline),
+  presence off, and shows a document only once it has synced, so no device
+  seeds a note and nothing is typed into a value the note then replaces
+  (`packages/editor/src/item/note-connection.ts`). The item editor binds it
+  (`packages/editor/src/item/item-editor.tsx`): a connection per item id, an
+  editor per document, drawn anew over each connect, which hands the editor
+  fresh nodes. The status is one value: opening; missing, which the object
+  says by closing the socket 4404, since the provider redials any other close
+  forever; or open, with whether an edit reaches the note now and whether the
+  note holds every edit back (`full`, or `deleted` while the item is in
+  Deleted), which the object says in a custom message, ahead of the sync to a
+  socket that opens on one. A ping every 20 s that no pong answers within 5 s
+  dials a fresh socket over the same document, a page shown again or a
+  connection back probes at once, and a socket down past 3 s turns the editor
+  read-only, so a blip goes unseen. A frame the object refused (`read-only`),
+  or a note grown full under this socket, drops the document for the note's
+  own, shown read-only until it syncs. A leave asks whether the note stored
+  every edit made here (`whenSaved`: `saved?`, answered `saved`) once each file
+  in flight is kept and Slate's unsent change is handed over; a close answers
+  it false. A picker's input names the document client that opened it, so
+  another device draws it inert (`packages/editor/src/live/picker-owner.ts`).
+  Rejected: a session writing block ops after a pause (a diff, a merge and a
+  conflict path a live document has no need of); seeding a document from a
+  device (two opening an empty note would each write one); presence (no
+  surface draws it); waiting for a quiet socket's close (it can take minutes).
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
-  SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, a
-  page link shows the title its id goes by in the library's titles now, and
-  `readFile(sha)` answers from the host's file
-  source (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app
-  alike; the phone's cache over the bridge). A media block holds `{sha}` (a file its
+  SHA.** `openItem`, `readItemBlocks`, `onItemsChanged` and `notes` (a note's
+  socket) take item ids, a page link shows the title its id goes by in the
+  library's titles now, and `readFile(sha)` answers from the host's file source
+  (the page's staged bytes, then `/v1/blobs`, in a tab and the Mac app alike;
+  the phone's cache over the bridge). A media block holds `{sha}` (a file its
   `name`) or a web `{url}`, its type the Blob's. A page link reaches an item by
   its id, the mention's key; a `[[Title]]` in an import or the agent's text
   reaches one by `titleKey`, the key the cell resolves a title by; a markdown
-  url resolves by path only in an import. Rejected: paths a host maps
-  to items (two titles share one); `mime` on the block (a second copy of the
-  file's type). `packages/editor/src/host-io.ts`,
+  url resolves by path only in an import. Rejected: paths a host maps to items
+  (two titles share one); `mime` on the block (a second copy of the file's
+  type). `packages/editor/src/host-io.ts`,
   `packages/editor/src/nodes/library-file.ts`.
 
 - **A FILE PASTED OR DROPPED INTO A NOTE IS KEPT BEFORE ITS BLOCK IS WRITTEN.**
@@ -404,10 +397,13 @@ alone, and no walk narrows structurally.
   plain bytes when the browser gives none (`keptFileType`, as the window's own
   saves), and inserts the blocks where the paste or the drop landed, in the
   order they came, the caret after the last: an image, a video or a file card,
-  whose Download only a host that `savesFiles` offers. A browser's copy of a web
-  picture pastes as its markup. Rejected: the bytes held by the session until
-  its pause (a quit in the pause lost them); a card opening a blob of the
-  page's origin (it could run script). `packages/editor/src/kits/image-kit.tsx`.
+  whose Download only a host that `savesFiles` offers. Only the editor the file
+  came into inserts its block, and only while its edits reach the note: one gone
+  read-only or closed meanwhile says it could not add the file, and a leave
+  waits for each keep. A browser's copy of a web picture pastes as its markup.
+  Rejected: the bytes held until a pause (a quit in the pause lost them); a card
+  opening a blob of the page's origin (it could run script).
+  `packages/editor/src/kits/image-kit.tsx`.
 
 - **A FOLD IS THE DEVICE'S VIEW STATE, AND HOLDS NONE OF THE LIBRARY'S WORDS.**
   Which headings an item has folded sits in the page's local storage, each by a
@@ -444,23 +440,24 @@ alone, and no walk narrows structurally.
   drops the tag beside an image (it would filter Plate's private output).
   `packages/editor/src/markdown/md-rules.ts`.
 
-- **WITH NO CONNECTION AN ITEM READS BUT TAKES NO EDIT, AND ONE TYPED BEFORE
-  THE CONNECTION WENT IS WRITTEN WHEN IT IS BACK.** The host says it is offline
-  (`offline` on the item editor), and the surface goes read-only under Plate's
-  `readOnly` and says "Needs a connection" above the text, the words every
-  screen says of what only the cloud answers. Slate keeps typing out of a
-  read-only editor but hands its paste, drop and keys on to Plate's plugins, so
-  every plugin whose DOM handler could write is `editOnly`, Plate's own keydown
-  among them (its Tab indents), and each left live is named with why it writes
-  nothing (`packages/editor/src/read-only-handlers.test.ts`). What edits around
-  the editor reads the same flag: the find bar offers no replace, the touch
-  toolbar draws nothing and no formula recomputes. An edit the drop caught
-  stays unsaved and said, and goes the moment the host is back rather than a
-  pause later. Rejected: queueing an edit offline (the cloud is the truth, and
-  a queue that outlives the tab is a second writer); a read-only flag of the
-  editor's own (every node and toolbar already reads Plate's); a read-only
-  check inside each handler (a new plugin would miss it, where `editOnly` is
-  Plate's own gate). `packages/editor/src/item/item-editor.tsx`.
+- **WITH NO CONNECTION AN ITEM READS BUT TAKES NO EDIT, AND ONE TYPED BEFORE THE
+  CONNECTION WENT REACHES THE NOTE WHEN IT IS BACK.** The host says it is
+  offline (`notes.offline`), or the note's socket stays down past its grace, and
+  the surface goes read-only under Plate's `readOnly` and says "Needs a
+  connection" above the text, the words every screen says of what only the cloud
+  answers. Slate keeps typing out of a read-only editor but hands its paste,
+  drop and keys on to Plate's plugins, so every plugin whose DOM handler could
+  write is `editOnly`, Plate's own keydown among them (its Tab indents), and
+  each left live is named with why it writes nothing
+  (`packages/editor/src/read-only-handlers.test.ts`). What edits around the
+  editor reads the same flag: the find bar offers no replace, the touch toolbar
+  draws nothing and no formula recomputes. An edit typed while the socket was
+  going stays in the document, which the provider's sync hands the note once the
+  socket is back. Rejected: queueing an edit offline (the cloud is the truth,
+  and a queue that outlives the tab is a second writer); a read-only flag of the
+  editor's own (every node and toolbar already reads Plate's); a read-only check
+  inside each handler (a new plugin would miss it, where `editOnly` is Plate's
+  own gate). `packages/editor/src/item/item-editor.tsx`.
 
 - **A KEY TYPED BEFORE A PICKER'S INPUT HAS FOCUS IS ITS QUERY.** Between a
   trigger opening a picker (the slash menu, `[[`, `{{`) and its input taking
@@ -501,18 +498,6 @@ alone, and no walk narrows structurally.
   `packages/editor/src/live/yjs-binding.ts`,
   `packages/editor/src/live/note-blocks.ts`,
   `packages/editor/src/live/body-change.ts`.
-
-## The open item's merge
-
-- **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN
-  OVERLAP SAYS SO.** A block both sides changed merges by diff3 over each
-  side's markdown, and past its budget the line diff answers one hunk, which
-  diff3 reads as one changed region, since an unbounded trace cost gigabytes.
-  Rejected: conflicting on every over-budget merge (it warns when nothing was
-  lost). The merge answers its overlap, which the session's landing of a
-  CONFLICT's settle hands its host's `notifyOverlap`, said in the item's
-  words. `@repo/editor/text/line-diff`,
-  `packages/editor/src/stale-write.ts`.
 
 ## The grammar, links and a file's facts
 

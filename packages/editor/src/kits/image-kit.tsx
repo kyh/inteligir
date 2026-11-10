@@ -4,7 +4,9 @@
 // their sha (`keepFile`) under the type the file came with, or plain bytes when the browser could
 // not tell, and inserts the block that names it where the paste or the drop landed, a picture as
 // an image, a recording as a video and anything else as a file, several in the order they came. A
-// file past the library's size is refused in words, and nothing of it is read.
+// file past the library's size is refused in words, and nothing of it is read. Only the editor the
+// file came into inserts its block, and only while its edits still reach the note: one that went
+// read-only, or closed, while the bytes were kept says it could not add the file.
 
 import { KEYS, PathApi } from "platejs";
 import type { PathRef, SlateEditor, TElement, TRange } from "platejs";
@@ -17,6 +19,7 @@ import { announceFileKeep } from "@repo/editor/file-keeps";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { editsReachNote } from "@repo/editor/live/yjs-binding";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 
 const MB = 1024 * 1024;
@@ -80,7 +83,7 @@ const placeFiles = async (
         continue;
       }
       const kept = await keepOne(io, file);
-      if (kept === null) {
+      if (kept === null || !editsReachNote(editor)) {
         toast.error(fileNotKept(file.name));
         continue;
       }

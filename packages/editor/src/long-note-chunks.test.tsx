@@ -6,13 +6,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { mountItem } from "./test-support/memory-item";
+import { mountNote } from "./test-support/memory-note";
 
 const paragraphs = (count: number): string =>
   `${Array.from({ length: count }, (_, index) => `Paragraph ${String(index + 1)}.`).join("\n\n")}\n`;
 
 const mount = async (itemId: string, markdown: string): Promise<HTMLElement> => {
-  const { editable } = await mountItem(itemId, markdown);
+  const { editable } = await mountNote(itemId, markdown);
   return editable;
 };
 

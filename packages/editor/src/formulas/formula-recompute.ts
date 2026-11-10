@@ -1,10 +1,10 @@
 // A changed display rewrites through an editor transaction the undo history never records:
 // the user did not type it, so one undo must still reach their own last edit. Parsing never
-// rewrites, so a wrong display stays until an editor session recomputes it. Only a bound
+// rewrites, so a wrong display stays until an open editor recomputes it. Only a bound
 // expression that cannot resolve marks stale and keeps its last display; a plain expression that
 // cannot evaluate is left alone. A bound ref names its item by id, so the pass reads only the
-// items its pills name, through the store the item's session reads (`../item/item-session.ts`),
-// and this item's own pills from the live value.
+// items its pills name, through the host (`readItemBlocks`), and this item's own pills from the
+// live value.
 
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 
@@ -21,7 +21,7 @@ import { parseFormulaMeta, serializeFormulaMeta } from "@repo/editor/formulas/fo
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { isFormulaPill, setFormulaPill } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
-import type { ItemStore } from "@repo/editor/item/item-session";
+import type { EditorHostIo } from "@repo/editor/host-io";
 
 const RECOMPUTE_DEBOUNCE_MS = 400;
 
@@ -60,19 +60,8 @@ export interface FormulaReads {
   readonly read: (itemId: string) => Promise<readonly CollectedFormula[] | null>;
 }
 
-// an item's pills as the store holds them: its note's, since the note is what the editor shows
-// and the article a fill read holds none
-const itemFormulas = async (
-  store: ItemStore,
-  itemId: string,
-): Promise<CollectedFormula[] | null> => {
-  const held = await store.item(itemId);
-  return held === null
-    ? null
-    : formulasInBlocks(
-        held.blocks.flatMap(({ block, section }) => (section === "note" ? [block] : [])),
-      );
-};
+// what a pass reads of other items through the host: their blocks, and the word that they moved
+type ItemReads = Pick<EditorHostIo, "readItemBlocks" | "onItemsChanged">;
 
 /** @internal */
 export const recomputeFormulas = async (
@@ -164,10 +153,13 @@ export const scheduleFormulaRecompute = (editor: SlateEditor): void => {
 export const followItemFormulas = (
   editor: SlateEditor,
   itemId: string,
-  store: ItemStore,
+  items: ItemReads,
 ): (() => void) => {
   const reads: FormulaReads = {
-    read: async (id) => await itemFormulas(store, id),
+    read: async (id) => {
+      const blocks = await items.readItemBlocks(id);
+      return blocks === null ? null : formulasInBlocks(blocks);
+    },
     selfId: itemId,
   };
   const scheduler = createDebouncer(() => {
@@ -175,8 +167,8 @@ export const followItemFormulas = (
   }, RECOMPUTE_DEBOUNCE_MS);
   schedulers.set(editor, scheduler);
   scheduler.schedule();
-  const unsubscribe = store.onChange((change) => {
-    if (change.reset || [...change.ids].some((id) => id !== itemId)) {
+  const unsubscribe = items.onItemsChanged((ids) => {
+    if (ids === null || [...ids].some((id) => id !== itemId)) {
       scheduler.schedule();
     }
   });

@@ -54,7 +54,7 @@ const articleFence = (page: string): string => {
 };
 
 // where the view writes a file the library holds by its bytes
-export const viewFilePath = (file: WrittenFile): string =>
+const viewFilePath = (file: WrittenFile): string =>
   file.name === null ? `assets/${file.sha}` : `assets/${file.sha}/${file.name}`;
 
 const VIEW_FILE_RE = /^assets\/(?<sha>[0-9a-f]{64})(?:\/(?<name>[^/]+))?$/u;
