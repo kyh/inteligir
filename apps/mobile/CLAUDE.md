@@ -23,8 +23,8 @@ look, and how it ships.
   event a child frame's `parent.postMessage` could forge, and every frame after
   `init` carries the nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The
   wire breaks freely, since one binary ships both ends
-  (`packages/editor-bridge/src/protocol.ts`); an item page's host is the item
-  session's ops over the account's library
+  (`packages/editor-bridge/src/protocol.ts`); an item page's host reads the
+  account's library and writes nothing
   (`apps/mobile-editor/src/item/item-host.ts`,
   `apps/mobile/src/editor/item-ports.ts`). The WebView loads the page and its
   frames, hands a followed web link to Safari and refuses the rest; its origin
@@ -34,16 +34,19 @@ look, and how it ships.
   `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://`.
 
-- **THE PHONE'S ITEM PAGE READS OFFLINE AND WRITES ONLINE.** The page opens the
-  item as the cloud holds it, or as the phone last read it while there is no
-  connection, and a pause's ops go to the cloud at once, under their bases; a
-  base that moved answers the item as it is now, which the page merges with
-  the editor's own diff3 (`apps/mobile/src/editor/item-ports.ts`). With no
-  connection the page is read-only and says "Needs a connection", told so by
-  the `init`'s `online` and each `connection` frame, and an edit a drop caught
-  is written once the phone is back (`apps/mobile/src/editor/use-item-editor.ts`).
-  Rejected: queueing edits offline (the outbox, the merge and the headless
-  page that ran it, for edits an online-first library never takes offline).
+- **THE PHONE'S ITEM PAGE IS READ-ONLY, DRAWN FROM THE BLOCKS THE PHONE
+  HOLDS** (owner decision, until the phone's editor joins a note's live
+  document). The page draws the item as the cloud holds it, or as the phone
+  last read it while there is no connection, under the phone's words that
+  editing on the phone is coming, and draws it again when the item's query
+  moves or a name a link shows does (`apps/mobile/src/editor/item-ports.ts`,
+  `apps/mobile/src/editor/use-item-editor.ts`,
+  `apps/mobile-editor/src/item/item-page.tsx`). It dials no note, keeps no
+  file and makes no note; a save, a photo and a share still save. Rejected:
+  writing a note's blocks from the phone beside the live document (a second
+  writer the note would have to merge); queueing edits offline (the cloud is
+  the truth). Residual: a note's typing that moves no row leaves the phone's
+  copy as it was until the next move of its row or a pull to refresh.
 
 ## Cloud, sync and accounts
 
@@ -93,8 +96,7 @@ look, and how it ships.
   and a cover's thumbnail is made from the bytes that crossed. A file the phone
   sent up is kept as it went, so the phone never downloads what it sent. Each
   file keeps the type it was sent as or the cloud served, which the item page
-  draws a note's file by over the bridge, and one pasted there is sent up by
-  its hash before the write naming it
+  draws a note's file by over the bridge
   (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists from a
   320 px thumbnail made once. No cover is decoded past
   `FILL_LIMITS.coverMaxPixels`: one is drawn whole only when it is a small file

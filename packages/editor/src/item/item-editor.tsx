@@ -52,7 +52,6 @@ import type { NoteConnection, NoteHeld, NoteStatus } from "./note-connection";
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
 const CHUNK_BLOCKS = 100;
 
-/** @internal */
 export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
 
 // why a note that is open takes no edit, in the person's words; a full note stays so for everyone,
@@ -133,7 +132,8 @@ const FormulaRecompute = ({ itemId }: { itemId: string }) => {
   return null;
 };
 
-const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
+// why the text above takes no edit, held at the top of the scroll
+export const Notice = ({ profile, text }: { profile: EditorProfile; text: string }) => (
   <div
     className={cn(
       editorColumnPx(profile),

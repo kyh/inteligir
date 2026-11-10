@@ -1,17 +1,11 @@
 // The native end of the bridge, as the page sees it: a transport that records every frame the page
-// sends, answers its requests from an in-memory library of items (which lands an item page's ops
-// only on the bases they name, as the account's cell does) a case can replace, and delivers
-// native frames through the receiver the page installed.
-
-import { applyOps, orderedBlocks } from "@repo/contract/library/block-ops";
-import type { ItemState } from "@repo/contract/library/block-ops";
-import { blockHash } from "@repo/contract/library/block-hash";
-import { noteFields } from "@repo/contract/test-support/library-items";
+// sends, answers its requests from an in-memory library of items and files a case can replace, and
+// delivers native frames through the receiver the page installed.
 
 import type { BridgeTransport } from "../bridge/page-bridge";
+import type { HeldItem } from "../item/item-host";
 import { pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type {
-  ItemInit,
   NativeFrame,
   PageFrame,
   RequestKind,
@@ -19,9 +13,6 @@ import type {
 } from "@repo/editor-bridge/protocol";
 
 export const PHONE_NONCE = "test-nonce-0123456789";
-
-// the library's cap on one file, as the phone names it in `init`
-const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 type PageRequest = Extract<PageFrame, { type: "request" }>;
 
@@ -34,81 +25,19 @@ type Answerer = (request: PageRequest) => PhoneAnswer | null;
 
 const ok = (result: RequestResult<RequestKind>): PhoneAnswer => ({ ok: true, result });
 
-type HeldItem = Exclude<RequestResult<"item">["item"], null>;
-
-const heldOf = (state: ItemState): HeldItem => ({
-  blocks: orderedBlocks(state.blocks),
-  bodyHeld: true,
-  fields: state.fields,
-});
-
-// an item page's ops, landed whole over the item as the phone holds it, or answered with the item
-// as it is when a base moved under them
-const writeItemAnswer = (
-  items: Map<string, ItemState>,
-  { itemId, ops }: Extract<PageRequest, { kind: "writeItem" }>["payload"],
-): PhoneAnswer => {
-  const held = items.get(itemId);
-  if (held === undefined) {
-    return ok({ kind: "missing" });
-  }
-  const outcome = applyOps(held, ops);
-  if (outcome.kind === "conflict") {
-    return ok({ item: heldOf(held), kind: "changed" });
-  }
-  if (outcome.kind === "invalid") {
-    return ok({ fields: [...outcome.fields], kind: "invalid" });
-  }
-  items.set(itemId, outcome.state);
-  return ok({ kind: "queued" });
-};
-
-// a note the page makes joins the library under the next free id, its blocks the note's
-const createNoteAnswer = (
-  items: Map<string, ItemState>,
-  { blocks, title }: Extract<PageRequest, { kind: "createNote" }>["payload"],
-): PhoneAnswer => {
-  const id = `0190a000-0000-7000-8000-${String(items.size + 1).padStart(12, "0")}`;
-  items.set(id, {
-    blocks: new Map(
-      blocks.map(({ block, ord }) => [
-        block.id,
-        { block, hash: blockHash(block), ord, section: "note" as const },
-      ]),
-    ),
-    fields: noteFields({ title }),
-  });
-  return ok({ id });
-};
-
 // a file the phone holds, as the bridge carries it
-type HeldFile = Extract<PageRequest, { kind: "keepFile" }>["payload"];
+type HeldFile = Exclude<RequestResult<"readFile">["file"], null>;
 
-// every item is a link target under its title, and a kept file is held under the next free pretend
-// sha
+// every item is a link target under its title
 const answerFromLibrary =
-  (items: Map<string, ItemState>, files: Map<string, HeldFile>): Answerer =>
+  (items: Map<string, HeldItem>, files: Map<string, HeldFile>): Answerer =>
   (request) => {
     switch (request.kind) {
       case "item": {
-        const held = items.get(request.payload.itemId);
-        return ok({ item: held === undefined ? null : heldOf(held) });
-      }
-      case "writeItem": {
-        return writeItemAnswer(items, request.payload);
-      }
-      case "createNote": {
-        return createNoteAnswer(items, request.payload);
+        return ok({ item: items.get(request.payload.itemId) ?? null });
       }
       case "linkTargets": {
-        return ok({
-          targets: [...items].map(([id, state]) => ({ id, title: state.fields.title })),
-        });
-      }
-      case "keepFile": {
-        const sha = String(files.size + 1).padStart(64, "0");
-        files.set(sha, request.payload);
-        return ok({ sha });
+        return ok({ targets: [...items].map(([id, item]) => ({ id, title: item.fields.title })) });
       }
       case "readFile": {
         return ok({ file: files.get(request.payload.sha) ?? null });
@@ -122,7 +51,7 @@ const answerFromLibrary =
 
 export interface FakePhone {
   readonly transport: BridgeTransport;
-  readonly items: Map<string, ItemState>;
+  readonly items: Map<string, HeldItem>;
   // the files the phone holds, by sha
   readonly files: Map<string, HeldFile>;
   readonly sent: PageFrame[];
@@ -130,7 +59,7 @@ export interface FakePhone {
   readonly deliver: (frame: NativeFrame) => void;
   // what a forged or broken sender could hand the receiver
   readonly deliverText: (text: string) => void;
-  readonly init: (overrides: Partial<ItemInit> & Pick<ItemInit, "itemId">) => void;
+  readonly init: (frame: { readonly itemId: string; readonly nonce?: string }) => void;
   readonly requests: <K extends PageRequest["kind"]>(
     kind: K,
   ) => Extract<PageRequest, { kind: K }>[];
@@ -149,8 +78,9 @@ const isType =
   (frame: PageFrame): frame is Extract<PageFrame, { type: T }> =>
     frame.type === type;
 
-export const createFakePhone = (library: Readonly<Record<string, ItemState>> = {}): FakePhone => {
+export const createFakePhone = (library: Readonly<Record<string, HeldItem>> = {}): FakePhone => {
   const items = new Map(Object.entries(library));
+  const files = new Map<string, HeldFile>();
   const sent: PageFrame[] = [];
   let receive: ((frame: string) => void) | null = null;
 
@@ -165,23 +95,15 @@ export const createFakePhone = (library: Readonly<Record<string, ItemState>> = {
     deliverText(JSON.stringify(frame));
   };
 
-  const files = new Map<string, HeldFile>();
   const phone: FakePhone = {
     answer: answerFromLibrary(items, files),
     deliver,
     deliverText,
     events: (type) => sent.filter(isType(type)),
-    init: (overrides) => {
-      deliver({
-        fileMaxBytes: FILE_MAX_BYTES,
-        focus: null,
-        nonce: PHONE_NONCE,
-        online: true,
-        type: "init",
-        ...overrides,
-      });
-    },
     files,
+    init: ({ itemId, nonce = PHONE_NONCE }) => {
+      deliver({ itemId, nonce, type: "init" });
+    },
     items,
     requests: (kind) => sent.filter(isKind(kind)),
     sent,

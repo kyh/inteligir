@@ -1,5 +1,4 @@
 import { runInNewContext } from "node:vm";
-import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
@@ -8,17 +7,13 @@ import type {
   RequestPayload,
   RequestResult,
 } from "@repo/editor-bridge/protocol";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { nextTask } from "../test-support/async";
 import { createEditorHost, loadVerdict, openWindowVerdict } from "./editor-host";
 import type { EditorPageEvent, EditorRequestPorts } from "./editor-host";
 
 const PAGE_URL =
   "file:///private/var/containers/Bundle/Application/A/Inteligir.app/editor-page/index.html";
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 // what the page's receiver is handed when the WebView runs an injected script
 const framesOf = (script: string): NativeFrame[] => {
@@ -39,40 +34,24 @@ const SHA = "a".repeat(64);
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
-  createNote: { id: ITEM },
   item: { item: null },
-  keepFile: { sha: SHA },
   linkTargets: { targets: [{ id: ITEM, title: "Plans" }] },
   readFile: { file: { base64: "iVBORw==", mediaType: "image/png" } },
-  writeItem: { kind: "missing" },
 } satisfies { [K in RequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
-  createNote: { besideId: ITEM, blocks: [], title: "Moved" },
   item: { itemId: ITEM },
-  keepFile: { base64: "iVBORw==", mediaType: "image/png" },
   linkTargets: {},
   readFile: { sha: SHA },
-  writeItem: { itemId: ITEM, ops: [] },
 } satisfies { [K in RequestKind]: RequestPayload<K> };
 
-const KINDS: readonly RequestKind[] = [
-  "item",
-  "writeItem",
-  "linkTargets",
-  "createNote",
-  "readFile",
-  "keepFile",
-];
+const KINDS: readonly RequestKind[] = ["item", "linkTargets", "readFile"];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
 const requestFrames = (nonce: string): PageFrame[] => [
   { id: 0, kind: "item", nonce, payload: PAYLOADS.item, type: "request" },
-  { id: 1, kind: "writeItem", nonce, payload: PAYLOADS.writeItem, type: "request" },
-  { id: 2, kind: "linkTargets", nonce, payload: PAYLOADS.linkTargets, type: "request" },
-  { id: 3, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
-  { id: 4, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
-  { id: 5, kind: "keepFile", nonce, payload: PAYLOADS.keepFile, type: "request" },
+  { id: 1, kind: "linkTargets", nonce, payload: PAYLOADS.linkTargets, type: "request" },
+  { id: 2, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
 ];
 
 interface PortCall {
@@ -83,17 +62,9 @@ interface PortCall {
 const recordingPorts = () => {
   const calls: PortCall[] = [];
   const ports: EditorRequestPorts = {
-    createNote: async (payload) => {
-      calls.push({ kind: "createNote", payload });
-      return PORT_ANSWERS.createNote;
-    },
     item: async (payload) => {
       calls.push({ kind: "item", payload });
       return PORT_ANSWERS.item;
-    },
-    keepFile: async (payload) => {
-      calls.push({ kind: "keepFile", payload });
-      return PORT_ANSWERS.keepFile;
     },
     linkTargets: async (payload) => {
       calls.push({ kind: "linkTargets", payload });
@@ -103,30 +74,18 @@ const recordingPorts = () => {
       calls.push({ kind: "readFile", payload });
       return PORT_ANSWERS.readFile;
     },
-    writeItem: async (payload) => {
-      calls.push({ kind: "writeItem", payload });
-      return PORT_ANSWERS.writeItem;
-    },
   };
   return { calls, ports };
 };
 
-const hostOver = (
-  options: {
-    focus?: "title" | "body" | null;
-    flushTimeoutMs?: number;
-    ports?: Partial<EditorRequestPorts>;
-  } = {},
-) => {
+const hostOver = (options: { ports?: Partial<EditorRequestPorts> } = {}) => {
   const injected: NativeFrame[] = [];
   const events: EditorPageEvent[] = [];
   const recording = recordingPorts();
   const reloads: number[] = [];
   let minted = 0;
-  let online = true;
   const host = createEditorHost({
-    flushTimeoutMs: options.flushTimeoutMs ?? 1000,
-    init: { focus: options.focus ?? null, itemId: ITEM },
+    init: { itemId: ITEM },
     mintNonce: () => {
       minted += 1;
       return `nonce-${String(minted).padStart(16, "0")}`;
@@ -134,7 +93,6 @@ const hostOver = (
     onEvent: (event) => {
       events.push(event);
     },
-    online: () => online,
     pageUrl: PAGE_URL,
     ports: { ...recording.ports, ...options.ports },
   });
@@ -159,46 +117,18 @@ const hostOver = (
     return init.nonce;
   };
   const responses = () => injected.filter((frame) => frame.type === "response");
-  const setOnline = (next: boolean): void => {
-    online = next;
-  };
-  return {
-    calls: recording.calls,
-    events,
-    fromPage,
-    host,
-    injected,
-    load,
-    reloads,
-    responses,
-    setOnline,
-  };
+  return { calls: recording.calls, events, fromPage, host, injected, load, reloads, responses };
 };
 
 describe("the native end of the editor page's bridge", () => {
-  it("answers ready with init, a fresh nonce per load, focus only on the first, and the connection as it is", () => {
-    const { injected, load, setOnline } = hostOver({ focus: "title" });
+  it("answers ready with init, a fresh nonce per load", () => {
+    const { injected, load } = hostOver();
     const first = load();
-    setOnline(false);
     const second = load();
     expect(first).not.toBe(second);
-    expect(injected).toMatchObject([
-      {
-        fileMaxBytes: BLOB_MAX_BYTES,
-        focus: "title",
-        itemId: ITEM,
-        nonce: first,
-        online: true,
-        type: "init",
-      },
-      {
-        fileMaxBytes: BLOB_MAX_BYTES,
-        focus: null,
-        itemId: ITEM,
-        nonce: second,
-        online: false,
-        type: "init",
-      },
+    expect(injected).toStrictEqual([
+      { itemId: ITEM, nonce: first, type: "init" },
+      { itemId: ITEM, nonce: second, type: "init" },
     ]);
   });
 
@@ -278,7 +208,7 @@ describe("the native end of the editor page's bridge", () => {
     // what the page never sends, so no frame type spells it
     for (const data of [
       "{not json",
-      JSON.stringify({ id: 1, kind: "format", nonce, payload: {}, type: "request" }),
+      JSON.stringify({ id: 1, kind: "writeItem", nonce, payload: {}, type: "request" }),
       JSON.stringify({ id: 2, kind: "item", nonce, payload: { itemId: "" }, type: "request" }),
       JSON.stringify({
         id: 3,
@@ -295,53 +225,11 @@ describe("the native end of the editor page's bridge", () => {
     expect(responses()).toStrictEqual([]);
   });
 
-  it("hands every other page event on, and a flush waits for the page's own answer", async () => {
-    const { events, fromPage, host, injected, load } = hostOver();
-    const nonce = load();
-    fromPage({ itemId: OTHER, nonce, type: "openItem" });
-    fromPage({ nonce, saveError: "the library is full", type: "editorState" });
-    expect(events).toStrictEqual([
-      { itemId: OTHER, nonce, type: "openItem" },
-      { nonce, saveError: "the library is full", type: "editorState" },
-    ]);
-
-    let answered: boolean | null = null;
-    const flushing = host.flush().then((ok) => {
-      answered = ok;
-    });
-    const flush = injected.findLast((frame) => frame.type === "flush");
-    if (flush?.type !== "flush") {
-      throw new Error("the host sent no flush");
-    }
-    await nextTask();
-    expect(answered).toBeNull();
-    fromPage({ id: flush.id, nonce, ok: true, type: "flushed" });
-    await flushing;
-    expect(answered).toBe(true);
-  });
-
-  it("gives up on a flush the page never answers, or a page that went away", async () => {
-    vi.useFakeTimers();
-    const { host, load } = hostOver({ flushTimeoutMs: 50 });
-    load();
-    const unanswered = host.flush();
-    await vi.advanceTimersByTimeAsync(50);
-    await expect(unanswered).resolves.toBe(false);
-
-    const gone = host.flush();
-    host.attach(null);
-    await expect(gone).resolves.toBe(false);
-    // no page is loaded now, so nothing unsaved lives in one
-    await expect(host.flush()).resolves.toBe(true);
-  });
-
   it("loads the page again when its content process dies, and answers only the new load", async () => {
     const { calls, fromPage, host, load, reloads, responses } = hostOver();
     const before = load();
-    const pending = host.flush();
     host.reload();
     expect(reloads).toHaveLength(1);
-    await expect(pending).resolves.toBe(false);
 
     fromPage({ id: 1, kind: "linkTargets", nonce: before, payload: {}, type: "request" });
     const after = load();
@@ -353,19 +241,19 @@ describe("the native end of the editor page's bridge", () => {
 
   it("sends a change only to a loaded page, stamped with its nonce", () => {
     const { host, injected, load } = hostOver();
-    host.send({ ids: [ITEM], overlapped: [], reset: false, type: "itemChanged" });
+    host.send({ ids: [ITEM], reset: false, type: "itemChanged" });
     expect(injected).toStrictEqual([]);
     const nonce = load();
-    host.send({ ids: [ITEM], overlapped: [ITEM], reset: false, type: "itemChanged" });
+    host.send({ ids: [ITEM], reset: false, type: "itemChanged" });
     expect(injected.at(-1)).toStrictEqual({
       ids: [ITEM],
       nonce,
-      overlapped: [ITEM],
       reset: false,
       type: "itemChanged",
     });
-    host.send({ online: false, type: "connection" });
-    expect(injected.at(-1)).toStrictEqual({ nonce, online: false, type: "connection" });
+    host.attach(null);
+    host.send({ ids: [], reset: true, type: "itemChanged" });
+    expect(injected.filter((frame) => frame.type === "itemChanged")).toHaveLength(1);
   });
 
   it("injects a frame the page reads back unchanged, whatever the item holds", async () => {

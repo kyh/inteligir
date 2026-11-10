@@ -264,7 +264,7 @@ const LibraryScreen = () => {
     const made = await saves.newNote({ folderId: saveFolderOf(scope) });
     if (saidIfNotSaved(made)) {
       void changedItems();
-      openItem(made.id, "title");
+      openItem(made.id);
     }
   };
 

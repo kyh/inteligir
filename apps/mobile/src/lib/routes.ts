@@ -7,12 +7,9 @@ import { router } from "expo-router";
 export const firstParam = (value: string | string[] | undefined): string | null =>
   (Array.isArray(value) ? value[0] : value) ?? null;
 
-// an item in the editor page, by its id; `focus` puts the cursor in its title or its body
-export const openItem = (itemId: string, focus?: "title" | "body"): void => {
-  router.push({
-    params: focus === undefined ? { id: itemId } : { focus, id: itemId },
-    pathname: "/item/[id]",
-  });
+// an item in the editor page, by its id
+export const openItem = (itemId: string): void => {
+  router.push({ params: { id: itemId }, pathname: "/item/[id]" });
 };
 
 // an item's file full size: a picture, a PDF, a file

@@ -43,6 +43,7 @@
     "./host-io": "./src/host-io.ts",
     "./inline-combobox": "./src/inline-combobox.tsx",
     "./insert-void": "./src/insert-void.ts",
+    "./item/held-item": "./src/item/held-item.tsx",
     "./item/item-editor": "./src/item/item-editor.tsx",
     "./item/item-properties": "./src/item/item-properties.ts",
     "./item/note-connection": "./src/item/note-connection.ts",

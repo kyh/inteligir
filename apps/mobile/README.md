@@ -3,11 +3,11 @@
 The account's library on the phone, online first: the cloud holds it, and the
 phone reads it through `/v1` (`@repo/contract`) with TanStack Query, whose
 cache it keeps between launches, so what it last read shows offline. A save,
-an edit, a photo and the agent need a connection and say so; only a share from
-another app waits on the phone, in its outbox, until the library can be
-reached. It edits an item in the editor page (`@repo/mobile-editor`, behind
-`@repo/editor-bridge`), and draws the built-in agent's conversations from
-`@repo/agent-panel`.
+a photo and the agent need a connection and say so; only a share from another
+app waits on the phone, in its outbox, until the library can be reached. It
+draws an item read-only in the editor page (`@repo/mobile-editor`, behind
+`@repo/editor-bridge`), which says editing on the phone is coming, and draws
+the built-in agent's conversations from `@repo/agent-panel`.
 
 Expo + expo-router; the runtime the screens use is composed platform-free
 (`src/lib/compose-runtime.ts`), so the scenario suite runs it under node.
@@ -28,7 +28,7 @@ src/
   files/        the library's files by their hash, cached with their thumbnails
                 (expo-file-folder.ts and expo-thumbnail.ts the native halves)
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge:
-                an item's editor, its ops written to the library
+                an item drawn read-only from what the library holds
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
                 the outbox that keeps a share until it lands, the inbox that hands it
                 there, and an item's Info
@@ -96,11 +96,9 @@ build that changes starts it over; a file's address and a write are never
 kept. Its online state is the network's and its focus the app's
 (`src/lib/app-runtime.ts`), so a screen asks again when either comes back.
 
-A write goes at once and says "Needs a connection" when it cannot: an item
-page writes ops with their bases, and a base that moved answers the item as
-it is now, which the page merges with the editor's diff3. The editor page
-takes no edit while the phone is offline, and writes an edit the drop caught
-once it is back.
+A write goes at once and says "Needs a connection" when it cannot. The editor
+page takes no edit: it draws the item as the cloud holds it, or as the phone
+last read it, and reads it again when its query moves.
 
 The account's socket, dialed by ticket, never by a header, says what each
 write moved, and the queries reading it ask again; an open socket asks
@@ -117,9 +115,7 @@ a file it could not reach asks again once the phone is back online. A file the
 phone sends up is kept as a fetched file is, so it never downloads what it
 sent. A screen draws a file as an item's own, its card's cover or its
 viewer's original, and the item page draws one a note names from the cache
-over its bridge (`readFile`), as the type it was kept or served as, and sends
-one pasted into the text up by its hash before the write naming it
-(`keepFile`). A sign-out moves the cache's generation, so a download begun
+over its bridge (`readFile`), as the type it was kept or served as. A sign-out moves the cache's generation, so a download begun
 before it lands nothing.
 
 ## Sharing to the phone
@@ -179,7 +175,7 @@ sign-in form never flashes over a device that is signed in.
   `/v1` request carries, the sign-in store, the file cache
   (the thumbnail, the generation), the editor page's native end (every frame
   kind to its port, a foreign document's, another load's and a malformed frame
-  dropped, a flush held until the page answers, the load policy), the item
+  dropped, the load policy), the item
   page's ports, the share payload and the shares' outbox, and the Library's
   query. Unit tests, no device.
   `tools/e2e/src/scenarios/phone-offline-share.ts`, `phone-save-hosted.ts` and
@@ -312,7 +308,7 @@ which lasts 60 days from its last use: the reviewer signs in, never signs up.
 4. Keep the address and the password in `.release/` (gitignored), and enter
    them as Test Information's Beta App Review sign-in, with these notes:
    > Sign in with the account above; its items are already there. What the
-   > phone last read opens offline; saving, editing and the agent need a
+   > phone last read opens offline; saving and the agent need a
    > connection. A link shared from another app while offline waits on the
    > phone until it is back online, and the page is then read in the cloud.
 5. Each review signs in as a new session. An account keeps 20, a sign-in
@@ -340,7 +336,7 @@ published, 4 to 6 once the Mac app and the extension are out.
 
    > Sign in with your Inteligir account's email and password. Your library
    > arrives, and what you last read opens offline. Save a link from the share
-   > sheet, edit a note here and see it on your Mac, and add a photo. Take a
+   > sheet, write a note on your Mac and read it here, and add a photo. Take a
    > screenshot to send us feedback.
 
    Each version's first build for the group goes through Beta App Review

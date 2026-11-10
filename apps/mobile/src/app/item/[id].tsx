@@ -1,23 +1,15 @@
-// An item in the editor page, by its id, over the account's library: its blocks drawn and edited by
-// the desktop's editor through the touch kit, a pause's edits written to the cloud, and read-only
-// while there is no connection. The menu opens the page it was saved from, its Info, a
-// conversation about it with the built-in agent, and Delete, which moves it to Deleted on every
-// device.
+// An item in the editor page, by its id, over the account's library: its blocks drawn by the
+// desktop's editor through the touch kit, read-only on the phone, as the cloud holds them or as the
+// phone last read them. The menu opens the page it was saved from, its Info, a conversation about
+// it with the built-in agent, and Delete, which moves it to Deleted on every device.
 
-import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
-import type { NativeStackNavigationProp } from "expo-router";
-import {
-  useHeaderHeight,
-  useNavigationState,
-  usePreventRemove,
-} from "expo-router/react-navigation";
-import type { ParamListBase } from "expo-router/react-navigation";
+import { router, Stack, useLocalSearchParams, useRoute } from "expo-router";
+import { useHeaderHeight, useNavigationState } from "expo-router/react-navigation";
 import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
 import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
 import { shownTitle } from "@repo/contract/items/item-name";
@@ -40,9 +32,6 @@ const EVERY_ORIGIN = ["*"];
 // back
 const RELEASE_DEPTH = 2;
 
-const focusOf = (value: string | null): ItemInit["focus"] =>
-  value === "title" || value === "body" ? value : null;
-
 const depthOf = (routes: readonly { key: string }[], key: string): number => {
   const index = routes.findIndex((route) => route.key === key);
   return index === -1 ? 0 : routes.length - 1 - index;
@@ -63,13 +52,17 @@ const followVerdict = (verdict: LoadVerdict): boolean => {
   return verdict.kind === "allow";
 };
 
+// a link the person followed in the page opens its item on the native stack
+const followLink = (event: EditorPageEvent): void => {
+  openItem(event.itemId);
+};
+
 const ItemScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
-  const params = useLocalSearchParams<{ id: string; focus?: string | string[] }>();
+  const params = useLocalSearchParams<{ id: string }>();
   const itemId = firstParam(params.id) ?? "";
   const route = useRoute();
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const depth = useNavigationState((state) => depthOf(state.routes, route.key));
   const { newId, queries } = useLibrary();
   const queryClient = useQueryClient();
@@ -83,64 +76,9 @@ const ItemScreen = () => {
       },
     }),
   );
-  // the page's own word on why its last write did not land
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [released, setReleased] = useState(false);
-
-  const onEvent = (event: EditorPageEvent): void => {
-    switch (event.type) {
-      case "editorState": {
-        setSaveError(event.saveError);
-        return;
-      }
-      case "openItem": {
-        openItem(event.itemId);
-        break;
-      }
-      // no default
-    }
-  };
-  const { host, source } = useItemEditor(
-    { focus: focusOf(firstParam(params.focus)), itemId },
-    onEvent,
-  );
+  const { host, source } = useItemEditor({ itemId }, followLink);
   const { attach: attachView } = host;
-
-  usePreventRemove(saveError !== null, ({ data }) => {
-    const leave = (): void => {
-      navigation.dispatch(data.action);
-    };
-    void (async () => {
-      if (saveError === null || (await host.flush())) {
-        leave();
-        return;
-      }
-      Alert.alert("Leave without saving?", saveError, [
-        { style: "cancel", text: "Stay" },
-        { onPress: leave, style: "destructive", text: "Discard edits" },
-      ]);
-    })();
-  });
-
-  // two items deep, the page writes what it holds and lets its WebView go
-  const deep = depth >= RELEASE_DEPTH;
-  useEffect(() => {
-    if (!deep) {
-      return;
-    }
-    let live = true;
-    void (async () => {
-      const flushed = await host.flush();
-      if (live && flushed) {
-        setReleased(true);
-      }
-    })();
-    return () => {
-      live = false;
-      setReleased(false);
-    };
-  }, [deep, host]);
 
   const moveToDeleted = (): void => {
     if (!onlineManager.isOnline()) {
@@ -155,7 +93,6 @@ const ItemScreen = () => {
         {
           onPress: () => {
             void (async () => {
-              await host.flush();
               try {
                 await remove.mutateAsync({ ids: [itemId], opId: newId() });
                 router.back();
@@ -189,7 +126,7 @@ const ItemScreen = () => {
     body = (
       <Text className="px-6 py-24 text-center text-16 text-muted-foreground">{UNREACHABLE}</Text>
     );
-  } else if (!released) {
+  } else if (depth < RELEASE_DEPTH) {
     body = (
       <WebView
         ref={attachView}
@@ -208,7 +145,6 @@ const ItemScreen = () => {
           host.reload();
         }}
         hideKeyboardAccessoryView
-        keyboardDisplayRequiresUserAction={false}
         allowsLinkPreview={false}
         dataDetectorTypes="none"
         decelerationRate="normal"
@@ -249,10 +185,7 @@ const ItemScreen = () => {
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             onPress={() => {
-              void (async () => {
-                await host.flush();
-                openAgent(undefined, itemId);
-              })();
+              openAgent(undefined, itemId);
             }}
           >
             Ask the agent
