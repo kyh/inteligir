@@ -27,7 +27,9 @@ written and cited.
   VIEW IS ONE POLICY.** The page asks the library through actions native
   answers from the account's runtime, each argument and answer JSON, a file's
   bytes base64 and a refusal an Error carrying its message
-  (`apps/mobile/src/editor/note-actions.ts`); native tells the page a few
+  (`apps/mobile/src/editor/note-actions.ts`, typed by
+  `apps/mobile/src/editor/page/library-actions.ts`, which native code and the
+  e2e read without the editor's graph); native tells the page a few
   primitive props, sent again on every render: the item, the cloud's origin,
   whether there is a connection, a count of the items that moved and a leave's
   ask (`apps/mobile/src/editor/page/page-host.ts`). A production page inserts
