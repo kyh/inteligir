@@ -4,34 +4,32 @@
 // item by id, and opening it opens that item; an embed draws the item's blocks as the cell holds
 // them; a file a note names by its sha is drawn from the cloud's own route, and one pasted or
 // dropped into the text is sent up there before the edit that names it; a note the editor makes (an
-// extract, a link's Create) is made in the open item's folder. The library's titles a link and the
-// `[[` picker read reach the editor from the page's own query of them.
+// extract, a link's Create) is the page's to make, in the open item's folder. The library's titles a
+// link and the `[[` picker read reach the editor from the page's own query of them.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { isOrpcError, NotFoundError } from "@repo/contract/v1/errors";
 import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost } from "@repo/editor/host-io";
-import type { EditorHostIo } from "@repo/editor/host-io";
+import type { EditorHostIo, ItemActions } from "@repo/editor/host-io";
 import { onlineManager } from "@tanstack/react-query";
 
 import { readFile, uploadFile } from "../cloud/library-files";
 import type { FileCloud } from "../cloud/library-files";
 import type { LibrarySocket } from "../cloud/use-library-socket";
 import type { CloudWire } from "../cloud/v1";
-import { newId } from "../library/new-id";
 
-// what a link, Ask the agent and a tag do on the page
+// what a link, Ask the agent, a tag and a note the editor makes do on the page
 interface PageEditorActions {
   readonly openItem: (itemId: string) => void;
   readonly askAgent: (selection: string) => void;
   readonly showTag: (tag: string) => void;
+  readonly createNote: ItemActions["createNote"];
 }
 
 interface PageEditorHost {
-  // the item the editor shows now, whose folder a note it makes lands in; null over the library
-  readonly showing: (itemId: string | null) => void;
   // the host is installed before an open item first renders, which is before the workspace's
-  // effects can hand it these; until they are bound, a press does nothing
+  // effects can hand it these; until they are bound, a press does nothing and no note is made
   readonly bind: (actions: PageEditorActions | null) => void;
 }
 
@@ -55,7 +53,6 @@ const orNone = async <T>(read: Promise<T>): Promise<T | null> => {
 
 export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost => {
   const { client } = ports.wire;
-  let showing: string | null = null;
   let actions: PageEditorActions | null = null;
 
   const io: EditorHostIo = {
@@ -101,18 +98,10 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       },
       items: {
         createNote: async (note) => {
-          const beside =
-            showing === null ? null : await orNone(client.library.items.row({ id: showing }));
-          const { item } = await client.library.items.create({
-            blocks: note.blocks.map((block) => ({ block, section: "note" })),
-            folderId: beside?.fields.folderId ?? null,
-            id: newId(),
-            opId: crypto.randomUUID(),
-            savedAt: Date.now(),
-            tags: [],
-            title: note.title,
-          });
-          return item.id;
+          if (actions === null) {
+            throw new Error("The note couldn't be made.");
+          }
+          return await actions.createNote(note);
         },
       },
     },
@@ -122,9 +111,6 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   return {
     bind: (next) => {
       actions = next;
-    },
-    showing: (itemId) => {
-      showing = itemId;
     },
   };
 };

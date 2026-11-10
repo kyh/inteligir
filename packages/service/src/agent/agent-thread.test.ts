@@ -1,13 +1,15 @@
 // A conversation's object over the scripted Messages API (packages/service/messages-service.ts),
 // driven by its account's real cell: a turn's model calls and tool calls replayed as Claude
 // returned them, its progress notes, its transcript kept across a second wake, its recovery when
-// its instance dies mid-call or mid-tool, its approvals, its cancel, two conversations at once,
-// Claude refusing or failing, a turn ended at its last step, a compaction on the server, and a
-// deploy's definition taken up between turns. Every case ends with the fake having
-// dropped no replayed thinking block, the proof that what the thread replays is what Claude sent.
+// its instance dies mid-call or mid-tool, its approvals, its cancel, a denial then a stop, two
+// conversations at once, Claude refusing or failing, a turn ended at its last step, a compaction
+// on the server, a delete mid-reply, and a deploy's definition taken up between turns. Every case
+// ends with the fake having dropped no replayed thinking block, the proof that what the thread
+// replays is what Claude sent.
 // The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
 // stepped by hand (`../test-support/thread-host`).
 
+import { toolCalls } from "@repo/db/thread/schema";
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +25,7 @@ import {
   script,
   settled,
   storedTypes,
+  threadHolds,
   threadOf,
   threadRows,
   threadStatus,
@@ -34,7 +37,7 @@ import { inSteppedThread } from "../test-support/thread-host";
 import { pricesOf, priceUsage, usageReportSchema } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
 import { AGENT_MAX_STEPS, AGENT_MODEL } from "./library-agent";
-import { cutSilentCalls, requestCancel } from "./thread-loop";
+import { cutSilentCalls, decideCall, requestCancel } from "./thread-loop";
 import type { ThreadHost } from "./thread-loop";
 import {
   agentRequest,
@@ -1004,6 +1007,33 @@ describe("a conversation's loop, stepped", () => {
   );
 
   it(
+    "stops at once for a conversation deleted mid-reply, writing nothing and asking nothing more",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      const before = await fakeStats();
+      await inSteppedThread(account, threadId, script("stall"), async ({ asked, host, run }) => {
+        const resting = run();
+        await vi.waitFor(
+          async () => {
+            const { held } = await fakeStats();
+            expect(held).toBe(before.held + 1);
+          },
+          { interval: 50, timeout: 10_000 },
+        );
+        await host.purge();
+        await expect(resting).resolves.toStrictEqual(["continue", "purged"]);
+        await expect(run()).resolves.toStrictEqual([]);
+        expect(asked.drives).toStrictEqual([]);
+      });
+      const after = await fakeStats();
+      expect(after.requests).toBe(before.requests + 1);
+      await expect(threadHolds(account.accountId, threadId)).resolves.toBe(false);
+    },
+  );
+
+  it(
     "hears a reply as its bytes arrive, so one still streaming is never cut",
     // the fake streams 4,000 characters slowly on purpose, and the wait for its bytes allows 10 s
     { timeout: TURN_MS },
@@ -1216,5 +1246,46 @@ describe("a conversation's loop, stepped", () => {
     const listed = await asLaptop(account, async (client) => await client.items.list({}));
     expect(listed.items).toHaveLength(1);
     await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+  });
+
+  it("tells Claude the person's no and their words for a call they denied, then stopped", async () => {
+    const account = agentAccount();
+    const threadId = crypto.randomUUID();
+    const itemId = await noteIn(account, "Kept.");
+    const declined = "The person declined this, so it did not run. Keep it.";
+    await inSteppedThread(
+      account,
+      threadId,
+      script(`call delete_items {"ids":["${itemId}"]}`),
+      async ({ host, run }) => {
+        await expect(restsAt(run)).resolves.toBe("paused");
+        const [toolUseId] = host.db
+          .select({ toolUseId: toolCalls.toolUseId })
+          .from(toolCalls)
+          .all()
+          .map((row) => row.toolUseId);
+        await expect(
+          decideCall(host, {
+            approved: false,
+            by: "person",
+            reason: "Keep it.",
+            toolUseId: toolUseId ?? "",
+          }),
+        ).resolves.toBe(true);
+        // stopped before the round that would have answered the denial ran
+        requestCancel(host, 1);
+        await run();
+      },
+    );
+    const transcript = await transcriptOf(account, threadId);
+    expect(z.json().parse(JSON.parse(transcript.at(-1)?.content ?? "null"))).toStrictEqual([
+      expect.objectContaining({ content: declined, is_error: true, type: "tool_result" }),
+    ]);
+    const results = await eventsOf(account, threadId, "agent.tool_result");
+    expect(results.map(({ event }) => event)).toStrictEqual([
+      expect.objectContaining({ isError: true, summary: declined }),
+    ]);
+    await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
+    await expect(isDeleted(account, itemId)).resolves.toBe(false);
   });
 });

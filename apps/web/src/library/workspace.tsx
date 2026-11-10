@@ -23,9 +23,9 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import {
@@ -35,6 +35,8 @@ import {
   useSocket,
   useWire,
 } from "./cloud/library-context";
+import { cellStanding } from "./cloud/needs-connection";
+import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
@@ -48,6 +50,7 @@ import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialog
 import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
+import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
 import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
@@ -83,6 +86,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const cloud = useCloud();
   const socket = useSocket();
   const queries = useLibraryQueries();
+  const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
@@ -91,11 +95,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
   const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  // the agent's composer holds Tidy my library's request, on a conversation of its own
-  const [tidying, setTidying] = useState(false);
-  // a passage the editor asked the agent about, until the composer takes it
-  const [passage, setPassage] = useState<string | null>(null);
+  const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -135,17 +135,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   };
 
   const startTidy = (): void => {
-    setThreadId(null);
-    setTidying(true);
+    dispatchComposer({ kind: "tidy" });
     revealPanel("agent");
-  };
-
-  // a conversation chosen while a Tidy waits to be sent lets the Tidy go
-  const chooseThread = (next: string | null): void => {
-    setThreadId(next);
-    if (next !== null) {
-      setTidying(false);
-    }
   };
   // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
@@ -153,9 +144,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // the editor's host, made once for the page: links open items, a note the editor makes lands
   // beside the item open now, and "Ask the agent" quotes the passage in the panel's composer
   const hostAsksAgent = useEffectEvent((asked: string) => {
-    setTidying(false);
     revealPanel("agent");
-    setPassage(asked);
+    dispatchComposer({ kind: "asked", passage: asked });
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -164,12 +154,23 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     storeScope({ kind: "tag", tag });
     open(null);
   });
+  // in the folder of the item open now, whose row its view has read
+  const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
+    const beside =
+      openItem === null ? undefined : queryClient.getQueryData(queries.item(openItem).queryKey);
+    return await verbs.createNote({ folderId: beside?.fields.folderId ?? null, tags: [] }, made);
+  });
   // installed as the workspace first renders: an open item's editor reads the host as it renders,
   // and the workspace's effects run after its children's first render
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
   useEffect(() => {
-    host.bind({ askAgent: hostAsksAgent, openItem: hostOpens, showTag: hostShowsTag });
+    host.bind({
+      askAgent: hostAsksAgent,
+      createNote: hostMakesNote,
+      openItem: hostOpens,
+      showTag: hostShowsTag,
+    });
     return () => {
       host.bind(null);
     };
@@ -189,9 +190,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     [leave, note],
   );
 
-  useEffect(() => {
-    host.showing(openItem);
-  }, [host, openItem]);
   useEffect(() => {
     // a search's find waits for the item it opened, and for no other
     if (findRef.current !== null && findRef.current.itemId !== openItem) {
@@ -398,17 +396,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     })();
   };
 
-  const refreshCall = useMutation(
-    wire.orpc.library.items.refresh.mutationOptions({
-      onError: (cause) => {
-        toast.error(refusalText(cause, "The page couldn't be read again."));
-      },
-      onSuccess: () => {
-        toast.success("Reading the page again.");
-      },
-    }),
-  );
-
   const purge = (ids: readonly string[]): void => {
     void (async () => {
       if (
@@ -486,7 +473,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       purge(rows.map((row) => row.id));
     },
     refresh: (row) => {
-      refreshCall.mutate({ id: row.id });
+      verbs.refresh(row.id);
     },
     remove: (rows) => {
       removeItems(rows.map((row) => row.id));
@@ -587,14 +574,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     scope={scope}
                     title={scopeTitle(scope, folders)}
                     listing={{
-                      failure: listing.error,
                       more: () => {
                         if (listing.hasNextPage && !listing.isFetchingNextPage) {
                           void listing.fetchNextPage();
                         }
                       },
-                      paused: listing.fetchStatus === "paused",
-                      view,
+                      standing: cellStanding({
+                        data: view,
+                        error: listing.error,
+                        fetchStatus: listing.fetchStatus,
+                      }),
                     }}
                     kind={kind}
                     onKindChange={setKind}
@@ -652,16 +641,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   itemId={panelItem}
                   tab={tab}
                   onTab={setTab}
-                  threadId={threadId}
-                  onThread={chooseThread}
-                  tidying={tidying}
-                  onTidyEnd={() => {
-                    setTidying(false);
-                  }}
-                  passage={passage}
-                  onPassageTaken={() => {
-                    setPassage(null);
-                  }}
+                  composer={composer}
+                  dispatchComposer={dispatchComposer}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     if (noteRef.current !== null) {

@@ -1,7 +1,9 @@
 // A conversation's loop stepped by hand (`../agent/thread-loop`), over the object's own storage,
-// its real cell and the scripted Messages API, with the jobs it asks for kept in place of
-// Lifecycle's queue: a retry it times for later, an approval's ten minutes, are each run at once
-// by the suite, so what a deployed thread waits seconds or minutes for is a step away. The cell
+// its real cell and the scripted Messages API, its drive moved as the object moves its own
+// (`../agent/thread-drive`), with the jobs it asks for kept in place of Lifecycle's queue: a retry
+// it times for later, an approval's ten minutes, are each run at once by the suite, so what a
+// deployed thread waits seconds or minutes for is a step away; a purge cuts the call in flight and
+// deletes what the thread keeps, as the object's does. The cell
 // holds the thread and its open turn as a send leaves them; the delivery is the one the cell would
 // hand over, the library's filing rules and the last push the cell landed of the thread with it,
 // and the next turn is handed over the same way once the last has sealed. A suite may
@@ -17,8 +19,10 @@ import { z } from "zod";
 import type { AgentThreadDO } from "../agent/agent-thread";
 import { anthropicClient } from "../agent/anthropic-client";
 import { threadDbOf } from "../agent/thread-db";
+import { cutCall, nextDrive, RESTING } from "../agent/thread-drive";
+import type { Drive, DriveEffect, DriveEvent, StepResult } from "../agent/thread-drive";
 import { acceptDelivery, listeningFetch, rulesHashOf, step } from "../agent/thread-loop";
-import type { CallInFlight, StepResult, ThreadCell, ThreadHost } from "../agent/thread-loop";
+import type { CallInFlight, ThreadCell, ThreadHost } from "../agent/thread-loop";
 import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
 import { turnUserMessage } from "../agent/turn-message";
@@ -106,6 +110,12 @@ export const inSteppedThread = async <T>(
       const calls = new Map<number, CallInFlight>();
       const sent: string[] = [];
       const listening = listeningFetch(calls, Date.now);
+      let drive: Drive = RESTING;
+      const move = (event: DriveEvent): DriveEffect => {
+        const { drive: after, effect } = nextDrive(drive, event);
+        drive = after;
+        return effect;
+      };
       const host: ThreadHost = {
         calls,
         cell: () => options.cell?.(real()) ?? real(),
@@ -134,7 +144,12 @@ export const inSteppedThread = async <T>(
         },
         now: Date.now,
         purge: async () => {
-          await state.storage.deleteAll();
+          if (move({ kind: "purge" }) === "purge") {
+            for (const call of calls.values()) {
+              cutCall(call.abort, "purged");
+            }
+            await state.storage.deleteAll();
+          }
         },
         threadId,
         transaction: (run) => state.storage.transactionSync(run),
@@ -177,12 +192,15 @@ export const inSteppedThread = async <T>(
       };
       const run = async (most = 40): Promise<StepResult[]> => {
         const results: StepResult[] = [];
-        for (let at = 0; at < most; at += 1) {
+        let effect: DriveEffect = move({ kind: "kick" }) === "start" ? "step" : "none";
+        while (effect === "step" && results.length < most) {
           const result = await step(host);
           results.push(result);
-          if (result !== "continue") {
-            return results;
-          }
+          effect = move({ kind: "stepped", result });
+        }
+        if (effect === "step") {
+          // stopped at `most`, the suite runs it again as a timed retry would
+          move({ kind: "stepped", result: "later" });
         }
         return results;
       };

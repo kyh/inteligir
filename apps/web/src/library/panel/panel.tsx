@@ -6,6 +6,7 @@ import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { z } from "zod";
 
+import type { ComposerEvent, ComposerState } from "../agent/agent-composer";
 import { AgentPanel } from "../agent/agent-panel";
 import { InfoTab } from "./info-tab";
 import type { InfoActions } from "./info-tab";
@@ -19,17 +20,12 @@ export interface PanelProps {
   readonly itemId: string | null;
   readonly tab: PanelTab;
   readonly onTab: (tab: PanelTab) => void;
-  readonly threadId: string | null;
-  readonly onThread: (threadId: string | null) => void;
+  readonly composer: ComposerState;
+  readonly dispatchComposer: (event: ComposerEvent) => void;
   readonly viewContext: () => AgentViewContext | undefined;
   readonly infoActions: InfoActions;
   // waits for the open note to store what was typed in it, which an undo does first
   readonly flushOpen: () => Promise<void>;
-  // the agent's composer holds Tidy my library's request
-  readonly tidying: boolean;
-  readonly onTidyEnd: () => void;
-  readonly passage: string | null;
-  readonly onPassageTaken: () => void;
 }
 
 const NoItem = () => (
@@ -40,15 +36,11 @@ export const Panel = ({
   itemId,
   tab,
   onTab,
-  threadId,
-  onThread,
+  composer,
+  dispatchComposer,
   viewContext,
   infoActions,
   flushOpen,
-  tidying,
-  onTidyEnd,
-  passage,
-  onPassageTaken,
 }: PanelProps) => (
   <Tabs
     value={tab}
@@ -69,14 +61,10 @@ export const Panel = ({
     </TabsContent>
     <TabsContent value="agent" className="flex min-h-0 flex-1 flex-col">
       <AgentPanel
-        threadId={threadId}
-        onThread={onThread}
+        composer={composer}
+        dispatch={dispatchComposer}
         viewContext={viewContext}
         flushOpen={flushOpen}
-        tidying={tidying}
-        onTidyEnd={onTidyEnd}
-        passage={passage}
-        onPassageTaken={onPassageTaken}
       />
     </TabsContent>
   </Tabs>

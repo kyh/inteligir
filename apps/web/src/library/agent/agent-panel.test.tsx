@@ -15,6 +15,7 @@ import { z } from "zod";
 import { PausedWrites } from "../cloud/needs-connection";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
+import type { ComposerEvent } from "./agent-composer";
 import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
@@ -66,14 +67,10 @@ const panel = (
   threadId: string | null = THREAD,
 ) => (
   <AgentPanel
-    threadId={threadId}
-    onThread={vi.fn<(threadId: string | null) => void>()}
+    composer={{ kind: "asking", passage: null, threadId }}
+    dispatch={vi.fn<(event: ComposerEvent) => void>()}
     viewContext={() => {}}
     flushOpen={flushOpen}
-    tidying={false}
-    onTidyEnd={vi.fn<() => void>()}
-    passage={null}
-    onPassageTaken={vi.fn<() => void>()}
   />
 );
 
@@ -360,6 +357,37 @@ describe("the agent panel's conversation", () => {
         { changeSetIds: ["s2", "s1"] },
       ]);
     });
+  });
+
+  it("offers no Undo until every page of the conversation's sets is read, then every one", async () => {
+    const older = Promise.withResolvers<null>();
+    const { calls, library } = fakePageLibrary({
+      answer: async ({ path, input }) => {
+        if (path !== "library.history.list") {
+          return UNDONE;
+        }
+        if (!JSON.stringify(input).includes('"cursor":"1"')) {
+          return { changeSets: [set("s2", 2)], cursor: "1" };
+        }
+        await older.promise;
+        return { changeSets: [set("s1", 1)], cursor: null };
+      },
+      events: twoFinishedTurns,
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    // the newest page is in, the older one asked: no turn's Undo yet, since one turn offering its
+    // own while the conversation's waits is half a list
+    await waitFor(() => {
+      expect(callsTo(calls, "library.history.list")).toHaveLength(2);
+    });
+    expect(document.querySelectorAll("[data-turn-ended]")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
+    older.resolve(null);
+    const { turn, whole } = await twoTurnsDrawn();
+    expect(heldDown(turn)).toBe(false);
+    expect(heldDown(whole)).toBe(false);
   });
 
   it("takes back the turn the list on screen has yet to show", async () => {
@@ -888,35 +916,31 @@ describe("the agent panel's conversation", () => {
   });
 
   it("sends Tidy my library from Unsorted, with nothing typed, and lets the request go once sent", async () => {
-    const onThread = vi.fn<(threadId: string | null) => void>();
-    const onTidyEnd = vi.fn<() => void>();
+    const dispatch = vi.fn<(event: ComposerEvent) => void>();
     const { calls, library } = fakePageLibrary({
       answer: () => ({ status: "running", threadId: THREAD }),
     });
     renderOnLibrary(
       <AgentPanel
-        threadId={null}
-        onThread={onThread}
+        composer={{ kind: "tidying" }}
+        dispatch={dispatch}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
         flushOpen={vi.fn<() => Promise<void>>(async () => {
           await Promise.resolve();
         })}
-        tidying
-        onTidyEnd={onTidyEnd}
-        passage={null}
-        onPassageTaken={vi.fn<() => void>()}
       />,
       library,
     );
     expect(screen.getByText(TIDY_LABEL)).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    // the conversation it went to, which lets the Tidy go (`./agent-composer`)
     await waitFor(() => {
-      expect(onThread).toHaveBeenCalledWith(THREAD);
+      expect(dispatch).toHaveBeenCalledWith({ kind: "chose", threadId: THREAD });
     });
     expect(callsTo(calls, "library.agent.send")).toStrictEqual([
       { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
     ]);
-    expect(onTidyEnd).toHaveBeenCalledOnce();
+    expect(dispatch).toHaveBeenCalledOnce();
   });
 
   it("sends Tidy my library as a new conversation from Unsorted, with what the person adds, whatever is open", async () => {
@@ -930,16 +954,12 @@ describe("the agent panel's conversation", () => {
     });
     renderOnLibrary(
       <AgentPanel
-        threadId={THREAD}
-        onThread={vi.fn<(threadId: string | null) => void>()}
+        composer={{ kind: "tidying" }}
+        dispatch={vi.fn<(event: ComposerEvent) => void>()}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
         flushOpen={vi.fn<() => Promise<void>>(async () => {
           await Promise.resolve();
         })}
-        tidying
-        onTidyEnd={vi.fn<() => void>()}
-        passage={null}
-        onPassageTaken={vi.fn<() => void>()}
       />,
       library,
     );

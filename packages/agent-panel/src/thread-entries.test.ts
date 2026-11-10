@@ -6,22 +6,23 @@ import { describe, expect, it } from "vitest";
 import {
   answerWords,
   approvalWords,
+  conversationOf,
   endingWords,
   isUnderWay,
   isWorking,
   sendRefusalWords,
   statusWords,
   readsOnly,
-  threadBlocks,
-  threadEntries,
   toolWords,
-  waitingApprovals,
   workWords,
 } from "./thread-entries";
+import type { ThreadBlock } from "./thread-entries";
 
 const THREAD = "0199a4c2-0000-7000-8000-000000000001";
 
-const row = (idx: number, event: z.infer<typeof threadEventRowSchema>["event"]) => ({
+type StoredEvent = z.infer<typeof threadEventRowSchema>["event"];
+
+const row = (idx: number, event: StoredEvent) => ({
   at: 1_790_000_000_000 + idx,
   event,
   eventId: `${THREAD}:1:${String(idx)}`,
@@ -29,6 +30,10 @@ const row = (idx: number, event: z.infer<typeof threadEventRowSchema>["event"]) 
   threadId: THREAD,
   type: "x",
 });
+
+// a conversation of `events`, stored in the order given
+const conversation = (...events: readonly StoredEvent[]) =>
+  conversationOf(events.map((event, idx) => row(idx, event)));
 
 const asked = {
   input: { ids: ["item-1"] },
@@ -38,37 +43,82 @@ const asked = {
   until: 9,
 };
 
+const answered = (by: string, result: string) => ({
+  by,
+  result,
+  toolUseId: "t1",
+  type: "approval.answered",
+});
+
+const ended = (reason: string) => ({ reason, turn: 1, type: "turn.ended" });
+
+const used = (toolUseId: string, name = "search_library") => ({
+  input: {},
+  name,
+  toolUseId,
+  type: "agent.tool_use",
+});
+
+const result = (toolUseId: string, isError = false, summary = "[]") => ({
+  isError,
+  summary,
+  toolUseId,
+  type: "agent.tool_result",
+});
+
 // the approval waiting on a call of `name` with `input`
 const askedFor = (name: string, input: z.infer<ReturnType<typeof z.json>>) => {
-  const [approval] = waitingApprovals(threadEntries([row(0, { ...asked, input, name })]));
+  const [approval] = conversation({ ...asked, input, name }).waiting;
   if (approval === undefined) {
     throw new Error("no approval is waiting");
   }
   return approval;
 };
 
+const typesOf = (blocks: readonly ThreadBlock[]) =>
+  blocks.map((block) => (block.kind === "entry" ? block.entry.event.type : "work"));
+
+// every call the conversation's runs of work show, by its id, as it stands
+const usesOf = (blocks: readonly ThreadBlock[]) =>
+  blocks.flatMap((block) => (block.kind === "work" ? block.uses : []));
+
 const noTitles = (): null => null;
 
 describe("a thread's entries", () => {
   it("reads the stored events in order and skips one this build cannot parse", () => {
-    const entries = threadEntries([
+    const { blocks } = conversationOf([
       row(2, { text: "Done.", type: "agent.message" }),
       row(0, { text: "File these.", type: "user.message" }),
       row(1, { kind: "from a newer cell", type: "agent.future" }),
     ]);
-    expect(entries.map(({ event }) => event.type)).toStrictEqual(["user.message", "agent.message"]);
+    expect(typesOf(blocks)).toStrictEqual(["user.message", "agent.message"]);
   });
 
   it("names the approval still waiting by the event that asked, until it is answered", () => {
-    const waiting = threadEntries([row(0, asked)]);
-    expect(waitingApprovals(waiting)).toStrictEqual([
-      { ask: { ids: ["item-1"], kind: "delete" }, eventId: `${THREAD}:1:0`, until: 9 },
+    expect(conversation(asked).waiting).toStrictEqual([
+      { ask: { ids: ["item-1"], kind: "delete" }, eventId: `${THREAD}:1:0` },
     ]);
-    const answered = threadEntries([
-      row(0, asked),
-      row(1, { by: "person", result: "allow", toolUseId: "t1", type: "approval.answered" }),
-    ]);
-    expect(waitingApprovals(answered)).toStrictEqual([]);
+    const settled = conversation(asked, answered("person", "allow"));
+    expect(settled.waiting).toStrictEqual([]);
+    expect(typesOf(settled.blocks)).toStrictEqual(["approval.answered"]);
+  });
+
+  it("lapses a question its turn ended without an answer to, so no card is left up", () => {
+    const stopped = conversation(asked, ended("cancelled"));
+    expect(stopped.waiting).toStrictEqual([]);
+    expect(typesOf(stopped.blocks)).toStrictEqual(["turn.ended"]);
+    // an answer after the turn ended draws nothing: the question had lapsed
+    expect(
+      typesOf(conversation(asked, ended("failed"), answered("cancel", "deny")).blocks),
+    ).toStrictEqual(["turn.ended"]);
+  });
+
+  it("skips an answer before its question, and a second answer", () => {
+    const early = conversation(answered("person", "deny"), asked);
+    expect(early.blocks).toStrictEqual([]);
+    expect(early.waiting).toHaveLength(1);
+    const twice = conversation(asked, answered("person", "allow"), answered("timeout", "deny"));
+    expect(typesOf(twice.blocks)).toStrictEqual(["approval.answered"]);
   });
 
   it("says how many items a delete would move, naming those this device holds", () => {
@@ -129,12 +179,21 @@ describe("a thread's entries", () => {
     );
   });
 
-  it("says a finished run of work by its calls, and an answered approval", () => {
+  it("says a finished run of work by its calls", () => {
     expect(workWords(0)).toBe("Thought it through");
     expect(workWords(1)).toBe("Worked through 1 step");
     expect(workWords(3)).toBe("Worked through 3 steps");
-    expect(answerWords("allow")).toBe("Allowed.");
-    expect(answerWords("deny")).toBe("Declined.");
+  });
+
+  it("says who settled an approval: the person, its time running out, or the turn stopped", () => {
+    expect(answerWords({ by: "person", result: "allow" })).toBe("Allowed.");
+    expect(answerWords({ by: "person", result: "deny" })).toBe("Declined.");
+    expect(answerWords({ by: "timeout", result: "deny" })).toBe(
+      "Not answered in time, so it didn't run.",
+    );
+    expect(answerWords({ by: "cancel", result: "deny" })).toBe(
+      "Stopped before you answered, so it didn't run.",
+    );
   });
 });
 
@@ -160,28 +219,55 @@ describe("a refused send", () => {
 
 describe("a conversation's blocks", () => {
   it("draws a run of the agent's notes and calls as one block, each call with how it ended", () => {
-    const blocks = threadBlocks(
-      threadEntries([
-        row(0, { text: "File these.", type: "user.message" }),
-        row(1, { text: "Looking first.", type: "agent.progress" }),
-        row(2, { input: {}, name: "search_library", toolUseId: "a", type: "agent.tool_use" }),
-        row(3, { isError: false, summary: "[]", toolUseId: "a", type: "agent.tool_result" }),
-        row(4, { input: {}, name: "organize_items", toolUseId: "b", type: "agent.tool_use" }),
-        row(5, { isError: true, summary: "Not found.", toolUseId: "b", type: "agent.tool_result" }),
-        row(6, asked),
-        row(7, { text: "Done.", type: "agent.message" }),
-      ]),
+    const { blocks } = conversation(
+      { text: "File these.", type: "user.message" },
+      { text: "Looking first.", type: "agent.progress" },
+      used("a"),
+      result("a"),
+      used("b", "organize_items"),
+      result("b", true, "Not found."),
+      used("c", "read_item"),
+      asked,
+      { text: "Done.", type: "agent.message" },
     );
-    expect(blocks.map((block) => block.kind)).toStrictEqual(["entry", "work", "entry"]);
+    expect(typesOf(blocks)).toStrictEqual(["user.message", "work", "agent.message"]);
     const [, work] = blocks;
     expect(work?.kind === "work" ? work.notes : null).toStrictEqual([
       { eventId: `${THREAD}:1:1`, text: "Looking first." },
     ]);
-    expect(
-      work?.kind === "work" ? work.uses.map((use) => [use.name, use.failure]) : null,
-    ).toStrictEqual([
-      ["search_library", null],
-      ["organize_items", "Not found."],
+    expect(usesOf(blocks)).toStrictEqual([
+      { kind: "done", name: "search_library", toolUseId: "a" },
+      { kind: "failed", message: "Not found.", name: "organize_items", toolUseId: "b" },
+      { kind: "running", name: "read_item", toolUseId: "c" },
+    ]);
+  });
+
+  it("lands a call's result after its approval closed the run that made it", () => {
+    const { blocks } = conversation(
+      used("t1", "delete_items"),
+      used("s"),
+      asked,
+      result("s"),
+      answered("person", "allow"),
+      result("t1"),
+    );
+    expect(typesOf(blocks)).toStrictEqual(["work", "approval.answered"]);
+    expect(usesOf(blocks).map((use) => [use.toolUseId, use.kind])).toStrictEqual([
+      ["t1", "done"],
+      ["s", "done"],
+    ]);
+  });
+
+  it("skips a result before its call, and a second result", () => {
+    const { blocks } = conversation(
+      result("a", true, "Too early."),
+      used("a"),
+      result("a"),
+      result("a", true, "Again."),
+    );
+    expect(typesOf(blocks)).toStrictEqual(["work"]);
+    expect(usesOf(blocks)).toStrictEqual([
+      { kind: "done", name: "search_library", toolUseId: "a" },
     ]);
   });
 

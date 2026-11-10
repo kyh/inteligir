@@ -11,6 +11,7 @@ import {
   answerWords,
   approvalWords,
   callRefusalWords,
+  conversationOf,
   EMPTY_WORDS,
   endingWords,
   isUnderWay,
@@ -18,10 +19,7 @@ import {
   readsOnly,
   sendRefusalWords,
   statusWords,
-  threadBlocks,
-  threadEntries,
   toolWords,
-  waitingApprovals,
   workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
@@ -35,38 +33,29 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  changeSetPages,
-  everyChangeSet,
-  UNDO_SCOPE,
-  useUndoWaits,
-} from "../cloud/change-set-pages";
+import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
 import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
+import type { ComposerEvent, ComposerState } from "./agent-composer";
 import { quotePassage } from "./quote-passage";
-import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
 export interface AgentPanelProps {
-  readonly threadId: string | null;
-  readonly onThread: (threadId: string | null) => void;
+  // the conversation shown and what the composer holds, which the workspace keeps
+  readonly composer: ComposerState;
+  readonly dispatch: (event: ComposerEvent) => void;
   // the screen the next message leaves from, read as it is sent
   readonly viewContext: () => AgentViewContext | undefined;
   // writes what the open item holds unsaved, so an undo meets the item as the person sees it
   readonly flushOpen: () => Promise<void>;
-  // the composer holds Tidy my library's request, until it is sent or dropped
-  readonly tidying: boolean;
-  readonly onTidyEnd: () => void;
-  // a passage the person asked the agent about, waiting for the composer to quote it
-  readonly passage: string | null;
-  readonly onPassageTaken: () => void;
 }
 
 const EntryRow = ({
@@ -97,7 +86,7 @@ const EntryRow = ({
         />
       );
     }
-    // a run of work and an asked approval draw as blocks of their own (`threadBlocks`)
+    // a run of work and an asked approval draw as blocks of their own (`conversationOf`)
     case "agent.progress":
     case "agent.tool_use":
     case "agent.tool_result":
@@ -105,7 +94,7 @@ const EntryRow = ({
       return null;
     }
     case "approval.answered": {
-      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event.result)}</p>;
+      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event)}</p>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -129,10 +118,10 @@ const ToolRow = ({ use }: { use: ToolUse }) => (
   <ToolChip
     icon={readsOnly(use.name) ? "read" : "write"}
     label={toolWords(use.name)}
-    chip={use.answered ? "" : "…"}
-    failed={use.failure !== null}
+    chip={use.kind === "running" ? "…" : ""}
+    failed={use.kind === "failed"}
   >
-    {use.failure === null ? null : <ToolChipDetail>{use.failure}</ToolChipDetail>}
+    {use.kind === "failed" ? <ToolChipDetail>{use.message}</ToolChipDetail> : null}
   </ToolChip>
 );
 
@@ -217,6 +206,11 @@ const onRefused = (cause: unknown): void => {
   toast.error(callRefusalWords(cause));
 };
 
+// read as the send fails, since the allowance's words name when it fills again from now
+const onSendRefused = (cause: unknown): void => {
+  toast.error(sendRefusalWords(cause, Date.now()));
+};
+
 const Conversation = ({
   threadId,
   flushOpen,
@@ -227,41 +221,12 @@ const Conversation = ({
   const { client, orpc } = useWire();
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
-  const stored = useQuery(queries.threadEvents(threadId));
-  const rows = stored.data?.events ?? [];
+  const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
   const thread = useQuery(queries.threads()).data?.threads.find((row) => row.id === threadId);
   const titles = useQuery(queries.titles()).data?.targets ?? [];
-  const entries = threadEntries(rows);
-  const blocks = threadBlocks(entries);
-  const waiting = waitingApprovals(entries);
+  const { blocks, waiting } = conversationOf(rows);
   const preview = useLivePreview(threadId);
-  // the conversation's sets, every page of them: each finished turn's Undo and the whole
-  // conversation's need them all
-  const setPages = changeSetPages(orpc, { threadId });
-  const sets = useInfiniteQuery(setPages);
-  // asked again after every answer, since a refetch that meets a page still being asked starts the
-  // pages over and lands as the same data
-  const { dataUpdatedAt, fetchNextPage, hasNextPage, isFetching } = sets;
-  useEffect(() => {
-    if (dataUpdatedAt > 0 && hasNextPage && !isFetching) {
-      void fetchNextPage();
-    }
-  }, [dataUpdatedAt, fetchNextPage, hasNextPage, isFetching]);
-  // a turn's change set seals in the push that ends it, so the sets are asked again as each turn
-  // ends after the conversation was read, what was read shown meanwhile
-  const ended = entries.filter((entry) => entry.event.type === "turn.ended").length;
-  const endedRead = useRef<number | null>(null);
-  const eventsRead = stored.data !== undefined;
-  const setsKey = setPages.queryKey;
-  useEffect(() => {
-    if (!eventsRead) {
-      return;
-    }
-    if (endedRead.current !== null && endedRead.current !== ended) {
-      void queryClient.invalidateQueries({ queryKey: setsKey });
-    }
-    endedRead.current = ended;
-  }, [ended, endedRead, eventsRead, queryClient, setsKey]);
+  const changeSets = useQuery(queries.changeSets(threadId)).data?.changeSets;
   const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   const undo = useMutation(
@@ -279,7 +244,6 @@ const Conversation = ({
     }),
   );
   const undoWaits = useUndoWaits();
-  const changeSets = changeSetsOf(sets.data?.pages ?? []);
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
       const kept: string[] = [];
@@ -304,15 +268,14 @@ const Conversation = ({
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {
-    const ids = turnUndo(changeSets, turn);
+    const ids = changeSets === undefined ? null : turnUndo(changeSets, turn);
     return ids === null
       ? null
       : () => {
           undoSets(ids);
         };
   };
-  // offered once every page is read
-  const whole = hasNextPage ? null : conversationUndo(changeSets);
+  const whole = changeSets === undefined ? null : conversationUndo(changeSets);
   // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
   // so that list can be a turn short of the conversation, or hold what another device took back. A
   // mutation though it writes nothing, so the press waits offline under the layout's notice and in
@@ -419,48 +382,38 @@ const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
 );
 
 const Composer = ({
-  threadId,
-  onThread,
+  composer,
+  dispatch,
   viewContext,
-  tidying,
-  onTidyEnd,
-  passage,
-  onPassageTaken,
 }: {
-  threadId: string | null;
-  onThread: (threadId: string) => void;
+  composer: ComposerState;
+  dispatch: (event: ComposerEvent) => void;
   viewContext: () => AgentViewContext | undefined;
-  tidying: boolean;
-  onTidyEnd: () => void;
-  passage: string | null;
-  onPassageTaken: () => void;
 }) => {
   const { orpc } = useWire();
   const [text, setText] = useState("");
-  const nowMs = useNow();
   const field = useRef<HTMLTextAreaElement>(null);
-  const [quoted, setQuoted] = useState<string | null>(null);
-  if (passage !== quoted) {
-    setQuoted(passage);
-    if (passage !== null) {
-      setText(quotePassage(text, passage));
-    }
+  const tidying = composer.kind === "tidying";
+  const threadId = composer.kind === "asking" ? composer.threadId : null;
+  const passage = composer.kind === "asking" ? composer.passage : null;
+  // quoted as it renders, until the composer lets the passage go: quoting it twice changes nothing
+  const quoted = passage === null ? text : quotePassage(text, passage);
+  if (quoted !== text) {
+    setText(quoted);
   }
   useEffect(() => {
     if (passage !== null) {
       field.current?.focus();
-      onPassageTaken();
+      dispatch({ kind: "quoted" });
     }
-  }, [onPassageTaken, passage]);
+  }, [dispatch, passage]);
   const send = useMutation(
     orpc.library.agent.send.mutationOptions({
-      onError: (cause) => {
-        toast.error(sendRefusalWords(cause, nowMs));
-      },
+      onError: onSendRefused,
+      // the conversation it went to, which lets a Tidy go
       onSuccess: (answer) => {
         setText("");
-        onTidyEnd();
-        onThread(answer.threadId);
+        dispatch({ kind: "chose", threadId: answer.threadId });
       },
     }),
   );
@@ -484,7 +437,15 @@ const Composer = ({
         onSend={submit}
         placeholder={tidying ? TIDY_PLACEHOLDER : composerPlaceholder(threadId)}
         sendsEmpty={tidying}
-        topSlot={tidying ? <TidyChip onDrop={onTidyEnd} /> : undefined}
+        topSlot={
+          tidying ? (
+            <TidyChip
+              onDrop={() => {
+                dispatch({ kind: "tidyEnded" });
+              }}
+            />
+          ) : undefined
+        }
         sendLabel="Send"
         minRows={2}
         maxRows={8}
@@ -496,57 +457,46 @@ const Composer = ({
   );
 };
 
-export const AgentPanel = ({
-  threadId,
-  onThread,
-  viewContext,
-  flushOpen,
-  tidying,
-  onTidyEnd,
-  passage,
-  onPassageTaken,
-}: AgentPanelProps) => (
-  <div className="flex h-full min-h-0 flex-col" data-agent-panel>
-    <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-      {threadId === null ? (
-        <span className="px-1 text-body font-medium">Conversations</span>
-      ) : (
+export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: AgentPanelProps) => {
+  const threadId = composer.kind === "asking" ? composer.threadId : null;
+  const onThread = (next: string | null): void => {
+    dispatch({ kind: "chose", threadId: next });
+  };
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-agent-panel>
+      <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+        {threadId === null ? (
+          <span className="px-1 text-body font-medium">Conversations</span>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label="All conversations"
+            onClick={() => {
+              onThread(null);
+            }}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-compact"
-          aria-label="All conversations"
+          className="ml-auto"
+          aria-label="New conversation"
           onClick={() => {
             onThread(null);
           }}
         >
-          <ArrowLeftIcon />
+          <PlusIcon />
         </Button>
+      </div>
+      {threadId === null ? (
+        <ThreadList onThread={onThread} />
+      ) : (
+        <Conversation threadId={threadId} flushOpen={flushOpen} />
       )}
-      <Button
-        variant="ghost"
-        size="icon-compact"
-        className="ml-auto"
-        aria-label="New conversation"
-        onClick={() => {
-          onThread(null);
-        }}
-      >
-        <PlusIcon />
-      </Button>
+      <Composer composer={composer} dispatch={dispatch} viewContext={viewContext} />
     </div>
-    {threadId === null ? (
-      <ThreadList onThread={onThread} />
-    ) : (
-      <Conversation threadId={threadId} flushOpen={flushOpen} />
-    )}
-    <Composer
-      threadId={threadId}
-      onThread={onThread}
-      viewContext={viewContext}
-      tidying={tidying}
-      onTidyEnd={onTidyEnd}
-      passage={passage}
-      onPassageTaken={onPassageTaken}
-    />
-  </div>
-);
+  );
+};

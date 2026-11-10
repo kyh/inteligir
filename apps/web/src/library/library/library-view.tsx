@@ -29,15 +29,11 @@ import { KindChips } from "./kind-chips";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
 import type { ListingView } from "./listing";
+import type { CellStanding } from "../cloud/needs-connection";
 
 // the scope's listing as the cell has answered it so far
 interface LibraryListing {
-  // undefined until its first page answers
-  readonly view: ListingView | undefined;
-  // its first page waits for a connection
-  readonly paused: boolean;
-  // why its first page failed, null while it has not
-  readonly failure: Error | null;
+  readonly standing: CellStanding<ListingView>;
   // the grid came near the end of what is read
   readonly more: () => void;
 }
@@ -200,28 +196,38 @@ export const LibraryView = ({
   onTidy,
 }: LibraryViewProps) => {
   const empty = emptyWords(scope);
-  const { view: page, more } = listing;
-  if (page === undefined) {
-    if (listing.paused || listing.failure !== null) {
+  const { standing, more } = listing;
+  switch (standing.kind) {
+    case "needs-connection": {
       return (
-        <p
-          className="m-0 p-4 text-body text-muted-foreground"
-          data-needs-connection={listing.paused ? "" : undefined}
-        >
-          {listing.paused
-            ? NEEDS_CONNECTION
-            : refusalText(listing.failure, "Your library couldn't be read.")}
+        <p className="m-0 p-4 text-body text-muted-foreground" data-needs-connection>
+          {NEEDS_CONNECTION}
         </p>
       );
     }
-    return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
-        {SKELETON_CARDS.map((key) => (
-          <MediaCardSkeleton key={key} />
-        ))}
-      </div>
-    );
+    case "missing":
+    case "unreachable": {
+      return (
+        <p className="m-0 p-4 text-body text-muted-foreground">
+          {refusalText(standing.error, "Your library couldn't be read.")}
+        </p>
+      );
+    }
+    case "loading": {
+      return (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
+          {SKELETON_CARDS.map((key) => (
+            <MediaCardSkeleton key={key} />
+          ))}
+        </div>
+      );
+    }
+    case "answered": {
+      break;
+    }
+    // no default
   }
+  const page = standing.data;
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
       <TopBar className="px-4">

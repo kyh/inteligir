@@ -13,6 +13,7 @@ import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops"
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { ordBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -145,6 +146,8 @@ const deletedAt = (at: number | null): Overlay => ({
 
 const deletedNow = (): Overlay => deletedAt(Date.now());
 
+const PURGED: Overlay = { item: (item) => item, row: () => null };
+
 // the rail's folders as a write leaves them: a new one listed empty, a renamed one renamed, a
 // deleted one gone with every folder under it
 const foldersAfter = (scopes: ScopesAnswer, ops: readonly FolderOp[]): ScopesAnswer => {
@@ -200,6 +203,15 @@ export interface SaveInto {
   readonly tags: readonly string[];
 }
 
+// a note's title and blocks as it is made: none for New note, or what the editor moved out of an
+// item
+export interface NoteMade {
+  readonly title: string;
+  readonly blocks: readonly LibraryBlock[];
+}
+
+const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
+
 export const useLibraryVerbs = () => {
   const { client, orpc } = useWire();
   const cloud = useCloud();
@@ -217,59 +229,60 @@ export const useLibraryVerbs = () => {
     }
   };
 
+  // a write in the library's queue, laid over the items it names the moment it is asked, put back
+  // if the cell refuses it, saying `failed` then unless its caller says its own, and read again
+  // once it settles
+  const overlaid = <I>(
+    idsOf: (input: I) => readonly string[],
+    overlayOf: (input: I) => Overlay,
+    failed: string | null = null,
+  ) => ({
+    onError: (cause: unknown, _input: I, held: Held | undefined): void => {
+      putBack(held);
+      if (failed !== null) {
+        toast.error(refusalText(cause, failed));
+      }
+    },
+    onMutate: async (input: I): Promise<Held> =>
+      await layOver(queryClient, orpc, new Set(idsOf(input)), overlayOf(input)),
+    onSettled: readAgain,
+    scope: LIBRARY_WRITES,
+  });
+
   const organize = useMutation(
-    orpc.library.items.organize.mutationOptions<Held>({
-      onError: (_cause, _input, held) => {
-        putBack(held);
-      },
-      onMutate: async (input) =>
-        await layOver(queryClient, orpc, new Set(input.ids), organizedOverlay(input)),
-      onSettled: readAgain,
-      scope: LIBRARY_WRITES,
-    }),
+    orpc.library.items.organize.mutationOptions(
+      overlaid((input: OrganizeInput) => input.ids, organizedOverlay),
+    ),
   );
   const remove = useMutation(
-    orpc.library.items.delete.mutationOptions<Held>({
-      onError: (_cause, _input, held) => {
-        putBack(held);
-      },
-      onMutate: async ({ ids }) => await layOver(queryClient, orpc, new Set(ids), deletedNow()),
-      onSettled: readAgain,
-      scope: LIBRARY_WRITES,
-    }),
+    orpc.library.items.delete.mutationOptions(
+      overlaid((input: Inputs["items"]["delete"]) => input.ids, deletedNow),
+    ),
   );
   const restore = useMutation(
-    orpc.library.items.restore.mutationOptions<Held>({
-      onError: (_cause, _input, held) => {
-        putBack(held);
-      },
-      onMutate: async ({ ids }) => await layOver(queryClient, orpc, new Set(ids), deletedAt(null)),
-      onSettled: readAgain,
-      scope: LIBRARY_WRITES,
-    }),
+    orpc.library.items.restore.mutationOptions(
+      overlaid(
+        (input: Inputs["items"]["restore"]) => input.ids,
+        () => deletedAt(null),
+      ),
+    ),
   );
   const purge = useMutation(
-    orpc.library.items.purge.mutationOptions<Held>({
-      onError: (_cause, _input, held) => {
-        putBack(held);
-      },
-      onMutate: async ({ ids }) =>
-        await layOver(queryClient, orpc, new Set(ids), { item: (item) => item, row: () => null }),
-      onSettled: readAgain,
-      scope: LIBRARY_WRITES,
-    }),
+    orpc.library.items.purge.mutationOptions(
+      overlaid(
+        (input: Inputs["items"]["purge"]) => input.ids,
+        () => PURGED,
+      ),
+    ),
   );
   const writeFields = useMutation(
-    orpc.library.write.mutationOptions<Held>({
-      onError: (cause, _input, held) => {
-        putBack(held);
-        toast.error(refusalText(cause, "That couldn't be changed."));
-      },
-      onMutate: async ({ itemId, ops }) =>
-        await layOver(queryClient, orpc, new Set([itemId]), fieldsOverlay(ops)),
-      onSettled: readAgain,
-      scope: LIBRARY_WRITES,
-    }),
+    orpc.library.write.mutationOptions(
+      overlaid(
+        (input: Inputs["write"]) => [input.itemId],
+        (input) => fieldsOverlay(input.ops),
+        "That couldn't be changed.",
+      ),
+    ),
   );
   const scopesKey = orpc.library.listing.scopes.queryKey();
   const writeFolders = useMutation(
@@ -288,6 +301,16 @@ export const useLibraryVerbs = () => {
       },
       onSettled: readAgain,
       scope: LIBRARY_WRITES,
+    }),
+  );
+  const refresh = useMutation(
+    orpc.library.items.refresh.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The page couldn't be read again."));
+      },
+      onSuccess: () => {
+        toast.success("Reading the page again. Its text lands soon.");
+      },
     }),
   );
   const create = useMutation(orpc.library.items.create.mutationOptions({ onSettled: readAgain }));
@@ -336,15 +359,15 @@ export const useLibraryVerbs = () => {
 
   return {
     addFile: async (file: File, into: SaveInto) => await addFile.mutateAsync({ file, into }),
-    // a note made with nothing in it yet, answering its id
-    createNote: async (into: SaveInto): Promise<string> => {
+    // a note made, answering its id
+    createNote: async (into: SaveInto, note: NoteMade = EMPTY_NOTE): Promise<string> => {
       const { item } = await create.mutateAsync({
-        blocks: [],
+        blocks: note.blocks.map((block) => ({ block, section: "note" })),
         folderId: into.folderId,
         id: newId(),
         savedAt: Date.now(),
         tags: [...into.tags],
-        title: "",
+        title: note.title,
       });
       return item.id;
     },
@@ -417,6 +440,10 @@ export const useLibraryVerbs = () => {
           },
         );
       }
+    },
+    // a saved page read again by the cloud's fill
+    refresh: (id: string): void => {
+      refresh.mutate({ id });
     },
     retitle: (id: string, title: string): void => {
       organize.mutate(

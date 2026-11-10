@@ -12,10 +12,11 @@ as its socket carries it.
 ## Layout
 
 - `src/thread-entries.ts` — a thread's stored events parsed by the contract's
-  own union (`@repo/contract/library/agent-events`), folded into what a
-  conversation draws (messages, runs of work, answered approvals, each turn's
-  ending), the approval still waiting and what its card says, and the person's
-  words for a tool, an ending, a refused send and a thread's state.
+  own union (`@repo/contract/library/agent-events`), folded once by
+  `conversationOf` into what a conversation draws (messages, runs of work,
+  answered approvals, each turn's ending) and the approvals still waiting,
+  what a card says, and the person's words for a tool, an ending, an answer, a
+  refused send and a thread's state.
 - `src/agent-send.ts` — what a send asks the cell: the person's words, the
   thread, and the screen they left from (`viewContextOf`), and what the field
   says before anything is typed.

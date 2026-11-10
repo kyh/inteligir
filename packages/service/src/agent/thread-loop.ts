@@ -45,6 +45,8 @@ import { asksFirst } from "./agent-tools";
 import { callFailureFields, isApiError } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import type { ThreadDb } from "./thread-db";
+import { cutCall, cutOf } from "./thread-drive";
+import type { StepResult } from "./thread-drive";
 import {
   agentRequest,
   frozenDefinition,
@@ -61,6 +63,8 @@ import type {
   TranscriptMessage,
 } from "./thread-request";
 import { pushEntrySchema } from "./thread-wire";
+import { toolCallNext, toolCallOf } from "./tool-call";
+import type { ToolCall, ToolCallEvent } from "./tool-call";
 import { RULES_CLEARED } from "./turn-message";
 import type {
   CellAnswer,
@@ -86,10 +90,11 @@ const PREVIEW_EVERY_MS = 250;
 // a reply this long without a byte, the API's pings included, is taken for a lost connection
 const SILENCE_MS = 3 * 60_000;
 
-const DECLINED = "The person declined this, so it did not run.";
-const STOPPED = "The person stopped this turn before this ran.";
 const CUT_OFF = "Not run: the reply was cut off.";
-const TURN_CLOSED = "This turn has ended, so this did not run.";
+const TURN_CLOSED: ToolAnswer = {
+  content: "This turn has ended, so this did not run.",
+  isError: true,
+};
 
 // what the thread's cell answers it, by Durable Object RPC (`../library/library-do`)
 /** @internal */
@@ -136,14 +141,6 @@ export interface CallInFlight {
   heardAt: number;
 }
 
-// what the watchdog cuts a silent reply with: the call failed reaching Claude, and is sent again
-class SilentReplyError extends Error {
-  constructor() {
-    super("No byte of the reply arrived for three minutes.");
-    this.name = "SilentReplyError";
-  }
-}
-
 // the platform's fetch, every call in flight heard as its request goes and as each chunk of its
 // reply arrives; the client a thread sends with is built over it (`./anthropic-client`)
 export const listeningFetch = (
@@ -180,14 +177,10 @@ export const cutSilentCalls = (calls: ReadonlyMap<number, CallInFlight>, now: nu
   for (const [turn, call] of calls) {
     if (now - call.heardAt >= SILENCE_MS && !call.abort.signal.aborted) {
       console.warn({ event: "agent-reply-silent", silentMs: now - call.heardAt, turn });
-      call.abort.abort(new SilentReplyError());
+      cutCall(call.abort, "silent");
     }
   }
 };
-
-// what a step left: more to do now, a retry the drive job was re-timed for, the person to wait on,
-// nothing to do, or the thread purged
-export type StepResult = "continue" | "later" | "paused" | "idle" | "purged";
 
 // ---- rows ----
 
@@ -466,12 +459,12 @@ const triesAt = (db: ThreadDb, turn: number, step: number) => {
 };
 
 // every call an instance that died left streaming, cut, its step sent again whole by the next step
-// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds
-const cutDeadCalls = (host: ThreadHost): void => {
-  host.db
-    .update(modelCalls)
+// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds. Run
+// once as an instance starts, since no other instance writes while one lives
+export const cutDeadCalls = (db: ThreadDb, isolate: string): void => {
+  db.update(modelCalls)
     .set({ status: "cut" })
-    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, host.isolate)))
+    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, isolate)))
     .run();
 };
 
@@ -737,9 +730,9 @@ const sendCall = async (
   const body = agentRequest(definition, withRules(requestMessages(transcript, sinceSeq), rules));
   const requestSha = await sha256Hex(JSON.stringify(body));
   // the last await before the request goes: a stop that landed while its request was hashed sends
-  // nothing
+  // nothing, and a purge writes nothing over the tables it is deleting
   if (signal.aborted) {
-    return unsentCall(host, callTry);
+    return cutOf(signal) === "purged" ? "purged" : unsentCall(host, callTry);
   }
   const client = host.client();
   if (client === null) {
@@ -776,11 +769,15 @@ const sendCall = async (
     }
     message = await stream.finalMessage();
   } catch (error) {
+    const cut = cutOf(signal);
+    if (cut === "purged") {
+      return "purged";
+    }
     return await failedCall(host, turn, {
       callId,
       error: errorOf(error),
       failedBefore: tries.failed,
-      stopped: signal.aborted && !(signal.reason instanceof SilentReplyError),
+      stopped: cut === "stopped",
     });
   }
   logDroppedThinking(host.threadId, message);
@@ -811,28 +808,41 @@ type ToolRow = typeof toolCalls.$inferSelect;
 const toolRowsOf = (db: ThreadDb, msgSeq: number): ToolRow[] =>
   db.select().from(toolCalls).where(eq(toolCalls.msgSeq, msgSeq)).orderBy(asc(toolCalls.idx)).all();
 
-const finishTool = (
+const RUN: ToolCallEvent = { kind: "run" };
+const STOP: ToolCallEvent = { kind: "stop" };
+
+const keepAnswer = (db: ThreadDb, toolUseId: string, answer: ToolAnswer): void => {
+  db.update(toolCalls)
+    .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
+    .where(eq(toolCalls.toolUseId, toolUseId))
+    .run();
+};
+
+// the call moved by `event` in one transaction, its answer kept and pushed where the move answers
+// it; a move the call cannot take writes nothing
+const answerCall = (
   host: ThreadHost,
   turn: number,
-  answer: { readonly toolUseId: string; readonly content: string; readonly isError: boolean },
+  toolUseId: string,
+  event: ToolCallEvent,
 ): void => {
   host.transaction(() => {
-    host.db
-      .update(toolCalls)
-      .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
-      .where(eq(toolCalls.toolUseId, answer.toolUseId))
-      .run();
-    enqueue(host.db, turn, [resultEvent(answer.toolUseId, answer.content, answer.isError)]);
+    const row = host.db.select().from(toolCalls).where(eq(toolCalls.toolUseId, toolUseId)).get();
+    const next = row === undefined ? null : toolCallNext(toolCallOf(row), event);
+    if (next?.kind === "answered") {
+      keepAnswer(host.db, toolUseId, next.answer);
+      enqueue(host.db, turn, [resultEvent(toolUseId, next.answer.content, next.answer.isError)]);
+    }
   });
 };
 
-const resultBlock = (row: ToolRow): ToolResultBlock => {
+const resultBlock = (toolUseId: string, answer: ToolAnswer): ToolResultBlock => {
   const block: ToolResultBlock = {
-    content: row.result ?? "",
-    tool_use_id: row.toolUseId,
+    content: answer.content,
+    tool_use_id: toolUseId,
     type: "tool_result",
   };
-  if (row.isError === 1) {
+  if (answer.isError) {
     block.is_error = true;
   }
   return block;
@@ -889,15 +899,12 @@ const toolRound = async (
     await host.jobs.approvalAt(toolUseId, until);
   }
   for (const row of toolRowsOf(db, reply.seq)) {
-    if (row.status === "done" || (row.status === "awaiting_approval" && row.decision === null)) {
+    const next = toolCallNext(toolCallOf(row), RUN);
+    if (next === null) {
       continue;
     }
-    if (row.decision === "denied") {
-      finishTool(host, turn.turn, {
-        content: row.reason === null ? DECLINED : `${DECLINED} ${row.reason}`,
-        isError: true,
-        toolUseId: row.toolUseId,
-      });
+    if (next.kind === "answered") {
+      answerCall(host, turn.turn, row.toolUseId, RUN);
       continue;
     }
     if (openTurnOf(db)?.cancelRequested !== false) {
@@ -926,14 +933,17 @@ const toolRound = async (
       await host.purge();
       return "purged";
     }
-    finishTool(host, turn.turn, {
-      content: answer.ok ? answer.value.content : TURN_CLOSED,
-      isError: answer.ok ? answer.value.isError : true,
-      toolUseId: row.toolUseId,
+    answerCall(host, turn.turn, row.toolUseId, {
+      answer: answer.ok ? answer.value : TURN_CLOSED,
+      kind: "result",
     });
   }
   const rows = toolRowsOf(db, reply.seq);
-  if (rows.some((row) => row.status !== "done")) {
+  const results = rows.flatMap((row) => {
+    const call = toolCallOf(row);
+    return call.kind === "answered" ? [resultBlock(row.toolUseId, call.answer)] : [];
+  });
+  if (results.length < rows.length) {
     db.update(threadTurns)
       .set({ status: "awaiting_approval" })
       .where(eq(threadTurns.turn, turn.turn))
@@ -941,7 +951,7 @@ const toolRound = async (
     return "paused";
   }
   host.transaction(() => {
-    append(db, { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn });
+    append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
     db.update(threadTurns)
       .set({ status: "running" })
       .where(and(eq(threadTurns.turn, turn.turn), ne(threadTurns.status, "ended")))
@@ -965,12 +975,13 @@ export const decideCall = async (
 ): Promise<boolean> => {
   const { db } = host;
   const decided = host.transaction(() => {
-    const row = db
-      .select({ decision: toolCalls.decision, status: toolCalls.status, turn: toolCalls.turn })
-      .from(toolCalls)
-      .where(eq(toolCalls.toolUseId, answer.toolUseId))
-      .get();
-    if (row?.status !== "awaiting_approval" || row.decision !== null) {
+    const row = db.select().from(toolCalls).where(eq(toolCalls.toolUseId, answer.toolUseId)).get();
+    const decide: ToolCallEvent = {
+      approved: answer.approved,
+      kind: "decide",
+      reason: answer.reason,
+    };
+    if (row === undefined || toolCallNext(toolCallOf(row), decide) === null) {
       return false;
     }
     db.update(toolCalls)
@@ -1004,7 +1015,10 @@ export const requestCancel = (host: ThreadHost, turn: number): void => {
     .set({ cancelRequested: 1 })
     .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
     .run();
-  host.calls.get(turn)?.abort.abort(new Error("The person stopped this turn."));
+  const call = host.calls.get(turn);
+  if (call !== undefined) {
+    cutCall(call.abort, "stopped");
+  }
 };
 
 // a stopped turn still answers every call its last reply made, so the next request is valid: what
@@ -1021,12 +1035,12 @@ const settleCancel = async (
       const uses = last.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
       const rows = new Map(toolRowsOf(db, last.seq).map((row) => [row.toolUseId, row]));
       const entries: PushEntry[] = [];
-      const results = uses.map((use) => {
+      const results: ToolResultBlock[] = [];
+      for (const use of uses) {
         const row = rows.get(use.id);
-        if (row?.status === "done") {
-          return resultBlock(row);
-        }
-        if (row?.status === "awaiting_approval" && row.decision === null) {
+        // a reply's call no round journaled yet is one it asked for
+        const call: ToolCall = row === undefined ? { kind: "asked" } : toolCallOf(row);
+        if (call.kind === "awaiting") {
           waited.push(use.id);
           entries.push(
             eventEntry({
@@ -1037,18 +1051,16 @@ const settleCancel = async (
             }),
           );
         }
-        entries.push(resultEvent(use.id, STOPPED, true));
-        return {
-          content: STOPPED,
-          is_error: true,
-          tool_use_id: use.id,
-          type: "tool_result" as const,
-        };
-      });
-      db.update(toolCalls)
-        .set({ isError: 1, result: STOPPED, status: "done" })
-        .where(and(eq(toolCalls.msgSeq, last.seq), ne(toolCalls.status, "done")))
-        .run();
+        const next = toolCallNext(call, STOP);
+        if (next?.kind === "answered") {
+          keepAnswer(db, use.id, next.answer);
+          entries.push(resultEvent(use.id, next.answer.content, next.answer.isError));
+        }
+        const settled = next ?? call;
+        if (settled.kind === "answered") {
+          results.push(resultBlock(use.id, settled.answer));
+        }
+      }
       append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
       enqueue(db, turn.turn, entries);
     }
@@ -1064,7 +1076,6 @@ const settleCancel = async (
 // the open turn's next step: its first rows, its cancel settled, a round of tool calls, or a model
 // call
 const turnStep = async (host: ThreadHost, turn: OpenTurn): Promise<StepResult> => {
-  cutDeadCalls(host);
   if (!turn.started) {
     await startTurn(host, turn);
     return "continue";

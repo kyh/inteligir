@@ -1,6 +1,7 @@
 // One conversation's change sets as the cell pages them (`library.history.list`): newest first, a
-// page at a time, each answer naming the cursor of the next, so a conversation of many turns
-// reaches every set the cell keeps.
+// page at a time, each answer naming the cursor of the next, read to the last page so a
+// conversation of many turns reaches every set the cell keeps; and the one queue every undo waits
+// in.
 
 import { useIsMutating } from "@tanstack/react-query";
 
@@ -22,20 +23,18 @@ export const UNDO_SCOPE = { id: "undo" };
 export const useUndoWaits = (): boolean =>
   useIsMutating({ predicate: ({ options }) => options.scope?.id === UNDO_SCOPE.id }) > 0;
 
-export const changeSetPages = (orpc: CloudWire["orpc"], filter: ThreadFilter) =>
-  orpc.library.history.list.infiniteOptions({
-    getNextPageParam: (last) => last.cursor,
-    initialPageParam: undefined,
-    input: (cursor: string | undefined) => ({ ...filter, cursor }),
-  });
-
-// every set as the cell holds them now, newest first, for what must not act on a list still
-// catching up; run in a mutation, since a bare call fails at once offline
-export const everyChangeSet = async (client: CloudWire["client"], filter: ThreadFilter) => {
+// every set as the cell holds them now, newest first: the conversation's query, and the press
+// that must not act on a list still catching up, run in a mutation, since a bare call fails at
+// once offline
+export const everyChangeSet = async (
+  client: CloudWire["client"],
+  filter: ThreadFilter,
+  signal?: AbortSignal,
+) => {
   const pages = [];
   let cursor: string | undefined;
   do {
-    const page = await client.library.history.list({ ...filter, cursor });
+    const page = await client.library.history.list({ ...filter, cursor }, { signal });
     pages.push(page);
     cursor = page.cursor ?? undefined;
   } while (cursor !== undefined);
