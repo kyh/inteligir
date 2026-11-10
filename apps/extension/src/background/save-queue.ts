@@ -104,9 +104,14 @@ export const accountGone = async (email: string): Promise<void> => {
   await ensureSendAlarm();
 };
 
-// a try that went unanswered, or a session that ended: the save waits for the alarm
+// a try that went unanswered, or a session that ended: the save waits for the alarm, unless a pass
+// let it go while the try was on its way
 const markWaiting = async (save: QueuedSave): Promise<void> => {
-  await keepSave({ ...save, firstTry: false });
+  const key = keyOf(save);
+  const held = await browser.storage.local.get(key);
+  if (held[key] !== undefined) {
+    await keepSave({ ...save, firstTry: false });
+  }
 };
 
 // a waiting save as the link it is sent as: its title only where it has one
@@ -200,7 +205,7 @@ export interface SendDeps {
 // every save of the account signed in sent oldest first, until one cannot go yet: the cloud is not
 // there, not for this build, or not for this session, so the rest wait with it. Another account's
 // saves wait for that account, and a first try still under way for its own answer
-export const sendQueued = async (deps: SendDeps): Promise<void> => {
+const sendPass = async (deps: SendDeps): Promise<void> => {
   const saves = await queuedSaves();
   const signIn = saves.length === 0 ? null : await deps.signIn();
   if (signIn?.kind === "signed-in") {
@@ -221,4 +226,53 @@ export const sendQueued = async (deps: SendDeps): Promise<void> => {
     }
   }
   await ensureSendAlarm();
+};
+
+// One pass over the queue at a time: a save landed, the connect page's answer, the alarm and the
+// browser's start each ask for one, and an ask while a pass runs asks for one more after it, so a
+// save kept mid-pass is sent without waiting for the alarm and no two passes send one save. The
+// pass lives as long as the worker, which loses nothing it needs later with it.
+type Pass = { readonly kind: "idle" } | { readonly kind: "running"; readonly again: boolean };
+
+const passAfter = (pass: Pass, event: "asked" | "finished" | "failed"): Pass => {
+  switch (event) {
+    case "asked": {
+      return { again: pass.kind === "running", kind: "running" };
+    }
+    case "finished": {
+      return pass.kind === "running" && pass.again
+        ? { again: false, kind: "running" }
+        : { kind: "idle" };
+    }
+    // a storage fault: the next ask starts over
+    case "failed": {
+      return { kind: "idle" };
+    }
+    // no default
+  }
+};
+
+let pass: Pass = { kind: "idle" };
+let drained: Promise<void> = Promise.resolve();
+
+const drain = async (deps: SendDeps): Promise<void> => {
+  do {
+    try {
+      await sendPass(deps);
+    } catch (error) {
+      pass = passAfter(pass, "failed");
+      throw error;
+    }
+    pass = passAfter(pass, "finished");
+  } while (pass.kind === "running");
+};
+
+// settles once a pass that started after the ask has run
+export const sendQueued = async (deps: SendDeps): Promise<void> => {
+  const starts = pass.kind === "idle";
+  pass = passAfter(pass, "asked");
+  if (starts) {
+    drained = drain(deps);
+  }
+  await drained;
 };

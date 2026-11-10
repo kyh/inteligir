@@ -1,3 +1,4 @@
+import { deferred } from "@repo/contract/test-support/deferred";
 import { beforeEach, describe, expect, it } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
@@ -321,5 +322,77 @@ describe("a save that waits", () => {
     // the store holds nothing under the key (WXT's fake answers it undefined, Chrome leaves it out)
     const held = await browser.storage.local.get("save:broken");
     expect(held["save:broken"]).toBeUndefined();
+  });
+});
+
+describe("the queue's passes", () => {
+  it("run one at a time, so four asks at once send each save once", async () => {
+    await keepSave(waiting());
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const held = deferred();
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        return savedAs("File over app");
+      },
+    });
+    const deps = depsWith(cloud);
+    const asks = [sendQueued(deps), sendQueued(deps), sendQueued(deps), sendQueued(deps)];
+    held.resolve();
+    await Promise.all(asks);
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([waiting().opId, SECOND]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("run exactly one more pass for every ask made while one ran, which sends a save kept meanwhile", async () => {
+    await keepSave(waiting());
+    const held = deferred();
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        return savedAs("File over app");
+      },
+    });
+    const deps = depsWith(cloud);
+    const firstAsk = sendQueued(deps);
+    await expect.poll(() => cloud.links.length).toBe(1);
+    await keepSave(waiting({ opId: SECOND, savedAt: NOW - 900 }));
+    const laterAsks = [sendQueued(deps), sendQueued(deps)];
+    held.resolve();
+    await Promise.all([firstAsk, ...laterAsks]);
+    expect(cloud.links.map((link) => link.opId)).toStrictEqual([waiting().opId, SECOND]);
+    expect(deps.asked()).toBe(2);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("never bring back a save another try let go while its call was on its way", async () => {
+    // a first try whose worker was presumed stopped, sent again by a pass while it still runs
+    const held = deferred();
+    const firstTry = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const old = NOW - 10 * 60_000;
+    const saving = saveTab(
+      {
+        capture: async () => null,
+        cloud: () => firstTry.cloud,
+        fetchCover: async () => null,
+        newBlockId: () => "block",
+        now: () => old,
+        randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+        signIn: async () => SIGNED_IN,
+      },
+      { tab: { id: 7, title: "File over app", url: "https://example.test/file-over-app" } },
+    );
+    await expect.poll(() => firstTry.links.length).toBe(1);
+    const resent = fakeCloud({});
+    await sendQueued(depsWith(resent));
+    expect(resent.links).toHaveLength(1);
+    held.resolve();
+    await expect(saving).resolves.toStrictEqual(waitingFor("connection"));
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 });

@@ -53,9 +53,10 @@ says how a bullet is written and cited.
   waits, and the popup says "Saved when you're back online". A first try whose
   worker stopped mid-call is resent only once past the longest its page can
   take to land (its cover fetches and two calls, each to its deadline), since a
-  link landing under its op id first would stand in for its page. A waiting save the cloud
+  link landing under its op id first would stand in for its page. A save the cloud
   refuses as too old a build waits for the browser's update, which
-  `storage.local` outlives; any other refusal lets it
+  `storage.local` outlives, and the popup says "Saved once this extension
+  updates"; any refusal of the call's own lets it
   go, a full library too, which only the person can empty. Each save names the
   account it was made under by its email and is sent only under that
   account's session, so one made signed out, or met by the cloud's 401 as the
@@ -96,7 +97,8 @@ says how a bullet is written and cited.
   names its build (`<version>+extension`) and its version is the product's
   (`tools/repo-guards/src/release-versions.test.ts`), so the one
   `MIN_CLIENT_BUILD` refuses an extension below it as it refuses a Mac or a
-  phone, and the popup says to update it. Rejected: a version of its own (the
+  phone: a save waits for the update, and a picture, whose bytes wait in no
+  queue, says to update it. Rejected: a version of its own (the
   floor would refuse it, or need a second floor per platform).
   `apps/extension/src/background/cloud.ts`.
 
@@ -159,3 +161,22 @@ says how a bullet is written and cited.
   `apps/extension/src/manifest.ts`,
   `apps/extension/src/entrypoints/popup/app.tsx`,
   `apps/extension/src/entrypoints/welcome/app.tsx`.
+
+- **A SAVE'S TRY SETTLES IT ONE WAY, THE FIRST AND EVERY RESEND ALIKE, AND ONE
+  PASS SENDS THE QUEUE AT A TIME.** `settle` is the one place a call's answer
+  moves a kept save, read through the contract's `sharedFailure` and
+  `uploadBlob` as the page and the phone read theirs: an ended session or a
+  build too old keeps it for the sign-in or the update, no answer or the
+  cloud's budget for the alarm, a deleted account lets go every save made
+  under it, and a refusal of the call's own lets it go. A picture's bytes wait
+  in no queue, so what would keep a save refuses a picture. A landed save, the
+  connect page's answer, the alarm and the browser's start each ask
+  `sendQueued` for a pass, and an ask while one runs asks for one more after
+  it, so no two passes send one save and none writes back a save another try
+  let go; the pass lives in the worker's memory, and a worker stopped mid-pass
+  leaves the queue to the next alarm. Rejected: a ladder per path (the first
+  try let go a save the cloud called too old, where a resend kept it); a
+  failure taxonomy of the extension's own beside the contract's (it drifted
+  on that very code); a pass per trigger (two at once sent each save twice
+  and could bring a landed one back). `apps/extension/src/background/save-queue.ts`,
+  `apps/extension/src/background/cloud.ts`.
