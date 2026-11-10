@@ -45,13 +45,14 @@ import { openWithSchema } from "../object-schema";
 import { migrateNote, noteDbOf } from "./note-db";
 import type { NoteDb } from "./note-db";
 import { frameBytes, frameKind } from "./note-frames";
+import { refusedBy, standingAfter, standingColumns, standingOf } from "./note-standing";
+import type { NoteStanding } from "./note-standing";
 import { noteNameOf } from "./note-stub";
 import type { NoteName } from "./note-stub";
 import { noteBlocksSchema, NOTE_HOLDER_HEADER, NOTE_MODE_HEADER } from "./note-wire";
 import type {
   ChangeAnswer,
   NoteChange,
-  NoteHeld,
   NoteOpening,
   NoteProjection,
   NoteRead,
@@ -123,10 +124,8 @@ export class NoteDO extends YServer<Env> {
 
   // what storage holds of the state, which the cap weighs; read again on every load
   #bytes = 0;
-  // the item is purged, or the cell says a note asking for its seed lost the body it took
-  #gone = false;
-  #full = false;
-  #deleted = false;
+  // what the note takes, and from whom (`#setStanding` alone moves it)
+  #standing: NoteStanding = { kind: "open" };
   #rootChanged = false;
   // the alarm set by this instance, so a write sets it once
   #alarmAt: number | null = null;
@@ -211,9 +210,7 @@ export class NoteDO extends YServer<Env> {
     noteRoot(this.document).unobserve(this.#onRootChange);
     this.#alarmAt = null;
     const meta = this.#meta();
-    this.#full = meta.full === 1;
-    this.#deleted = meta.deleted === 1;
-    this.#gone = meta.purged === 1;
+    this.#standing = standingOf(meta);
     const parts = this.#db
       .select({ bytes: snapshotParts.bytes })
       .from(snapshotParts)
@@ -233,7 +230,7 @@ export class NoteDO extends YServer<Env> {
     for (const update of updates) {
       Y.applyUpdate(this.document, update, LOAD);
     }
-    if (parts.length === 0 && updates.length === 0 && !this.#gone) {
+    if (parts.length === 0 && updates.length === 0 && this.#standing.kind !== "gone") {
       await this.#seed();
     } else if (dutyOf(meta).seed.kind !== "none") {
       await this.#confirmSeed();
@@ -253,7 +250,7 @@ export class NoteDO extends YServer<Env> {
   async #seed(): Promise<void> {
     const seed = await this.#cell().readSeed(this.#note.itemId);
     if (seed.kind === "missing" || seed.kind === "claimed") {
-      this.#gone = true;
+      this.#setStanding({ kind: "gone" });
       return;
     }
     const fresh = new Y.Doc();
@@ -287,21 +284,21 @@ export class NoteDO extends YServer<Env> {
   // state rather than its history; a state back under the cap with an update's room takes edits
   #compact(): void {
     const state = Y.encodeStateAsUpdate(this.document);
-    const full = state.length + NOTE_UPDATE_CAP > NOTE_STATE_CAP && this.#full;
     this.ctx.storage.transactionSync(() => {
       this.#db.delete(noteUpdates).run();
       this.#db.delete(snapshotParts).run();
       for (const [part, bytes] of partsOf(state).entries()) {
         this.#db.insert(snapshotParts).values({ bytes, part }).run();
       }
-      this.#setMeta({ full: full ? 1 : 0 });
     });
     this.#bytes = state.length;
-    this.#full = full;
+    if (state.length + NOTE_UPDATE_CAP <= NOTE_STATE_CAP) {
+      this.#setStanding(standingAfter(this.#standing, { kind: "shrank" }));
+    }
   }
 
   override async onSave(): Promise<void> {
-    if (this.#gone) {
+    if (this.#standing.kind === "gone") {
       return;
     }
     this.#compact();
@@ -310,7 +307,7 @@ export class NoteDO extends YServer<Env> {
 
   override async onAlarm(): Promise<void> {
     this.#alarmAt = null;
-    if (this.#gone) {
+    if (this.#standing.kind === "gone") {
       return;
     }
     if (dutyOf(this.#meta()).seed.kind !== "none") {
@@ -374,7 +371,7 @@ export class NoteDO extends YServer<Env> {
       const projected = Math.max(now.projected, projection.version);
       this.#step({ at, kind: "projected", stillDirty: now.version > projected }, { projected });
       if (answer === "gone") {
-        this.#gone = true;
+        this.#setStanding({ kind: "gone" });
       }
     } catch (error) {
       console.warn({ event: "note-project-failed", ...errorFields(error) });
@@ -413,16 +410,16 @@ export class NoteDO extends YServer<Env> {
   }
 
   override async onConnect(connection: Connection, context: ConnectionContext): Promise<void> {
-    if (this.#gone) {
+    if (this.#standing.kind === "gone") {
       connection.close(NOTE_SOCKET.missingCode, "This note isn't in your library.");
       return;
     }
     await super.onConnect(connection, context);
     // ahead of the sync, so a device opening a held note never shows it writable; Deleted first,
     // since a restore is the person's first step
-    if (modeOf(connection) === "read" || this.#deleted) {
+    if (modeOf(connection) === "read" || this.#standing.kind === "deleted") {
       this.sendCustomMessage(connection, NOTE_SOCKET.deleted);
-    } else if (this.#full) {
+    } else if (this.#standing.kind === "full") {
       this.sendCustomMessage(connection, NOTE_SOCKET.full);
     }
   }
@@ -431,10 +428,36 @@ export class NoteDO extends YServer<Env> {
     return (
       modeOf(connection) === "read" ||
       refused(connection) ||
-      this.#full ||
-      this.#deleted ||
-      this.#gone
+      refusedBy(this.#standing, "edit") !== null
     );
+  }
+
+  // What the note takes moved: kept, and said to every socket. Into Deleted or full each socket is
+  // told; out of either, each is closed so its device opens the note again, writable. Gone is kept
+  // only by a purge, which closes its sockets itself.
+  #setStanding(next: NoteStanding): void {
+    const was = this.#standing;
+    this.#standing = next;
+    if (next.kind === "gone") {
+      return;
+    }
+    this.#setMeta(standingColumns(next));
+    if (next.kind === was.kind) {
+      return;
+    }
+    if (next.kind === "deleted") {
+      this.broadcastCustomMessage(NOTE_SOCKET.deleted);
+    } else if (next.kind === "full" && was.kind === "open") {
+      this.broadcastCustomMessage(NOTE_SOCKET.full);
+    } else {
+      const reason =
+        was.kind === "deleted"
+          ? "This note is back in your library."
+          : "This note takes edits again.";
+      for (const connection of this.getConnections()) {
+        connection.close(NOTE_SOCKET.reopenCode, reason);
+      }
+    }
   }
 
   // presence is off: an awareness frame is dropped, never applied or sent on
@@ -447,7 +470,7 @@ export class NoteDO extends YServer<Env> {
 
   // A frame that writes is weighed before y-partyserver applies it: past an update's cap the
   // socket is held read-only and told so; past the note's, once a compaction cannot make room,
-  // the note is full and every socket is told.
+  // the note is full until one does.
   override async onMessage(connection: Connection, message: WSMessage): Promise<void> {
     if (frameKind(message) === "write" && !this.isReadOnly(connection)) {
       const size = frameBytes(message);
@@ -460,9 +483,7 @@ export class NoteDO extends YServer<Env> {
         this.#compact();
       }
       if (this.#bytes + size > NOTE_STATE_CAP) {
-        this.#full = true;
-        this.#setMeta({ full: 1 });
-        this.broadcastCustomMessage(NOTE_SOCKET.full);
+        this.#setStanding(standingAfter(this.#standing, { kind: "filled" }));
         return;
       }
     }
@@ -518,16 +539,6 @@ export class NoteDO extends YServer<Env> {
     await this.__unsafe_ensureInitialized();
   }
 
-  #held(): NoteHeld | null {
-    if (this.#gone) {
-      return "gone";
-    }
-    if (this.#deleted) {
-      return "deleted";
-    }
-    return this.#full ? "full" : null;
-  }
-
   async read(): Promise<NoteRead> {
     await this.#ready();
     return { blocks: this.#blocks(), version: this.#meta().version };
@@ -579,7 +590,7 @@ export class NoteDO extends YServer<Env> {
     if (this.#db.select().from(appliedOps).where(eq(appliedOps.opId, change.opId)).get()) {
       return { kind: "applied", projection: this.#projection() };
     }
-    const held = this.#held();
+    const held = refusedBy(this.#standing, "edit");
     if (held !== null) {
       return { held, kind: "held" };
     }
@@ -639,8 +650,8 @@ export class NoteDO extends YServer<Env> {
     if (this.#db.select().from(appliedOps).where(eq(appliedOps.opId, fillId)).get()) {
       return { kind: "applied", projection: this.#projection() };
     }
-    const held = this.#held();
-    if (held === "gone") {
+    const held = refusedBy(this.#standing, "article");
+    if (held !== null) {
       return { held, kind: "held" };
     }
     const changes = articleChanges(this.#blocks(), article);
@@ -658,6 +669,9 @@ export class NoteDO extends YServer<Env> {
   // later change; a turn already undone, or one that never wrote here, changes nothing.
   async undoTurn(changeSetId: string, undoSetId: string): Promise<TurnUndone> {
     await this.#ready();
+    if (refusedBy(this.#standing, "undo") !== null) {
+      return { lostText: false, personEdited: this.#meta().personEdited === 1, projection: null };
+    }
     const rows: TurnLogRow[] = this.#db
       .select()
       .from(turnLog)
@@ -675,22 +689,10 @@ export class NoteDO extends YServer<Env> {
     };
   }
 
-  // In Deleted the note takes no edit and says so; restored, every socket is closed so each
-  // device opens it again, writable.
+  // in Deleted the note takes no edit; restored, it takes what it took before
   async setDeleted(deleted: boolean): Promise<void> {
     await this.#ready();
-    this.#setMeta({ deleted: deleted ? 1 : 0 });
-    const was = this.#deleted;
-    this.#deleted = deleted;
-    if (deleted) {
-      this.broadcastCustomMessage(NOTE_SOCKET.deleted);
-      return;
-    }
-    if (was) {
-      for (const connection of this.getConnections()) {
-        connection.close(NOTE_SOCKET.reopenCode, "This note is back in your library.");
-      }
-    }
+    this.#setStanding(standingAfter(this.#standing, { kind: deleted ? "deleted" : "restored" }));
   }
 
   // a session that ended: its sockets here close, and its next dial meets the end itself
@@ -704,7 +706,7 @@ export class NoteDO extends YServer<Env> {
   // the alarm and then the storage deleted and made durable before the call is answered; the
   // instance ends on the next turn, so nothing it held in memory outlives the purge.
   async purge(): Promise<void> {
-    this.#gone = true;
+    this.#setStanding({ kind: "gone" });
     this.#setMeta({ purged: 1 });
     for (const connection of this.getConnections()) {
       connection.close(NOTE_SOCKET.missingCode, "This note was deleted for good.");

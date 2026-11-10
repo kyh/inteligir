@@ -519,6 +519,25 @@ describe("a note's door", () => {
     a.provider.destroy();
     await expect(serverText(accountId, itemId)).resolves.toStrictEqual([]);
   });
+
+  it("stays gone once the library holds no body for it, whatever a restore or a delete says", async () => {
+    const { accountId } = await signedIn("door-gone@example.test");
+    const note = noteOf(accountId, "unheldItem");
+    await expect(serverText(accountId, "unheldItem")).resolves.toStrictEqual([]);
+    await note.setDeleted(true);
+    await note.setDeleted(false);
+    await expect(note.replaceArticle([], "fill-gone")).resolves.toStrictEqual({
+      held: "gone",
+      kind: "held",
+    });
+    await expect(note.undoTurn("turn-gone", "undo-gone")).resolves.toMatchObject({
+      projection: null,
+    });
+    const meta = await runInDurableObject(note, (_note, state) =>
+      noteDbOf(state.storage).select().from(noteMeta).get(),
+    );
+    expect(meta).toMatchObject({ deleted: 0, full: 0 });
+  });
 });
 
 describe("a note's size", () => {
@@ -562,6 +581,54 @@ describe("a note's size", () => {
     writer.provider.destroy();
     watcher.provider.destroy();
     late.provider.destroy();
+  }, 60_000);
+
+  it("takes edits again once a compaction makes room, every device closed for a reopen and writing after", async () => {
+    const { accountId, itemId, ticket } = await signedIn("cap-shrink@example.test");
+    const note = noteOf(accountId, itemId);
+    const first = blockAt(await serverBlocks(accountId, itemId), 0);
+    // eight blocks of 384 KiB, each inside a block's own cap
+    const ids = Array.from({ length: 8 }, (_, index) => `long${String(index)}`);
+    const added = await note.applyChange({
+      changeSetId: "turn-long",
+      changes: ids.map((id, index) => ({
+        afterId: ids[index - 1] ?? first.id,
+        block: paragraph(id, lettersOf((3 * NOTE_UPDATE_CAP) / 8)),
+        kind: "insertAfter" as const,
+        section: "note" as const,
+      })),
+      opId: crypto.randomUUID(),
+      origin: "agent:turn-long",
+    });
+    expect(added.kind).toBe("applied");
+    const writer = await openClient(itemId, ticket, "shrink-writer");
+    const watcher = await openClient(itemId, ticket, "shrink-watcher");
+    const chunk = Math.floor(NOTE_UPDATE_CAP * 0.9);
+    const chunks = Math.ceil(NOTE_STATE_CAP / chunk) + 1;
+    for (let sent = 0; sent < chunks && !watcher.messages.includes(NOTE_SOCKET.full); sent += 1) {
+      typeInto(writer, 0, 0, lettersOf(chunk));
+      await scheduler.wait(50);
+    }
+    await until(() => watcher.messages.includes(NOTE_SOCKET.full));
+    // the writer's document holds the frames the note refused, which a reopen would send again
+    writer.provider.destroy();
+
+    const undone = await note.undoTurn("turn-long", "undo-long");
+    expect(undone.projection).not.toBeNull();
+    await until(
+      () => traces.get("shrink-watcher")?.closes.includes(NOTE_SOCKET.reopenCode) === true,
+      1000,
+    );
+    await until(() => opens.get("shrink-watcher") === 2 && watcher.provider.synced);
+    typeInto(watcher, 2, 0, "back ");
+    // the typed block is past a block's cap, so the note's read leaves it out
+    await until(async () => (await serverLine(accountId, itemId, 1)) === "back Below the fox.");
+    const below = blockAt(await serverBlocks(accountId, itemId), 1);
+    await expect(
+      note.applyChange(agentPut("turn-after", below, withText(below, "Agent again."))),
+    ).resolves.toMatchObject({ kind: "applied" });
+    expect(watcher.messages.filter((message) => message === NOTE_SOCKET.full)).toHaveLength(1);
+    watcher.provider.destroy();
   }, 60_000);
 });
 
