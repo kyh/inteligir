@@ -140,11 +140,11 @@ apps/mobile-editor      @repo/mobile-editor — the phone's item page: an item d
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
 packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each item's note (NoteDO, a live Yjs document), each conversation with the built-in agent
-packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's and each note's, with the migrations each runs as it wakes
+packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's, each note's and each conversation's, with the migrations each runs as it wakes
 packages/editor         @repo/editor — the Plate WYSIWYG bound to a note's live document, the dialect's rules over Plate's stock markdown, and the codec over its headless kits
 packages/editor-bridge  @repo/editor-bridge — the phone item page's wire (an item, its link targets, a file's bytes), which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
-packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends
+packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events folded into the person's words, its approvals and its sends
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself

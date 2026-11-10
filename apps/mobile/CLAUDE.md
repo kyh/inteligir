@@ -206,8 +206,10 @@ written and cited.
 
 - **THE PHONE ASKS THE ACCOUNT'S BUILT-IN AGENT, ONLINE ONLY, THROUGH THE PANEL
   EVERY DEVICE DRAWS.** A conversation is the account's, so the phone lists the
-  same threads as the Mac and draws a thread's events, approvals and previews
-  from `@repo/agent-panel`, natively (`apps/mobile/src/app/agent/[thread].tsx`);
+  same threads as the Mac and draws a thread's events, approvals and words
+  from `@repo/agent-panel`, natively (`apps/mobile/src/app/agent/[thread].tsx`),
+  and the reply being written as the socket carries it
+  (`apps/mobile/src/lib/thread-previews.ts`);
   a send asked about an item carries it as the view's context. A send and an
   approval wait for a connection and say "Needs a connection" rather than
   queue, since a turn runs in the cloud. Residual: no Undo of a turn on the
