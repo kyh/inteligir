@@ -12,7 +12,7 @@ import type { NoteState, Settled } from "./page/page-host";
 /** @internal */
 export const SETTLE_ANSWER_MS = 5000;
 
-export type NotePageLife =
+type NotePageLife =
   | { readonly kind: "reading" }
   | { readonly kind: "editing" }
   // `for`: what an answer that the note holds does, the leave or the web view let go
@@ -21,7 +21,7 @@ export type NotePageLife =
   | { readonly kind: "released" };
 
 // the life, the screen's depth, and the number of the last ask, which the page sees as `settle`
-export interface NotePage {
+interface NotePage {
   readonly life: NotePageLife;
   readonly deep: boolean;
   readonly asked: number;
