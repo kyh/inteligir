@@ -280,8 +280,8 @@ export const createFakeCell = (): FakeCell => {
     for (const [id, item] of items) {
       const { search, text } = derivedOf(item);
       const line = [search.title, search.headings, search.meta, text]
-        .flatMap((text) => text.split("\n"))
-        .find((text) => text.toLowerCase().includes(needle));
+        .flatMap((part) => part.split("\n"))
+        .find((candidate) => candidate.toLowerCase().includes(needle));
       if ((item.fields.deletedAt !== null) === deleted && line !== undefined) {
         hits.set(id, clipSnippet(line.trim()));
       }

@@ -11,6 +11,7 @@ export interface Doors {
   readonly rpc: Door;
   readonly blobs: Door;
   readonly socket: Door;
+  readonly note: Door;
   readonly connector: Door;
   readonly connectorMetadata: Door;
   readonly authorizationServerMetadata: Door;

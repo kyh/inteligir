@@ -126,7 +126,7 @@ const insertSet = (
 };
 
 // the item's fields as they are; null once it was purged
-export const readFieldsNow = (storage: CellStorage, itemId: string): LibraryItemFields | null =>
+const readFieldsNow = (storage: CellStorage, itemId: string): LibraryItemFields | null =>
   readLiveItem(storage.db, itemId)?.fields ?? null;
 
 // the set's after for the item: its fields as the set left them

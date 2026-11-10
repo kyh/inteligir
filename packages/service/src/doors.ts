@@ -13,6 +13,7 @@ import type { Door, DoorName, Doors } from "./doors-api";
 import { handleBlobRoute } from "./library/blob-routes";
 import { handleLibrarySocket } from "./library/socket-routes";
 import { logUnhandled } from "./log";
+import { handleNoteSocket } from "./note/note-routes";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
 
@@ -66,6 +67,11 @@ export const doorsFor = (env: Env, ctx: ExecutionContext): Doors => {
     socket: door(
       "socket",
       async (request) => await handleLibrarySocket(request, env, ctx, new URL(request.url)),
+    ),
+    // an item's note, opened on the same ticket as the account's socket
+    note: door(
+      "note",
+      async (request) => await handleNoteSocket(request, env, ctx, new URL(request.url)),
     ),
     connector: door("connector", connector),
     connectorMetadata: door("connectorMetadata", connector),

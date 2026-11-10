@@ -125,6 +125,8 @@ catalog:
   # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2005, and its
   # major tracks the TypeScript it embeds, the 7 every program here checks under
   oxlint-tsgolint: ^7.0.2005
+  # the editor and the note object, whose headless editor applies the agent's changes, run one Plate
+  platejs: ^53.5.2
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
   # held under 19.3: @react-three/fiber 9 peers react <19.3

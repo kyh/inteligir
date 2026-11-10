@@ -110,17 +110,6 @@ export const bodyDigestSchema = z.object({
   words: z.number().int().nonnegative(),
 }) satisfies z.ZodType<BodyDigest>;
 
-export const EMPTY_DIGEST: BodyDigest = {
-  article: false,
-  files: [],
-  headings: "",
-  lead: "",
-  outline: [],
-  preview: "",
-  tags: [],
-  words: 0,
-};
-
 export interface DerivedBody {
   readonly digest: BodyDigest;
   readonly links: readonly DerivedLink[];

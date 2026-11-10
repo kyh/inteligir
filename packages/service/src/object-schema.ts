@@ -12,6 +12,8 @@ import type { AnyRelations } from "drizzle-orm";
 import type { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import { migrate } from "drizzle-orm/durable-sqlite/migrator";
 
+import { errorFields } from "./log";
+
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
 // what the object holds: nothing, tables drizzle did not make, or the migrations it applied
@@ -83,4 +85,22 @@ export const migrateObjectSchema = async <TRelations extends AnyRelations>(
     }
     throw error;
   }
+};
+
+// The schema migrated as the object wakes: the runtime holds every event until it settles, and a
+// throw resets the object, whose next event opens it again. The one place an object of this Worker
+// blocks its own events, so the account's cell never awaits a note under it (`oxlint.config.ts`).
+export const openWithSchema = (
+  ctx: DurableObjectState,
+  what: string,
+  migrateSchema: (storage: DurableObjectStorage) => Promise<void>,
+): void => {
+  void ctx.blockConcurrencyWhile(async () => {
+    try {
+      await migrateSchema(ctx.storage);
+    } catch (error) {
+      console.error({ event: `${what}-open-failed`, ...errorFields(error) });
+      throw error;
+    }
+  });
 };

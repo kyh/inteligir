@@ -150,8 +150,8 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   refusal is an `error()` factory, oRPC's own code where it means the same, and
   the floor, credential and budget the Worker meets before any procedure are
   answered in the same protocol. Every library write takes an `opId` the cell
-  keeps; only a file's bytes and the socket stay plain HTTP
-  under `/v1`, and the site's sign-up form posts beside Better Auth, under
+  keeps; only a file's bytes and the sockets, the account's and each note's,
+  stay plain HTTP under `/v1`, and the site's sign-up form posts beside Better Auth, under
   `/api`. Rejected: REST beside RPC (two serializers, two error vocabularies)
   and oRPC's default statuses (an unmapped code answers 400).
   `packages/contract/src/v1-errors.ts`,
@@ -236,7 +236,8 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   and a conversation's `agent-thread:<accountId>:<threadId>` from its cell
   alone, for a thread its rows hold; `apps/web/cloudflare.config.ts` declares
   `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and binds no
-  namespace; `ThreadSyncDO`, `RepoCell` and `Registry` are each a
+  namespace, and each item's `NoteDO` likewise (EACH NOTE'S BODY IS A LIVE
+  DOCUMENT IN AN OBJECT OF ITS OWN); `ThreadSyncDO`, `RepoCell` and `Registry` are each a
   `state: "deleted"` tombstone, kept until a deploy's answer lets it go
   (`docs/releasing.md` § 5). The cell migrates its schema as it wakes (THE
   CELL'S SCHEMA IS DRIZZLE'S, in `packages/db/CLAUDE.md`). Rejected: a namespace binding (anything holding `env` could name any
@@ -245,13 +246,15 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   `packages/service/src/library/library-do.ts`,
   `library-cell.ts`, `cell-db.ts`, `packages/service/src/fill/fill-job.ts`.
 
-- **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
-  TRANSACTION.** Every op carries the base it was computed from (a block's
-  hash, a field's value), and the cell lands the write in one
+- **A LIBRARY WRITE CHANGES FIELDS ALONE, ONLY ON THE BASES IT NAMES, IN ONE
+  TRANSACTION.** `library.write` carries field ops, each naming the value it
+  was computed from (a list merges as a set), and the cell lands them in one
   `transactionSync` only while each base holds, else answers `CONFLICT` with
-  each moved thing as it is, which the editor's diff3 settles. Rejected: a
-  whole-item base (two devices in one note always conflict); last write wins
-  (an edit lost unseen); a merge in the cell (it cannot ask the person).
+  each moved field as it is; a body is its note's, written live, and an edit
+  by passages goes through the note (AN EDIT BY PASSAGES GOES TO THE NOTE BY
+  BLOCK ID). Rejected: block ops on the wire beside the live document (two
+  writers of one body, and a diff3 to settle them); a whole-item base (two
+  devices always conflict); last write wins (an edit lost unseen).
   `packages/service/src/library/library-engine.ts`, `cell-landing.ts`,
   `cell-writes.ts`.
 
@@ -260,7 +263,8 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   row comes due. A set's after for an item is written once another set is
   about to change the item or the set seals, so it is the item as that set
   left it however the seals interleave. Seven days after a set closes the prune
-  drops it, and then every part, block version and file only it named, so
+  drops it, and then every part and file only it named, and each note drops
+  the turn's log it kept, so
   what Undo keeps of the library is a week of its changes. Rejected: a timer
   per set (eviction loses it); each seal's own after (a late seal outranks a
   newer state); a revision of the item per set to browse (the spec keeps no
@@ -270,19 +274,76 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   `packages/service/src/library/change-sets.ts`, `cell-actor.ts`,
   `change-set-prune.ts`.
 
-- **UNDO RUNS A CHANGE SET BACKWARDS AS A THREE-WAY MERGE, BLOCK FOR LINE.**
-  `@repo/service/library/revert-change`: the set's after is the base,
-  the item now is mine, its before is theirs; the order merges by diff3 over
-  block ids, fields revert one by one, and an overlap keeps the item whole and
-  named. An item the set made goes to Deleted
-  unless a person's part changed since (a fill is not a person), told by each
-  fill's own change set: a field still holds what the set left or what a fill
-  wrote there. Sets undo newest first. Unlike the line oracle the
-  suites hold it to (`packages/service/src/test-support/revert-edit.ts`), a block
-  keeps its identity across a move, so a block moved, edited and then deleted
-  stays deleted. Rejected: a list of the fields a fill owns (it drifts from what
-  a fill writes, and a title is a fill's on an unread link and a person's after).
-  `packages/service/src/library/revert-change.test.ts`.
+- **UNDO RUNS A CHANGE SET'S FIELDS BACKWARDS THREE WAYS, AND EACH NOTE
+  TAKES ITS TURN BACK FIRST.** `@repo/service/library/revert-change`: the set's
+  after is the base, the item now is mine, its before is theirs, field by
+  field, and an overlap keeps the item whole and named. What an agent's set
+  wrote in a note's body that note takes back before the fields' write,
+  outside any transaction, as a forward edit from the turn's stored log
+  (`packages/service/src/note/turn-log.ts`), so every later edit, a person's
+  typing inside the agent's own words included, stays; a turn whose added
+  block someone typed in says it took their text (`lostText`). An item the set
+  made goes to Deleted unless a person's part changed since (a fill is not a
+  person), told by each fill's own change set and by whether anyone but an
+  agent wrote in its note. Sets undo newest first. Rejected: a three-way merge
+  of the body (a live document already merged it); Yjs's UndoManager (it lives
+  in memory, which an eviction ends); a list of the fields a fill owns (it
+  drifts from what a fill writes, and a title is a fill's on an unread link
+  and a person's after). `packages/service/src/library/revert-change.test.ts`,
+  `packages/service/src/library/cell-undo.ts`,
+  `packages/service/src/note/note-live.test.ts`.
+
+- **EACH NOTE'S BODY IS A LIVE DOCUMENT IN AN OBJECT OF ITS OWN, WHICH THE
+  CELL SEEDS AND READS BACK** (owner decision). `NoteDO`, a y-partyserver
+  `YServer` named `note:<accountId>:<itemId>` by `note-stub.ts` alone, which
+  only the account's cell, its purge and the note's door and object import
+  (`oxlint.config.ts`), keeps its Yjs state in its own SQLite, every update
+  stored in the event that took it, so the output gate holds the broadcast
+  until the row commits. Its first load reads the body the cell kept, a seed
+  until then, persists it, then confirms, so an abort in between loses
+  nothing and a note the cell says already took its body never seeds over
+  it; each debounced save (1 s, at most 5 s) folds the rows into a snapshot
+  and pushes the body's projection, which lands the card, the index, the text
+  and the links only over an older version and joins no change set. Every
+  call that reads the document starts the server itself, since an eviction
+  between two calls hands the next a fresh instance; the cell awaits a note
+  only between its `transactionSync` blocks, never inside
+  `blockConcurrencyWhile` or an async transaction, since a cold note's load
+  calls back into it (`oxlint.config.ts`). One alarm backs every deadline. A
+  note past 1 MiB an update or 8 MiB whole turns read-only and says why;
+  presence is off, its frames dropped; two devices moving one block at once
+  leave one copy. Deleted, a note takes no edit; purged, it is emptied by the
+  cell's alarm and closes every socket for good. Rejected: block rows merged
+  by diff3 (every device a merge to settle); the note in the cell (every
+  keystroke through the account's one object); Yjs 14 (a beta
+  `@slate-yjs/core` predates). `packages/service/src/note/note-do.ts`,
+  `packages/service/src/library/cell-notes.ts`,
+  `packages/service/src/note/note-live.test.ts`.
+
+- **A NOTE'S SOCKET OPENS THROUGH ITS DOOR ON THE ACCOUNT SOCKET'S TICKET, AND
+  THE CELL SAYS HOW.** `/v1/notes/<itemId>` reads the ticket and the holder's
+  standing as `/v1/socket` does, asks the cell how that session's socket opens
+  (writable, read-only for an item in Deleted, or closed at once with 4404 for
+  one the library does not hold, since a browser shows a failed upgrade to no
+  page), records it so the session's end closes it, and forwards a fresh
+  upgrade carrying only the holder and mode it verified. Rejected: a ticket per
+  note (a second credential for the same session); the note reading the
+  client's headers (a forged mode would write in Deleted).
+  `packages/service/src/note/note-routes.ts`,
+  `packages/contract/src/library/library-socket.ts`.
+
+- **AN EDIT BY PASSAGES GOES TO THE NOTE BY BLOCK ID, OUTSIDE ANY TRANSACTION.**
+  The cell reads the note's blocks, the codec answers the edit as changes by
+  block id, and the note applies them through a headless editor bound to its
+  document under the writer's origin, an agent's logged around its update
+  under the turn's change set; a block someone changed since the read is read
+  again once, then refused with the block as it is. The write that follows
+  re-checks the op, the item and the turn, and lands the note's whole answered
+  projection only when it is newer. Rejected: a base sequence on the edit (a
+  person typing anywhere in the note refused every edit); landing the
+  version alone (the note's next push would be stale and the edit's words
+  never reach the index). `packages/service/src/library/cell-edits.ts`,
+  `packages/service/src/note/note-do.ts`.
 
 - **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
   SESSIONS LAST.** Better Auth's `beforeDelete` asks the cell to purge, step
@@ -306,7 +367,7 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
 
 - **THE CELL IMPLEMENTS EVERY LIBRARY ROW ONCE, OVER ITS ENGINE AND THE
   MARKDOWN CODEC.** `implement(libraryTools)`: a write lands in one transaction
-  joined to its principal's change set, an agent's markdown is read and edited
+  joined to its principal's change set, a body's edit after its note answered, an agent's markdown is read and edited
   through `@repo/editor/codec/*`, a saved link or a refresh lands pending for
   the cloud's fill, and every answer is parsed through its row's output schema,
   which strips what the cell did not mean to send (about 10 ms a MiB of plain
@@ -371,7 +432,7 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
 
 - **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
   item names it or any change set does, and `change_set_blobs` keeps which files
-  each fields part and block version names, so the ask is one lookup. A file
+  each fields part names, so the ask is one lookup. A file
   that lands, or that an item stops naming, waits a day under an `unnamed`
   job, which an item naming it drops; a purge, or a prune dropping the last
   change set naming it, hands it to the alarm's next run, since Delete forever
@@ -410,7 +471,7 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   uploads, imports, jobs and `meta` are read and written through drizzle's
   `.all()`, `.get()` and `.run()` inside the cell's `transactionSync`, a
   multi-row insert cut by its table's width under a Durable Object's 100 bound
-  parameters (`insertChunks`); blocks, block versions, change sets, snapshot
+  parameters (`insertChunks`); seed blocks, change sets, snapshot
   parts, answered ops, threads, the agent's tables and the search index stay
   raw plans (`library-sql`), one statement yielded at a time under 100
   parameters and 100 KB. `library-queries` matches text with instr() and lays
@@ -453,7 +514,8 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
   CHANGE SET, ON AN ITEM STILL WAITING FOR IT.** `landFill` replaces the
-  article, sets a fact only where the page gave one, renames only an item still named by its
+  article, in the note once the body is its note's, once per reading by the
+  fill's id, sets a fact only where the page gave one, renames only an item still named by its
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
   redirects end at another item's address is read into the item that waited
@@ -751,7 +813,9 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   service. A suite reaches the Worker by `exports.default.fetch()` and reads
   every body to the end (`drained`), as per-file storage isolation needs; the
   suites that open the account's socket share one storage in a project of
-  their own, since Durable Object WebSockets fail under isolation; the model's
+  their own (a note's among them), since Durable Object WebSockets fail under
+  isolation, and a note's client is stock `YProvider` over a socket fetched
+  through the Worker (`packages/service/src/test-support/fetch-web-socket.ts`); the model's
   pure suites run under node, and every suite that reaches SQL runs on the
   cell's own SQLite. Rejected: a mocked runtime (Better Auth, D1 and the
   Durable Objects run as they deploy); the app's config (its entry's SSR, and

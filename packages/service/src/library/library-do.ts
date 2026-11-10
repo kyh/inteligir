@@ -61,6 +61,7 @@ import {
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
 import { EVERYTHING_MOVED } from "./cell-moved";
+import { openWithSchema } from "../object-schema";
 import { migrateCell } from "./cell-db";
 import {
   acceptSocket,
@@ -99,16 +100,7 @@ export class LibraryDO extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(SOCKET_KEEPALIVE_PING, SOCKET_KEEPALIVE_PONG),
     );
-    // the runtime holds every event until this settles; a throw resets the cell, and the next
-    // event opens it again
-    void ctx.blockConcurrencyWhile(async () => {
-      try {
-        await migrateCell(ctx.storage);
-      } catch (error) {
-        console.error({ event: "library-cell-open-failed", ...errorFields(error) });
-        throw error;
-      }
-    });
+    openWithSchema(ctx, "library-cell", migrateCell);
   }
 
   get #accountId(): string {

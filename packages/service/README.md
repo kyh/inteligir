@@ -40,6 +40,7 @@ src/
   plain-http.ts        # the answers outside the one wire, in HTTP's statuses
   rate-limit.ts        # the D1 fixed window every throttled route spends
   log.ts               # an error logged whole, its causes included
+  object-schema.ts     # a Durable Object's drizzle migrations, run as it wakes
   auth/                # Better Auth factory, invite gate, reset email, the
                        # account's sessions as its devices, account deletion
   wire/                # /v1's one wire: the principal a session verifies to
@@ -49,7 +50,10 @@ src/
                        # what a refused or failed call answers and logs
   library/             # the account's library cell: LibraryDO (library-do.ts),
                        # its engine over the cell's SQLite (library-engine.ts:
-                       # writes, change sets, undo, quota, files), every library
+                       # field writes, change sets, undo, quota, files), each
+                       # item's body as a seed until its note opens and as
+                       # what the note projects after (cell-notes.ts), an edit
+                       # by passages through the note (cell-edits.ts), every library
                        # procedure over it and the markdown codec
                        # (library-router.ts, served by library-rpc.ts), what the
                        # apps read (cell-listing.ts), the alarm's jobs, the
@@ -65,9 +69,16 @@ src/
     library-sql.ts     # the raw port, plans as generators, statement chunking
     sql-value.ts       # a SQL value and row as zod
     library-queries.ts # an item's rows: drizzle for its row and derived rows,
-                       # plans for its blocks and the search index
-    revert-change.ts   # a change set taken back three ways, the set's after
-                       # as the base, newest set first
+                       # plans for its seed and the search index
+    revert-change.ts   # a change set's fields taken back three ways, the
+                       # set's after as the base, newest set first
+  note/                # each item's note: NoteDO (note-do.ts), a y-partyserver
+                       # YServer over its own SQLite, named only by
+                       # note-stub.ts; its door on the account socket's ticket
+                       # (note-routes.ts), what it and the cell say over RPC
+                       # (note-wire.ts), a page's article as changes by block
+                       # (article-body.ts) and a turn undone from its stored
+                       # log (turn-log.ts)
   connector/           # the connector: its OAuth on
                        # @cloudflare/workers-oauth-provider (connector-auth.ts),
                        # the consent page an assistant sends the person to

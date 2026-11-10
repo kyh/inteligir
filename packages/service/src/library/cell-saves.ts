@@ -140,7 +140,7 @@ export const landRead = (
 };
 
 // whether an item still has its page to be read: no article yet, its reading waiting or failed
-export const awaitsRead = (item: LiveStoredItem): boolean =>
+const awaitsRead = (item: LiveStoredItem): boolean =>
   (item.fields.fetchState === "pending" || item.fields.fetchState === "failed") &&
   !item.body.digest.article;
 

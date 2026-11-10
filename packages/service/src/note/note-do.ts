@@ -8,6 +8,7 @@
 // from bytes alone. One alarm backs every deadline: a projection the cell did not take, one the
 // debounce never reached, a confirm the cell did not answer, and the turn log's prune.
 
+import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
 import { deriveBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
@@ -38,12 +39,13 @@ import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { plainText } from "../plain-http";
 import { articleChanges } from "./article-body";
+import { openWithSchema } from "../object-schema";
 import { migrateNote, noteDbOf } from "./note-db";
 import type { NoteDb } from "./note-db";
 import { frameBytes, frameKind } from "./note-frames";
 import { noteNameOf } from "./note-stub";
 import type { NoteName } from "./note-stub";
-import { noteBlocksSchema, NOTE_SOCKET, NOTE_HOLDER_HEADER, NOTE_MODE_HEADER } from "./note-wire";
+import { noteBlocksSchema, NOTE_HOLDER_HEADER, NOTE_MODE_HEADER } from "./note-wire";
 import type {
   ChangeAnswer,
   NoteChange,
@@ -56,9 +58,11 @@ import type {
 import { recordTurnEdit, undoTurn } from "./turn-log";
 import type { TurnLogRow } from "./turn-log";
 
-// what one update and the whole note may weigh (#932's calls: past either the note turns
+// what one update and the whole note may weigh (owner decision: past either the note turns
 // read-only and says why, so typing never fails mid-word)
+/** @internal */
 export const NOTE_UPDATE_CAP = 1024 * 1024;
+/** @internal */
 export const NOTE_STATE_CAP = 8 * 1024 * 1024;
 // a snapshot part sits well inside a Durable Object's 2 MB row
 const SNAPSHOT_PART_BYTES = 1024 * 1024;
@@ -141,15 +145,7 @@ export class NoteDO extends YServer<Env> {
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(NOTE_SOCKET.ping, NOTE_SOCKET.pong),
     );
-    // the runtime holds every event until this settles; a throw resets the note
-    void ctx.blockConcurrencyWhile(async () => {
-      try {
-        await migrateNote(ctx.storage);
-      } catch (error) {
-        console.error({ event: "note-open-failed", ...errorFields(error) });
-        throw error;
-      }
-    });
+    openWithSchema(ctx, "note", migrateNote);
   }
 
   get #db(): NoteDb {

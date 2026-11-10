@@ -35,7 +35,7 @@ export interface EditDeps {
   readonly actor: () => CellActor;
 }
 
-export const editedSchema = z.object({ seq: z.number() });
+const editedSchema = z.object({ seq: z.number() });
 const joinedSchema = z.object({ changeSetId: z.string() });
 
 type Edited = z.output<typeof editedSchema>;

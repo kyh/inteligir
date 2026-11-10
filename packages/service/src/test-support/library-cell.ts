@@ -31,8 +31,6 @@ import { noteStub } from "../note/note-stub";
 import type { NoteReach } from "../note/note-wire";
 import { libraryRouter } from "../library/library-router";
 
-export { blockHash as hashOf } from "@repo/contract/library/block-hash";
-
 const GiB = 1024 * 1024 * 1024;
 
 export const newAccountId = (): string => crypto.randomUUID();

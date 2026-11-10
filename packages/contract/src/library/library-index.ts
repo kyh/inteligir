@@ -407,7 +407,6 @@ export const answerCard = (card: ItemCard) => ({ ...card, outline: [...card.outl
 type ListedItem = z.infer<typeof listedItemSchema>;
 
 // a row as a screen's page lists it, and the passage a search found it by when one did
-/** @internal */
 export const listedItem = (row: ItemListing, snippet?: string): ListedItem => {
   const listed: ListedItem = {
     card: answerCard(row.card),

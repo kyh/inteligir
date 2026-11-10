@@ -169,13 +169,13 @@ export const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdi
   }
 };
 
-export const withField = <F extends ScalarField>(
+const withField = <F extends ScalarField>(
   fields: LibraryItemFields,
   field: F,
   value: LibraryItemFields[F],
 ): LibraryItemFields => ({ ...fields, [field]: value });
 
-export const withProperty = (
+const withProperty = (
   fields: LibraryItemFields,
   key: string,
   value: PropertyValue | undefined,

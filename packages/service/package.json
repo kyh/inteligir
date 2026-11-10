@@ -44,7 +44,7 @@
     "drizzle-orm": "catalog:",
     "lib0": "catalog:",
     "partyserver": "catalog:",
-    "platejs": "^53.5.2",
+    "platejs": "catalog:",
     "slate": "catalog:",
     "stemmer": "^2.0.1",
     "y-partyserver": "catalog:",
