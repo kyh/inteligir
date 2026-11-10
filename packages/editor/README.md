@@ -1,8 +1,8 @@
 # @repo/editor
 
-The item editor: Plate (platejs) over an item's blocks, the dialect's markdown
-on Plate's stock reader and writer, and the codec an import and the agent read
-and write through. Its decisions are this
+The item editor: Plate (platejs) bound to a note's live document, the
+dialect's markdown on Plate's stock reader and writer, and the codec an import
+and the agent read and write through. Its decisions are this
 package's [`CLAUDE.md`](CLAUDE.md).
 
 ## Why it exists
@@ -17,11 +17,11 @@ than containing one. The cell runs the same codec headless
 editor whole (`apps/mobile-editor`).
 
 Deps: `@repo/contract` (the library model), `@repo/ui` (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
-`host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`)
-and an item session's ports (`item/item-session.ts`); a host implements both
-and comes in through one call, `installEditorHost`, and everything above its
-store (the block diff, the merge, the library's titles a link and the `[[`
-picker read) is this package's, so a second host copies none of it. The package
+`host-io.ts` (`EditorHost`: its `EditorHostIo`, whose `notes` port dials a
+note's live document, and its `EditorHostActions`); a host implements it and
+comes in through one call, `installEditorHost`, and everything above it (the
+note's socket and its heartbeat, the binding, the library's titles a link and
+the `[[` picker read) is this package's, so a second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
 swap, the hljs theme, the prose scope the appearance dials feed, typeset's
 table rules and the diagram frame's `--pele-*` variables), inert until the
@@ -47,10 +47,12 @@ src/
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
-  item/                # an item edited by its id: its editor, its session's
-                       # ops over the host's store, the block diff, its
-                       # properties and the line a merge that kept this device's
-                       # lines says
+  item/                # an item edited by its id: its editor, the connection
+                       # to its note's live document, and its properties
+  live/                # a note's live document: the binding every editor of
+                       # it sits innermost under and its undo, the blocks it
+                       # seeds and reads as the library stores them, a writer's
+                       # block edits through the editor, and whose a picker is
   formulas/            # formula pills: collection, the expression and its
                        # evaluation, the resolve graph, result formatting, and
                        # the `{{` picker, entry, editing, recompute
@@ -68,9 +70,10 @@ src/
                        # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
                        # editor (the hosts' included), and what this package's
-                       # suites share: the DOM cleanup, a mounted editor, an
-                       # item held in memory, the codec's ports, a value's
-                       # meaning and generated notes
+                       # suites share: the DOM cleanup, a mounted editor,
+                       # notes' objects held in memory behind a fake socket,
+                       # live documents relayed in memory, the codec's ports,
+                       # a value's meaning and generated notes
   test-support/fixtures/  # the corpus and frontmatter files the suites read
   *.test.ts(x)         # each suite beside the module it names, in whichever
                        # folder that module sits; one that holds several
@@ -78,8 +81,8 @@ src/
                        # the top
   *.ts(x)              # the editor surface and its column, the host seam
                        # (§ Seams), the id of the item the editor shows
-                       # (`open-item.tsx`), the write policy, and the
-                       # in-document affordances: menus, toolbars, TOC
+                       # (`open-item.tsx`), and the in-document
+                       # affordances: menus, toolbars, TOC
 ```
 
 ## Invariants
@@ -108,7 +111,8 @@ src/
   directive the dialect does not name are the text they spell.
 - **Typing walks a long note only through its budget.**
   `typing-budget.test.tsx` types into a generated 10k-line note opened in the
-  item editor (`generateLongNote`, `test-support/memory-item.tsx`) and fails
+  item editor over its live document (`generateLongNote`,
+  `test-support/memory-note.tsx`) and fails
   on a whole-note pass no row names, on a keystroke, a caret move or the settle
   after typing. A pass a keystroke cannot afford caches by top-level block (the
   outline), which an edit replaces while keeping every other
@@ -142,22 +146,21 @@ src/
   account's cell in a tab and the Mac app's window, and the phone's over its
   WebView bridge, `apps/mobile-editor/src/item/item-host.ts`), and `host.ts` is
   React's door to the titles (`useLibraryTitles`, `useTitleOf`).
-- `stale-write.ts` — `mergeBlocks`, the block merge: a block two writers
-  changed, diff3-merged over each side's markdown (`codec/block-markdown.ts`),
-  with whether it kept this device's lines over the other's change to the same
-  ones.
-- `item/item-session.ts` — an item open in the editor by its id, over its
-  host's store (`ItemStore`): the value is the item's blocks, a pause writes the
-  ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid
-  in with the editor's transforms; a merge that kept this device's lines over
-  another's goes to the host's `notifyOverlap`. `item/item-editor.tsx` is its
-  surface: an editor and a session of its own per item id, drawn once the
-  item's blocks are in (or a line saying the device lacks it), read-only while
-  the host says it is `offline`, which a host reads the status of and flushes,
-  and `item/item-properties.ts` the panel's rows over its fields. A link to an
-  item by id shows the name the item goes by now, `useTitleOf` over the
-  library's titles. The suites open items over
-  `test-support/memory-item.tsx`, items held in memory as the cell holds them.
+- `item/note-connection.ts` — a note's live document, opened by its item's id
+  over the host's `notes` port: y-partyserver's provider dials the note's
+  object on a fresh ticket, the document shows once it has synced, a ping every
+  20 s finds a socket gone quiet, and the status says whether the note is
+  there, whether an edit reaches it now and whether the note holds its edits.
+  `item/item-editor.tsx` is its surface: a connection per item id and an
+  editor per document, drawn once it has synced (or a line saying the library
+  holds no such item), read-only while the host is offline, the socket down or
+  the note held, and the open note it hands its host (`onNote`) answers a leave
+  (`whenSaved`). `item/item-properties.ts` is the panel's rows over an item's
+  fields as its host holds them (`ItemFields`). A link to an item by id shows
+  the name the item goes by now, `useTitleOf` over the library's titles. The
+  suites open notes over `test-support/memory-note.tsx` and
+  `test-support/note-server.ts`, notes' objects held in memory behind a fake
+  socket.
 - `open-item.tsx` — the id of the item the editor shows, which the item editor
   provides and `useOpenItemId` reads under it.
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around
