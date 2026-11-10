@@ -213,7 +213,8 @@ extension's) needs its workspace's `generate` first, which `turbo run` does.
 End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
 own with its state in a scratch dir, and drives it the way a person or an
 assistant does: the library's tab in a headless browser, the browser extension
-in Chromium, and the phone's item page and runtime. It is deliberately outside
+in Chromium, and the phone's runtime and its exported note page, loaded from
+its file in a stand-in for the phone's web view. It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
 lanes, half the machine's cores and at most four at once, each printed whole
 when it ends; `--lanes 1` runs them one at a time and streams every line, and

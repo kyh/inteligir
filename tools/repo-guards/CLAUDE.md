@@ -68,8 +68,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   install riding no lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
   the `Cargo.lock` every cargo step runs `--locked` against. The
   browser-extension scenarios pass agent-browser's `--profile` and
-  `--extension` on every call (`tools/e2e/src/harness/extension-fixture.ts`),
-  since agent-browser launches its browser on whichever call comes first. The
+  `--extension`, and the phone's note page its `--init-script`, on every call
+  (`tools/e2e/src/harness/extension-fixture.ts`,
+  `tools/e2e/src/scenarios/phone-note-editor.ts`), since agent-browser
+  launches its browser on whichever call comes first. The
   arguments are `pnpm-workspace.yaml`'s comments.
 
 - **AN UPDATE SWEEP SKIPS THE EXPO SDK'S NAMES, NOT ITS `expo:` CATALOG.**
@@ -186,7 +188,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `pnpm e2e` runs one scenario per two of the machine's cores at once, at most
   four, each started in registry order as a lane frees and its log printed whole
   when it ends; `--lanes 1` runs them one after another, streaming. Ports,
-  scratch dirs and browser sessions are each lane's own, and the Worker and the phone's editor page are built once
+  scratch dirs and browser sessions are each lane's own, and the Worker and the phone's export are built once
   per run, a build's wait behind another lane's not counted against its
   scenario's deadline. Rejected: one serial run (835 s against about 490 s on
   four cores). `tools/e2e/src/run.ts`.
