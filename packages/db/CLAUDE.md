@@ -1,8 +1,9 @@
 # Decisions: @repo/db
 
-The D1 accounts database's schema and each library cell's, and how each
-ships: D1's by `drizzle-kit push`, a cell's as the migrations it runs when it
-wakes. `AGENTS.md` § Decisions says how a bullet is written and cited.
+The D1 accounts database's schema, each library cell's and each note's, and how
+each ships: D1's by `drizzle-kit push`, a cell's and a note's as the migrations
+each runs when it wakes. `AGENTS.md` § Decisions says how a bullet is written
+and cited.
 
 ## Schemas
 

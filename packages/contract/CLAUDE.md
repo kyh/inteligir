@@ -31,7 +31,7 @@ the service's (`packages/service/CLAUDE.md`).
   zero-width space Plate writes for an empty line from the text it derives;
   a `#tag` is its text, media a sha or a url. Rejected: the vocabulary
   in `@repo/editor`
-  (the phone's native end parses its editor page's blocks by it, and loads no
+  (the phone's native end parses its item page's blocks by it, and loads no
   Plate), a tag node (two spellings of
   one tag), an id inside a block (Plate names those again in every editor, so
   one block would read apart on each), a wiki link or an opaque source node beside the
@@ -84,9 +84,27 @@ the service's (`packages/service/CLAUDE.md`).
   the host's own row, built for the one read that asks, and answers kind, tag
   family, folder (with its subfolders), site, date and search scopes, with
   Deleted apart and a count per kind. It keeps one sorted order per sort, dropped only when a row's place in
-  it moves. Rejected: SQL listing queries (a tag family and a folder tree read
-  from memory without a join per page).
+  it moves. It builds the apps' three reads once, for the cell and the fake
+  cell alike: a listing's page (`listingPageOf`), the rail's counts (`scopes`)
+  and every title (`titles`), so a suite over the fake reads what the cell
+  answers. Rejected: SQL listing queries (a tag family and a folder tree read
+  from memory without a join per page); an assembly per host (two assemblies
+  of one answer drift apart).
+  `packages/contract/src/library/library-index.ts`,
   `packages/contract/src/library/library-index.test.ts`.
+
+- **ONE FAKE CELL ANSWERS EVERY CLIENT'S SUITES.**
+  `@repo/contract/test-support/fake-cell` serves `v1Contract`'s library rows
+  through oRPC's own handler, with the cell's rules: an op id lands once, a
+  field's base holds or answers `CONFLICT`, a file's bytes come first, and a
+  card is derived. Each device gets a client and the link it is built from;
+  the library page's suites reach it through the page's own client (a
+  `DynamicLink` in `apps/web/src/library/test-support/fake-page-library.tsx`),
+  and a suite scripts an answer only where it holds or refuses a call.
+  Rejected: a fake per client (a second copy of the cell's rules); rows built
+  by hand (a shape the cell never answers).
+  `packages/contract/src/test-support/fake-cell.ts`,
+  `packages/contract/src/test-support/fake-cell.test.ts`.
 
 ## Items and files
 

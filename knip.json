@@ -61,9 +61,12 @@
     "packages/editor-bridge": { "project": ["src/**/*.ts!"] },
     "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/db": {
-      // knip's drizzle plugin reads only drizzle.config.ts by default; the cell's schema has its own
-      // config, and the local D1's throws on load until `pnpm dev:web` has made that database
-      "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.cell.ts"] },
+      // knip's drizzle plugin reads only drizzle.config.ts by default; the cell's and the note's
+      // schemas have configs of their own, and the local D1's throws on load until `pnpm dev:web`
+      // has made that database
+      "drizzle": {
+        "config": ["drizzle.config.ts", "drizzle.config.cell.ts", "drizzle.config.note.ts"]
+      },
       "project": ["src/**/*.{ts,js}!"]
     },
     "packages/service": {

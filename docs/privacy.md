@@ -101,18 +101,24 @@ through the Service or otherwise includes:
   can add or can have added to their content, such as keywords, geographical or
   location information, and other similar data. Once you sign in, our cloud
   receives:
-  - **Your library, in your account.** Every change a device of yours makes —
-    to items, files, folders and tags — goes to your account's
-    library in our cloud, which keeps what each change replaced for seven days,
-    so Undo can take it back, each change named for the device or the assistant
-    that made it and the built-in agent's for the conversation that made them.
-    Your library is reachable only with a sign-in to your own account, and
-    holds about 1 GB, what Undo keeps included. A
-    full one still opens and downloads everywhere, but takes no new changes:
-    the device that made one says so, and the change is not in your library
-    until you send it again once there is room. A file over 100 MB is never
-    kept. It is encrypted at rest by Cloudflare, but we can read it — there is no
-    end-to-end encryption.
+  - **Your library, in your account.** Every change a device of yours makes — to
+    items, files, folders and tags — goes to your account's library in our
+    cloud. What you type in a note goes there as you type it, to that note's own
+    store in your library, which sends it on to every device that has the note
+    open, as it does the built-in agent's edits; it carries no presence, so no
+    one learns who else has a note open or where their cursor is. Your library
+    keeps what each change to an item's fields, a folder or a tag replaced, and
+    what the built-in agent, an assistant, an import or a reading of a page
+    changed, for seven days, so Undo can take it back, each change named for the
+    device or the assistant that made it and the built-in agent's for the
+    conversation that made them; what you type in a note is not kept for Undo.
+    Your library is reachable only with a sign-in to your own account, and holds
+    about 1 GB, each note's text and what Undo keeps included. A full one still
+    opens and downloads everywhere, and you can still edit what it holds, but it
+    takes no new items or files, and the device that tried says so. A note holds
+    about 8 MB, and a full one takes no more typing and says so. A file over 100
+    MB is never kept. It is encrypted at rest by Cloudflare, but we can read it
+    — there is no end-to-end encryption.
 - **Other data** not specifically listed here, which we will use as described in
   this Privacy Policy or as otherwise disclosed at the time of collection.
 
@@ -266,11 +272,11 @@ The apps also hold to these, plainly:
   one made while you are signed out waits there too, as its address and
   title, until you sign in again as the same account, and one for an account
   that was deleted is dropped.
-- **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves
-  its address, with the title the sharing app gave it and the words you shared
-  beside it, into your library, like any other edit on the phone; the phone
-  fetches nothing from the site. Our cloud then fetches and reads the page as
-  it does any link your library holds unread (above), so a page only your own
+- **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves its
+  address, with the title the sharing app gave it and the words you shared
+  beside it, into your library, like anything else you save from the phone; the
+  phone fetches nothing from the site. Our cloud then fetches and reads the page
+  as it does any link your library holds unread (above), so a page only your own
   network reaches is not read. A link inside text you share is saved the same
   way, the words around it its note, and other text is saved as you shared it.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
@@ -380,13 +386,17 @@ we may either delete it, anonymize it, or isolate it from further processing.
 
 Specifically, in our cloud:
 
-- Your library keeps each change, with what it replaced, for seven days after
-  it is finished, so Undo can take it back, and deletes it within about a day
-  after that. An item stays until it is deleted for good or the account is
-  deleted. Deleting an item moves it to Deleted; emptying Deleted, or Delete
-  forever, removes the item's text and what Undo kept of it at once,
-  and each of its files once no other item and nothing Undo can still bring back
-  names it.
+- Your library keeps each change, with what it replaced, for seven days after it
+  is finished, so Undo can take it back, and deletes it within about a day after
+  that. An item stays until it is deleted for good or the account is deleted.
+  Deleting an item moves it to Deleted; emptying Deleted, or Delete forever,
+  removes the item's text and what Undo kept of it at once, its note's own store
+  emptied with it, and each of its files once no other item and nothing Undo can
+  still bring back names it.
+- For each turn of the built-in agent that edited a note, that note's store
+  keeps a copy of the whole note as it stood at the turn's first edit there,
+  and every change through the turn's last, so Undo this turn can take the
+  turn back; it is deleted within about a day after the turn's seven days.
 - A session's row is deleted when that device signs out, when another device
   signs it out from Settings › Account, when a password reset or the 20-session
   cap ends it, and once it has lapsed, 60 days after its last use, the next
@@ -428,8 +438,9 @@ so that still shows with no connection:
   you open it.
 - **Pages you share while offline.** A page or text you share to Inteligir
   waits on the phone until your library takes it; one the library refuses
-  stays on the phone and says so. Nothing else waits: an edit, a save typed
-  into the app, a photo or a deletion needs a connection, and says so.
+  stays on the phone and says so. Nothing else waits: a save typed into the
+  app, a photo or a deletion needs a connection, and says so, and the phone
+  shows a note read-only.
 
 It all lives in the app's own storage on the phone. What it last read and the
 shares waiting sit where the app keeps them out of the phone's iCloud backup:
@@ -592,8 +603,9 @@ account row itself goes:
    running stopped first, while the store still names them: our cloud keeps
    their ids nowhere else.
 3. **Everything in that store is deleted**: every item, its text and what Undo
-   keeps. What stays is a marker saying when it was deleted and nothing
-   else, so a request already on its way still finds it closed.
+   keeps, each note's own store emptied first. What stays is a marker saying
+   when it was deleted and nothing else, so a request already on its way still
+   finds it closed.
 4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
 5. **Every assistant's access is revoked**, its tokens with it.

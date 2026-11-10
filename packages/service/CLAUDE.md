@@ -1,26 +1,25 @@
 # Decisions: @repo/service and the cloud
 
-Accounts and their sessions, `/v1`'s one wire, each account's library cell
-with its SQL, undo and search, the fill, the connector with its OAuth and its
-tools, and each conversation with the built-in agent: the cloud's code, which
-`apps/web`'s Worker serves and deploys. `AGENTS.md` § Decisions says how a
-bullet is written and cited.
+Accounts and their sessions, `/v1`'s one wire, each account's library cell with
+its SQL, undo and search, each item's live note, the fill, the connector with
+its OAuth and its tools, and each conversation with the built-in agent: the
+cloud's code, which `apps/web`'s Worker serves and deploys. `AGENTS.md` §
+Decisions says how a bullet is written and cited.
 
 ## Shape
 
 The service runs on workerd alone: no DOM, no node or react import
-(`oxlint.config.ts`), and the library model's modules here (`src/library/`'s
-SQL and undo, `src/knowledge/`, `src/items/`, `src/imports/`, `src/text/`)
-take no `crypto` or `URL` global, the clock, random bytes and fresh ids
-injected. Its doors are fetch-shaped functions `apps/web`'s server routes hand
-a request to (`packages/service/src/doors.ts`), its Durable Objects the ones
-`apps/web`'s entry exports, and the cell's SQL its Durable Object's own SQLite,
-through drizzle's durable-sqlite driver and the raw port beside it
-(`packages/service/src/library/cell-storage.ts`), so every suite that reaches
-it runs in workerd. The model it keeps is `@repo/contract`'s
+(`oxlint.config.ts`), and the library model's modules here (`src/library/`'s SQL
+and undo, `src/knowledge/`, `src/items/`, `src/imports/`, `src/text/`,
+`src/note/turn-log.ts`) take no `crypto` or `URL` global, the clock, random
+bytes and fresh ids injected. Its doors are fetch-shaped functions `apps/web`'s
+server routes hand a request to (`packages/service/src/doors.ts`), its Durable
+Objects the ones `apps/web`'s entry exports, and the cell's SQL its Durable
+Object's own SQLite, through drizzle's durable-sqlite driver and the raw port
+beside it (`packages/service/src/library/cell-storage.ts`), so every suite that
+reaches it runs in workerd. The model it keeps is `@repo/contract`'s
 (`packages/contract/CLAUDE.md`), the markdown it reads and writes
-`@repo/editor`'s codec, and its schemas `@repo/db`'s
-(`packages/db/CLAUDE.md`).
+`@repo/editor`'s codec, and its schemas `@repo/db`'s (`packages/db/CLAUDE.md`).
 
 ## Accounts and sessions
 
@@ -483,6 +482,23 @@ it runs in workerd. The model it keeps is `@repo/contract`'s
   under node for the suites (a second engine, held to a Durable Object's
   limits by hand).
   `packages/service/src/library/library-queries.test.ts`.
+
+- **AN AGENT TURN'S UNDO IN A NOTE REPLAYS THE TURN'S OWN YJS UPDATES, AND
+  FLAGS WHAT IT TAKES WITH A BLOCK THE TURN ADDED.** Around each agent edit
+  the note keeps a `pre` update (what it gained since the turn's last edit
+  there, the whole note at the first) and a `turn` update, each cut into parts
+  of at most 1 MiB, under a Durable Object's 2 MB row. Undo replays them into a
+  fresh doc where a `Y.UndoManager` tracks the `turn` updates alone, catches
+  that doc up to the live note, undoes the turn there and answers the
+  difference as a forward edit, so every later edit stays. Whatever the undo
+  deletes beyond the turn's own insertions sat inside a block the turn added,
+  and the answer flags it, never refuses. The undo writes as a client its
+  change set's id names, so a note already holding that client's writes
+  answers nothing. Rejected: the pre-turn state plus one merged update per set
+  (an edit between two of the turn's edits is lost); counting later deletes of
+  the turn's text (nobody deletes the person's text inside the turn's block, so
+  it went unflagged); a fresh client per undo (a retried undo restores the
+  turn's deletes twice). `packages/service/src/note/turn-log.ts`.
 
 ## Fills
 

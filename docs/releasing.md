@@ -450,42 +450,29 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **Search.** Search the library for a word only an article's body holds,
   then sign out and in again. Passing: the search finds it (the cell's search,
   online), and the second sign-in starts from an empty cache with no error.
-- **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
-  keyboard's microphone each land once; the selection handles and the edit
-  menu work, with no floating toolbar; the formatting toolbar rides the
-  keyboard; and the edit shows on the Mac within seconds. Background the
-  phone's app, change a note on the Mac, come back. Passing: the change shows.
-- **The editor's edges.** Passing: a cold open of an item is editable within a
-  second; New note opens with its title focused and the keyboard up; a link
-  to an item pushes its item and back returns; an external link opens Safari
-  and the page never navigates; a chart and tabs refuse edits; a Mermaid
-  diagram draws, and recolours with no flash when dark mode flips; dark mode
-  follows the system, with no light edge behind a pushed screen or the
-  keyboard, even after switching it with the app open; typing and then
-  backgrounding and killing the app keeps what was typed.
-- **The `[[` picker on the iOS keyboard.** In a note on the phone, type `[[`
-  on the iOS keyboard, then a few letters of a title, and pick a row. Passing:
-  the picker opens on the second `[`, the link lands with the item's title and
-  no `[` before it, and an `@` typed in a note stays an `@`.
-- **A picture in a note.** Copy a photo in Photos, tap at the end of a line
-  of a note and paste. Passing: the picture lands under the line and draws,
-  and the item at `/library` in a browser shows it. Then open, on the phone, a note the Mac pasted a
+- **Read-only notes.** Open a note and try to type in it. Passing: it says
+  "Editing on the phone is coming. For now, edit this note in a browser or on
+  your Mac.", typing changes nothing, a link to an item opens its item, and a
+  change made on the Mac shows. Background the phone's app, change a note on
+  the Mac, come back. Passing: the change shows.
+- **The editor's edges.** Passing: a link to an item pushes its item and back
+  returns; an external link opens Safari and the page never navigates; a chart
+  and tabs draw; a Mermaid diagram draws, and recolours with no flash when dark
+  mode flips; dark mode follows the system, with no light edge behind a pushed
+  screen, even after switching it with the app open.
+- **A picture in a note.** Open, on the phone, a note the Mac pasted a
   picture, a video and a PDF into. Passing: the picture draws, the video plays
   in the note, and the PDF shows as a card naming it, with no Download. Turn
   on airplane mode and open the note again. Passing: the picture still draws.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
-  library and the items opened before show, an item read-only under "Needs a
-  connection"; a picture item opened once before opens in the viewer, and one
-  never opened says it is not on this iPhone yet; a note whose text holds a
-  picture the Mac pasted, opened once online, draws it offline. Save a link or
-  a thought, New note, add a photo and Move to Deleted. Passing: each says
-  Needs a connection. Share a page from Safari, kill the app and open it.
-  Passing: the library says "1 save waiting". Turn airplane mode off. Passing:
-  the save lands, the line goes, and the item shows on the Mac.
-- **Both devices at once.** Change one paragraph of a note on the phone and
-  another on the Mac at once, then the same lines of one paragraph on both.
-  Passing: different paragraphs both land; the same lines keep the phone's
-  where they overlap and say so on the phone (the editor page's own merge).
+  library and the items opened before show, read-only as ever; a picture item
+  opened once before opens in the viewer, and one never opened says it is not on
+  this iPhone yet; a note whose text holds a picture the Mac pasted, opened once
+  online, draws it offline. Save a link or a thought, New note, add a photo and
+  Move to Deleted. Passing: each says Needs a connection. Share a page from
+  Safari, kill the app and open it. Passing: the library says "1 save waiting".
+  Turn airplane mode off. Passing: the save lands, the line goes, and the item
+  shows on the Mac.
 - **Deleted.** Move an item to Deleted on the phone, then restore it on the Mac.
   Passing: it leaves both libraries and comes back with its text.
 - **Photos.** Add one from the camera and one from the library. Passing: each
@@ -497,9 +484,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   writes in as it comes, the approval lands, the tag shows on both devices,
   the thread lists on the Mac too, and offline the send says Needs a
   connection and sends nothing.
-- **A Mac's edit arrives at once.** With the phone's app in the foreground on
-  an item, edit that item on the Mac. Passing: the change shows on the phone
-  within seconds (the account's socket dialed from the device by its ticket).
+- **A Mac's edit arrives at once.** With the phone's app in the foreground on an
+  item, edit that item's title or first line on the Mac. Passing: the change
+  shows on the phone within seconds (the account's socket dialed from the device
+  by its ticket).
 - **Sign out.** With a share waiting (airplane mode), Sign out. Passing: it
   asks first, "Sign out and discard saves waiting?" over a line counting the
   one save; confirmed, the sign-in screen shows at once, even offline. Signed
@@ -560,8 +548,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   the state's address, its notes "the post says it well" and "the state".
 - **New note with no words.** New note, then go back without typing. Passing:
   the Library row, its long-press sheet and the item's screen title read
-  Untitled. Type a line and go back. Passing: they read that line. Phone
-  components do not run under vitest.
+  Untitled. Phone components do not run under vitest.
 - **The item in view loads first.** Sign in afresh to the 2,000-item account,
   open an item, follow a link to another item in it, then go back at once.
   Passing: the item you went back to shows its text while the library's list
@@ -583,10 +570,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   (`eas update:list --branch production` names the group) counts a launch. An
   update that matches no build is the fingerprint trap in § Hotfixes.
 
-- **The note's Embed from URL dialog covers the screen on iOS 26.** In a note,
-  choose Embed from URL in the `/` menu with the note scrolled down. Passing:
-  the dimmed backdrop reaches every edge of the screen, and Cancel fades the
-  dialog out.
 - **Sign out during an upload.** Start a large upload on a slow link, then Sign
   out. Passing: the sign-out finishes at once. That React Native's fetch honours
   the abort cannot run under vitest.
@@ -597,17 +580,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   passing: it opens signed in,
   what it last showed is there, and the share lands. No suite installs one
   build over another.
-- **A block that can't save asks before you leave.** Leave an item holding a
-  block that can't save (a very long code block). Passing: the Alert reads the
-  failure in plain words, Stay keeps it, and Discard edits leaves. The phone's
-  suites have no renderer.
-- **The failure line stays in view.** In that item, with the failure showing,
-  scroll the text. Passing: the sticky line above the text sits below the safe
-  area and stays in view. The phone's suites have no renderer.
-- **A picture pasted just before you leave.** Paste an image into an item and
-  swipe back at once, on a slow file. Passing: the block is there on reopen.
-  The native flush has its own timeout and the WebView can go first, so vitest
-  can't prove it.
 - **Approvals on the phone.** Have the agent ask to save a link, then to move
   twelve items to Deleted. Passing: the save's card shows the host and a
   selectable whole address, and the delete's shows the count and the titles the
@@ -659,7 +631,7 @@ account whose library holds about 2,000 items gives the timing check its load.
 
 - **The editor page's policy under WebKit.** In a development build
   (`pnpm --filter @repo/mobile ios`), open an item, then Safari › Develop ›
-  Simulator › the item's page. Passing: the item is editable, and the console
+  Simulator › the item's page. Passing: the item draws, and the console
   has no `Refused to` line; the static CSP is otherwise proven in Chromium
   alone.
 - **The share address.** In the simulator, share a link from Safari to the
@@ -767,17 +739,29 @@ account whose library holds about 2,000 items gives the timing check its load.
   and `<preview>/libraryish` answers the site's 404. On the production deploy,
   passing is the same at `inteligir.com/library`.
 - **The page in Safari, Chrome and Firefox.** In each, signed in, open
-  `/library`, then edit an item on the phone. Passing: the edit shows in the tab
-  without a reload; with the network off, the open item says Needs a
-  connection and takes no typing, Settings › Account's rows say "Needs a
-  connection", and a line typed just before the network went lands in the
-  phone's copy once it is back.
+  `/library`, then edit an item on the Mac or in a second tab. Passing: the
+  edit shows in the tab without a reload; with the network off, the open item
+  says Needs a connection and takes no typing, Settings › Account's rows say
+  "Needs a connection", and a line typed just before the network went lands in
+  the Mac's copy once it is back.
 - **A tab that holds a change asks before it goes, in Safari, Chrome and
   Firefox.** Type a line in an item and turn the network off at once, then
   close the tab, and reload it. Passing: the browser asks before each, and
   nothing asks once the network is back and the line has landed. Then, online,
-  type a line and switch to another tab at once for a minute. Passing: the line
-  is in the phone's copy before you switch back.
+  type a line with the same note open in the Mac app. Passing: the line shows
+  in the Mac's window as you type it, and leaving the item asks nothing.
+- **One note on two devices and the agent at once.** On a preview, open one
+  note in a tab and in the Mac app, type in different paragraphs at once, then
+  in the same paragraph, and ask the agent (a real turn, through the
+  preview's gateway) to rewrite a third while you type. Passing: each window
+  shows the other's typing and the agent's as they happen, nothing is lost and
+  no merge message shows; Undo this turn then takes the agent's words back
+  and keeps all you typed, and when you typed inside a paragraph the agent
+  added, it names the note that text went from. Leave the tab on a note for a
+  minute with no typing, then type. Passing: the typing lands in the Mac's
+  window (the 20 s heartbeat crossed Cloudflare's edge). Delete forever the
+  note from the Mac. Passing: the tab says the item isn't in your library (the
+  4404 close crossed the edge). No suite runs a real edge or a real turn.
 - **A long item's outline and its formulas, in the tab and in the Mac app.**
   Open an item with three headings or more and scroll it, then import a zip
   holding a note whose text is `:formula[5]{source="2+2"}` and open that note.

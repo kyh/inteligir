@@ -26,9 +26,8 @@ is moving the code to these premises in stages, issues
 [#936](https://github.com/kyh/inteligir/issues/936) (label `plan`), all on that
 PR's branch by the owner's decision. Until a stage lands, the code, § Map
 onward and the `CLAUDE.md` bullets of its area may describe the older design
-(block writes settled by diff3, our own agent loop, the phone's editor as a
-WebView page). Where they disagree, these premises win,
-and the stage's issue says what changes.
+(our own agent loop, the phone's editor as a WebView page). Where they
+disagree, these premises win, and the stage's issue says what changes.
 
 - **Every item is a page: properties plus a body of Plate blocks**, as in
   Notion.
@@ -46,9 +45,10 @@ and the stage's issue says what changes.
   the code and little of the product.
 - **A note's body is live**, like Google Docs. You on every device and the
   agent edit one Yjs document at once: one `y-partyserver` Durable Object per
-  note, `@platejs/yjs` in the editor, Yjs pinned to 13.x. There is no presence
-  and no page history. Why: a live document removes merge logic instead of
-  adding it.
+  note, our own Plate binding over `@slate-yjs/core` in the editor
+  (`packages/editor/src/live/yjs-binding.ts`), Yjs pinned to 13.x. There is
+  no presence and no page history. Why: a live document removes merge logic
+  instead of adding it.
 - **Each account's library is one SQLite Durable Object, its cell.**
   - It holds properties, folders, tags, full-text search, links, change sets
     and the account's quota.
@@ -135,14 +135,14 @@ this guide wins.
 ```
 apps/web                @repo/web — ONE Cloudflare Worker: the site, the library's page at /library (src/library, which the Mac app's window shows), and the entry that serves @repo/service's doors and exports its Durable Objects
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window on the site's /library page, its origin pin, the menu and the stock updater
-apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, the editor page online, and shares that wait offline
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/mobile             @repo/mobile — the iPhone app: the library read through a kept TanStack Query cache, an item drawn read-only from what it holds, and shares that wait offline
+apps/mobile-editor      @repo/mobile-editor — the phone's item page: an item drawn read-only by @repo/editor, one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save to /v1, on the browser's own sign-in to the site
 packages/contract       @repo/contract — ONE client-safe contract for /v1, the library and the account, and the library model both ends validate against
-packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each conversation with the built-in agent
-packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's with the migrations it runs as it wakes
-packages/editor         @repo/editor — the Plate WYSIWYG, the dialect's rules over Plate's stock markdown, and the codec over its headless kits
-packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
+packages/service        @repo/service — the cloud's code: accounts, /v1, the connector, fills, each account's library cell with its SQL, search, undo and imports, each item's note (NoteDO, a live Yjs document), each conversation with the built-in agent
+packages/db             @repo/db — drizzle's schemas: the D1 accounts database's with its client and push configs, and each library cell's and each note's, with the migrations each runs as it wakes
+packages/editor         @repo/editor — the Plate WYSIWYG bound to a note's live document, the dialect's rules over Plate's stock markdown, and the codec over its headless kits
+packages/editor-bridge  @repo/editor-bridge — the phone item page's wire (an item, its link targets, a file's bytes), which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
@@ -270,12 +270,12 @@ Every surface, and how an agent sees it run; a scenario is one of
 | Surface                 | Dev command          | Agent-verifiable at runtime?                                                                                                                                                                     |
 | ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `worker-doors`, `worker-door-faults`, `account-hosted`; the cloud's code in workerd, `pnpm --filter @repo/service test` |
-| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                                                                                                           |
+| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`, `live-note-browser`                                                                                      |
 | The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`                                                                                            |
 | The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's                                                                                             |
 | The Mac app             | `pnpm dev`           | **On a Mac**: `pnpm smoke:desktop` opens the packed app on a local Worker                                                                                                                        |
 | The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                                                                                                                 |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-share` (its runtime under node)                                                                                             |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its item page, read-only), `phone-offline-share` (its runtime under node)                                                                                    |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
@@ -333,10 +333,12 @@ One line per rule that binds more than one workspace; the bullet behind each
 is in the file named.
 
 - **The cell owns every rule, and every device reads it online.** Every write
-  is guarded, applied and logged by the account's library cell; a device reads
-  and writes it through `/v1`, its reads cached by TanStack Query and asked
-  again when the account's socket says what moved (`packages/service/CLAUDE.md`,
-  `apps/web/src/library/CLAUDE.md`, `apps/mobile/CLAUDE.md`).
+  is guarded, applied and logged by the account's library cell, but a note's
+  typing, which its note's object takes and projects to the cell; a device
+  reads and writes it through `/v1`, its reads cached by TanStack Query and
+  asked again when the account's socket says what moved
+  (`packages/service/CLAUDE.md`, `apps/web/src/library/CLAUDE.md`,
+  `apps/mobile/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build
   (`packages/service/CLAUDE.md`).
@@ -344,10 +346,12 @@ is in the file named.
   outbox keep a save before its first call and send it until it lands;
   everything else says it needs a connection (`apps/extension/CLAUDE.md`,
   `apps/mobile/CLAUDE.md`).
-- **One write policy**: every write carries the base it was computed from (a
-  block's hash, a field's value), the cell applies a block only while its base
-  holds and answers `CONFLICT` with the block as it is, and the editor's diff3
-  settles that in every host (`packages/service/CLAUDE.md`,
+- **One live body per note, and a field by its base**: a note's body is one
+  Yjs document every device and the agent edit at once, the agent by block id
+  through the note; a library write changes fields only, each op carrying the
+  value it was computed from, which the cell lands only while it holds and
+  otherwise answers `CONFLICT` with the field as it is
+  (`packages/service/CLAUDE.md`, `packages/contract/CLAUDE.md`,
   `packages/editor/CLAUDE.md`).
 - **The UI is `@repo/ui`'s**: every floating surface a Base UI primitive through
   it, chrome text in the five type roles (`packages/ui/CLAUDE.md`), and the
@@ -370,8 +374,8 @@ is in the file named.
   checks every service module it reaches against the deployed one
   (`apps/web/CLAUDE.md`).
 - **The library model is the contract's**: the persisted node set, an item's
-  fields and blocks, their ops and order, and a url's key, which every client
-  and the cell parse alike (`packages/contract/CLAUDE.md`).
+  fields and blocks, its field ops, a folder's order, and a url's key, which
+  every client and the cell parse alike (`packages/contract/CLAUDE.md`).
 
 ## Decisions
 
@@ -383,16 +387,16 @@ file nearest the code it governs; every path in these files is held to the
 tree by `tools/repo-guards/src/dangling-references.test.ts`, and this index to
 the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
-- [`packages/contract/CLAUDE.md`](packages/contract/CLAUDE.md) — the library model (the node set, an item's fields and blocks, their ops, order and listing); a url's key and what a file is
-- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, the open item's merge, and the grammar, links and a file's facts
+- [`packages/contract/CLAUDE.md`](packages/contract/CLAUDE.md) — the library model (the node set, an item's fields and blocks, its field ops, a folder's order and the listing); a url's key and what a file is
+- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id over its note's live document, and the grammar, links and a file's facts
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
-- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the cloud: accounts and sessions, the wire, the library cell (its SQL and undo), fills, search, the connector, the built-in agent, and its program and suites
-- [`packages/db/CLAUDE.md`](packages/db/CLAUDE.md) — the D1 schema and how it ships, and the cell's drizzle schema and its migrations
+- [`packages/service/CLAUDE.md`](packages/service/CLAUDE.md) — the cloud: accounts and sessions, the wire, the library cell (its SQL and undo) and each item's live note, fills, search, the connector, the built-in agent, and its program and suites
+- [`packages/db/CLAUDE.md`](packages/db/CLAUDE.md) — the D1 schema and how it ships, and the cell's and each note's drizzle schema and migrations
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — the site and the Worker: the layout's departures from kyh/init, Start's paths and doors, each program's `Env`, the library's route, and previews
 - [`apps/web/src/library/CLAUDE.md`](apps/web/src/library/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its cache, its shares and its files, the agent, its look, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its read-only item page, its cache, its shares and its files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window on the site's page, its pin, the menu, updates, dictation, and the packaged smoke
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension: whose sign-in it rides, its saves and its queue
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling

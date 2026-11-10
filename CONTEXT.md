@@ -18,14 +18,15 @@ that reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, in the Worker (`packages/service/src/library/library-do.ts`), named
-`library:<userId>` only from a verified session or grant, or from what the cell itself
-gave out: a fill message or a conversation's name. It holds the items,
-their **blocks**, folders, tags, links, threads, change sets and the
-account's live sockets, and it is the library's only writer: every `/v1`
-library call and every **connector** call is forwarded to it. R2 holds the
-bytes it names by hash, and D1 only the accounts. Not what a device shows:
-every app reads the cell online, and keeps at most a cache of what it last
-read, which a **moved frame** tells it to read again.
+`library:<userId>` only from a verified session or grant, or from what the cell
+itself gave out: a fill message or a conversation's name. It holds the items, a
+**seed** for each body no note holds yet, folders, tags, links, threads, change
+sets and the account's live sockets, and it writes every row: every `/v1`
+library call and every **connector** call is forwarded to it, while a note's
+body is its **note object**'s, which pushes its **projection** here. R2 holds
+the bytes it names by hash, and D1 only the accounts. Not what a device shows:
+every app reads the cell online, and keeps at most a cache of what it last read,
+which a **moved frame** tells it to read again.
 
 **principal** — who a library call is by, as the Worker verified it: the
 account and the actor whose **change set** its writes join (a **session**,
@@ -36,14 +37,16 @@ stamps it on the call it forwards to the **library cell** and drops any copy the
 request brought (`packages/service/src/library/library-principal.ts`). Not a
 credential: the cell never sees one.
 
-**change set** — the unit of undo. Every write lands in one,
-which records each item it touched before and after, its actor (the person,
-the agent, an assistant, an import, a fill or an undo) and when it opened and
-sealed. A device's typing seals after 15 s of quiet or 60 s in all;
-a **turn** is one set; a **connected assistant**'s writes are one set per
-grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
-first, and keeps every later edit; an undo is a set of its own. The cell keeps
-each until seven days after it sealed
+**change set** — the unit of undo. Every write lands in one, which records each
+item it touched before and after, its actor (the person in one session, the
+agent, an assistant, an import, a fill or an undo) and when it opened and
+sealed. A person's writes seal after 15 s of quiet or 60 s in all, and their
+typing in a note joins no set, so Undo takes back fields, folders and what an
+agent, an assistant, an import or a fill wrote; a **turn** is one set; a
+**connected assistant**'s writes are one set per grant, sealed after 10 idle
+minutes. Undo reverts a set's fields three-way and its note edits from the
+note's **turn log**, newest first, and keeps every later edit; an undo is a set
+of its own. The cell keeps each until seven days after it sealed
 (`packages/service/src/library/change-sets.ts`,
 `packages/service/src/library/change-set-prune.ts`), and the revert is
 `@repo/service/library/revert-change`'s.
@@ -57,13 +60,57 @@ it. Its vocabulary is `@repo/contract/library/library-nodes`, how the editor
 reads one `packages/editor/src/live/element-block.ts`.
 
 **section** — which part of an item a **block** belongs to: `note`, what the
-person wrote, or `article`, the page's readable text a fill wrote. A fill and
-Refresh replace only `article` blocks, so reading a page again never touches
-the person's writing. An item reads its note before its article
-(`@repo/contract/library/block-order`), and its markdown writes the article as
-one top-level `article` container after the note, its colon fence longer than
-any inside it (`@repo/editor/codec/item-markdown`).
+person wrote, or `article`, the page's readable text a fill wrote, an attribute
+of each top-level block of the **live document**. A fill and Refresh replace
+only `article` blocks, where the old article began or after everything when
+there was none, so reading a page again never touches the person's writing
+(`packages/service/src/note/article-body.ts`); a block a person splits or
+inserts is the note's (`packages/editor/src/live/note-section.ts`). An item's
+markdown writes the article as one top-level `article` container after the note,
+its colon fence longer than any inside it (`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
+
+**live document** — a note's body as one Yjs document (root `content`, a
+`Y.XmlText`), each top-level **block** carrying its **section**, which every
+device's editor and the agent edit at once
+(`packages/editor/src/live/yjs-binding.ts`; seeded and read as blocks by
+`note-blocks.ts`). An editor's ⌘Z is a `Y.UndoManager` over its own changes
+alone. Not an offline copy: a device holds it only while the note's socket is
+open, and no presence crosses it.
+
+**note object** — `NoteDO`, one y-partyserver Durable Object per item, named
+`note:<accountId>:<itemId>` only by `packages/service/src/note/note-stub.ts`,
+holding the item's **live document** in its own SQLite
+(`packages/service/src/note/note-do.ts`). A device reaches it at
+`/v1/notes/<itemId>` on the account socket's ticket (`note-routes.ts`), the
+agent through the cell, by block id. Its first load takes the cell's
+**seed**, and each debounced save pushes a **projection**. An item in Deleted
+opens read-only and takes no edit; a note past 8 MiB, or a frame past 1 MiB,
+holds edits back and says so. Not the **library cell**: typing never passes
+through it.
+
+**seed** — the body the **library cell** keeps for an item until its **note
+object** first opens: blocks in reading order, written by a save, a fill, an
+import or a new note in the cell's own transaction, read by the note's first
+load and dropped only once the note says it stored them
+(`packages/service/src/library/cell-body.ts`, `cell-notes.ts`). Not a cache:
+once the note holds the body, the cell never takes it back.
+
+**projection** — what a **note object** pushes to the **library cell** on
+each debounced save: the body's digest (its lead, preview, outline, words,
+headings, tags and files), its text, its links and the note's size, ordered by
+a version so a late push is stale (`NoteProjection` in
+`packages/service/src/note/note-wire.ts`, landed by `cell-notes.ts`). It joins
+no **change set**, and the account's socket tells devices only when what a
+listing shows moved. Not the body: the cell keeps what it derives, never the
+note's blocks.
+
+**turn log** — a **note object**'s record of each agent **turn** that edited
+it: a `pre` and a `turn` Yjs update around each edit, the first `pre` the
+whole note, which Undo this turn replays into a fresh doc and undoes as a
+forward edit (`packages/service/src/note/turn-log.ts`), pruned a day after
+the turn's change set leaves the undo window. Not a page history: it holds
+only agent turns.
 
 **moved frame** — what the account's socket tells every device once a write
 commits: each item it moved at its sequence, whether a folder moved, and which
@@ -80,8 +127,8 @@ it, through a relaunch too (`apps/mobile/src/items/share-outbox.ts`); a share
 the cloud refuses is **parked** with its words, for Try again or Let it go.
 The one write a device keeps offline, with the browser extension's retry
 queue, which holds a save's url and title the same way. Not a queue of edits:
-typing, a save typed into the app, a photo and a delete each need a
-connection.
+a save typed into the app, a photo and a delete each need a connection, and
+the iPhone shows a note read-only.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
 (`packages/service/src/connector/connector-route.ts`), the library's procedures
@@ -149,10 +196,11 @@ the one item so titled or as the text it is
 
 **line** — a line's content EXCLUDES its terminator. The markdown codec reads
 `\r\n` and `\r` as `\n` at every entry (`lfOnly` in
-`@repo/editor/markdown/md-read`), so past it every line ends in `\n`; the line
-diff splits on `\n` alone (`text/line-diff`), because diff3 joins its segments
-back into the text's own bytes. Not a write unit: a block is, guarded by its
-hash.
+`@repo/editor/markdown/md-read`), so past it every line ends in `\n`. The line
+diff (`@repo/editor/text/line-diff`) is one Myers diff over any sequence: an
+agent's edit lines up the blocks it wrote with those it read, and a put a
+block's text by code point. Not a write unit: a **block** of the **live
+document** is.
 
 ## Items
 
@@ -160,13 +208,15 @@ hash.
 library cell in the cloud (`LibraryDO`, `packages/service/src/library/`), which
 every device they sign in on reads online.
 
-**item** — one card the library lists: a row of fields and a body of Plate
-blocks (`@repo/contract/library/library-item`), whatever its kind; a link, a
+**item** — one card the library lists: a row of fields in the cell and a body
+of Plate blocks, its **note object**'s **live document**
+(`@repo/contract/library/library-item`), whatever its kind; a link, a
 video, an image, a PDF and a note the person wrote are each one. A markdown
 file an import reads becomes one item, its frontmatter read into the item's
 fields by `readItemFacts` (`@repo/editor/items/item-frontmatter`). Listed in
 memory by `@repo/contract/library/library-index`, which the cell builds over its
-rows for each `library.listing.page`.
+rows for each `library.listing.page`, and which also builds the page, the
+rail's counts and the titles the cell and the fake cell answer.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
 or `file` (`ITEM_KINDS` in `@repo/contract/items/item-kind`), one of the item's
@@ -247,11 +297,14 @@ save, a photo and a delete, and keeps only a share
 **Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
 under a conversation: `library.history.undo` over the CHANGE SETS named, in a
 change set of its own, for seven days after each set sealed. Not the editor's
-own undo (⌘Z), which lives and dies with the open item.
-A block changed since stays, and an item whose later edits overlap the set's is
-kept whole and named. An item a rule holds back (a full library, an address
-another item holds now) is named apart, and its set can be undone again, as can
-a set of which only kept items remain, since nothing of it went back.
+own undo (⌘Z), which takes back only this device's typing and lives and dies
+with the open note. What an agent's turn wrote in a note, that note takes back
+from its **turn log** as a forward edit, keeping every later edit; typing inside
+a block the turn added goes with it, and Undo names each note it went from. An
+item whose later field edits overlap the set's is kept whole and named. An item
+a rule holds back (an address another item holds now) is named apart, and its
+set can be undone again, as can a set of which only kept items remain, since
+nothing of it went back.
 
 **Deleted** — the rail's row: the items deleted, each restorable, and "Empty
 Deleted…", which removes them for good.

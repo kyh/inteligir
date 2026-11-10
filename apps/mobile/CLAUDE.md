@@ -1,8 +1,8 @@
 # Decisions: @repo/mobile
 
-The phone: its editor page, its cache, its shares and its files, the agent, its
-look, and how it ships.
-`AGENTS.md` § Decisions says how a bullet is written and cited.
+The phone: its read-only item page, its cache, its shares and its files, the
+agent, its look, and how it ships. `AGENTS.md` § Decisions says how a bullet is
+written and cited.
 
 ## Editor and dialect
 

@@ -12,16 +12,16 @@ are `apps/web/README.md` § Routes.
 The cloud's rules are code no client runs, so they sit apart from the model
 every client loads (`@repo/contract`), the dialect's markdown (`@repo/editor`),
 the schemas (`@repo/db`) and the site (`apps/web`), as kyh/init's service
-package does. Its program has no DOM: it runs on workerd, typed by the `Env`
-and runtime `cf workers types` generates from the suites' Worker
+package does. Its program has no DOM: it runs on workerd, typed by the `Env` and
+runtime `cf workers types` generates from the suites' Worker
 (`cloudflare.config.ts`, never deployed), and the app's entry program checks
 every module it reaches against the deployed `Env` again. No node or react
 import (the root `oxlint.config.ts`), and the library model's modules
 (`src/library/`'s SQL and undo, `src/knowledge/`, `src/items/`, `src/imports/`,
-`src/text/`) take no `crypto` or `URL` global either: the clock, random bytes
-and fresh ids come in as ports. The cell's SQL is the Durable Object's own,
-drizzle over `@repo/db`'s cell schema with raw plans beside it, so every suite
-that reaches it runs in workerd.
+`src/text/`, `src/note/turn-log.ts`) take no `crypto` or `URL` global either:
+the clock, random bytes and fresh ids come in as ports. The cell's SQL is the
+Durable Object's own, drizzle over `@repo/db`'s cell schema with raw plans
+beside it, so every suite that reaches it runs in workerd.
 
 ## Layout
 
@@ -375,7 +375,9 @@ tests, in three projects (`vitest.config.ts`):
   since Durable Object WebSockets are unsupported under per-file isolation.
 - `model`: the library model's pure suites, under node: `src/knowledge/` pins
   the search policy, and undo's properties (undo restores, undo agrees with
-  its line oracle) draw from the contract's one seeded generator. The library's
+  its line oracle) draw from the contract's one seeded generator, and
+  `turn-log.test.ts` holds Undo this turn to keeping every later edit and to
+  flagging text inside a block the turn added. The library's
   SQL runs in `worker`, on a cell's own SQLite, which refuses what a Durable
   Object refuses. The model's suites run under a 512MB heap ceiling, so an
   allocation that grows with a note's size, like a diff trace that copies the

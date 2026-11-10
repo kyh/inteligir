@@ -59,6 +59,7 @@ against the local Worker's files:
 pnpm --filter @repo/db push                     # the D1 schema into pnpm dev:web's local D1
 pnpm --filter @repo/db studio                   # browse it (mint an invite here)
 pnpm --filter @repo/db generate:cell --name <x> # the next cell migration, from src/cell/schema.ts
+pnpm --filter @repo/db generate:note --name <x> # the next note migration, from src/note/schema.ts
 pnpm --filter @repo/db run --silent export      # the D1 schema's DDL, as the suites apply it
 ```
 
@@ -153,6 +154,7 @@ which is how the e2e points the dev build at the Worker it boots
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
 | Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables migrated from `packages/db/src/cell/migrations` as it wakes                                       |
+| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables migrated from `packages/db/src/note/migrations` as it wakes                                             |
 | Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates
@@ -207,7 +209,7 @@ extension's) needs its workspace's `generate` first, which `turbo run` does.
 End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
 own with its state in a scratch dir, and drives it the way a person or an
 assistant does: the library's tab in a headless browser, the browser extension
-in Chromium, and the phone's editor page and runtime. It is deliberately outside
+in Chromium, and the phone's item page and runtime. It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
 lanes, half the machine's cores and at most four at once, each printed whole
 when it ends; `--lanes 1` runs them one at a time and streams every line, and
