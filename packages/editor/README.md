@@ -61,7 +61,7 @@ src/
                        # blocks, literal matches
   items/               # a markdown file's facts from its frontmatter, the one
                        # time spelling
-  text/                # ONE Myers line diff under diff3, bounded by an edit
+  text/                # ONE Myers diff over a sequence, bounded by an edit
                        # budget
   mention/             # page links: the `[[` picker over Plate's mention
                        # input, its order, the insert and Create, the chip

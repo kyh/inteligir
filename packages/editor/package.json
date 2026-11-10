@@ -146,7 +146,6 @@
     "./test-support/fake-editor-host": "./src/test-support/fake-editor-host.ts",
     "./test-support/formulas-in": "./src/test-support/formulas-in.ts",
     "./test-support/markdown-meaning": "./src/test-support/markdown-meaning.ts",
-    "./text/diff3": "./src/text/diff3.ts",
     "./text/line-diff": "./src/text/line-diff.ts",
     "./toc": "./src/toc.tsx",
     "./touch-toolbar": "./src/touch-toolbar.tsx",

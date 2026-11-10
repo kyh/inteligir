@@ -1,4 +1,5 @@
 // consecutive hunks are always separated by at least one matching line.
+/** @internal */
 export interface DiffHunk {
   baseStart: number;
   baseEnd: number;
@@ -7,8 +8,7 @@ export interface DiffHunk {
 }
 
 // `overBudget`: the edit distance passed the budget, so one hunk spans everything between the
-// shared prefix and suffix. Still a true diff, only not a minimal one: a three-way merge reads it
-// as one changed region, and a concurrent edit inside it is an overlap.
+// shared prefix and suffix. Still a true diff, only not a minimal one.
 export type LineDiff =
   | { readonly kind: "minimal"; readonly hunks: readonly DiffHunk[] }
   | { readonly kind: "overBudget"; readonly hunks: readonly [DiffHunk] };
@@ -20,10 +20,6 @@ export interface DiffLinesOptions {
 // the trace keeps every round's live diagonals, so memory is quadratic in the edit distance:
 // about four million entries here, where two notes this far apart read as a rewrite anyway.
 const DEFAULT_MAX_EDIT_DISTANCE = 2000;
-
-// lf alone, not every line terminator: the merge joins segments back into the file's bytes, so a
-// `\r` must stay inside a line's content rather than become a terminator.
-export const splitLinesLf = (text: string): string[] => text.split("\n");
 
 // round d's snapshot holds diagonals -d..d, so diagonal k sits at `k + d`.
 const backtrackMatches = (

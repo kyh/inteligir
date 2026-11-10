@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffLines, splitLinesLf } from "./line-diff";
+import { diffLines } from "./line-diff";
 import type { DiffHunk, DiffLinesOptions } from "./line-diff";
 
 const apply = (
@@ -33,8 +33,8 @@ const expectTrueDiff = (
 };
 
 const expectRoundTrip = (baseText: string, sideText: string): void => {
-  const base = splitLinesLf(baseText);
-  const side = splitLinesLf(sideText);
+  const base = baseText.split("\n");
+  const side = sideText.split("\n");
   expectTrueDiff(base, side, diffLines(base, side).hunks);
 };
 
