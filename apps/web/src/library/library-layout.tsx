@@ -59,9 +59,9 @@ const WorkspaceLayout = () => {
 
 type Opened = Extract<TabOpening, { kind: "open" }>;
 
-const OpenLibrary = ({ floor, library, queryClient }: Opened) => {
-  const refused = useSyncExternalStore(floor.subscribe, floor.refused);
-  if (refused) {
+const OpenLibrary = ({ library, queryClient, session }: Opened) => {
+  const standing = useSyncExternalStore(session.subscribe, session.get);
+  if (standing.kind === "ended" && standing.why === "outdated") {
     return TOO_OLD;
   }
   return (

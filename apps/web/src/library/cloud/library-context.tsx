@@ -16,7 +16,7 @@ import type { LibrarySocket } from "./use-library-socket";
 import type { CloudWire } from "./v1";
 
 // why this device leaves its account: a sign-out, or the account deleted
-type LeaveReason = "signed-out" | "deleted";
+export type LeaveReason = "signed-out" | "deleted";
 
 export interface PageLibrary {
   readonly account: SignedIn;
