@@ -47,7 +47,6 @@ const accountOf = (header: string | null): string | null => {
 };
 const MESSAGES_PATH = "/v1/messages";
 
-/** @internal */
 export interface FakeStats {
   // the Messages requests answered, refusals and failures included
   readonly requests: number;
