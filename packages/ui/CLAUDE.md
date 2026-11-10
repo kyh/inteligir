@@ -12,6 +12,11 @@ an export nothing draws is deleted, not held for a coming surface (owner
 decision): a held one is a file the guards read and the gallery demos for
 nobody, and git keeps it (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
 
+`@repo/ui` REACHES NO oRPC MODULE, as the editor does not: the phone's DOM
+bundle loads both, so lint refuses `@orpc/*` and the oRPC-reaching
+`@repo/contract` modules under `packages/ui/src` too (`packages/editor/CLAUDE.md`
+§ THE EDITOR AND `@repo/ui` REACH NO oRPC MODULE, `oxlint.config.ts`).
+
 ## Editor and dialect
 
 - **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**

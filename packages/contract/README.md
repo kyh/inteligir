@@ -45,6 +45,8 @@ src/
   v1-contract.ts       # /v1's one oRPC wire: account.* and library.*, and the client type over it
   v1-errors.ts         # every refusal /v1 answers, declared once, and the status map every handler uses
   refusal-text.ts      # what a screen says of a failed call: a declared refusal's own sentence, else its fallback
+  needs-connection.ts  # what every screen says of a call only the cloud answers while there is no connection;
+                       #   oRPC-free, so the editor and the phone's DOM bundle load it
   account/             # the account's rows (account-contract.ts) and what they carry (account-schema.ts):
                        #   the password's bounds, its devices, each a signed-in session, its deletion and
                        #   the sign-up form
