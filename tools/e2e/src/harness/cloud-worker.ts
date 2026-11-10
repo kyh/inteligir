@@ -6,6 +6,7 @@ import { expectEq } from "./assert";
 import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
+import { loopbackOrigin } from "./ports";
 import { turboBuildOnce } from "./turbo-build";
 
 const READY_POLL_INTERVAL_MS = 250;
@@ -152,7 +153,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
       const inspectPort = ports[2] ?? 0;
-      const origin = `http://127.0.0.1:${String(port)}`;
+      const origin = loopbackOrigin(port);
       const child = spawnSupervised({
         argv: [
           path.join(e2eDir, "src", "harness", "worker-host.ts"),
@@ -183,7 +184,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       });
       const handle: CloudWorker = {
         ...child,
-        inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
+        inspectOrigin: loopbackOrigin(inspectPort),
         messagesOrigin: messages.origin,
         origin,
       };

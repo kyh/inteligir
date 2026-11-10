@@ -6,8 +6,9 @@
 // deadline can still ask for a restore, and a listener it opened then would belong to nothing.
 
 import { connect, createServer } from "node:net";
-import type { Server, Socket } from "node:net";
-import { loopbackOrigin } from "./ports";
+import type { Socket } from "node:net";
+import { listenOnLoopback } from "./ports";
+import type { LoopbackListener } from "./ports";
 
 export interface CloudLink {
   // the origin the client is told the cloud is at
@@ -20,7 +21,7 @@ export interface CloudLink {
 
 // a cut or a close asked while a restore listens waits for it to settle, then acts on what it left
 type Link =
-  | { readonly kind: "up"; readonly server: Server }
+  | { readonly kind: "up"; readonly listener: LoopbackListener }
   | { readonly kind: "cut"; readonly stopped: Promise<void> }
   | { readonly kind: "restoring"; readonly ready: Promise<void> }
   | { readonly kind: "closed"; readonly stopped: Promise<void> };
@@ -29,7 +30,7 @@ type LinkEvent =
   | { readonly kind: "cut"; readonly stopped: Promise<void> }
   | { readonly kind: "closed"; readonly stopped: Promise<void> }
   | { readonly kind: "restoring"; readonly ready: Promise<void> }
-  | { readonly kind: "listened"; readonly server: Server }
+  | { readonly kind: "listened"; readonly listener: LoopbackListener }
   | { readonly kind: "lost" };
 
 const linkAfter = (link: Link, event: LinkEvent): Link => {
@@ -46,7 +47,7 @@ const linkAfter = (link: Link, event: LinkEvent): Link => {
       return link.kind === "cut" ? { kind: "restoring", ready: event.ready } : link;
     }
     case "listened": {
-      return link.kind === "restoring" ? { kind: "up", server: event.server } : link;
+      return link.kind === "restoring" ? { kind: "up", listener: event.listener } : link;
     }
     // the port was taken while the link was cut: it stays cut, and the restore says why
     case "lost": {
@@ -54,30 +55,6 @@ const linkAfter = (link: Link, event: LinkEvent): Link => {
     }
     // no default
   }
-};
-
-const listening = async (server: Server, port: number): Promise<number> =>
-  // oxlint-disable-next-line promise/avoid-new -- node:net is event/callback only; listen has no promise form.
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", () => {
-      server.off("error", reject);
-      const address = server.address();
-      if (!(address instanceof Object)) {
-        reject(new Error("expected a bound AddressInfo"));
-        return;
-      }
-      resolve(address.port);
-    });
-  });
-
-const closed = async (server: Server): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- node:net is event/callback only; close has no promise form.
-  await new Promise<void>((resolve) => {
-    server.close(() => {
-      resolve();
-    });
-  });
 };
 
 // Each ask waits in a loop that reads the link again once a restore settles, with no turn between
@@ -108,12 +85,11 @@ export const openCloudLink = async (workerOrigin: string): Promise<CloudLink> =>
     inbound.pipe(outbound);
     outbound.pipe(inbound);
   };
-  const first = createServer(relay);
-  const port = await listening(first, 0);
-  let link: Link = { kind: "up", server: first };
+  const first = await listenOnLoopback(createServer(relay));
+  let link: Link = { kind: "up", listener: first };
 
-  const stop = async (server: Server): Promise<void> => {
-    const stopping = closed(server);
+  const stop = async (listener: LoopbackListener): Promise<void> => {
+    const stopping = listener.close();
     for (const socket of open) {
       socket.destroy();
     }
@@ -124,7 +100,7 @@ export const openCloudLink = async (workerOrigin: string): Promise<CloudLink> =>
       await restored(link.ready);
     }
     const from = link;
-    const stopped = from.kind === "up" ? stop(from.server) : from.stopped;
+    const stopped = from.kind === "up" ? stop(from.listener) : from.stopped;
     link = linkAfter(from, { kind: to, stopped });
     await stopped;
   };
@@ -136,7 +112,7 @@ export const openCloudLink = async (workerOrigin: string): Promise<CloudLink> =>
     cut: async () => {
       await drop("cut");
     },
-    origin: loopbackOrigin(port),
+    origin: first.origin,
     restore: async () => {
       while (link.kind === "restoring") {
         await restored(link.ready);
@@ -151,9 +127,8 @@ export const openCloudLink = async (workerOrigin: string): Promise<CloudLink> =>
       const ready = (async (): Promise<void> => {
         try {
           await from.stopped;
-          const server = createServer(relay);
-          await listening(server, port);
-          link = linkAfter(link, { kind: "listened", server });
+          const listener = await listenOnLoopback(createServer(relay), first.port);
+          link = linkAfter(link, { kind: "listened", listener });
         } catch (error) {
           link = linkAfter(link, { kind: "lost" });
           throw error;
