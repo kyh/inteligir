@@ -25,7 +25,7 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import {
@@ -35,6 +35,7 @@ import {
   useSocket,
   useWire,
 } from "./cloud/library-context";
+import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
@@ -91,11 +92,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
   const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
-  const [threadId, setThreadId] = useState<string | null>(null);
-  // the agent's composer holds Tidy my library's request, on a conversation of its own
-  const [tidying, setTidying] = useState(false);
-  // a passage the editor asked the agent about, until the composer takes it
-  const [passage, setPassage] = useState<string | null>(null);
+  const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -135,17 +132,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   };
 
   const startTidy = (): void => {
-    setThreadId(null);
-    setTidying(true);
+    dispatchComposer({ kind: "tidy" });
     revealPanel("agent");
-  };
-
-  // a conversation chosen while a Tidy waits to be sent lets the Tidy go
-  const chooseThread = (next: string | null): void => {
-    setThreadId(next);
-    if (next !== null) {
-      setTidying(false);
-    }
   };
   // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
@@ -153,9 +141,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // the editor's host, made once for the page: links open items, a note the editor makes lands
   // beside the item open now, and "Ask the agent" quotes the passage in the panel's composer
   const hostAsksAgent = useEffectEvent((asked: string) => {
-    setTidying(false);
     revealPanel("agent");
-    setPassage(asked);
+    dispatchComposer({ kind: "asked", passage: asked });
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -652,16 +639,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   itemId={panelItem}
                   tab={tab}
                   onTab={setTab}
-                  threadId={threadId}
-                  onThread={chooseThread}
-                  tidying={tidying}
-                  onTidyEnd={() => {
-                    setTidying(false);
-                  }}
-                  passage={passage}
-                  onPassageTaken={() => {
-                    setPassage(null);
-                  }}
+                  composer={composer}
+                  dispatchComposer={dispatchComposer}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     if (noteRef.current !== null) {

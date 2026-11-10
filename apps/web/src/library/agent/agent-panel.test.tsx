@@ -15,6 +15,7 @@ import { z } from "zod";
 import { PausedWrites } from "../cloud/needs-connection";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
+import type { ComposerEvent } from "./agent-composer";
 import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
@@ -66,14 +67,10 @@ const panel = (
   threadId: string | null = THREAD,
 ) => (
   <AgentPanel
-    threadId={threadId}
-    onThread={vi.fn<(threadId: string | null) => void>()}
+    composer={{ kind: "asking", passage: null, threadId }}
+    dispatch={vi.fn<(event: ComposerEvent) => void>()}
     viewContext={() => {}}
     flushOpen={flushOpen}
-    tidying={false}
-    onTidyEnd={vi.fn<() => void>()}
-    passage={null}
-    onPassageTaken={vi.fn<() => void>()}
   />
 );
 
@@ -919,35 +916,31 @@ describe("the agent panel's conversation", () => {
   });
 
   it("sends Tidy my library from Unsorted, with nothing typed, and lets the request go once sent", async () => {
-    const onThread = vi.fn<(threadId: string | null) => void>();
-    const onTidyEnd = vi.fn<() => void>();
+    const dispatch = vi.fn<(event: ComposerEvent) => void>();
     const { calls, library } = fakePageLibrary({
       answer: () => ({ status: "running", threadId: THREAD }),
     });
     renderOnLibrary(
       <AgentPanel
-        threadId={null}
-        onThread={onThread}
+        composer={{ kind: "tidying" }}
+        dispatch={dispatch}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
         flushOpen={vi.fn<() => Promise<void>>(async () => {
           await Promise.resolve();
         })}
-        tidying
-        onTidyEnd={onTidyEnd}
-        passage={null}
-        onPassageTaken={vi.fn<() => void>()}
       />,
       library,
     );
     expect(screen.getByText(TIDY_LABEL)).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    // the conversation it went to, which lets the Tidy go (`./agent-composer`)
     await waitFor(() => {
-      expect(onThread).toHaveBeenCalledWith(THREAD);
+      expect(dispatch).toHaveBeenCalledWith({ kind: "chose", threadId: THREAD });
     });
     expect(callsTo(calls, "library.agent.send")).toStrictEqual([
       { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
     ]);
-    expect(onTidyEnd).toHaveBeenCalledOnce();
+    expect(dispatch).toHaveBeenCalledOnce();
   });
 
   it("sends Tidy my library as a new conversation from Unsorted, with what the person adds, whatever is open", async () => {
@@ -961,16 +954,12 @@ describe("the agent panel's conversation", () => {
     });
     renderOnLibrary(
       <AgentPanel
-        threadId={THREAD}
-        onThread={vi.fn<(threadId: string | null) => void>()}
+        composer={{ kind: "tidying" }}
+        dispatch={vi.fn<(event: ComposerEvent) => void>()}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
         flushOpen={vi.fn<() => Promise<void>>(async () => {
           await Promise.resolve();
         })}
-        tidying
-        onTidyEnd={vi.fn<() => void>()}
-        passage={null}
-        onPassageTaken={vi.fn<() => void>()}
       />,
       library,
     );
