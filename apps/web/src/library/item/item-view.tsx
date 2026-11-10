@@ -21,7 +21,7 @@ import { isTextEntryTarget } from "../global-shortcuts";
 import { libraryShortcutFor } from "../library/library-keys";
 import { useLibraryVerbs } from "../library/library-verbs";
 import { TopBar } from "../top-bar";
-import { FileStage, PendingNotice, SourceHeader } from "./item-stages";
+import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
 
 export interface ItemViewProps {
   readonly itemId: string;
@@ -121,9 +121,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProp
         {held === null ? null : (
           <>
             <SourceHeader fields={held.fields} />
-            {held.fields.fetchState === "pending" || held.fields.fetchState === "failed" ? (
-              <PendingNotice failed={held.fields.fetchError} />
-            ) : null}
+            <ReadingNotice fields={held.fields} />
             <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
           </>
         )}

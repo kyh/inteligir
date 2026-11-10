@@ -34,6 +34,7 @@ import {
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
 import { applyFieldOps } from "../library/field-ops";
+import { readingOps } from "../library/item-reading";
 import type { FieldConflict, FieldOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem, titleKey } from "../library/derive-item";
@@ -577,13 +578,7 @@ export const createFakeCell = (): FakeCell => {
             if (fields.url === null) {
               throw new NotFoundError();
             }
-            return write({
-              itemId: input.id,
-              ops: [
-                { base: fields.fetchState, field: "fetchState", op: "set", value: "pending" },
-                { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-              ],
-            });
+            return write({ itemId: input.id, ops: readingOps(fields, { kind: "asked" }) });
           }),
         ),
         restore: os.library.items.restore.handler(({ input }) =>

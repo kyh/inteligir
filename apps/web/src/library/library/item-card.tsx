@@ -4,6 +4,7 @@
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { shownTitle } from "@repo/contract/items/item-name";
+import { readingOf } from "@repo/contract/library/item-reading";
 import {
   MediaCard,
   MediaCardBadge,
@@ -111,7 +112,7 @@ const CoverImage = ({ sha }: { sha: string }) => {
 };
 
 const CoverArea = ({ row }: { row: ListedItem }) => {
-  if (row.fields.fetchState === "pending") {
+  if (readingOf(row.fields).state === "pending") {
     return (
       <div className="flex size-full items-center justify-center bg-muted/60">
         <span className="text-body text-muted-foreground">Not read yet</span>
@@ -151,6 +152,7 @@ export const ItemCard = ({
   const playable =
     (row.fields.kind === "video" || row.fields.kind === "audio") && row.fields.coverSha !== null;
   const title = shownTitle(row.card.title);
+  const reading = readingOf(row.fields);
   return (
     <MediaCard
       selected={selected}
@@ -191,7 +193,7 @@ export const ItemCard = ({
         {row.fields.pinnedAt === null ? null : (
           <MediaCardBadge icon={<PinIcon />} position="top-left" aria-label="Pinned" />
         )}
-        {row.fields.fetchError === null ? null : (
+        {reading.state === "failed" ? (
           // why the page went unread is something to read, so it opens on a hover or a tap, which a
           // tooltip, off on touch, would not
           <Popover>
@@ -203,10 +205,10 @@ export const ItemCard = ({
               Page not read
             </PopoverTrigger>
             <PopoverContent side="top" className="w-64 gap-0 rounded-xl p-3 text-body select-text">
-              {row.fields.fetchError}
+              {reading.error}
             </PopoverContent>
           </Popover>
-        )}
+        ) : null}
       </MediaCardCover>
       <MediaCardBody>
         <MediaCardTitle>{title}</MediaCardTitle>

@@ -74,6 +74,8 @@ const drawCard = (row: ListedItem) => {
   return { onMenu, onOpen, onPress };
 };
 
+const failedRow = (): ListedItem => linkRow({ fetchError: REASON, fetchState: "failed" });
+
 const badge = (): HTMLElement => screen.getByText("Page not read");
 
 // Base UI opens a hover popover on its own delay, so the clock runs past it
@@ -97,12 +99,17 @@ describe("a card with no title and no words", () => {
 
 describe("a card whose page went unread", () => {
   it("draws no badge when the page was read", () => {
-    drawCard(linkRow({}));
+    drawCard(linkRow({ fetchState: "filled" }));
+    expect(screen.queryByText("Page not read")).toBeNull();
+  });
+
+  it("draws no badge for a reason a page waiting to be read again still carries", () => {
+    drawCard(linkRow({ fetchError: REASON, fetchState: "pending" }));
     expect(screen.queryByText("Page not read")).toBeNull();
   });
 
   it("says why on a hover, in a popover whose text can be selected", () => {
-    drawCard(linkRow({ fetchError: REASON }));
+    drawCard(failedRow());
     expect(screen.queryByText(REASON)).toBeNull();
     hover(badge());
     expect(reason().closest("[data-slot='popover-content']")?.className).toContain("select-text");
@@ -110,7 +117,7 @@ describe("a card whose page went unread", () => {
 
   // a tooltip is off on touch, so the reason opens on a tap too
   it("says why on a click, which selects the card as a click anywhere on it does", () => {
-    const { onOpen, onPress } = drawCard(linkRow({ fetchError: REASON }));
+    const { onOpen, onPress } = drawCard(failedRow());
     act(() => {
       fireEvent.click(badge(), { detail: 1 });
     });
@@ -122,7 +129,7 @@ describe("a card whose page went unread", () => {
   // the popover is the card's child in React's tree, so its events reach the card's handlers
   // unless the card asks where they landed
   it("keeps a click, a double-click or a right-click in the reason off the card", () => {
-    const { onMenu, onOpen, onPress } = drawCard(linkRow({ fetchError: REASON }));
+    const { onMenu, onOpen, onPress } = drawCard(failedRow());
     hover(badge());
     fireEvent.click(reason(), { detail: 1 });
     fireEvent.click(reason(), { detail: 2 });

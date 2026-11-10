@@ -8,6 +8,7 @@ import { importItem } from "@repo/editor/codec/item-markdown";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
+import { readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem, readLiveItem } from "./library-queries";
 
@@ -219,10 +220,5 @@ export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow =>
   if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }
-  const { fields } = item;
-  const ops: FieldOp[] = [
-    { base: fields.fetchState, field: "fetchState", op: "set", value: "pending" },
-    { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-  ];
-  return landWrite(scope, { itemId, ops });
+  return landWrite(scope, { itemId, ops: readingOps(item.fields, { kind: "asked" }) });
 };

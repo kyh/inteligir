@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { jobs } from "@repo/db/cell/schema";
 import type { FieldOp } from "@repo/contract/library/field-ops";
+import { readingOf, readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { readLiveItem } from "./library-queries";
@@ -31,7 +32,7 @@ import type { CellStorage } from "./cell-storage";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { changes, landRead, pageFieldOps, readOps } from "./cell-saves";
+import { changes, landRead, pageFieldOps } from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in its change set's words
@@ -84,7 +85,7 @@ const waitsForFill = (
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
 } =>
-  item.fields.fetchState === "pending" &&
+  readingOf(item.fields).state === "pending" &&
   item.fields.url !== null &&
   item.fields.deletedAt === null;
 
@@ -213,7 +214,7 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
   const held = item?.fields.url ?? null;
   return (
     item?.fields.deletedAt === null &&
-    item.fields.fetchState === "pending" &&
+    readingOf(item.fields).state === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)
   );
@@ -273,12 +274,8 @@ export const landFill = (
   const { fields } = item;
   switch (landing.kind) {
     case "failed": {
-      const ops: FieldOp[] = [
-        { base: fields.fetchState, field: "fetchState", op: "set", value: "failed" },
-        { base: fields.fetchError, field: "fetchError", op: "set", value: landing.sentence },
-        { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
-      ];
-      landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
+      const ops = readingOps(fields, { at: scope.now, error: landing.sentence, kind: "failed" });
+      landWrite(scope, { itemId: item.id, ops });
       return { kind: "failed" };
     }
     case "file": {
@@ -297,7 +294,7 @@ export const landFill = (
           op: "set",
           value: landing.originalName,
         },
-        ...readOps(fields, scope.now),
+        ...readingOps(fields, { at: scope.now, kind: "read" }),
       ];
       landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };
