@@ -23,8 +23,8 @@ const openSocket = async () => {
   const queryClient = createPageQueryClient();
   const keys = {
     events: orpc.library.agent.events.queryKey({ input: { threadId: THREAD } }),
-    note: orpc.library.items.get.queryKey({ input: { id: note.id } }),
-    other: orpc.library.items.get.queryKey({ input: { id: other.id } }),
+    note: orpc.library.items.row.queryKey({ input: { id: note.id } }),
+    other: orpc.library.items.row.queryKey({ input: { id: other.id } }),
     page: orpc.library.listing.page.queryKey({
       input: { limit: 20, query: { deleted: false, sort: "saved" } },
     }),

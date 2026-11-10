@@ -4,6 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -86,7 +87,7 @@ const oneFinishedTurn = [
   row(1, { reason: "done", turn: 1, type: "turn.ended" }),
 ];
 
-const UNDONE = { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] };
+const UNDONE = { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] };
 
 const ALREADY_UNDONE = "That change was already undone.";
 
@@ -286,7 +287,7 @@ describe("the agent panel's conversation", () => {
             ? { changeSets: [set("s1", 1)], cursor: null }
             : { changeSets: [set("s2", 2)], cursor: "1" };
         }
-        return { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] };
+        return { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] };
       },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
@@ -325,7 +326,7 @@ describe("the agent panel's conversation", () => {
       answer: ({ path }) =>
         path === "library.history.list"
           ? { changeSets: listed, cursor: null }
-          : { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] },
+          : { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
         row(1, { reason: "done", turn: 1, type: "turn.ended" }),
@@ -804,7 +805,7 @@ describe("the agent panel's conversation", () => {
       answer: ({ path }) =>
         path === "library.history.list"
           ? { changeSets: [set("s1", 1)], cursor: null }
-          : { changeSetId: null, refused: [], ...answer },
+          : { changeSetId: null, lostText: [], refused: [], ...answer },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
         row(1, { reason: "done", turn: 1, type: "turn.ended" }),
@@ -815,6 +816,32 @@ describe("the agent panel's conversation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith(expect.stringMatching(words));
+    });
+  });
+
+  it("names the note whose typing went with the agent's words it took back", async () => {
+    const said = vi.spyOn(toast, "warning");
+    const cell = createFakeCell();
+    const note = cell.seed.item({ title: "Plans" });
+    const { library } = fakePageLibrary({
+      answer: ({ path }) => {
+        if (path === "library.history.list") {
+          return { changeSets: [set("s1", 1)], cursor: null };
+        }
+        return path === "library.history.undo"
+          ? { changeSetId: "u1", kept: [], lostText: [note], refused: [], reverted: [note] }
+          : undefined;
+      },
+      cell,
+      events: oneFinishedTurn,
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
+    await waitFor(() => {
+      expect(said).toHaveBeenCalledWith("Undone.", {
+        description: "What was typed inside the agent's words in “Plans” went with them.",
+      });
     });
   });
 

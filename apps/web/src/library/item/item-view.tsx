@@ -1,15 +1,14 @@
 // CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An item opens full size in the
 // grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
-// editor (`@repo/editor/item/item-editor`) over the cell, which writes what changed after a
-// pause and lays in what changed elsewhere. Escape outside the editor goes back to the library.
+// editor (`@repo/editor/item/item-editor`) over its note's live document, which every device and
+// the agent edit at once. The header reads the item's row, read again as its card moves. Escape
+// outside the editor goes back to the library.
 
 import { ItemEditor } from "@repo/editor/item/item-editor";
-import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
-import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
+import type { OpenNote } from "@repo/editor/item/item-editor";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { shownTitle, UNTITLED } from "@repo/contract/items/item-name";
 import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
@@ -17,27 +16,18 @@ import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
-import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
-import { useOnline } from "../cloud/needs-connection";
+import { useLibraryQueries } from "../cloud/library-context";
 import { isTextEntryTarget } from "../global-shortcuts";
 import { libraryShortcutFor } from "../library/library-keys";
 import { useLibraryVerbs } from "../library/library-verbs";
-import { createCellItemStore } from "./cell-item-store";
 import { TopBar } from "../top-bar";
 import { FileStage, PendingNotice, SourceHeader } from "./item-stages";
-
-const after = (ms: number, run: () => void): (() => void) => {
-  const timer = setTimeout(run, ms);
-  return () => {
-    clearTimeout(timer);
-  };
-};
 
 export interface ItemViewProps {
   readonly itemId: string;
   readonly onBack: () => void;
   readonly onTogglePanel: () => void;
-  readonly onSession: (session: ItemSession | null) => void;
+  readonly onNote: (note: OpenNote | null) => void;
 }
 
 const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
@@ -85,22 +75,9 @@ const EditorScroller = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
-  const wire = useWire();
-  const socket = useSocket();
+export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProps) => {
   const item = useQuery(useLibraryQueries().item(itemId));
-  const online = useOnline();
   const modifier = platformShortcutModifier();
-
-  // read once as the item opens: the editor holds them for its life
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [ports] = useState<ItemSessionPorts>(() => ({
-    after,
-    notifyOverlap: (title) => {
-      toast.warning(mergeConflictLine(title));
-    },
-    store: createCellItemStore(wire, socket),
-  }));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (isTextEntryTarget(event.target)) {
@@ -150,7 +127,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
             <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
           </>
         )}
-        <ItemEditor itemId={itemId} ports={ports} onSession={onSession} offline={!online} />
+        <ItemEditor itemId={itemId} onNote={onNote} />
       </EditorScroller>
     </div>
   );

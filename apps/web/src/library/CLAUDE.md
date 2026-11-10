@@ -15,8 +15,8 @@ opened. `cloud/` holds the `/v1` client and its query utils, the library's
 queries, the account's socket and the page's library context; `workspace.tsx`
 owns the rail, the grid or the open item, the panel and the palette;
 `library/` the grid, its scope, selection, Quick Look, the verbs over items
-and what a paste or a drop saves; `item/` the open item, its store over the
-cell, its stages and the editor's host; `panel/` Info; `agent/` the built-in
+and what a paste or a drop saves; `item/` the open item, its leave, its
+stages and the editor's host; `panel/` Info; `agent/` the built-in
 agent's conversations and Tidy; `palette/` ⌘P; `sidebar/` the rail;
 `settings/` the Settings layer; `styles/` the page's stylesheet, which only
 its route links. The Mac app's update, the one thing the page asks its shell,
@@ -28,8 +28,9 @@ is parsed in `shell/desktop-bridge.ts`.
   the session the site's sign-in left, then the account's socket, and every
   screen reads the cell through `/v1` over the session cookie, the Worker's own
   origin: a listing a page at a time (`library.listing.page`), the rail's
-  counts, the titles a link resolves by and each item whole (`items.get`). The
-  page keeps nothing on the device, so a reload reads again. A tab with no
+  counts, the titles a link resolves by and each item's row (`items.row`),
+  while the open note's body is its live document, on a socket of its own.
+  The page keeps nothing on the device, so a reload reads again. A tab with no
   session goes to the site's sign-in, which brings it back, and a tab that could
   not find out says it didn't open and offers Try again. Rejected: a replica in
   the tab (a second copy of the library to keep right, for a page that cannot
@@ -98,29 +99,34 @@ is parsed in `shell/desktop-bridge.ts`.
 
 - **THE ACCOUNT'S SOCKET SAYS WHAT MOVED, AND THE PAGE READS THAT AGAIN.** A
   moved frame invalidates the listings and the rail's counts for any item it
-  names, an item's own read only when the copy held is older than the sequence
-  it names, the scopes for a folder, and a thread's list and events for a turn;
-  a list the cell cut short (`"all"`) invalidates the family. The open item's
-  store hears the same frame and skips a move its own write made, so the editor
-  never merges its own typing back; a thread frame not a preview reads its
-  events again, and every frame goes on to the agent panel for the reply being
-  written. Residual: the open item's own read is asked again after each pause
-  its typing writes.
-  Rejected: state in the frames (a dropped frame would be a lost write);
-  partysocket (the contract's hint already redials, pings and backs off).
-  `apps/web/src/library/cloud/use-library-socket.ts`,
-  `apps/web/src/library/item/cell-item-store.ts`.
+  names, an item's row only when the copy held is older than the sequence it
+  names, the scopes for a folder, and a thread's list and events for a turn;
+  a list the cell cut short (`"all"`) invalidates the family. A note's typing
+  moves its item only when it changes what a row holds (its card, links, tags
+  or files), and the open note's body never rides the frame: it is live on its
+  own socket. The editor's embeds hear which items moved; a thread frame not a
+  preview reads its events again, and every frame goes on to the agent panel
+  for the reply being written. Residual: an embed reads another note again
+  only when that note's row moves, so a change that leaves its card as it was
+  shows at the next one. Rejected: state in the frames (a dropped frame would
+  be a lost write); partysocket (the contract's hint already redials, pings and
+  backs off). `apps/web/src/library/cloud/use-library-socket.ts`.
 
-- **THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT.** The one thing the tab
-  holds that the cell has not is the open item's edit before its pause writes
-  it, so a tab going out of sight or away (`pagehide`) writes it at once, and
-  while it holds one the browser asks before the tab closes, reloads or leaves,
-  its listener there only then; a session that ended asks nothing, since
-  nothing can go. An open item that will not write asks before the page leaves
-  it, saying why (`apps/web/src/library/item/leave-item.ts`). Residual: the
-  Mac app's ⌘Q right after typing can lose the pause, since a window's quit
-  runs no `pagehide` the page can wait on. Rejected: a listener always armed (it
-  bars the back-forward cache). `apps/web/src/library/cloud/leave-guard.ts`,
+- **THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT.** An edit reaches the
+  note as it is typed, so the one thing the tab holds that the note has not is
+  what was typed while no connection could carry it (`OpenNote.unsent`), which
+  the next sync hands over; while it holds that, the browser asks before the
+  tab closes, reloads or leaves, its listener there only then, and a session
+  that ended asks nothing, since nothing can go. Leaving the item for another
+  asks the note whether it stored every edit made here and goes once it says
+  so; a socket that drops meanwhile answers by what was unsent, and only an
+  edit no connection carried asks first
+  (`apps/web/src/library/item/leave-item.ts`). Residual: an edit typed into a
+  socket that died unseen, before the ping finds it, counts as carried, so a
+  leave in that window loses it. Rejected: a listener always armed (it bars
+  the back-forward cache); waiting on the note's save alone (it is never
+  answered on a socket that is gone).
+  `apps/web/src/library/cloud/leave-guard.ts`,
   `apps/web/src/library/workspace.tsx`.
 
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** Every call goes
@@ -192,7 +198,7 @@ is parsed in `shell/desktop-bridge.ts`.
   reload opens it as the cell answers it. Settings is a child of the
   library's layout, drawn in a full-window layer over the workspace the layout
   keeps mounted: the covered workspace is `inert`, its `GLOBAL_SHORTCUTS`
-  listener detached, and the way in flushes the open item. Rejected: a
+  listener detached, and the open note stays open beneath. Rejected: a
   back/forward stack of the page's own (the tab has the browser's); a sibling
   Settings route (it unmounted the item).
   `apps/web/src/library/library-layout.tsx`.
@@ -240,12 +246,14 @@ is parsed in `shell/desktop-bridge.ts`.
   in its place and takes the keyboard unless something holds it, so Escape goes
   back (`apps/web/src/library/item/item-view.tsx`): a file's viewer over its
   bytes (`/v1/blobs/<sha>`), a saved page's source above its text, a link not
-  yet read saying so, and the item's blocks in the editor over the cell
-  (`apps/web/src/library/item/item-stages.tsx`), which turns read-only and
-  says "Needs a connection" while the browser is offline, an edit typed before
-  the drop written once it returns. A long scope reads its next page as the grid
-  scrolls near its end. Rejected: a list beside an always-open item (saved
-  pages read as text files).
+  yet read saying so (`apps/web/src/library/item/item-stages.tsx`), and the
+  item's body in the editor over its note's live document, which another tab,
+  another device or the agent edits beside you as you type. It turns read-only
+  and says "Needs a connection" the moment the browser is offline, an edit
+  typed before the drop reaching the note once it returns; a note in Deleted,
+  or one as long as a note can be, reads but takes no edit and says why. A long
+  scope reads its next page as the grid scrolls near its end. Rejected: a list
+  beside an always-open item (saved pages read as text files).
 
 - **THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS.**
   Finder's grammar by item id: a click selects, ⌘-click toggles, ⇧-click
@@ -280,28 +288,33 @@ is parsed in `shell/desktop-bridge.ts`.
   `capture-payload.ts`.
 
 - **AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS.** Info
-  reads the item as the cell holds it (`items.get`): the open item's properties
-  are written through its editor's session, so the pause carries them, and any
-  item's pin, move, tags and title, like every verb over cards, are one
-  `items.organize` laid over the listings and the item's read the moment it is
-  asked, rolled back if the cell refuses it, and read again once it settles; a
-  delete, a restore and a purge are laid over the same way, all of them in one
-  queue so they land in the order asked
+  reads the item's row as the cell holds it (`items.row`), which wakes no note
+  and is read again as the row moves. Any item's properties, but one in
+  Deleted's, are each one field op (`library.write`) over the value Info
+  showed, and its pin, move, tags and title, like every verb over cards, one
+  `items.organize`; each is laid over the listings and the item's row the
+  moment it is asked, rolled back if the cell refuses it, and read again once
+  it settles; a delete, a restore and a purge are laid over the same way, all
+  of them in one queue so they land in the order asked
   (`apps/web/src/library/panel/info-tab.tsx`,
   `apps/web/src/library/library/library-verbs.ts`). Rejected: a form over the
   item's markdown (a second reader of what the cell already parsed); waiting for
-  the cell before a card moves (a pin would lag the press by a round trip).
+  the cell before a card moves (a pin would lag the press by a round trip);
+  reading the item whole for Info (every projection of the open note's typing
+  would read its body back through the note).
 
 - **UNDO IS ONE QUEUE OF THE AGENT'S CHANGE SETS.** Undo takes a whole change
-  set back in a set of its own, after the open item's unsaved edit is written,
-  so the undo meets the item as the person sees it and a line changed since is
-  kept; a set a rule held back, and one of which only kept items remain, stays
-  undoable and says so, in one sentence both of the agent panel's Undo buttons
-  say. An undo reads the conversation's sets again however it ended, since an
+  set back in a set of its own, once the open note says it stored what was
+  typed in it, so the undo meets the note as the person sees it and typing
+  since stays, but for typing inside the agent's own words, which goes with
+  them, and the sentence names each note it went from; a set a rule held back,
+  and one of which only kept items remain, stays undoable and says so, in one
+  sentence both of the agent panel's Undo buttons say. An undo reads the
+  conversation's sets again however it ended, since an
   open list hears nothing of what another device took back and a refusal can be
   the first it learns of it. Undo is the cell's, so it waits for a connection.
-  Every undo waits in one queue, joined at the press with the open item's write
-  inside it, so the queue is the order of the presses, and while anything waits
+  Every undo waits in one queue, joined at the press with the wait for the open
+  note inside it, so the queue is the order of the presses, and while anything waits
   in it both Undo buttons stay down, through leaving and coming back, since a
   set goes back once and the cell refuses a whole undo that names one already
   undone. Rejected: a History tab listing an item's sets and its versions (the
@@ -309,8 +322,9 @@ is parsed in `shell/desktop-bridge.ts`.
   person's own); holding each button by its own undo (a press before leaving
   left it live to a refusal); leaving Undo this conversation live to read
   behind what waits (a long conversation's undos join a batch at a time, so its
-  read ran ahead of the next batch and named it); writing the open item before
-  joining the queue (a file still being kept let a later press overtake it).
+  read ran ahead of the next batch and named it); waiting for the open note
+  before joining the queue (a file still being kept let a later press overtake
+  it).
   `apps/web/src/library/cloud/change-set-pages.ts`,
   `apps/web/src/library/agent/undo-answer.ts`,
   `apps/web/src/library/agent/agent-panel.tsx`.
@@ -326,8 +340,8 @@ is parsed in `shell/desktop-bridge.ts`.
   selection's Ask agent quotes the passage under what the composer holds, and
   the field takes the keyboard for the question. Under
   each finished turn "Undo this turn" takes its change set back, and "Undo this
-  conversation" every one of the conversation's, both after the open item's
-  unsaved edit is written: the sets are read from every page the cell answers,
+  conversation" every one of the conversation's, both once the open note has
+  stored what was typed in it: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
   set seals with it. Its press reads them once more, and when none is left to

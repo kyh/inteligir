@@ -33,6 +33,7 @@ import {
   undoBatches,
 } from "@repo/agent-panel/thread-undo";
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
+import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
@@ -284,12 +285,14 @@ const Conversation = ({
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
       const kept: string[] = [];
+      const lostText: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
       for (const batch of undoBatches(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);
+          lostText.push(...answer.lostText.filter((id) => !lostText.includes(id)));
           refused.push(...answer.refused);
           reverted.push(...answer.reverted);
         } catch {
@@ -297,7 +300,9 @@ const Conversation = ({
           return;
         }
       }
-      announceUndo({ kept, refused, reverted });
+      announceUndo({ kept, lostText, refused, reverted }, (id) =>
+        shownTitle(titles.find((target) => target.id === id)?.title ?? ""),
+      );
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {

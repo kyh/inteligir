@@ -1,8 +1,10 @@
 // The account's socket as this page hears it (`@repo/contract/library/account-socket`): a
-// hint, never the state. A moved frame invalidates the queries over what it names, an item only when
-// the copy held is older than the sequence it names, and every time the socket opens everything is
-// invalidated, since a drop or a deploy may have hidden a write meanwhile. The open item and the
-// editor's embeds hear which items moved, and the agent panel every thread frame.
+// hint, never the state. A moved frame invalidates the queries over what it names, an item's row
+// only when the copy held is older than the sequence it names, and every time the socket opens
+// everything is invalidated, since a drop or a deploy may have hidden a write meanwhile. A note's
+// typing moves its item only when it changes what a row holds (the card, the links, the tags or
+// the files), so a row is read again that often and no more. The editor's embeds hear which items
+// moved, and the agent panel every thread frame.
 
 import { createSocketHint } from "@repo/contract/library/account-socket";
 import type { Clock, SocketDial } from "@repo/contract/library/account-socket";
@@ -58,12 +60,12 @@ const invalidateMoved = (
   const { library } = orpc;
   let moved: ItemsMoved = null;
   if (frame.items === "all") {
-    void queryClient.invalidateQueries({ queryKey: library.items.get.key() });
+    void queryClient.invalidateQueries({ queryKey: library.items.row.key() });
     void queryClient.invalidateQueries({ queryKey: library.listing.key() });
   } else if (frame.items.length > 0) {
     moved = new Map(frame.items.map(({ id, seq }) => [id, seq]));
     for (const { id, seq } of frame.items) {
-      const queryKey = library.items.get.queryKey({ input: { id } });
+      const queryKey = library.items.row.queryKey({ input: { id } });
       if ((queryClient.getQueryData(queryKey)?.seq ?? -1) < seq) {
         void queryClient.invalidateQueries({ exact: true, queryKey });
       }

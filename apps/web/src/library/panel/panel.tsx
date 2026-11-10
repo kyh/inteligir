@@ -3,7 +3,6 @@
 // agent's conversations about the whole library.
 
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
-import type { ItemSession } from "@repo/editor/item/item-session";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { z } from "zod";
 
@@ -18,15 +17,13 @@ const panelTabSchema = z.enum(PANEL_TABS);
 
 export interface PanelProps {
   readonly itemId: string | null;
-  // the open item's session, when the panel's item is the one open
-  readonly session: ItemSession | null;
   readonly tab: PanelTab;
   readonly onTab: (tab: PanelTab) => void;
   readonly threadId: string | null;
   readonly onThread: (threadId: string | null) => void;
   readonly viewContext: () => AgentViewContext | undefined;
   readonly infoActions: InfoActions;
-  // writes what the open item holds unsaved, which an undo does first
+  // waits for the open note to store what was typed in it, which an undo does first
   readonly flushOpen: () => Promise<void>;
   // the agent's composer holds Tidy my library's request
   readonly tidying: boolean;
@@ -41,7 +38,6 @@ const NoItem = () => (
 
 export const Panel = ({
   itemId,
-  session,
   tab,
   onTab,
   threadId,
@@ -69,11 +65,7 @@ export const Panel = ({
       <TabsTrigger value="agent">Agent</TabsTrigger>
     </TabsList>
     <TabsContent value="info" className="min-h-0 flex-1 overflow-y-auto">
-      {itemId === null ? (
-        <NoItem />
-      ) : (
-        <InfoTab itemId={itemId} session={session} actions={infoActions} />
-      )}
+      {itemId === null ? <NoItem /> : <InfoTab itemId={itemId} actions={infoActions} />}
     </TabsContent>
     <TabsContent value="agent" className="flex min-h-0 flex-1 flex-col">
       <AgentPanel

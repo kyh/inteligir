@@ -38,7 +38,7 @@ describe("Info over an item", () => {
     const tag = vi.fn<(itemId: string, tags: readonly string[]) => void>();
     const move = vi.fn<(itemId: string) => void>();
 
-    renderOnLibrary(<InfoTab itemId={id} session={null} actions={{ move, tag }} />, library);
+    renderOnLibrary(<InfoTab itemId={id} actions={{ move, tag }} />, library);
     await screen.findByText("Reading");
     fireEvent.click(screen.getByRole("button", { name: "Tag…" }));
     fireEvent.click(screen.getByRole("button", { name: "Move…" }));
@@ -68,7 +68,7 @@ describe("Info over an item", () => {
       cell,
     });
 
-    renderOnLibrary(<InfoTab itemId={id} session={null} actions={noActions()} />, library);
+    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
     await screen.findByText("Reading");
     expect(pinned().getAttribute("aria-checked")).toBe("false");
     fireEvent.click(pinned());
@@ -90,14 +90,52 @@ describe("Info over an item", () => {
     const { library } = fakePageLibrary();
 
     renderOnLibrary(
-      <InfoTab
-        itemId="0199a4c2-0000-7000-8000-0000000000a1"
-        session={null}
-        actions={noActions()}
-      />,
+      <InfoTab itemId="0199a4c2-0000-7000-8000-0000000000a1" actions={noActions()} />,
       library,
     );
 
     await expect(screen.findByText("This item isn’t here.")).resolves.toBeDefined();
+  });
+
+  it("adds a property at once, as one field op over the item, and reads none of its body", async () => {
+    const { cell, id } = cellWithALink();
+    const landed = Promise.withResolvers<null>();
+    const { calls, library } = fakePageLibrary({
+      answer: async (call) => {
+        if (call.path === "library.write") {
+          await landed.promise;
+        }
+      },
+      cell,
+    });
+
+    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    await screen.findByText("Reading");
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    fireEvent.change(screen.getByPlaceholderText("Property"), { target: { value: "status" } });
+    fireEvent.change(screen.getByPlaceholderText("Value"), { target: { value: "draft" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("Value"), { key: "Enter" });
+
+    await screen.findByDisplayValue("draft");
+    expect(calls.filter((call) => call.path === "library.write")).toMatchObject([
+      { input: { itemId: id, ops: [{ key: "status", op: "property", value: "draft" }] } },
+    ]);
+    expect(cell.item(id)?.fields.properties).toStrictEqual({});
+    landed.resolve(null);
+    await waitFor(() => {
+      expect(cell.item(id)?.fields.properties).toStrictEqual({ status: "draft" });
+    });
+    expect(calls.some((call) => call.path === "library.items.get")).toBe(false);
+  });
+
+  it("draws an item in Deleted's properties as they are, with nothing to edit", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ deletedAt: 1, properties: { status: "draft" }, title: "Gone" });
+    const { library } = fakePageLibrary({ cell });
+
+    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+
+    await screen.findByText("draft");
+    expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
   });
 });
