@@ -68,8 +68,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // code.
     "@repo/mobile": ["@repo/agent-panel", "@repo/contract", "@repo/editor-bridge"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge (@repo/editor-bridge), so no contract and no cloud wire.
-    "@repo/mobile-editor": ["@repo/editor", "@repo/editor-bridge", "@repo/ui"],
+    // its own bridge (@repo/editor-bridge), so no cloud wire; the @repo/contract edge is the words
+    // and the note's path the editor's host is spelled in.
+    "@repo/mobile-editor": ["@repo/contract", "@repo/editor", "@repo/editor-bridge", "@repo/ui"],
     // a leaf: a scripted Claude Messages API with no model behind it, which the local Worker, the
     // e2e scenarios and the Worker's suites run the built-in agent against
     "@repo/messages-fake": [],

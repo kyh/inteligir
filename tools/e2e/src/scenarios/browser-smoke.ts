@@ -180,7 +180,7 @@ export const browserSmoke: Scenario = {
     await browser(["wait", EDITOR], MOUNT_DEADLINE_MS);
     await untilBodyHolds(browser, ["Start here."]);
 
-    ctx.log("typing lands in the cell after the editor's pause");
+    ctx.log("typing reaches the item's note, and the library holds it");
     await browser(["click", `${EDITOR} p`]);
     await browser(["press", "End"]);
     await browser(["keyboard", "type", TYPED]);

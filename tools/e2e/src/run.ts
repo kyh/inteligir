@@ -24,6 +24,7 @@ import { importIntegrated } from "./scenarios/import-integrated";
 import { libraryBrowser } from "./scenarios/library-browser";
 import { librarySearchBrowser } from "./scenarios/library-search-browser";
 import { linkCapture } from "./scenarios/link-capture";
+import { liveNoteBrowser } from "./scenarios/live-note-browser";
 import { noteLinksBrowser } from "./scenarios/note-links-browser";
 import { notePictureBrowser } from "./scenarios/note-picture-browser";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
@@ -33,7 +34,6 @@ import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
 import { raindropImport } from "./scenarios/raindrop-import";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
-import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
 import { undoBrowser } from "./scenarios/undo-browser";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
@@ -63,7 +63,7 @@ const SCENARIOS: readonly Scenario[] = [
   undoBrowser,
   settingsBrowser,
   librarySearchBrowser,
-  syncConflictBrowser,
+  liveNoteBrowser,
   libraryBrowser,
   noteLinksBrowser,
   notePictureBrowser,

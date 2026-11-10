@@ -94,7 +94,7 @@ const serverMetadataSchema = z.object({
 });
 
 const noteSchema = z.object({ item: z.object({ id: z.string() }) });
-const readSchema = z.object({ seq: z.number(), view: z.object({ markdown: z.string() }) });
+const readSchema = z.object({ view: z.object({ markdown: z.string() }) });
 const editSchema = z.object({ seq: z.number() });
 const hitsSchema = z.object({ hits: z.array(z.object({ id: z.string() })) });
 const refusalSchema = z.array(z.object({ text: z.string(), type: z.literal("text") }));
@@ -171,7 +171,7 @@ const toolRows = async (client: Client) => {
 
 export const connectorTools: Scenario = {
   description:
-    "the connector against a Miniflare Worker: a call with no token, or with a session of the person's own, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 9 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit on a stale base answers CONFLICT as a result the model reads; a second assistant let in only to read lists the four reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
+    "the connector against a Miniflare Worker: a call with no token, or with a session of the person's own, is challenged with where its metadata is, and that metadata names this Worker as the authorization server; an assistant on the MCP SDK's own OAuth client registers itself, sends the browser to the consent page, which signs the person in first and asks, and trades the code it is sent back for a token; it lists the 9 tools with their titles and hints, creates, searches, reads and edits a note the phone then reads, and an edit whose old text stands nowhere now answers its refusal as a result the model reads; a second assistant let in only to read lists the four reading tools; the account lists both, and revoking the first ends its access while the second keeps its own",
   name: "connector-tools",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -243,9 +243,13 @@ export const connectorTools: Scenario = {
         arguments: { id: item.id },
         name: "read_item",
       });
+      expectEq(
+        read.view.markdown,
+        "The quick brown fox.\n\nIt jumped.\n",
+        "the note as Claude reads it",
+      );
       await answered(full, editSchema, {
         arguments: {
-          baseSeq: read.seq,
           edits: [{ newText: "It jumped over the dog.", oldText: "It jumped." }],
           id: item.id,
         },
@@ -265,10 +269,9 @@ export const connectorTools: Scenario = {
         "the library's change sets",
       );
 
-      ctx.log("an edit on the base Claude read before its own edit answers CONFLICT, a result");
+      ctx.log("an edit of text Claude's own edit replaced answers its refusal, a result");
       const stale = await full.callTool({
         arguments: {
-          baseSeq: read.seq,
           edits: [{ newText: "It sat.", oldText: "It jumped." }],
           id: item.id,
         },
@@ -277,7 +280,9 @@ export const connectorTools: Scenario = {
       expect(stale.isError === true, `the stale edit answered ${JSON.stringify(stale)}`);
       const [refusal] = refusalSchema.parse(stale.content);
       expect(
-        z.object({ code: z.literal("CONFLICT") }).validate(JSON.parse(refusal?.text ?? "null")),
+        z
+          .object({ code: z.literal("UNPROCESSABLE_CONTENT") })
+          .validate(JSON.parse(refusal?.text ?? "null")),
         `the stale edit's refusal was ${refusal?.text ?? "empty"}`,
       );
 
