@@ -30,7 +30,6 @@ import type { LibraryLinks } from "./library-links";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import type { LibraryFile, LinkedItem, ReadPorts } from "./read-blocks";
-import { elementsOf } from "./read-markdown";
 import type { BodyChange } from "../live/body-change";
 
 export interface ViewEdit {
@@ -177,7 +176,7 @@ const failed = (reason: CutFailure): Cut => ({ ok: false, reason });
 // titles; null when it nests deeper than the conversion reaches
 const editedAs = (text: string, edit: number, wiki: WikiResolve): Edited | null => {
   const read = parseMarkdown(text, undefined, { wiki });
-  return read.ok ? { edit, value: elementsOf(read.value) } : null;
+  return read.ok ? { edit, value: read.value } : null;
 };
 
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
