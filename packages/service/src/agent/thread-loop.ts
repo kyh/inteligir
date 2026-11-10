@@ -45,6 +45,8 @@ import { asksFirst } from "./agent-tools";
 import { callFailureFields, isApiError } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import type { ThreadDb } from "./thread-db";
+import { cutCall, cutOf } from "./thread-drive";
+import type { StepResult } from "./thread-drive";
 import {
   agentRequest,
   frozenDefinition,
@@ -136,14 +138,6 @@ export interface CallInFlight {
   heardAt: number;
 }
 
-// what the watchdog cuts a silent reply with: the call failed reaching Claude, and is sent again
-class SilentReplyError extends Error {
-  constructor() {
-    super("No byte of the reply arrived for three minutes.");
-    this.name = "SilentReplyError";
-  }
-}
-
 // the platform's fetch, every call in flight heard as its request goes and as each chunk of its
 // reply arrives; the client a thread sends with is built over it (`./anthropic-client`)
 export const listeningFetch = (
@@ -180,14 +174,10 @@ export const cutSilentCalls = (calls: ReadonlyMap<number, CallInFlight>, now: nu
   for (const [turn, call] of calls) {
     if (now - call.heardAt >= SILENCE_MS && !call.abort.signal.aborted) {
       console.warn({ event: "agent-reply-silent", silentMs: now - call.heardAt, turn });
-      call.abort.abort(new SilentReplyError());
+      cutCall(call.abort, "silent");
     }
   }
 };
-
-// what a step left: more to do now, a retry the drive job was re-timed for, the person to wait on,
-// nothing to do, or the thread purged
-export type StepResult = "continue" | "later" | "paused" | "idle" | "purged";
 
 // ---- rows ----
 
@@ -466,12 +456,12 @@ const triesAt = (db: ThreadDb, turn: number, step: number) => {
 };
 
 // every call an instance that died left streaming, cut, its step sent again whole by the next step
-// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds
-const cutDeadCalls = (host: ThreadHost): void => {
-  host.db
-    .update(modelCalls)
+// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds. Run
+// once as an instance starts, since no other instance writes while one lives
+export const cutDeadCalls = (db: ThreadDb, isolate: string): void => {
+  db.update(modelCalls)
     .set({ status: "cut" })
-    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, host.isolate)))
+    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, isolate)))
     .run();
 };
 
@@ -737,9 +727,9 @@ const sendCall = async (
   const body = agentRequest(definition, withRules(requestMessages(transcript, sinceSeq), rules));
   const requestSha = await sha256Hex(JSON.stringify(body));
   // the last await before the request goes: a stop that landed while its request was hashed sends
-  // nothing
+  // nothing, and a purge writes nothing over the tables it is deleting
   if (signal.aborted) {
-    return unsentCall(host, callTry);
+    return cutOf(signal) === "purged" ? "purged" : unsentCall(host, callTry);
   }
   const client = host.client();
   if (client === null) {
@@ -776,11 +766,15 @@ const sendCall = async (
     }
     message = await stream.finalMessage();
   } catch (error) {
+    const cut = cutOf(signal);
+    if (cut === "purged") {
+      return "purged";
+    }
     return await failedCall(host, turn, {
       callId,
       error: errorOf(error),
       failedBefore: tries.failed,
-      stopped: signal.aborted && !(signal.reason instanceof SilentReplyError),
+      stopped: cut === "stopped",
     });
   }
   logDroppedThinking(host.threadId, message);
@@ -1004,7 +998,10 @@ export const requestCancel = (host: ThreadHost, turn: number): void => {
     .set({ cancelRequested: 1 })
     .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
     .run();
-  host.calls.get(turn)?.abort.abort(new Error("The person stopped this turn."));
+  const call = host.calls.get(turn);
+  if (call !== undefined) {
+    cutCall(call.abort, "stopped");
+  }
 };
 
 // a stopped turn still answers every call its last reply made, so the next request is valid: what
@@ -1064,7 +1061,6 @@ const settleCancel = async (
 // the open turn's next step: its first rows, its cancel settled, a round of tool calls, or a model
 // call
 const turnStep = async (host: ThreadHost, turn: OpenTurn): Promise<StepResult> => {
-  cutDeadCalls(host);
   if (!turn.started) {
     await startTurn(host, turn);
     return "continue";

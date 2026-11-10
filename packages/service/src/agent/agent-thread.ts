@@ -6,12 +6,14 @@
 // unless this instance runs it already, and stays, re-timed every 30 seconds, as the watchdog that
 // brings a dead instance's work back and cuts a reply gone silent in a live one; an approval waits
 // under a job that denies it at ten minutes; a push the cell could not take waits under the
-// `outbox` job. Every job is pushed to run once, its outcome returned rather than thrown, since
-// Lifecycle retries a job three times in process by default. A fresh instance holds no work, so
-// every `drive` job it finds is an orphan, woken at once. Each RPC starts the lifecycle, as native
-// RPC needs, and is safe to repeat. A cell that answers that it holds no such thread has the object
-// purge itself. Its schema is migrated in the constructor, before Lifecycle's first job makes its
-// own table, which a later migration would take for tables drizzle did not make.
+// `outbox` job. Where the work stands is one value, moved by `./thread-drive`, and a purged
+// conversation runs nothing more. Every job is pushed to run once, its outcome returned rather
+// than thrown, since Lifecycle retries a job three times in process by default. A fresh instance
+// holds no work, so every `drive` job it finds is an orphan, woken at once, and every call left
+// streaming a dead instance's, cut. Each RPC starts the lifecycle, as native RPC needs, and is safe
+// to repeat. A cell that answers that it holds no such thread has the object purge itself. Its
+// schema is migrated in the constructor, before Lifecycle's first job makes its own table, which a
+// later migration would take for tables drizzle did not make.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { Lifecycle } from "agents/lifecycle";
@@ -24,8 +26,11 @@ import { errorFields } from "../log";
 import { openWithSchema } from "../object-schema";
 import { anthropicClient } from "./anthropic-client";
 import { migrateThread, threadDbOf } from "./thread-db";
+import { cutCall, nextDrive, RESTING } from "./thread-drive";
+import type { Drive, DriveEffect, DriveEvent } from "./thread-drive";
 import {
   acceptDelivery,
+  cutDeadCalls,
   cutSilentCalls,
   decideCall,
   drainOutbox,
@@ -76,10 +81,8 @@ export class AgentThreadDO extends DurableObject<Env> {
   // this instance: a model call stamped with another was made by an instance that died
   readonly #isolate = crypto.randomUUID();
   readonly #calls = new Map<number, CallInFlight>();
-  #driving: Promise<void> | null = null;
-  // asked for more while the work ran, so the work goes on rather than resting
-  #again = false;
-  #purged = false;
+  #drive: Drive = RESTING;
+  // undefined until a call first asks for it; null where the deployment names no gateway
   #client: Anthropic | null | undefined;
   readonly #db = threadDbOf(this.ctx.storage);
 
@@ -96,11 +99,13 @@ export class AgentThreadDO extends DurableObject<Env> {
       cell: () => libraryCell(this.ctx.exports, accountId),
       db: this.#db,
       client: () => {
-        this.#client ??= anthropicClient(
-          this.env,
-          accountId,
-          listeningFetch(this.#calls, Date.now),
-        );
+        if (this.#client === undefined) {
+          this.#client = anthropicClient(
+            this.env,
+            accountId,
+            listeningFetch(this.#calls, Date.now),
+          );
+        }
         return this.#client;
       },
       definition: deployedDefinition,
@@ -137,6 +142,7 @@ export class AgentThreadDO extends DurableObject<Env> {
   // ---- Lifecycle's hooks ----
 
   async onStart(): Promise<void> {
+    cutDeadCalls(this.#db, this.#isolate);
     for (const job of this.lifecycle.jobs.list()) {
       if (job.fn === DRIVE_JOB) {
         await this.lifecycle.jobs.reschedule(job.id, Date.now());
@@ -145,7 +151,7 @@ export class AgentThreadDO extends DurableObject<Env> {
   }
 
   async onJob({ job }: LifecycleJobContext): Promise<LifecycleJobOutcome> {
-    if (this.#purged) {
+    if (this.#drive.kind === "purged") {
       return undefined;
     }
     try {
@@ -177,63 +183,71 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   // ---- the loop ----
 
+  #move(event: DriveEvent): DriveEffect {
+    const next = nextDrive(this.#drive, event);
+    this.#drive = next.drive;
+    return next.effect;
+  }
+
   // the work started, unless this instance runs it already, where a reply gone silent is cut for
   // the loop to send again; the job stays as the watchdog
   #kick(): LifecycleJobOutcome {
-    if (this.#driving === null) {
-      const work = this.#driveThenRest();
-      this.#driving = work;
-      this.lifecycle.trackAlarmWork(work);
-    } else {
-      cutSilentCalls(this.#calls, Date.now());
+    const host = this.#host();
+    switch (this.#move({ kind: "kick" })) {
+      case "start": {
+        this.lifecycle.trackAlarmWork(this.#stepFrom(host));
+        break;
+      }
+      case "watch": {
+        cutSilentCalls(this.#calls, Date.now());
+        break;
+      }
+      default: {
+        return undefined;
+      }
     }
     return { rescheduleAt: Date.now() + WATCHDOG_MS };
   }
 
-  async #driveThenRest(): Promise<void> {
-    try {
-      await this.#drive();
-    } finally {
-      this.#driving = null;
-    }
-  }
-
-  async #drive(): Promise<void> {
-    const host = this.#host();
-    for (;;) {
-      this.#again = false;
-      let result: Awaited<ReturnType<typeof step>>;
+  // the loop stepped while the drive says so: resting, the drive job goes, since only something
+  // new pushes it again; after a step that threw, it is timed for a retry
+  async #stepFrom(host: ThreadHost): Promise<void> {
+    let effect: DriveEffect = "step";
+    while (effect === "step") {
       try {
-        result = await step(host);
+        effect = this.#move({ kind: "stepped", result: await step(host) });
       } catch (error) {
-        console.error({ event: "agent-thread-step-failed", ...errorFields(error) });
-        await host.jobs.driveAt(Date.now() + AGAIN_MS);
-        return;
+        effect = this.#move({ kind: "threw" });
+        if (effect === "retry") {
+          console.error({ event: "agent-thread-step-failed", ...errorFields(error) });
+        }
       }
-      if (result === "continue" || ((result === "idle" || result === "paused") && this.#again)) {
-        continue;
-      }
-      if (result === "idle" || result === "paused") {
-        // nothing to do until something new happens, which pushes the job again
-        await this.lifecycle.jobs.cancel(DRIVE_JOB);
-      }
-      return;
+    }
+    if (effect === "rest") {
+      await this.lifecycle.jobs.cancel(DRIVE_JOB);
+    } else if (effect === "retry") {
+      await host.jobs.driveAt(Date.now() + AGAIN_MS);
     }
   }
 
   // durable intent first: the drive job is the record that this thread has work
   async #wake(): Promise<void> {
-    this.#again = true;
-    await this.lifecycle.jobs.push({ fn: DRIVE_JOB, id: DRIVE_JOB, retry: ONCE, time: Date.now() });
+    if (this.#move({ kind: "wake" }) === "push") {
+      await this.lifecycle.jobs.push({
+        fn: DRIVE_JOB,
+        id: DRIVE_JOB,
+        retry: ONCE,
+        time: Date.now(),
+      });
+    }
   }
 
   async #purge(): Promise<void> {
-    if (this.#purged) {
+    if (this.#move({ kind: "purge" }) !== "purge") {
       return;
     }
-    this.#purged = true;
     for (const call of this.#calls.values()) {
-      call.abort.abort(new Error("The conversation was deleted."));
+      cutCall(call.abort, "purged");
     }
     await this.lifecycle.disableAlarms();
     await this.ctx.storage.deleteAll();
@@ -245,7 +259,10 @@ export class AgentThreadDO extends DurableObject<Env> {
   async send(request: DeliveryRequest): Promise<void> {
     await this.lifecycle.start();
     const delivery = deliveryRequestSchema.parse(request);
-    if (this.#purged || delivery.threadId !== threadNameOf(this.ctx.id.name).threadId) {
+    if (
+      this.#drive.kind === "purged" ||
+      delivery.threadId !== threadNameOf(this.ctx.id.name).threadId
+    ) {
       return;
     }
     acceptDelivery(this.#host(), delivery, await rulesHashOf(delivery.rules));
@@ -255,7 +272,7 @@ export class AgentThreadDO extends DurableObject<Env> {
   // the person's answer to a call waiting on them, decided once
   async respond(request: RespondRequest): Promise<void> {
     await this.lifecycle.start();
-    if (this.#purged) {
+    if (this.#drive.kind === "purged") {
       return;
     }
     const answer = respondRequestSchema.parse(request);
@@ -273,7 +290,7 @@ export class AgentThreadDO extends DurableObject<Env> {
   // the turn stopped: marked durably, its stream cut, its calls answered by the next step
   async cancel(request: { readonly turn: number }): Promise<void> {
     await this.lifecycle.start();
-    if (this.#purged) {
+    if (this.#drive.kind === "purged") {
       return;
     }
     requestCancel(this.#host(), z.number().int().positive().parse(request.turn));
@@ -289,10 +306,10 @@ export class AgentThreadDO extends DurableObject<Env> {
   // where the thread stands; open work this instance does not run is woken
   async inspect(): Promise<ThreadInspection> {
     await this.lifecycle.start();
-    if (this.#purged) {
+    if (this.#drive.kind === "purged") {
       return { driving: false, outbox: 0, status: "idle", turn: null };
     }
-    const inspection = inspectThread(this.#host(), this.#driving !== null);
+    const inspection = inspectThread(this.#host(), this.#drive.kind === "driving");
     if ((inspection.turn !== null && !inspection.driving) || inspection.outbox > 0) {
       await this.#wake();
     }

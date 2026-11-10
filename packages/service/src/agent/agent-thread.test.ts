@@ -2,8 +2,8 @@
 // driven by its account's real cell: a turn's model calls and tool calls replayed as Claude
 // returned them, its progress notes, its transcript kept across a second wake, its recovery when
 // its instance dies mid-call or mid-tool, its approvals, its cancel, two conversations at once,
-// Claude refusing or failing, a turn ended at its last step, a compaction on the server, and a
-// deploy's definition taken up between turns. Every case ends with the fake having
+// Claude refusing or failing, a turn ended at its last step, a compaction on the server, a delete
+// mid-reply, and a deploy's definition taken up between turns. Every case ends with the fake having
 // dropped no replayed thinking block, the proof that what the thread replays is what Claude sent.
 // The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
 // stepped by hand (`../test-support/thread-host`).
@@ -23,6 +23,7 @@ import {
   script,
   settled,
   storedTypes,
+  threadHolds,
   threadOf,
   threadRows,
   threadStatus,
@@ -1000,6 +1001,33 @@ describe("a conversation's loop, stepped", () => {
       expect(calls.map((call) => call.status)).toStrictEqual(["failed", "done"]);
       expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+    },
+  );
+
+  it(
+    "stops at once for a conversation deleted mid-reply, writing nothing and asking nothing more",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      const before = await fakeStats();
+      await inSteppedThread(account, threadId, script("stall"), async ({ asked, host, run }) => {
+        const resting = run();
+        await vi.waitFor(
+          async () => {
+            const { held } = await fakeStats();
+            expect(held).toBe(before.held + 1);
+          },
+          { interval: 50, timeout: 10_000 },
+        );
+        await host.purge();
+        await expect(resting).resolves.toStrictEqual(["continue", "purged"]);
+        await expect(run()).resolves.toStrictEqual([]);
+        expect(asked.drives).toStrictEqual([]);
+      });
+      const after = await fakeStats();
+      expect(after.requests).toBe(before.requests + 1);
+      await expect(threadHolds(account.accountId, threadId)).resolves.toBe(false);
     },
   );
 
