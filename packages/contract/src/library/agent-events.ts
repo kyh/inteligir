@@ -1,8 +1,9 @@
 // What a conversation with the built-in agent is made of, as every device reads it: the events a
-// thread's rows carry (`threadEventRowSchema`'s `event`, its `type` beside it). The union is ours, never a model vendor's, so every device reads one shape whatever the
-// agent runs on. A thread's object pushes these to its account's cell, which stores each once; the
-// person's message that opens a turn is the cell's own. A reader skips an event its build cannot
-// parse, so a newer cell may add types.
+// thread's rows carry (`threadEventRowSchema`'s `event`, its `type` beside it). The union is ours,
+// never a model vendor's, so every device reads one shape whatever the agent runs on. A thread's
+// object pushes these to its account's cell, which stores each once; the person's message that
+// opens a turn is the cell's own. A reader skips an event its build cannot parse, so a newer cell
+// may add types.
 
 import { z } from "zod";
 

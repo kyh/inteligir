@@ -2,11 +2,10 @@
 // one transaction; the calls a conversation's object makes back refused for a thread the cell does
 // not hold or a turn not open; each push landed once by its sequence, its events stored for a
 // read and each reply's usage booked on its turn's day, and only the reply being written told to
-// the sockets; the seal, one change set
-// Undo takes back, a turn Claude could not be reached for given back but a stopped one not, and a
-// link the turn saved read only then; the switch; an object that started over handed its turns
-// again past the pushes the cell landed; and a thread's or the account's deletion taking each
-// conversation's object with it.
+// the sockets; the seal, one change set Undo takes back, a turn Claude could not be reached for
+// given back but a stopped one not, and a link the turn saved read only then; the switch; an
+// object that started over handed its turns again past the pushes the cell landed; and a
+// thread's or the account's deletion taking each conversation's object with it.
 
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";

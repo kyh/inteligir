@@ -3,7 +3,7 @@ import type { V1Client } from "@repo/contract/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { signInPhone, signUp } from "../harness/cloud-account";
-import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { fakeStats, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { asPhone, v1Client } from "../harness/v1-wire";
@@ -217,5 +217,8 @@ export const agentCell: Scenario = {
     expectEq(resetsAt, now - (now % 86_400_000) + 86_400_000, "when the allowance comes back");
     const spentDay = await library.agent.status();
     expectEq(spentDay.turnsLeft, 0, "the turns left once the day's cost is spent");
+
+    const { requests } = await fakeStats(worker);
+    expect(requests > 0, "no request reached the scripted API");
   },
 };
