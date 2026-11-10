@@ -56,7 +56,7 @@ export const ItemInfoSheet = ({
   onClose,
   visible,
 }: {
-  fields: LibraryItemFields | null;
+  fields: LibraryItemFields;
   folders: readonly InfoFolder[];
   onClose: () => void;
   visible: boolean;
@@ -74,7 +74,7 @@ export const ItemInfoSheet = ({
         </Pressable>
       </View>
       <ScrollView contentContainerClassName="gap-4 px-4 pt-6 pb-12">
-        {(fields === null ? [] : rowsOf(fields, folders)).map((row) => (
+        {rowsOf(fields, folders).map((row) => (
           <View key={row.label} className="gap-1">
             <Text className="text-12 font-semibold tracking-[0.5px] uppercase text-muted-foreground">
               {row.label}

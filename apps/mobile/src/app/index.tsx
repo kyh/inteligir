@@ -8,12 +8,12 @@
 
 import {
   keepPreviousData,
-  onlineManager,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { FetchStatus } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -37,14 +37,15 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ingestPhoto } from "@/items/photo-ingest";
 import type { SaveOutcome } from "@/items/phone-saves";
-import { useLibrary } from "@/lib/library-hooks";
+import { useLibrary, useMoveToDeleted } from "@/lib/library-hooks";
 import { openConversations, openItem, openViewer } from "@/lib/routes";
-import { SPACE, useTheme } from "@/lib/theme";
+import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { ListedItem } from "@/library/library-card";
 import { listingPage, saveFolderOf, scopeTitle } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
+import { online } from "@/ui/needs-connection";
 
 // the chips over the list, in the order a person scans them
 const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
@@ -61,7 +62,7 @@ const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
 const SEARCH_PAUSE_MS = 300;
 
 // a save that met no connection, or a sign-in that ended under it, said as the screen says it
-const NOT_SAVED = "Your library can't be reached right now. Try again once it can.";
+const NOT_SAVED = `${UNREACHABLE} Try again once it can.`;
 
 // a picture or a PDF opens full size; everything else opens in the editor
 const openRow = (row: ListedItem): void => {
@@ -70,15 +71,6 @@ const openRow = (row: ListedItem): void => {
     return;
   }
   openItem(row.id);
-};
-
-// what only the cloud can make needs a connection, and says so rather than wait for one
-const online = (): boolean => {
-  if (!onlineManager.isOnline()) {
-    Alert.alert(NEEDS_CONNECTION, "Try again once your library can be reached.");
-    return false;
-  }
-  return true;
 };
 
 // a save the cloud did not take, said; true for one it took
@@ -193,12 +185,16 @@ const usePaused = (words: string): string => {
   return paused;
 };
 
-const emptyLabel = (listing: { isPending: boolean; isError: boolean }, filtered: boolean) => {
+const emptyLabel = (
+  listing: { isPending: boolean; isError: boolean; fetchStatus: FetchStatus },
+  filtered: boolean,
+) => {
   if (listing.isError) {
     return UNREACHABLE;
   }
   if (listing.isPending) {
-    return "Loading your library…";
+    // a first read with no connection waits for one rather than fail
+    return listing.fetchStatus === "paused" ? NEEDS_CONNECTION : "Loading your library…";
   }
   return filtered
     ? "Nothing here matches."
@@ -207,8 +203,6 @@ const emptyLabel = (listing: { isPending: boolean; isError: boolean }, filtered:
 
 const LibraryScreen = () => {
   const theme = useTheme();
-  // a value, not a class: className draws nothing on a SafeAreaView
-  const screen = { backgroundColor: theme.background, flex: 1 };
   const { newId, queries, saves } = useLibrary();
   const queryClient = useQueryClient();
   const [chosenScope, setChosenScope] = useState<LibraryScope>({ kind: "all" });
@@ -233,9 +227,7 @@ const LibraryScreen = () => {
   const changedItems = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: queries.library.key() });
   };
-  const remove = useMutation(
-    queries.library.items.delete.mutationOptions({ onSettled: changedItems }),
-  );
+  const moveToDeleted = useMoveToDeleted();
   const restore = useMutation(
     queries.library.items.restore.mutationOptions({ onSettled: changedItems }),
   );
@@ -282,17 +274,12 @@ const LibraryScreen = () => {
     }
   };
 
-  const moveRow = async (row: ListedItem, deleted: boolean): Promise<void> => {
+  const restoreRow = async (row: ListedItem): Promise<void> => {
     if (!online()) {
       return;
     }
-    const asked = { ids: [row.id], opId: newId() };
     try {
-      if (!deleted) {
-        await remove.mutateAsync(asked);
-        return;
-      }
-      const { addressHeld } = await restore.mutateAsync(asked);
+      const { addressHeld } = await restore.mutateAsync({ ids: [row.id], opId: newId() });
       if (addressHeld.length > 0) {
         Alert.alert(
           "Couldn't restore",
@@ -300,10 +287,7 @@ const LibraryScreen = () => {
         );
       }
     } catch (error) {
-      Alert.alert(
-        deleted ? "Couldn't restore" : "Couldn't delete",
-        refusalText(error, UNREACHABLE),
-      );
+      Alert.alert("Couldn't restore", refusalText(error, UNREACHABLE));
     }
   };
 
@@ -321,7 +305,7 @@ const LibraryScreen = () => {
         if (index === 1) {
           openRow(row);
         } else if (index === 2) {
-          void moveRow(row, deleted);
+          void (deleted ? restoreRow(row) : moveToDeleted(row.id));
         }
       },
     );
@@ -330,7 +314,7 @@ const LibraryScreen = () => {
   const filtered = scope.kind !== "all" || kinds.size > 0 || query.trim() !== "";
 
   return (
-    <SafeAreaView style={screen} edges={["left", "right"]}>
+    <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen
         options={{
           headerSearchBarOptions: {

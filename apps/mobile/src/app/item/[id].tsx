@@ -11,29 +11,22 @@ import {
   useNavigationState,
   usePreventRemove,
 } from "expo-router/react-navigation";
-import { onlineManager, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
-import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
 import { shownTitle } from "@repo/contract/items/item-name";
 import NotePage from "@/editor/page/note-page";
 import { useNotePage } from "@/editor/use-note-page";
-import { loadVerdict, openWindowVerdict } from "@/editor/web-view-policy";
+import { EVERY_ORIGIN, loadVerdict, openWindowVerdict } from "@/editor/web-view-policy";
 import type { LoadVerdict } from "@/editor/web-view-policy";
 import { ItemInfoSheet } from "@/items/item-info-sheet";
-import { useItem, useLibrary } from "@/lib/library-hooks";
+import { useItem, useLibrary, useMoveToDeleted } from "@/lib/library-hooks";
 import { FOCUS, firstParam, openAgent } from "@/lib/routes";
-import { useTheme } from "@/lib/theme";
+import { screenStyle, useTheme } from "@/lib/theme";
 import { UnsentBanner } from "@/library/unsent-banner";
-
-const screenOf = (background: string) => ({ backgroundColor: background, flex: 1 });
-
-// the web view hands anything its list does not admit to the OS itself, before the policy below
-// runs, so the list admits every address and the policy is the one rule (web-view-policy.ts)
-const EVERY_ORIGIN = ["*"];
+import { online } from "@/ui/needs-connection";
 
 // past this many screens above it, an item lets its web view go once the note holds every edit
 // made here; it loads again on the way back
@@ -72,18 +65,11 @@ const ItemScreen = () => {
   const itemId = firstParam(params.id) ?? "";
   const route = useRoute();
   const depth = useNavigationState((state) => depthOf(state.routes, route.key));
-  const { newId, queries } = useLibrary();
-  const queryClient = useQueryClient();
+  const { queries } = useLibrary();
   const read = useItem(itemId);
   const item = read.kind === "held" ? read.item : null;
   const folders = useQuery(queries.library.listing.scopes.queryOptions()).data?.folders ?? [];
-  const remove = useMutation(
-    queries.library.items.delete.mutationOptions({
-      onSettled: async () => {
-        await queryClient.invalidateQueries({ queryKey: queries.library.key() });
-      },
-    }),
-  );
+  const moveToDeleted = useMoveToDeleted();
   const [showInfo, setShowInfo] = useState(false);
   const page = useNotePage(itemId, {
     deep: depth >= RELEASE_DEPTH,
@@ -105,9 +91,9 @@ const ItemScreen = () => {
     );
   });
 
-  const moveToDeleted = (): void => {
-    if (!onlineManager.isOnline()) {
-      Alert.alert(NEEDS_CONNECTION, "An item moves to Deleted once your library can be reached.");
+  // checked before the confirm too, so an offline Delete never asks for what it cannot do
+  const confirmDelete = (): void => {
+    if (!online()) {
       return;
     }
     Alert.alert(
@@ -118,11 +104,8 @@ const ItemScreen = () => {
         {
           onPress: () => {
             void (async () => {
-              try {
-                await remove.mutateAsync({ ids: [itemId], opId: newId() });
+              if (await moveToDeleted(itemId)) {
                 router.back();
-              } catch (error) {
-                Alert.alert("Couldn't move it to Deleted", refusalText(error, UNREACHABLE));
               }
             })();
           },
@@ -162,7 +145,7 @@ const ItemScreen = () => {
           },
           onShouldStartLoadWithRequest: (request) => followVerdict(loadVerdict(request, __DEV__)),
           originWhitelist: EVERY_ORIGIN,
-          style: screenOf(theme.background),
+          style: screenStyle(theme),
           useExpoDOMWebView: false,
           webviewDebuggingEnabled: __DEV__,
         }}
@@ -171,7 +154,7 @@ const ItemScreen = () => {
   }
 
   return (
-    <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
+    <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen
         options={{
           title: item === null ? "" : shownTitle(item.card.title),
@@ -194,6 +177,7 @@ const ItemScreen = () => {
             Open original
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
+            hidden={item === null}
             onPress={() => {
               setShowInfo(true);
             }}
@@ -207,7 +191,7 @@ const ItemScreen = () => {
           >
             Ask the agent
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction destructive onPress={moveToDeleted}>
+          <Stack.Toolbar.MenuAction destructive onPress={confirmDelete}>
             Delete
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
@@ -220,14 +204,16 @@ const ItemScreen = () => {
       >
         {body}
       </KeyboardAvoidingView>
-      <ItemInfoSheet
-        fields={item?.fields ?? null}
-        folders={folders}
-        visible={showInfo}
-        onClose={() => {
-          setShowInfo(false);
-        }}
-      />
+      {item === null ? null : (
+        <ItemInfoSheet
+          fields={item.fields}
+          folders={folders}
+          visible={showInfo}
+          onClose={() => {
+            setShowInfo(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };

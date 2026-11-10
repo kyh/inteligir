@@ -4,6 +4,7 @@
 // so.
 
 import { shownTitle } from "@repo/contract/items/item-name";
+import { UNREACHABLE } from "@repo/contract/library/call-outcome";
 import { Stack, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
@@ -15,20 +16,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { EVERY_ORIGIN } from "@/editor/web-view-policy";
 import { useFileUri, useItem } from "@/lib/library-hooks";
 import { firstParam } from "@/lib/routes";
 import { sameDocument } from "@/lib/same-document";
-import { useTheme } from "@/lib/theme";
-
-const screenOf = (background: string) => ({ backgroundColor: background, flex: 1 });
+import { screenStyle, useTheme } from "@/lib/theme";
 
 const CENTERED = "grow basis-0 items-center justify-center";
 
 const MAX_ZOOM = 5;
-
-// the WebView hands anything its list does not admit to the OS itself, before the policy below
-// runs, so the list admits every address and the policy is the one rule
-const EVERY_ORIGIN = ["*"];
 
 const ImageView = ({ uri }: { uri: string }) => {
   const { height, width } = useWindowDimensions();
@@ -54,7 +50,7 @@ const DocumentView = ({ uri }: { uri: string }) => {
   const theme = useTheme();
   return (
     <WebView
-      style={screenOf(theme.background)}
+      style={screenStyle(theme)}
       source={{ uri }}
       allowingReadAccessToURL={uri}
       originWhitelist={EVERY_ORIGIN}
@@ -90,7 +86,7 @@ const ViewerScreen = () => {
   if (read.kind === "missing" || (item !== null && sha === null)) {
     body = <Centered>This file is not in your library.</Centered>;
   } else if (read.kind === "unreachable") {
-    body = <Centered>Your library can&apos;t be reached right now.</Centered>;
+    body = <Centered>{UNREACHABLE}</Centered>;
   } else if (item !== null && !shown) {
     body = <Centered>This file opens on your Mac.</Centered>;
   } else if (uri === null) {
@@ -104,7 +100,7 @@ const ViewerScreen = () => {
   }
 
   return (
-    <SafeAreaView style={screenOf(theme.background)} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={screenStyle(theme)} edges={["left", "right", "bottom"]}>
       <Stack.Screen
         options={{
           title: item === null ? "" : shownTitle(item.card.title),

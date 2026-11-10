@@ -2,8 +2,8 @@
 // THUMB_WIDTH, in PNG for any source that can carry transparency (a PNG, a WebP, a GIF) and in
 // JPEG only for a JPEG, since a JPEG writes transparent pixels black. The bytes pass through a
 // cache file, since the decoder reads a file; a picture it cannot decode, or that is past what a
-// phone may decode, is no thumbnail. Only the composition root imports this; it loads native
-// modules.
+// phone may decode, is no thumbnail. It loads native modules, so only the composition root and the
+// photo ingest, for `removed`, import it.
 
 import { File, Paths } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -20,7 +20,7 @@ const JPEG_QUALITY = 0.7;
 // the clock alone could give two of them one name
 let named = 0;
 
-const removed = (file: File): void => {
+export const removed = (file: File): void => {
   try {
     file.delete();
   } catch {

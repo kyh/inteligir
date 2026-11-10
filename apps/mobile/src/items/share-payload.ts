@@ -6,20 +6,27 @@
 // marks are told from the address's, and text holding one is a link share whatever the search
 // found. Every spelling of the link is taken out of what the text says, and what is left is the
 // person's words, a new item's note. Only punctuation left is no note.
-// Pure: the share inbox and the tests read it.
+// Pure: the share inbox, the outbox, the saves and the tests read it.
 
+import { z } from "zod";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { fieldLine } from "@repo/contract/items/saved-facts";
 import { linkInText, withoutLink } from "./link-in-text";
 
-interface SharedLink {
-  kind: "link";
-  url: string;
-  title: string | null;
-  note: string | null;
-}
+// a share that holds something to save, as the outbox keeps it and sends it
+export const shareSaveSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("link"),
+    note: z.string().nullable(),
+    title: z.string().nullable(),
+    url: z.string(),
+  }),
+  z.object({ kind: z.literal("text"), text: z.string() }),
+]);
 
-export type SharedSave = SharedLink | { kind: "text"; text: string } | { kind: "nothing" };
+export type ShareSave = z.infer<typeof shareSaveSchema>;
+
+export type SharedSave = ShareSave | { kind: "nothing" };
 
 export interface ShareHandoff {
   webUrl: string | null;

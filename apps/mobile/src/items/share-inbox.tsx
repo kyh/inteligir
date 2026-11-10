@@ -23,14 +23,12 @@ const metaOf = (meta: ShareIntent["meta"]): Record<string, string> | null => {
   return kept;
 };
 
-// the share sent, then its item opened or its refusal told; one that waits is the banner's
+// the share sent, then its item opened; one that waits or was refused is the banner's, with the
+// cloud's words, until it is tried again or let go
 const deliver = async (library: PhoneLibrary, opId: string): Promise<void> => {
   const outcome = await library.shares.deliver(opId);
   if (outcome.kind === "landed") {
     openItem(outcome.itemId);
-  } else if (outcome.kind === "refused") {
-    Alert.alert("Couldn't save", outcome.message);
-    await library.shares.discard(opId);
   }
 };
 

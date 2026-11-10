@@ -31,6 +31,7 @@ import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
+import { systemClock } from "./system-clock";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
@@ -89,15 +90,7 @@ const build = (): AppRuntime => {
   const rt = composeRuntime({
     auth: phoneAuth(cloudUrl),
     build: { platform: "mobile", version: appVersion() },
-    clock: {
-      after: (ms, run) => {
-        const timer = setTimeout(run, ms);
-        return () => {
-          clearTimeout(timer);
-        };
-      },
-      now: () => Date.now(),
-    },
+    clock: systemClock,
     cloudUrl,
     // React Native's WebSocket: it opens with the ticket a `/v1` call minted, in the query string,
     // as every client does, never a header
