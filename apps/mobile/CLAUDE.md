@@ -88,9 +88,11 @@ written and cited.
   (`meta.persist: false`) and a write are never kept
   (`apps/mobile/src/lib/compose-runtime.ts`). Online is the network's state
   and focus the app's (`apps/mobile/src/lib/app-runtime.ts`). The account's
-  socket says what each write moved, and the queries reading it ask again; an
-  open socket asks everything again. The background closes it, since iOS
-  suspends the app anyway. Rejected: the replica engine over expo-sqlite (a
+  socket says what each write moved, and the queries reading it ask again; a
+  socket that comes up asks everything again, and one that goes down lets the
+  reply being written go. The background and a lost network let it go, since
+  iOS suspends the app anyway, and nothing dials until the phone is back in
+  front and online. Rejected: the replica engine over expo-sqlite (a
   copy of the whole library, its outbox and its merge, for a premise that
   keeps the truth in the cloud); a mutation kept for later (a write offline
   says so, and only a share waits).

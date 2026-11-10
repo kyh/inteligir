@@ -47,6 +47,13 @@ const CACHE_KEY = "library-cache";
 // a cache that changes in a burst (a page of covers, a socket's frames) is written once for it
 const CACHE_WRITE_MS = 1000;
 const QUERY_TRIES = 3;
+// what a socket that comes up says, since anything may have moved while none was open
+const EVERYTHING_MOVED = {
+  folders: true,
+  items: "all",
+  threads: "all",
+  type: "moved",
+} as const satisfies LibrarySocketFrame;
 
 export interface ComposeRuntimeArgs {
   readonly cloudUrl: string;
@@ -112,7 +119,7 @@ export interface AppRuntime {
   readonly logout: (options?: { readonly discardWaiting?: boolean }) => Promise<LogoutOutcome>;
   // the app is in front again, or back online: the socket dials and the shares go
   readonly resume: () => void;
-  // the app went behind: the socket closes until it resumes
+  // the app went behind: the socket goes until it resumes
   readonly suspend: () => void;
 }
 
@@ -287,6 +294,21 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         listener(ids);
       }
     };
+    const heard = (frame: LibrarySocketFrame): void => {
+      if (frame.type === "preview") {
+        previews.hear({ text: frame.text, threadId: frame.threadId });
+        return;
+      }
+      moved(queries, frame);
+      if (frame.items === "all") {
+        itemsMoved(null);
+      } else if (frame.items.length > 0) {
+        itemsMoved(new Set(frame.items.map(({ id }) => id)));
+      }
+      for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
+        previews.hear({ text: null, threadId });
+      }
+    };
     const made: PhoneLibrary = {
       client,
       files,
@@ -309,36 +331,21 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         : createSocketHint({
             clock: args.clock,
             dial: args.dial,
-            onFrame: (frame) => {
-              if (frame.type === "preview") {
-                previews.hear({ text: frame.text, threadId: frame.threadId });
-                return;
+            onFrame: heard,
+            // up: a write may have landed while no socket was open to say so; down: no frame can
+            // let a preview go any more, and a reply still being written sends its next one within
+            // a moment of the next up
+            onStatus: (status) => {
+              if (status === "up") {
+                heard(EVERYTHING_MOVED);
+              } else {
+                previews.hear({ text: null, threadId: null });
               }
-              moved(queries, frame);
-              if (frame.items === "all") {
-                itemsMoved(null);
-              } else if (frame.items.length > 0) {
-                itemsMoved(new Set(frame.items.map(({ id }) => id)));
-              }
-              for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
-                previews.hear({ text: null, threadId });
-              }
-            },
-            // a write may have landed while no socket was open to say so, and a frame that let a
-            // preview go been missed; a reply still being written sends its next one in a moment
-            onOpen: () => {
-              void queryClient.invalidateQueries({ queryKey: queries.library.key() });
-              itemsMoved(null);
-              previews.hear({ text: null, threadId: null });
             },
             origin: args.cloudUrl,
             ticket: async () => {
-              try {
-                const { ticket } = await client.account.socketTicket();
-                return ticket;
-              } catch {
-                return null;
-              }
+              const { ticket } = await client.account.socketTicket();
+              return ticket;
             },
           });
     opened = { library: made, socket };
@@ -401,7 +408,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     queryClient,
     resume() {
       if (opened !== null) {
-        opened.socket?.connect();
+        opened.socket?.online();
         void opened.library.shares.flush();
         void checkSession(opened.library);
       }
@@ -429,7 +436,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       }
     },
     suspend() {
-      opened?.socket?.close();
+      opened?.socket?.offline();
     },
   };
 };

@@ -364,11 +364,24 @@ const socketPhone = async () => {
   const sockets = fakeSockets();
   const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION), sockets });
   await runtime.start();
-  await expect.poll(() => sockets.sockets.length).toBe(1);
-  const [socket] = sockets.sockets;
-  if (socket === undefined) {
-    throw new Error("the phone dialled no socket");
-  }
+  // the next socket the phone dials, opened
+  const opened = async () => {
+    const dialled = sockets.sockets.length;
+    await expect.poll(() => sockets.sockets.length).toBe(dialled + 1);
+    const live = sockets.sockets.at(-1);
+    if (live === undefined) {
+      throw new Error("the phone dialled no socket");
+    }
+    live.open();
+    return live;
+  };
+  const socket = await opened();
+  // behind and back in front: the socket goes, and the next one comes up
+  const cameBack = async (): Promise<void> => {
+    runtime.suspend();
+    runtime.resume();
+    await opened();
+  };
   const { queries } = signedIn(runtime);
   const { agent, items, listing } = queries.library;
   const keys = {
@@ -391,7 +404,7 @@ const socketPhone = async () => {
       .filter(([, key]) => runtime.queryClient.getQueryState(key)?.isInvalidated === true)
       .map(([name]) => name)
       .toSorted();
-  return { asked, runtime, socket };
+  return { asked, cameBack, runtime, socket };
 };
 
 describe("what the account's socket asks again", () => {
@@ -416,20 +429,22 @@ describe("what the account's socket asks again", () => {
     expect(asked()).toStrictEqual(["scopes", "threads"]);
   });
 
-  it("asks everything again when a frame or an open socket says anything may have moved", async () => {
+  it("asks everything again when a frame or a socket coming up says anything may have moved", async () => {
     const all = await socketPhone();
     all.socket.message(
       JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }),
     );
     expect(all.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
 
-    const opened = await socketPhone();
-    opened.socket.open();
-    expect(opened.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
+    const back = await socketPhone();
+    back.runtime.suspend();
+    expect(back.asked()).toStrictEqual([]);
+    await back.cameBack();
+    expect(back.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
   });
 
-  it("tells a screen which items moved, and that any may have once a frame or an open socket says so", async () => {
-    const { runtime, socket } = await socketPhone();
+  it("tells a screen which items moved, and that any may have once a frame or a socket coming up says so", async () => {
+    const { cameBack, runtime, socket } = await socketPhone();
     const heard: (string[] | null)[] = [];
     const stop = signedIn(runtime).onItems((ids) => {
       heard.push(ids === null ? null : [...ids]);
@@ -448,10 +463,10 @@ describe("what the account's socket asks again", () => {
     );
     socket.message(JSON.stringify({ folders: true, items: [], threads: [], type: "moved" }));
     socket.message(JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }));
-    socket.open();
+    await cameBack();
     expect(heard).toStrictEqual([[NOTE, other], null, null]);
     stop();
-    socket.open();
+    await cameBack();
     expect(heard).toHaveLength(3);
   });
 
@@ -474,7 +489,19 @@ describe("what the account's socket asks again", () => {
     hear({ folders: false, items: [], threads: "all", type: "moved" });
     expect(previews.get(other)).toBeNull();
     hear({ text: "Filed", threadId: thread, type: "preview" });
-    socket.open();
+    socket.drop();
+    expect(previews.get(thread)).toBeNull();
+  });
+
+  it("lets the reply being written go when the app goes behind", async () => {
+    const { runtime, socket } = await socketPhone();
+    const { previews } = signedIn(runtime);
+    const thread = "0190a000-0000-7000-8000-0000000000c1";
+
+    socket.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
+    expect(previews.get(thread)).toBe("Filing");
+    runtime.suspend();
+    expect(socket.closed).toBe(true);
     expect(previews.get(thread)).toBeNull();
   });
 });
