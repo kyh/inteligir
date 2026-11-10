@@ -8,9 +8,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
-import { PHONE_ORIGIN } from "@repo/contract/origin";
 import type { V1Client } from "@repo/contract/v1";
-import { isOrpcError } from "@repo/contract/v1/errors";
 import type { AuthAnswer, PhoneAuth } from "@repo/mobile/auth/phone-auth";
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime, PhoneLibrary } from "@repo/mobile/lib/compose-runtime";
@@ -20,14 +18,11 @@ import type { MemoryKv } from "@repo/mobile/test-support/memory-kv";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { z } from "zod";
 import { expect, expectEq } from "./assert";
-import { OWNER, PHONE_BUILD } from "./cloud-account";
+import { cookieHeaderOf, OWNER, PHONE_BUILD, phoneAuthHeaders } from "./cloud-account";
 import { pollUntil } from "./poll";
+import { heldItemOf } from "./v1-wire";
 
 const LANDED_DEADLINE_MS = 20_000;
-
-// the system networking stack's user agent, which a native request carries and the account's
-// device list names an iPhone by
-const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
 
 export type HeldItem = Awaited<ReturnType<V1Client["library"]["items"]["get"]>>;
 
@@ -50,15 +45,6 @@ const offline = (): never => {
 const refusalSchema = z.looseObject({ message: z.string() });
 const sessionSchema = z.looseObject({ session: z.looseObject({ id: z.string() }) }).nullable();
 
-// what a native client sends back: the name=value of each cookie the answer set
-const cookieOf = (response: Response): string | null => {
-  const cookie = response.headers
-    .getSetCookie()
-    .map((setCookie) => setCookie.split(";")[0] ?? "")
-    .join("; ");
-  return cookie === "" ? null : cookie;
-};
-
 const phoneAuth = (origin: string, network: { online: boolean }, keychain: Keychain): PhoneAuth => {
   // a GET carries no body; the session is the one the call names, which a sign-out takes before
   // the Keychain lets it go
@@ -70,15 +56,7 @@ const phoneAuth = (origin: string, network: { online: boolean }, keychain: Keych
     if (!network.online) {
       offline();
     }
-    const headers = new Headers({
-      "content-type": "application/json",
-      "expo-origin": PHONE_ORIGIN,
-      "user-agent": PHONE_USER_AGENT,
-    });
-    if (cookie !== null) {
-      headers.set("cookie", cookie);
-    }
-    return await fetch(`${origin}${path}`, { ...init, headers });
+    return await fetch(`${origin}${path}`, { ...init, headers: phoneAuthHeaders(cookie) });
   };
 
   const enter = async (path: string, body: string): Promise<AuthAnswer> => {
@@ -97,7 +75,8 @@ const phoneAuth = (origin: string, network: { online: boolean }, keychain: Keych
       };
     }
     await response.arrayBuffer();
-    keychain.cookie = cookieOf(response);
+    const cookie = cookieHeaderOf(response);
+    keychain.cookie = cookie === "" ? null : cookie;
     return { kind: "signed-in" };
   };
 
@@ -190,16 +169,8 @@ export const libraryOf = (phone: Phone): PhoneLibrary => {
 };
 
 // the item as the cloud holds it now, null for one it holds none of
-const itemNow = async (phone: Phone, id: string): Promise<HeldItem | null> => {
-  try {
-    return await libraryOf(phone).client.library.items.get({ id });
-  } catch (error) {
-    if (isOrpcError(error) && error.defined && error.code === "NOT_FOUND") {
-      return null;
-    }
-    throw error;
-  }
-};
+const itemNow = async (phone: Phone, id: string): Promise<HeldItem | null> =>
+  await heldItemOf(libraryOf(phone).client.library, id);
 
 // until the device reads an item that answers `ready`
 export const untilItem = async (

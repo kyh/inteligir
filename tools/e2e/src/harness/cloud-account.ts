@@ -28,8 +28,8 @@ const ownPage = (origin: string) => ({ origin, "sec-fetch-site": "same-origin" }
 
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
-// what a browser sends back: the name=value of each cookie an answer set
-const cookieHeaderOf = (response: Response): string =>
+// what a browser or the phone sends back: the name=value of each cookie an answer set
+export const cookieHeaderOf = (response: Response): string =>
   response.headers
     .getSetCookie()
     .map((setCookie) => setCookie.split(";")[0] ?? "")
@@ -60,20 +60,29 @@ export const signUp = async (origin: string): Promise<{ cookie: string; userId: 
   return { cookie, userId: parsed.data.user.id };
 };
 
-// the system networking stack's user agent, which the phone's native requests carry, and the cloud
-// names its session by
+// the system networking stack's user agent, which the phone's native requests carry, and the
+// account's device list names an iPhone by
 const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
 
-// the phone's sign-in as its runtime makes it: Better Auth's own route, the app scheme named in
-// `expo-origin`, which a native request sends in place of an Origin
+// what the phone's runtime sends Better Auth's own routes: the app scheme named in `expo-origin`,
+// which a native request sends in place of an Origin, and the session it names, when it holds one
+export const phoneAuthHeaders = (cookie: string | null = null): Headers => {
+  const headers = new Headers({
+    "content-type": "application/json",
+    "expo-origin": PHONE_ORIGIN,
+    "user-agent": PHONE_USER_AGENT,
+  });
+  if (cookie !== null) {
+    headers.set("cookie", cookie);
+  }
+  return headers;
+};
+
+// the phone's sign-in as its runtime makes it
 export const phoneSignIn = async (origin: string, password: string): Promise<Response> =>
   await fetch(`${origin}/api/auth/sign-in/email`, {
     body: JSON.stringify({ email: OWNER.email, password }),
-    headers: {
-      "content-type": "application/json",
-      "expo-origin": PHONE_ORIGIN,
-      "user-agent": PHONE_USER_AGENT,
-    },
+    headers: phoneAuthHeaders(),
     method: "POST",
   });
 
