@@ -4,7 +4,6 @@
 // tag or a property reads as done before it lands. Every part of it is the cell's, so it waits for
 // a connection.
 
-import { isDefinedError } from "@orpc/client";
 import { refusalText } from "@repo/contract/refusal-text";
 import { itemProperties } from "@repo/editor/item/item-properties";
 import type { ItemFields } from "@repo/editor/item/item-properties";
@@ -17,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { useLibraryQueries, useWire } from "../cloud/library-context";
-import { CellAnswer } from "../cloud/needs-connection";
+import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { formatCount, KIND_LABELS, isUrlItem } from "../library/item-labels";
 import { useLibraryVerbs } from "../library/library-verbs";
 
@@ -84,7 +83,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
       },
     }),
   );
-  if (item.data === undefined && isDefinedError(item.error) && item.error.code === "NOT_FOUND") {
+  if (cellStanding(item).kind === "missing") {
     return <p className="m-0 p-3 text-body text-muted-foreground">This item isn’t here.</p>;
   }
   return (

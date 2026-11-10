@@ -35,6 +35,7 @@ import {
   useSocket,
   useWire,
 } from "./cloud/library-context";
+import { cellStanding } from "./cloud/needs-connection";
 import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
@@ -574,14 +575,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     scope={scope}
                     title={scopeTitle(scope, folders)}
                     listing={{
-                      failure: listing.error,
                       more: () => {
                         if (listing.hasNextPage && !listing.isFetchingNextPage) {
                           void listing.fetchNextPage();
                         }
                       },
-                      paused: listing.fetchStatus === "paused",
-                      view,
+                      standing: cellStanding({
+                        data: view,
+                        error: listing.error,
+                        fetchStatus: listing.fetchStatus,
+                      }),
                     }}
                     kind={kind}
                     onKindChange={setKind}
