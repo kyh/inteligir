@@ -104,9 +104,10 @@ is parsed in `shell/desktop-bridge.ts`.
   a list the cell cut short (`"all"`) invalidates the family. A note's typing
   moves its item only when it changes what a row holds (its card, links, tags
   or files), and the open note's body never rides the frame: it is live on its
-  own socket. The editor's embeds hear which items moved; a thread frame not a
-  preview reads its events again, and every frame goes on to the agent panel
-  for the reply being written. Residual: an embed reads another note again
+  own socket. The editor's embeds hear which items moved; a preview frame goes
+  on to the agent panel for the reply being written, a moved frame naming a
+  thread reads its events again and lets its preview go, and a socket that
+  opens again lets every preview go. Residual: an embed reads another note again
   only when that note's row moves, so a change that leaves its card as it was
   shows at the next one. Rejected: state in the frames (a dropped frame would
   be a lost write); partysocket (the contract's hint already redials, pings and

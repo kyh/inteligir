@@ -239,8 +239,7 @@ CREATE TABLE `thread_events` (
 	`idx` integer NOT NULL,
 	`type` text NOT NULL,
 	`json` text NOT NULL,
-	`at` integer NOT NULL,
-	`seq` integer NOT NULL
+	`at` integer NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `threads` (
@@ -248,8 +247,7 @@ CREATE TABLE `threads` (
 	`title` text NOT NULL,
 	`status` text NOT NULL,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL,
-	`seq` integer NOT NULL
+	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);--> statement-breakpoint

@@ -31,11 +31,13 @@ every thinking block it sends against the system, the tools and every message
 before it, chained to the block before (`src/fake-signature.ts`), so a request
 that leaves out a leading run of thinking blocks still verifies and any other
 edit does not: refused, or under `drop_block` dropped and counted. Every suite
-and scenario expects no drop. Once a conversation holds a compaction block
-that kept a summary, the fake reads it from its last one on, as the API does:
-what came before is ignored, the prefix a thinking block is bound to starts at
-the block, and the chain starts afresh there. A compaction block whose content
-is null, a summary not written, is ignored itself, and compacts nothing.
+and scenario expects no drop: the Worker's suites read the count after each
+test, and the e2e harness after each scenario, for every Worker it booted
+(`tools/e2e/src/harness/scenario.ts`). Once a conversation holds a compaction
+block that kept a summary, the fake reads it from its last one on, as the API
+does: what came before is ignored, the prefix a thinking block is bound to
+starts at the block, and the chain starts afresh there. A compaction block whose
+content is null, a summary not written, is ignored itself, and compacts nothing.
 
 ## The agent's script
 

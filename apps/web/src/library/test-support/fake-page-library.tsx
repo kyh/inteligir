@@ -6,7 +6,6 @@
 
 import { createORPCClient, DynamicLink } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import type { V1Client } from "@repo/contract/v1";
@@ -19,7 +18,7 @@ import { z } from "zod";
 import { createLeaveGuard } from "../cloud/leave-guard";
 import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
-import type { ItemsMoved } from "../cloud/use-library-socket";
+import type { ItemsMoved, ThreadPreview } from "../cloud/use-library-socket";
 import { createPageQueryClient } from "../cloud/v1";
 
 export type ThreadRow = z.infer<typeof threadRowSchema>;
@@ -64,9 +63,9 @@ const listeners = <T,>() => {
 export interface FakeLibrary {
   readonly library: PageLibrary;
   readonly calls: CellCall[];
-  // what the account's socket says moved
+  // what the account's socket says moved, and of the reply being written
   readonly moved: (moved: ItemsMoved) => void;
-  readonly thread: (frame: ThreadFrame) => void;
+  readonly preview: (preview: ThreadPreview) => void;
 }
 
 export const fakePageLibrary = ({
@@ -108,7 +107,7 @@ export const fakePageLibrary = ({
     }),
   );
   const items = listeners<ItemsMoved>();
-  const threadFrames = listeners<ThreadFrame>();
+  const previews = listeners<ThreadPreview>();
   return {
     calls,
     library: {
@@ -121,12 +120,12 @@ export const fakePageLibrary = ({
         close: nothingToClose,
         connect: nothingToClose,
         onItems: items.add,
-        onThread: threadFrames.add,
+        onPreview: previews.add,
       },
       wire: { client, orpc: createTanstackQueryUtils(client) },
     },
     moved: items.tell,
-    thread: threadFrames.tell,
+    preview: previews.tell,
   };
 };
 

@@ -11,6 +11,7 @@ import { fakeClock } from "@repo/contract/test-support/fake-clock";
 import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
 import type { FakeSockets } from "@repo/contract/test-support/fake-sockets";
 import { paragraph } from "@repo/contract/test-support/library-items";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { describe, expect, it } from "vitest";
 import { deferred } from "../test-support/async";
 import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
@@ -425,6 +426,29 @@ describe("what the account's socket asks again", () => {
     const opened = await socketPhone();
     opened.socket.open();
     expect(opened.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
+  });
+
+  it("holds the reply being written, asking nothing, until a write moves its thread", async () => {
+    const { asked, runtime, socket } = await socketPhone();
+    const { previews } = signedIn(runtime);
+    const hear = (frame: LibrarySocketFrame): void => {
+      socket.message(JSON.stringify(frame));
+    };
+    const thread = "0190a000-0000-7000-8000-0000000000c1";
+    const other = "0190a000-0000-7000-8000-0000000000c2";
+
+    hear({ text: "Filing", threadId: thread, type: "preview" });
+    hear({ text: "Look", threadId: other, type: "preview" });
+    expect(asked()).toStrictEqual([]);
+    expect(previews.get(thread)).toBe("Filing");
+    hear({ folders: false, items: [], threads: [thread], type: "moved" });
+    expect(previews.get(thread)).toBeNull();
+    expect(previews.get(other)).toBe("Look");
+    hear({ folders: false, items: [], threads: "all", type: "moved" });
+    expect(previews.get(other)).toBeNull();
+    hear({ text: "Filed", threadId: thread, type: "preview" });
+    socket.open();
+    expect(previews.get(thread)).toBeNull();
   });
 });
 

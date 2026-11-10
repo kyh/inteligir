@@ -2,7 +2,7 @@ import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
 import type { ScenarioBrowser, ScenarioBrowserOptions } from "./agent-browser";
 import { openCloudLink } from "./cloud-link";
 import type { CloudLink } from "./cloud-link";
-import { launchCloudWorker } from "./cloud-worker";
+import { expectNoDroppedThinking, launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import type { TrackedProcess } from "./tracked-child";
 
@@ -27,7 +27,14 @@ export interface Scenario {
   run: (context: ScenarioContext) => Promise<void>;
 }
 
-export interface CreateScenarioContextArgs {
+// a scenario's context, and what every scenario is held to once its own run passed: no Worker it
+// booted replayed a thinking block Claude dropped
+export interface ScenarioRun {
+  readonly context: ScenarioContext;
+  readonly afterRun: () => Promise<void>;
+}
+
+export interface OpenScenarioArgs {
   // the scenario's own name, which every browser session it opens carries
   scenarioName: string;
   repoRoot: string;
@@ -39,7 +46,7 @@ export interface CreateScenarioContextArgs {
 
 // a run abandoned at its deadline keeps going, and what it starts once the teardown began would be
 // owned by nothing: it is stopped and refused instead.
-const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void => {
+const own = (args: OpenScenarioArgs, instance: TrackedProcess): void => {
   if (!args.isClosed()) {
     args.instances.push(instance);
     return;
@@ -54,39 +61,52 @@ const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void =>
   throw new Error(`${instance.name} started after its scenario was torn down`);
 };
 
-export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
-  async browser(label, options) {
-    await requireHeadlessBrowser(args.log);
-    const browser = createScenarioBrowser(`${args.scenarioName}-${label}`, options);
-    own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
-    return browser;
-  },
-  async cloudLink(worker) {
-    const link = await openCloudLink(worker.origin);
-    own(args, { name: "the cloud link", outputTail: () => "", stop: link.close });
-    return link;
-  },
-  async cloudWorker(options) {
-    const launch: LaunchCloudWorkerArgs = {
-      onLog: args.log,
-      register: (process) => {
-        own(args, process);
-      },
-      repoRoot: args.repoRoot,
-      scratchDir: args.scratchDir,
-    };
-    if (options?.vars !== undefined) {
-      launch.vars = options.vars;
-    }
-    if (options?.json !== undefined) {
-      launch.json = options.json;
-    }
-    if (options?.pages !== undefined) {
-      launch.pages = options.pages;
-    }
-    return await launchCloudWorker(launch);
-  },
-  log: args.log,
-  repoRoot: args.repoRoot,
-  scratchDir: args.scratchDir,
-});
+export const openScenario = (args: OpenScenarioArgs): ScenarioRun => {
+  const workers: CloudWorker[] = [];
+  const context: ScenarioContext = {
+    async browser(label, options) {
+      await requireHeadlessBrowser(args.log);
+      const browser = createScenarioBrowser(`${args.scenarioName}-${label}`, options);
+      own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
+      return browser;
+    },
+    async cloudLink(worker) {
+      const link = await openCloudLink(worker.origin);
+      own(args, { name: "the cloud link", outputTail: () => "", stop: link.close });
+      return link;
+    },
+    async cloudWorker(options) {
+      const launch: LaunchCloudWorkerArgs = {
+        onLog: args.log,
+        register: (process) => {
+          own(args, process);
+        },
+        repoRoot: args.repoRoot,
+        scratchDir: args.scratchDir,
+      };
+      if (options?.vars !== undefined) {
+        launch.vars = options.vars;
+      }
+      if (options?.json !== undefined) {
+        launch.json = options.json;
+      }
+      if (options?.pages !== undefined) {
+        launch.pages = options.pages;
+      }
+      const worker = await launchCloudWorker(launch);
+      workers.push(worker);
+      return worker;
+    },
+    log: args.log,
+    repoRoot: args.repoRoot,
+    scratchDir: args.scratchDir,
+  };
+  return {
+    afterRun: async () => {
+      for (const worker of workers) {
+        await expectNoDroppedThinking(worker);
+      }
+    },
+    context,
+  };
+};

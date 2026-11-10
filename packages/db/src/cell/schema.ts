@@ -194,7 +194,6 @@ export const threads = sqliteTable("threads", {
   status: text().notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-  seq: integer().notNull(),
 });
 
 export const threadEvents = sqliteTable(
@@ -206,7 +205,6 @@ export const threadEvents = sqliteTable(
     type: text().notNull(),
     json: text().notNull(),
     at: integer().notNull(),
-    seq: integer().notNull(),
   },
   (t) => [index("thread_events_thread").on(t.threadId, t.idx)],
 );

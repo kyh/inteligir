@@ -345,8 +345,8 @@ describe("deleting the account from its cell", () => {
       const library = openCellLibrary(state, env);
       for (const threadId of threadIds) {
         state.storage.sql.exec(
-          `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
-           VALUES (?, 'A thread', 'idle', 0, 0, 0)`,
+          `INSERT INTO threads (id, title, status, created_at, updated_at)
+           VALUES (?, 'A thread', 'idle', 0, 0)`,
           threadId,
         );
       }

@@ -8,18 +8,21 @@ says how a bullet is written and cited.
 - **A CONVERSATION'S LOGIC IS ONE PACKAGE, AND EACH DEVICE DRAWS IT** (owner
   decision: the phone gets the built-in agent). The events a thread's rows
   carry, folded into what a conversation draws, the approval waiting, each
-  turn's ending, the reply the socket previews, the person's words for each
-  state and refusal, and what a send asks (the words, the thread and the screen
-  it leaves from) are pure functions over the contract's own union, so the
-  Mac, the tab and the phone say one thing of one conversation. It holds only
-  what every device draws: Undo and Tidy my library are the page's
+  turn's ending, the person's words for each state and refusal, and what a
+  send asks (the words, the thread and the screen it leaves from) are pure
+  functions over the contract's own union, so the Mac, the tab and the phone
+  say one thing of one conversation. It holds only what every device draws:
+  Undo and Tidy my library are the page's
   (`apps/web/src/library/agent/thread-undo.ts`, `tidy-library.ts`), since the
-  phone has neither. It imports no platform and no UI (`oxlint.config.ts`): the
-  page draws it with `@repo/ui` (`apps/web/src/library/agent/agent-panel.tsx`),
-  the phone natively. Rejected: the phone drawing the page's panel in a WebView
-  (a second page, and the composer under a soft keyboard the page cannot lay
-  out); a copy of the fold per device (the words drift); one device's modules
-  kept here (the package would claim for every device what one draws).
+  phone has neither, and the reply being written is each device's, kept as its
+  socket carries it (`apps/web/src/library/cloud/use-library-socket.ts`,
+  `apps/mobile/src/lib/thread-previews.ts`). It imports no platform and no UI
+  (`oxlint.config.ts`): the page draws it with `@repo/ui`
+  (`apps/web/src/library/agent/agent-panel.tsx`), the phone natively.
+  Rejected: the phone drawing the page's panel in a WebView (a second page, and
+  the composer under a soft keyboard the page cannot lay out); a copy of the
+  fold per device (the words drift); one device's modules kept here (the
+  package would claim for every device what one draws).
   `packages/agent-panel/src/thread-entries.ts`, `agent-send.ts`.
 
 - **AN APPROVAL SAYS WHAT ITS CALL WOULD DO, READ OFF THE CALL.** A card counts

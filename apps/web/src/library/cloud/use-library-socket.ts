@@ -4,12 +4,11 @@
 // everything is invalidated, since a drop or a deploy may have hidden a write meanwhile. A note's
 // typing moves its item only when it changes what a row holds (the card, the links, the tags or
 // the files), so a row is read again that often and no more. The editor's embeds hear which items
-// moved, and the agent panel every thread frame.
+// moved, and the agent panel the reply being written, until a write moves its thread.
 
 import { createSocketHint } from "@repo/contract/library/account-socket";
 import type { Clock, SocketDial } from "@repo/contract/library/account-socket";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
-import type { ThreadFrame } from "@repo/agent-panel/thread-previews";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -20,11 +19,19 @@ import type { CloudWire } from "./v1";
 /** @internal */
 export type ItemsMoved = ReadonlyMap<string, number> | null;
 
+// the reply the agent is writing in a thread, its text so far; or none any more (null) in a
+// thread a write moved, since its reply landed or its turn moved on, or in every thread
+// (`threadId` null) when the write moved more than a frame names or the socket opened again
+/** @internal */
+export type ThreadPreview =
+  | { readonly threadId: string; readonly text: string }
+  | { readonly threadId: string | null; readonly text: null };
+
 export interface LibrarySocket {
   readonly connect: () => void;
   readonly close: () => void;
   readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
-  readonly onThread: (listener: (frame: ThreadFrame) => void) => () => void;
+  readonly onPreview: (listener: (preview: ThreadPreview) => void) => () => void;
 }
 
 interface LibrarySocketArgs {
@@ -101,7 +108,7 @@ export const createLibrarySocket = ({
   dial,
 }: LibrarySocketArgs): LibrarySocket => {
   const items = listenersOf<ItemsMoved>();
-  const threads = listenersOf<ThreadFrame>();
+  const previews = listenersOf<ThreadPreview>();
   const hint = createSocketHint({
     clock,
     dial,
@@ -112,23 +119,24 @@ export const createLibrarySocket = ({
           if (moved === null || moved.size > 0) {
             items.tell(moved);
           }
+          for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
+            previews.tell({ text: null, threadId });
+          }
           break;
         }
-        case "thread": {
-          if (!frame.preview) {
-            void queryClient.invalidateQueries({
-              queryKey: wire.orpc.library.agent.events.key({ input: { threadId: frame.threadId } }),
-            });
-          }
-          threads.tell(frame);
+        case "preview": {
+          previews.tell({ text: frame.text, threadId: frame.threadId });
           break;
         }
         // no default
       }
     },
+    // a frame that let a preview go may have been missed meanwhile, and a reply still being
+    // written sends its next preview within a moment
     onOpen: () => {
       void queryClient.invalidateQueries();
       items.tell(null);
+      previews.tell({ text: null, threadId: null });
     },
     origin,
     ticket: async () => {
@@ -140,7 +148,7 @@ export const createLibrarySocket = ({
       }
     },
   });
-  return { ...hint, onItems: items.add, onThread: threads.add };
+  return { ...hint, onItems: items.add, onPreview: previews.add };
 };
 
 // dialled while the page shows the library, and at once when the browser says it is back online

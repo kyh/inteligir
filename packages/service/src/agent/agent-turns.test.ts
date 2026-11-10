@@ -1,11 +1,11 @@
 // The built-in agent's turns as the account's cell keeps them: a send let in, refused or queued in
 // one transaction; the calls a conversation's object makes back refused for a thread the cell does
-// not hold or a turn not open; each push landed once by its sequence, its events told to the
-// sockets once it commits and each reply's usage booked on its turn's day; the seal, one change set
-// Undo takes back, a turn Claude could not be reached for given back but a stopped one not, and a
-// link the turn saved read only then; the switch; an object that started over handed its turns
-// again past the pushes the cell landed; and a thread's or the account's deletion taking each
-// conversation's object with it.
+// not hold or a turn not open; each push landed once by its sequence, its events stored for a
+// read and each reply's usage booked on its turn's day, and only the reply being written told to
+// the sockets; the seal, one change set Undo takes back, a turn Claude could not be reached for
+// given back but a stopped one not, and a link the turn saved read only then; the switch; an
+// object that started over handed its turns again past the pushes the cell landed; and a
+// thread's or the account's deletion taking each conversation's object with it.
 
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -264,7 +264,7 @@ describe("what a conversation's object asks of its cell", () => {
     },
   );
 
-  it("lands a push once by its sequence, and tells each event to the sockets after it commits", async () => {
+  it("lands a push once by its sequence, and tells the sockets only the reply being written", async () => {
     const account = agentAccount();
     const threadId = crypto.randomUUID();
     await openTurnInCell(account, threadId, "Open.");
@@ -290,20 +290,7 @@ describe("what a conversation's object asks of its cell", () => {
       threadId,
     );
     expect(events).toStrictEqual([{ event_id: `${threadId}:1:0`, type: "agent.message" }]);
-    expect(frames).toStrictEqual([
-      {
-        event: { text: "Said once.", type: "agent.message" },
-        preview: false,
-        threadId,
-        type: "thread",
-      },
-      {
-        event: { text: "Said on", type: "agent.preview" },
-        preview: true,
-        threadId,
-        type: "thread",
-      },
-    ]);
+    expect(frames).toStrictEqual([{ text: "Said on", threadId, type: "preview" }]);
   });
 
   it("books a reply's usage at list price on the day its turn started", async () => {

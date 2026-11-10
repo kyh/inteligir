@@ -26,7 +26,6 @@ const row = (idx: number, event: z.infer<typeof threadEventRowSchema>["event"]) 
   event,
   eventId: `${THREAD}:1:${String(idx)}`,
   idx,
-  seq: idx,
   threadId: THREAD,
   type: "x",
 });

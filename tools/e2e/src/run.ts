@@ -8,7 +8,7 @@ import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import { hearingBuildQueueWaits } from "./harness/turbo-build";
 import type { TrackedProcess } from "./harness/tracked-child";
-import { createScenarioContext } from "./harness/scenario";
+import { openScenario } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { agentCell } from "./scenarios/agent-cell";
@@ -293,7 +293,7 @@ const runScenario = async ({
   const log = (message: string) => {
     output.out(`${timestamp()} [${scenario.name}] ${message}`);
   };
-  const context = createScenarioContext({
+  const { afterRun, context } = openScenario({
     instances,
     isClosed: () => closed,
     log,
@@ -306,6 +306,7 @@ const runScenario = async ({
   let teardownClean = true;
   try {
     await runWithinDeadline(scenario, context);
+    await afterRun();
     outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
     if (error instanceof ScenarioSkipError && !options.noSkip) {

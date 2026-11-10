@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { serveMessagesFake } from "@repo/messages-fake/serve";
+import { z } from "zod";
+import { expectEq } from "./assert";
 import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
@@ -12,6 +14,8 @@ const BUILD_TIMEOUT_MS = 300_000;
 const SCHEMA_EXPORT_TIMEOUT_MS = 120_000;
 // the host applies the schema on a first Miniflare, then boots the one that listens.
 const READY_DEADLINE_MS = 120_000;
+// the scripted API answers in this process, so its counters come back at once or not at all
+const FAKE_STATS_TIMEOUT_MS = 10_000;
 
 // a scenario that boots a Worker: the build, the schema export and a cold boot may each spend their
 // whole budget, and two minutes more is the scenario's own work.
@@ -103,6 +107,24 @@ const writeSchema = async (args: LaunchCloudWorkerArgs): Promise<string> => {
     "utf-8",
   );
   return schemaFile;
+};
+
+const fakeStatsSchema = z.object({ drops: z.number(), requests: z.number() });
+
+// the Worker's scripted Claude's counters: the requests it answered, and the replayed thinking
+// blocks it dropped
+export const fakeStats = async (worker: CloudWorker): Promise<z.infer<typeof fakeStatsSchema>> => {
+  const response = await fetch(`${worker.messagesOrigin}/__fake/stats`, {
+    signal: AbortSignal.timeout(FAKE_STATS_TIMEOUT_MS),
+  });
+  return fakeStatsSchema.parse(await response.json());
+};
+
+// every thinking block the Worker's built-in agent replayed verified: a drop is a request the thread
+// got wrong, which the API refuses unless the request asks it to drop the block
+export const expectNoDroppedThinking = async (worker: CloudWorker): Promise<void> => {
+  const { drops } = await fakeStats(worker);
+  expectEq(drops, 0, `the replayed thinking blocks Claude dropped for ${worker.origin}`);
 };
 
 export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<CloudWorker> => {

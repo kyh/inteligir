@@ -106,7 +106,6 @@ export const THREAD_STATUSES = ["idle", "queued", "running", "awaiting_approval"
 export const threadRowSchema = z.object({
   createdAt: instant,
   id: idSchema,
-  seq: seqSchema,
   status: z.enum(THREAD_STATUSES),
   title: z.string(),
   updatedAt: instant,
@@ -119,7 +118,6 @@ export const threadEventRowSchema = z.object({
   event: z.json(),
   eventId: eventIdSchema,
   idx: z.number().int().nonnegative(),
-  seq: seqSchema,
   threadId: idSchema,
   type: z.string().min(1),
 });

@@ -729,17 +729,21 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   `agent-turns.ts`, `library-agent.ts`, `thread-loop.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE THE CELL'S ROWS ITS OBJECT'S
-  OUTBOX PUSHES** (owner decision: the phone asks the agent too). The cell stores each
-  push once by its seq, in one transaction, as events of our own union, and
-  frames each on the sockets after it commits; previews ride the sockets
-  alone. An object that starts over on tables of another version is handed
-  again, by the cell's watch, the turn it lost and the last seq the cell
-  landed, which its own seq goes on past. Rejected: the
-  Agents SDK's client socket to the thread (a second socket and auth beside
-  the account's); Anthropic's event shapes (a vendor's union on every device); an
-  epoch a push (a fence that resets, which a late push of the old one moves
-  back). `packages/service/src/agent/agent-turns.ts`, `thread-loop.ts`,
-  `packages/contract/src/library/agent-events.ts`.
+  OUTBOX PUSHES** (owner decision: the phone asks the agent too). The cell
+  stores each push once by its seq, in one transaction, as events of our own
+  union, and the commit's moved frame names the thread, whose events every
+  device reads again; a preview frame carries the reply being written, which
+  no row keeps and a device lets go once a moved frame names its thread. An
+  object that starts over on tables of another version is handed again, by
+  the cell's watch, the turn it lost and the last seq the cell landed, which
+  its own seq goes on past. Rejected: the Agents SDK's client socket to the
+  thread (a second socket and auth beside the account's); Anthropic's event
+  shapes (a vendor's union on every device); each stored event in a frame of
+  its own (a second signal for what the moved frame says); an epoch a push (a
+  fence that resets, which a late push of the old one moves back).
+  `packages/service/src/agent/agent-turns.ts`, `thread-loop.ts`,
+  `packages/contract/src/library/agent-events.ts`,
+  `packages/contract/src/library/library-socket.ts`.
 
 - **CLAUDE IS REACHED THROUGH ONE AI GATEWAY A TARGET, WHICH HOLDS THE KEY**
   (owner decision). The provider-native `/anthropic` route, its key stored on
@@ -761,10 +765,12 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   request that names no account, and counts every dropped thinking block; the
   suites reach it through their
   outbound service, which refuses every other address, and every suite and
-  scenario expects no drop. Rejected: a mock model (the SDK's stream, the
-  API's refusals and the transcript rules would be ours to imitate); a
+  scenario expects no drop, the e2e harness reading the count of each Worker
+  a scenario booted once it passes. Rejected: a mock model (the SDK's stream,
+  the API's refusals and the transcript rules would be ours to imitate); a
   recorded replay (it cannot answer a request it never saw).
-  `tools/messages-fake/src/messages-fake.ts`, `packages/service/messages-service.ts`.
+  `tools/messages-fake/src/messages-fake.ts`, `packages/service/messages-service.ts`,
+  `tools/e2e/src/harness/scenario.ts`.
 
 - **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A DEPLOY'S
   DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for server-side

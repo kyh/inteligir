@@ -32,7 +32,6 @@ const AT = 1_793_000_000_000;
 const thread: ThreadRow = {
   createdAt: AT,
   id: THREAD,
-  seq: 1,
   status: "idle",
   title: "Tidying",
   updatedAt: AT,
@@ -43,7 +42,6 @@ const row = (idx: number, event: ThreadEventRow["event"]): ThreadEventRow => ({
   event,
   eventId: `e${String(idx)}`,
   idx,
-  seq: idx + 1,
   threadId: THREAD,
   type: "event",
 });
@@ -81,6 +79,10 @@ const panel = (
 
 const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
   calls.filter((call) => call.path === path).map((call) => call.input);
+
+// the reply being written as the panel draws it, or null while it draws none
+const previewShown = (): string | null =>
+  document.querySelector("[data-agent-preview]")?.textContent ?? null;
 
 const oneFinishedTurn = [
   row(0, { text: "File these.", type: "user.message" }),
@@ -243,6 +245,46 @@ describe("the agent panel's conversation", () => {
     renderOnLibrary(panel(), library);
     await expect(screen.findByText(url)).resolves.toBeDefined();
     expect(screen.getByText(/save a link from collector\.example/u)).toBeDefined();
+  });
+
+  it("draws the reply being written in its own conversation, until a write moves the thread", async () => {
+    const fake = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list" ? { changeSets: [], cursor: null } : undefined,
+      events: [row(0, { text: "File these.", type: "user.message" })],
+      threads: [{ ...thread, status: "running" }],
+    });
+    renderOnLibrary(panel(), fake.library);
+    await screen.findByText("File these.");
+
+    act(() => {
+      fake.preview({ text: "Elsewhere", threadId: OTHER_THREAD });
+    });
+    expect(previewShown()).toBeNull();
+    act(() => {
+      fake.preview({ text: "Filing", threadId: THREAD });
+    });
+    await waitFor(() => {
+      expect(previewShown()).toBe("Filing");
+    });
+    act(() => {
+      fake.preview({ text: null, threadId: OTHER_THREAD });
+    });
+    expect(previewShown()).toBe("Filing");
+    act(() => {
+      fake.preview({ text: null, threadId: THREAD });
+    });
+    expect(previewShown()).toBeNull();
+    act(() => {
+      fake.preview({ text: "Filed", threadId: THREAD });
+    });
+    await waitFor(() => {
+      expect(previewShown()).toBe("Filed");
+    });
+    act(() => {
+      fake.preview({ text: null, threadId: null });
+    });
+    expect(previewShown()).toBeNull();
   });
 
   it("offers Stop and no Undo of the conversation while a turn waits on the person", async () => {
