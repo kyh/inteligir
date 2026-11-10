@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "4d30d044-ef85-4868-a0ba-cf1c914a8dab",
+  "id": "1a2a5be1-fc02-402e-9187-12fadf01edd8",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -2231,7 +2231,7 @@
       "table": "items"
     },
     {
-      "value": "\"body_home\" IN ('seed', 'note')",
+      "value": "\"body_home\" IN ('seed', 'opening', 'note')",
       "name": "items_body_home",
       "entityType": "checks",
       "table": "items"

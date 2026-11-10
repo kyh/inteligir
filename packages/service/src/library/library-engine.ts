@@ -14,6 +14,13 @@ import { z } from "zod";
 
 import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanding } from "../fill/fill-landing";
+import type {
+  NoteOpening,
+  NoteProjection,
+  ProjectAnswer,
+  SeedAnswer,
+  TurnUndone,
+} from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
 import {
   awaitNameAgain,
@@ -33,10 +40,27 @@ import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } 
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { importsRunning } from "./cell-import-jobs";
-import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
+import {
+  deferJob,
+  dropJob,
+  dueJobs,
+  ensureJob,
+  nextJobAt,
+  retryJob,
+  scheduleJob,
+} from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
+import {
+  bodyInNote,
+  confirmSeed,
+  forgetNoteSockets,
+  landProjection,
+  openNote,
+  readSeed,
+  takeSessionNotes,
+} from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -82,6 +106,19 @@ export interface UndoInput {
   readonly opId?: string | undefined;
 }
 
+// what an undo's notes answered before its write, and the id its own set takes, which each note
+// undid under
+export interface NotesUndone {
+  readonly undoSetId: string;
+  readonly notes: ReadonlyMap<string, TurnUndone>;
+}
+
+// a purged item's note, emptied by the alarm between two transactions
+export interface NotePurge {
+  readonly job: DueJob<"note-purge">;
+  readonly itemId: string;
+}
+
 export interface UploadSettlement {
   readonly settled: boolean;
 }
@@ -97,9 +134,11 @@ const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.
 const undoSchema = z.object({
   changeSetId: z.string().nullable(),
   kept: z.array(z.string()),
+  lostText: z.array(z.string()),
   refused: z.array(z.string()),
   reverted: z.array(z.string()),
 });
+const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
 const answerRowSchema = z.object({ answer: z.string() });
 const deletedAtSchema = z.number().int().nonnegative();
@@ -112,6 +151,7 @@ export const libraryHead = (db: CellDb): number => {
 };
 
 const PAYLOADS = {
+  notePurge: jsonTextSchema.pipe(z.object({ itemId: z.string() })),
   seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
   stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
   unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
@@ -123,6 +163,8 @@ const PAYLOADS = {
 const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
+// a note's purge the alarm could not reach is asked again this long after
+const NOTE_PURGE_AGAIN_MS = 60_000;
 // a file no item names is asked about again this long after, while an import may yet name it
 const PLAN_AGAIN_MS = 10 * 60_000;
 
@@ -250,24 +292,32 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           seq,
           updatedAt: scope.now,
         });
-        for (const table of ["snapshot_parts", "block_versions", "change_set_items"] as const) {
+        for (const table of ["snapshot_parts", "change_set_items"] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
         dropItemBlobs(storage, id, scope.now);
+        forgetNoteSockets(db, id);
+        if (bodyInNote(item)) {
+          scheduleJob(
+            db,
+            { id: `note-purge:${id}`, kind: "note-purge", payload: JSON.stringify({ itemId: id }) },
+            scope.now,
+          );
+        }
         scope.moved.item(id, seq);
         purged.push(id);
       }
       return { missing, purged };
     });
 
-  const undo = (requester: CellActor, input: UndoInput) =>
+  const undo = (requester: CellActor, input: UndoInput, undone: NotesUndone) =>
     transact(
       {
         answer: undoSchema,
-        openSet: (now) => openUndoSet(storage, requester, now, ids.changeSet),
+        openSet: (now) => openUndoSet(storage, requester, now, () => undone.undoSetId),
         opId: input.opId,
       },
-      (scope) => undoChangeSets(scope, input.changeSetIds),
+      (scope) => undoChangeSets(scope, input.changeSetIds, undone.notes),
     );
 
   // an import closes its own set
@@ -339,12 +389,17 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  // a page the cloud read, landed as a change set of the fill's own; when the library would not
-  // take it, the alarm lets go at once what it kept that no item names
-  const landReading = (landing: FillLanding) => {
-    const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) =>
-      landFill(scope, landing),
-    );
+  // A page the cloud read, landed as a change set of the fill's own; an article its note already
+  // took lands as the note's projection. When the library would not take it, the alarm lets go at
+  // once what it kept that no item names.
+  const landReading = (landing: FillLanding, inNote: NoteProjection | null) => {
+    const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) => {
+      const filled = landFill(scope, landing, inNote !== null);
+      if (inNote !== null) {
+        landProjection(scope, landing.itemId, inNote);
+      }
+      return filled;
+    });
     if (!landed.ok && landed.refusal.kind !== "gone") {
       storage.transaction(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
@@ -428,6 +483,49 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }
   };
 
+  // ---- what each item's note asks (`./cell-notes`) ----
+
+  const noteOpening = (sessionId: string, itemId: string): NoteOpening =>
+    storage.transaction(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
+
+  const seedFor = (itemId: string): SeedAnswer =>
+    storage.transaction(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
+
+  const seedTaken = (itemId: string): void => {
+    storage.transaction(() => {
+      confirmSeed(db, itemId);
+    });
+  };
+
+  // a note's save, joining no change set: typing is no change Undo takes back
+  const projectNote = (itemId: string, projection: NoteProjection): CellResult<ProjectAnswer> =>
+    transact({ answer: projectAnswerSchema, openSet: noSet, opId: undefined }, (scope) =>
+      landProjection(scope, itemId, projection),
+    );
+
+  const sessionNotes = (sessionId: string): string[] =>
+    storage.transaction(() => takeSessionNotes(db, sessionId));
+
+  // the purged items' notes due to be emptied, each put off until it is reported done
+  const claimNotePurges = (): NotePurge[] =>
+    storage.transaction(() => {
+      const now = deps.now();
+      return dueJobs(db, now, ["note-purge"]).map((job) => {
+        deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
+        return { itemId: PAYLOADS.notePurge.parse(job.payload).itemId, job };
+      });
+    });
+
+  const notePurged = (purge: NotePurge, done: boolean): void => {
+    storage.transaction(() => {
+      if (done) {
+        dropJob(db, purge.job.id);
+      } else {
+        retryJob(db, purge.job, deps.now());
+      }
+    });
+  };
+
   // the account's deletion has begun: every later write and read is refused
   const tombstone = (): void => {
     storage.transaction(() => {
@@ -442,6 +540,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     beginStrayRemovals,
     blobRemovals: () => blobRemovals(db),
     claimDueFills,
+    claimNotePurges,
     closeChangeSet,
     deletedAt,
     endStrayRemovals,
@@ -452,13 +551,19 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     land,
     landApart,
     landReading,
+    noteOpening,
+    notePurged,
     // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
     // the deletion's retry wipes it
     nextJobAt: () => (deletedAt() === null ? nextJobAt(db) : null),
+    projectNote,
     purgeItems,
     read,
     reserve,
     runDueJobs,
+    seedFor,
+    seedTaken,
+    sessionNotes,
     settle,
     tombstone,
     undo,

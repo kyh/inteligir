@@ -135,19 +135,23 @@ interface LandedBody {
 }
 
 const landedBody = (landing: Landing): LandedBody => {
-  if (landing.seed === null) {
-    return { body: landing.before.body, seed: null };
+  const { before, seed } = landing;
+  if (seed === null) {
+    if (before === null) {
+      throw new LibraryRowError(`the item ${landing.itemId} is made with no body`);
+    }
+    return { body: before.body, seed: null };
   }
-  if (landing.before !== null && landing.before.body.home === "note") {
+  if (before !== null && before.body.home !== "seed") {
     throw new LibraryRowError(`the item ${landing.itemId} has a note, which no seed replaces`);
   }
-  const derived = deriveBody(landing.seed);
+  const derived = deriveBody(seed);
   if (derived.textBytes > ITEM_TEXT_MAX_BYTES) {
     refuse({ kind: "too-large" });
   }
   return {
     body: { bytes: 0, digest: derived.digest, home: "seed", version: 0 },
-    seed: { blocks: landing.seed, links: derived.links, text: derived.text },
+    seed: { blocks: seed, links: derived.links, text: derived.text },
   };
 };
 

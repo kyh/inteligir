@@ -291,7 +291,6 @@ export const readItemView = (
     },
     id: input.id,
     links: { in: linkedItems(db, into), out: linkedItems(db, out) },
-    seq: item.seq,
     view: { from: page.from, markdown: page.markdown, to: page.to, total: page.total },
   };
 };

@@ -1,20 +1,20 @@
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
-  blocksOf,
   cellOf,
   clockAt,
   createItem,
   engineIn,
-  hashOf,
   inCell,
   landedValue,
   noteFields,
   paragraph,
   person,
   placed,
+  storedItemOf,
+  undoFields,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
@@ -37,16 +37,8 @@ const agentSet = (state: DurableObjectState): string =>
     .string()
     .parse(state.storage.sql.exec("SELECT id FROM change_sets WHERE actor = 'agent'").one().id);
 
-const put = (
-  library: LibraryEngine,
-  actor: CellActor,
-  itemId: string,
-  from: LibraryBlock,
-  to: LibraryBlock,
-): void => {
-  landedValue(
-    library.write(actor, { itemId, ops: [{ baseHash: hashOf(from), block: to, op: "put" }] }),
-  );
+const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: FieldOp): void => {
+  landedValue(library.write(actor, { itemId, ops: [op] }));
 };
 
 describe("the change-set prune", () => {
@@ -55,39 +47,45 @@ describe("the change-set prune", () => {
       const clock = clockAt(START);
       const library = engineIn(state, clock);
       const itemId = crypto.randomUUID();
-      const [first, second] = [paragraph("a", "the first line"), paragraph("b", "the second")];
       landedValue(
         createItem(library, FILL_ACTOR, {
-          blocks: placed([first, second]),
+          blocks: placed([paragraph("a", "the first line")]),
           fields: noteFields(),
           id: itemId,
         }),
       );
-      // the person's typing, three sets a minute apart, each a version of the first line
-      let line = first;
-      for (const text of ["typed", "typed more", "typed most"]) {
+      // the person's renaming, three sets a minute apart
+      let title = "A note";
+      for (const next of ["typed", "typed more", "typed most"]) {
         clock.now += 60_000;
-        const next = paragraph("a", text);
-        put(library, person(), itemId, line, next);
-        line = next;
+        set(library, person(), itemId, { base: title, field: "title", op: "set", value: next });
+        title = next;
         clock.now += 60_000;
         library.runDueJobs(failOn);
       }
-      // three days on the agent rewrites the second line, and a day after that the person the first
+      // three days on the agent describes it, and a day after that the person renames it again
       clock.now = START + 3 * DAY;
-      const agents = paragraph("b", "the agent's");
-      put(library, agent, itemId, second, agents);
+      set(library, agent, itemId, {
+        base: null,
+        field: "description",
+        op: "set",
+        value: "the agent's",
+      });
       library.closeChangeSet(agentSet(state));
       clock.now = START + 4 * DAY;
-      const later = paragraph("a", "typed later");
-      put(library, person(), itemId, line, later);
+      set(library, person(), itemId, {
+        base: title,
+        field: "title",
+        op: "set",
+        value: "typed later",
+      });
       clock.now += 60_000;
       library.runDueJobs(failOn);
-      const versions = (): number =>
-        count(state, "SELECT count(*) AS n FROM block_versions WHERE item_id = ?", itemId);
+      const parts = (): number =>
+        count(state, "SELECT count(*) AS n FROM snapshot_parts WHERE item_id = ?", itemId);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(6);
-      // every line a write replaced
-      expect(versions()).toBe(5);
+      // every state of the fields a set began or left
+      expect(parts()).toBe(6);
       clock.now = START + 8 * DAY;
       library.runDueJobs(failOn);
       // the reading's and the first three of the person's went; the agent's and the last stay
@@ -97,12 +95,14 @@ describe("the change-set prune", () => {
           .toArray()
           .map((row) => row.actor),
       ).toStrictEqual(["agent", "person"]);
-      // what only the dropped sets named went: of the replaced lines, the two the agent's set
-      // still names (the first line as it found it, and the second line before it)
-      expect(versions()).toBe(2);
-      const answer = landedValue(library.undo(person(), { changeSetIds: [agentSet(state)] }));
+      // what only the dropped sets named went: the fields the agent found, left, and the person's
+      // last renaming left
+      expect(parts()).toBe(3);
+      const answer = landedValue(undoFields(library, person(), [agentSet(state)]));
       expect(answer.reverted).toStrictEqual([itemId]);
-      expect(blocksOf(library, itemId)).toStrictEqual([later, second]);
+      expect(storedItemOf(library, itemId)).toMatchObject({
+        fields: { description: null, title: "typed later" },
+      });
     });
   });
 
@@ -119,7 +119,12 @@ describe("the change-set prune", () => {
           id: itemId,
         }),
       );
-      put(library, agent, itemId, line, paragraph("a", "the agent's"));
+      set(library, agent, itemId, {
+        base: "A note",
+        field: "title",
+        op: "set",
+        value: "the agent's",
+      });
       clock.now = START + 30 * DAY;
       library.runDueJobs(failOn);
       expect(

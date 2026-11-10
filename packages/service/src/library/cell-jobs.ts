@@ -23,6 +23,7 @@ const JOB_KINDS = [
   "import",
   "agent-deliver",
   "agent-watch",
+  "note-purge",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

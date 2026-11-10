@@ -2,7 +2,6 @@
 // it stays while an item or any change set names it, and once nothing does it leaves the library,
 // the quota and R2.
 
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +10,6 @@ import {
   cellOf,
   clockAt,
   engineIn,
-  hashOf,
   inCell,
   landedValue,
   newAccountId,
@@ -154,36 +152,6 @@ describe("a file nothing names any more", () => {
       expect(fileRows(cell, old)).toBe(0);
       expect(fileRows(cell, fresh)).toBe(0);
       expect(bytesUsed(cell)).toBe(0);
-    });
-  });
-
-  it("holds a file an embedded block's kept version names as a change set does", async () => {
-    await inLibrary(async (cell) => {
-      const sha = await uploadedFile(cell.library, cell.accountId, png(1200));
-      const fileHolder = await fileItem(cell, sha);
-      const note = await noteItem(cell);
-      const block = {
-        children: [{ text: "" }],
-        id: "pic",
-        sha,
-        type: "img",
-      } satisfies LibraryBlock;
-      await cell.client.write({
-        itemId: note,
-        ops: [{ block, op: "insert", ord: "a0", section: "note" }],
-      });
-      cell.clock.now += 120_000;
-      cell.library.runDueJobs(() => {});
-      await cell.client.write({
-        itemId: note,
-        ops: [{ baseHash: hashOf(block), blockId: "pic", op: "drop" }],
-      });
-      await purge(cell, fileHolder);
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(1);
-      await purge(cell, note);
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(0);
     });
   });
 

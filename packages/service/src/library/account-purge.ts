@@ -1,8 +1,8 @@
 // An account's deletion, run by its library cell, one step after another and each one idempotent,
 // so a deletion that fails part way runs again from the top and the account survives to retry
 // (Better Auth's `beforeDelete`, `../auth/auth.ts`). First the tombstone, so every write, read and
-// socket that races the rest is refused; then the built-in agent's conversations, each in an object
-// of its own that only the cell's rows name; then what the cell holds, the tombstone written back
+// socket that races the rest is refused; then the built-in agent's conversations and the items'
+// notes, each in an object of its own that only the cell's rows name; then what the cell holds, the tombstone written back
 // at once; then the account's files in R2; then the grants its assistants hold in KV; last the
 // invite it was made with, let go of its address. Its sessions go with the account's row once the
 // purge has run, and until then still verify only to meet the tombstone. The tombstone outlives
@@ -17,7 +17,9 @@ import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "@repo/db/d1/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { accountBlobPrefix } from "./cell-blobs";
-import { migrateCell } from "./cell-db";
+import { noteStub } from "../note/note-stub";
+import { cellDbOf, migrateCell } from "./cell-db";
+import { notesHeld } from "./cell-notes";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
 import { cellStorageOf } from "./cell-storage";
@@ -58,6 +60,16 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     name: "agent",
     run: async ({ accountId, ctx }) => {
       await purgeThreadObjects(cellStorageOf(ctx.storage), ctx.exports, accountId);
+    },
+  },
+  {
+    // each item's note, named from the cell's own rows past the tombstone, those a purge left to
+    // the alarm among them
+    name: "notes",
+    run: async ({ accountId, ctx }) => {
+      for (const itemId of notesHeld(cellDbOf(ctx.storage))) {
+        await noteStub(ctx.exports, { accountId, itemId }).purge();
+      }
     },
   },
   {

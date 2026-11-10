@@ -17,6 +17,7 @@ const requestContext = (env: Env, ctx: ExecutionContext): RequestContext => ({
 // cloudflare.config.ts declares it by
 export { AgentThreadDO } from "@repo/service/agent/agent-thread";
 export { LibraryDO } from "@repo/service/library/library-do";
+export { NoteDO } from "@repo/service/note/note-do";
 
 export default {
   async fetch(request, env, ctx) {

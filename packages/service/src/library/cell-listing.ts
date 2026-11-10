@@ -36,7 +36,7 @@ export const itemWhole = (storage: CellStorage, id: string, blocks: readonly Bod
     return refuse({ kind: "not-found" });
   }
   return {
-    blocks,
+    blocks: [...blocks],
     card: answerCard(item.card),
     fields: item.fields,
     id,

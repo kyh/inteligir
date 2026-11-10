@@ -18,6 +18,7 @@ import {
   inCell,
   landedValue,
   noteFields,
+  notesIn,
   paragraph,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
@@ -47,6 +48,7 @@ const clientIn = (state: DurableObjectState, clock: Clock, principal = laptop("a
       agent: agentCellIn(state, library, { clock }),
       library,
       actor: () => cellActorOf(principal),
+      notes: notesIn(state),
       settle: async (result) => result,
     },
   });
@@ -65,17 +67,10 @@ const refusalOf = async (call: Promise<unknown>) => {
   throw new Error("the call landed what the test expected it to refuse");
 };
 
-const articleOf = (blocks: readonly LibraryBlock[]) => {
-  const ords = ordsBetween(null, null, blocks.length);
-  return blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0" }));
-};
-
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
 const pageSave = (url: string, overrides: { article?: LibraryBlock[]; tags?: string[] } = {}) => ({
-  article: articleOf(
-    overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
-  ),
+  article: overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
   coverSha: null,
   facts: { ...FACTS, site: "example.com" },
   folderId: null,
@@ -267,40 +262,28 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("edits an item's markdown against the sequence it was read at", async () => {
+  it("edits an item's markdown by passages in its note, each over the body as it is", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const { item } = await library.items.createNote({ markdown: "One.\n\nTwo." });
-      const { seq } = await library.items.read({ id: item.id });
       const edited = await library.items.edit({
-        baseSeq: seq,
         edits: [{ newText: "Two, edited.", oldText: "Two." }],
         id: item.id,
       });
-      expect(edited.seq).toBeGreaterThan(seq);
+      expect(edited.seq).toBeGreaterThan(item.seq);
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
         view: { markdown: "One.\n\nTwo, edited.\n" },
       });
 
-      // a second edit read before the first: the item as it is now
-      await expect(
-        refusalOf(
-          library.items.edit({
-            baseSeq: seq,
-            edits: [{ newText: "Uno.", oldText: "One." }],
-            id: item.id,
-          }),
-        ),
-      ).resolves.toStrictEqual({
-        code: "CONFLICT",
-        data: { current: [{ itemId: item.id, kind: "item", seq: edited.seq }] },
-        defined: true,
+      // a second edit names a passage still there, so it lands beside the first
+      await library.items.edit({ edits: [{ newText: "Uno.", oldText: "One." }], id: item.id });
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        view: { markdown: "Uno.\n\nTwo, edited.\n" },
       });
 
       await expect(
         refusalOf(
           library.items.edit({
-            baseSeq: edited.seq,
             edits: [{ newText: "x", oldText: "Not in the item." }],
             id: item.id,
           }),
@@ -315,8 +298,7 @@ describe("the library's procedures", () => {
       await expect(
         refusalOf(
           library.items.edit({
-            baseSeq: edited.seq,
-            edits: [{ newText: `${"> ".repeat(12_000)}x`, oldText: "One." }],
+            edits: [{ newText: `${"> ".repeat(12_000)}x`, oldText: "Uno." }],
             id: item.id,
           }),
         ),
@@ -344,9 +326,7 @@ describe("the library's procedures", () => {
         [{ text: "Two." }],
       ]);
 
-      const { seq } = await library.items.read({ id: item.id });
       await library.items.edit({
-        baseSeq: seq,
         edits: [{ newText: "Then [[Existing Title]] and [[Missing]].", oldText: "Two." }],
         id: item.id,
       });
@@ -366,7 +346,6 @@ describe("the library's procedures", () => {
       const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
       const edit = async () =>
         await library.items.edit({
-          baseSeq: item.seq,
           edits: [{ newText: fence, oldText: "One." }],
           id: item.id,
         });
@@ -387,11 +366,10 @@ describe("the library's procedures", () => {
   it("refuses an edit to the lines the article opens and closes on", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      const [noteOrd, pageOrd] = ordsBetween(null, null, 2);
       const { item } = await library.items.create({
         blocks: [
-          { block: paragraph("n1", "Note."), ord: noteOrd ?? "a0", section: "note" },
-          { block: paragraph("p1", "Page."), ord: pageOrd ?? "a1", section: "article" },
+          { block: paragraph("n1", "Note."), section: "note" },
+          { block: paragraph("p1", "Page."), section: "article" },
         ],
         folderId: null,
         id: newId(),
@@ -404,7 +382,6 @@ describe("the library's procedures", () => {
       await expect(
         refusalOf(
           library.items.edit({
-            baseSeq: read.seq,
             edits: [{ newText: "Note. Page.", oldText: "Note.\n\n:::article\n\nPage." }],
             id: item.id,
           }),
@@ -620,12 +597,9 @@ describe("the library's procedures", () => {
   it("names at most its candidates for a literal passage more items hold", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      const [ord = "a0"] = ordsBetween(null, null, 1);
       for (let n = 0; n < 230; n += 1) {
         await library.items.create({
-          blocks: [
-            { block: paragraph("p1", `Row ${String(n)}: abcxyzzydef.`), ord, section: "note" },
-          ],
+          blocks: [{ block: paragraph("p1", `Row ${String(n)}: abcxyzzydef.`), section: "note" }],
           folderId: null,
           id: newId(),
           savedAt: Date.UTC(2026, 9, 1),
@@ -647,7 +621,7 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("answers a folder name too long, a link under a held id and an edit past the library's room as their rows declare", async () => {
+  it("answers a folder name too long, a link under a held id and a new item past the library's room as their rows declare", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       await expect(
@@ -666,48 +640,23 @@ describe("the library's procedures", () => {
       expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["Reading", "Work"]);
       expect(folders.find((folder) => folder.name === "Reading")?.id).toBe(item.fields.folderId);
 
-      const { seq } = await library.items.read({ id: item.id });
       await expect(
         refusalOf(library.items.saveLink({ id: item.id, url: "https://example.com/else" })),
       ).resolves.toStrictEqual({
         code: "CONFLICT",
-        data: { current: [{ itemId: item.id, kind: "item", seq }] },
+        data: { current: [{ itemId: item.id, kind: "item", seq: item.seq }] },
         defined: true,
       });
 
+      // a full library still takes words in an item it holds, and refuses only a new one
       addFileBytes(cellStorageOf(state.storage).db, GiB);
-      await expect(
-        refusalOf(
-          library.items.edit({
-            baseSeq: seq,
-            edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
-            id: item.id,
-          }),
-        ),
-      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
-      await expect(
-        refusalOf(library.items.organize({ addTags: ["reading"], ids: [item.id] })),
-      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
-    });
-  });
-
-  it("answers an undo the library has no room for as its row declares", async () => {
-    await inCell(cellOf(), async (state) => {
-      const clock = clockAt();
-      const library = clientIn(state, clock);
-      const passage = "A passage long enough to cut.";
-      const { item } = await library.items.createNote({ markdown: passage });
-      clock.now += 120_000;
-      const { seq } = await library.items.read({ id: item.id });
       await library.items.edit({
-        baseSeq: seq,
-        edits: [{ newText: "Cut.", oldText: passage }],
+        edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
         id: item.id,
       });
-      const { changeSets } = await library.history.list({});
-      addFileBytes(cellStorageOf(state.storage).db, GiB);
+      await library.items.organize({ addTags: ["reading"], ids: [item.id] });
       await expect(
-        refusalOf(library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] })),
+        refusalOf(library.items.createNote({ markdown: "One more." })),
       ).resolves.toMatchObject({ code: "QUOTA", defined: true });
     });
   });
@@ -855,6 +804,7 @@ describe("the library's procedures", () => {
           actor: () => cellActorOf(laptop("account")),
           agent: agentCellIn(state, library, { clock, env: unconfigured }),
           library,
+          notes: notesIn(state),
           settle: async (result) => result,
         },
       });

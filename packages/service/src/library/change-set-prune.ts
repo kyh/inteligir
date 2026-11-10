@@ -11,7 +11,7 @@ import { dropSetFiles } from "./cell-blobs";
 import type { CellStorage } from "./cell-storage";
 
 const DAY_MS = 24 * 60 * 60_000;
-const UNDO_REACH_MS = 7 * DAY_MS;
+export const UNDO_REACH_MS = 7 * DAY_MS;
 // an op's id answers a resend for this long
 const OP_ANSWER_MS = 30 * DAY_MS;
 // the entries one run drops, well inside an alarm's 30 s of CPU

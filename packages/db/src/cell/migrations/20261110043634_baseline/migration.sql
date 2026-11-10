@@ -195,7 +195,7 @@ CREATE TABLE `items` (
 	CONSTRAINT "items_kind" CHECK("kind" IN ('note', 'link', 'video', 'audio', 'image', 'pdf', 'file')),
 	CONSTRAINT "items_fetch_state" CHECK("fetch_state" IN ('none', 'pending', 'filled', 'failed')),
 	CONSTRAINT "items_purged" CHECK("purged" IN (0, 1)),
-	CONSTRAINT "items_body_home" CHECK("body_home" IN ('seed', 'note')),
+	CONSTRAINT "items_body_home" CHECK("body_home" IN ('seed', 'opening', 'note')),
 	CONSTRAINT "items_whole" CHECK("purged" = 1 OR ("kind" IS NOT NULL AND "title" IS NOT NULL
         AND "aliases" IS NOT NULL AND "tags" IS NOT NULL AND "properties" IS NOT NULL
         AND "fetch_state" IS NOT NULL AND "saved_at" IS NOT NULL AND "card" IS NOT NULL

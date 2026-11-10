@@ -119,9 +119,10 @@ export const heldBody = (db: CellDb, itemId: string): HeldBody => {
   if (row === undefined) {
     return null;
   }
-  return row.home === "note"
-    ? { kind: "note" }
-    : { blocks: readSeedBlocks(db, itemId), kind: "seed" };
+  // a note still opening may already hold edits its seed does not
+  return row.home === "seed"
+    ? { blocks: readSeedBlocks(db, itemId), kind: "seed" }
+    : { kind: "note" };
 };
 
 export const dropSeed = (db: CellDb, itemId: string): void => {

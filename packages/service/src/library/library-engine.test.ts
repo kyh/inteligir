@@ -1,5 +1,4 @@
-import type { LibraryOp } from "@repo/contract/library/block-ops";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,7 +7,6 @@ import {
   clockAt,
   createItem,
   engineIn,
-  hashOf,
   inCell,
   landedValue,
   noteFields,
@@ -17,20 +15,22 @@ import {
   placed,
   refusalOf,
   storedItemOf,
+  undoFields,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
+import type { LibraryEngine } from "./library-engine";
 import { z } from "zod";
 
 const A = paragraph("a", "the first line");
-const B = paragraph("b", "the second line");
+const TITLE = "A note";
 
 const newItemId = (): string => crypto.randomUUID();
 
 const laptopSet = (state: DurableObjectState): string => {
   const [row] = state.storage.sql
-    .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
+    .exec("SELECT id FROM change_sets WHERE session_id = 'laptop'")
     .toArray();
   return z.string().parse(row?.id);
 };
@@ -46,78 +46,79 @@ const undoneBy = (state: DurableObjectState, id: string): string | null =>
 const setCount = (state: DurableObjectState): number =>
   state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
 
+const retitle = (
+  library: LibraryEngine,
+  actor: CellActor,
+  itemId: string,
+  from: string,
+  to: string,
+): void => {
+  landedValue(
+    library.write(actor, { itemId, ops: [{ base: from, field: "title", op: "set", value: to }] }),
+  );
+};
+
+const titleOf = (library: LibraryEngine, itemId: string): string | null => {
+  const item = storedItemOf(library, itemId);
+  return item?.kind === "live" ? item.fields.title : null;
+};
+
 // what R2 holds of an image upload
 const png = (bytes: number) => ({ bytes, mime: "image/png" });
 
 describe("a write to the library cell", () => {
-  it("lands each block only over the hash it was read at, and answers a stale one with the block as it is", async () => {
+  it("lands each field only over the value it was read at, and answers a stale one with the field as it is", async () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       const made = landedValue(
-        createItem(library, person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       expect(made.item.seq).toBe(1);
 
-      const edited = paragraph("a", "the first line, edited");
       const write = library.write(person("phone"), {
         itemId,
-        ops: [{ baseHash: hashOf(A), block: edited, op: "put" }],
+        ops: [{ base: TITLE, field: "title", op: "set", value: "Edited" }],
       });
       expect(landedValue(write).item.seq).toBe(2);
 
-      // a second writer read the first block before that edit, and the second block as it stands
+      // a second writer read the title before that edit, and the description as it stands
       const stale = library.write(person("tablet"), {
         itemId,
         ops: [
-          { baseHash: hashOf(B), block: paragraph("b", "landed only with the rest"), op: "put" },
-          { baseHash: hashOf(A), block: paragraph("a", "a lost edit"), op: "put" },
+          { base: null, field: "description", op: "set", value: "landed only with the rest" },
+          { base: TITLE, field: "title", op: "set", value: "A lost edit" },
         ],
       });
       expect(refusalOf(stale)).toStrictEqual({
-        current: [
-          {
-            blockId: "a",
-            current: {
-              block: edited,
-              hash: hashOf(edited),
-              ord: expect.any(String),
-              section: "note",
-            },
-            itemId,
-            kind: "block",
-          },
-        ],
+        current: [{ current: "Edited", field: "title", itemId, kind: "field" }],
         kind: "conflict",
       });
-      // the whole write landed nothing: the head did not move, and the second block is as it was
+      // the whole write landed nothing: the head did not move, and the description is as it was
       expect(library.head()).toBe(2);
-      expect(blocksOf(library, itemId)).toStrictEqual([edited, B]);
+      expect(storedItemOf(library, itemId)).toMatchObject({
+        fields: { description: null, title: "Edited" },
+      });
     });
   });
 
-  it("merges two writers' edits to different blocks with no conflict", async () => {
+  it("merges two writers' edits to different fields with no conflict", async () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        createItem(library, person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
-      const first = paragraph("a", "from the laptop");
-      const second = paragraph("b", "from the phone");
-      landedValue(
-        library.write(person("laptop"), {
-          itemId,
-          ops: [{ baseHash: hashOf(A), block: first, op: "put" }],
-        }),
-      );
+      retitle(library, person("laptop"), itemId, TITLE, "From the laptop");
       landedValue(
         library.write(person("phone"), {
           itemId,
-          ops: [{ baseHash: hashOf(B), block: second, op: "put" }],
+          ops: [{ base: null, field: "description", op: "set", value: "From the phone" }],
         }),
       );
-      expect(blocksOf(library, itemId)).toStrictEqual([first, second]);
+      expect(storedItemOf(library, itemId)).toMatchObject({
+        fields: { description: "From the phone", title: "From the laptop" },
+      });
     });
   });
 
@@ -144,7 +145,7 @@ describe("a write to the library cell", () => {
     });
   });
 
-  it("lands thousands of blocks in one write, cut under a Durable Object's 100 bound parameters", async () => {
+  it("keeps thousands of blocks as a new item's seed, cut under a Durable Object's 100 bound parameters", async () => {
     await inCell(cellOf(), (state) => {
       // the engine's own limit, which the chunking must stay under
       expect(() =>
@@ -190,35 +191,7 @@ describe("a write to the library cell", () => {
     });
   });
 
-  it("refuses a write past the account's cap with what it holds, and lands one that frees room", async () => {
-    await inCell(cellOf(), (state) => {
-      const roomy = engineIn(state, clockAt());
-      const itemId = newItemId();
-      landedValue(
-        createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
-      );
-      const bytesCap = state.storage.sql.databaseSize + 64 * 1024;
-      const library = engineIn(state, clockAt(), bytesCap);
-      const big = paragraph("big", "y".repeat(200 * 1024));
-      const refused = library.write(FILL_ACTOR, {
-        itemId,
-        ops: [{ block: big, op: "insert", ord: "a5", section: "note" }],
-      });
-      expect(refusalOf(refused)).toStrictEqual({
-        bytesCap,
-        bytesUsed: state.storage.sql.databaseSize,
-        kind: "quota",
-      });
-      landedValue(
-        library.write(FILL_ACTOR, {
-          itemId,
-          ops: [{ baseHash: hashOf(A), blockId: "a", op: "drop" }],
-        }),
-      );
-    });
-  });
-
-  it("counts the words a field holds toward the cap, new items included", async () => {
+  it("refuses only a new item past the account's cap, with what it holds", async () => {
     await inCell(cellOf(), (state) => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
@@ -228,22 +201,35 @@ describe("a write to the library cell", () => {
       const bytesCap = state.storage.sql.databaseSize + 1024;
       const library = engineIn(state, clockAt(), bytesCap);
       const long = "y".repeat(8 * 1024);
-      const refusedProperty = library.write(FILL_ACTOR, {
-        itemId,
-        ops: [{ key: "notes", op: "property", value: long }],
-      });
-      expect(refusalOf(refusedProperty)).toMatchObject({ bytesCap, kind: "quota" });
-      const refusedDescription = library.write(FILL_ACTOR, {
-        itemId,
-        ops: [{ base: null, field: "description", op: "set", value: long }],
-      });
-      expect(refusalOf(refusedDescription)).toMatchObject({ kind: "quota" });
+      // a person never loses words to the cap in an item already there
+      landedValue(
+        library.write(FILL_ACTOR, {
+          itemId,
+          ops: [{ key: "notes", op: "property", value: long }],
+        }),
+      );
+      landedValue(
+        library.write(FILL_ACTOR, {
+          itemId,
+          ops: [{ base: null, field: "description", op: "set", value: long }],
+        }),
+      );
       const refusedNew = createItem(library, FILL_ACTOR, {
         blocks: placed([]),
         fields: noteFields({ properties: { notes: long } }),
         id: newItemId(),
       });
-      expect(refusalOf(refusedNew)).toMatchObject({ kind: "quota" });
+      expect(refusalOf(refusedNew)).toStrictEqual({
+        bytesCap,
+        bytesUsed: state.storage.sql.databaseSize,
+        kind: "quota",
+      });
+      const refusedSeed = createItem(library, FILL_ACTOR, {
+        blocks: placed([paragraph("big", "y".repeat(8 * 1024))]),
+        fields: noteFields(),
+        id: newItemId(),
+      });
+      expect(refusalOf(refusedSeed)).toMatchObject({ kind: "quota" });
     });
   });
 
@@ -260,7 +246,7 @@ describe("a write to the library cell", () => {
         }),
       );
       const library = engineIn(state, clockAt(), 1);
-      const landing = (ops: readonly LibraryOp[]) =>
+      const landing = (ops: readonly FieldOp[]) =>
         landedValue(library.write(FILL_ACTOR, { itemId, ops }));
       landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
       landing([{ base: null, field: "pinnedAt", op: "set", value: 5 }]);
@@ -282,19 +268,8 @@ describe("a write to the library cell", () => {
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const sha = "a".repeat(64);
-      const image = {
-        children: [{ text: "" }],
-        id: "img",
-        sha,
-        type: "img",
-      } satisfies LibraryBlock;
-      const insert = {
-        block: image,
-        op: "insert",
-        ord: "a5",
-        section: "note",
-      } satisfies LibraryOp;
-      expect(refusalOf(library.write(FILL_ACTOR, { itemId, ops: [insert] }))).toStrictEqual({
+      const cover = { base: null, field: "coverSha", op: "set", value: sha } satisfies FieldOp;
+      expect(refusalOf(library.write(FILL_ACTOR, { itemId, ops: [cover] }))).toStrictEqual({
         kind: "blob-missing",
         shas: [sha],
       });
@@ -303,7 +278,7 @@ describe("a write to the library cell", () => {
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
       expect(settled.ok && settled.value).toStrictEqual({ settled: true });
-      landedValue(library.write(FILL_ACTOR, { itemId, ops: [insert] }));
+      landedValue(library.write(FILL_ACTOR, { itemId, ops: [cover] }));
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
       });
@@ -407,17 +382,12 @@ describe("change sets and undo", () => {
         createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       clock.now = start + 10_000;
-      landedValue(
-        library.write(person(), {
-          itemId,
-          ops: [{ baseHash: hashOf(A), block: paragraph("a", "typed on"), op: "put" }],
-        }),
-      );
+      retitle(library, person(), itemId, TITLE, "Typed on");
       const sets = () => state.storage.sql.exec("SELECT id, sealed_at FROM change_sets").toArray();
       const after = () =>
         state.storage.sql
-          .exec("SELECT after_manifest FROM change_set_items WHERE item_id = ?", itemId)
-          .one().after_manifest;
+          .exec("SELECT after_fields FROM change_set_items WHERE item_id = ?", itemId)
+          .one().after_fields;
       expect(sets()).toHaveLength(1);
       clock.now = start + 24_000;
       library.runDueJobs(() => {});
@@ -440,28 +410,18 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
-      let block = A;
+      let title = TITLE;
       for (const at of [10_000, 20_000, 30_000, 40_000, 50_000]) {
         clock.now = start + at;
-        const next = paragraph("a", `typed at ${String(at)}`);
-        landedValue(
-          library.write(person(), {
-            itemId,
-            ops: [{ baseHash: hashOf(block), block: next, op: "put" }],
-          }),
-        );
-        block = next;
+        const next = `Typed at ${String(at)}`;
+        retitle(library, person(), itemId, title, next);
+        title = next;
       }
       expect(library.nextJobAt()).toBe(start + 60_000);
       clock.now = start + 60_000;
       library.runDueJobs(() => {});
       clock.now = start + 61_000;
-      landedValue(
-        library.write(person(), {
-          itemId,
-          ops: [{ baseHash: hashOf(block), block: paragraph("a", "after the cap"), op: "put" }],
-        }),
-      );
+      retitle(library, person(), itemId, title, "After the cap");
       const sets = state.storage.sql
         .exec("SELECT opened_at, sealed_at FROM change_sets ORDER BY opened_at")
         .toArray();
@@ -478,42 +438,29 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const kept = newItemId();
       const undone = newItemId();
-      landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: kept }),
-      );
-      landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: undone }),
-      );
-      const edit = paragraph("a", "the laptop's edit");
-      for (const itemId of [kept, undone]) {
+      for (const id of [kept, undone]) {
         landedValue(
-          library.write(person("laptop"), {
-            itemId,
-            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
-          }),
+          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
         );
+      }
+      for (const itemId of [kept, undone]) {
+        retitle(library, person("laptop"), itemId, TITLE, "The laptop's title");
       }
       const setId = laptopSet(state);
       // the phone changes one of the two again since
       clock.now += 120_000;
-      landedValue(
-        library.write(person("phone"), {
-          itemId: kept,
-          ops: [{ baseHash: hashOf(edit), block: paragraph("a", "the phone's edit"), op: "put" }],
-        }),
-      );
-      const answer = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
+      retitle(library, person("phone"), kept, "The laptop's title", "The phone's title");
+      const answer = landedValue(undoFields(library, person("laptop"), [setId]));
       expect(answer.kept).toStrictEqual([kept]);
       expect(answer.reverted).toStrictEqual([undone]);
-      expect(blocksOf(library, undone)).toStrictEqual([A]);
-      expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toStrictEqual({
+      expect(titleOf(library, undone)).toBe(TITLE);
+      expect(titleOf(library, kept)).toBe("The phone's title");
+      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toStrictEqual({
         changeSetId: setId,
         kind: "already-undone",
         undoneBy: answer.changeSetId,
       });
-      expect(
-        refusalOf(library.undo(person(), { changeSetIds: [crypto.randomUUID()] })),
-      ).toStrictEqual({
+      expect(refusalOf(undoFields(library, person(), [crypto.randomUUID()]))).toStrictEqual({
         kind: "not-found",
       });
     });
@@ -532,41 +479,25 @@ describe("change sets and undo", () => {
             id: itemId,
           }),
         );
-        const edit = paragraph("a", "the laptop's edit");
-        const later = paragraph("a", "the phone's edit");
-        landedValue(
-          library.write(person("laptop"), {
-            itemId,
-            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
-          }),
-        );
+        retitle(library, person("laptop"), itemId, TITLE, "The laptop's title");
         const setId = laptopSet(state);
         clock.now += 120_000;
-        landedValue(
-          library.write(person("phone"), {
-            itemId,
-            ops: [{ baseHash: hashOf(edit), block: later, op: "put" }],
-          }),
-        );
+        retitle(library, person("phone"), itemId, "The laptop's title", "The phone's title");
         const sets = setCount(state);
 
-        const answer = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
+        const answer = landedValue(undoFields(library, person("laptop"), [setId]));
         expect(answer).toStrictEqual({
           changeSetId: null,
           kept: [itemId],
+          lostText: [],
           refused: [],
           reverted: [],
         });
         expect(undoneBy(state, setId)).toBeNull();
         expect(setCount(state)).toBe(sets);
 
-        landedValue(
-          library.write(person("phone"), {
-            itemId,
-            ops: [{ baseHash: hashOf(later), block: edit, op: "put" }],
-          }),
-        );
-        const again = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
+        retitle(library, person("phone"), itemId, "The phone's title", "The laptop's title");
+        const again = landedValue(undoFields(library, person("laptop"), [setId]));
         expect(again).toMatchObject({ kept: [], reverted: [itemId] });
         expect(undoneBy(state, setId)).toBe(again.changeSetId);
       });
@@ -582,35 +513,18 @@ describe("change sets and undo", () => {
             createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
           );
         }
-        const edit = paragraph("a", "an edit");
-        landedValue(
-          library.write(person("laptop"), {
-            itemId: held,
-            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
-          }),
-        );
+        retitle(library, person("laptop"), held, TITLE, "An edit");
         const heldSet = laptopSet(state);
         clock.now += 120_000;
-        landedValue(
-          library.write(person("tablet"), {
-            itemId: held,
-            ops: [{ baseHash: hashOf(edit), block: paragraph("a", "edited again"), op: "put" }],
-          }),
-        );
-        landedValue(
-          library.write(person("phone"), {
-            itemId: back,
-            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
-          }),
-        );
+        retitle(library, person("tablet"), held, "An edit", "Edited again");
+        retitle(library, person("phone"), back, TITLE, "An edit");
         const backSet = z
           .string()
           .parse(
-            state.storage.sql.exec("SELECT id FROM change_sets WHERE device_id = 'phone'").one().id,
+            state.storage.sql.exec("SELECT id FROM change_sets WHERE session_id = 'phone'").one()
+              .id,
           );
-        const answer = landedValue(
-          library.undo(person("laptop"), { changeSetIds: [heldSet, backSet] }),
-        );
+        const answer = landedValue(undoFields(library, person("laptop"), [heldSet, backSet]));
         expect(answer).toMatchObject({ kept: [held], refused: [], reverted: [back] });
         expect(undoneBy(state, backSet)).toBe(answer.changeSetId);
         expect(undoneBy(state, heldSet)).toBeNull();
@@ -618,179 +532,48 @@ describe("change sets and undo", () => {
     });
   });
 
-  describe("an undo a rule refuses", () => {
-    const passage = paragraph("long", "x".repeat(4096));
-
-    it("answers why and stays undoable while every item's way back is refused", async () => {
-      await inCell(cellOf(), (state) => {
-        const clock = clockAt();
-        const roomy = engineIn(state, clock);
-        const itemId = newItemId();
-        landedValue(
-          createItem(roomy, FILL_ACTOR, {
-            blocks: placed([A, passage]),
-            fields: noteFields(),
-            id: itemId,
-          }),
-        );
-        landedValue(
-          roomy.write(person("laptop"), {
-            itemId,
-            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
-          }),
-        );
-        const setId = laptopSet(state);
-        const sets = setCount(state);
-        const full = engineIn(state, clock, 1);
-        expect(refusalOf(full.undo(person("laptop"), { changeSetIds: [setId] }))).toMatchObject({
-          kind: "quota",
-        });
-        expect(undoneBy(state, setId)).toBeNull();
-        expect(setCount(state)).toBe(sets);
-        const answer = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
-        expect(answer).toMatchObject({ kept: [], refused: [], reverted: [itemId] });
-        expect(blocksOf(roomy, itemId)).toStrictEqual([A, passage]);
-        expect(undoneBy(state, setId)).toBe(answer.changeSetId);
+  it("waits while another item holds the address, and lands once it no longer does", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt();
+      const library = engineIn(state, clock);
+      const url = "https://example.com/one";
+      const gone = newItemId();
+      const holder = newItemId();
+      landedValue(
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([]),
+          fields: noteFields({ url }),
+          id: gone,
+        }),
+      );
+      landedValue(
+        library.write(person("laptop"), {
+          itemId: gone,
+          ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
+        }),
+      );
+      const setId = laptopSet(state);
+      landedValue(
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([]),
+          fields: noteFields({ url }),
+          id: holder,
+        }),
+      );
+      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toMatchObject({
+        itemId: holder,
+        kind: "url-held",
       });
-    });
-
-    it("lands what it can, names the rest, and a second try takes the rest back", async () => {
-      await inCell(cellOf(), (state) => {
-        const clock = clockAt();
-        const roomy = engineIn(state, clock);
-        const cut = newItemId();
-        const added = newItemId();
-        landedValue(
-          createItem(roomy, FILL_ACTOR, {
-            blocks: placed([A, passage]),
-            fields: noteFields(),
-            id: cut,
-          }),
-        );
-        landedValue(
-          createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: added }),
-        );
-        landedValue(
-          roomy.write(person("laptop"), {
-            itemId: cut,
-            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
-          }),
-        );
-        landedValue(
-          roomy.write(person("laptop"), {
-            itemId: added,
-            ops: [{ block: B, op: "insert", ord: "a5", section: "note" }],
-          }),
-        );
-        const setId = laptopSet(state);
-        const full = engineIn(state, clock, 1);
-        const partial = landedValue(full.undo(person("laptop"), { changeSetIds: [setId] }));
-        expect(partial).toMatchObject({ kept: [], refused: [cut], reverted: [added] });
-        expect(undoneBy(state, setId)).toBeNull();
-        expect(blocksOf(roomy, added)).toStrictEqual([A]);
-        const rest = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
-        expect(rest).toMatchObject({ kept: [], refused: [] });
-        expect(rest.reverted).toContain(cut);
-        expect(blocksOf(roomy, cut)).toStrictEqual([A, passage]);
-        expect(undoneBy(state, setId)).toBe(rest.changeSetId);
-      });
-    });
-
-    it("answers why when the only other set named has nothing to take back", async () => {
-      await inCell(cellOf(), (state) => {
-        const clock = clockAt();
-        const roomy = engineIn(state, clock);
-        const [cut, held] = [newItemId(), newItemId()];
-        landedValue(
-          createItem(roomy, FILL_ACTOR, {
-            blocks: placed([A, passage]),
-            fields: noteFields(),
-            id: cut,
-          }),
-        );
-        landedValue(
-          createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: held }),
-        );
-        const edit = paragraph("a", "an edit");
-        landedValue(
-          roomy.write(person("laptop"), {
-            itemId: held,
-            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
-          }),
-        );
-        const heldSet = laptopSet(state);
-        clock.now += 120_000;
-        landedValue(
-          roomy.write(person("tablet"), {
-            itemId: held,
-            ops: [{ baseHash: hashOf(edit), block: paragraph("a", "edited again"), op: "put" }],
-          }),
-        );
-        landedValue(
-          roomy.write(person("phone"), {
-            itemId: cut,
-            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
-          }),
-        );
-        const cutSet = z
-          .string()
-          .parse(
-            state.storage.sql.exec("SELECT id FROM change_sets WHERE device_id = 'phone'").one().id,
-          );
-        const sets = setCount(state);
-
-        const full = engineIn(state, clock, 1);
-        expect(
-          refusalOf(full.undo(person("laptop"), { changeSetIds: [heldSet, cutSet] })),
-        ).toMatchObject({ kind: "quota" });
-        expect(undoneBy(state, heldSet)).toBeNull();
-        expect(undoneBy(state, cutSet)).toBeNull();
-        expect(setCount(state)).toBe(sets);
-      });
-    });
-
-    it("waits while another item holds the address, and lands once it no longer does", async () => {
-      await inCell(cellOf(), (state) => {
-        const clock = clockAt();
-        const library = engineIn(state, clock);
-        const url = "https://example.com/one";
-        const gone = newItemId();
-        const holder = newItemId();
-        landedValue(
-          createItem(library, FILL_ACTOR, {
-            blocks: placed([]),
-            fields: noteFields({ url }),
-            id: gone,
-          }),
-        );
-        landedValue(
-          library.write(person("laptop"), {
-            itemId: gone,
-            ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
-          }),
-        );
-        const setId = laptopSet(state);
-        landedValue(
-          createItem(library, FILL_ACTOR, {
-            blocks: placed([]),
-            fields: noteFields({ url }),
-            id: holder,
-          }),
-        );
-        expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toMatchObject({
+      expect(undoneBy(state, setId)).toBeNull();
+      landedValue(
+        library.write(FILL_ACTOR, {
           itemId: holder,
-          kind: "url-held",
-        });
-        expect(undoneBy(state, setId)).toBeNull();
-        landedValue(
-          library.write(FILL_ACTOR, {
-            itemId: holder,
-            ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
-          }),
-        );
-        expect(
-          landedValue(library.undo(person("laptop"), { changeSetIds: [setId] })),
-        ).toMatchObject({ refused: [], reverted: [gone] });
+          ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
+        }),
+      );
+      expect(landedValue(undoFields(library, person("laptop"), [setId]))).toMatchObject({
+        refused: [],
+        reverted: [gone],
       });
     });
   });
@@ -801,51 +584,41 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       const start = clock.now;
-      const put = (actor: CellActor, from: LibraryBlock, block: LibraryBlock): void => {
-        landedValue(
-          library.write(actor, { itemId, ops: [{ baseHash: hashOf(from), block, op: "put" }] }),
-        );
-      };
       landedValue(
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       // the person's set stays open while a reading's write seals as it lands, then the person
       // takes the item back within the same set
-      const typed = paragraph("a", "typed by the person");
-      const later = paragraph("a", "a later reading");
-      const again = paragraph("a", "the person again");
       clock.now = start + 1000;
-      put(person(), A, typed);
+      retitle(library, person(), itemId, TITLE, "Typed by the person");
       clock.now = start + 2000;
-      put(FILL_ACTOR, typed, later);
+      retitle(library, FILL_ACTOR, itemId, "Typed by the person", "A later reading");
       clock.now = start + 3000;
-      put(person(), later, again);
+      retitle(library, person(), itemId, "A later reading", "The person again");
       clock.now = start + 62_000;
       library.runDueJobs(() => {});
-      const manifestSchema = z.array(z.tuple([z.string(), z.string(), z.string(), z.string()]));
+      const titleSchema = z.object({ title: z.string() });
       const afters = state.storage.sql
         .exec(
-          `SELECT sets.actor AS actor, parts.json AS manifest
+          `SELECT sets.actor AS actor, parts.json AS fields
            FROM change_set_items items JOIN change_sets sets ON sets.id = items.change_set_id
            JOIN snapshot_parts parts ON parts.item_id = items.item_id
-             AND parts.hash = items.after_manifest
+             AND parts.hash = items.after_fields
            WHERE items.item_id = ? ORDER BY sets.opened_at`,
           itemId,
         )
         .toArray()
         .map((row) => ({
           actor: row.actor,
-          hashes: manifestSchema
-            .parse(JSON.parse(z.string().parse(row.manifest)))
-            .map(([, hash]) => hash),
+          title: titleSchema.parse(JSON.parse(z.string().parse(row.fields))).title,
         }));
       // the reading that made the item, the person's set, and the reading in its middle
       expect(afters).toStrictEqual([
-        { actor: "fill", hashes: [hashOf(A)] },
-        { actor: "person", hashes: [hashOf(again)] },
-        { actor: "fill", hashes: [hashOf(later)] },
+        { actor: "fill", title: TITLE },
+        { actor: "person", title: "The person again" },
+        { actor: "fill", title: "A later reading" },
       ]);
-      expect(blocksOf(library, itemId)).toStrictEqual([again]);
+      expect(titleOf(library, itemId)).toBe("The person again");
     });
   });
 
@@ -858,7 +631,7 @@ describe("change sets and undo", () => {
         createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
-      landedValue(library.undo(person(), { changeSetIds: [z.string().parse(set?.id)] }));
+      landedValue(undoFields(library, person(), [z.string().parse(set?.id)]));
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { deletedAt: clock.now },
         kind: "live",
@@ -884,7 +657,7 @@ describe("change sets and undo", () => {
         itemId,
       ]);
       expect(storedItemOf(library, itemId)).toMatchObject({ kind: "purged" });
-      for (const table of ["snapshot_parts", "block_versions", "change_set_items"]) {
+      for (const table of ["snapshot_parts", "change_set_items", "seed_blocks"]) {
         expect(
           state.storage.sql
             .exec(`SELECT count(*) AS n FROM ${table} WHERE item_id = ?`, itemId)

@@ -2,21 +2,29 @@
 // message for it, the web the consumer reads served by a stand-in for the platform's fetch, and
 // the item read back as the cell holds it.
 
-import type { ItemState } from "@repo/contract/library/block-ops";
-import { readItemState } from "../../library/library-queries";
 import { createRouterClient } from "@orpc/server";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { vi } from "vitest";
 
 import worker from "../../test-support/test-worker";
+import { heldBody } from "../../library/cell-body";
+import { cellDbOf } from "../../library/cell-db";
 import { openCellLibrary } from "../../library/cell-library";
-import { cellStorageOf } from "../../library/cell-storage";
+import { readLiveItem } from "../../library/library-queries";
 import type { LibraryEngine } from "../../library/library-engine";
 import { cellActorOf } from "../../library/library-principal";
 import type { NamedPrincipal } from "../../library/library-principal";
 import { libraryRouter } from "../../library/library-router";
-import { agentCellIn, cellOf, inCell, newAccountId } from "../../test-support/library-cell";
+import {
+  agentCellIn,
+  cellOf,
+  inCell,
+  newAccountId,
+  notesIn,
+} from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
 import { FILL_QUEUE } from "../../../fill-queues";
 
@@ -36,6 +44,7 @@ export const libraryIn = (
       agent: agentCellIn(state, library),
       library,
       actor: () => cellActorOf(laptop(accountId)),
+      notes: notesIn(state),
       settle: async (result) => await Promise.resolve(result),
     },
   });
@@ -60,19 +69,30 @@ export const savedLink = async (url: string): Promise<SavedLink> => {
   };
 };
 
-export const itemIn = async (accountId: string, itemId: string): Promise<ItemState | null> =>
-  await inCell(cellOf(accountId), (state) => readItemState(cellStorageOf(state.storage), itemId));
+// a live item's fields and the body its cell keeps, null for none or one whose body went to its note
+export interface HeldItem {
+  readonly fields: LibraryItemFields;
+  readonly blocks: readonly BodyBlock[];
+}
+
+export const itemIn = async (accountId: string, itemId: string): Promise<HeldItem | null> =>
+  await inCell(cellOf(accountId), (state) => {
+    const db = cellDbOf(state.storage);
+    const item = readLiveItem(db, itemId);
+    const body = heldBody(db, itemId);
+    return item === null || body?.kind !== "seed"
+      ? null
+      : { blocks: body.blocks, fields: item.fields };
+  });
 
 export const fieldsIn = async (accountId: string, itemId: string) => {
   const state = await itemIn(accountId, itemId);
   return state?.fields ?? null;
 };
 
-export const textOfSection = (state: ItemState | null, section: "note" | "article"): string =>
+export const textOfSection = (state: HeldItem | null, section: "note" | "article"): string =>
   JSON.stringify(
-    [...(state?.blocks.values() ?? [])]
-      .filter((stored) => stored.section === section)
-      .map((stored) => stored.block),
+    (state?.blocks ?? []).filter((held) => held.section === section).map((held) => held.block),
   );
 
 export interface Delivered {

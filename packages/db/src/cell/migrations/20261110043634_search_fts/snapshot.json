@@ -1,7 +1,7 @@
 {
-  "id": "05f6d740-170f-40a5-b3e6-48f55ee87add",
+  "id": "20b268aa-fb05-4069-9700-0f456ed8f1bd",
   "prevIds": [
-    "4d30d044-ef85-4868-a0ba-cf1c914a8dab"
+    "1a2a5be1-fc02-402e-9187-12fadf01edd8"
   ],
   "version": "7",
   "dialect": "sqlite",
@@ -2231,7 +2231,7 @@
       "table": "items"
     },
     {
-      "value": "\"body_home\" IN ('seed', 'note')",
+      "value": "\"body_home\" IN ('seed', 'opening', 'note')",
       "name": "items_body_home",
       "entityType": "checks",
       "table": "items"

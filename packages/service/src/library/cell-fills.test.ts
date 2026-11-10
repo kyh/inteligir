@@ -3,7 +3,6 @@
 // the reading's ask kept as a job row, sent once the write commits and sent again until the queue
 // took it.
 
-import { ordsBetween } from "@repo/contract/library/order-key";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -22,42 +21,48 @@ import {
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";
-import { readItemState } from "./library-queries";
+import { heldBody } from "./cell-body";
+import { cellDbOf } from "./cell-db";
 import { cellStorageOf } from "./cell-storage";
+import { readLiveItem } from "./library-queries";
 
 const read = (
   landing: Pick<FillLanding, "itemId" | "url">,
   article: readonly LibraryBlock[],
   overrides: Partial<Extract<FillLanding, { kind: "read" }>> = {},
-): FillLanding => {
-  const keys = ordsBetween(null, null, article.length);
-  return {
-    article: article.map((block, index) => ({ block, ord: keys[index] ?? "a0" })),
-    coverSha: null,
-    facts: {
-      author: "A. Writer",
-      description: "What the page says.",
-      lang: "en",
-      published: null,
-      site: "Pages",
-    },
-    finalUrl: landing.url,
-    itemId: landing.itemId,
-    kind: "read",
-    playable: null,
-    title: "The page's own title",
-    url: landing.url,
-    ...overrides,
-  };
+): FillLanding => ({
+  article: [...article],
+  coverSha: null,
+  facts: {
+    author: "A. Writer",
+    description: "What the page says.",
+    lang: "en",
+    published: null,
+    site: "Pages",
+  },
+  finalUrl: landing.url,
+  itemId: landing.itemId,
+  kind: "read",
+  playable: null,
+  title: "The page's own title",
+  url: landing.url,
+  ...overrides,
+});
+
+// a live item's fields and the body its cell keeps
+const stateOf = (state: DurableObjectState, itemId: string) => {
+  const db = cellDbOf(state.storage);
+  const item = readLiveItem(db, itemId);
+  const body = heldBody(db, itemId);
+  return item === null
+    ? null
+    : { blocks: body?.kind === "seed" ? body.blocks : [], fields: item.fields };
 };
 
-const stateOf = (state: DurableObjectState, itemId: string) =>
-  readItemState(cellStorageOf(state.storage), itemId);
-
 const sectionOf = (state: DurableObjectState, itemId: string, section: "note" | "article") =>
-  [...(stateOf(state, itemId)?.blocks.values() ?? [])]
-    .filter((stored) => stored.section === section)
-    .map((stored) => ({ hash: stored.hash, id: stored.block.id }));
+  (stateOf(state, itemId)?.blocks ?? [])
+    .filter((held) => held.section === section)
+    .map((held) => held.block);
 
 const fillJobs = (state: DurableObjectState) =>
   state.storage.sql.exec("SELECT id, payload FROM jobs WHERE kind = 'fill' ORDER BY id").toArray();
@@ -76,6 +81,7 @@ describe("a page's reading, landed", () => {
       const note = sectionOf(state, id, "note");
       const landed = openCellLibrary(state, env).landReading(
         read({ itemId: id, url: "https://pages.example/a" }, [paragraph("p1", "The article.")]),
+        null,
       );
       expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
       expect(sectionOf(state, id, "note")).toStrictEqual(note);
@@ -104,18 +110,12 @@ describe("a page's reading, landed", () => {
         url: "https://pages.example/b",
       });
       const { id } = saved.item;
-      const [stored] = [...(stateOf(state, id)?.blocks.values() ?? [])];
       const engine = openCellLibrary(state, env);
       const edited = engine.write(
         { kind: "person", label: "You on phone", sessionId: "phone" },
         {
           itemId: id,
           ops: [
-            {
-              baseHash: stored?.hash ?? "",
-              block: paragraph(stored?.block.id ?? "", "Second thought."),
-              op: "put",
-            },
             { base: saved.item.fields.title, field: "title", op: "set", value: "My name for it" },
           ],
         },
@@ -123,11 +123,12 @@ describe("a page's reading, landed", () => {
       expect(edited.ok).toBe(true);
       engine.landReading(
         read({ itemId: id, url: "https://pages.example/b" }, [paragraph("p1", "The article.")]),
+        null,
       );
       const after = stateOf(state, id);
-      expect(
-        JSON.stringify([...(after?.blocks.values() ?? [])].filter((b) => b.section === "note")),
-      ).toContain("Second thought.");
+      expect(JSON.stringify((after?.blocks ?? []).filter((b) => b.section === "note"))).toContain(
+        "First thought.",
+      );
       expect(after?.fields.title).toBe("My name for it");
     });
   });
@@ -140,14 +141,13 @@ describe("a page's reading, landed", () => {
       const saved = await library.items.saveLink({ url });
       const { id } = saved.item;
       const engine = openCellLibrary(state, env);
-      engine.landReading(read({ itemId: id, url }, [paragraph("old", "Alpha beta gamma.")]));
+      engine.landReading(read({ itemId: id, url }, [paragraph("old", "Alpha beta gamma.")]), null);
       await library.items.refresh({ id });
       engine.landReading(
         read({ itemId: id, url }, [paragraph("new", "Alpha beta gamma, read again.")]),
+        null,
       );
-      const article = [...(stateOf(state, id)?.blocks.values() ?? [])].filter(
-        (b) => b.section === "article",
-      );
+      const article = (stateOf(state, id)?.blocks ?? []).filter((b) => b.section === "article");
       expect(article.map((stored) => stored.block.id)).toStrictEqual(["new"]);
     });
   });
@@ -159,11 +159,15 @@ describe("a page's reading, landed", () => {
       const engine = openCellLibrary(state, env);
       const final = "https://pages.example/final";
       const holder = await library.items.saveLink({ url: final });
-      engine.landReading(read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]));
+      engine.landReading(
+        read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]),
+        null,
+      );
       const short = "https://short.example/x";
       const stub = await library.items.saveLink({ tags: ["later"], url: short });
       const landed = engine.landReading(
         read({ itemId: stub.item.id, url: short }, [paragraph("r", "Read.")], { finalUrl: final }),
+        null,
       );
       expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
       expect(stateOf(state, stub.item.id)?.fields).toMatchObject({
@@ -173,13 +177,9 @@ describe("a page's reading, landed", () => {
         title: "The page's own title",
         url: short,
       });
-      expect(JSON.stringify([...(stateOf(state, stub.item.id)?.blocks.values() ?? [])])).toContain(
-        "Read.",
-      );
+      expect(JSON.stringify(stateOf(state, stub.item.id)?.blocks ?? [])).toContain("Read.");
       expect(stateOf(state, holder.item.id)?.fields.tags).toStrictEqual([]);
-      expect(
-        JSON.stringify([...(stateOf(state, holder.item.id)?.blocks.values() ?? [])]),
-      ).not.toContain("Read.");
+      expect(JSON.stringify(stateOf(state, holder.item.id)?.blocks ?? [])).not.toContain("Read.");
     });
   });
 
@@ -232,7 +232,7 @@ describe("a page's reading, landed", () => {
       const library = libraryIn(state, accountId, engine);
       const url = "https://pages.example/read";
       const saved = await library.items.saveLink({ url });
-      engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]));
+      engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]), null);
       await sendFills(state, env, engine);
       await library.items.delete({ ids: [saved.item.id] });
       await library.items.refresh({ id: saved.item.id });
@@ -242,6 +242,7 @@ describe("a page's reading, landed", () => {
         read({ itemId: other.item.id, url: "https://pages.example/other-read" }, [
           paragraph("q", "Read too."),
         ]),
+        null,
       );
       await sendFills(state, env, engine);
       await library.items.delete({ ids: [other.item.id] });
@@ -260,7 +261,7 @@ describe("a page's reading, landed", () => {
       const engine = openCellLibrary(state, env);
       const head = engine.head();
       expect(
-        engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "x")])),
+        engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "x")]), null),
       ).toMatchObject({
         ok: true,
         value: { kind: "stale" },
@@ -268,7 +269,10 @@ describe("a page's reading, landed", () => {
       // another address than the one the reading was asked at
       const moved = await library.items.saveLink({ url: "https://pages.example/e" });
       expect(
-        engine.landReading(read({ itemId: moved.item.id, url: "https://pages.example/other" }, [])),
+        engine.landReading(
+          read({ itemId: moved.item.id, url: "https://pages.example/other" }, []),
+          null,
+        ),
       ).toMatchObject({ value: { kind: "stale" } });
       expect(engine.head()).toBe(head + 1);
     });
@@ -283,40 +287,25 @@ describe("a page's reading, landed", () => {
       const png = { mime: "image/png" };
       const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
       const stray = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(900, 600) });
-      const refused = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(1000, 600) });
       const kept = await library.items.saveLink({ url: "https://pages.example/kept" });
       engine.landReading(
         read({ itemId: kept.item.id, url: "https://pages.example/kept" }, [], { coverSha: named }),
+        null,
       );
       const gone = await library.items.saveLink({ url: "https://pages.example/gone" });
       await library.items.delete({ ids: [gone.item.id] });
       const asked = { itemId: gone.item.id, url: "https://pages.example/gone" };
       // two readings for an item deleted meanwhile: one kept a cover another item names
       for (const coverSha of [stray, named]) {
-        expect(engine.landReading(read(asked, [], { coverSha }))).toMatchObject({
+        expect(engine.landReading(read(asked, [], { coverSha }), null)).toMatchObject({
           value: { kind: "stale" },
         });
       }
-      // and one the library had no room for
-      const waiting = await library.items.saveLink({ url: "https://pages.example/full" });
-      const full = engineIn(state, clockAt(Date.now()), 1);
-      expect(
-        full.landReading(
-          read(
-            { itemId: waiting.item.id, url: "https://pages.example/full" },
-            [paragraph("p", "x")],
-            {
-              coverSha: refused,
-            },
-          ),
-        ),
-      ).toMatchObject({ ok: false, refusal: { kind: "quota" } });
       expect(readBlobRow(storage.db, stray)).not.toBeNull();
       engine.runDueJobs(() => {
         throw new Error("no job fails here");
       });
       expect(readBlobRow(storage.db, stray)).toBeNull();
-      expect(readBlobRow(storage.db, refused)).toBeNull();
       expect(readBlobRow(storage.db, named)).not.toBeNull();
     });
   });
@@ -327,12 +316,15 @@ describe("a page's reading, landed", () => {
       const library = libraryIn(state, accountId);
       const url = "https://pages.example/f";
       const saved = await library.items.saveLink({ url });
-      openCellLibrary(state, env).landReading({
-        itemId: saved.item.id,
-        kind: "failed",
-        sentence: "The page took too long to answer.",
-        url,
-      });
+      openCellLibrary(state, env).landReading(
+        {
+          itemId: saved.item.id,
+          kind: "failed",
+          sentence: "The page took too long to answer.",
+          url,
+        },
+        null,
+      );
       expect(stateOf(state, saved.item.id)?.fields).toMatchObject({
         fetchError: "The page took too long to answer.",
         fetchState: "failed",
@@ -390,6 +382,7 @@ describe("Undo of a saved link, once its page is read", () => {
       const { item } = await library.items.saveLink({ url });
       openCellLibrary(state, env).landReading(
         read({ itemId: item.id, url }, [paragraph("p1", "The article.")]),
+        null,
       );
       expect(stateOf(state, item.id)?.fields.title).toBe("The page's own title");
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
@@ -411,14 +404,17 @@ describe("Undo of a saved link, once its page is read", () => {
         mime: "image/png",
       });
       const { item } = await library.items.saveLink({ url });
-      engine.landReading({
-        fileKind: "image",
-        itemId: item.id,
-        kind: "file",
-        originalName: "figure.png",
-        originalSha,
-        url,
-      });
+      engine.landReading(
+        {
+          fileKind: "image",
+          itemId: item.id,
+          kind: "file",
+          originalName: "figure.png",
+          originalSha,
+          url,
+        },
+        null,
+      );
       expect(stateOf(state, item.id)?.fields.originalSha).toBe(originalSha);
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [],
@@ -435,7 +431,7 @@ describe("Undo of a saved link, once its page is read", () => {
       const engine = openCellLibrary(state, env);
       const url = "https://pages.example/renamed";
       const { item } = await library.items.saveLink({ url });
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]));
+      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       const renamed = engine.write(PHONE, {
         itemId: item.id,
         ops: [{ base: "The page's own title", field: "title", op: "set", value: "Mine" }],
@@ -461,7 +457,7 @@ describe("Undo of a saved link, once its page is read", () => {
         ops: [{ base: item.fields.title, field: "title", op: "set", value: "Mine" }],
       });
       expect(renamed.ok).toBe(true);
-      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]));
+      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       await expect(undoSave(library, item.id)).resolves.toMatchObject({
         kept: [item.id],
         reverted: [],
@@ -491,7 +487,7 @@ describe("Undo of a saved link, once its page is read", () => {
         const library = libraryIn(state, accountId, engine);
         const url = "https://pages.example/final";
         const holder = await library.items.saveLink({ url });
-        engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
+        engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]), null);
         clock.now += HOUR;
         const again = await library.items.saveLink({ ...carried, url });
         expect(again).toMatchObject({ created: false, item: { id: holder.item.id } });

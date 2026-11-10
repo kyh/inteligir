@@ -14,7 +14,8 @@
     "./fill-queues": "./fill-queues.ts",
     "./fill/fill-consumer": "./src/fill/fill-consumer.ts",
     "./fill/fill-job": "./src/fill/fill-job.ts",
-    "./library/library-do": "./src/library/library-do.ts"
+    "./library/library-do": "./src/library/library-do.ts",
+    "./note/note-do": "./src/note/note-do.ts"
   },
   "scripts": {
     "agent-prompt": "node scripts/agent-prompt.ts",
@@ -43,6 +44,7 @@
     "drizzle-orm": "catalog:",
     "lib0": "catalog:",
     "partyserver": "catalog:",
+    "platejs": "^53.5.2",
     "slate": "catalog:",
     "stemmer": "^2.0.1",
     "y-partyserver": "catalog:",

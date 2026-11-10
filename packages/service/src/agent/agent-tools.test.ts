@@ -22,6 +22,7 @@ import {
   inCell,
   landedValue,
   noteFields,
+  notesIn,
   paragraph,
   person,
   placed,
@@ -42,7 +43,13 @@ const registered = async (): Promise<string[]> =>
     const agent = agentCellIn(state, library);
     const registrar = new McpRegistrar(libraryRouter, { filter: isLibraryTool });
     const { tools } = await registrar.register(new McpServer({ name: "inteligir", version: "0" }), {
-      context: { actor: () => person(), agent, library, settle: agent.settle },
+      context: {
+        actor: () => person(),
+        agent,
+        library,
+        notes: notesIn(state),
+        settle: agent.settle,
+      },
     });
     return Object.keys(tools);
   });

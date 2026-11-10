@@ -4,6 +4,7 @@
 // the entry's exports to the objects the service reaches through ctx.exports.
 import type { AgentThreadDO } from "@repo/service/agent/agent-thread";
 import type { LibraryDO } from "@repo/service/library/library-do";
+import type { NoteDO } from "@repo/service/note/note-do";
 import { expectTypeOf, test } from "vitest";
 
 test("the deployed entry exports each of the service's objects as a SQLite namespace", () => {
@@ -11,4 +12,5 @@ test("the deployed entry exports each of the service's objects as a SQLite names
   expectTypeOf<Cloudflare.Exports["AgentThreadDO"]>().toExtend<
     DurableObjectNamespace<AgentThreadDO>
   >();
+  expectTypeOf<Cloudflare.Exports["NoteDO"]>().toExtend<DurableObjectNamespace<NoteDO>>();
 });

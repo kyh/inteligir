@@ -2,32 +2,28 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { items as itemRows } from "@repo/db/cell/schema";
-import { orderedBlocks } from "@repo/contract/library/block-ops";
-import type { ItemState } from "@repo/contract/library/block-ops";
 import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
-import { deriveItem } from "@repo/contract/library/derive-item";
+import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
+import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import {
-  blockWritesOf,
-  dropBlocks,
   linksTo,
   linksToUrl,
   literalMatches,
   nextHead,
-  readBlocks,
   readItem,
-  readItemState,
+  readLiveItem,
   readMeta,
   SEARCH_ROW_MAX_BYTES,
   searchLibrary,
   searchRowBytes,
   searchRowOf,
-  storeBlocks,
-  storeDerived,
   readLiveItems,
   storeItemRow,
+  storeLinks,
   storeSearchRow,
+  storeTags,
   storeTombstone,
   writeMeta,
 } from "./library-queries";
@@ -35,9 +31,10 @@ import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { runPlan } from "./library-sql";
 import type { SqlStatement } from "./library-sql";
-import { itemOf, noteFields, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFields, paragraph } from "@repo/contract/test-support/library-items";
 
 import { cellOf, inCell } from "../test-support/library-cell";
+import { readSeedBlocks, storeBodyText, storeSeed } from "./cell-body";
 import { cellStorageOf } from "./cell-storage";
 import type { CellStorage } from "./cell-storage";
 
@@ -71,12 +68,28 @@ const inLibrary = async (work: (library: Library) => void): Promise<void> => {
   });
 };
 
-// a row, then its body and derived rows under it, as the cell lays an item; null when the row held
+// an item as the cell lays one: its fields, and its body as the seed it keeps
+interface Laid {
+  readonly fields: LibraryItemFields;
+  readonly blocks: readonly BodyBlock[];
+}
+
+const itemOf = (
+  blocks: readonly LibraryBlock[],
+  fields: LibraryItemFields = noteFields(),
+): Laid => ({
+  blocks: blocks.map((block) => ({ block, section: "note" })),
+  fields,
+});
+
+// a row, then its seed and derived rows under it, as the cell lays an item; null when the row held
 // is as new or newer
-const offer = (storage: CellStorage, id: string, state: ItemState, seq: number) =>
+const offer = (storage: CellStorage, id: string, state: Laid, seq: number) =>
   storage.transaction(() => {
-    const derived = deriveItem(state.fields, state.blocks);
+    const body = deriveBody(state.blocks);
+    const derived = deriveItem(state.fields, body.digest);
     const landed = storeItemRow(storage.db, {
+      body: { bytes: 0, digest: body.digest, home: "seed", version: 0 },
       card: derived.card,
       fields: state.fields,
       id,
@@ -87,14 +100,21 @@ const offer = (storage: CellStorage, id: string, state: ItemState, seq: number) 
     if (!landed) {
       return null;
     }
-    storage.run("DELETE FROM blocks WHERE item_id = ?", [id]);
-    runPlan(storage, storeBlocks(id, blockWritesOf(orderedBlocks(state.blocks), derived), seq));
-    storeDerived(storage.db, id, derived);
-    runPlan(storage, storeSearchRow(id, derived.search));
+    storeSeed(storage.db, id, state.blocks);
+    storeBodyText(storage.db, id, body.text);
+    storeLinks(storage.db, id, body.links);
+    storeTags(storage.db, id, derived.tags);
+    runPlan(storage, storeSearchRow(id, { ...derived.search, body: body.text }));
     return derived;
   });
 
-const put = (storage: CellStorage, id: string, state: ItemState, seq = 1) => {
+// an item's fields and seed as the cell holds them
+const laidOf = (storage: CellStorage, id: string): Laid | null => {
+  const item = readLiveItem(storage.db, id);
+  return item === null ? null : { blocks: readSeedBlocks(storage.db, id), fields: item.fields };
+};
+
+const put = (storage: CellStorage, id: string, state: Laid, seq = 1) => {
   const derived = offer(storage, id, state, seq);
   if (derived === null) {
     throw new Error(`the row of ${id} at ${String(seq)} did not land`);
@@ -125,6 +145,12 @@ describe("items", () => {
       );
       const derived = put(storage, "item-1", state);
       expect(readItem(storage.db, "item-1")).toStrictEqual({
+        body: {
+          bytes: 0,
+          digest: deriveBody(state.blocks).digest,
+          home: "seed",
+          version: 0,
+        },
         card: derived.card,
         fields: state.fields,
         id: "item-1",
@@ -133,7 +159,7 @@ describe("items", () => {
         updatedAt: 1_700_000_000_001,
         urlKey: null,
       });
-      expect(readItemState(storage, "item-1")).toStrictEqual(state);
+      expect(laidOf(storage, "item-1")).toStrictEqual(state);
     });
   });
 
@@ -152,7 +178,8 @@ describe("items", () => {
       expect(offer(storage, "item-1", older, 5)).toBeNull();
       expect(
         storeItemRow(storage.db, {
-          card: deriveItem(older.fields, older.blocks).card,
+          body: { bytes: 0, digest: deriveBody(older.blocks).digest, home: "seed", version: 0 },
+          card: deriveItem(older.fields, deriveBody(older.blocks).digest).card,
           fields: older.fields,
           id: "item-1",
           seq: 4,
@@ -160,7 +187,7 @@ describe("items", () => {
           urlKey: null,
         }),
       ).toBe(false);
-      expect(readItemState(storage, "item-1")).toStrictEqual(newer);
+      expect(laidOf(storage, "item-1")).toStrictEqual(newer);
       expect(runPlan(storage, searchLibrary("older", 10))).toStrictEqual([]);
       expect(runPlan(storage, searchLibrary("newer", 10)).map((hit) => hit.itemId)).toStrictEqual([
         "item-1",
@@ -213,7 +240,7 @@ describe("items", () => {
         seq: 2,
         updatedAt: 8,
       });
-      expect(runPlan(storage, readBlocks("gone"))).toStrictEqual([]);
+      expect(readSeedBlocks(storage.db, "gone")).toStrictEqual([]);
       expect(runPlan(storage, searchLibrary("findable", 10))).toStrictEqual([]);
       expect(storage.all("SELECT count(*) AS n FROM item_tags", [])).toStrictEqual([{ n: 0 }]);
     });
@@ -226,7 +253,7 @@ describe("items", () => {
       expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(
         false,
       );
-      expect(readItemState(storage, "kept")).toStrictEqual(state);
+      expect(laidOf(storage, "kept")).toStrictEqual(state);
       expect(
         runPlan(storage, searchLibrary("findable", 10)).map((hit) => hit.itemId),
       ).toStrictEqual(["kept"]);
@@ -311,54 +338,18 @@ describe("items", () => {
   });
 });
 
-describe("blocks", () => {
-  it("writes many blocks in statements a Durable Object takes, and reads them in order", async () => {
-    await inLibrary(({ statements, storage }) => {
-      const blocks = Array.from({ length: 60 }, (_, index) =>
+describe("seeds", () => {
+  it("keeps many blocks in statements a Durable Object takes, reads them in order, and replaces them whole", async () => {
+    await inLibrary(({ storage }) => {
+      const blocks = Array.from({ length: 600 }, (_, index) =>
         paragraph(`b${String(index)}`, `text ${String(index)}`),
       );
       const state = itemOf(blocks);
       put(storage, "long", state);
-      const inserts = statements.filter((statement) =>
-        statement.sql.startsWith("INSERT INTO blocks"),
-      );
-      expect(inserts.length).toBeGreaterThan(1);
-      expect(runPlan(storage, readBlocks("long"))).toStrictEqual(orderedBlocks(state.blocks));
-      runPlan(
-        storage,
-        dropBlocks(
-          "long",
-          blocks.slice(0, 40).map((block) => block.id),
-        ),
-      );
-      expect(runPlan(storage, readBlocks("long")).map(({ block }) => block.id)).toStrictEqual(
-        blocks.slice(40).map((block) => block.id),
-      );
-    });
-  });
-
-  it("replaces a block in place with its text", async () => {
-    await inLibrary(({ storage }) => {
-      const state = itemOf([paragraph("a", "one")]);
-      put(storage, "item", state);
-      const next = itemOf([paragraph("a", "marked")]);
-      const derived = deriveItem(next.fields, next.blocks);
-      runPlan(storage, storeBlocks("item", blockWritesOf(orderedBlocks(next.blocks), derived), 2));
-      expect(storage.all("SELECT text, seq FROM blocks WHERE item_id = ?", ["item"])).toStrictEqual(
-        [{ seq: 2, text: "marked" }],
-      );
-      const older = itemOf([paragraph("a", "older")]);
-      runPlan(
-        storage,
-        storeBlocks(
-          "item",
-          blockWritesOf(orderedBlocks(older.blocks), deriveItem(older.fields, older.blocks)),
-          1,
-        ),
-      );
-      expect(storage.all("SELECT text, seq FROM blocks WHERE item_id = ?", ["item"])).toStrictEqual(
-        [{ seq: 2, text: "marked" }],
-      );
+      expect(readSeedBlocks(storage.db, "long")).toStrictEqual(state.blocks);
+      const shorter = itemOf(blocks.slice(40));
+      storeSeed(storage.db, "long", shorter.blocks);
+      expect(readSeedBlocks(storage.db, "long")).toStrictEqual(shorter.blocks);
     });
   });
 });
@@ -418,7 +409,7 @@ describe("search", () => {
 });
 
 describe(literalMatches, () => {
-  it("names each live item whose blocks hold the text, ascii case folded, with its first such block", async () => {
+  it("names each live item whose body holds the text, ascii case folded, with its first such line", async () => {
     await inLibrary(({ statements, storage }) => {
       put(
         storage,
@@ -434,7 +425,7 @@ describe(literalMatches, () => {
         { itemId: "one", text: "The Quick fox" },
       ]);
       expect(
-        statements.some((statement) => /instr\(lower\(b\.text\), \?\)/u.test(statement.sql)),
+        statements.some((statement) => /instr\(lower\(t\.text\), \?\)/u.test(statement.sql)),
       ).toBe(true);
     });
   });
@@ -449,7 +440,7 @@ describe(literalMatches, () => {
       expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
       const reads = statements
         .slice(before)
-        .filter((statement) => statement.sql.startsWith("SELECT text FROM blocks"));
+        .filter((statement) => statement.sql.startsWith("SELECT text FROM body_texts"));
       expect(reads).toHaveLength(3);
       expect(runPlan(storage, literalMatches("xyzzy", { after: "c", limit: 3 }))).toStrictEqual([
         { itemId: "d", text: "item d holds xyzzy" },

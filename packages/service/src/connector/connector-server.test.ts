@@ -42,7 +42,7 @@ const structured = async <TSchema extends z.ZodType>(
 };
 
 const noteSchema = z.object({ item: z.object({ id: z.string() }) });
-const readSchema = z.object({ seq: z.number(), view: z.object({ markdown: z.string() }) });
+const readSchema = z.object({ view: z.object({ markdown: z.string() }) });
 
 // a tool call as it rides the wire, for what no client's own API sends
 const createNoteCall = (id: number) => ({
@@ -127,7 +127,6 @@ describe("the connector's tools", () => {
     expect(read.view.markdown).toContain("The quick brown fox.");
     await structured(client, z.object({ seq: z.number() }), {
       arguments: {
-        baseSeq: read.seq,
         edits: [{ newText: "It jumped over the dog.", oldText: "It jumped." }],
         id: item.id,
       },
@@ -146,19 +145,14 @@ describe("the connector's tools", () => {
     await client.close();
   });
 
-  it("answers an edit against a stale base as CONFLICT, a result the model reads", async () => {
+  it("answers an edit of a passage no longer there as a refusal the model reads", async () => {
     const client = await assistantFor("tools-conflict@example.test");
     const { item } = await structured(client, noteSchema, {
       arguments: { markdown: "First draft." },
       name: "create_note",
     });
-    const read = await structured(client, readSchema, {
-      arguments: { id: item.id },
-      name: "read_item",
-    });
     await structured(client, z.object({ seq: z.number() }), {
       arguments: {
-        baseSeq: read.seq,
         edits: [{ newText: "Second draft.", oldText: "First draft." }],
         id: item.id,
       },
@@ -166,7 +160,6 @@ describe("the connector's tools", () => {
     });
     const stale = await client.callTool({
       arguments: {
-        baseSeq: read.seq,
         edits: [{ newText: "Third draft.", oldText: "First draft." }],
         id: item.id,
       },
@@ -177,8 +170,8 @@ describe("the connector's tools", () => {
       .array(z.object({ text: z.string(), type: z.literal("text") }))
       .parse(stale.content);
     expect(JSON.parse(content?.text ?? "null")).toMatchObject({
-      code: "CONFLICT",
-      data: { current: [{ itemId: item.id, kind: "item" }] },
+      code: "UNPROCESSABLE_CONTENT",
+      data: { edit: 0, reason: "missing" },
       defined: true,
     });
     await client.close();

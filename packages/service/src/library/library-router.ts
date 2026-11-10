@@ -28,6 +28,7 @@ import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
 import { setAgentEnabled } from "../agent/agent-switch";
+import { errorFields } from "../log";
 import {
   agentStatus,
   cancelTurn,
@@ -37,7 +38,11 @@ import {
 } from "../agent/agent-turns";
 import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
+import { noteBlocksSchema } from "../note/note-wire";
+import type { NoteProjection, NoteReach, TurnUndone } from "../note/note-wire";
+import { heldBody } from "./cell-body";
 import { cellCodec } from "./cell-codec";
+import { editByNote } from "./cell-edits";
 import { askFill, askFillAfterTurn } from "./cell-fills";
 import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
@@ -45,12 +50,12 @@ import { cancelImport, startImport } from "./cell-imports";
 import {
   createFile,
   createNote,
-  editItem,
   landNew,
   organizeItems,
   refreshItem,
   setDeleted,
 } from "./cell-items";
+import { bodyInNote, landProjection } from "./cell-notes";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { itemWhole, listingOf, listingPage } from "./cell-listing";
 import {
@@ -62,10 +67,12 @@ import {
   summaryOf,
 } from "./cell-reads";
 import type { CellRefusal, CellResult } from "./cell-refusal";
-import { saveLink, savePage } from "./cell-saves";
+import { pageForNote, saveLink, savePage } from "./cell-saves";
+import { mergeTurnUndos, planUndo } from "./cell-undo";
 import type { CellActor } from "./cell-actor";
 import { listThreads, threadEvents } from "./cell-threads";
 import { landedSchema, libraryHead } from "./library-engine";
+import { readLiveItem } from "./library-queries";
 import type { LibraryEngine } from "./library-engine";
 import { readLibraryRules, writeLibraryRules } from "./library-rules";
 
@@ -78,6 +85,8 @@ export interface CellContext {
   readonly agent: AgentCell;
   // what follows a committed write: the sockets told what it moved, the alarm set
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
+  // each item's note, which every read and write of a body opened there goes through
+  readonly notes: NoteReach;
 }
 
 const EDIT_UNSTORABLE = "That edit holds a block the library can't keep.";
@@ -129,6 +138,12 @@ const refusalError = (refusal: CellRefusal): Error => {
     case "agent-budget": {
       return new AgentBudgetError({ data: { resetsAt: refusal.resetsAt } });
     }
+    // a write that met a body gone to its note twice over: a fault to send again
+    case "note-opened": {
+      return new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "That item just opened elsewhere. Try again.",
+      });
+    }
     // no default
   }
 };
@@ -148,7 +163,6 @@ const committed = async <T>(context: CellContext, result: CellResult<T>): Promis
 const PAGE_DEFAULT = 50;
 
 const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
-const editedSchema = z.object({ seq: z.number() });
 const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
 const changedSchema = z.object({
   addressHeld: z.array(z.string()),
@@ -160,6 +174,50 @@ const importAnswer = z.object({ job: importJobSchema });
 const rulesAnswer = z.object({ rules: z.string() });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
+
+// an item's body in reading order, read where it lives: the seed the cell kept, or its note, which
+// is read outside any transaction since a cold note's load calls back into the cell
+const bodyOf = async (context: CellContext, itemId: string) => {
+  const held = answer(context.library.read((storage) => heldBody(storage.db, itemId)));
+  if (held === null) {
+    throw new NotFoundError();
+  }
+  if (held.kind === "seed") {
+    return held.blocks;
+  }
+  const read = await context.notes(itemId).read();
+  return noteBlocksSchema.parse(read.blocks);
+};
+
+// Deleted or back, told to each changed item's note once the write committed, so its sockets turn
+// read-only or open again writable; a note that misses it meets the item's place on its next open
+const tellNotesDeleted = async (
+  context: CellContext,
+  ids: readonly string[],
+  deleted: boolean,
+): Promise<void> => {
+  const inNotes = answer(
+    context.library.read((storage) =>
+      ids.filter((id) => {
+        const item = readLiveItem(storage.db, id);
+        return item !== null && bodyInNote(item);
+      }),
+    ),
+  );
+  for (const id of inNotes) {
+    try {
+      await context.notes(id).setDeleted(deleted);
+    } catch (error) {
+      console.warn({ deleted, event: "note-deleted-unsent", ...errorFields(error) });
+    }
+  }
+};
+
+// a write that met a body gone to its note since it looked runs once more, by the note
+const byNoteOnce = async <T>(run: () => Promise<CellResult<T>>): Promise<CellResult<T>> => {
+  const first = await run();
+  return !first.ok && first.refusal.kind === "note-opened" ? await run() : first;
+};
 
 // the cloud's reading of a link a write left waiting: a built-in agent's turn holds it until the
 // turn seals, so the agent never reads, within its turn, a page it saved
@@ -248,10 +306,21 @@ export const libraryRouter = os.router({
         ),
       ),
     ),
-    undo: os.history.undo.handler(
-      async ({ context, input }) =>
-        await committed(context, context.library.undo(context.actor(), input)),
-    ),
+    // the notes an agent's sets wrote in undo first, outside any transaction, each under the
+    // undo's own set; the write then lands what they answered beside the fields
+    undo: os.history.undo.handler(async ({ context, input }) => {
+      const { library } = context;
+      const plan = answer(library.read((storage) => planUndo(storage, input.changeSetIds)));
+      const undoSetId = library.ids.changeSet();
+      const answers: { itemId: string; undone: TurnUndone }[] = [];
+      for (const { itemId, setId } of plan) {
+        answers.push({ itemId, undone: await context.notes(itemId).undoTurn(setId, undoSetId) });
+      }
+      return await committed(
+        context,
+        library.undo(context.actor(), input, { notes: mergeTurnUndos(answers), undoSetId }),
+      );
+    }),
   },
   imports: {
     cancel: os.imports.cancel.handler(
@@ -325,21 +394,23 @@ export const libraryRouter = os.router({
           setDeleted(scope, { deleted: true, ids: input.ids }),
         ),
       );
+      await tellNotesDeleted(context, changed, true);
       return { deleted: changed, missing };
     }),
-    edit: os.items.edit.handler(async ({ context, input }) => {
-      const actor = context.actor();
-      const { library } = context;
-      return await committed(
-        context,
-        library.land(actor, { answer: editedSchema, opId: input.opId }, (scope) =>
-          editItem(scope, cellCodec(scope.storage.db, library.ids), input),
+    edit: os.items.edit.handler(
+      async ({ context, input }) =>
+        await committed(
+          context,
+          await editByNote(
+            { actor: context.actor, library: context.library, notes: context.notes },
+            input,
+          ),
         ),
-      );
-    }),
-    get: os.items.get.handler(({ context, input }) =>
-      answer(context.library.read((storage) => itemWhole(storage, input.id))),
     ),
+    get: os.items.get.handler(async ({ context, input }) => {
+      const blocks = await bodyOf(context, input.id);
+      return answer(context.library.read((storage) => itemWhole(storage, input.id, blocks)));
+    }),
     list: os.items.list.handler(({ context, input }) =>
       answer(
         context.library.read((storage) =>
@@ -365,16 +436,19 @@ export const libraryRouter = os.router({
     purge: os.items.purge.handler(
       async ({ context, input }) => await committed(context, context.library.purgeItems(input)),
     ),
-    read: os.items.read.handler(({ context, input }) =>
-      answer(
+    read: os.items.read.handler(async ({ context, input }) => {
+      const blocks = await bodyOf(context, input.id);
+      return answer(
         context.library.read((storage) =>
-          readItemView(storage, cellCodec(storage.db, context.library.ids), {
-            ...input,
-            responseFormat: input.responseFormat ?? "concise",
-          }),
+          readItemView(
+            storage,
+            cellCodec(storage.db, context.library.ids),
+            { ...input, responseFormat: input.responseFormat ?? "concise" },
+            blocks,
+          ),
         ),
-      ),
-    ),
+      );
+    }),
     // the page is read again by the cloud: the item waits, pending, as a stub saved to read later
     // does
     refresh: os.items.refresh.handler(async ({ context, input }) => {
@@ -400,17 +474,33 @@ export const libraryRouter = os.router({
           return restored;
         }),
       );
+      await tellNotesDeleted(context, changed, false);
       return { addressHeld, missing, restored: changed };
     }),
+    // a page read into an item whose note opened puts its article in the note first, once per op
     save: os.items.save.handler(async ({ context, input }) => {
-      const actor = context.actor();
       const { library } = context;
-      return await committed(
-        context,
-        library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) =>
-          savePage(scope, cellCodec(scope.storage.db, library.ids), input),
-        ),
-      );
+      const saveOnce = async () => {
+        const target = answer(library.read((storage) => pageForNote({ storage }, input.url)));
+        let inNote: NoteProjection | null = null;
+        if (target !== null) {
+          const reply = await context
+            .notes(target.id)
+            .replaceArticle(input.article, `save:${input.opId}`);
+          inNote = reply.kind === "applied" ? reply.projection : null;
+        }
+        return library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
+          const saved = savePage(scope, cellCodec(scope.storage.db, library.ids), {
+            ...input,
+            articleInNote: inNote !== null,
+          });
+          if (target !== null && inNote !== null) {
+            landProjection(scope, target.id, inNote);
+          }
+          return saved;
+        });
+      };
+      return await committed(context, await byNoteOnce(saveOnce));
     }),
     // a stub saved to read later lands `pending`; the cloud's read of its page follows the commit
     saveLink: os.items.saveLink.handler(async ({ context, input }) => {
