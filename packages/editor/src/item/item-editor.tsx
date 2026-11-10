@@ -3,9 +3,9 @@
 // nothing is typed into a value the note then replaces. Each item gets a connection of its own, and
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
-// but takes no edit and says why above the text, and a note that cannot open with no connection
-// shows what the host holds of it until it opens. A formula's display follows the pills it names,
-// and the desktop draws the outline beside the text.
+// but takes no edit and says why above the text, and a note whose opening stalled shows what the
+// host holds of it until it opens. A formula's display follows the pills it names, and the desktop
+// draws the outline beside the text.
 
 import {
   useEffect,
@@ -244,10 +244,10 @@ const noticeOf = (edits: NoteEdits): string | null => {
   }
 };
 
-// A note that cannot open with no connection: what the host holds of the item, read once as this
-// mounts, drawn read-only under the words every screen says of it. Nothing held, or a read that
-// fails, leaves the words alone.
-const HeldOffline = ({ itemId }: { itemId: string }) => {
+// A note whose opening stalled, with no connection or no socket within the grace: what the host
+// holds of the item, read once as this mounts and kept until the note opens, drawn read-only under
+// the words every screen says of it. Nothing held, or a read that fails, leaves the words alone.
+const StalledItem = ({ itemId }: { itemId: string }) => {
   const profile = useEditorProfile();
   const [held, setHeld] = useState<readonly LibraryBlock[] | null>(null);
   useEffect(() => {
@@ -282,7 +282,6 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [note] = useState(() => followNote(itemId, host));
   const status = useSyncExternalStore(note.subscribe, note.status);
-  const offline = useSyncExternalStore(host.onOfflineChange, host.offline);
   const announce = useEffectEvent((next: OpenNote | null) => {
     onNote(next);
   });
@@ -302,7 +301,7 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
     );
   }
   if (status.kind === "opening") {
-    return offline ? <HeldOffline itemId={itemId} /> : null;
+    return status.stalled ? <StalledItem itemId={itemId} /> : null;
   }
   return (
     <BoundSurface

@@ -467,11 +467,12 @@ alone, and no walk narrows structurally.
   editor reads the same flag: the find bar offers no replace, the touch toolbar
   draws nothing and no formula recomputes. An edit typed while the socket was
   going stays in the document, which the provider's sync hands the note once the
-  socket is back. A note that cannot open while the host is offline draws what
-  the host holds of it (`readItemBlocks`) read-only under the same words, until
-  the note opens, so an item the phone opened before reads on a plane; a host
-  holding none, or whose read fails, shows the words alone
-  (`packages/editor/src/item/held-item.tsx`). Rejected: queueing an edit
+  socket is back. A note whose opening stalls, the host offline or no socket
+  open within 3 s, draws what the host holds of it (`readItemBlocks`)
+  read-only under the same words, and keeps it until the note opens, so an
+  item the phone opened before reads on a plane and coming back online shows
+  no blank frame; a host holding none, or whose read fails, shows the words
+  alone (`packages/editor/src/item/held-item.tsx`). Rejected: queueing an edit
   offline (the cloud is the truth, and a queue that outlives the tab is a
   second writer); a read-only flag of the editor's own (every node and toolbar
   already reads Plate's); a read-only check inside each handler (a new plugin

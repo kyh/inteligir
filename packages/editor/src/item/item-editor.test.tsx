@@ -281,7 +281,7 @@ describe("an item's surface with no connection", () => {
     expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
   });
 
-  it("draws what the host holds of a note it cannot open, read-only, until the note opens live", async () => {
+  it("draws what the host holds of a note it cannot open, read-only, through its reconnect until it opens", async () => {
     const ticket = deferred<string>();
     const host = installFakeEditorHost({
       itemBlocks: (itemId) => (itemId === A ? [paragraph("a1", "A as held")] : null),
@@ -296,6 +296,10 @@ describe("an item's surface with no connection", () => {
     act(() => {
       host.goOffline(false);
     });
+    await act(async () => {
+      await delay(0);
+    });
+    expect(screen.getByText("A as held")).toBeDefined();
     ticket.resolve("ticket");
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     expect(screen.queryByText("A as held")).toBeNull();

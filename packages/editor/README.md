@@ -158,9 +158,10 @@ src/
   while the host is offline, the socket down, the note held or a frame
   refused, and the open
   note it hands its host (`onNote`) answers a leave (`whenSaved`), which
-  `item/note-holds.ts` asks before a host lets the note go. A note that cannot
-  open while the host is offline draws what the host holds of it through
-  `item/held-item.tsx`, read-only under a line saying why; the item editor
+  `item/note-holds.ts` asks before a host lets the note go. A note whose
+  opening stalls (the host offline, or no socket within the grace) draws what
+  the host holds of it through `item/held-item.tsx` until it opens, read-only
+  under a line saying why; the item editor
   imports it, and no host does.
   `item/item-properties.ts` is the panel's rows over an item's
   fields as its host holds them (`ItemFields`). A link to an item by id shows
