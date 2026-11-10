@@ -5,7 +5,8 @@
 // asked from (a card's menu, a button, Settings), says so in one notice the page keeps up while
 // any waits.
 
-import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
+import { refusalText } from "@repo/contract/refusal-text";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager, useIsMutating } from "@tanstack/react-query";

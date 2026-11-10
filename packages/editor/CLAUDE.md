@@ -350,10 +350,10 @@ alone, and no walk narrows structurally.
 
 - **AN ITEM IS EDITED BY ITS ID, OVER ITS NOTE'S LIVE DOCUMENT, DRAWN ONCE
   THAT HAS SYNCED.** `noteConnection` dials the note's object with
-  y-partyserver's provider through the host's `notes` port (`NoteHost`: a
-  fresh ticket each dial, the note's path, whether the host is offline),
-  presence off, and shows a document only once it has synced, so no device
-  seeds a note and nothing is typed into a value the note then replaces
+  y-partyserver's provider through the host's `notes` port (`NoteHost`: the
+  cloud's origin, a fresh ticket each dial, the note's path, whether the host
+  is offline), presence off, and shows a document only once it has synced, so
+  no device seeds a note and nothing is typed into a value the note then replaces
   (`packages/editor/src/item/note-connection.ts`). The item editor binds it
   (`packages/editor/src/item/item-editor.tsx`): a connection per item id, an
   editor per document, drawn anew over each connect, which hands the editor
@@ -376,7 +376,9 @@ alone, and no walk narrows structurally.
   Rejected: a session writing block ops after a pause (a diff, a merge and a
   conflict path a live document has no need of); seeding a document from a
   device (two opening an empty note would each write one); presence (no
-  surface draws it); waiting for a quiet socket's close (it can take minutes).
+  surface draws it); waiting for a quiet socket's close (it can take minutes);
+  the page's own location (a page loaded from a file or a dev server is not
+  the cloud).
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
   SHA.** `openItem`, `readItemBlocks`, `onItemsChanged` and `notes` (a note's
@@ -454,11 +456,16 @@ alone, and no walk narrows structurally.
   editor reads the same flag: the find bar offers no replace, the touch toolbar
   draws nothing and no formula recomputes. An edit typed while the socket was
   going stays in the document, which the provider's sync hands the note once the
-  socket is back. Rejected: queueing an edit offline (the cloud is the truth,
-  and a queue that outlives the tab is a second writer); a read-only flag of the
-  editor's own (every node and toolbar already reads Plate's); a read-only check
-  inside each handler (a new plugin would miss it, where `editOnly` is Plate's
-  own gate). `packages/editor/src/item/item-editor.tsx`.
+  socket is back. A note that cannot open while the host is offline draws what
+  the host holds of it (`readItemBlocks`) read-only under the same words, until
+  the note opens; a host holding none, or whose read fails, shows the words
+  alone (`packages/editor/src/item/held-item.tsx`). Rejected: queueing an edit
+  offline (the cloud is the truth, and a queue that outlives the tab is a
+  second writer); a read-only flag of the editor's own (every node and toolbar
+  already reads Plate's); a read-only check inside each handler (a new plugin
+  would miss it, where `editOnly` is Plate's own gate); a blank surface until
+  the note opens (an item read before shows nothing on a plane).
+  `packages/editor/src/item/item-editor.tsx`.
 
 - **A KEY TYPED BEFORE A PICKER'S INPUT HAS FOCUS IS ITS QUERY.** Between a
   trigger opening a picker (the slash menu, `[[`, `{{`) and its input taking
@@ -499,6 +506,17 @@ alone, and no walk narrows structurally.
   `packages/editor/src/live/yjs-binding.ts`,
   `packages/editor/src/live/note-blocks.ts`,
   `packages/editor/src/live/body-change.ts`.
+
+- **THE EDITOR AND `@repo/ui` REACH NO oRPC MODULE.** The phone's editor page is
+  a Metro DOM bundle, which Expo compiles with classes transpiled to functions,
+  and oRPC's builder dies under that at boot while typecheck and the export stay
+  green, so lint refuses `@orpc/*` and every module of `@repo/contract` that
+  reaches it (`v1`, `v1/errors`, `refusal-text`, the library's contract and
+  `call-outcome`) under `packages/editor/src` and `packages/ui/src`. What a
+  screen says with no connection is `@repo/contract/needs-connection`, apart
+  from the refusal rule. Rejected: stubbing the module for the page's bundle (a
+  second spelling of one import, which the web's bundle would not share); a
+  Babel override (Expo offers none for a DOM component). `oxlint.config.ts`.
 
 ## The grammar, links and a file's facts
 

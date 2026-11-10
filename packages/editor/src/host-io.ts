@@ -61,9 +61,12 @@ export interface EditorHostIo {
   readonly notes: NoteHost;
 }
 
-// How a note's live document is reached (`item/note-connection.ts`): its socket dials the page's
-// own host, at the path the Worker answers the note at, on the account socket's ticket.
+// How a note's live document is reached (`item/note-connection.ts`): its socket dials the cloud's
+// origin, at the path the Worker answers the note at, on the account socket's ticket.
 export interface NoteHost {
+  // the cloud's origin (`https://…`), named by the host, since a page loaded from a file or a dev
+  // server has a location of its own
+  readonly socketOrigin: string;
   // asked again on every dial, so a ticket that ran out is never sent twice
   readonly socketTicket: () => Promise<string>;
   readonly notePath: (itemId: string) => string;

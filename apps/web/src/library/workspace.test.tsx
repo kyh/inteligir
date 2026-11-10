@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { getEditorHostActions } from "@repo/editor/host-io";

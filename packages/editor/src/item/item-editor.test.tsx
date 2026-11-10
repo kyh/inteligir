@@ -14,7 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type * as Y from "yjs";
 
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
 import { deferred } from "@repo/editor/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
@@ -22,7 +22,7 @@ import { openFindBar } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { readBlocks, seedDoc } from "@repo/editor/live/note-blocks";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { NOTES_ORIGIN, installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { docNodes, liveEditor } from "../test-support/live-notes";
 import { noteServer } from "../test-support/note-server";
@@ -130,6 +130,16 @@ describe("an item's surface", () => {
     });
     expect(textsOf(server.note(B).doc)).toStrictEqual(["B one"]);
     expect(server.open(A)).toStrictEqual([]);
+  });
+
+  it("dials the note at the cloud the host names, never the page's own location", async () => {
+    const server = oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    expect(location.origin).not.toBe(NOTES_ORIGIN);
+    expect(server.sockets.map(({ url }) => url.split("?")[0])).toStrictEqual([
+      `wss://notes.test/v1/notes/${A}`,
+    ]);
   });
 
   it("keeps its note when the host draws it again", async () => {
@@ -240,6 +250,46 @@ describe("an item's surface with no connection", () => {
     server.answer = "hang";
     render(<Host itemId={A} />);
     await expect(screen.findByText(NEEDS_CONNECTION)).resolves.toBeDefined();
+    expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
+  });
+
+  it("draws what the host holds of a note it cannot open, read-only, until the note opens live", async () => {
+    const ticket = deferred<string>();
+    const host = installFakeEditorHost({
+      itemBlocks: (itemId) => (itemId === A ? [paragraph("a1", "A as held")] : null),
+      offline: true,
+      socketTicket: async () => await ticket.promise,
+    });
+    oneNote();
+    render(<Host itemId={A} />);
+    await expect(screen.findByText("A as held")).resolves.toBeDefined();
+    expect(screen.getByText(NEEDS_CONNECTION)).toBeDefined();
+    expect(editable()).toBeNull();
+    act(() => {
+      host.goOffline(false);
+    });
+    ticket.resolve("ticket");
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    expect(screen.queryByText("A as held")).toBeNull();
+    expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
+    expect(editable()).not.toBeNull();
+  });
+
+  it("says only that it needs a connection when the host's read of the note fails", async () => {
+    const itemBlocks = vi.fn<(itemId: string) => readonly LibraryBlock[] | null>(() => {
+      throw new Error("no connection");
+    });
+    installFakeEditorHost({ itemBlocks, offline: true });
+    const server = oneNote();
+    server.answer = "hang";
+    render(<Host itemId={A} />);
+    await waitFor(() => {
+      expect(itemBlocks).toHaveBeenCalledWith(A);
+    });
+    await act(async () => {
+      await delay(0);
+    });
+    expect(screen.getByText(NEEDS_CONNECTION)).toBeDefined();
     expect(document.querySelector('[data-slate-editor="true"]')).toBeNull();
   });
 

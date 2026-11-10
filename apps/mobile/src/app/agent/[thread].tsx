@@ -12,7 +12,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {

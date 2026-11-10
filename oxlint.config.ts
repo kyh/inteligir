@@ -144,6 +144,16 @@ const ORPC_V1_NAMES = [
   },
 ];
 
+// The phone's editor page is a Metro DOM bundle, which Expo compiles with classes transpiled to
+// functions, and oRPC's builder dies under that at boot ("Cannot call a class as a function") while
+// typecheck and export stay green. Every module of @repo/contract that reaches oRPC is named.
+const NO_ORPC_IN_PAGE = {
+  message:
+    "the phone's DOM bundle transpiles classes and oRPC's builder dies under it: the editor and @repo/ui reach no oRPC module (NEEDS_CONNECTION is @repo/contract/needs-connection)",
+  regex:
+    "^(?:@orpc/|@repo/contract/(?:v1(?:/|$)|refusal-text$|library/(?:library-contract|call-outcome)$))",
+};
+
 type ImportPattern =
   | { readonly message: string; readonly regex: string }
   | { readonly message: string; readonly group: readonly string[] };
@@ -156,10 +166,15 @@ const restrictedImports = (patterns: readonly ImportPattern[]) => [
 ];
 
 // A test is one of the package's callers, so it may hand the code under test the platform.
-const platformPurity = (dir: string, regex: string, message: string) => ({
+const platformPurity = (
+  dir: string,
+  regex: string,
+  message: string,
+  ...more: readonly ImportPattern[]
+) => ({
   excludeFiles: tests,
   files: [`${dir}/src/**`],
-  rules: { "no-restricted-imports": restrictedImports([{ message, regex }]) },
+  rules: { "no-restricted-imports": restrictedImports([{ message, regex }, ...more]) },
 });
 
 export default defineConfig({
@@ -259,6 +274,7 @@ export default defineConfig({
       "packages/editor",
       NODE,
       "@repo/editor imports no node module: it runs in the page, in the phone's WebView, and headless in the Worker, whose cell reads and writes markdown through its codec",
+      NO_ORPC_IN_PAGE,
     ),
     platformPurity(
       "packages/page-reader",
@@ -284,6 +300,7 @@ export default defineConfig({
       "packages/ui",
       NODE,
       "@repo/ui is browser-only: the library's page, the extension's pages and the site's server-rendered pages draw it",
+      NO_ORPC_IN_PAGE,
     ),
     {
       // the one place the library's rows become the connector's tools

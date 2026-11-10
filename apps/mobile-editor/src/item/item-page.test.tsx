@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
 import { MISSING_ITEM } from "@repo/editor/item/item-editor";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { noteFields, paragraph } from "@repo/contract/test-support/library-items";
 
 import { connectPageBridge } from "../bridge/page-bridge";

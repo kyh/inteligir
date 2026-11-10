@@ -29,7 +29,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
-import { NEEDS_CONNECTION, refusalText } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
+import { refusalText } from "@repo/contract/refusal-text";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { ItemKind } from "@repo/contract/items/item-kind";

@@ -67,13 +67,14 @@ is parsed in `shell/desktop-bridge.ts`.
   whose order matters shares a `scope`, and refetches in its own callbacks,
   awaited, only the family it moved. A read a press must act on is a mutation
   too, so it waits under that notice and in that scope, retried as a query is.
-  The words are one constant, `NEEDS_CONNECTION`, beside the refusal rule, and
-  the editor's item and the phone say it too, so every device says one thing
-  of a call that waits. Rejected: a call outside TanStack (it fails at once
-  offline); a note per button (a menu's verb has none); the words spelled per
-  surface (each a copy to keep in step).
+  The words are one constant, `NEEDS_CONNECTION`, and the editor's item and
+  the phone say it too, so every device says one thing of a call that waits.
+  Rejected: a call outside TanStack (it fails at once offline); a note per
+  button (a menu's verb has none); the words spelled per surface (each a copy
+  to keep in step).
   `apps/web/src/library/cloud/v1.ts`,
   `apps/web/src/library/cloud/needs-connection.tsx`, over
+  `packages/contract/src/needs-connection.ts` and
   `packages/contract/src/refusal-text.ts`.
 
 - **THE LIBRARY IS ONE CHUNK, AND CATCHES UP AS ITS CONNECTION RETURNS.**
@@ -122,7 +123,8 @@ is parsed in `shell/desktop-bridge.ts`.
   asks the note whether it stored every edit made here and goes once it says
   so; a socket that drops meanwhile answers by what was unsent, and only an
   edit no connection carried asks first
-  (`apps/web/src/library/item/leave-item.ts`). Residual: an edit typed into a
+  (`apps/web/src/library/item/leave-item.ts`, over
+  `packages/editor/src/item/note-holds.ts`). Residual: an edit typed into a
   socket that died unseen, before the ping finds it, counts as carried, so a
   leave in that window loses it. Rejected: a listener always armed (it bars
   the back-forward cache); waiting on the note's save alone (it is never

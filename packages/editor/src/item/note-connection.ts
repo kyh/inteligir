@@ -1,9 +1,9 @@
 // A note's live document, opened by its item's id: y-partyserver's provider dials the note's object
-// on the account socket's ticket, and a document is shown only once it has synced, so a device
-// never seeds a note. On top of the provider's own redial, a ping every 20 s finds a socket gone
-// quiet, and a page shown again or a connection back probes at once. The status is one value:
-// whether the note is there, whether an edit reaches it now, and whether the note holds every edit
-// back, which the note's object says itself.
+// at the cloud origin the host names, on the account socket's ticket, and a document is shown only
+// once it has synced, so a device never seeds a note. On top of the provider's own redial, a ping
+// every 20 s finds a socket gone quiet, and a page shown again or a connection back probes at once.
+// The status is one value: whether the note is there, whether an edit reaches it now, and whether
+// the note holds every edit back, which the note's object says itself.
 
 import YProvider from "y-partyserver/provider";
 import * as Y from "yjs";
@@ -193,14 +193,15 @@ class LiveNote implements NoteConnection {
     this.drop();
     this.socketUp = false;
     this.stopHeartbeat();
-    const provider = new YProvider(location.host, this.itemId, doc, {
+    const cloud = new URL(this.host.socketOrigin);
+    const provider = new YProvider(cloud.host, this.itemId, doc, {
       // read at each dial rather than when the module loaded, as the provider's default is
       WebSocketPolyfill: WebSocket,
       connect: false,
       disableBc: true,
       params: async () => ({ ticket: await this.host.socketTicket() }),
       prefix: this.host.notePath(this.itemId),
-      protocol: location.protocol === "https:" ? "wss" : "ws",
+      protocol: cloud.protocol === "https:" ? "wss" : "ws",
     });
     // presence is off: the default awareness stays, holding nothing of this device
     provider.awareness.setLocalState(null);

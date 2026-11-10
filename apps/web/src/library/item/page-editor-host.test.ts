@@ -73,7 +73,7 @@ describe("the page's editor host", () => {
     expect(sent).toStrictEqual([`PUT ${ORIGIN}/v1/blobs/${fileSha(bytes)}`]);
   });
 
-  it("dials a note on the account socket's ticket, and is offline the moment the browser says so", async () => {
+  it("dials a note on the cloud's origin with the account socket's ticket, and is offline the moment the browser says so", async () => {
     install(refused);
     const { notes } = getEditorHostIo();
     let heard = 0;
@@ -81,6 +81,7 @@ describe("the page's editor host", () => {
       heard += 1;
     });
 
+    expect(notes.socketOrigin).toBe(ORIGIN);
     await expect(notes.socketTicket()).resolves.toBe("a-ticket");
     expect(notes.notePath(PLANS)).toBe(`/v1/notes/${PLANS}`);
     expect(notes.offline()).toBe(false);

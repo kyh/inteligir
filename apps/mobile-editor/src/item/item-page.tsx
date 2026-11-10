@@ -5,7 +5,7 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { NEEDS_CONNECTION } from "@repo/contract/refusal-text";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { HeldItem } from "@repo/editor/item/held-item";
 import { MISSING_ITEM } from "@repo/editor/item/item-editor";
@@ -92,7 +92,7 @@ const ItemBody = ({ bridge, itemId }: { bridge: PageBridge; itemId: string }) =>
         <HeldItem
           key={shown.read}
           itemId={itemId}
-          blocks={shown.item.blocks}
+          blocks={shown.item.blocks.map(({ block }) => block)}
           notice={PHONE_READS_ONLY}
         />
       );
