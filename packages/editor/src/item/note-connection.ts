@@ -36,6 +36,9 @@ export interface NoteConnection {
   // true once the note has stored every edit this device made before the call; false when the
   // connection closes, or drops the document, first
   readonly whenSaved: () => Promise<boolean>;
+  // an edit made here while no connection could carry it, which the note may not hold until the
+  // socket syncs again; `subscribe` hears it turn
+  readonly unsent: () => boolean;
   // dials, and follows the note until `close`; a start after a close opens it afresh
   readonly start: () => void;
   readonly close: () => void;
@@ -96,6 +99,7 @@ class LiveNote implements NoteConnection {
   // this device's edits to the shown document, and how many of them the note confirmed stored
   private edits = 0;
   private confirmed = 0;
+  private editedUnsent = false;
   private waiters: Waiter[] = [];
   private stopOffline: (() => void) | null = null;
 
@@ -105,6 +109,8 @@ class LiveNote implements NoteConnection {
   }
 
   readonly status = (): NoteStatus => this.current;
+
+  readonly unsent = (): boolean => this.editedUnsent;
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -139,6 +145,7 @@ class LiveNote implements NoteConnection {
     this.held = null;
     this.edits = 0;
     this.confirmed = 0;
+    this.editedUnsent = false;
     this.setStatus({ kind: "opening" });
     this.stopOffline = this.host.onOfflineChange(() => {
       if (!this.host.offline()) {
@@ -202,6 +209,9 @@ class LiveNote implements NoteConnection {
     doc.on("update", (_update, origin) => {
       if (origin !== provider && !link.dead && doc === this.shown) {
         this.edits += 1;
+        if (!this.socketUp || !link.synced || this.host.offline()) {
+          this.markUnsent(true);
+        }
       }
     });
     provider.on("status", ({ status }: ProviderStatus) => {
@@ -279,6 +289,8 @@ class LiveNote implements NoteConnection {
     }
   }
 
+  // A sync hands the note what this document holds that it lacks, the edits made while no socket
+  // carried them among it.
   private onSynced(link: Link): void {
     link.synced = true;
     this.held = link.greeted;
@@ -287,8 +299,19 @@ class LiveNote implements NoteConnection {
       this.edits = 0;
       this.confirmed = 0;
     }
+    this.markUnsent(false);
     this.refresh();
     this.ask(link);
+  }
+
+  private markUnsent(unsent: boolean): void {
+    if (this.editedUnsent === unsent) {
+      return;
+    }
+    this.editedUnsent = unsent;
+    for (const listener of this.listeners) {
+      listener();
+    }
   }
 
   private onMessage(link: Link, message: string): void {

@@ -1,7 +1,12 @@
 import { createSlateEditor } from "platejs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getLiveEditor, liveEditorItemId, registerLiveEditor } from "@repo/editor/live-editor";
+import {
+  getLiveEditor,
+  liveEditorItemId,
+  onLiveEditor,
+  registerLiveEditor,
+} from "@repo/editor/live-editor";
 
 const cleanups: (() => void)[] = [];
 
@@ -29,5 +34,24 @@ describe("the live editors, by the item each holds", () => {
     cleanups.push(registerLiveEditor("item-a", incoming));
     offOutgoing();
     expect(getLiveEditor("item-a")).toBe(incoming);
+  });
+
+  it("hands a waiter the item's editor now, or once it first answers, and none after a stop", () => {
+    const heard: string[] = [];
+    const early = createSlateEditor();
+    const stopped = onLiveEditor("item-b", () => {
+      heard.push("stopped");
+    });
+    stopped();
+    onLiveEditor("item-b", (editor) => {
+      heard.push(editor === early ? "waited" : "another");
+    });
+    expect(heard).toStrictEqual([]);
+    cleanups.push(registerLiveEditor("item-b", early));
+    onLiveEditor("item-b", (editor) => {
+      heard.push(editor === early ? "now" : "another");
+    });
+    cleanups.push(registerLiveEditor("item-b", createSlateEditor()));
+    expect(heard).toStrictEqual(["waited", "now"]);
   });
 });

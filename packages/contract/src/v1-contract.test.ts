@@ -55,6 +55,7 @@ const LIBRARY_READS = new Set([
   "items.get",
   "items.list",
   "items.read",
+  "items.row",
   "listing.page",
   "listing.scopes",
   "listing.titles",

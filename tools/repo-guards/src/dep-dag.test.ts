@@ -533,9 +533,9 @@ describe("the contract", () => {
 
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
-    expect(isTestFile("packages/contract/src/library/block-ops.test.ts")).toBe(true);
+    expect(isTestFile("packages/contract/src/library/field-ops.test.ts")).toBe(true);
     expect(isTestFile("packages/service/src/test-support/library-cell.ts")).toBe(true);
     expect(isTestFile("tools/e2e/src/scenarios/agent-cell.ts")).toBe(false);
-    expect(isTestFile("packages/contract/src/library/block-ops.ts")).toBe(false);
+    expect(isTestFile("packages/contract/src/library/field-ops.ts")).toBe(false);
   });
 });

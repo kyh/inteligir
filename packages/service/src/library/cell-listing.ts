@@ -28,15 +28,13 @@ import { liveFolders } from "./cell-folders";
 import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
-// an item's row and its body's blocks, read from where the body lives; one emptied from Deleted is
-// no item
-export const itemWhole = (storage: CellStorage, id: string, blocks: readonly BodyBlock[]) => {
+// an item's row as the apps read it; one emptied from Deleted is no item
+export const itemRow = (storage: CellStorage, id: string) => {
   const item = readItem(storage.db, id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
   return {
-    blocks: [...blocks],
     card: answerCard(item.card),
     fields: item.fields,
     id,
@@ -45,6 +43,12 @@ export const itemWhole = (storage: CellStorage, id: string, blocks: readonly Bod
     updatedAt: item.updatedAt,
   };
 };
+
+// an item's row and its body's blocks, read from where the body lives
+export const itemWhole = (storage: CellStorage, id: string, blocks: readonly BodyBlock[]) => ({
+  ...itemRow(storage, id),
+  blocks: [...blocks],
+});
 
 // every item the library holds (none purged), with the folders a listing files them under
 export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {

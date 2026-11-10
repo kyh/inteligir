@@ -3,14 +3,14 @@
 // the value the item holds. A value the panel cannot edit (an object, a list that is not all
 // words) is drawn as it is and never written.
 
-import type { LibraryOp } from "@repo/contract/library/block-ops";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { z } from "zod";
 
 import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";
 
-type PropertyOp = Extract<LibraryOp, { op: "property" }>;
+type PropertyOp = Extract<FieldOp, { op: "property" }>;
 
 // the item as its host holds it: its fields, null while they are still to come, and the write of
 // one property op over them

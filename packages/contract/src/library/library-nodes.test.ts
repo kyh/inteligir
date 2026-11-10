@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BLOCK_MAX_BYTES,
+  BLOCK_MAX_DEPTH,
   LIST_MAX_INDENT,
   collectFileShas,
   libraryBlockSchema,
   libraryNodeSchema,
   storableBlockSchema,
 } from "./library-nodes";
+import type { LibraryNode } from "./library-nodes";
 
 const leaf = [{ text: "" }];
 const sha = "a".repeat(64);
@@ -196,6 +199,32 @@ describe("the persisted node set", () => {
   it("stores what it parses as written", () => {
     const [first] = EVERY_BLOCK;
     expect(storableBlockSchema.parse(first)).toStrictEqual(first);
+  });
+});
+
+// built bottom up, so a depth no recursion survives can still be made
+const nested = (depth: number): LibraryNode => {
+  let node: LibraryNode = { text: "deep" };
+  for (let level = 1; level <= depth; level += 1) {
+    node = { children: [node], type: "blockquote" };
+  }
+  return node;
+};
+
+describe("a block the library stores", () => {
+  it("refuses a block nested past the limit before the recursive parse reads it", () => {
+    const tooDeep = { children: [nested(BLOCK_MAX_DEPTH + 5)], id: "deep", type: "blockquote" };
+    const parsed = storableBlockSchema.safeParse(tooDeep);
+    expect(parsed.success).toBe(false);
+    expect(JSON.stringify(parsed.error?.issues)).toContain("nests deeper");
+    const pathological = { children: [nested(20_000)], id: "deeper", type: "blockquote" };
+    expect(storableBlockSchema.validate(pathological)).toBe(false);
+  });
+
+  it("refuses a block larger than a row may hold", () => {
+    const big = { children: [{ text: "x".repeat(BLOCK_MAX_BYTES) }], id: "big", type: "p" };
+    const parsed = storableBlockSchema.safeParse(big);
+    expect(JSON.stringify(parsed.error?.issues)).toContain("larger than");
   });
 });
 

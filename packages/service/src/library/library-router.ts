@@ -57,7 +57,7 @@ import {
 } from "./cell-items";
 import { bodyInNote, landProjection } from "./cell-notes";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { itemWhole, listingOf, listingPage } from "./cell-listing";
+import { itemRow, itemWhole, listingOf, listingPage } from "./cell-listing";
 import {
   listChangeSets,
   listItems,
@@ -477,6 +477,9 @@ export const libraryRouter = os.router({
       await tellNotesDeleted(context, changed, false);
       return { addressHeld, missing, restored: changed };
     }),
+    row: os.items.row.handler(({ context, input }) =>
+      answer(context.library.read((storage) => itemRow(storage, input.id))),
+    ),
     // a page read into an item whose note opened puts its article in the note first, once per op
     save: os.items.save.handler(async ({ context, input }) => {
       const { library } = context;

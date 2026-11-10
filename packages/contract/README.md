@@ -7,7 +7,7 @@ by the account's library cell, typed by every client as `V1Client`. Beside it
 are the plain-HTTP routes it names (a file's bytes, the account's socket), the
 build every request names, `extension/`, the browser extension's identity and
 the messages the site's connect page tells it where the site is with, and the
-model: an item's fields and blocks, their ops, order and hashes, a url's key and
+model: an item's fields and blocks, its field ops, a folder's order, a url's key and
 what a page's reading keeps. Its decisions are this package's
 [`CLAUDE.md`](CLAUDE.md).
 
@@ -52,10 +52,9 @@ src/
                        #   the agent's events, a file's route, the socket's frames, the socket client
                        #   every app dials (account-socket.ts) and what a failed call means (call-outcome.ts);
                        #   and the model: the persisted node set (library-nodes.ts), an item's capped fields
-                       #   (library-item.ts), what each make's fields are (item-makes.ts), the block ops
-                       #   each naming its base (block-ops.ts), a field's merge and sameness
-                       #   (field-ops.ts), a block's place (block-order.ts) over the order keys folders
-                       #   share (order-key.ts), a block's hash (block-hash.ts) over the content hash
+                       #   (library-item.ts), what each make's fields are (item-makes.ts), the field ops
+                       #   each naming its base, a list's merge and sameness (field-ops.ts), the order
+                       #   keys a folder sits among its siblings by (order-key.ts), the content hash
                        #   (content-hash.ts), one spelling of a JSON value, the card, text and links
                        #   derived from an item (derive-item.ts), the listing over the cell's rows in
                        #   memory (library-index.ts) and a sortable id
@@ -119,8 +118,8 @@ src/
   but for `BAD_REQUEST`, which says the call can never land as it is.
 - **Every library write takes an optional `opId`**, which the cell keeps, so
   a save queue resending after a lost answer lands once; the test names each read
-  it exempts. A write names the base it was computed from (a block's hash, a
-  field's value), and `CONFLICT` carries what it met.
+  it exempts. A field write names the value it was computed from, and
+  `CONFLICT` carries what it met; a body is its note's, written live.
 - **No row is named after a property every function has** (`apply`, `call`,
   `bind`): a client's path is read off a proxy over a function, so
   `client.library.apply` would be `Function.prototype.apply` (hence

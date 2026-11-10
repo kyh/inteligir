@@ -1,7 +1,7 @@
 # Decisions: @repo/contract
 
 `/v1`'s one wire, and the library model both ends of it validate against: an
-item's fields and blocks, their ops, order and hashes, the listing over the
+item's fields and blocks, its field ops, a folder's order, the listing over the
 cell's rows, a url's key and what a file is. `AGENTS.md` § Decisions says how
 a bullet is written and cited.
 
@@ -34,7 +34,7 @@ the service's (`packages/service/CLAUDE.md`).
   (the phone's native end parses its editor page's blocks by it, and loads no
   Plate), a tag node (two spellings of
   one tag), an id inside a block (Plate names those again in every editor, so
-  one block would hash apart), a wiki link or an opaque source node beside the
+  one block would read apart on each), a wiki link or an opaque source node beside the
   mention (a second spelling of every link, and markup no editor edits), and
   loose objects (a prop no reader draws).
 
@@ -54,31 +54,30 @@ the service's (`packages/service/CLAUDE.md`).
   columns).
   `packages/contract/src/library/derive-item.ts`.
 
-- **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
-  VALUE.** `@repo/contract/library/block-ops`: insert, put, drop, move and the
-  field patches each name their base; a batch lands whole or answers every
-  conflict, an op already true is satisfied, a list field merges as a set
-  (`@repo/contract/library/field-ops`), so two devices tagging at once both
-  land, a tag respelled takes its new spelling where it stands, and a batch
-  whose landed fields break a cap (a merge past the list's length) lands none
-  and answers `invalid`.
-  The hash is SHA-256 over canonical JSON (`@noble/hashes`, synchronous for
-  the cell's transaction) cut to 128 bits, `@repo/contract/library/content-hash`
-  over the JSON's text. Rejected: one version per item (two blocks would
-  conflict) and the platform's crypto (async in a Durable Object, absent from
-  Hermes).
-  `packages/contract/src/library/block-ops.test.ts`,
+- **A FIELD IS GUARDED BY ITS VALUE, AND A BODY IS NO OP.**
+  `@repo/contract/library/field-ops`: set, tags, aliases and property each
+  name the value they were computed from; a batch lands whole or answers every
+  conflict, an op already true is satisfied, a list field merges as a set, so
+  two devices tagging at once both land, a tag respelled takes its new
+  spelling where it stands, and a batch whose landed fields break a cap (a
+  merge past the list's length) lands none and answers `invalid`. A body is
+  its note's live document, which every device and the agent edit at once
+  (`packages/service/CLAUDE.md`), so the wire carries a body only whole: a
+  read answers its blocks in reading order, each in its `section`, and a
+  create sends them so. Rejected: block ops guarded by a hash beside the live
+  document (two writers of one body, and a merge to settle them); one version
+  per item (two fields would conflict).
   `packages/contract/src/library/field-ops.test.ts`.
 
-- **A BLOCK'S PLACE IS A FRACTIONAL KEY, READ NOTE BEFORE ARTICLE.**
-  `@repo/contract/library/order-key` mints keys with `fractional-indexing`, a
-  folder's sort among its siblings too, and `isOrdKey` holds a key to the
-  whole format, since the library checks only its head and its last digit.
-  `@repo/contract/library/block-order` reads a block's place: equal keys from
-  two devices order by block id, and `placeInOrder` restores every old key
-  when they all still fit, else moves the fewest blocks. Rejected: integer
-  positions (an insert renumbers, and two renumberings conflict) and
-  interleaving the sections (a fill's keys would thread through the person's).
+- **A FOLDER'S PLACE IS A FRACTIONAL KEY.** `@repo/contract/library/order-key`
+  mints a folder's sort among its siblings with `fractional-indexing`, and
+  `isOrdKey` holds a key to the whole format, since the library checks only
+  its head and its last digit. `@repo/contract/library/content-hash` is
+  SHA-256 over a text (`@noble/hashes`, synchronous for the cell's
+  transaction) cut to 128 bits, the key a change set's part and a heading's
+  fold are kept under. Rejected: integer positions (an insert renumbers, and
+  two renumberings conflict); the platform's crypto (async in a Durable
+  Object, absent from Hermes).
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
   `@repo/contract/library/library-index` holds the cell's listing rows, typed by
