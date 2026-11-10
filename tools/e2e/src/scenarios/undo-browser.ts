@@ -24,15 +24,22 @@ export const undoBrowser: Scenario = {
   name: "undo-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let itemId = "";
-    const { browser, library } = await openLibraryTab(ctx, "undo", {
-      path: () => `?item=${itemId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: itemId,
+    } = await openLibraryTab(
+      ctx,
+      "undo",
+      async (seeding) => {
         const { item } = await seeding.items.createNote({ markdown: DOC, title: TITLE });
-        itemId = item.id;
+        return item.id;
       },
-    });
+      {
+        path: (id) => `?item=${id}`,
+        ready: EDITOR,
+      },
+    );
     await untilEditorHolds(browser, (text) => text.includes(KEPT), "the item never opened");
 
     ctx.log("a turn of the agent rewrites the first line, and the open item shows it");

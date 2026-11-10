@@ -398,29 +398,32 @@ export const phoneNoteEditor: Scenario = {
     });
     const pageUrl = await exportedPage(ctx.repoRoot);
 
-    let itemId = "";
-    let otherId = "";
-    const mac = await openLibraryTab(ctx, "mac", {
-      path: () => `?item=${itemId}`,
-      ready: EDITOR,
-      seed: async (library) => {
+    const mac = await openLibraryTab(
+      ctx,
+      "mac",
+      async (library) => {
         const other = await library.items.createNote({
           markdown: "High water at noon.\n",
           title: OTHER_TITLE,
         });
-        otherId = other.item.id;
-        itemId = newItemId();
+        const id = newItemId();
         await library.items.create({
-          blocks: noteBlocks(otherId).map((block) => ({ block, section: "note" })),
+          blocks: noteBlocks(other.item.id).map((block) => ({ block, section: "note" })),
           folderId: null,
-          id: itemId,
+          id,
           opId: crypto.randomUUID(),
           savedAt: Date.now(),
           tags: [],
           title: "Field notes",
         });
+        return { itemId: id, otherId: other.item.id };
       },
-    });
+      {
+        path: (seeded) => `?item=${seeded.itemId}`,
+        ready: EDITOR,
+      },
+    );
+    const { itemId, otherId } = mac.seeded;
     const cloud = await ctx.cloudLink(mac.worker);
     const phone = await signedInPhone(mac.worker.origin);
     const opened: string[] = [];

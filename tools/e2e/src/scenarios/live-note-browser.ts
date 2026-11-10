@@ -38,6 +38,7 @@ const PANEL_TOGGLE = 'button[aria-label="Info and the agent"]';
 const PANEL = '[data-side="right"]';
 const EDITABLE = `String(document.querySelector('${EDITOR}')?.getAttribute("contenteditable"))`;
 const DEADLINE_MS = 30_000;
+const itemPath = (id: string): string => `?item=${id}`;
 
 const untilShows = async (
   browser: AgentBrowser,
@@ -59,19 +60,18 @@ export const liveNoteBrowser: Scenario = {
   name: "live-note-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let itemId = "";
-    const path = (): string => `?item=${itemId}`;
-    const a = await openLibraryTab(ctx, "live-a", {
-      path,
-      ready: EDITOR,
-      seed: async (library) => {
+    const a = await openLibraryTab(
+      ctx,
+      "live-a",
+      async (library) => {
         const { item } = await library.items.createNote({ markdown: DOC, title: TITLE });
-        itemId = item.id;
+        return item.id;
       },
-    });
-    const { library, worker } = a;
+      { path: itemPath, ready: EDITOR },
+    );
+    const { library, seeded: itemId, worker } = a;
     const b = await ctx.browser("live-b");
-    await b.openLibrary(worker, { path: path(), ready: EDITOR });
+    await b.openLibrary(worker, { path: itemPath(itemId), ready: EDITOR });
     const opened = (text: string): boolean => text.includes(LINE_THREE);
     await untilShows(a.browser, "A", opened, "the note");
     await untilShows(b, "B", opened, "the note");
@@ -145,7 +145,7 @@ export const liveNoteBrowser: Scenario = {
 
     ctx.log("moved to Deleted, the note opens read-only and says why");
     await library.items.delete({ ids: [itemId] });
-    await b(["open", `${worker.origin}${LIBRARY_PAGE_PATH}${path()}`]);
+    await b(["open", `${worker.origin}${LIBRARY_PAGE_PATH}${itemPath(itemId)}`]);
     await b(["wait", EDITOR], DEADLINE_MS);
     await pollUntil(
       async () => await b(["get", "text", "body"]),

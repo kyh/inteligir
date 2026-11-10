@@ -79,18 +79,24 @@ export const editorConstructsBrowser: Scenario = {
   name: "editor-constructs-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let itemId = "";
-    let seq = 0;
     ctx.log("opening the item by its deep link");
-    const { browser, library } = await openLibraryTab(ctx, "editor", {
-      path: () => `?item=${itemId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: { itemId, seq },
+    } = await openLibraryTab(
+      ctx,
+      "editor",
+      async (seeding) => {
         const { item } = await seeding.items.createNote({ markdown: DOC, title: TITLE });
-        itemId = item.id;
-        ({ seq } = await seeding.items.row({ id: item.id }));
+        const row = await seeding.items.row({ id: item.id });
+        return { itemId: item.id, seq: row.seq };
       },
-    });
+      {
+        path: (seeded) => `?item=${seeded.itemId}`,
+        ready: EDITOR,
+      },
+    );
     await browser(["wait", `${EDITOR} table`], 30_000);
 
     ctx.log("probing the rendered constructs");

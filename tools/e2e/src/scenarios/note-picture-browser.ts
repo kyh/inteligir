@@ -56,18 +56,26 @@ export const notePictureBrowser: Scenario = {
   name: "note-picture-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let noteId = "";
-    const { browser, library, worker } = await openLibraryTab(ctx, "note-picture", {
-      path: () => `?item=${noteId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: noteId,
+      worker,
+    } = await openLibraryTab(
+      ctx,
+      "note-picture",
+      async (seeding) => {
         const { item } = await seeding.items.createNote({
           markdown: `${PARAGRAPH}\n`,
           title: "Field notes",
         });
-        noteId = item.id;
+        return item.id;
       },
-    });
+      {
+        path: (id) => `?item=${id}`,
+        ready: EDITOR,
+      },
+    );
 
     ctx.log("a picture pasted at the end of the paragraph draws at once, from the tab's own bytes");
     await caretToEndOf(browser, PARAGRAPH);

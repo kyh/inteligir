@@ -76,19 +76,24 @@ export const viewContextBrowser: Scenario = {
   name: "view-context-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let plansId = "";
-    let groceriesId = "";
-    const { browser, library } = await openLibraryTab(ctx, "view-context", {
-      path: () => `?item=${plansId}`,
-      ready: EDITOR,
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: { groceriesId, plansId },
+    } = await openLibraryTab(
+      ctx,
+      "view-context",
+      async (seeding) => {
         const plans = await seeding.items.createNote(PLANS);
         const groceries = await seeding.items.createNote(GROCERIES);
-        plansId = plans.item.id;
-        groceriesId = groceries.item.id;
+        return { groceriesId: groceries.item.id, plansId: plans.item.id };
       },
-      worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
-    });
+      {
+        path: (seeded) => `?item=${seeded.plansId}`,
+        ready: EDITOR,
+        worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
+      },
+    );
 
     ctx.log("a message from an open item names the item");
     await browser(["press", modChord("k")]);

@@ -134,46 +134,41 @@ export const libraryBrowser: Scenario = {
   name: "library-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const ids = { field: "", pier: "", reading: "", welcome: "" };
-    const tab = await openLibraryTab(ctx, "library", {
-      seed: async (library, upload) => {
-        ids.reading = newItemId();
-        await library.folders.write({
-          ops: [
-            {
-              id: ids.reading,
-              name: READING,
-              op: "create",
-              parentId: null,
-              sort: ordBetween(null, null),
-            },
-          ],
-        });
-        const welcome = await library.items.createNote({
-          markdown: "# Welcome\n\nStart here.\n",
-          title: "Welcome",
-        });
-        ids.welcome = welcome.item.id;
-        const field = await library.items.createNote({
-          folder: { id: ids.reading },
-          markdown: "# Field notes\n\nNotes from the field.\n",
-          tags: [TAG],
-          title: "Field notes",
-        });
-        ids.field = field.item.id;
-        const sha = await upload({ bytes: PIXEL, type: "image/png" });
-        const pier = await library.items.createFile({
-          folderId: null,
-          id: newItemId(),
-          name: "pier.png",
-          savedAt: Date.now(),
-          sha,
-          tags: [],
-        });
-        ids.pier = pier.item.id;
-      },
+    const tab = await openLibraryTab(ctx, "library", async (library, upload) => {
+      const reading = newItemId();
+      await library.folders.write({
+        ops: [
+          {
+            id: reading,
+            name: READING,
+            op: "create",
+            parentId: null,
+            sort: ordBetween(null, null),
+          },
+        ],
+      });
+      const welcome = await library.items.createNote({
+        markdown: "# Welcome\n\nStart here.\n",
+        title: "Welcome",
+      });
+      const field = await library.items.createNote({
+        folder: { id: reading },
+        markdown: "# Field notes\n\nNotes from the field.\n",
+        tags: [TAG],
+        title: "Field notes",
+      });
+      const sha = await upload({ bytes: PIXEL, type: "image/png" });
+      const pier = await library.items.createFile({
+        folderId: null,
+        id: newItemId(),
+        name: "pier.png",
+        savedAt: Date.now(),
+        sha,
+        tags: [],
+      });
+      return { field: field.item.id, pier: pier.item.id, reading, welcome: welcome.item.id };
     });
-    const { browser, library } = tab;
+    const { browser, library, seeded: ids } = tab;
 
     ctx.log("the tab opens on the library, one card per item");
     await untilCards(

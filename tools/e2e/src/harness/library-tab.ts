@@ -16,12 +16,14 @@ const DEADLINE_MS = 30_000;
 export type Library = V1Client["library"];
 type ThreadStatus = Awaited<ReturnType<Library["agent"]["list"]>>["threads"][number]["status"];
 
-export interface LibraryTab {
+export interface LibraryTab<S> {
   readonly worker: CloudWorker;
   readonly browser: ScenarioBrowser;
   // the sign-up session's own client, the scenario's oracle for what the cell holds
   readonly library: Library;
   readonly account: V1Client["account"];
+  // what the seed answered: the ids of what it made, say
+  readonly seeded: S;
 }
 
 // a file's bytes sent to the library's store as the seeding client, answering their sha
@@ -30,26 +32,31 @@ type UploadBytes = (file: {
   readonly type: string;
 }) => Promise<string>;
 
-export interface LibraryTabOptions {
+// what the library holds before the tab opens, so its first read carries it; what it answers is the
+// tab's `seeded`
+type Seed<S> = (library: Library, upload: UploadBytes) => Promise<S> | S;
+
+export interface LibraryTabOptions<S> {
   readonly worker?: Pick<LaunchCloudWorkerArgs, "json" | "vars">;
-  // what the library holds before the tab opens, so its first read carries it
-  readonly seed?: (library: Library, upload: UploadBytes) => Promise<void>;
-  // under /library, its query included, read once the seed ran so it can name what the seed made
-  readonly path?: () => string;
+  // under /library, its query included, from what the seed made
+  readonly path?: (seeded: S) => string;
   // what the page shows once it is ready: its rail, unless this names the editor instead
   readonly ready?: string;
 }
 
-export const openLibraryTab = async (
+// the seed is an argument ahead of the options, never one of them: TypeScript infers `S` from an
+// object's functions in key order, and sorted keys put `path` before `seed`
+export const openLibraryTab = async <S>(
   ctx: ScenarioContext,
   label: string,
-  options: LibraryTabOptions = {},
-): Promise<LibraryTab> => {
+  seed: Seed<S>,
+  options: LibraryTabOptions<S> = {},
+): Promise<LibraryTab<S>> => {
   const worker = await ctx.cloudWorker(options.worker);
   const { cookie } = await signUp(worker.origin);
   const seeder = asExtension(cookie);
   const { account, library } = v1Client(worker, seeder);
-  await options.seed?.(library, async (file) => {
+  const seeded = await seed(library, async (file) => {
     const { sha, status } = await uploadFile(worker, seeder, file);
     if (status !== 201) {
       throw new Error(`the seed's upload answered ${String(status)}`);
@@ -59,13 +66,13 @@ export const openLibraryTab = async (
   const browser = await ctx.browser(label);
   const open: OpenLibraryOptions = {};
   if (options.path !== undefined) {
-    open.path = options.path();
+    open.path = options.path(seeded);
   }
   if (options.ready !== undefined) {
     open.ready = options.ready;
   }
   await browser.openLibrary(worker, open);
-  return { account, browser, library, worker };
+  return { account, browser, library, seeded, worker };
 };
 
 // the account's conversation as it lists it, once it reaches `status`, the one a turn leaves it in

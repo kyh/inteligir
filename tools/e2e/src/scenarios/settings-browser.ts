@@ -70,7 +70,7 @@ export const settingsBrowser: Scenario = {
   name: "settings-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const { browser, library, worker } = await openLibraryTab(ctx, "settings");
+    const { browser, library, worker } = await openLibraryTab(ctx, "settings", () => null);
     const phone = v1Client(worker, asPhone(await signInPhone(worker.origin)));
 
     ctx.log("Settings opened offline: each row the cloud answers waits, and says so");

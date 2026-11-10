@@ -38,14 +38,21 @@ export const agentPanelBrowser: Scenario = {
   name: "agent-panel-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    let binId = "";
-    const { browser, library } = await openLibraryTab(ctx, "agent-panel", {
-      seed: async (seeding) => {
+    const {
+      browser,
+      library,
+      seeded: binId,
+    } = await openLibraryTab(
+      ctx,
+      "agent-panel",
+      async (seeding) => {
         const { item } = await seeding.items.createNote(BIN);
-        binId = item.id;
+        return item.id;
       },
-      worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
-    });
+      {
+        worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
+      },
+    );
     await browser(["wait", libraryCard(binId)], DEADLINE_MS);
 
     ctx.log("⌘K opens the composer, and a message becomes a conversation");

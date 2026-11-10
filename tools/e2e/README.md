@@ -103,8 +103,8 @@ modifier key, `clickButtonIn`, `press`, `caretToEndOf`, `untilBodyHolds`,
 the editor's text and a wait on it (`editorText`, `untilEditorHolds`) and the
 site's sign-in (`submitSiteSignIn`) (`agent-browser.ts`); the library page's
 selectors (`selectors.ts`); the library's tab over a booted Worker, with a
-session of the account to seed and read the cell through `/v1`
-(`openLibraryTab` and `untilItemText`), and the conversation and change-set
+session of the account to seed and read the cell through `/v1`, handing the
+scenario what its seed made (`openLibraryTab` and `untilItemText`), and the conversation and change-set
 reads the agent's scenarios share (`untilThreadStatus`, `isDeleted`,
 `agentSets`) (`library-tab.ts`); the account's sign-up and Better Auth sign-in against a dev
 Worker (`cloud-account.ts`); `/v1` as a phone or the extension calls it, a file's upload and read and
