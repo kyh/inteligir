@@ -13,7 +13,7 @@ import type { Scenario } from "../harness/scenario";
 import { COMPOSER, libraryCard } from "../harness/selectors";
 
 // a day of two turns, so the third send meets the allowance
-const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 2, turnCents: 50 };
+const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 2 };
 const BIN = { markdown: "# Bin me\n\nThe agent deletes this.\n", title: "Bin me" };
 const DEADLINE_MS = 60_000;
 

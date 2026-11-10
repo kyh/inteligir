@@ -4,13 +4,18 @@
 // changes it at the start of its next turn, never mid-turn (`./thread-request`, `./thread-loop`),
 // and the cell runs every call it asks for (`./agent-tools`).
 
-// one model for everyone, at the effort Opus 5.5 defaults to, written out, so a change of default
-// changes nothing here
-export const AGENT_MODEL = { effort: "medium", id: "claude-opus-5-5" } as const;
+// one model for everyone, Sonnet 5.5, at medium effort: it defaults to high, its levels are
+// recalibrated from earlier models', and medium is where Anthropic's guidance starts multistep tool
+// use, which every turn of ours is
+export const AGENT_MODEL = { effort: "medium", id: "claude-sonnet-5-5" } as const;
 
-// the most output one call may ask for, whatever the turn could buy: Opus 5.5's synchronous
-// ceiling is far above it, and a reply past it is a runaway
-export const AGENT_MAX_TOKENS = 64_000;
+// the most output one call may ask for: far below Sonnet 5.5's ceiling, and a reply past it is a
+// runaway, which it ends at about 32 cents
+export const AGENT_MAX_TOKENS = 32_000;
+
+// the most replies one turn may take; the turn ends `budget` before the next, and the person asks
+// the agent to go on, which a filing pass over many items needs and a loop does not
+export const AGENT_MAX_STEPS = 20;
 
 // every library tool the agent may call, by the name it is listed under, and whether it runs at
 // once or waits for the person: an allowlist, so a tool the library gains later stays off until it

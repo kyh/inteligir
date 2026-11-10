@@ -1,5 +1,5 @@
 // The scripted Messages API driven by the real SDK, as a conversation's object drives it: each
-// directive a reply, every usage field on the stream, a 400 for each request shape Claude Opus 5.5
+// directive a reply, every usage field on the stream, a 400 for each request shape Claude Sonnet 5.5
 // refuses, a replayed thinking block bound to everything before it but a leading run of thinking,
 // and one that fails dropped and counted under `drop_block` instead; progress notes shown under
 // `display: "updates"`; and a compaction the conversation is read from, and bound from, after it,
@@ -32,12 +32,17 @@ const TOOLS = [
   },
 ];
 
+const GATEWAY_HEADERS = {
+  "cf-aig-authorization": "Bearer test",
+  "cf-aig-metadata": JSON.stringify({ account: "account-1" }),
+};
+
 const clientOf = (fake: MessagesFake): Anthropic =>
   new Anthropic({
     apiKey: null,
     authToken: null,
     baseURL: "http://fake.test",
-    defaultHeaders: { Authorization: null, "cf-aig-authorization": "Bearer test" },
+    defaultHeaders: { Authorization: null, ...GATEWAY_HEADERS },
     fetch: fake.fetch,
     maxRetries: 0,
   });
@@ -48,7 +53,7 @@ const bodyOf = (messages: BetaMessageParam[], extra: Partial<Body> = {}): Body =
   betas: BETAS,
   max_tokens: 4096,
   messages,
-  model: "claude-opus-5-5",
+  model: "claude-sonnet-5-5",
   output_config: { effort: "medium" },
   system: [
     {
@@ -188,8 +193,8 @@ describe("the scripted Messages API", () => {
   it("spends the cents a step names at the model's output price, cut at max_tokens", async () => {
     const fake = messagesFake();
     const whole = await send(fake, bodyOf([person("spend 2")]));
-    // $20 a million output tokens: a cent is 500 tokens
-    expect(whole.usage.output_tokens).toBe(1000);
+    // $10 a million output tokens: a cent is 1,000 tokens
+    expect(whole.usage.output_tokens).toBe(2000);
     expect(whole.stop_reason).toBe("end_turn");
     const cut = await send(fake, bodyOf([person("spend 2")], { max_tokens: 300 }));
     expect(cut.usage.output_tokens).toBe(300);
@@ -203,7 +208,10 @@ describe("the scripted Messages API", () => {
     expect(refused.stop_details?.category).toBe("cyber");
     const rescued = await send(fake, bodyOf([person("fallback")], { fallbacks: "default" }));
     expect(rescued.stop_reason).toBe("end_turn");
-    expect(rescued.content[0]).toMatchObject({ to: { model: "claude-opus-5" }, type: "fallback" });
+    expect(rescued.content[0]).toMatchObject({
+      to: { model: "claude-sonnet-5" },
+      type: "fallback",
+    });
     expect(rescued.usage.iterations?.map((entry) => entry.type)).toStrictEqual([
       "message",
       "fallback_message",
@@ -242,7 +250,7 @@ describe("the scripted Messages API", () => {
     expect(fake.stats().held).toBe(1);
   });
 
-  describe("refuses as Claude Opus 5.5 does", () => {
+  describe("refuses as Claude Sonnet 5.5 does", () => {
     const fake = messagesFake();
     const cases: [string, Body, RegExp][] = [
       [
@@ -346,7 +354,7 @@ describe("the scripted Messages API", () => {
     it("a sampling parameter", async () => {
       const response = await fake.fetch("http://fake.test/v1/messages", {
         body: JSON.stringify({ ...bodyOf([person("Go.")]), stream: true, temperature: 0.5 }),
-        headers: { "anthropic-beta": BETAS.join(","), "cf-aig-authorization": "Bearer test" },
+        headers: { "anthropic-beta": BETAS.join(","), ...GATEWAY_HEADERS },
         method: "POST",
       });
       expect(response.status).toBe(400);
@@ -361,10 +369,10 @@ describe("the scripted Messages API", () => {
           body: JSON.stringify({
             max_tokens: 10,
             messages: [{ content: "Go.", id: "m1", role: "user" }],
-            model: "claude-opus-5-5",
+            model: "claude-sonnet-5-5",
             stream: true,
           }),
-          headers: { "cf-aig-authorization": "Bearer test" },
+          headers: GATEWAY_HEADERS,
           method: "POST",
         }),
       );
@@ -373,6 +381,34 @@ describe("the scripted Messages API", () => {
         /messages\.0\.id: Extra inputs are not permitted/u,
       );
     });
+
+    it.for([
+      ["no metadata", null],
+      ["metadata that is not JSON", "account-1"],
+      ["metadata naming no account", JSON.stringify({ thread: "t1" })],
+      [
+        "metadata of more than five entries",
+        JSON.stringify({ a: 1, account: "a", b: 2, c: 3, d: 4, e: 5 }),
+      ],
+    ] as const)(
+      "a request with %s, as the gateway's spend limit could not split",
+      async ([, metadata]) => {
+        const headers = new Headers({
+          "anthropic-beta": BETAS.join(","),
+          "cf-aig-authorization": "Bearer test",
+        });
+        if (metadata !== null) {
+          headers.set("cf-aig-metadata", metadata);
+        }
+        const response = await fake.fetch("http://fake.test/v1/messages", {
+          body: JSON.stringify({ ...bodyOf([person("Go.")]), stream: true }),
+          headers,
+          method: "POST",
+        });
+        expect(response.status).toBe(400);
+        await expect(response.text()).resolves.toMatch(/names no account in cf-aig-metadata/u);
+      },
+    );
   });
 
   describe("binds a replayed thinking block to what came before it", () => {

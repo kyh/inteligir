@@ -197,7 +197,9 @@ pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker int
 #    The built-in agent's: the token of the `inteligir` AI Gateway, whose Authenticated
 #    Gateway admits only requests carrying it, and which stores the PRODUCTION Anthropic
 #    workspace's key itself (docs/releasing.md § 5). Without it the agent says it can't be
-#    reached. The deploy job's CLOUDFLARE_ACCOUNT_ID names the gateway's account.
+#    reached. The deploy job's CLOUDFLARE_ACCOUNT_ID names the gateway's account. Every
+#    request names its account in cf-aig-metadata: set the gateway's spend limit split by
+#    that `account` before the first deploy (docs/releasing.md § 5).
 pnpm -F @repo/web exec cf workers secrets update AI_GATEWAY_TOKEN --worker inteligir-web --text '...'
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
@@ -281,6 +283,7 @@ pnpm -F @repo/web exec wrangler preview base-config secret put AI_GATEWAY_TOKEN 
 A Preview's built-in agent calls Claude through the `inteligir-preview`
 gateway, so nothing a PR deploys can spend production's key, and runs the PR's
 own definition, since the definition is code; its conversations are the
-Preview's own `AgentThreadDO` namespace.
+Preview's own `AgentThreadDO` namespace. Each of its requests names its
+account in `cf-aig-metadata`, which that gateway's spend limit splits by.
 
 Locally, `pnpm -F @repo/web exec cf previews deploy <name>` deploys one.

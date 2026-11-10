@@ -2,7 +2,7 @@
   "name": "@repo/messages-fake",
   "version": "0.1.0",
   "private": true,
-  "description": "A scripted Claude Messages API with no model and no account, for the local Worker, the e2e scenarios and the Worker's suites: it streams the documented events, refuses what Claude Opus 5.5 refuses, and counts every thinking block it drops.",
+  "description": "A scripted Claude Messages API with no model and no account, for the local Worker, the e2e scenarios and the Worker's suites: it streams the documented events, refuses what Claude Sonnet 5.5 refuses, and counts every thinking block it drops.",
   "type": "module",
   "exports": {
     "./messages-fake": "./src/messages-fake.ts",

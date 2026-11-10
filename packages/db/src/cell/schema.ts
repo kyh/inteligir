@@ -348,28 +348,6 @@ export const agentTurns = sqliteTable(
   ],
 );
 
-// every model call a turn reserved before it was sent: what it may spend, in micro-cents, and once
-// its reply or its cut is pushed what it cost, on the day it was reserved; a call cut short reports
-// no usage, so it is booked at what it reserved and marked cut
-export const agentCalls = sqliteTable(
-  "agent_calls",
-  {
-    callId: text("call_id").primaryKey(),
-    threadId: text("thread_id").notNull(),
-    turn: integer().notNull(),
-    day: text().notNull(),
-    reservedUcents: integer("reserved_ucents").notNull(),
-    maxTokens: integer("max_tokens").notNull(),
-    costUcents: integer("cost_ucents"),
-    cut: integer().notNull().default(0),
-  },
-  (t) => [
-    index("agent_calls_turn").on(t.threadId, t.turn),
-    index("agent_calls_open").on(t.costUcents),
-    check("agent_calls_cut", sql`${t.cut} IN (0, 1)`),
-  ],
-);
-
 // the last push each thread's object landed, so a push sent again lands nothing
 export const agentPushes = sqliteTable("agent_pushes", {
   threadId: text("thread_id").primaryKey(),

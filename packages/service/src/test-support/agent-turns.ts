@@ -75,11 +75,12 @@ export const threadOf = (accountId: string, threadId: string): DurableObjectStub
 
 const countSchema = z.object({ count: z.number() });
 
-// whether a conversation's object holds any of its rows, read without starting it
+// whether a conversation's object holds its tables, read without starting its lifecycle: a purge
+// takes them with every row, and only a fresh instance's constructor makes them again
 export const threadHolds = async (accountId: string, threadId: string): Promise<boolean> =>
   await runInDurableObject(threadOf(accountId, threadId), (_thread: AgentThreadDO, state) => {
     const [tables] = state.storage.sql
-      .exec("SELECT count(*) AS count FROM sqlite_master WHERE name = 'meta'")
+      .exec("SELECT count(*) AS count FROM sqlite_master WHERE name = '__drizzle_migrations'")
       .toArray();
     return countSchema.parse(tables).count > 0;
   });

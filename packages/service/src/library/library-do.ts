@@ -17,7 +17,6 @@ import { DurableObject } from "cloudflare:workers";
 import { runAgentTool } from "../agent/agent-tools";
 import {
   landPush,
-  reserveForCall,
   runAgentJobs,
   runTurnTool,
   showPreview,
@@ -28,8 +27,6 @@ import type {
   CellAnswer,
   PreviewRequest,
   PushRequest,
-  Reservation,
-  ReserveRequest,
   ToolAnswer,
   ToolRequest,
 } from "../agent/thread-wire";
@@ -317,11 +314,6 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // ---- what a conversation's object asks (`../agent/thread-loop`) ----
-
-  // a model call's cap, before it is sent
-  agentReserve(request: ReserveRequest): CellAnswer<Reservation> {
-    return reserveForCall(this.#agentCell(openCellLibrary(this.ctx, this.env)), request);
-  }
 
   // one tool call of an open turn, run as that turn's
   async agentTool(request: ToolRequest): Promise<CellAnswer<ToolAnswer>> {

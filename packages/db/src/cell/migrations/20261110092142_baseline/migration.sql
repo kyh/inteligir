@@ -1,15 +1,3 @@
-CREATE TABLE `agent_calls` (
-	`call_id` text PRIMARY KEY,
-	`thread_id` text NOT NULL,
-	`turn` integer NOT NULL,
-	`day` text NOT NULL,
-	`reserved_ucents` integer NOT NULL,
-	`max_tokens` integer NOT NULL,
-	`cost_ucents` integer,
-	`cut` integer DEFAULT 0 NOT NULL,
-	CONSTRAINT "agent_calls_cut" CHECK("cut" IN (0, 1))
-);
---> statement-breakpoint
 CREATE TABLE `agent_pushes` (
 	`thread_id` text PRIMARY KEY,
 	`seq` integer NOT NULL
@@ -264,8 +252,6 @@ CREATE TABLE `threads` (
 	`seq` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `agent_calls_turn` ON `agent_calls` (`thread_id`,`turn`);--> statement-breakpoint
-CREATE INDEX `agent_calls_open` ON `agent_calls` (`cost_ucents`);--> statement-breakpoint
 CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);--> statement-breakpoint
 CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);--> statement-breakpoint
 CREATE INDEX `change_set_blobs_sha` ON `change_set_blobs` (`sha256`);--> statement-breakpoint

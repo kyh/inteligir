@@ -857,10 +857,15 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   own Anthropic workspace key stored under `default`, Require provider
   credentials on, caching, rate limiting and guardrails off, its logs keeping
   no payload (the setting off, as every request's `cf-aig-collect-log-payload:
-  false` asks), and a daily spend limit. Passing: a request without
-  `cf-aig-authorization` is refused; one with it and no `x-api-key` answers
-  200 for `max_tokens: 1`; the gateway's log shows that request with no prompt
-  or reply.
+  false` asks), and a spend limit for each account, split by the `account`
+  every request's `cf-aig-metadata` names: $3 a UTC day on `inteligir`, $1 on
+  `inteligir-preview`. Set it before the Deploy that ships it: the allowance
+  books no stream cut before it ended, and lets a day's last turn finish past
+  its cost, and this limit is what bounds both. Passing: a request without
+  `cf-aig-authorization` is refused; one with it, no `x-api-key` and
+  `cf-aig-metadata: {"account":"check"}` answers 200 for `max_tokens: 1`; the
+  gateway's log shows that request with no prompt or reply, and `check` under
+  its metadata's `account`.
 - **Production's Worker names its gateway.** The newest Deploy run's "Build &
   deploy web" step printed `true` from its gateway check before `cf deploy`,
   and signed in on inteligir.com, `library.agent.send({ text: "Hello." })`
@@ -884,7 +889,12 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
   tea", and deploy the preview again while it streams. Passing: the turn ends
   `done` within about a minute of the deploy, one note lands, in one change
   set, the gateway shows the cut request and one re-send of the same size, and
-  the ledger books the cut call at its reservation.
+  `library.agent.status` counts one turn less.
+- **A turn stops after twenty steps.** On a preview, ask for twenty-five
+  notes, one at a time, then send "Go on." in that thread. Passing: the first
+  turn ends `budget` with twenty replies, the gateway's log shows twenty
+  requests for it, the second turn makes the rest, and the day's two turns are
+  spent.
 - **Approvals with a real model.** "Delete my oldest note": allow it, then ask
   again and deny, then ask again and leave it ten minutes. Passing: Deleted
   holds one note, the denial and the timeout each leave the note, and the
@@ -902,25 +912,16 @@ days, and run turns that must fall an hour apart either side of midnight UTC.
 - **A long conversation compacts, and goes on after a pause and a deploy.** On
   a preview, have one turn read a long note again and again, and stop it once
   the gateway's log shows a request of 40,000 to 50,000 input tokens. Wait more
-  than an hour, then ask in that thread for the note once more. Passing: the
-  turn does not end `budget`; one reply of it opens with a `compaction` block,
-  its call's usage carries a `compaction` entry in `iterations` and the ledger
-  books it (`agent_calls.cost_ucents`) at no more than that call reserved
-  (`reserved_ucents`), and the gateway's log shows the request
-  after it far smaller than the one before. The next day (the day's two turns
+  than an hour, then ask in that thread for the note once more. Passing: one
+  reply of the turn opens with a `compaction` block, its call's usage carries
+  a `compaction` entry in `iterations`, the gateway's log shows the request
+  after it far smaller than the one before, and the gateway's cost for that
+  call matches what the day's cost (`agent_usage.cost_ucents`) grew by. The next day (the day's two turns
   are spent), deploy the preview again with a change to
   `packages/agent-skills` and send again in that thread: the reply answers,
   carrying the compaction block under the new prompt, and the Worker's log
   shows `agent-definition-taken-up` for the thread. Throughout, no 400 and no
   `agent-thinking-dropped`.
-- **A conversation in Japanese and one full of ids are reserved what they
-  cost.** On a preview, ask in one thread for a Japanese summary of a long
-  Japanese note, and in another for the id of every item in a folder of fifty,
-  three turns each, the second after a six-minute pause and the third after an
-  hour. Passing: every turn ends `done`, and every `agent_calls` row of the
-  two threads books `cost_ucents` at no more than its `reserved_ucents`, but
-  for a call that fell back to another model, which may book past its
-  reservation; a turn it takes past its ceiling has its next call refused.
 - **Tidy my library follows the person's rules with a real model.** On a
   preview's `/library`, save "File birds under Birds." in Settings › Account ›
   Edit filing rules…, save three bird links and one recipe, then Tidy my

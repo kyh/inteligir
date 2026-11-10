@@ -1,15 +1,11 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "1a2a5be1-fc02-402e-9187-12fadf01edd8",
+  "id": "e4ac4b93-127e-49da-928f-d524cd4443a2",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
-    {
-      "name": "agent_calls",
-      "entityType": "tables"
-    },
     {
       "name": "agent_pushes",
       "entityType": "tables"
@@ -113,86 +109,6 @@
     {
       "name": "threads",
       "entityType": "tables"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "call_id",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "turn",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "day",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "reserved_ucents",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "max_tokens",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "cost_ucents",
-      "entityType": "columns",
-      "table": "agent_calls"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "name": "cut",
-      "entityType": "columns",
-      "table": "agent_calls"
     },
     {
       "type": "text",
@@ -1749,15 +1665,6 @@
     },
     {
       "columns": [
-        "call_id"
-      ],
-      "nameExplicit": false,
-      "name": "agent_calls_pk",
-      "table": "agent_calls",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
         "thread_id"
       ],
       "nameExplicit": false,
@@ -1899,38 +1806,6 @@
       "name": "threads_pk",
       "table": "threads",
       "entityType": "pks"
-    },
-    {
-      "columns": [
-        {
-          "value": "thread_id",
-          "isExpression": false
-        },
-        {
-          "value": "turn",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "agent_calls_turn",
-      "entityType": "indexes",
-      "table": "agent_calls"
-    },
-    {
-      "columns": [
-        {
-          "value": "cost_ucents",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "agent_calls_open",
-      "entityType": "indexes",
-      "table": "agent_calls"
     },
     {
       "columns": [
@@ -2139,12 +2014,6 @@
       "name": "thread_events_thread",
       "entityType": "indexes",
       "table": "thread_events"
-    },
-    {
-      "value": "\"cut\" IN (0, 1)",
-      "name": "agent_calls_cut",
-      "entityType": "checks",
-      "table": "agent_calls"
     },
     {
       "value": "\"slot\" = 1",

@@ -1,13 +1,14 @@
 // A conversation's object over the scripted Messages API (packages/service/messages-service.ts),
 // driven by its account's real cell: a turn's model calls and tool calls replayed as Claude
-// returned them, its progress notes, its recovery when its instance dies mid-call or mid-tool, its
-// approvals, its cancel, two conversations at once, Claude refusing or failing, a compaction on the
-// server, and a deploy's definition taken up between turns. Every case ends with the fake having
+// returned them, its progress notes, its transcript kept across a second wake, its recovery when
+// its instance dies mid-call or mid-tool, its approvals, its cancel, two conversations at once,
+// Claude refusing or failing, a turn ended at its last step, a compaction on the server, and a
+// deploy's definition taken up between turns. Every case ends with the fake having
 // dropped no replayed thinking block, the proof that what the thread replays is what Claude sent.
 // The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
 // stepped by hand (`../test-support/thread-host`).
 
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -32,7 +33,7 @@ import { cellOf } from "../test-support/library-cell";
 import { inSteppedThread } from "../test-support/thread-host";
 import { pricesOf, priceUsage, usageReportSchema } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
-import { AGENT_MODEL } from "./library-agent";
+import { AGENT_MAX_STEPS, AGENT_MODEL } from "./library-agent";
 import { cutSilentCalls, requestCancel } from "./thread-loop";
 import type { ThreadHost } from "./thread-loop";
 import {
@@ -40,19 +41,16 @@ import {
   deployedDefinition,
   requestMessages,
   storedDefinition,
-  tokensAtMost,
   transcriptMessage,
 } from "./thread-request";
 import type { ThreadDefinition } from "./thread-request";
 import { RULES_CLEARED } from "./turn-message";
-import type { CallEstimate } from "./thread-wire";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;
 
 const callSchema = z.object({
   call_id: z.string(),
-  max_tokens: z.number().nullable(),
   request_sha: z.string().nullable(),
   status: z.string(),
   step: z.number(),
@@ -63,7 +61,7 @@ const callsOf = async (account: AgentAccount, threadId: string) => {
   const rows = await threadRows(
     account.accountId,
     threadId,
-    "SELECT call_id, turn, step, status, request_sha, max_tokens FROM model_calls ORDER BY turn, step, attempt",
+    "SELECT call_id, turn, step, status, request_sha FROM model_calls ORDER BY turn, step, attempt",
   );
   return rows.map((row) => callSchema.parse(row));
 };
@@ -102,7 +100,7 @@ const restsAt = async (run: () => Promise<readonly string[]>): Promise<string | 
 // a day of more turns than the deployed two, for a case that runs more
 const ROOMY: Env = {
   ...env,
-  AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10, turnCents: 50 },
+  AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10 },
 };
 
 const send = async (account: AgentAccount, text: string, threadId?: string, sendEnv = env) =>
@@ -194,7 +192,6 @@ const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string)
     const body = agentRequest(
       storedDefinition(inForce),
       requestMessages(messages.slice(0, at), inForce.since_seq),
-      call.max_tokens ?? 0,
     );
     await expect(sha256(JSON.stringify(body)), `reply ${String(index)}`).resolves.toBe(
       call.request_sha,
@@ -308,72 +305,34 @@ describe("a conversation's object", () => {
   );
 
   it(
-    "counts each call's prompt from the call before it, at no fewer tokens than it is billed",
+    "keeps its transcript across a second wake, its tables migrated once",
     { timeout: TURN_MS },
     async () => {
       const account = agentAccount();
-      const threadId = crypto.randomUUID();
-      const estimates: CallEstimate[] = [];
-      const sent = await inSteppedThread(
-        account,
-        threadId,
-        script(
-          'call create_note {"markdown":"今日保存した記事を、フォルダに分けました。"}',
-          'call search_library {"query":"0193b5e2-7c4a-abcd-9f21-3a4b5c6d7e8f"}',
-        ),
-        async (thread) => {
-          await expect(restsAt(thread.run)).resolves.toBe("idle");
-          return thread.sent;
-        },
-        {
-          cell: (real) => ({
-            agentPreview: real.agentPreview,
-            agentPush: real.agentPush,
-            agentReserve: async (request) => {
-              estimates.push(request.estimate);
-              return await real.agentReserve(request);
-            },
-            agentTool: real.agentTool,
-          }),
-        },
+      const sent = await send(account, script("Remember Paris."));
+      await settled(account, sent.threadId);
+      const warned = vi.spyOn(console, "warn");
+      // the instance gone, as an eviction takes it: the next wake runs its constructor again
+      await evictDurableObject(threadOf(account.accountId, sent.threadId));
+      await send(account, script("And Rome."), sent.threadId);
+      await settled(account, sent.threadId);
+      expect(warned).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: "thread-schema-reset" }),
       );
-      const rows = await threadRows(
-        account.accountId,
-        threadId,
-        "SELECT usage FROM model_calls WHERE status = 'done' ORDER BY turn, step, attempt",
-      );
-      const billed = rows.map((row) =>
-        usageReportSchema.parse(JSON.parse(z.string().parse(row.usage))),
-      );
-      const prompts = billed.map(
-        (usage) =>
-          (usage.input_tokens ?? 0) +
-          (usage.cache_read_input_tokens ?? 0) +
-          (usage.cache_creation_input_tokens ?? 0),
-      );
-      expect(prompts).toHaveLength(3);
-      // the cache priced by the call before each, which the first has none of
-      expect(estimates.map((estimate) => estimate.previous?.promptTokens ?? null)).toStrictEqual([
-        null,
-        prompts[0],
-        prompts[1],
+      warned.mockRestore();
+      const transcript = await transcriptOf(account, sent.threadId);
+      expect(transcript.map((row) => [row.turn, row.role])).toStrictEqual([
+        [1, "user"],
+        [1, "assistant"],
+        [2, "user"],
+        [2, "assistant"],
       ]);
-      for (const [index, estimate] of estimates.entries()) {
-        expect(estimate.promptTokens, `call ${String(index)}`).toBeGreaterThanOrEqual(
-          prompts[index] ?? Number.POSITIVE_INFINITY,
-        );
-      }
-      // after the first, each counted from the call before it, below the whole request's count
-      const counted = estimates.slice(1).map((estimate) => estimate.promptTokens);
-      const wholes = sent.slice(1).map((body) => tokensAtMost(body));
-      for (const [index, promptTokens] of counted.entries()) {
-        expect(promptTokens).toBeLessThan(wholes[index] ?? 0);
-      }
+      await expectRepliesAskedAsKept(account, sent.threadId);
     },
   );
 
   it(
-    "goes on past a compaction on the server, replaying from it, its summarizing booked with the call",
+    "goes on past a compaction on the server, replaying from it, its summarizing booked with the reply",
     // eight model calls in two turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
@@ -383,19 +342,43 @@ describe("a conversation's object", () => {
         { length: 5 },
         (_, index) => `call search_library {"query":"trip ${String(index)}"}`,
       );
-      // the compaction opens the second step's reply; five steps follow it
-      const { threadId } = await send(
+      const threadId = crypto.randomUUID();
+      // every reply's usage as the thread pushed it to the cell
+      const usages: z.infer<typeof usageReportSchema>[] = [];
+      await inSteppedThread(
         account,
+        threadId,
+        // the compaction opens the second step's reply; five steps follow it
         script('call create_note {"markdown":"Before."}', "compact", ...searches),
-        undefined,
-        ROOMY,
+        async ({ deliver, run }) => {
+          await expect(restsAt(run)).resolves.toBe("idle");
+          // the next turn answers, sending the filing rules again: the compaction summarized them
+          await deliver(script("And now?"));
+          await expect(restsAt(run)).resolves.toBe("idle");
+        },
+        {
+          cell: (real) => ({
+            agentPreview: real.agentPreview,
+            agentPush: async (request) => {
+              for (const entry of request.entries) {
+                if (entry.kind === "usage") {
+                  usages.push(usageReportSchema.parse(entry.usage));
+                }
+              }
+              return await real.agentPush(request);
+            },
+            agentTool: real.agentTool,
+          }),
+        },
       );
-      await settled(account, threadId);
-      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { reason: "done" },
+        { reason: "done" },
+      ]);
       const transcript = await transcriptOf(account, threadId);
       const blocksSchema = z.array(z.looseObject({ type: z.string() }));
       const opening = transcript.flatMap((row) =>
-        row.role === "assistant"
+        row.role === "assistant" && row.turn === 1
           ? [blocksSchema.parse(JSON.parse(row.content)).map((block) => block.type)]
           : [],
       );
@@ -408,48 +391,35 @@ describe("a conversation's object", () => {
         "thinking",
         "thinking",
       ]);
-      // every call after the compaction asked from it on, byte for byte as kept
-      await expectRepliesAskedAsKept(account, threadId);
-      const calls = await callsOf(account, threadId);
-      const compacting = calls.find((call) => call.step === 1 && call.status === "done");
-      const [kept] = await threadRows(
-        account.accountId,
-        threadId,
-        "SELECT usage FROM model_calls WHERE call_id = ?",
-        compacting?.call_id ?? "",
-      );
-      const usage = usageReportSchema.parse(
-        JSON.parse(z.object({ usage: z.string() }).parse(kept).usage),
-      );
-      expect(usage.iterations?.map((entry) => entry.type)).toStrictEqual(["compaction", "message"]);
-      const [booked] = await cellRows(
-        account,
-        "SELECT cost_ucents FROM agent_calls WHERE call_id = ?",
-        compacting?.call_id ?? "",
-      );
-      const table = pricesOf(env);
-      const priced = priceUsage(usage, AGENT_MODEL.id, table);
-      const answering = priceUsage(
-        { ...usage, iterations: usage.iterations?.filter((entry) => entry.type !== "compaction") },
-        AGENT_MODEL.id,
-        table,
-      );
-      expect(booked?.cost_ucents).toBe(priced);
-      expect(priced).toBeGreaterThan(answering);
-      // the next turn answers, sending the filing rules again: the compaction summarized them
-      await send(account, script("And now?"), threadId, ROOMY);
-      await settled(account, threadId);
-      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
-        { reason: "done" },
-        { reason: "done" },
-      ]);
-      const next = await transcriptOf(account, threadId);
-      expect(next.filter((row) => row.turn === 2).map((row) => row.role)).toStrictEqual([
+      expect(transcript.filter((row) => row.turn === 2).map((row) => row.role)).toStrictEqual([
         "user",
         "system",
         "assistant",
       ]);
+      // every call after the compaction asked from it on, byte for byte as kept
       await expectRepliesAskedAsKept(account, threadId);
+      // the compacting reply's summary pass priced beside its answer, and every reply booked
+      expect(usages).toHaveLength(8);
+      const [, compacting] = usages;
+      expect(compacting?.iterations?.map((entry) => entry.type)).toStrictEqual([
+        "compaction",
+        "message",
+      ]);
+      const table = pricesOf(env);
+      const priced = priceUsage(compacting ?? {}, AGENT_MODEL.id, table);
+      const answering = priceUsage(
+        {
+          ...compacting,
+          iterations: compacting?.iterations?.filter((entry) => entry.type !== "compaction"),
+        },
+        AGENT_MODEL.id,
+        table,
+      );
+      expect(priced).toBeGreaterThan(answering);
+      const [booked] = await cellRows(account, "SELECT cost_ucents FROM agent_usage");
+      expect(booked?.cost_ucents).toBe(
+        usages.reduce((sum, usage) => sum + priceUsage(usage, AGENT_MODEL.id, table), 0),
+      );
     },
   );
 
@@ -625,7 +595,6 @@ describe("a conversation's object", () => {
       const again = calls.filter((call) => call.step === cutCall?.step && call.status === "done");
       expect(again).toHaveLength(1);
       expect(again[0]?.request_sha).toBe(cutCall?.request_sha);
-      expect(again[0]?.max_tokens).toBe(cutCall?.max_tokens);
       await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
       const replies = await threadRows(
         account.accountId,
@@ -633,13 +602,6 @@ describe("a conversation's object", () => {
         "SELECT seq FROM transcript WHERE role = 'assistant'",
       );
       expect(replies).toHaveLength(calls.filter((call) => call.status === "done").length);
-      // the cut call is booked at what it reserved, which bounds what it cost
-      const [booked] = await cellRows(
-        account,
-        "SELECT reserved_ucents, cost_ucents FROM agent_calls WHERE call_id = ?",
-        cutCall?.call_id ?? "",
-      );
-      expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
       const listed = await asLaptop(account, async (client) => await client.items.list({}));
       expect(listed.items).toHaveLength(1);
     },
@@ -842,22 +804,14 @@ describe("a conversation's object", () => {
       for (const threadId of [first.threadId, second.threadId, third.threadId]) {
         await settled(account, threadId);
       }
-      // the stopped thread's waiting send went with its turn; the third opened once a turn sealed,
-      // and found the day's cost held by the two stopped calls, each booked at what it reserved
+      // the stopped thread's waiting send went with its turn; the third opened once a turn sealed
       await expect(endingsOf(account, first.threadId)).resolves.toStrictEqual([
         { reason: "cancelled" },
       ]);
-      await expect(endingsOf(account, third.threadId)).resolves.toStrictEqual([
-        { reason: "budget" },
-      ]);
-      const [stopped] = await cellRows(
-        account,
-        "SELECT sum(reserved_ucents) AS reserved, sum(cost_ucents) AS cost FROM agent_calls WHERE cut = 1",
-      );
-      expect(stopped?.cost).toBe(stopped?.reserved);
-      // the third turn cost nothing, so it was given back
+      await expect(endingsOf(account, third.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+      // a stopped turn still counts: three turns taken
       const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
-      expect(usage).toStrictEqual({ turns: 2 });
+      expect(usage).toStrictEqual({ turns: 3 });
     },
   );
 
@@ -951,53 +905,69 @@ describe("a conversation's loop, stepped", () => {
   );
 
   it(
-    "sends nothing for a turn stopped while its call is reserved, and lets the reservation go",
+    "sends nothing for a turn stopped before its request goes, and still counts the turn",
     { timeout: TURN_MS },
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
+      const before = await fakeStats();
       let stepped: ThreadHost | null = null;
-      await inSteppedThread(
-        account,
-        threadId,
-        script("Never sent."),
-        async ({ host, run }) => {
-          stepped = host;
-          await expect(restsAt(run)).resolves.toBe("idle");
-        },
-        {
-          cell: (real) => ({
-            ...real,
-            agentPreview: real.agentPreview,
-            agentPush: real.agentPush,
-            // the stop lands while the cell is granting the call, before any stream is open
-            agentReserve: async (request) => {
-              const answer = await real.agentReserve(request);
-              if (stepped !== null) {
-                requestCancel(stepped, request.turn);
-              }
-              return answer;
-            },
-            agentTool: real.agentTool,
-          }),
-        },
-      );
+      const digest = crypto.subtle.digest.bind(crypto.subtle);
+      // the stop lands while the call's request is hashed, its abort registered, no stream open
+      const hashing = vi.spyOn(crypto.subtle, "digest").mockImplementation(async (...args) => {
+        if (stepped?.calls.has(1) === true) {
+          requestCancel(stepped, 1);
+        }
+        return await digest(...args);
+      });
+      await inSteppedThread(account, threadId, script("Never sent."), async ({ host, run }) => {
+        stepped = host;
+        await expect(restsAt(run)).resolves.toBe("idle");
+      });
+      hashing.mockRestore();
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([
+      expect(calls.map((call) => [call.status, call.request_sha])).toStrictEqual([
         ["cancelled", null],
       ]);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
       const roles = await threadRows(account.accountId, threadId, "SELECT role FROM transcript");
       expect(roles).toStrictEqual([{ role: "user" }]);
-      // the reservation let go at nothing, and the turn, which cost nothing, given back
-      const [booked] = await cellRows(
-        account,
-        "SELECT cost_ucents, cut FROM agent_calls WHERE call_id = ?",
-        calls[0]?.call_id ?? "",
-      );
-      expect(booked).toStrictEqual({ cost_ucents: 0, cut: 0 });
+      const after = await fakeStats();
+      expect(after.requests).toBe(before.requests);
       const [usage] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 0 });
+      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 1 });
+    },
+  );
+
+  it(
+    `ends a turn at its last step, after ${String(AGENT_MAX_STEPS)} replies, and the next turn goes on`,
+    // twenty-one model calls in two turns, each a round trip through the fake
+    { timeout: 3 * TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      const searches = Array.from(
+        { length: AGENT_MAX_STEPS + 1 },
+        (_, index) => `call search_library {"query":"step ${String(index)}"}`,
+      );
+      const before = await fakeStats();
+      await inSteppedThread(account, threadId, script(...searches), async ({ deliver, run }) => {
+        await expect(restsAt(async () => await run(4 * AGENT_MAX_STEPS))).resolves.toBe("idle");
+        const asked = await fakeStats();
+        expect(asked.requests - before.requests).toBe(AGENT_MAX_STEPS);
+        await deliver(script("Go on."));
+        await expect(restsAt(run)).resolves.toBe("idle");
+      });
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { reason: "budget" },
+        { reason: "done" },
+      ]);
+      const transcript = await transcriptOf(account, threadId);
+      const replies = transcript.filter((row) => row.turn === 1 && row.role === "assistant");
+      expect(replies).toHaveLength(AGENT_MAX_STEPS);
+      // every call the turn made answered, so the next request is valid
+      expect(transcript.findLast((row) => row.turn === 1)?.role).toBe("user");
+      await expectRepliesAskedAsKept(account, threadId);
     },
   );
 
@@ -1029,16 +999,7 @@ describe("a conversation's loop, stepped", () => {
       const calls = await callsOf(account, threadId);
       expect(calls.map((call) => call.status)).toStrictEqual(["failed", "done"]);
       expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
-      expect(new Set(calls.map((call) => call.max_tokens)).size).toBe(1);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
-      // the silent call may have cost what it reserved, and is booked at that
-      const [booked] = await cellRows(
-        account,
-        "SELECT reserved_ucents, cost_ucents, cut FROM agent_calls WHERE call_id = ?",
-        calls[0]?.call_id ?? "",
-      );
-      expect(booked?.cut).toBe(1);
-      expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
     },
   );
 
@@ -1088,8 +1049,6 @@ describe("a conversation's loop, stepped", () => {
       const second = redeployed("Second deploy.");
       const third = redeployed("Third deploy.");
       let deployed = first;
-      // whether each call's reservation priced the cache as warmed by a call before it
-      const warmed: boolean[] = [];
       await inSteppedThread(
         account,
         threadId,
@@ -1149,22 +1108,8 @@ describe("a conversation's loop, stepped", () => {
             expect(blockTypesOf(unmarkedOf(body)).flat()).not.toContain("thinking");
           }
         },
-        {
-          cell: (real) => ({
-            agentPreview: real.agentPreview,
-            agentPush: real.agentPush,
-            agentReserve: async (request) => {
-              warmed.push(request.estimate.previous !== null);
-              return await real.agentReserve(request);
-            },
-            agentTool: real.agentTool,
-          }),
-          definition: () => deployed,
-        },
+        { definition: () => deployed },
       );
-      // a turn that took up a definition finds no cache its prefix shares; one under the
-      // definition before it does
-      expect(warmed).toStrictEqual([false, true, true, false, true, true, true, true, false]);
       // nothing refused, nothing dropped (afterEach), every turn done
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { reason: "done" },
@@ -1251,7 +1196,6 @@ describe("a conversation's loop, stepped", () => {
           ...real,
           agentPreview: real.agentPreview,
           agentPush: real.agentPush,
-          agentReserve: real.agentReserve,
           agentTool: async (request) => {
             const answer = await real.agentTool(request);
             if (!cut) {

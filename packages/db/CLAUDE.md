@@ -1,8 +1,8 @@
 # Decisions: @repo/db
 
-The D1 accounts database's schema, each library cell's and each note's, and how
-each ships: D1's by `drizzle-kit push`, a cell's and a note's as the migrations
-each runs when it wakes. `AGENTS.md` § Decisions says how a bullet is written
+The D1 accounts database's schema, each library cell's, each note's and each
+conversation's, and how each ships: D1's by `drizzle-kit push`, the objects'
+as the migrations each runs when it wakes. `AGENTS.md` § Decisions says how a bullet is written
 and cited.
 
 ## Schemas
@@ -55,3 +55,19 @@ and cited.
   reads no document would meet no tables).
   `packages/db/src/note/schema.ts`, `packages/service/src/note/note-db.ts`,
   `packages/service/src/object-schema.ts`.
+
+- **EACH CONVERSATION'S SCHEMA IS DRIZZLE'S TOO, MIGRATED IN ITS CONSTRUCTOR.**
+  `@repo/db/thread/schema` declares a conversation's tables (its one meta row,
+  the definitions its turns ran under, the transcript, its turns, model calls
+  and tool calls, and the outbox it pushes to the cell), and drizzle-kit
+  generates its migrations (`packages/db/drizzle.config.thread.ts`). The
+  object runs them in its constructor under `blockConcurrencyWhile`, before
+  `agents/lifecycle`'s job queue makes its own table on its first job, which
+  the migrator's check would take, on a new conversation, for a table drizzle
+  did not make. The transcript is append-only by its one insert site, never a
+  trigger, which a generated table rebuild would drop. Rejected: a
+  hand-written DDL versioned by a `meta` row (a second spelling of the tables,
+  and every version bump wiped every conversation).
+  `packages/db/src/thread/schema.ts`,
+  `packages/service/src/agent/thread-db.ts`,
+  `packages/service/src/agent/agent-thread.ts`.

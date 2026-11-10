@@ -1,3 +1,4 @@
+import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/v1";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
@@ -10,13 +11,11 @@ import { asPhone, v1Client } from "../harness/v1-wire";
 
 const DEADLINE_MS = 60_000;
 
-// a day that holds every turn the scenario runs, two at once, each turn capped at 50 cents
-const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 20, turnCents: 50 };
+// a day of more turns than the scenario runs, two at once, so a dollar is what runs out
+const ALLOWANCE = { concurrentTurns: 2, dayCents: 100, dayTurns: 20 };
 
-// what one read of the long note adds to the conversation, past which the turn's 50 cents run out
-// within the reads the script asks for
-const LONG_NOTE_WORDS = 2000;
-const READS = 16;
+// what each costly turn spends of the day's dollar
+const SPEND_CENTS = 30;
 
 type Library = V1Client["library"];
 type ThreadStatus = Awaited<ReturnType<Library["agent"]["list"]>>["threads"][number]["status"];
@@ -97,7 +96,7 @@ const fakeStats = async (worker: CloudWorker) => {
 
 export const agentCell: Scenario = {
   description:
-    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it; a turn whose next call the allowance cannot reserve ends there, and the next send goes on in the same conversation; a conversation the API compacts goes on from the compaction, telling a progress note before each tool call; and Claude never drops a replayed thinking block",
+    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it, and still counts it; a conversation the API compacts goes on from the compaction, telling a progress note before each tool call; turns that each spend thirty cents run until the day's dollar is spent, after which a send is refused until the next UTC midnight and no turn is left; and Claude never drops a replayed thinking block",
   name: "agent-cell",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -175,36 +174,6 @@ export const agentCell: Scenario = {
     );
 
     ctx.log(
-      "a turn whose next call the allowance cannot reserve ends there, and the thread goes on",
-    );
-    const words = Array.from({ length: LONG_NOTE_WORDS }, (_, index) => `word${String(index)}`);
-    const { item: long } = await library.items.createNote({
-      markdown: words.join(" "),
-      title: "Long",
-    });
-    const reads = Array.from(
-      { length: READS },
-      () => `call read_item ${JSON.stringify({ id: long.id })}`,
-    );
-    const spending = await library.agent.send({
-      text: ["Read it again and again.", ...reads].join("\n"),
-    });
-    await untilStatus(library, spending.threadId, "idle");
-    expectEq(await endingsOf(library, spending.threadId), ["budget"], "how the costly turn ended");
-    const results = await eventsOf(library, spending.threadId, "agent.tool_result");
-    expect(
-      results.length > 1 && results.length < READS,
-      `the reads the turn could pay for: ${String(results.length)}`,
-    );
-    const next = await library.agent.send({ text: "Go on.", threadId: spending.threadId });
-    expectEq(next, { status: "running", threadId: spending.threadId }, "the next send");
-    await untilStatus(library, spending.threadId, "idle");
-    expectEq(
-      await endingsOf(library, spending.threadId),
-      ["budget", "done"],
-      "the conversation, going on",
-    );
-    ctx.log(
       "a conversation the API compacts goes on from the compaction, and its next turn answers",
     );
     const compacted = await library.agent.send({
@@ -228,8 +197,36 @@ export const agentCell: Scenario = {
     const notes = await eventsOf(library, compacted.threadId, "agent.progress");
     expectEq(notes.length, 3, "the progress notes, one before each tool call");
 
-    const status = await library.agent.status();
-    expectEq(status.turnsLeft, ALLOWANCE.dayTurns - 8, "the turns left of the day");
+    const counted = await library.agent.status();
+    expectEq(counted.turnsLeft, ALLOWANCE.dayTurns - 6, "the turns left, the stopped one counted");
+
+    ctx.log("turns that each spend thirty cents run until the day's dollar is spent");
+    const most = Math.ceil(ALLOWANCE.dayCents / SPEND_CENTS) + 1;
+    let resetsAt: number | null = null;
+    let sends = 0;
+    while (resetsAt === null && sends < most) {
+      sends += 1;
+      const [refused, spent] = await safe(
+        library.agent.send({ text: `spend ${String(SPEND_CENTS)}` }),
+      );
+      if (refused === null) {
+        await untilStatus(library, spent.threadId, "idle");
+        expectEq(
+          await endingsOf(library, spent.threadId),
+          ["done"],
+          `costly turn ${String(sends)}`,
+        );
+      } else if (isDefinedError(refused) && refused.code === "AGENT_BUDGET") {
+        ({ resetsAt } = refused.data);
+      } else {
+        throw refused;
+      }
+    }
+    expect(resetsAt !== null, `${String(sends)} costly sends, and none was refused`);
+    const now = Date.now();
+    expectEq(resetsAt, now - (now % 86_400_000) + 86_400_000, "when the allowance comes back");
+    const spentDay = await library.agent.status();
+    expectEq(spentDay.turnsLeft, 0, "the turns left once the day's cost is spent");
 
     const stats = await fakeStats(worker);
     expectEq(stats.drops, 0, "the replayed thinking blocks Claude dropped");

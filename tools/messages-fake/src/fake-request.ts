@@ -1,6 +1,6 @@
 // A Messages request as the fake reads it: parsed at the door into the blocks it knows, and
-// refused, with the API's own words, for what Claude Opus 5.5 refuses before it samples
-// (platform.claude.com/docs/en/api/messages, and the claude-api skill's Opus 5.5 migration notes):
+// refused, with the API's own words, for what Claude Sonnet 5.5 refuses before it samples
+// (platform.claude.com/docs/en/api/messages, and the claude-api skill's Sonnet 5.5 migration notes):
 // sampling parameters, thinking other than adaptive, a forced tool choice, a field on a message
 // but its role and content, an assistant message last (a prefill), a system message out of place,
 // a tool call with no result next, a result with no call before it, cache breakpoints past four
