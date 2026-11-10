@@ -106,6 +106,31 @@ the service's (`packages/service/CLAUDE.md`).
   `packages/contract/src/test-support/fake-cell.ts`,
   `packages/contract/src/test-support/fake-cell.test.ts`.
 
+- **AN ITEM'S READING IS ONE VALUE, WHICH EVERY WRITER MOVES AND EVERY SURFACE
+  READS ALIKE.** `@repo/contract/library/item-reading`: none (a note, a file),
+  pending, read, or failed with why, each with when the page was last read.
+  Writers move it through `readingOps` by `readingAfter`, so a read or a
+  failure landing on an item never asked stays none and a failure never lands
+  over a read; readers parse it through `readingOf`, so a failure no writer
+  explained still says the page couldn't be read. The wire keeps its three
+  fields (`fetchState`, `fetchError`, `fetchedAt`), which `readingOf` reads at
+  each boundary. Rejected: each writer setting the three fields by hand, and
+  each reader pairing them its own way (a card badged a failure over a read,
+  and an item said a failed page's text would come soon).
+  `packages/contract/src/library/item-reading.ts`.
+
+- **THE ACCOUNT SOCKET'S HINT IS ONE VALUE MOVED BY ONE STEP.**
+  `createSocketHint` holds idle, offline, ticketing, connecting, open or
+  waiting, moved only by `hintAfter`, whose effects the adapter runs. A ticket
+  that fails waits and dials again; `connect()` while a redial waits dials
+  once, at once; offline dials nothing and cancels a wait, and online dials
+  once. Whatever a socket or a ticket says after another was asked for is
+  ignored, by identity. It says up when a socket opens and down whenever an
+  open one goes, and each host lets every preview go on down and reads
+  everything again on up. Rejected: flags and a generation counter beside the
+  socket (a refused ticket left it ticketing for good, and a preview froze
+  across a drop). `packages/contract/src/library/account-socket.ts`.
+
 ## Items and files
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**

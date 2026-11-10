@@ -84,9 +84,12 @@ holding the item's **live document** in its own SQLite
 (`packages/service/src/note/note-do.ts`). A device reaches it at
 `/v1/notes/<itemId>` on the account socket's ticket (`note-routes.ts`), the
 agent through the cell, by block id. Its first load takes the cell's
-**seed**, and each debounced save pushes a **projection**. An item in Deleted
-opens read-only and takes no edit; a note past 8 MiB, or a frame past 1 MiB,
-holds edits back and says so. Not the **library cell**: typing never passes
+**seed**, and each debounced save pushes a **projection**. Its standing is
+open, full, in Deleted or gone
+(`packages/service/src/note/note-standing.ts`): an item in Deleted opens
+read-only and takes no edit; a note past 8 MiB holds edits back and says so
+until a compaction makes room, and a frame past 1 MiB is refused; a purged
+note is gone for good. Not the **library cell**: typing never passes
 through it.
 
 **seed** — the body the **library cell** keeps for an item until its **note
@@ -244,9 +247,16 @@ Worker's consumer reads the page with `@repo/page-reader` and lands only its
 one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
 in place of the address an unread item goes by; it calls no model and never
 writes `url` or `savedAt` (`packages/service/src/fill/`). An item's `fetchState` says where it stands:
-`pending`, `filled` or `failed`. A page the extension read an article from is
+`pending`, `filled` or `failed`, its **reading**. A page the extension read an article from is
 saved read and never filled; one it did not goes to the
 fill as its link (`deviceKeepsReading` in `@repo/contract/items/link-fill`).
+
+**reading** — whether a saved page has been read into its item: none (a note,
+a file), pending, read, or failed with why. The one value an item's
+`fetchState`, `fetchError` and `fetchedAt` spell, which every writer moves and
+every surface reads alike (`@repo/contract/library/item-reading`). Not the
+**fill**: the fill is one reader that moves it, the extension's read and an
+import others.
 
 **cover** — an item's picture: its `coverSha` field, the hash of a file the
 library keeps in R2, which a fill sets from the page it read and an import reads
@@ -291,7 +301,9 @@ edit (`packages/editor/src/item/item-editor.tsx`), and on the library's page a
 call waits rather than fails
 (`apps/web/src/library/cloud/needs-connection.tsx`); the iPhone says it of a
 save, a photo and a delete, and keeps only a share
-(**share outbox**).
+(**share outbox**). Never said of a note that holds its edits back (full, or
+in Deleted) or that refused a paste too large for it: each says its own words,
+and a hold outranks the connection.
 
 **Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
 under a conversation: `library.history.undo` over the CHANGE SETS named, in a

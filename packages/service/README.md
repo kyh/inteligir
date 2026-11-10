@@ -56,13 +56,17 @@ src/
                        # by passages through the note (cell-edits.ts), every library
                        # procedure over it and the markdown codec
                        # (library-router.ts, served by library-rpc.ts), what the
-                       # apps read (cell-listing.ts), the alarm's jobs, the
-                       # account's purge in order (account-purge.ts), its
-                       # sockets and what each write moved for them
-                       # (cell-moved.ts), the upgrade routes with the ticket a
-                       # browser's socket opens on, the files' bytes in R2
-                       # (blob-routes.ts), the readings it sends to the fill
-                       # queue (cell-fills.ts) and its imports (cell-imports.ts).
+                       # apps read (cell-listing.ts), the alarm's jobs, each
+                       # kind's payload typed (cell-jobs.ts), the account's
+                       # purge in order (account-purge.ts), its sockets and
+                       # what each write moved for them (cell-moved.ts), the
+                       # upgrade routes with the ticket a browser's socket
+                       # opens on (socket-routes.ts), the files' bytes in R2
+                       # (blob-routes.ts), kept one way by every upload
+                       # (keep-bytes.ts), the readings it sends to the fill
+                       # queue (cell-fills.ts), a page's article put in its
+                       # note before the write (article-landing.ts) and its
+                       # imports (cell-imports.ts).
                        # The library's SQL and undo:
     cell-db.ts         # drizzle over the cell, its migrations run on wake,
                        # inserts cut under the bound-parameter cap
@@ -77,7 +81,9 @@ src/
                        # note-stub.ts; its door on the account socket's ticket
                        # (note-routes.ts), what it and the cell say over RPC
                        # (note-wire.ts), a page's article as changes by block
-                       # (article-body.ts) and a turn undone from its stored
+                       # (article-body.ts), what it owes the cell and when
+                       # (note-duty.ts), what it takes from whom
+                       # (note-standing.ts) and a turn undone from its stored
                        # log (turn-log.ts)
   connector/           # the connector: its OAuth on
                        # @cloudflare/workers-oauth-provider (connector-auth.ts),
@@ -92,8 +98,10 @@ src/
                        # (library-agent.ts) and its generated prompt
                        # (agent-prompt.ts), each conversation's object,
                        # AgentThreadDO (agent-thread.ts), with its tables
-                       # (thread-db.ts), its loop (thread-loop.ts), its
-                       # requests (thread-request.ts) and its client through AI
+                       # (thread-db.ts), its loop (thread-loop.ts), its drive
+                       # (thread-drive.ts), each tool call's state
+                       # (tool-call.ts), its requests (thread-request.ts) and
+                       # its client through AI
                        # Gateway (anthropic-client.ts); and the cell's side: the
                        # tools it runs (agent-tools.ts), the allowance and the
                        # prices it books (agent-allowance.ts), the switch

@@ -43,9 +43,10 @@ is parsed in `shell/desktop-bridge.ts`.
   `QueryClient` is made as the tab opens and handed to the library's routes in
   the context their `beforeLoad` returns, its provider the library's layout, so
   a loader and a component share one cache; a loader seeds what its screen
-  reads with `queryClient.query({ ..., staleTime: "static" })`, once, over the
-  options its screen reads with their own freshness, waiting for one answer and
-  not the retries the screen's query makes itself. Every read is oRPC's
+  reads through `seedReads` (`library-tab.ts`): online only, one answer and
+  not the retries the screen's query makes itself, `staleTime: "static"`, over
+  the options its screen reads with their own freshness, and a failed seed is
+  no route failure. Every read is oRPC's
   TanStack utils over the same client, under the key oRPC gives it, so the
   socket and a mutation reach a family by its key alone. Rejected: a client in
   the router's own context (every site page would make one it never reads);
@@ -69,9 +70,14 @@ is parsed in `shell/desktop-bridge.ts`.
   too, so it waits under that notice and in that scope, retried as a query is.
   The words are one constant, `NEEDS_CONNECTION`, and the editor's item and
   the phone say it too, so every device says one thing of a call that waits.
+  Where a read stands is one value, `cellStanding`: answered, needs a
+  connection, missing, unreachable or loading, in that order, which
+  `CellAnswer`, the grid and Info read alike, so a read waiting offline says so
+  whatever an earlier try met.
   Rejected: a call outside TanStack (it fails at once offline); a note per
   button (a menu's verb has none); the words spelled per surface (each a copy
-  to keep in step).
+  to keep in step); each screen reading data, pause and error in its own order
+  (Info said an item waiting offline was not there).
   `apps/web/src/library/cloud/v1.ts`,
   `apps/web/src/library/cloud/needs-connection.tsx`, over
   `packages/contract/src/needs-connection.ts` and
@@ -83,9 +89,9 @@ is parsed in `shell/desktop-bridge.ts`.
   is one chunk group, so a site page preloads none of it and, once the page
   loads, nothing is fetched but calls and files: a chunk first asked for by a
   tab that lost its connection fails, and the crash screen offers a reload. The
-  account's socket dials again the moment the browser says it is online,
-  rather than at its next wait, and every time it opens every query is read
-  again. What the group reaches through a shared barrel (lucide-react, Base
+  account's socket dials nothing while the browser says it is offline, and
+  again the moment it is online, rather than at its next wait, and every time
+  it comes up every query is read again. What the group reaches through a shared barrel (lucide-react, Base
   UI) stays in chunks of rolldown's own, which the document preloads, so every
   chunk runs in source order. Residual: a lazy node keeps an entry of a few
   bytes over the group (the calendar's), fetched on first use, and wrapping
@@ -107,8 +113,8 @@ is parsed in `shell/desktop-bridge.ts`.
   or files), and the open note's body never rides the frame: it is live on its
   own socket. The editor's embeds hear which items moved; a preview frame goes
   on to the agent panel for the reply being written, a moved frame naming a
-  thread reads its events again and lets its preview go, and a socket that
-  opens again lets every preview go. Residual: an embed reads another note again
+  thread reads its events again and lets its preview go, a socket that goes
+  down lets every preview go, and one that comes up reads every query again. Residual: an embed reads another note again
   only when that note's row moves, so a change that leaves its card as it was
   shows at the next one. Rejected: state in the frames (a dropped frame would
   be a lost write); partysocket (the contract's hint already redials, pings and
@@ -135,8 +141,10 @@ is parsed in `shell/desktop-bridge.ts`.
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** Every call goes
   through the wire's interceptor, and a file sent up reads its upload's 401,
   410 and 426 the same way, so a session's end has one answer: the page goes to
-  the site's sign-in, and a keeper reads the session on a timer so an idle page
-  finds out too. The floor spares a page the Worker served, so a tab it refuses
+  the site's sign-in, and a keeper reads the session on a timer and ends the
+  tab's session when it reads signed out, as a call's 401 does, so an idle page
+  finds out too; whichever end the page meets first wins (A TAB'S SESSION IS
+  ONE VALUE). The floor spares a page the Worker served, so a tab it refuses
   is a browser too old to mark its calls as that page's, and the tab says so.
   Rejected: waiting for a wire call alone (an idle page makes none); an upload's
   end said as a failed file (the tab stayed on a library it could no longer
@@ -145,6 +153,14 @@ is parsed in `shell/desktop-bridge.ts`.
   `apps/web/src/library/cloud/library-files.ts`,
   `apps/web/src/lib/auth-client.ts`, `apps/web/src/library/library-tab.ts`,
   over `packages/service/src/client-floor.ts`.
+
+- **A TAB'S SESSION IS ONE VALUE.** Live, ended with why, or left, moved by
+  `tabAfter` in `createTabSession`: the first end wins and every later one does
+  nothing, an outdated end keeps the session and says the browser is too old,
+  and the keeper's signed-out read ends it as a call's 401 does. The layout
+  reads an outdated end off the session's store. Rejected: a floor flag beside
+  two hand-rolled leaves (a leave after an end went twice, and the keeper read
+  the session and did nothing). `apps/web/src/library/library-tab.ts`.
 
 ## Surfaces
 
@@ -298,9 +314,13 @@ is parsed in `shell/desktop-bridge.ts`.
   `items.organize`; each is laid over the listings and the item's row the
   moment it is asked, rolled back if the cell refuses it, and read again once
   it settles; a delete, a restore and a purge are laid over the same way, all
-  of them in one queue so they land in the order asked
+  of them in one queue so they land in the order asked. A saved page's Read
+  again is `verbs.refresh`, one mutation the grid's menu and Info share,
+  Info's button down while any is asked, and a note the editor makes is
+  `verbs.createNote`, in the folder of the open item's row its view holds
   (`apps/web/src/library/panel/info-tab.tsx`,
-  `apps/web/src/library/library/library-verbs.ts`). Rejected: a form over the
+  `apps/web/src/library/library/library-verbs.ts`,
+  `apps/web/src/library/item/page-editor-host.ts`). Rejected: a form over the
   item's markdown (a second reader of what the cell already parsed); waiting for
   the cell before a card moves (a pin would lag the press by a round trip);
   reading the item whole for Info (every projection of the open note's typing
@@ -344,10 +364,11 @@ is parsed in `shell/desktop-bridge.ts`.
   the field takes the keyboard for the question. Under
   each finished turn "Undo this turn" takes its change set back, and "Undo this
   conversation" every one of the conversation's, both once the open note has
-  stored what was typed in it: the sets are read from every page the cell answers,
-  the whole conversation's Undo offered once all are in and sent in as few
-  undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. Its press reads them once more, and when none is left to
+  stored what was typed in it: the sets are one query reading every page the
+  cell answers (`changeSets` in `library-queries.ts`), under the history key
+  the account's socket reads again as a turn moves the thread, since a turn's
+  set seals as it ends; Undo, of a turn or the conversation, is offered once it
+  answers, the conversation's sent in as few undos as the cell takes. Its press reads them once more, and when none is left to
   take back it sends nothing and says so. While a turn
   is open, a turn waiting on an approval among them, every device draws Stop,
   which turns down what it asked and ends the answer, and the page no Undo of
@@ -356,7 +377,10 @@ is parsed in `shell/desktop-bridge.ts`.
   socket of the page's own to the conversation's object; one page of sets (a
   long conversation's oldest turns lost their Undo); the list on screen at the
   press (it can be a turn short of the cell, or hold what another device took
-  back). `apps/web/src/library/agent/agent-panel.tsx`, `thread-undo.ts`, over
+  back); an infinite query paged by an effect (a turn's Undo was offered while
+  the conversation's waited on a page).
+  `apps/web/src/library/agent/agent-panel.tsx`, `thread-undo.ts`,
+  `apps/web/src/library/cloud/library-queries.ts`, over
   `packages/agent-panel/src/thread-entries.ts`.
 
 - **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
@@ -407,6 +431,16 @@ is parsed in `shell/desktop-bridge.ts`.
   a toast (a download's share said in words alone, under notices of what
   already happened); a store per screen (the card and the row would disagree).
   `apps/web/src/library/desktop-update-banner.tsx`.
+
+- **THE AGENT'S COMPOSER IS ONE STATE THE WORKSPACE KEEPS.** Asking in a
+  conversation with the passage it quotes, or tidying, moved by
+  `composerAfter` under the workspace's `useReducer`; the panel and the
+  composer take the state and its dispatch; a send's answer chooses its
+  conversation, which lets a Tidy go, and the field quotes a waiting passage
+  as it renders. Rejected: a `useState` per concern (a Tidy beside an open
+  conversation was representable); a mirror of the passage in the composer.
+  `apps/web/src/library/agent/agent-composer.ts`,
+  `apps/web/src/library/workspace.tsx`.
 
 ## Repo guards, vendoring and tooling
 

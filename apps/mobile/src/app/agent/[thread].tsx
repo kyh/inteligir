@@ -38,7 +38,7 @@ import {
   useTitles,
 } from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
-import { SPACE, useTheme } from "@/lib/theme";
+import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
 
 // the screen a message leaves from: the item it was asked about, else the whole library
@@ -261,7 +261,7 @@ const ConversationScreen = () => {
   const title =
     useThreads().threads?.find((row) => row.id === threadId)?.title ?? "New conversation";
   return (
-    <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }} edges={["left", "right"]}>
+    <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen options={{ title }} />
       <KeyboardAvoidingView
         className="grow basis-0"

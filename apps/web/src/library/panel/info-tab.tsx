@@ -7,6 +7,8 @@
 import { itemProperties } from "@repo/editor/item/item-properties";
 import type { ItemFields } from "@repo/editor/item/item-properties";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
+import { readingOf } from "@repo/contract/library/item-reading";
+import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Switch } from "@repo/ui/components/switch";
@@ -32,6 +34,11 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
     <dd className="m-0 min-w-0 flex-1 text-body break-words select-text">{children}</dd>
   </div>
 );
+
+const ReadFailure = ({ reading }: { reading: Reading }) =>
+  reading.state === "failed" ? (
+    <p className="m-0 text-body text-muted-foreground">{reading.error}</p>
+  ) : null;
 
 const folderName = (
   folders: readonly { readonly id: string; readonly name: string }[],
@@ -149,9 +156,7 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
           />
           {isUrlItem(fields) ? (
             <div className="flex flex-col gap-1.5">
-              {fields.fetchState === "failed" && fields.fetchError !== null ? (
-                <p className="m-0 text-body text-muted-foreground">{fields.fetchError}</p>
-              ) : null}
+              <ReadFailure reading={readingOf(fields)} />
               <Button
                 variant="secondary"
                 size="compact"

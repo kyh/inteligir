@@ -218,7 +218,9 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   again; that check is the upgrade's alone, read before the cell accepts and
   once more after, since a sever closes only sockets already accepted, so
   every session's end (a sign-out, another device's end of it, the cap, a
-  password reset) closes that holder's sockets.
+  password reset) closes that holder's sockets. The account's door and each
+  note's open through one `openForHolder`: the ticket, the standing and the
+  recheck after the accept.
   Rejected: a socket object beside the cell (every ping crossing to it); the
   bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
   for the clients that can send one (a second door to keep); the upgrade as the
@@ -311,7 +313,8 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   only between its `transactionSync` blocks, never inside
   `blockConcurrencyWhile` or an async transaction, since a cold note's load
   calls back into it (`oxlint.config.ts`). One alarm backs every deadline. A
-  note past 1 MiB an update or 8 MiB whole turns read-only and says why;
+  note past 1 MiB an update or 8 MiB whole turns read-only and says why, and
+  takes edits again on every device once a compaction makes room;
   presence is off, its frames dropped; two devices moving one block at once
   leave one copy. Deleted, a note takes no edit; purged, it is emptied by the
   cell's alarm and closes every socket for good. Rejected: block rows merged
@@ -388,7 +391,11 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   hashes otherwise, and settles the row at the size R2 holds. Only R2's own
   checksum refusal answers 400, which a device parks for good; any other failed
   put answers 500, which it sends again on its doubling wait, since R2 said
-  nothing of the bytes. A read hands R2
+  nothing of the bytes, unless R2 kept them after all, which answers 201. A
+  failed put is settled too, so its room goes back. A device's upload, a
+  fill's cover or file and an import's file all reserve, put and settle
+  through one `keepBytes`, over a port to the cell: the Worker's stub of it,
+  or the engine inside it (`keep-bytes.ts`). A read hands R2
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
@@ -399,7 +406,8 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   file by the sha an item's row names, and takes its type from the answer.
   Rejected: a byte-range parser of our own (R2 parses the header); a signed
   URL (a credential in a logged address); a file's row synced to every device
-  (nothing there reads it). `packages/service/src/library/blob-routes.ts`.
+  (nothing there reads it). `packages/service/src/library/blob-routes.ts`,
+  `packages/service/src/library/keep-bytes.ts`.
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ANSWERS THAT ITEM AS IT STANDS.** One
   url, one item: a save whose `urlKey` a live item holds writes nothing and
@@ -500,6 +508,39 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   it went unflagged); a fresh client per undo (a retried undo restores the
   turn's deletes twice). `packages/service/src/note/turn-log.ts`.
 
+- **A NOTE OBJECT'S DUTIES TO ITS CELL ARE ONE DEADLINE, EACH DUTY KEEPING ITS
+  OWN RETRY.** What a note owes its cell is two duties: the seed's confirm
+  (none, pending, or a retry at a time) and the projection (clean, due since a
+  time, or a retry), moved by `stepDuty`, and `deadline()` sets the one alarm
+  from what is owed, so a call the cell answers settles only its own duty and a
+  note that owes nothing arms nothing. The meta columns (`seed_pending`,
+  `dirty_at`, `retry_at`) are read and written only at the boundary; one stored
+  `retry_at` reads back as the earlier of the two retries. Rejected: one retry
+  both duties shared (a projection landing after a failed confirm cleared the
+  confirm's retry, a landed confirm left a past one an idle note's alarm kept
+  firing on, and a failed projection re-armed at a backstop already past).
+  `packages/service/src/note/note-duty.ts`.
+
+- **A NOTE'S STANDING IS ONE VALUE, AND LEAVING FULL OR DELETED REOPENS EVERY
+  SOCKET.** Open, full, in Deleted (keeping whether it is also full), or gone,
+  moved by `standingAfter`: gone takes no event back, a restore or a delete
+  included, and a compaction that leaves room for an update makes a full note
+  open. What each standing admits (an edit, an article, an undo) is one table,
+  and `#setStanding` is its only writer: entering full or Deleted says so to
+  every socket, and leaving either closes them with `NOTE_SOCKET.reopenCode`,
+  so every device dials again writable. Rejected: a boolean per standing beside
+  the meta (a compaction cleared full with every device still read-only, and a
+  gone note still took a delete's write). `packages/service/src/note/note-standing.ts`,
+  `packages/service/src/note/note-do.ts`.
+
+- **A CELL JOB'S PAYLOAD IS ONE SCHEMA PER KIND, PARSED WHERE ITS ROW IS
+  TAKEN.** `scheduleJob` and `ensureJob` take each kind's typed payload, and
+  `dueJobs` parses each row by its kind's schema; a row whose payload no
+  longer reads is dropped and logged, so no run fails on it again. Rejected: a
+  stringify and a parse beside each writer and runner (seven pairs to keep in
+  step, and a row one no longer read failed every run on its retry or threw
+  out the whole batch). `packages/service/src/library/cell-jobs.ts`.
+
 ## Fills
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
@@ -541,8 +582,12 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   consumer read (a reading nobody edited around would conflict with every save
   meanwhile); folding it onto the item at the final address (a merge with an
   undo of its own); readdressing it to the final address (a page that
-  redirects to its sign-in would be kept at the sign-in's address).
-  `packages/service/src/library/cell-fills.ts`.
+  redirects to its sign-in would be kept at the sign-in's address). A fill's
+  landing and a device's save of a page put the article in an opened note
+  first, then land, through one `articleThenLand`, which tries a note that
+  opened between the look and the write once more.
+  `packages/service/src/library/cell-fills.ts`,
+  `packages/service/src/library/article-landing.ts`.
 
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
@@ -710,7 +755,8 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   awaiting the person under a Lifecycle job that denies at ten minutes; an
   answer decides once; a cancel marks the turn durably, cuts the model call
   whether its request is still being built or already streaming, and answers every
-  open call `is_error`, so the next request is valid. Rejected: a tool that
+  open call `is_error`, a denied one with the person's words, so the next
+  request is valid. Rejected: a tool that
   waits in memory (it dies with an eviction); the platform's `auto` judgment
   (not the person). `packages/service/src/agent/agent-thread.ts`,
   `thread-loop.ts`.
@@ -812,6 +858,35 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   following a page (a request sent cannot be undone).
   `packages/service/src/agent/library-agent.ts`,
   `packages/agent-panel/src/thread-entries.ts`.
+
+- **A CONVERSATION'S DRIVE IS ONE VALUE, AND A PURGE IS A CUT, NEVER A STOP.**
+  Resting, driving (with whether something new was asked meanwhile) or purged,
+  moved by `nextDrive`, which the object and the suites' stepped host both
+  apply; why a call in flight was cut (stopped, silent or purged) rides its
+  abort (`cutCall`), so a purged call writes nothing and a purged drive takes
+  no further step, job or model call. Rejected: a flag per concern (a purge
+  the drive never read stepped again over tables being removed); an abort with
+  no reason (a purge read as the person's stop).
+  `packages/service/src/agent/thread-drive.ts`, `agent-thread.ts`,
+  `thread-loop.ts`.
+
+- **A TOOL CALL IS ONE UNION, MOVED BY ONE FUNCTION.** Asked, awaiting,
+  approved, denied with the person's reason, running or answered, parsed from
+  its row's status and decision (`toolCallOf`) and moved by `toolCallNext`,
+  which the round, the person's answer and a stop each go through: a denied
+  call is answered with the person's words whatever answers it, and a result
+  lands only on a call that runs. The columns are written as before. Rejected:
+  reading the columns at each site (a stop lost the person's no, and a result
+  landed on any row it named). `packages/service/src/agent/tool-call.ts`,
+  `thread-loop.ts`.
+
+- **A THREAD'S STATUS IS WHAT ITS OPEN TURN AND QUEUED SENDS SAY, WRITTEN IN
+  ONE PLACE.** `threadStatusOf` reads it from the open turn and the queue, and
+  `restatus` is its only writer, run after every change to either; an answer
+  with nothing waiting is refused rather than clamped. The waiting-approval
+  count stays a stored counter. Rejected: each of six sites choosing the status
+  it wrote (a stored status could contradict the rows).
+  `packages/service/src/agent/turn-rows.ts`.
 
 ## The program and its suites
 
