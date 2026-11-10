@@ -8,6 +8,8 @@
 import YProvider from "y-partyserver/provider";
 import * as Y from "yjs";
 
+import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
+
 import { deferred } from "@repo/editor/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
 
@@ -38,22 +40,6 @@ export interface NoteConnection {
   readonly start: () => void;
   readonly close: () => void;
 }
-
-// The note's object answers a ping without waking (its auto-response), so a socket gone quiet is
-// found at no cost to it; its other words are y-partyserver's custom messages.
-/** @internal */
-export const NOTE_SOCKET = {
-  deleted: "deleted",
-  full: "full",
-  // the close code of a note that is not there, which the provider would otherwise redial forever
-  missingCode: 4404,
-  ping: "ping",
-  pong: "pong",
-  // a frame past a cap was refused, so this socket takes nothing more
-  refused: "read-only",
-  saved: "saved",
-  savedAsk: "saved?",
-} as const;
 
 /** @internal */
 export const PING_EVERY_MS = 20_000;
@@ -133,6 +119,10 @@ class LiveNote implements NoteConnection {
     }
     if (this.edits <= this.confirmed) {
       return true;
+    }
+    // a note holding every edit back answers no ask, since what it was sent may have been dropped
+    if (this.held !== null) {
+      return false;
     }
     const { promise, resolve } = deferred<boolean>();
     this.waiters.push({ resolve, upTo: this.edits });
@@ -312,6 +302,7 @@ class LiveNote implements NoteConnection {
       case NOTE_SOCKET.full: {
         link.greeted = message;
         this.held = message;
+        this.settle(false);
         // a full note greets every socket so; only one that synced may hold what it refused
         if (message === NOTE_SOCKET.full && link.synced) {
           this.reopen();

@@ -2,11 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
+import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
+
 import { deferred } from "@repo/editor/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
 import {
   DOWN_GRACE_MS,
-  NOTE_SOCKET,
   PING_EVERY_MS,
   PONG_WITHIN_MS,
   REDIAL_MS,
@@ -36,7 +37,7 @@ const testHost = ({ failTickets = 0 }: { readonly failTickets?: number } = {}): 
         listener();
       }
     },
-    notePath: (itemId) => `/v1/notes/${itemId}`,
+    notePath,
     offline: () => offline,
     onOfflineChange: (listener) => {
       listeners.add(listener);
@@ -343,6 +344,19 @@ describe("a note's live document over its socket", () => {
     expect(after).toMatchObject({ held: null, live: true });
     expect(after.doc).not.toBe(before);
     expect(server.open()).toHaveLength(1);
+  });
+
+  it("answers whenSaved false once the note holds every edit back, which it answers no ask for", async () => {
+    const note = await connect(testHost());
+    server.answersSaved = false;
+    opened(note.status()).doc.getText("probe").insert(0, "a");
+    const saved = note.whenSaved();
+    await pass();
+    server.note("n1").greeting = NOTE_SOCKET.deleted;
+    server.say("n1", NOTE_SOCKET.deleted);
+    await pass();
+    await expect(saved).resolves.toBe(false);
+    await expect(note.whenSaved()).resolves.toBe(false);
   });
 
   it("answers whenSaved false when the note closes first", async () => {

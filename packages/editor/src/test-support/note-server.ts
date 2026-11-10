@@ -6,7 +6,7 @@
 import { vi } from "vitest";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET } from "../item/note-connection";
+import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
 
 const CUSTOM = "__YPS:";
 const MESSAGE_SYNC = 0;
@@ -255,7 +255,9 @@ export const noteServer = (): NoteServer => {
         if (data === NOTE_SOCKET.ping && server.answersPings) {
           socket.deliver(NOTE_SOCKET.pong);
         }
-        if (data === `${CUSTOM}${NOTE_SOCKET.savedAsk}` && server.answersSaved) {
+        // as the object, a socket held read-only is told nothing of what it sent
+        const held = refusing.has(socket) || note(socket.itemId).greeting !== null;
+        if (data === `${CUSTOM}${NOTE_SOCKET.savedAsk}` && server.answersSaved && !held) {
           socket.deliver(`${CUSTOM}${NOTE_SOCKET.saved}`);
         }
         return;

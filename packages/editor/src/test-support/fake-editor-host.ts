@@ -1,5 +1,6 @@
 import { fileSha } from "@repo/contract/library/file-sha";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { notePath } from "@repo/contract/library/library-socket";
 
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type {
@@ -61,7 +62,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   let tickets = 0;
 
   const notes: NoteHost = {
-    notePath: (itemId) => `/v1/notes/${itemId}`,
+    notePath,
     offline: () => offline,
     onOfflineChange: (listener) => {
       offlineListeners.add(listener);
