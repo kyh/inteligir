@@ -5,7 +5,7 @@
 
 // the text so far of the reply the agent is writing in a thread; or none any more (null) in a
 // thread, or in every thread (`threadId` null)
-export type ThreadPreview =
+type ThreadPreview =
   | { readonly threadId: string; readonly text: string }
   | { readonly threadId: string | null; readonly text: null };
 

@@ -19,9 +19,10 @@ import type { CloudWire } from "./v1";
 /** @internal */
 export type ItemsMoved = ReadonlyMap<string, number> | null;
 
-// the reply the agent is writing in a thread, its text so far; or none any more (null) in a thread a
-// write moved, since its reply landed or its turn moved on, or in every thread (`threadId` null)
-// when the write moved more than a frame names or the socket opened again
+// the reply the agent is writing in a thread, its text so far; or none any more (null) in a
+// thread a write moved, since its reply landed or its turn moved on, or in every thread
+// (`threadId` null) when the write moved more than a frame names or the socket opened again
+/** @internal */
 export type ThreadPreview =
   | { readonly threadId: string; readonly text: string }
   | { readonly threadId: string | null; readonly text: null };

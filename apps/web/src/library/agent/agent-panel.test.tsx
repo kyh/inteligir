@@ -80,6 +80,10 @@ const panel = (
 const callsTo = (calls: readonly CellCall[], path: string): unknown[] =>
   calls.filter((call) => call.path === path).map((call) => call.input);
 
+// the reply being written as the panel draws it, or null while it draws none
+const previewShown = (): string | null =>
+  document.querySelector("[data-agent-preview]")?.textContent ?? null;
+
 const oneFinishedTurn = [
   row(0, { text: "File these.", type: "user.message" }),
   row(1, { reason: "done", turn: 1, type: "turn.ended" }),
@@ -252,37 +256,35 @@ describe("the agent panel's conversation", () => {
     });
     renderOnLibrary(panel(), fake.library);
     await screen.findByText("File these.");
-    const shown = (): string | null =>
-      document.querySelector("[data-agent-preview]")?.textContent ?? null;
 
     act(() => {
       fake.preview({ text: "Elsewhere", threadId: OTHER_THREAD });
     });
-    expect(shown()).toBeNull();
+    expect(previewShown()).toBeNull();
     act(() => {
       fake.preview({ text: "Filing", threadId: THREAD });
     });
     await waitFor(() => {
-      expect(shown()).toBe("Filing");
+      expect(previewShown()).toBe("Filing");
     });
     act(() => {
       fake.preview({ text: null, threadId: OTHER_THREAD });
     });
-    expect(shown()).toBe("Filing");
+    expect(previewShown()).toBe("Filing");
     act(() => {
       fake.preview({ text: null, threadId: THREAD });
     });
-    expect(shown()).toBeNull();
+    expect(previewShown()).toBeNull();
     act(() => {
       fake.preview({ text: "Filed", threadId: THREAD });
     });
     await waitFor(() => {
-      expect(shown()).toBe("Filed");
+      expect(previewShown()).toBe("Filed");
     });
     act(() => {
       fake.preview({ text: null, threadId: null });
     });
-    expect(shown()).toBeNull();
+    expect(previewShown()).toBeNull();
   });
 
   it("offers Stop and no Undo of the conversation while a turn waits on the person", async () => {
