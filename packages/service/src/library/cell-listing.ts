@@ -15,11 +15,17 @@ import {
   LibraryIndex,
   listingPageOf,
 } from "@repo/contract/library/library-index";
-import type { ItemListing, ListingPageInput } from "@repo/contract/library/library-index";
+import type { ListingPageInput, ListingRow } from "@repo/contract/library/library-index";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { literalMatches, readItem, readLiveItems, searchLibrary } from "./library-queries";
-import type { LiteralMatch, SearchSide } from "./library-queries";
-import { runPlan } from "./library-sql";
+import {
+  literalMatches,
+  readItem,
+  readListingRows,
+  readLiveItem,
+  searchLibrary,
+} from "./library-queries";
+import type { LiteralMatch, LiveStoredItem, SearchSide } from "./library-queries";
+import { LibraryRowError, runPlan } from "./library-sql";
 import { asc } from "drizzle-orm";
 
 import { itemTags } from "@repo/db/cell/schema";
@@ -51,7 +57,7 @@ export const itemWhole = (storage: CellStorage, id: string, blocks: readonly Bod
 });
 
 // every item the library holds (none purged), with the folders a listing files them under
-export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
+export const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
   const tags = new Map<string, string[]>();
   for (const row of db
     .select({ itemId: itemTags.itemId, tag: itemTags.tag })
@@ -64,12 +70,21 @@ export const listingOf = (db: CellDb): LibraryIndex<ItemListing> => {
     }
     tags.set(row.itemId, held);
   }
-  const index = new LibraryIndex<ItemListing>();
-  for (const item of readLiveItems(db)) {
-    index.upsert(itemListing(item, tags.get(item.id) ?? []));
+  const index = new LibraryIndex<ListingRow>();
+  for (const row of readListingRows(db)) {
+    index.upsert({ ...row, tags: tags.get(row.id) ?? [] });
   }
   index.setFolders(liveFolders(db));
   return index;
+};
+
+// an item the listing names, read whole from its row in the same read
+export const listedWhole = (db: CellDb, id: string): LiveStoredItem => {
+  const item = readLiveItem(db, id);
+  if (item === null) {
+    throw new LibraryRowError(`the listing names the item ${id}, which the library does not hold`);
+  }
+  return item;
 };
 
 // ---- search ----
@@ -141,4 +156,5 @@ export const listingPage = (
     input.words === undefined
       ? null
       : searchHits(storage, input.words, input.query.deleted ? "deleted" : "live"),
+    (row) => itemListing(listedWhole(storage.db, row.id), row.tags),
   );

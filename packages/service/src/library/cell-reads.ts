@@ -15,7 +15,6 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
-import type { ItemListing } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 import { linksTo, linksToUrl, readItem } from "./library-queries";
@@ -28,7 +27,7 @@ import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
-import { listingOf, searchHits } from "./cell-listing";
+import { listedWhole, listingOf, searchHits } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -87,24 +86,6 @@ export const summaryOf = (
   };
 };
 
-const summaryOfListing = (row: ItemListing, format: ResponseFormat): ItemSummary =>
-  summaryOf(
-    {
-      card: row.card,
-      fields: {
-        folderId: row.folderId,
-        kind: row.kind,
-        pinnedAt: row.pinnedAt,
-        savedAt: row.savedAt,
-        site: row.fields.site,
-        tags: row.fields.tags,
-        url: row.url,
-      },
-      id: row.id,
-    },
-    format,
-  );
-
 const LIST_SORTS = { saved: "saved", title: "title", updated: "modified" } as const;
 
 export interface ListInput {
@@ -138,7 +119,7 @@ export const listItems = (db: CellDb, input: ListInput) => {
   const shown = rows.slice(offset, offset + input.limit);
   return {
     cursor: nextCursor(offset, shown.length, rows.length),
-    items: shown.map((row) => summaryOfListing(row, input.responseFormat)),
+    items: shown.map((row) => summaryOf(listedWhole(db, row.id), input.responseFormat)),
   };
 };
 

@@ -22,6 +22,7 @@ import type {
   ItemCard,
   ItemSearchText,
 } from "@repo/contract/library/derive-item";
+import type { ListingRow } from "@repo/contract/library/library-index";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { all, LibraryRowError, run } from "./library-sql";
@@ -277,9 +278,37 @@ export const readLiveItem = (db: CellDb, id: string): LiveStoredItem | null => {
   return item?.kind === "live" ? item : null;
 };
 
+// what the cell's listing reads of an item's row: the facts it filters and orders by, the card's
+// title taken out in SQL, since parsing every row whole was most of a listing's cost
+export type ListingFacts = Omit<ListingRow, "tags">;
+
+const LISTING_COLUMNS = {
+  deletedAt: items.deletedAt,
+  folderId: items.folderId,
+  id: items.id,
+  kind: items.kind,
+  pinnedAt: items.pinnedAt,
+  savedAt: items.savedAt,
+  title: sql`json_extract(${items.card}, '$.title')`.mapWith(String),
+  updatedAt: items.updatedAt,
+  url: items.url,
+};
+
 // every item that is not purged, by id: what the cell's listing is built from
-export const readLiveItems = (db: CellDb): LiveStoredItem[] =>
-  db.select().from(items).where(eq(items.purged, 0)).orderBy(asc(items.id)).all().map(liveItemOf);
+export const readListingRows = (db: CellDb): ListingFacts[] =>
+  db
+    .select(LISTING_COLUMNS)
+    .from(items)
+    .where(eq(items.purged, 0))
+    .orderBy(asc(items.id))
+    .all()
+    .map((row) => {
+      const { kind, savedAt } = row;
+      if (kind === null || savedAt === null) {
+        throw new LibraryRowError(`the item ${row.id} is not what this build writes`);
+      }
+      return { ...row, kind, savedAt };
+    });
 
 // ---- derived rows: links and tags ----
 

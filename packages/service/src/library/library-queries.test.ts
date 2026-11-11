@@ -19,7 +19,7 @@ import {
   searchLibrary,
   searchRowBytes,
   searchRowOf,
-  readLiveItems,
+  readListingRows,
   storeItemRow,
   storeLinks,
   storeSearchRow,
@@ -205,7 +205,7 @@ describe("items", () => {
       put(storage, "a", itemOf([], noteFields({ title: "A" })));
       put(storage, "c", itemOf([], noteFields({ title: "C" })));
       storeTombstone(storage, { deletedAt: 7, id: "c", seq: 9, updatedAt: 8 });
-      expect(readLiveItems(storage.db).map((item) => item.id)).toStrictEqual(["a", "b"]);
+      expect(readListingRows(storage.db).map((row) => row.id)).toStrictEqual(["a", "b"]);
     });
   });
 

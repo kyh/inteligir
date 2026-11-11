@@ -187,10 +187,13 @@ const answering = (): LibraryIndex<ItemListing> => {
   return index;
 };
 
+// the index above holds each row whole
+const whole = (listed: ItemListing): ItemListing => listed;
+
 describe(listingPageOf, () => {
   it("pages a listing from where the last page ended, counting each kind", () => {
     const notes = { deleted: false, kinds: ["note" as const], sort: "title" as const };
-    const first = listingPageOf(answering(), { limit: 2, query: notes }, null);
+    const first = listingPageOf(answering(), { limit: 2, query: notes }, null, whole);
     expect(first.items.map(({ card }) => card.title)).toStrictEqual(["Apple", "Banana"]);
     expect(first).toMatchObject({ kindCounts: { link: 1, note: 3 }, nextCursor: 2, total: 3 });
     expect(first.items[0]).toStrictEqual({
@@ -202,7 +205,7 @@ describe(listingPageOf, () => {
       updatedAt: 0,
     });
 
-    const last = listingPageOf(answering(), { cursor: 2, limit: 2, query: notes }, null);
+    const last = listingPageOf(answering(), { cursor: 2, limit: 2, query: notes }, null, whole);
     expect(last.items.map(({ card }) => card.title)).toStrictEqual(["Cherry"]);
     expect(last.nextCursor).toBeNull();
   });
@@ -215,6 +218,7 @@ describe(listingPageOf, () => {
         ["cherry", "a cherry tree"],
         ["banana", "banana bread"],
       ]),
+      whole,
     );
     expect(page.items.map(({ id, snippet }) => [id, snippet])).toStrictEqual([
       ["cherry", "a cherry tree"],
