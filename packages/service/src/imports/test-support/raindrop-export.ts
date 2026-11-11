@@ -1,7 +1,6 @@
 // A Raindrop.io CSV export as Raindrop writes one: records ended by CRLF, quoted fields holding
 // bare line breaks and doubled quotes, and a row of every kind the parser keeps or leaves out.
 
-/** @internal */
 export const RAINDROP_EXPORT = [
   "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite",
   '101,File over app,For Tuesday.,"If you want to create digital artifacts that last, they must be files you can control.",https://stephango.com/file-over-app?utm_source=raindrop,Reading,"philosophy, files",2023-07-01T09:12:30.000Z,https://stephango.com/og.jpg,"Highlight: Files last.\nNote: The point.\n\nHighlight: Apps are ephemeral,\nbut files are not.",true',

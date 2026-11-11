@@ -11,7 +11,6 @@ import { isMdastRoot } from "../markdown/mdast-nodes";
 
 const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS).freeze();
 
-/** @internal */
 export const mdastOf = (md: string): Root => {
   const tree = processor.runSync(processor.parse(md), md);
   if (!isMdastRoot(tree)) {
@@ -21,6 +20,5 @@ export const mdastOf = (md: string): Root => {
 };
 
 // the writer's extensions the dialect's plugins register
-/** @internal */
 export const writerExtensions = (): ToMarkdownOptions[] =>
   processor.data("toMarkdownExtensions") ?? [];

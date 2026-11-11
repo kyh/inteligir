@@ -38,7 +38,6 @@ const pickBest = (candidates: Iterable<string>): string | null => {
 // the keys the name tier files a path under: its basename, and that without the extension a link
 // may leave off. a bare name (no `/`) answers to exactly the paths filed under it, case aside: the
 // exact tiers reach only root files, which are filed there too
-/** @internal */
 export const wikiNameKeys = (path: string): readonly string[] => {
   const base = basenamePath(path);
   const name = wikiLinkName(path);

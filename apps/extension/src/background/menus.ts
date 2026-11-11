@@ -61,7 +61,6 @@ const bytesOfPercentEncoded = (data: string): Uint8Array<ArrayBuffer> | null => 
 
 // the bytes a data: url holds, read as the browser reads the picture: percent-decoded first, a
 // base64 body included; what they are is for the save to sniff
-/** @internal */
 export const bytesOfDataUrl = (url: string): Uint8Array<ArrayBuffer> | null => {
   const match = DATA_URL.exec(url);
   if (match?.groups === undefined) {

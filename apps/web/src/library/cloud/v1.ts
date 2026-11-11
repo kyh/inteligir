@@ -21,7 +21,6 @@ export interface CloudWire {
 }
 
 // how a call's failure ended the page's sign-in, if it did
-/** @internal */
 export const sessionEndOf = (cause: unknown): SessionEnd | null => {
   const failure = cause instanceof Error ? sharedFailure(cause) : null;
   return failure?.kind === "session" ? failure.end : null;

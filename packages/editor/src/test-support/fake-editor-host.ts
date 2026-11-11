@@ -16,7 +16,6 @@ type HostCall =
   | { readonly action: "createNote"; readonly args: readonly unknown[] }
   | { readonly action: "keepFile"; readonly args: readonly [Uint8Array, string] };
 
-/** @internal */
 export interface FakeEditorHostOptions {
   // the library's titles, as a host hands them over
   readonly titles?: readonly LinkTarget[];
@@ -46,7 +45,6 @@ const ignore = (): void => {
 const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 // the cloud a note's socket dials, apart from the page's own location
-/** @internal */
 export const NOTES_ORIGIN = "https://notes.test";
 
 // Installs the singleton the hooks read and hands the editor the library's titles; the io half
@@ -55,7 +53,6 @@ export const NOTES_ORIGIN = "https://notes.test";
 // `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing, and an
 // open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
 // host's change feed does, and `goOffline` that the connection went or came back.
-/** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const files = new Map(options.files);

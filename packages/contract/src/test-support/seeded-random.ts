@@ -16,7 +16,6 @@ export const mulberry32 = (seed: number): (() => number) => {
 };
 /* oxlint-enable no-bitwise */
 
-/** @internal */
 export const pick = <T>(rand: () => number, items: readonly T[]): T => {
   const item = items[Math.floor(rand() * items.length)];
   if (item === undefined) {

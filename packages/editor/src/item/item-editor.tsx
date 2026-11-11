@@ -55,20 +55,17 @@ import { Notice } from "./notice";
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
 const CHUNK_BLOCKS = 100;
 
-/** @internal */
 export const MISSING_ITEM = "This item isn't in your library. It may have been deleted for good.";
 
 // why a note that is open takes no edit, in the person's words; a full note stays so for everyone,
 // since 8 MB is past anything typed, and a cut that only shrinks it would cost a copy of the note
 // on every edit
-/** @internal */
 export const HELD_BACK: Record<NoteHeld, string> = {
   deleted: "This item is in Deleted. Restore it to edit it.",
   full: "This note is as long as a note can be, so it takes no more. Copy what you need into a new note. You can still move this one to Deleted.",
 };
 
 // a paste or a drop past what the note takes in one frame, which it refused whole
-/** @internal */
 export const REFUSED_EDIT =
   "That was too much to add at once, so this note is going back to what it held.";
 

@@ -9,9 +9,7 @@ import type { toolCalls } from "@repo/db/thread/schema";
 
 import type { ToolAnswer } from "./thread-wire";
 
-/** @internal */
 export const DECLINED = "The person declined this, so it did not run.";
-/** @internal */
 export const STOPPED = "The person stopped this turn before this ran.";
 
 export type ToolCall =

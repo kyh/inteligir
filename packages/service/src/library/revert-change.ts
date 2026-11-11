@@ -42,7 +42,6 @@ export interface ItemNow {
 
 type ItemRevertKeepReason = "edited-since" | "purged";
 
-/** @internal */
 export type ItemRevert =
   | { readonly kind: "unchanged" }
   | {
@@ -53,7 +52,6 @@ export type ItemRevert =
     }
   | { readonly kind: "keep"; readonly reason: ItemRevertKeepReason };
 
-/** @internal */
 export interface ItemRevertInput {
   readonly change: ItemChange;
   readonly now: ItemNow | null;
@@ -160,7 +158,6 @@ const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemR
   return landed(now, [setOp("deletedAt", null, at)]);
 };
 
-/** @internal */
 export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
   const { change, now } = input;
   if (change.before === null) {

@@ -37,7 +37,6 @@ export type SocketDial = (url: string) => AccountSocket;
 
 // up: anything may have moved while no socket said so; down: nothing the socket said holds any
 // more, and the reply being written stops arriving
-/** @internal */
 export type SocketStatus = "up" | "down";
 
 // answered by the cell's auto-response table without waking it
@@ -130,7 +129,6 @@ const frameJsonSchema = z.string().transform((text, context) => {
 });
 
 // the socket's address on the cloud's origin, its scheme the origin's own made a socket's
-/** @internal */
 export const socketUrl = (origin: string, ticket: string): string => {
   const scheme = origin.startsWith("https:") ? "wss:" : "ws:";
   const rest = origin.replace(/^https?:/u, "");

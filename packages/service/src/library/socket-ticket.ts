@@ -11,7 +11,6 @@ import { z } from "zod";
 import { holderSchema } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
 
-/** @internal */
 export const SOCKET_TICKET_TTL_MS = 60_000;
 
 const KEY_INFO = "inteligir library socket ticket";

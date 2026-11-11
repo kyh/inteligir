@@ -3,7 +3,6 @@
 import type { LibraryItemFields } from "../library/library-item";
 import type { LibraryBlock } from "../library/library-nodes";
 
-/** @internal */
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
   author: null,
@@ -29,7 +28,6 @@ export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryI
   ...overrides,
 });
 
-/** @internal */
 export const paragraph = (id: string, text: string): LibraryBlock => ({
   children: [{ text }],
   id,

@@ -73,7 +73,6 @@ export const runPlan = <T>(port: SqlStatements, plan: SqlPlan<T>): T => {
 // of statement text (https://developers.cloudflare.com/durable-objects/platform/limits/); every
 // many-row statement is cut under whichever binds first.
 export const SQL_MAX_PARAMS = 100;
-/** @internal */
 export const SQL_MAX_STATEMENT_BYTES = 100_000;
 
 export interface RepeatedStatement {

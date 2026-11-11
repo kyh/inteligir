@@ -108,7 +108,6 @@ export const signedBase = oc.errors({
 });
 
 // the codes oRPC does not know; one with no status here would default to 400 unnoticed
-/** @internal */
 export const V1_CUSTOM_ERROR_STATUS = {
   [AgentBudgetError.code]: 429,
   [AlreadyUndoneError.code]: 409,

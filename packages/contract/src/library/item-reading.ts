@@ -62,7 +62,6 @@ export type ReadingEvent =
 
 // A reading lands only on an item that asked for one, and a failure never takes back a read; an
 // ask keeps when the page was last read.
-/** @internal */
 export const readingAfter = (reading: Reading, event: ReadingEvent): Reading => {
   if (event.kind === "asked") {
     return { at: reading.state === "none" ? null : reading.at, state: "pending" };

@@ -51,7 +51,6 @@ export const signInHref = (here: Pick<Location, "pathname" | "search">): string 
 // otherwise makes only as it opens, so a tab left open would lose its cookie seven days after its
 // sign-in, however much it was used (`packages/service/CLAUDE.md` § ONLY BETTER AUTH'S OWN READ
 // SLIDES A SESSION). Well inside the day a session waits before it slides.
-/** @internal */
 export const SESSION_READ_MS = 3_600_000;
 
 export const keepSession = (clock: Clock, read: () => Promise<void>): void => {

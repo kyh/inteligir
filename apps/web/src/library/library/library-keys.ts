@@ -34,7 +34,6 @@ export interface LibraryShortcut {
   readonly where: LibraryShortcutWhere;
 }
 
-/** @internal */
 export const LIBRARY_SHORTCUTS: readonly LibraryShortcut[] = [
   { action: "move-left", key: "left", where: "grid" },
   { action: "move-right", key: "right", where: "grid" },

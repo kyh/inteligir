@@ -51,12 +51,10 @@ const meaningOfNodes = (nodes: readonly Descendant[]): Descendant[] => {
 };
 
 // a value's meaning as one string, so a suite compares two by equality
-/** @internal */
 export const meaningOf = (nodes: readonly Descendant[]): string =>
   canonicalJson(z.json().parse(meaningOfNodes(nodes)));
 
 // markdown read into blocks; a refusal throws, since a suite that meant a refusal asks md-read
-/** @internal */
 export const readValue = (md: string): TElement[] => {
   const read = parseMarkdown(md);
   if (!read.ok) {
@@ -65,10 +63,8 @@ export const readValue = (md: string): TElement[] => {
   return read.value;
 };
 
-/** @internal */
 export const writeValue = (value: readonly TElement[]): string =>
   serializeNote(headlessEditor(), structuredClone([...value]));
 
 // markdown read and written again, which a written file is the fixpoint of
-/** @internal */
 export const rewrite = (md: string): string => writeValue(readValue(md));

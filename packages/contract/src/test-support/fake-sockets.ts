@@ -18,14 +18,12 @@ interface FakeSocket extends AccountSocket {
   readonly drop: () => void;
 }
 
-/** @internal */
 export interface FakeSockets {
   readonly dial: SocketDial;
   // every socket dialled, oldest first
   readonly sockets: FakeSocket[];
 }
 
-/** @internal */
 export const fakeSockets = (): FakeSockets => {
   const sockets: FakeSocket[] = [];
   const dial = (url: string): AccountSocket => {

@@ -97,7 +97,6 @@ const TURN_CLOSED: ToolAnswer = {
 };
 
 // what the thread's cell answers it, by Durable Object RPC (`../library/library-do`)
-/** @internal */
 export interface ThreadCell {
   readonly agentTool: (request: ToolRequest) => Promise<CellAnswer<ToolAnswer>>;
   readonly agentPush: (request: PushRequest) => Promise<CellAnswer<null>>;

@@ -5,7 +5,6 @@ const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 export const isDocPath = (path: string): boolean =>
   DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
 
-/** @internal */
 export const docExtension = (path: string): string => (isDocPath(path) ? extnamePath(path) : "");
 
 export const docStem = (path: string): string => {
@@ -23,7 +22,6 @@ const impliedLinkExtension = (path: string): string => {
   return ext.toLowerCase() === IMPLIED_LINK_EXTENSION ? ext : "";
 };
 
-/** @internal */
 export const wikiLinkPath = (path: string): string =>
   path.slice(0, path.length - impliedLinkExtension(path).length);
 

@@ -60,7 +60,6 @@ export const CONTENT_KIT = [
 ];
 
 // A later plugin's aboveNodes wraps an earlier one's, so the fold stays inside the drag handle.
-/** @internal */
 export const DESKTOP_CHROME_KIT = [
   ...HeadingCollapseKit,
   ...SlashKit,

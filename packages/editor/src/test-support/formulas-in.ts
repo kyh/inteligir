@@ -10,7 +10,6 @@ import { parseFormulaMeta } from "../formulas/formula-meta";
 import { parseMarkdown } from "../markdown/markdown-doc";
 import { stringProp } from "../node-props";
 
-/** @internal */
 export const formulasIn = (markdown: string): CollectedFormula[] => {
   const read = parseMarkdown(markdown);
   if (!read.ok) {

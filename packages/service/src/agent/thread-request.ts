@@ -37,7 +37,6 @@ import { AGENT_MAX_TOKENS, AGENT_MODEL } from "./library-agent";
 
 // the thinking-block binding control, server-side fallback on a refusal, threshold compaction, and
 // the progress notes between tool calls shown
-/** @internal */
 export const AGENT_BETAS = [
   "thinking-binding-controls-2026-08-01",
   "server-side-fallback-2026-07-01",

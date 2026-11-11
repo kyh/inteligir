@@ -63,9 +63,7 @@ import type { TurnLogRow } from "./turn-log";
 
 // what one update and the whole note may weigh (owner decision: past either the note turns
 // read-only and says why, so typing never fails mid-word)
-/** @internal */
 export const NOTE_UPDATE_CAP = 1024 * 1024;
-/** @internal */
 export const NOTE_STATE_CAP = 8 * 1024 * 1024;
 // a snapshot part sits well inside a Durable Object's 2 MB row
 const SNAPSHOT_PART_BYTES = 1024 * 1024;

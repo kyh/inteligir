@@ -24,11 +24,9 @@ import { ImageElement } from "@repo/editor/nodes/image-node";
 
 const MB = 1024 * 1024;
 
-/** @internal */
 export const fileTooLarge = (name: string, maxBytes: number): string =>
   `“${name}” is larger than ${String(Math.floor(maxBytes / MB))} MB, the most one file can be.`;
 
-/** @internal */
 export const fileNotKept = (name: string): string =>
   `Couldn't add “${name}” to this note. Try again.`;
 
@@ -40,7 +38,6 @@ interface Transfer {
 
 // the files the editor keeps from a paste or a drop: the person's own, but not a browser's copy of
 // a web picture, which also carries the page's own markup to paste
-/** @internal */
 export const filesToKeep = (data: Transfer, from: "paste" | "drop"): File[] =>
   from === "paste" && data.types.includes("text/html") ? [] : [...data.files];
 

@@ -359,7 +359,6 @@ export const storeTags = (db: CellDb, itemId: string, tags: readonly DerivedTag[
 // ---- search ----
 
 // a Durable Object row holds 2 MB, and an index row holds every column with its stem shadow
-/** @internal */
 export const SEARCH_ROW_MAX_BYTES = 1_900_000;
 const TITLE_MAX_BYTES = 4096;
 const HEADINGS_MAX_BYTES = 256 * 1024;
@@ -383,7 +382,6 @@ const clipToBytes = (text: string, maxBytes: number): string => {
   return text.slice(0, end);
 };
 
-/** @internal */
 export interface SearchRow {
   readonly title: string;
   readonly headings: string;
@@ -395,7 +393,6 @@ export interface SearchRow {
   readonly bodyStems: string;
 }
 
-/** @internal */
 export const searchRowBytes = (row: SearchRow): number =>
   [
     row.title,
@@ -410,7 +407,6 @@ export const searchRowBytes = (row: SearchRow): number =>
 
 // an item's index row within SEARCH_ROW_MAX_BYTES: the short columns are capped, and the body
 // gets what is left, so a long item ranks by the part of it the row can hold
-/** @internal */
 export const searchRowOf = (text: ItemSearchText): SearchRow => {
   const title = clipToBytes(text.title, TITLE_MAX_BYTES);
   const headings = clipToBytes(text.headings, HEADINGS_MAX_BYTES);

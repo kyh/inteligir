@@ -5,7 +5,6 @@
 
 // past the save's debounce (1 s, at most 5 s), so it projects only what the debounce missed
 const BACKSTOP_MS = 10_000;
-/** @internal */
 export const RETRY_MS = 30_000;
 
 type SeedDuty =

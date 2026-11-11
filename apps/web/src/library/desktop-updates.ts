@@ -18,7 +18,6 @@ const ASKS = {
 
 export type UpdateMove = keyof typeof ASKS;
 
-/** @internal */
 export const createUpdatesStore = (bridge: DesktopBridge | null) => {
   const listeners = new Set<() => void>();
   let snapshot: UpdatesSnapshot = bridge === null ? null : { status: "idle" };

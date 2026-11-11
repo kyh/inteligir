@@ -9,7 +9,6 @@ interface Deferred {
 
 const unset = (): void => undefined;
 
-/** @internal */
 export const deferred = (): Deferred => {
   let settle: () => void = unset;
   // oxlint-disable-next-line promise/avoid-new -- the resolver is handed to the suite, which only a promise can do

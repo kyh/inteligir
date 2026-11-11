@@ -193,7 +193,6 @@ const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void =
   }
 };
 
-/** @internal */
 export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void => {
   editor.tf.withoutNormalizing(() => {
     let node = elementAt(editor, at);

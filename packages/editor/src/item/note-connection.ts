@@ -52,15 +52,11 @@ export interface NoteConnection {
   readonly close: () => void;
 }
 
-/** @internal */
 export const PING_EVERY_MS = 20_000;
-/** @internal */
 export const PONG_WITHIN_MS = 5000;
 // a socket down this long turns the editor read-only, so a blip goes unseen and a drop does not
-/** @internal */
 export const DOWN_GRACE_MS = 3000;
 // the provider's own backoff ceiling, which a dial that could not get a ticket waits too
-/** @internal */
 export const REDIAL_MS = 2500;
 
 type Wire =

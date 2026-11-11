@@ -19,7 +19,6 @@ export const V1_LIBRARY_RPC_PATH = `${V1_RPC_PATH}/library` as const;
 
 // the largest call a client sends: one item's write at its text cap (8 MiB), with the JSON it
 // rides in
-/** @internal */
 export const LIBRARY_RPC_MAX_BODY_BYTES = 16 * 1024 * 1024;
 
 const handler = new RPCHandler(libraryRouter, {
