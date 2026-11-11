@@ -4,7 +4,7 @@ import core from "ultracite/oxlint/core";
 import react from "ultracite/oxlint/react";
 import tanstack from "ultracite/oxlint/tanstack";
 
-const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
+const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts"];
 
 // regexes, not groups: a group matches gitignore-style, so "react" would also refuse "@platejs/react"
 const NODE = "^node:";
@@ -118,6 +118,11 @@ export default defineConfig({
         "typescript/prefer-nullish-coalescing": "off",
         "typescript/strict-boolean-expressions": "off",
       },
+    },
+    {
+      // Playwright reads a fixture's needs from its `{}` destructure, and its `use` is no React hook
+      files: ["tools/e2e/**"],
+      rules: { "no-empty-pattern": "off", "react-hooks/rules-of-hooks": "off" },
     },
     {
       // the editor's suites stub platejs/react and the host-io singleton: the seam is the subject
