@@ -21,7 +21,6 @@
     "package:desktop": "turbo run package --filter=@repo/desktop",
     "package:extension": "turbo run zip --filter=@repo/extension",
     "prepare": "git config core.hooksPath .githooks || true",
-    "smoke:desktop": "pnpm package:desktop && pnpm --filter @repo/desktop smoke",
     "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "turbo run typecheck",

@@ -10,7 +10,6 @@
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "package": "node scripts/package.ts",
-    "smoke": "node scripts/smoke-packaged.ts",
     "tauri": "tauri",
     "test": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p scripts && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"

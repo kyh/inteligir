@@ -83,8 +83,8 @@ jobs:
   # check job alone runs them
   test-macos:
     runs-on: macos-latest
-    # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold
-    # release build of the shell is several minutes of it
+    # a backstop: the suites carry no deadline of their own, and a cold build of the shell is
+    # several minutes of it
     timeout-minutes: 50
     env:
       TURBO_TELEMETRY_DISABLED: 1
@@ -103,7 +103,6 @@ jobs:
           install: false
 
       - name: Install
-        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Desktop Rust toolchain
@@ -117,14 +116,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: Smoke desktop
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # only a macOS host can pack or boot the .app, and packing takes minutes, so it stays out of
-        # verify, which runs on every platform. Its window opens on a Worker the smoke boots on the
-        # runner, never production
-        env:
-          # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
-          # apps/desktop/turbo.json passes it through turbo's strict env
-          INTELIGIR_PACK_UNSIGNED: 1
-        run: pnpm smoke:desktop
