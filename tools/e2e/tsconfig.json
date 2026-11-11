@@ -3,8 +3,7 @@
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     "types": ["node"],
-    // the scripted Messages API the harness serves names its imports by their `.ts`, as node runs
-    // it (tools/messages-fake/tsconfig.json)
+    // the scripted Messages API names its imports by their `.ts`, as node runs it
     "allowImportingTsExtensions": true
   },
   "include": ["src", "vitest.config.ts"]

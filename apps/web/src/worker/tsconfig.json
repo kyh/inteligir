@@ -1,28 +1,17 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // No DOM: this half runs on workerd, whose generated globals (Request,
-    // Response, BufferSource, crypto) are the ones that must win. See the note
-    // in ../../tsconfig.json for why the two programs cannot be merged.
-    "lib": ["ES2023"],
-    // the generated Env is listed in `include`, not here: a relative path in
-    // `types` reads as a package name to anything that resolves this config
-    // without tsc's rules.
+    // the generated Env is in `include`: other tools read a relative `types` path as a package
     "types": [],
-    // The site program's `${configDir}` resolves to apps/web, so an unqualified
-    // inherited path would have both tsc runs sharing one incremental file and
-    // re-checking from cold every time.
+    // in apps/web/.cache, which the typecheck task's outputs name
     "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.worker.json",
-    // every @repo/service module server.ts reaches is checked here against the deployed Env, and
-    // the codec's highlight.js types would load the DOM's lib into it, so they are mapped to the
-    // service's stub (packages/service/src/types/highlight-js.d.ts)
+    // highlight.js's declarations would load the DOM's lib into a workerd program
     "paths": {
       "highlight.js": ["../../../../packages/service/src/types/highlight-js.d.ts"]
     },
-    // the generated Env reaches cloudflare.config.ts, which names its imports by their `.ts`
+    // the generated Env reaches cloudflare.config.ts, which imports by `.ts`
     "allowImportingTsExtensions": true
   },
-  // the cell's migrations reach this program through the service, and so does its typing of them
   "include": [
     ".",
     "../../.cloudflare/types/index.d.ts",

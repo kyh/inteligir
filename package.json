@@ -15,7 +15,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write && turbo run format:fix",
     "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
-    "knip": "knip && knip --production",
+    "knip": "knip",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "package:desktop": "turbo run package --filter=@repo/desktop",
@@ -29,7 +29,6 @@
     "verify:affected": "turbo run typecheck lint knip test build --affected --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
   },
   "devDependencies": {
-    "@tanstack/eslint-plugin-query": "catalog:",
     "dotenv-cli": "^11.0.0",
     "knip": "^6.43.0",
     "oxfmt": "^0.72.0",

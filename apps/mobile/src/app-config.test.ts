@@ -206,7 +206,7 @@ describe("the phone's store config", () => {
   it("ships the package's version as the marketing version", () => {
     expect(
       config.ios.infoPlist.CFBundleShortVersionString,
-      "rule: CFBundleShortVersionString is apps/mobile/package.json's version, the product version tools/repo-guards/src/release-versions.test.ts holds across apps\n" +
+      "rule: CFBundleShortVersionString is apps/mobile/package.json's version, the product version the Mac app and the extension carry too\n" +
         "fix: app.config.js passes the package's version through; change it in package.json, never there",
     ).toBe(packageVersion);
   });

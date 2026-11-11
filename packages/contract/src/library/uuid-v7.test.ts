@@ -16,7 +16,6 @@ describe("a minted id", () => {
     }
     const earlier = uuidV7(at, new Uint8Array(16).fill(0xff));
     const later = uuidV7(at + 1, new Uint8Array(16));
-    // oxlint-disable-next-line vitest/prefer-comparison-matcher -- toBeLessThan and its kin take numbers alone, and these are strings compared in code-unit order
     expect(earlier < later).toBe(true);
   });
 

@@ -1,96 +1,35 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // every unused export is reported, an entry's included: packages/* export every file as a
-  // subpath, and an export no workspace imports is dead whatever the exports map says
   "includeEntryExports": true,
   "treatConfigHintsAsErrors": true,
-  // knip's plugins (vitest, vite, TanStack Router, expo-router, package.json scripts) find the
-  // tests, routes and scripts, so an entry here is a file none of them can see. `pnpm knip` runs
-  // twice, the second time `--production` (knip.dev/features/production-mode): what ships is a
-  // pattern ending `!`, and a workspace's `test-support/`, which only suites import, is taken out
-  // of it by `!…!`; a tool's workspace ships nothing, so it has no `!` pattern at all. An export
-  // only a suite imports, a test-support one included, is tagged `@internal`, the tag knip reads
-  // as "not reported in production mode" (knip.dev/reference/jsdoc-tsdoc-tags).
+  // the gallery demos @repo/ui, so its imports are no consumer of an export
+  "ignoreWorkspaces": ["tools/ui-gallery"],
   "workspaces": {
-    ".": {
-      // the workflows' own scripts, which ship nothing
-      "project": [".github/scripts/*.mjs"]
-    },
-    "apps/desktop": {
-      "entry": ["scripts/*.ts"],
-      "project": ["scripts/*.ts"]
-    },
-    "apps/mobile": {
-      "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"],
-      // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
-      // leaves it off until the EAS project is committed. expo-linking, autolinked as
-      // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
-      "ignoreDependencies": ["expo-updates"]
-    },
+    "apps/desktop": { "entry": ["scripts/*.ts"] },
+    // linked natively; knip's expo plugin counts it only while app.config.js turns `updates` on
+    "apps/mobile": { "ignoreDependencies": ["expo-updates"] },
     "apps/extension": {
-      // WXT's entrypoints live under its srcDir, src/, where knip's wxt plugin, which looks in
-      // entrypoints/ at the workspace root, does not; a page's entry is its index.html's script
       "wxt": { "entry": ["src/entrypoints/*.ts", "src/entrypoints/*/main.tsx"] },
-      "project": ["src/**/*.{ts,tsx,css}!", "*.ts", "!src/**/test-support/**!"],
-      // tailwindcss is @repo/ui's globals.css import, which knip does not follow
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      // cloudflare.config.ts is what `cf build` deploys, its entrypoint src/worker/server.ts; the
-      // type claims are tsc's, over the Worker's program; scripts/ is `pnpm og:cards`'s, run by
-      // node outside the build
-      "entry": ["cloudflare.config.ts!", "src/worker/*.test-d.ts", "scripts/*.ts"],
-      "project": ["src/**/*.{ts,tsx,css}!", "scripts/*.ts", "!src/**/test-support/**!"],
-      // tailwindcss is @repo/ui's globals.css import, which knip does not follow
+      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts", "scripts/*.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
-    "packages/agent-panel": { "project": ["src/**/*.ts!"] },
-    "packages/contract": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
-    "packages/editor": { "project": ["src/**/*.{ts,tsx}!", "!src/**/test-support/**!"] },
-    "packages/page-reader": { "project": ["src/**/*.ts!", "!src/**/test-support/**!"] },
     "packages/db": {
-      // knip's drizzle plugin reads only drizzle.config.ts by default; the cell's, the note's and the
-      // conversation's schemas have configs of their own, and the local D1's throws on load until
-      // `pnpm dev:web` has made that database
-      "drizzle": {
-        "config": [
-          "drizzle.config.ts",
-          "drizzle.config.cell.ts",
-          "drizzle.config.note.ts",
-          "drizzle.config.thread.ts"
-        ]
-      },
-      "project": ["src/**/*.{ts,js}!"]
+      // the local D1's config throws on load until `pnpm dev:web` has made that database
+      "ignore": ["drizzle.config.local.ts"],
+      "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.{cell,note,thread}.ts"] }
     },
     "packages/service": {
-      // cloudflare.config.ts is the suites' Worker, never deployed, its entrypoint
-      // src/test-support/test-worker.ts; the type claims are vitest's `typecheck.include`, which
-      // knip's vitest plugin does not read; scripts/ is `pnpm agent-prompt`'s, run by node
       "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
-      "project": ["src/**/*.ts!", "scripts/*.ts", "!src/**/test-support/**!"],
-      // a stub the program maps by `paths` (tsconfig.json), which knip does not follow
       "ignore": ["src/types/highlight-js.d.ts"],
-      // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts
-      // reads @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow
       "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
-    },
-    "packages/ui": {
-      "project": ["src/**/*.{ts,tsx,css}!", "!src/**/test-support/**!"]
     },
     "tools/e2e": {
       // spawned by path from cloud-worker.ts
       "entry": ["src/harness/worker-host.ts"],
       "project": ["src/**/*.ts"]
-    },
-    "tools/messages-fake": {
-      "project": ["src/**/*.ts"]
-    },
-    "tools/repo-guards": {
-      "project": ["src/**/*.ts"]
-    },
-    "tools/ui-gallery": {
-      // the entry is index.html's script, which knip's vite plugin reads
-      "project": ["src/**/*.{tsx,css}"]
     }
   }
 }

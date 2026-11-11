@@ -13,7 +13,6 @@ import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-edito
 
 import { EditorHarness } from "./test-support/editor-harness";
 
-// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for sonner's toast alone, which the typed import() form refuses unless the whole module is stubbed
 vi.mock("@repo/ui/components/sonner", () => ({
   toast: Object.assign(vi.fn<() => void>(), {
     error: vi.fn<() => void>(),

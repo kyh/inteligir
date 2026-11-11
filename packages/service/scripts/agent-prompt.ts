@@ -5,7 +5,7 @@
 // or a request in it, so its bytes change only with those files and every conversation of every
 // account reads one cached prefix. Run it after editing the skills and commit what it writes;
 // `--check` writes nothing and exits 1 when the module differs from what it would write
-// (tools/repo-guards/src/agent-skills.test.ts runs it).
+// (the workspace's `test` script runs it).
 
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

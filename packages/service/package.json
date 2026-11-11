@@ -20,7 +20,7 @@
   "scripts": {
     "agent-prompt": "node scripts/agent-prompt.ts",
     "generate": "cf workers types",
-    "test": "vitest run",
+    "test": "node scripts/agent-prompt.ts --check && vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
   },
   "dependencies": {

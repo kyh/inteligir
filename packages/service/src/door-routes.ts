@@ -1,8 +1,7 @@
 // Every path a door answers, spelled as the Start file route that hands it to its door spells its
-// id, `$` a splat (apps/web/src/routes; tools/repo-guards/src/route-paths.test.ts holds one route
-// file to each row). The suites' Worker dispatches by this table too
-// (`./test-support/test-worker.ts`), and each door refuses a path the table does not give it. An
-// installed build and an assistant's grant name these paths, so none moves.
+// id, `$` a splat (apps/web/src/routes, one route file to each row). The suites' Worker dispatches
+// by this table too (`./test-support/test-worker.ts`), and each door refuses a path the table does
+// not give it. An installed build and an assistant's grant name these paths, so none moves.
 
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
