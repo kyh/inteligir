@@ -1,6 +1,5 @@
 // `pnpm dev:web` starts this beside the local Worker: the scripted Messages API on its pinned port
-// (docs/development.md), which the Worker reaches through `ANTHROPIC_FAKE_URL`
-// (apps/web/.dev.vars.example).
+// (docs/development.md), which the Worker reaches through `ANTHROPIC_FAKE_URL` (.env.example).
 
 import { serveMessagesFake } from "./serve.ts";
 

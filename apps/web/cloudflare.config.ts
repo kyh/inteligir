@@ -62,20 +62,21 @@ const shared = {
   // the site's built files, the library's among them
   ASSETS: bindings.assets(),
   // Better Auth's signing key: `cf workers secrets update` in production, a preview base-config
-  // secret (.github/workflows/preview.yml), .dev.vars locally
+  // secret (.github/workflows/preview.yml), and locally the root .env, which the dev server folds
+  // into the names this file declares only because a secret is declared
   BETTER_AUTH_SECRET: bindings.secret(),
   MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
   // what one account's library may hold, its files and its change sets included: 1 GiB
   LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
-  // suites, the e2e harness, a local script's .dev.vars
+  // suites, the e2e harness, a local script's root .env
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
   // dev server cannot load a module this file also loads (@repo/service/fill-queues)
   FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
   // the token of the target's AI Gateway, whose Authenticated Gateway admits only requests that
   // carry it (packages/service/src/agent/anthropic-client.ts): `cf workers secrets update` in
-  // production, a preview base-config secret (.github/workflows/preview.yml), .dev.vars for a
+  // production, a preview base-config secret (.github/workflows/preview.yml), the root .env for a
   // gateway of a developer's own. The Worker holds no Anthropic key: each gateway stores its
   // target's
   AI_GATEWAY_TOKEN: bindings.secret(),
@@ -173,12 +174,12 @@ const productionWorker = (mode: string | undefined) => ({
   // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
     ...shared,
-    // none for the local Worker: its .dev.vars names the scripted Messages API, or a gateway of the
-    // developer's own (.dev.vars.example), never a target's
+    // none for the local Worker: the root .env names the scripted Messages API, or a gateway of the
+    // developer's own (.env.example), never a target's
     AGENT_GATEWAY_URL: bindings.text<string>(
       mode === "development" ? "" : gatewayUrl(GATEWAYS.production),
     ),
-    // the scripted Messages API the local Worker's .dev.vars names (tools/messages-fake), declared
+    // the scripted Messages API the root .env names (tools/messages-fake), declared
     // by `vite dev` alone, so no deployed Worker can be pointed at one
     ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is packages/db/src/d1/schema.ts, applied with drizzle-kit push (no migration files)
