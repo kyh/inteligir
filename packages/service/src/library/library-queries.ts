@@ -5,7 +5,7 @@
 // instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
 // only over an older one, so a write stamped with a sequence the row has passed lands nothing.
 
-import { and, asc, eq, getColumns, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
@@ -22,6 +22,8 @@ import type {
   ItemCard,
   ItemSearchText,
 } from "@repo/contract/library/derive-item";
+import type { ItemKind } from "@repo/contract/items/item-kind";
+import type { ListingRow } from "@repo/contract/library/library-index";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { all, LibraryRowError, run } from "./library-sql";
@@ -277,9 +279,60 @@ export const readLiveItem = (db: CellDb, id: string): LiveStoredItem | null => {
   return item?.kind === "live" ? item : null;
 };
 
+// what the cell's listing reads of an item's row: the facts it filters and orders by, the card's
+// title taken out in SQL, since parsing every row whole was most of a listing's cost
+export type ListingFacts = Omit<ListingRow, "tags">;
+
+const LISTING_COLUMNS = {
+  deletedAt: items.deletedAt,
+  folderId: items.folderId,
+  id: items.id,
+  kind: items.kind,
+  pinnedAt: items.pinnedAt,
+  savedAt: items.savedAt,
+  title: sql`json_extract(${items.card}, '$.title')`.mapWith(String),
+  updatedAt: items.updatedAt,
+  url: items.url,
+};
+
+type ListingColumns = Omit<ListingFacts, "kind" | "savedAt"> & {
+  readonly kind: ItemKind | null;
+  readonly savedAt: number | null;
+};
+
+const factsOf = ({ kind, savedAt, ...facts }: ListingColumns): ListingFacts => {
+  if (kind === null || savedAt === null) {
+    throw new LibraryRowError(`the item ${facts.id} is not what this build writes`);
+  }
+  return { ...facts, kind, savedAt };
+};
+
 // every item that is not purged, by id: what the cell's listing is built from
-export const readLiveItems = (db: CellDb): LiveStoredItem[] =>
-  db.select().from(items).where(eq(items.purged, 0)).orderBy(asc(items.id)).all().map(liveItemOf);
+export const readListingRows = (db: CellDb): ListingFacts[] =>
+  db
+    .select(LISTING_COLUMNS)
+    .from(items)
+    .where(eq(items.purged, 0))
+    .orderBy(asc(items.id))
+    .all()
+    .map(factsOf);
+
+// what a write moved of the listing: an item's facts, or its id once it is purged
+export type ListingChange =
+  | { readonly kind: "live"; readonly facts: ListingFacts }
+  | { readonly kind: "purged"; readonly id: string };
+
+// every item a write stamped past `since`, by id: what a listing held since then is caught up from
+export const readListingSince = (db: CellDb, since: number): ListingChange[] =>
+  db
+    .select({ ...LISTING_COLUMNS, purged: items.purged })
+    .from(items)
+    .where(gt(items.seq, since))
+    .orderBy(asc(items.id))
+    .all()
+    .map(({ purged, ...row }) =>
+      purged === 1 ? { id: row.id, kind: "purged" } : { facts: factsOf(row), kind: "live" },
+    );
 
 // ---- derived rows: links and tags ----
 

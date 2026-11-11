@@ -188,8 +188,8 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   again each time its card moves; `library.listing.page` a page of a screen's listing,
   `scopes` the rail's counts and `titles` every live item a note's links resolve
   against, each over the in-memory listing
-  (`@repo/contract/library/library-index`), built over the cell's rows for the one
-  read. A listing's words search the query's side, the library or Deleted,
+  (`@repo/contract/library/library-index`) the cell keeps (THE CELL KEEPS ITS
+  LISTING IN MEMORY). A listing's words search the query's side, the library or Deleted,
   through the agent's own search: the ranked index, then the live items holding
   the exact text it misses, a person's typing its set has not sealed into the
   index among them. A folder write answers each folder it changed, as it left
@@ -540,6 +540,21 @@ reaches it runs in workerd. The model it keeps is `@repo/contract`'s
   stringify and a parse beside each writer and runner (seven pairs to keep in
   step, and a row one no longer read failed every run on its retry or threw
   out the whole batch). `packages/service/src/library/cell-jobs.ts`.
+
+- **THE CELL KEEPS ITS LISTING IN MEMORY, CAUGHT UP BY SEQUENCE, AND BUILDS IT
+  AGAIN AS IT WAKES.** The index holds only what a listing filters and orders
+  by, the card's title taken out in SQL, and a page reads its own rows whole.
+  Each listing read catches it up to the library's head from the rows stamped
+  past the head it holds, letting a purged item go, since every write stamps
+  each item and folder row it touches with its transaction's sequence; a head
+  behind the held one reads it again whole. Rejected: a build on every read
+  (about 245 ms at 10,000 items and 1.2 s at 50,000, measured, paid by every
+  device's refetch after each write); reading only the listing's columns on
+  every read (about 45 ms at 10,000, measured); updating it from what each
+  write says it moved, or at its change set's seal (a write path that forgets
+  leaves it wrong until the object sleeps, and a set seals well after the write
+  every device lists at once). `packages/service/src/library/cell-listing.ts`,
+  `library-engine.ts`, `library-do.ts`.
 
 ## Fills
 

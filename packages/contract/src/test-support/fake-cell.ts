@@ -651,6 +651,7 @@ export const createFakeCell = (): FakeCell => {
             listing(),
             input,
             input.words === undefined ? null : searchHits(input.words, input.query.deleted),
+            (row) => row,
           ),
         ),
         scopes: os.library.listing.scopes.handler(() => listing().scopes()),

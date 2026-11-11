@@ -430,11 +430,13 @@ export interface ListingPageInput {
 }
 
 // a page of a screen's listing; `hits`, a search's items best first, each with the passage that
-// matched, narrows it to them and ranks them under the `relevance` sort
-export const listingPageOf = (
-  index: LibraryIndex<ItemListing>,
+// matched, narrows it to them and ranks them under the `relevance` sort; `whole` gives a row of the
+// page as an answer carries it, so an index may hold only what it filters and orders by
+export const listingPageOf = <R extends ListingRow>(
+  index: LibraryIndex<R>,
   input: ListingPageInput,
   hits: ReadonlyMap<string, string> | null,
+  whole: (row: R) => ItemListing,
 ) => {
   const offset = input.cursor ?? 0;
   const page = index.items({
@@ -445,7 +447,7 @@ export const listingPageOf = (
   });
   const end = offset + page.items.length;
   return {
-    items: page.items.map((row) => listedItem(row, hits?.get(row.id))),
+    items: page.items.map((row) => listedItem(whole(row), hits?.get(row.id))),
     kindCounts: page.kindCounts,
     nextCursor: end < page.total ? end : null,
     total: page.total,

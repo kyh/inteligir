@@ -240,6 +240,43 @@ describe("what the apps read of the library", () => {
     });
   });
 
+  it("lists what a change set did as it lands, once it seals and once it is undone", async () => {
+    await inCell(cellOf(), async (state) => {
+      const { clock, engine, library } = cellIn(state);
+      const titles = async () => {
+        const page = await library.listing.page({ limit: 10, query: LIVE });
+        return page.items.map(({ card }) => card.title);
+      };
+      const seal = () => {
+        clock.now += 60_000;
+        engine.runDueJobs(() => {});
+      };
+      const apple = await library.items.createNote({ markdown: "Apple.", title: "Apple" });
+      seal();
+      await expect(titles()).resolves.toStrictEqual(["Apple"]);
+
+      await library.items.createNote({ markdown: "Banana.", title: "Banana" });
+      await library.items.organize({ addTags: ["fruit"], ids: [apple.item.id] });
+      await expect(titles()).resolves.toStrictEqual(["Apple", "Banana"]);
+      seal();
+      const history = await library.history.list({});
+      const [sealed] = history.changeSets;
+      expect(sealed?.closedAt).not.toBeNull();
+      await expect(titles()).resolves.toStrictEqual(["Apple", "Banana"]);
+      await expect(library.listing.scopes()).resolves.toMatchObject({
+        tags: [{ items: 1, tag: "fruit" }],
+        total: 2,
+      });
+
+      await library.history.undo({ changeSetIds: [sealed?.id ?? ""] });
+      await expect(titles()).resolves.toStrictEqual(["Apple"]);
+      // the listing this cell kept answers as one read whole from its rows
+      await expect(library.listing.scopes()).resolves.toStrictEqual(
+        await cellIn(state).library.listing.scopes(),
+      );
+    });
+  });
+
   it("answers a folder write with each folder it changed, as the write left it", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = cellIn(state);

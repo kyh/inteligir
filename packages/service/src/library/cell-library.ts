@@ -12,6 +12,7 @@ import { blobKey } from "./cell-blobs";
 import type { ClaimedFill } from "./cell-fills";
 import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
+import type { ListingHold } from "./cell-listing";
 import type { CellResult } from "./cell-refusal";
 import { tellSockets } from "./cell-sockets";
 import { cellStorageOf } from "./cell-storage";
@@ -32,10 +33,15 @@ const libraryStorageCap = (env: Env): number => {
 
 const now = (): number => Date.now();
 
-export const openCellLibrary = (ctx: DurableObjectState, env: Env): LibraryEngine =>
+export const openCellLibrary = (
+  ctx: DurableObjectState,
+  env: Env,
+  listing?: ListingHold,
+): LibraryEngine =>
   openLibraryEngine({
     bytesCap: libraryStorageCap(env),
     ids: cellIds(now),
+    listing,
     now,
     storage: cellStorageOf(ctx.storage),
   });

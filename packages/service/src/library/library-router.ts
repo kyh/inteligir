@@ -58,7 +58,7 @@ import {
 } from "./cell-items";
 import { bodyInNote, landProjection } from "./cell-notes";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { itemRow, itemWhole, listingOf, listingPage } from "./cell-listing";
+import { itemRow, itemWhole, listingPage } from "./cell-listing";
 import {
   listChangeSets,
   listItems,
@@ -408,8 +408,8 @@ export const libraryRouter = os.router({
     }),
     list: os.items.list.handler(({ context, input }) =>
       answer(
-        context.library.read((storage) =>
-          listItems(storage.db, {
+        context.library.readListing((listing, storage) =>
+          listItems(storage.db, listing, {
             ...input,
             limit: input.limit ?? PAGE_DEFAULT,
             responseFormat: input.responseFormat ?? "concise",
@@ -522,24 +522,26 @@ export const libraryRouter = os.router({
   },
   listing: {
     page: os.listing.page.handler(({ context, input }) =>
-      answer(context.library.read((storage) => listingPage(storage, input))),
+      answer(
+        context.library.readListing((listing, storage) => listingPage(storage, listing, input)),
+      ),
     ),
     scopes: os.listing.scopes.handler(({ context }) =>
-      answer(context.library.read((storage) => listingOf(storage.db).scopes())),
+      answer(context.library.readListing((listing) => listing.scopes())),
     ),
     titles: os.listing.titles.handler(({ context }) =>
-      answer(context.library.read((storage) => listingOf(storage.db).titles())),
+      answer(context.library.readListing((listing) => listing.titles())),
     ),
   },
   organize: {
     outline: os.organize.outline.handler(({ context }) =>
-      answer(context.library.read((storage) => outlineOf(storage.db))),
+      answer(context.library.readListing((listing, storage) => outlineOf(storage.db, listing))),
     ),
   },
   search: os.search.handler(({ context, input }) =>
     answer(
-      context.library.read((storage) =>
-        searchItems(storage, {
+      context.library.readListing((listing, storage) =>
+        searchItems(storage, listing, {
           ...input,
           limit: input.limit ?? PAGE_DEFAULT,
           responseFormat: input.responseFormat ?? "concise",

@@ -1,10 +1,12 @@
 // The library cell's engine: every rule over the account's library, as synchronous calls over the
-// cell's SQLite, each write one `transactionSync`. It holds no state of its own, so the Durable
-// Object opens it per call over its storage, and a test opens it over the same storage with its
-// own clock. A write takes the library's next sequence number once, stamps every row it touches
-// with it, joins its actor's change set, and keeps its answer under its `opId` for 30 days, so a
-// client resending after a lost answer is told what landed.
+// cell's SQLite, each write one `transactionSync`. Its one state is the listing its opener hands
+// it (`./cell-listing`), so the Durable Object opens it per call over its storage and the listing
+// it keeps, and a test opens it over the same storage with its own clock. A write takes the
+// library's next sequence number once, stamps every row it touches with it, joins its actor's
+// change set, and keeps its answer under its `opId` for 30 days, so a client resending after a
+// lost answer is told what landed.
 
+import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import {
   nextHead,
@@ -46,6 +48,8 @@ import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
+import { holdListing } from "./cell-listing";
+import type { ListingHold } from "./cell-listing";
 import { importsRunning } from "./cell-import-jobs";
 import {
   deferJob,
@@ -84,6 +88,8 @@ export interface LibraryEngineDeps {
   // every id the cell mints: items, blocks, change sets
   readonly ids: CellIds;
   readonly bytesCap: number;
+  // the listing its opener keeps between engines; one of the engine's own otherwise
+  readonly listing?: ListingHold | undefined;
 }
 
 export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
@@ -175,6 +181,7 @@ const noSet = (): OpenSet => {
 export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, ids, storage } = deps;
   const { db } = storage;
+  const listing = deps.listing ?? holdListing();
 
   const deletedAt = (): number | null => readInstant(db, "deleted_at");
 
@@ -416,6 +423,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const read = <T>(work: (cell: CellStorage) => T): CellResult<T> => reading(() => work(storage));
 
+  // a read over the listing, caught up to the library's head
+  const readListing = <T>(
+    work: (index: LibraryIndex<ListingRow>, cell: CellStorage) => T,
+  ): CellResult<T> => reading(() => work(listing(db, libraryHead(db)), storage));
+
   // what a write already answered under `opId`, or null while none has: a write whose work waits on
   // the network between its transactions asks first, and lands its op with its last one
   const answered = <S extends z.ZodType>(
@@ -549,6 +561,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     projectNote,
     purgeItems,
     read,
+    readListing,
     reserve,
     runDueJobs,
     seedFor,
