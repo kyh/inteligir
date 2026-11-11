@@ -15,6 +15,7 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
+import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 import { linksTo, linksToUrl, readItem } from "./library-queries";
@@ -27,7 +28,7 @@ import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
-import { listedWhole, listingOf, searchHits } from "./cell-listing";
+import { listedWhole, searchHits } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
@@ -99,10 +100,9 @@ export interface ListInput {
   readonly tag?: string | undefined;
 }
 
-export const listItems = (db: CellDb, input: ListInput) => {
+export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: ListInput) => {
   const offset = offsetOf(input.cursor);
-  const index = listingOf(db);
-  const page = index.items({
+  const page = listing.items({
     deleted: false,
     folderId: input.folderId,
     kinds: input.kind === undefined ? undefined : [input.kind],
@@ -142,10 +142,14 @@ export interface SearchInput {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const searchItems = (storage: CellStorage, input: SearchInput) => {
+export const searchItems = (
+  storage: CellStorage,
+  listing: LibraryIndex<ListingRow>,
+  input: SearchInput,
+) => {
   const offset = offsetOf(input.cursor);
   const hits = searchHits(storage, input.query, "live");
-  const page = listingOf(storage.db).items({
+  const page = listing.items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,
     folderId: input.folderId,
@@ -278,12 +282,8 @@ export const readItemView = (
 
 // ---- the folder tree and tags ----
 
-export const outlineOf = (db: CellDb) => {
-  const counts = new Map(
-    listingOf(db)
-      .scopes()
-      .folders.map((folder) => [folder.id, folder.items]),
-  );
+export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
+  const counts = new Map(listing.scopes().folders.map((folder) => [folder.id, folder.items]));
   return {
     folders: liveFolders(db).map((folder) => ({
       id: folder.id,

@@ -81,7 +81,7 @@ the service's (`packages/service/CLAUDE.md`).
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
   `@repo/contract/library/library-index` holds the cell's listing rows, typed by
-  the host's own row, built for the one read that asks, and answers kind, tag
+  the host's own row, a page's rows given whole by the host, and answers kind, tag
   family, folder (with its subfolders), site, date and search scopes, with
   Deleted apart and a count per kind. It keeps one sorted order per sort, dropped only when a row's place in
   it moves. It builds the apps' three reads once, for the cell and the fake

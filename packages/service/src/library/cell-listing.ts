@@ -1,8 +1,8 @@
 // What the apps read of the library, inside one read transaction: an item whole, and the listing
-// through the in-memory index (`@repo/contract/library/library-index`), built over the cell's rows for
-// the one call, for a screen's pages, the rail's counts and the titles a note's links resolve
-// against, each answer assembled there. An agent's lists and searches read the same index and the
-// same search (`./cell-reads`).
+// through the in-memory index (`@repo/contract/library/library-index`), which the cell holds between
+// calls (`holdListing`), for a screen's pages, the rail's counts and the titles a note's links
+// resolve against, each answer assembled there, a page's rows read whole from their own. An agent's
+// lists and searches read the same index and the same search (`./cell-reads`).
 
 import {
   excerptAround,
@@ -21,14 +21,16 @@ import {
   literalMatches,
   readItem,
   readListingRows,
+  readListingSince,
   readLiveItem,
   searchLibrary,
 } from "./library-queries";
 import type { LiteralMatch, LiveStoredItem, SearchSide } from "./library-queries";
 import { LibraryRowError, runPlan } from "./library-sql";
-import { asc } from "drizzle-orm";
+import { asc, gt, inArray } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 
-import { itemTags } from "@repo/db/cell/schema";
+import { items, itemTags } from "@repo/db/cell/schema";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
 import type { CellStorage } from "./cell-storage";
@@ -56,12 +58,13 @@ export const itemWhole = (storage: CellStorage, id: string, blocks: readonly Bod
   blocks: [...blocks],
 });
 
-// every item the library holds (none purged), with the folders a listing files them under
-export const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
+// each tag the items `where` names carry, their field's and their body's, each spelling once
+const tagsOf = (db: CellDb, where?: SQL): Map<string, string[]> => {
   const tags = new Map<string, string[]>();
   for (const row of db
     .select({ itemId: itemTags.itemId, tag: itemTags.tag })
     .from(itemTags)
+    .where(where)
     .orderBy(asc(itemTags.itemId), asc(itemTags.tag))
     .all()) {
     const held = tags.get(row.itemId) ?? [];
@@ -70,12 +73,52 @@ export const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
     }
     tags.set(row.itemId, held);
   }
+  return tags;
+};
+
+// every item the library holds (none purged), with the folders a listing files them under
+const listingOf = (db: CellDb): LibraryIndex<ListingRow> => {
+  const tags = tagsOf(db);
   const index = new LibraryIndex<ListingRow>();
-  for (const row of readListingRows(db)) {
-    index.upsert({ ...row, tags: tags.get(row.id) ?? [] });
+  for (const facts of readListingRows(db)) {
+    index.upsert({ ...facts, tags: tags.get(facts.id) ?? [] });
   }
   index.setFolders(liveFolders(db));
   return index;
+};
+
+// the items stamped past `since` taken in again, a purged one let go, and the folders read again
+const catchUp = (db: CellDb, index: LibraryIndex<ListingRow>, since: number): void => {
+  const stamped = db.select({ id: items.id }).from(items).where(gt(items.seq, since));
+  const tags = tagsOf(db, inArray(itemTags.itemId, stamped));
+  for (const change of readListingSince(db, since)) {
+    if (change.kind === "purged") {
+      index.remove(change.id);
+    } else {
+      index.upsert({ ...change.facts, tags: tags.get(change.facts.id) ?? [] });
+    }
+  }
+  index.setFolders(liveFolders(db));
+};
+
+// The listing at the library's head, kept between calls: building it reads every live row, which
+// a read on every call could not afford past a few thousand items. Every write stamps each item and
+// folder row it touches with the sequence its transaction takes, so the rows past the held head are
+// what moved since; a head behind it is a library wiped under it, read again whole. The cell keeps
+// one in its memory, so it goes when the object sleeps and the first read after the wake builds it.
+export type ListingHold = (db: CellDb, head: number) => LibraryIndex<ListingRow>;
+
+export const holdListing = (): ListingHold => {
+  let held: { readonly head: number; readonly index: LibraryIndex<ListingRow> } | null = null;
+  return (db, head) => {
+    if (held === null || head < held.head) {
+      held = { head, index: listingOf(db) };
+    } else if (head > held.head) {
+      catchUp(db, held.index, held.head);
+      held = { head, index: held.index };
+    }
+    return held.index;
+  };
 };
 
 // an item the listing names, read whole from its row in the same read
@@ -148,10 +191,11 @@ export const searchHits = (
 
 export const listingPage = (
   storage: CellStorage,
+  listing: LibraryIndex<ListingRow>,
   input: ListingPageInput & { readonly words?: string | undefined },
 ) =>
   listingPageOf(
-    listingOf(storage.db),
+    listing,
     input,
     input.words === undefined
       ? null
