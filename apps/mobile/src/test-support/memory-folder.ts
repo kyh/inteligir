@@ -1,14 +1,12 @@
-// The file cache's folder in memory, as the phone's suites and its scenarios under node hold it: a
-// file's address a `memory://` one naming it.
+// The file cache's folder in memory, as the phone's suites hold it: a file's address a
+// `memory://` one naming it.
 
 import type { FileFolder } from "../files/file-cache";
 
-/** @internal */
 export interface MemoryFolder extends FileFolder {
   readonly held: () => readonly string[];
 }
 
-/** @internal */
 export const memoryFolder = (): MemoryFolder => {
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   return {

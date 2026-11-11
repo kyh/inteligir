@@ -20,7 +20,6 @@ export interface LibraryFilter {
   readonly words: string;
 }
 
-/** @internal */
 export const listingQuery = ({ kinds, scope, words }: LibraryFilter): ListingQuery => {
   const query: ListingQuery = {
     deleted: scope.kind === "deleted",

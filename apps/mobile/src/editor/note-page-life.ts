@@ -9,7 +9,6 @@
 import type { Clock } from "@repo/contract/library/account-socket";
 import type { NoteState, Settled } from "./page/page-host";
 
-/** @internal */
 export const SETTLE_ANSWER_MS = 5000;
 
 type NotePageLife =

@@ -3,13 +3,6 @@
   "version": "0.6.0",
   "private": true,
   "main": "expo-router/entry",
-  "exports": {
-    "./auth/phone-auth": "./src/auth/phone-auth.ts",
-    "./editor/note-actions": "./src/editor/note-actions.ts",
-    "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
-    "./test-support/memory-folder": "./src/test-support/memory-folder.ts",
-    "./test-support/memory-kv": "./src/test-support/memory-kv.ts"
-  },
   "scripts": {
     "dev": "expo start",
     "build": "EXPO_NO_BUNDLE_SPLITTING=1 expo export --platform ios --output-dir dist",
