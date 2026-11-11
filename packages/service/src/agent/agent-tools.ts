@@ -26,7 +26,6 @@ import type { ToolAnswer, ToolRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 // what one result may carry: its JSON as the tool_result's text
-/** @internal */
 export const AGENT_RESULT_MAX_CHARS = 40_000;
 
 // the property a write's input carries its op id in, which the agent never writes
@@ -174,7 +173,6 @@ const procedureAt = (router: AnyRouter, path: readonly string[]): AnyProcedure |
 
 // the op id a call's write keeps, a UUID read off the hash of `agent:<threadId>:<toolUseId>`, so
 // the same call lands once however often it is run
-/** @internal */
 export const agentOpId = async (threadId: string, toolUseId: string): Promise<string> => {
   const hex = await sha256Hex(`agent:${threadId}:${toolUseId}`);
   // version 8 (RFC 9562 § 5.8) and the RFC's variant over the hash's own bits

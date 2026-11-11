@@ -24,7 +24,6 @@ const RICH_BLOCK_LOCK_KEY = "richBlockLock";
 const RICH_BLOCK_INPUT_KEY = "richBlockInputLock";
 
 // the slash menu's `richBlock` rows are the ones that insert one of these
-/** @internal */
 export const lockedBlockTypes = (editor: SlateEditor): ReadonlySet<string> =>
   new Set([
     CHART_BLOCK_KEY,

@@ -57,7 +57,6 @@ const NOTE_LINE = /^\s*note\s*:\s?/iu;
 
 // `Highlight: …` opens a block and a `Note: …` line inside one starts its note; a cell with no
 // `Highlight:` line is one quote
-/** @internal */
 export const parseRaindropHighlights = (cell: string): RaindropHighlight[] => {
   const lines = cell.split(/\r\n|\r|\n/u);
   if (!lines.some((line) => HIGHLIGHT_LINE.test(line))) {
@@ -180,7 +179,6 @@ const DATE_MAX_MS = 8.64e15;
 
 // a tag as a library tag name: NFC, no `#`, every run of what a name cannot hold one `-`, each
 // level trimmed of dashes; null when no name is left
-/** @internal */
 export const toTagName = (raw: string): string | null => {
   const levels = raw
     .normalize("NFC")

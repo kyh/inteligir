@@ -89,7 +89,6 @@ interface CellItem {
   readonly updatedAt: number;
 }
 
-/** @internal */
 export interface FakeDevice {
   readonly transport: V1Transport;
   // oRPC's link over that transport, for a client a suite builds as its host builds one
@@ -101,7 +100,6 @@ export interface FakeDevice {
   readonly loseAnswers: (count: number) => void;
 }
 
-/** @internal */
 export interface FakeCell {
   readonly device: (name: string) => FakeDevice;
   // rows put in place without a call, each landing as a write lands, under a fresh id
@@ -214,7 +212,6 @@ const currentOf = (itemId: string, conflict: FieldConflict): ConflictCurrent => 
   }
 };
 
-/** @internal */
 export const createFakeCell = (): FakeCell => {
   let head = 0;
   let signedOut = false;

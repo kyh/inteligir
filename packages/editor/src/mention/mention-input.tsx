@@ -25,7 +25,6 @@ const CREATE_VALUE = "__create__";
 
 // Ranked and cut before any row mounts, never filtered per row: a row per item is a mount per
 // item, each one re-filtering on every keystroke.
-/** @internal */
 export const MENTION_PICKER_MAX_ROWS = 50;
 
 export const MentionInputElement = (props: PlateElementProps) => {

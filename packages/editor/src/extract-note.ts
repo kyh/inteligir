@@ -21,7 +21,6 @@ const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.
 const TITLE_MAX_CHARS = 80;
 
 // the first heading among the blocks, else the first line of the first one
-/** @internal */
 export const extractionTitle = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");

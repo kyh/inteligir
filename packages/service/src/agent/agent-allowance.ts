@@ -14,7 +14,6 @@ import { z } from "zod";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // micro-cents a cent
-/** @internal */
 export const UCENTS_PER_CENT = 1_000_000;
 
 const allowanceSchema = z.object({
@@ -45,7 +44,6 @@ const modelPricesSchema = z.strictObject({
   output: priceSchema,
 });
 
-/** @internal */
 export const agentPricesSchema = z.record(z.string(), modelPricesSchema);
 
 // one model's prices in micro-cents a token
@@ -61,7 +59,6 @@ export type PriceTable = ReadonlyMap<string, TokenPrices>;
 
 const ucents = (dollarsPerMillion: number): number => Math.round(dollarsPerMillion * 100);
 
-/** @internal */
 export const priceTableOf = (prices: z.infer<typeof agentPricesSchema>): PriceTable =>
   new Map(
     Object.entries(prices).map(([model, row]) => [
@@ -80,7 +77,6 @@ export const pricesOf = (env: Env): PriceTable =>
   priceTableOf(agentPricesSchema.parse(env.AGENT_PRICES));
 
 // a model's row, or the dearest row for one the table does not price, which is logged
-/** @internal */
 export const pricesFor = (table: PriceTable, model: string): TokenPrices => {
   const row = table.get(model);
   if (row !== undefined) {

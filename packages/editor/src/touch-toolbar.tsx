@@ -42,7 +42,6 @@ import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcu
 import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
-/** @internal */
 export const TOUCH_ACTIONS = {
   "hide-keyboard": { icon: KeyboardOffIcon, label: "Hide keyboard" },
   indent: { icon: ListIndentIncreaseIcon, label: "Indent" },

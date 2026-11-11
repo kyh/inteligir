@@ -32,10 +32,8 @@ export interface TransferLike {
 
 type TransferItem = TransferLike["items"] extends Iterable<infer Item> ? Item : never;
 
-/** @internal */
 export const MAX_PASTED_LINKS = 50;
 
-/** @internal */
 export const FOLDER_REFUSAL = "Folders can't be saved; drop the files inside";
 
 const MB = 1024 * 1024;

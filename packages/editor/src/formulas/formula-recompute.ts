@@ -54,7 +54,6 @@ const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
 
 // what a pass reads: the item the editor holds, by its id, and the pills of any other item by
 // its id, or null for one this device lacks
-/** @internal */
 export interface FormulaReads {
   readonly selfId: string;
   readonly read: (itemId: string) => Promise<readonly CollectedFormula[] | null>;
@@ -63,7 +62,6 @@ export interface FormulaReads {
 // what a pass reads of other items through the host: their blocks, and the word that they moved
 type ItemReads = Pick<EditorHostIo, "readItemBlocks" | "onItemsChanged">;
 
-/** @internal */
 export const recomputeFormulas = async (
   editor: SlateEditor,
   reads: FormulaReads,

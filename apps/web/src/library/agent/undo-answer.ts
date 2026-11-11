@@ -18,7 +18,6 @@ const NAMED_MAX = 3;
 
 // what it took back, what a later change kept as it is, and what a rule held back, which Undo can
 // still take
-/** @internal */
 export const undoSentence = (answer: Omit<UndoAnswer, "lostText">) => {
   if (answer.refused.length > 0) {
     return "Partly undone. Some items couldn't come back yet, so you can undo this again.";
@@ -32,7 +31,6 @@ export const undoSentence = (answer: Omit<UndoAnswer, "lostText">) => {
 };
 
 // the notes where someone typed inside what the agent wrote, which the undo took with it
-/** @internal */
 export const lostTextSentence = (titles: readonly string[]): string | null => {
   if (titles.length === 0) {
     return null;

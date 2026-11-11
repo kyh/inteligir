@@ -8,7 +8,6 @@ import { rateLimit } from "@repo/db/d1/schema";
 // Unauthenticated callers are keyed on their address, `/v1`'s holders on the session that signed
 // in, and an assistant on its grant; the kill switch is read here, not per caller.
 
-/** @internal */
 export interface RateWindow {
   readonly max: number;
   readonly windowMs: number;
@@ -58,11 +57,9 @@ const HOLDER_RATE_KEY_PREFIXES = {
 
 type HolderRateFamily = keyof typeof HOLDER_RATE_KEY_PREFIXES;
 
-/** @internal */
 export const holderRateKey = (family: HolderRateFamily, holderId: string): string =>
   `${HOLDER_RATE_KEY_PREFIXES[family]}${holderId}`;
 
-/** @internal */
 export const grantRateKey = (grantId: string): string => `connector:${grantId}`;
 
 // the unauthenticated routes of the Worker's own, keyed on the caller's address: nothing else about
@@ -77,7 +74,6 @@ type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 // the one address Cloudflare's edge writes itself; x-forwarded-for carries whatever the caller put
 // ahead of the edge's hop
-/** @internal */
 export const CALLER_IP_HEADER = "cf-connecting-ip";
 
 // how a caller is told from a request here and in Better Auth's limiter (./auth/auth.ts), so every
@@ -85,12 +81,10 @@ export const CALLER_IP_HEADER = "cf-connecting-ip";
 // whole and could otherwise walk for a fresh window on every request
 export const CALLER_ADDRESS = { ipAddressHeaders: [CALLER_IP_HEADER] };
 
-/** @internal */
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
   `${CALLER_RATE_KEY_PREFIXES[family]}${getIP(request, { advanced: { ipAddress: CALLER_ADDRESS } }) ?? "unknown"}`;
 
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
-/** @internal */
 export const RATE_WINDOWS = {
   // a password check behind a session, so a stolen one guesses here rather than at the sign-in's
   // per-address window; a person mistypes a few times, never dozens

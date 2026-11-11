@@ -10,7 +10,6 @@ export const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;
 // base settles the remaining encoding tricks without enumerating them.
 const RESOLUTION_BASE = "http://internal.invalid";
 
-/** @internal */
 export const internalNextPath = (value: string | undefined): string | null => {
   if (value === undefined || !value.startsWith("/")) {
     return null;

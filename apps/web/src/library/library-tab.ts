@@ -104,7 +104,6 @@ interface TabSessionArgs {
   readonly location: Pick<Location, "assign" | "pathname" | "search">;
 }
 
-/** @internal */
 export const createTabSession = ({ clock, read, guard, forget, location }: TabSessionArgs) => {
   let session: TabSession = { kind: "live" };
   const listeners = new Set<() => void>();

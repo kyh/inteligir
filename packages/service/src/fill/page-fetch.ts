@@ -75,7 +75,6 @@ const hopOf = (raw: string, from: string | null): PageHop => {
 };
 
 // the guarded fetch, its whole read held to `deadlineMs`
-/** @internal */
 export const pageFetch =
   (options: { readonly deadlineMs: number }): PageFetch =>
   async (request) => {

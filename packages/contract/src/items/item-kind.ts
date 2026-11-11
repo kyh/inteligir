@@ -31,7 +31,6 @@ export type ItemKey = (typeof ITEM_KEYS)[number];
 
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
-/** @internal */
 export const FILE_KIND_EXTENSIONS = {
   audio: [".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".opus", ".wav"],
   image: [

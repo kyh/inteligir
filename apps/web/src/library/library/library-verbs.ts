@@ -96,7 +96,6 @@ const pinnedAtAfter = (pinned: boolean | undefined, held: number | null): number
   return pinned ? (held ?? Date.now()) : null;
 };
 
-/** @internal */
 export const organizedOverlay = (input: OrganizeInput): Overlay => {
   const removed = new Set((input.removeTags ?? []).map((tag) => tag.toLowerCase()));
   const retagged = (tags: readonly string[]): string[] =>

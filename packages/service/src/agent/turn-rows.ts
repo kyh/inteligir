@@ -258,7 +258,6 @@ export const dropQueuedFor = (sql: SqlStatements, threadId: string): void => {
 
 // waiting on the person while a call of its open turn waits, running while a turn is open, queued
 // behind a send of its own, else idle
-/** @internal */
 export const threadStatusOf = (rows: {
   readonly open: Pick<OpenTurn, "waiting"> | null;
   readonly queued: number;

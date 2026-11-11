@@ -183,7 +183,6 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   return { blocks: named.blocks };
 };
 
-/** @internal */
 export interface ExportItem {
   readonly id: string;
   readonly fields: LibraryItemFields;
@@ -193,18 +192,15 @@ export interface ExportItem {
 
 // a file the item holds whole, by its role: an original by the name it was saved under too, null
 // where none came with it
-/** @internal */
 export type HeldFile =
   | { readonly role: "cover"; readonly sha: string }
   | { readonly role: "original"; readonly sha: string; readonly name: string | null };
 
-/** @internal */
 export interface ExportPorts extends WritePorts {
   // where a file the item holds whole is written
   readonly held: (file: HeldFile) => string;
 }
 
-/** @internal */
 export interface ExportedItem {
   readonly text: string;
 }
@@ -218,7 +214,6 @@ const heldImage = (url: string): TElement => ({
 
 // one item as one markdown file; `title` is written into the frontmatter when the file's name
 // cannot carry it. No surface writes one: the codec's suites hold every import to this, its inverse
-/** @internal */
 export const exportItem = (
   item: ExportItem,
   ports: ExportPorts,

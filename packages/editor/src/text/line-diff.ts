@@ -1,5 +1,4 @@
 // consecutive hunks are always separated by at least one matching line.
-/** @internal */
 export interface DiffHunk {
   baseStart: number;
   baseEnd: number;

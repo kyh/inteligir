@@ -12,7 +12,6 @@ import { session } from "@repo/db/d1/schema";
 
 // a sign-in past this many ends one rather than being refused, which would lock out a person who
 // lost track of an old device
-/** @internal */
 export const MAX_SESSIONS_PER_ACCOUNT = 20;
 
 // `databaseHooks.session.create.before`: Better Auth ends each one through its adapter, so its
@@ -58,7 +57,6 @@ const firstNamed = (
 // read at list time from what Better Auth stored, so a name follows the reading and no column
 // holds it. The phone's own requests carry the system's networking stack (CFNetwork) and no
 // browser's; the Mac app's window is the system's web view, which names no browser
-/** @internal */
 export const deviceNameOf = (userAgent: string | null): string => {
   if (userAgent === null || userAgent.trim() === "") {
     return "Unknown device";

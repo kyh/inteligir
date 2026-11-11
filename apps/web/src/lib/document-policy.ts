@@ -15,7 +15,6 @@ export const mintNonce = (): string => {
 const socketOrigin = (url: URL): string =>
   `${url.protocol === "https:" ? "wss:" : "ws:"}//${url.host}`;
 
-/** @internal */
 export const pagePolicy = (url: URL, nonce: string): string =>
   [
     "default-src 'self'",

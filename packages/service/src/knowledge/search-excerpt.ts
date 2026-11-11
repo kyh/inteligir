@@ -8,7 +8,6 @@ import type { SearchQueryTerm } from "./search-query";
 
 // a title-only hit on a long note would otherwise tokenize and stem the whole body to find
 // nothing; past this many characters the caller shows the title instead
-/** @internal */
 export const SEARCH_EXCERPT_SCAN_CHARS = 64 * 1024;
 
 // every line terminator, found one at a time so a scan that stops early splits nothing more

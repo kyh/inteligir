@@ -86,7 +86,6 @@ const blockHeadings = (editor: SlateEditor, block: TElement): readonly BlockHead
   return found;
 };
 
-/** @internal */
 export const collectHeadings = (editor: SlateEditor): HeadingItem[] =>
   editor.children.flatMap((block, index) =>
     blockHeadings(editor, block).map(({ depth, relative, title }) => {
@@ -97,7 +96,6 @@ export const collectHeadings = (editor: SlateEditor): HeadingItem[] =>
 
 // resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
 // also holds headings the outline skips (empty ones) and ones no node of the document draws.
-/** @internal */
 export const headingElement = (editor: SlateEditor, heading: HeadingItem): HTMLElement | null => {
   const entry = editor.api.node<TElement>(heading.path);
   if (entry === undefined) {
@@ -110,12 +108,10 @@ export const headingElement = (editor: SlateEditor, heading: HeadingItem): HTMLE
   return editor.api.toDOMNode(node) ?? null;
 };
 
-/** @internal */
 export const TOC_RAIL_CAP = 20;
 
 // the window slides so the active row is always inside it; cut at a fixed index, every heading
 // past the cap would highlight nothing.
-/** @internal */
 export const railWindow = (count: number, activeIndex: number) => {
   const active = Math.max(0, Math.min(activeIndex, count - 1));
   const start = Math.max(0, active - TOC_RAIL_CAP + 1);
@@ -165,7 +161,6 @@ const lastAtOrAbove = (boxes: readonly Element[], y: number): number => {
 // the box, so a heading's top orders only within its run: the runs' own boxes, which stack in
 // order, place the line first, and only the headings of the run it falls in are measured. A
 // heading the dom does not hold reads as above the line, so the predicate stays monotone.
-/** @internal */
 export const activeHeadingAt = (
   editor: SlateEditor,
   headings: readonly HeadingItem[],

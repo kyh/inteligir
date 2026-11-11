@@ -10,7 +10,6 @@ import type { LibraryDO } from "./library-do";
 
 const CELL_NAME_PREFIX = "library:";
 
-/** @internal */
 export const libraryCellName = (accountId: string): string => `${CELL_NAME_PREFIX}${accountId}`;
 
 export const libraryCell = (

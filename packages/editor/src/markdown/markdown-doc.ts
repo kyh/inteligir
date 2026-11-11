@@ -106,7 +106,6 @@ const letterCounts = (text: string): Map<string, number> => {
 
 // the share of the source's letters and digits the written text still holds, as a multiset, so a
 // letter dropped is not paid back by one the writer added
-/** @internal */
 export const lettersKept = (source: string, written: string): number => {
   const before = letterCounts(source);
   const after = letterCounts(written);

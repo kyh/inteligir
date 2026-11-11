@@ -9,14 +9,12 @@ interface Timer {
   readonly run: () => void;
 }
 
-/** @internal */
 export interface FakeClock extends Clock {
   readonly advance: (ms: number) => void;
   // the timers still waiting
   readonly pending: () => number;
 }
 
-/** @internal */
 export const fakeClock = (start = 1_700_000_000_000): FakeClock => {
   let now = start;
   let order = 0;

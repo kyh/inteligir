@@ -95,7 +95,6 @@ export const changesLibrary = (principal: ConnectorPrincipal): boolean =>
 
 // a header carries Latin-1 alone and an assistant's name may hold any letter, so the JSON is
 // percent-encoded
-/** @internal */
 export const principalHeaderValue = (principal: NamedPrincipal): string =>
   encodeURIComponent(JSON.stringify(principalSchema.parse(principal)));
 

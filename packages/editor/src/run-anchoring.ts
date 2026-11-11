@@ -34,7 +34,6 @@ const keepsItsOwnAnchor = (): boolean =>
 const blockSizeOf = (entry: ResizeObserverEntry): number =>
   entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
 
-/** @internal */
 export interface RunChange {
   // the run's block size before and after, its estimate, and its top from the view's top
   readonly was: number;
@@ -46,7 +45,6 @@ export interface RunChange {
 }
 
 // how far the view moves for what it shows to hold still
-/** @internal */
 export const anchorShift = (changes: readonly RunChange[]): number => {
   let shift = 0;
   for (const { was, now, estimate, top, landedIn } of changes) {
