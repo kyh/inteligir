@@ -2,26 +2,22 @@
   "name": "@repo/e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "End-to-end scenarios over real app instances, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
+  "description": "Playwright flows over the built Worker and the extension, deliberately outside `pnpm verify`: run them with `pnpm e2e`.",
   "type": "module",
   "scripts": {
-    "e2e": "tsx src/run.ts",
-    "serve-worker": "tsx src/serve-worker.ts",
-    "test": "vitest run",
+    "e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
+    "@playwright/test": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/messages-fake": "workspace:*",
-    "@repo/mobile": "workspace:*",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
-    "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
     "zod": "catalog:"
   }
 }

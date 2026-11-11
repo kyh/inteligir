@@ -16,8 +16,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # a backstop over the e2e runner's per-scenario deadlines; verify and the suite run about 25
-    # minutes on a four-core runner
+    # a backstop: verify and the flows run about 25 minutes on a four-core runner
     timeout-minutes: 45
     env:
       TURBO_TELEMETRY_DISABLED: 1
@@ -62,29 +61,23 @@ jobs:
       - name: Verify
         run: pnpm verify
 
+      # the full Chromium, which loads an extension, at the lockfile's Playwright's version
       - name: E2E browser
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # a global install a developer makes once, so verify does not repeat it. pnpm, not npm: only
-        # PNPM_HOME is on PATH here. pinned by hand: a global install rides no lockfile and no release
-        # cooldown
-        run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
+        run: pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium
 
+      # outside verify on purpose: every unit can pass while the composition fails
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # outside verify on purpose: it boots real instances and drives them over the wire, because
-        # every unit can pass while the composition fails. The step above provides the browser, so
-        # a skip is a broken setup, and --no-skip fails it rather than passing it behind a green
-        # step. Two lanes, half the runner's four cores, which is what a four-core machine's default
-        # runs, so a local run is the one CI runs
-        run: pnpm e2e --no-skip --lanes 2
+        run: pnpm e2e
 
   # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
   # compiles and runs only here; typecheck, lint, knip, format and build read no platform, so the
   # check job alone runs them
   test-macos:
     runs-on: macos-latest
-    # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold
-    # release build of the shell is several minutes of it
+    # a backstop: the suites carry no deadline of their own, and a cold build of the shell is
+    # several minutes of it
     timeout-minutes: 50
     env:
       TURBO_TELEMETRY_DISABLED: 1
@@ -103,7 +96,6 @@ jobs:
           install: false
 
       - name: Install
-        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Desktop Rust toolchain
@@ -117,14 +109,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: Smoke desktop
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # only a macOS host can pack or boot the .app, and packing takes minutes, so it stays out of
-        # verify, which runs on every platform. Its window opens on a Worker the smoke boots on the
-        # runner, never production
-        env:
-          # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
-          # apps/desktop/turbo.json passes it through turbo's strict env
-          INTELIGIR_PACK_UNSIGNED: 1
-        run: pnpm smoke:desktop

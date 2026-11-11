@@ -51,6 +51,8 @@ catalog:
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
+  # exact, the playwright-core apps/web pins, so the two share one Chromium build
+  "@playwright/test": 1.63.0
   # exact: binds the editor to a note's live document; unreleased since 2023, so its bugs are ours,
   # and it moves with yjs only once the binding suites pass on the pair
   "@slate-yjs/core": 1.0.2
@@ -151,14 +153,13 @@ catalog:
   # with its guard, so the two must be one slate, and it moves only with a Plate bump
   slate: 0.146.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.15
   typescript: ^7.0.2
   unified: ^11.0.5
   vite: ^8.3.5
   vitest: ^4.1.12
   # exact: a beta, whose config API moves between releases
   cf: 1.0.0-beta.23
-  # the one cf resolves; tools/e2e reads `cf build` output with it
+  # the one cf resolves; tools/e2e boots `cf build` output with it
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it

@@ -2,9 +2,11 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
+    // a flow's `evaluate` callbacks run in the page
+    "lib": ["ES2023", "dom", "dom.iterable"],
     "types": ["node"],
     // the scripted Messages API names its imports by their `.ts`, as node runs it
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "playwright.config.ts"]
 }

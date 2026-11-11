@@ -137,7 +137,6 @@ export interface AppRuntime {
   readonly suspend: () => void;
 }
 
-/** @internal */
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 

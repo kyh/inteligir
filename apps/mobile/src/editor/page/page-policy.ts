@@ -7,7 +7,6 @@ const socketOriginOf = (cloudOrigin: string): string => {
   return `${url.protocol === "https:" ? "wss" : "ws"}://${url.host}`;
 };
 
-/** @internal */
 export const pagePolicy = (cloudOrigin: string): string =>
   [
     "default-src 'self'",
