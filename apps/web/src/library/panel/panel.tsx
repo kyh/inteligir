@@ -1,4 +1,4 @@
-// CLAUDE.md § THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL. The right
+// CLAUDE.md § The panel starts closed, is flat-tabbed, and is dragged like the rail. The right
 // panel's tabs: Info about one item (the open one, else the one card selected), and the built-in
 // agent's conversations about the whole library.
 

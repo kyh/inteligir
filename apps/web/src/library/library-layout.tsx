@@ -1,10 +1,10 @@
 // The library route's layout, above every library route, so Settings and back keeps one theme, one
 // toaster, one confirm host, one notice of writes waiting for a connection and one of the Mac app's
-// update (CLAUDE.md § WINDOW-LEVEL HOSTS MOUNT IN THE LIBRARY'S LAYOUT), over the QueryClient and
+// update (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and
 // the library the tab opened once (`library-tab.ts`). The covering child draws in a full-window
 // layer here rather than in its own component, so its crash boundary lands in the layer too instead
-// of below a workspace it left inert (CLAUDE.md § THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A
-// WORKSPACE THAT STAYS MOUNTED).
+// of below a workspace it left inert (CLAUDE.md § The open item rides the URL, and Settings covers a
+// workspace that stays mounted).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";

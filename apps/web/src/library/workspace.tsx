@@ -181,7 +181,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     }
   }, [titles]);
 
-  // CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: an edit reaches the note as it is
+  // CLAUDE.md § The tab asks before it loses the open item's edit: an edit reaches the note as it is
   // typed, so the tab holds one only while it was typed with no connection to carry it
   const leave = useLeaveGuard();
   useEffect(

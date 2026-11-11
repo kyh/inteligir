@@ -1,4 +1,4 @@
-// CLAUDE.md § A PAGE PREFERENCE IS A ROW
+// CLAUDE.md § A tab preference is a row
 
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";

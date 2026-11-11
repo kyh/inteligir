@@ -1,6 +1,6 @@
 # @repo/desktop — the Mac app
 
-A window on the library's page the site serves at `/library`
+A window on the library tab the site serves at `/library`
 ([`apps/web/src/library`](../web/src/library/CLAUDE.md)), with a menu and the stock
 updater. The shell is Tauri 2: Rust over the system's own WebKit (WKWebView on
 the Mac). It bundles no page, runs no node and no server, and keeps nothing of
@@ -9,7 +9,7 @@ app needs a connection. Its decisions are in [`CLAUDE.md`](CLAUDE.md).
 
 ```
 src-tauri/      the shell, in Rust: the window and its pin, the menu, the updater
-scripts/        the package step, its smoke and the release notes, TypeScript node runs as it stands
+scripts/        the package step and the release notes, TypeScript node runs as it stands
 ```
 
 ## The window
@@ -83,7 +83,6 @@ wire.
 ```bash
 pnpm package:desktop      # → src-tauri/target/release/bundle/macos/Inteligir.app,
                           #   and the release's assets in .output/bin
-pnpm smoke:desktop        # pack, then open the packaged app on a Worker on this machine
 ```
 
 Every script is TypeScript that node runs as it stands, stripping the types,
@@ -103,8 +102,8 @@ refuses an import node could not load.
    packaged could not typecheck.
 
 The identity is the Developer ID the keychain holds, signed with the hardened
-runtime and no entitlement; with none, or with `INTELIGIR_PACK_UNSIGNED=1`
-(CI's), the pack is signed ad-hoc, without the runtime, and opens only on the
+runtime and no entitlement; with none, or with `INTELIGIR_PACK_UNSIGNED=1`,
+the pack is signed ad-hoc, without the runtime, and opens only on the
 Mac that built it. It is notarized with the App Store Connect key in
 `<repo>/.release/` (gitignored): `notary.env` carries Tauri's own names:
 `APPLE_API_ISSUER`, `APPLE_API_KEY` (the key's id) and `APPLE_API_KEY_PATH`
@@ -114,16 +113,6 @@ before the task begins, and drops every notary variable the task inherits, so
 a stale export in the shell never notarizes a pack. The updater's private key
 reaches the bundler as `TAURI_SIGNING_PRIVATE_KEY` in its environment alone.
 The minimum macOS is 13.5, whose WebKit runs the page's ES2023.
-
-The smoke (`scripts/smoke-packaged.ts`) checks that the bundle runs the shell
-alone and carries nothing runnable among its resources, with the Rust crates'
-notices; that its signature holds and asks for no JIT, no unsigned memory and
-no network grant; and then boots a Worker on this machine
-(`pnpm --filter @repo/e2e serve-worker`, the e2e suite's own), launches the app
-on a home of its own with `INTELIGIR_CLOUD_ORIGIN` naming it, and waits until
-the window has loaded the library's page from it. No check loads production.
-CI's `test-macos` job runs it on every push and pull request, on an ad-hoc
-pack.
 
 ### The release path
 

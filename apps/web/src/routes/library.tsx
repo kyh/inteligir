@@ -9,7 +9,7 @@ import libraryCss from "../library/styles/globals.css?url";
 // The library: drawn in the browser alone, over the account's cell, so the Worker serves its
 // document as a shell. The tab opens once a document, in its beforeLoad, which no split takes, so
 // the open is imported lazily and lands in the library's chunk with every other module only its
-// routes reach (src/library/CLAUDE.md § THE LIBRARY IS ONE CHUNK).
+// routes reach (src/library/CLAUDE.md § The library is one chunk).
 export const Route = createFileRoute("/library")({
   ssr: false,
   headers: () => ({

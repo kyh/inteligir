@@ -1,4 +1,4 @@
-// CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An item opens full size in the
+// CLAUDE.md § The library is home, and an item is shown by its kind. An item opens full size in the
 // grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
 // editor (`@repo/editor/item/item-editor`) over its note's live document, which every device and
 // the agent edit at once. The header reads the item's row, read again as its card moves. Escape

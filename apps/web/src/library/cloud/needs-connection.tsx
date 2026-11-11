@@ -1,4 +1,4 @@
-// CLAUDE.md § A CELL CALL PAUSES OFFLINE AND SAYS SO. What a screen shows of a call only the cell
+// CLAUDE.md § A cell call pauses offline and says so. What a screen shows of a call only the cell
 // answers (the agent and its Undo, imports and exports, the account) while it is not answered:
 // with no connection TanStack Query pauses it rather than failing it, and the screen says it needs
 // one; a refusal says its own sentence. A read says so where it would draw; a write, wherever it was

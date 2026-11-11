@@ -1,4 +1,4 @@
-// CLAUDE.md § THE RAIL CHOOSES THE LIBRARY'S SCOPE. Stacked groups over the one grid (the library,
+// CLAUDE.md § The rail chooses the library's scope. Stacked groups over the one grid (the library,
 // its folders, its tags, Deleted), each row a scope with the count the cell answers for it, and
 // Settings at its foot.
 

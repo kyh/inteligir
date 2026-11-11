@@ -3,7 +3,7 @@
 // The one component that calls `useVirtualizer` (@tanstack/react-virtual), which the React
 // Compiler skips as known-incompatible: the virtualizer is a mutable instance read during render.
 // So the cells are children the compiler does compile, and only this file goes uncompiled
-// (CLAUDE.md § THE CARD GRID IS VIRTUALIZED BY UNIFORM ROWS). Rows are uniform: every cell is
+// (CLAUDE.md § The card grid is virtualized by uniform rows). Rows are uniform: every cell is
 // `cellHeight(cellWidth)` tall, so nothing is measured, and a resize re-derives the columns and
 // the row pitch from the width alone.
 
@@ -117,7 +117,7 @@ export const CardGrid = ({
     onScrollOffsetRef.current = onScrollOffset;
   });
 
-  // oxlint-disable-next-line react/incompatible-library -- the one component the compiler skips: the virtualizer is a mutable instance read in render, and the cells under it stay compiled (CLAUDE.md § THE CARD GRID IS VIRTUALIZED BY UNIFORM ROWS)
+  // oxlint-disable-next-line react/incompatible-library -- the one component the compiler skips: the virtualizer is a mutable instance read in render, and the cells under it stay compiled (CLAUDE.md § The card grid is virtualized by uniform rows)
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rowCount,
     estimateSize: () => rowHeight,

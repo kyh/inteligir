@@ -1,4 +1,4 @@
-// CLAUDE.md § THE AGENT PANEL IS THE ACCOUNT'S THREADS. The built-in agent's conversations, the
+// CLAUDE.md § The agent panel is the account's threads. The built-in agent's conversations, the
 // same on every device: the threads and their stored events come from the cell, read again as the
 // account's socket says they moved, the reply being written arrives on the socket as previews,
 // and a send, an answer to an approval, a stop and an undo go to the cell, so each waits for a

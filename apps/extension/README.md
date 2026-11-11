@@ -53,6 +53,5 @@ dev:extension` (`docs/development.md` § Browser extension) runs `wxt`, which
 rebuilds `.output/chrome-mv3-dev` and reloads the extension on every change;
 `pnpm --filter @repo/extension test` runs the suites under `WxtVitest()`, the
 worker's under node with no DOM, the pages' under jsdom and compiled as they
-ship, and `pnpm e2e --only
-browser-extension` loads the dev build in a real Chromium against a booted
-Worker.
+ship, and `pnpm e2e -- extension` loads the dev build in a real Chromium
+against a booted Worker.

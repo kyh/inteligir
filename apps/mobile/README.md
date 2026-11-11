@@ -10,7 +10,7 @@ DOM component, and draws the built-in agent's conversations from
 `@repo/agent-panel`.
 
 Expo + expo-router; the runtime the screens use is composed platform-free
-(`src/lib/compose-runtime.ts`), so the scenario suite runs it under node.
+(`src/lib/compose-runtime.ts`), so its suites run it under node.
 
 ## Layout
 
@@ -34,7 +34,7 @@ src/
   items/        saving a link, a thought, a new note or a photo, what a share hands over,
                 the outbox that keeps a share until it lands, the inbox that hands it
                 there, and an item's Info
-  library/      the Library's page of a listing by scope, kind and search, its cards, and
+  library/      the Library screen: a listing by scope, kind and search, its cards, and
                 the saves waiting
   ui/           controls the screens share
   styles.css    the classes every screen writes: Tailwind's utilities over the palette,
@@ -45,7 +45,7 @@ src/
                 +native-intent.ts lands the share extension's handoff on the Library
 metro.config.js withNativewind, and postcss.config.js Tailwind's PostCSS plugin: the
                 sheet's two compilers; nativewind-env.d.ts gives `className` its types,
-                and inline-fonts.js writes the note page's fonts into its sheet
+                and inline-fonts.js writes the phone's editor's fonts into its sheet
 ```
 
 ## The look
@@ -117,7 +117,7 @@ past what a phone may decode shows the card's placeholder. A screen waiting on
 a file it could not reach asks again once the phone is back online. A file the
 phone sends up is kept as a fetched file is, so it never downloads what it
 sent. A screen draws a file as an item's own, its card's cover or its
-viewer's original, and the note page draws one a note names from the cache
+viewer's original, and the phone's editor draws one a note names from the cache
 through its `readFile` action, as the type it was kept or served as. A sign-out moves the cache's generation, so a download begun
 before it lands nothing.
 
@@ -177,16 +177,12 @@ sign-in form never flashes over a device that is signed in.
   again and what the cache keeps, the session's Keychain accessibility (over a
   stand-in Keychain), the sign-in over Better Auth's own client, what each
   `/v1` request carries, the sign-in store, the file cache
-  (the thumbnail, the generation), the note page's actions over the fake cell
+  (the thumbnail, the generation), the phone's editor's actions over the fake cell
   (every answer JSON, a file's bytes base64, a refusal its words), its host
   (what native's props move, a leave's ask answered by where the note
   stands), its content policy and the web view's load policy, the share
   payload and the shares' outbox, and the Library's query. Unit tests, no
   device.
-  `tools/e2e/src/scenarios/phone-offline-share.ts`, `phone-save-hosted.ts` and
-  `phone-file-ops-hosted.ts` run the same
-  composition under node against a real Worker, beside a second device, its
-  sign-in a plain fetch on the Expo client's routes.
 - **The store config** (`src/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
@@ -202,7 +198,7 @@ sign-in form never flashes over a device that is signed in.
   class to what they draw, and no multi-line field to `py-*`.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
-  and the stylesheet into it, and the note page's DOM bundle beside it
+  and the stylesheet into it, and the phone's editor's DOM bundle beside it
   (`dist/www.bundle`, one page and its one script), offline, on Linux and
   macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
@@ -261,7 +257,7 @@ The credentials (the distribution certificate, the provisioning profile, the
 App Store Connect API key) live on EAS, never in this repo, and build numbers
 are EAS's (`appVersionSource: remote`, `autoIncrement`), so no commit bumps
 one. The marketing version is `package.json`'s, the product version the Mac
-app and the extension carry (`tools/repo-guards/src/release-versions.test.ts`).
+app and the extension carry.
 `eas.json` names the node and pnpm the repo is checked with, and no
 `.easignore`: EAS falls back to `.gitignore`, which keeps `.release/` and
 every `.env*` out of the upload.

@@ -1,4 +1,4 @@
-// CLAUDE.md § THE GRID'S SELECTION IS A STORE. Finder's grammar: a click selects, ⌘-click toggles,
+// CLAUDE.md § The grid's selection is a store. Finder's grammar: a click selects, ⌘-click toggles,
 // ⇧-click extends from the anchor, and an arrow moves the focus and the selection with it. Every
 // name is an item's id, which no rename or move changes, and the listing is in memory, so ⌘A names
 // the scope's every id at once. The store is created once by the workspace, so leaving for an item

@@ -1,6 +1,6 @@
 "use client";
 
-// CLAUDE.md § A POPUP'S MOTION RIDES ITS POPUP ELEMENT. Base UI's path for a Motion popup that
+// CLAUDE.md § A popup's motion rides its popup element. Base UI's path for a Motion popup that
 // leaves the DOM when it closes (base-ui.com/react/handbook/animation): the Root is controlled, its
 // Portal renders under AnimatePresence while the Root is open and is kept mounted, and the Popup
 // renders as the motion element with an exit of its own. Motion starts a presence exit in the
