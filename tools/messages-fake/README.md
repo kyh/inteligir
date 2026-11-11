@@ -1,7 +1,7 @@
 # @repo/messages-fake
 
 A scripted Claude Messages API with no model and no account behind it. The
-local Worker (`pnpm dev:web`), the e2e scenarios and the Worker's suites run
+local Worker (`pnpm dev:web`), the e2e flows and the Worker's suites run
 the built-in agent against it, through the SDK's `baseURL` or as its `fetch`,
 so every conversation's object runs the one code path it runs deployed
 (`packages/service/src/agent/anthropic-client.ts`).
@@ -31,9 +31,9 @@ every thinking block it sends against the system, the tools and every message
 before it, chained to the block before (`src/fake-signature.ts`), so a request
 that leaves out a leading run of thinking blocks still verifies and any other
 edit does not: refused, or under `drop_block` dropped and counted. Every suite
-and scenario expects no drop: the Worker's suites read the count after each
-test, and the e2e harness after each scenario, for every Worker it booted
-(`tools/e2e/src/harness/scenario.ts`). Once a conversation holds a compaction
+and flow expects no drop: the Worker's suites read the count after each test,
+and the e2e fixture as it tears down each Worker it booted
+(`tools/e2e/src/fixtures.ts`). Once a conversation holds a compaction
 block that kept a summary, the fake reads it from its last one on, as the API
 does: what came before is ignored, the prefix a thinking block is bound to
 starts at the block, and the chain starts afresh there. A compaction block whose
@@ -70,10 +70,10 @@ cents of the day's allowance.
 ## Running it
 
 `pnpm dev:web` starts it on its pinned port, 5177 (`docs/development.md`), and
-`apps/web/.dev.vars.example` names it as `ANTHROPIC_FAKE_URL`, a binding only
-`vite dev` declares. `src/serve.ts` serves it on a port of a caller's own: the
-e2e harness serves one beside each Worker it boots, on an ephemeral port
-(`tools/e2e/src/harness/cloud-worker.ts`), and the Worker's suites answer
+`.env.example` names it as `ANTHROPIC_FAKE_URL`, a binding only `vite dev`
+declares. `src/serve.ts` serves it on a port of a caller's own: the e2e
+fixture serves one beside each Worker it boots, on an ephemeral port, and binds
+it there (`tools/e2e/src/fixtures.ts`), and the Worker's suites answer
 its address with its fetch handler from their outbound service, which refuses
 every other (`packages/service/messages-service.ts`). Its
 counters, the requests answered, the replies a stall held open and the

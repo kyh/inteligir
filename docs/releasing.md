@@ -13,10 +13,10 @@ outright.
 | The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
 The three manifests carry one version (`apps/desktop`, `apps/extension`,
-`apps/mobile`; `tools/repo-guards/src/release-versions.test.ts`
-refuses a split), since the extension calls `/v1` as the apps do and one client
-build floor holds them all, and a release's notes are `CHANGELOG.md`'s top
-section (`tools/repo-guards/src/changelog.test.ts`).
+`apps/mobile`, set in § 1), since the extension calls `/v1` as the apps do and
+one client build floor holds them all, and a release's notes are
+`CHANGELOG.md`'s top section, which `apps/desktop/scripts/release-notes.ts`
+refuses to print until it is titled for that version.
 
 The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
@@ -104,19 +104,17 @@ On main, clean, at the commit to ship:
 ## 2. Gates
 
 ```sh
-pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:desktop && pnpm package:extension
+pnpm format:fix && pnpm verify && pnpm e2e && pnpm package:desktop && pnpm package:extension
 ```
 
-`smoke:desktop` packages the app, signs it, notarizes it with `.release/`,
-boots a Worker on this machine and opens the app on it, never production. Its
-output must say `package: notarizing with …` and
+`package:desktop` packages the app, signs it and notarizes it with `.release/`.
+Its output must say `package: notarizing with …` and
 `package: signing the update`: a pack that reports `.release/` absent opens
 only on the Mac that built it, and one with no updater key ships an app that
-never updates. Package only through `pnpm smoke:desktop` or
-`pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
-in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
-no licence notices and writes no update feed (`apps/desktop/scripts/package.ts`
-sets both).
+never updates. Package only through `pnpm package:desktop`: turbo's strict env
+mode strips `APPLE_API_*` exported in a shell (so they live in `.release/`),
+and the Tauri CLI run directly packs no licence notices and writes no update
+feed (`apps/desktop/scripts/package.ts` sets both).
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
 green: `gh run list --commit "$(git rev-parse HEAD)"`.
@@ -193,825 +191,163 @@ ships as a new EAS build, never an EAS Update (§ Hotfixes).
 
 ## 5. The owner's checks
 
-Every check here needs a real device, a real account or a credential no CI
-holds. Run them on the release's own artifacts: the Mac app
-`pnpm smoke:desktop` left at
-`apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (signed and
-notarized; drag it to `/Applications` and open it from Finder), the extension
-`pnpm package:extension` left at
-`apps/extension/.output/chrome-mv3-store-unpacked`, and the iPhone build from
-the `Owner` group, except where a check names the simulator
-or a development build. A failing check stops the release: fix it, and start again at step 1.
-
-A change whose proof needs a device, an account or a credential adds its check
-here, under its surface, with how to run it and what passing looks like.
-
-The commands below name the pack as `app`:
-
-```sh
-app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
-```
+One smoke list per surface, each check needing what no agent can run: a
+device, signing, a store, a real model turn, a Cloudflare dashboard, or
+claude.ai and ChatGPT. Run them on the release's own artifacts: the Mac app
+`pnpm package:desktop` left at
+`apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (dragged to
+`/Applications` and opened from Finder), the extension `pnpm package:extension`
+left at `apps/extension/.output/chrome-mv3-store-unpacked`, and the iPhone build
+from the `Owner` group. A failing check stops the release: fix it, and start
+again at step 1.
 
 ### The cloud's resources
 
-Each target's own, in the Cloudflare dashboard of the account
-`CLOUDFLARE_ACCOUNT_ID` names; nothing here is shared by production and the
-previews.
+In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names;
+production and the previews share nothing.
 
-- **Every secret is set, and the Worker holds only its two.** Workers ›
-  `inteligir-web` › Settings lists `BETTER_AUTH_SECRET` and `AI_GATEWAY_TOKEN`
-  as secrets and nothing else secret (the two `bindings.secret()` rows of
-  `apps/web/cloudflare.config.ts`), production's own values; the previews'
-  base config holds two values of their own (`apps/web/README.md`
-  § Previews); and the repository's Actions secrets hold
-  `CLOUDFLARE_API_TOKEN`, with the scopes `apps/web/README.md` § Build &
-  deploy names and the two § Previews adds, and `CLOUDFLARE_ACCOUNT_ID`. Passing: a sign-in on
-  inteligir.com and one on a preview each keep their session across a
-  reload, and the built-in agent's gateway checks below pass on both.
-- **The connector's OAuth namespace is the target's.** Workers KV lists the
-  namespace production's first deploy made for `OAUTH_KV` and
-  `inteligir-oauth-preview`, and nothing else binds either. Passing: an
-  assistant connected on a preview is not among production's
-  `account.assistants.list`, and its token is refused at
-  `https://inteligir.com/connector`.
-- **The fill queue and its dead-letter queue.** Queues lists
-  `inteligir-fill`, consumed by `inteligir-web` with three retries and
-  `inteligir-fill-failed` as its dead-letter queue, `inteligir-fill-failed`,
-  consumed by `inteligir-web` too, and `inteligir-fill-preview`, consumed by
-  nothing. Passing: a link saved on production whose host answers 500 ends
-  `failed` with its reason within about five minutes, and
-  `inteligir-fill-failed` holds nothing after it.
-- **A preview binds only preview resources.** On the PR's preview: an
-  account made there cannot sign in on inteligir.com, a file uploaded there
-  is not in `inteligir-vault`, and a link saved there stays unread, since
-  nothing consumes `inteligir-fill-preview` (`apps/web/README.md`
-  § Previews). Passing: each holds.
-- **Closing a PR that has a live preview.** Close it. Passing: the Preview
-  workflow's cleanup job is green, the preview's URL stops answering, the
-  sticky comment says Deleted, and View deployment is gone from the PR.
-- **Closing a PR that never had a preview.** Close one that never went green.
-  Passing: the cleanup job is green, having taken Cloudflare's "Preview not
-  found" (code 10025) as nothing to do. A red job here means that answer
-  changed.
-- **A stranger's marker comment.** On a PR whose first report has not run, have
-  a second account comment a line starting `<!-- worker-previews -->`, then let
-  CI go green. Passing: the preview deploys, and `github-actions[bot]` posts its
-  own sticky comment, leaving the stranger's untouched.
+- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET` and
+  `AI_GATEWAY_TOKEN` as secrets, the OAuth KV namespace is the target's, and a
+  preview binds only preview resources (`apps/web/README.md` § Previews).
+- **The fill queues** on production: `inteligir-fill` consumed with
+  `inteligir-fill-failed` as its dead-letter queue, and a link a connected
+  assistant saves is read.
+- **Imports on a preview**: a Raindrop CSV, an Obsidian zip and a 3 MB row
+  land, and a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
+- **A PR preview's lifecycle**: closing a PR with a preview deletes it, closing
+  one without takes Cloudflare's 10025 as nothing to do, and a stranger's
+  `<!-- worker-previews -->` comment is ignored.
 
 ### The Mac app
 
-Each on the signed pack, opened from Finder, against production, signed in to
-the owner's account; a spare macOS user keeps your own WebKit store out of it.
+On the signed pack, against production, from a spare macOS user.
 
-- **Signed and notarized, with nothing else to run and no entitlement.**
+```sh
+app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
+codesign --verify --deep --strict --verbose=2 "$app" && codesign -d --entitlements - "$app"
+spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app"
+```
 
-  ```sh
-  codesign --verify --deep --strict --verbose=2 "$app"
-  codesign -d --entitlements - "$app"
-  spctl --assess --type execute --verbose=4 "$app"
-  xcrun stapler validate "$app"
-  ```
-
-  Passing: `codesign` says `valid on disk` and
-  `satisfies its Designated Requirement`, the entitlements print none (no
-  `allow-jit`, no `allow-unsigned-executable-memory`, no `network.client`),
-  `spctl` says `accepted` with `source=Notarized Developer ID`, and `stapler`
-  says `The validate action worked!`. `pnpm smoke:desktop` on a Mac opens the
-  same pack on a local Worker's `/library` and quits it; it must pass on macOS 13.5, the oldest
-  the pack allows, as on the newest.
-
-- **The first run is the site's sign-in in the window.** Open the app on a Mac
-  user that never ran it. Passing: the window opens on the site's sign-in;
-  signing in shows the account's library; and Quit and reopen goes straight to
-  it. Create an account with an invite code the same way, on a second spare
-  user: the same.
-- **This Mac in Settings › Account.** Signed in on the Mac and in a browser.
-  Passing: Settings › Account lists both, the Mac's window as This device
-  (named from its user agent, Mac app) with no Sign out on its row; Sign out
-  at the bottom returns the window to the site's sign-in, and the browser stays
-  signed in.
-- **A development build is an app of its own.** With the release signed in,
-  run `pnpm dev` from a checkout and sign it in to `pnpm dev:web`'s Worker, then
-  sign it out. Passing: the release opens on its library, still signed in: the
-  two keep separate WebKit stores (`com.inteligir.desktop.dev` beside
-  `com.inteligir.desktop`).
-- **Offline, the window says so.** Turn the network off, Quit and reopen.
-  Passing: the window shows WebKit's load error. Turn the network on and choose
-  View › Reload. Passing: the library opens.
-- **Files.** A picture, a PDF, an `.mp4`, a `.mov` and an `.m4a` item. Passing:
-  the picture draws; the PDF opens in WebKit's own viewer, with zoom and text
-  selection; each recording plays, seeks and scrubs. A file item's Download
-  lands in Downloads under its own name, and the window stays on the item.
-- **An update.** On a build one behind the latest, open the app. Passing: the
-  card at the window's bottom right offers Download, fills its bar while it
-  downloads, then offers Restart, and the app reopens on the new version;
-  Check for Updates… and Settings › About then say it's up to date.
-- **The window has the system title bar.** Passing: it drags the window, a
-  double-click zooms it and a second returns it, and the page draws no inset
-  for the red, yellow and green buttons.
-- **Closing the window hides it.** Close the window, then click Inteligir in
-  the Dock. Passing: the window comes back on the page it showed.
-- **⌘Q right after typing.** Type a word in an item and press ⌘Q at once.
-  Accepted until #932: that word can be lost, since the page saves only on
-  `pagehide`.
-- **Dictation is the Mac's.** Press fn twice in a note and speak, then type.
-  Passing: the words land once, at the caret, typing carries on after them, and
-  the Edit menu shows Start Dictation….
-- **A long article.** Open a saved article of more than 300 blocks (a long
-  Wikipedia page), find a word near its end with ⌘P, and open the hit.
-  Passing: the match lands centred and holds still. Scroll back up to the top
-  with the trackpad. Passing: the text moves only as far as you scroll, with no
-  leap. Drag a block past the 100th one down the note. Passing: the dragged
-  block stays in sight the whole way. Hover a table that ends at the 100th
-  block. Passing: its add-row bar shows and adds a row.
-- **Paste and drop.** Passing, each:
-  - With a card selected and no field focused, ⌘V of a copied link saves it
-    (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
-    saves a picture.
-  - ⌘V inside a note still pastes text into the note, and ⌘V of a screenshot
-    there, or a picture or a PDF dropped from Finder on its text, lands where
-    the caret or the drop was and draws at once, the PDF as a card naming it
-    whose Download lands in Downloads. Turn the network off. Passing: the note
-    says Needs a connection and takes no paste. Turn it back on and paste
-    another screenshot. Passing: the item in the library's browser tab at
-    `/library` shows both pictures. A file over 100 MB dropped on the text is
-    refused with a message and adds nothing.
-  - A link dragged from Safari, Chrome and Arc onto the window saves, and so
-    does a file dragged from Finder onto the grid and onto a folder row.
-  - A card dragged onto a folder in the sidebar moves, never saves.
-- **VoiceOver** reads the grid: its cells, and which are selected. Escape from
-  an open item returns to the library.
-- **Scale.** Sign in on a spare Mac user to an account of 20,000 to 50,000
-  items (a generated zip of notes, imported in the browser tab). Passing: the
-  library opens while the window stays responsive, and a search with ⌘P
-  answers as you type.
-- **Words.** Passing: no "vault", and no "notes" meaning the whole library,
-  across the window, the menus, the dialogs, the sign-in and the update's
-  prompts.
-- **Settings' section links.** Click each link in Settings' nav. Passing: each
-  scrolls to its section in WKWebView, and Settings stays open. The suites run
-  this in jsdom alone.
-- **Ask agent on a passage.** Select a passage in a note and press Ask agent
-  with the panel closed. Passing: the Agent tab opens, the field quotes the
-  passage, and the cursor is in the field. The suites run the focus in jsdom
-  alone.
-- **A long address in an approval.** Ask the agent to save a link with a very
-  long address. Passing: it wraps inside the approval card and pushes nothing
-  off the panel. jsdom has no layout.
-- **A folder zipped in Finder.** Compress, in Finder, a folder of notes that
-  keeps its pictures in `assets/`, and import that zip into a fresh account.
-  Passing: its notes land at the top of the library with their pictures, and no
-  stray assets folder, `__MACOSX` or `._` cards appear. The suites build this
-  zip shape by hand, not with Finder.
-- **Signing in as someone else on this Mac.** Sign in, choose a tag in the rail,
-  sign out in Settings, then sign in as a second account. Passing: the signed
-  app opens on All items. Quit and relaunch signed in as that account. Passing:
-  the scope it chose stays.
+- **Signed .app from Finder**: codesign, spctl and stapler pass, it carries no
+  entitlement and bundles its notices, and it opens on macOS 13.5 and the
+  newest macOS.
+- **First run on a fresh macOS user**: the site's sign-in in the window, an
+  invite sign-up, still signed in after Quit; a dev build keeps a store of its
+  own; This Mac shows in Settings › Account.
+- **Update**: a build one behind offers Download, then Restart opens the new
+  version.
+- **Window**: the system title bar, close hides it, offline it says so, and
+  View › Reload recovers.
+- **Dictation**: fn fn in a note lands the words once.
+- **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
+  a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
+  play in WebKit; Download lands in Downloads.
+- **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
+  smooth; VoiceOver reads the grid and ⌘P.
 
 ### The browser extension
 
-Load `apps/extension/.output/chrome-mv3-store-unpacked` with Developer mode on
-in Chrome, Arc, Brave and Edge, against production (the store build's one host
-is inteligir.com), with no dev build loaded.
+The unpacked store build, against production, with no dev build loaded.
 
-- **Chrome 148, Arc included.** Passing: each browser loads the unpacked store
-  build with no error on chrome://extensions; Arc on its Chromium is the one
-  this repo has not seen load it.
-- **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
-  (`packages/contract/src/extension/extension-identity.ts`).
-- **Sign in.** The welcome tab an install opens, signed out of inteligir.com.
-  Passing: it offers Sign in to Inteligir, which opens
-  inteligir.com/connect/extension and signs you in; Connect there says
-  Connected and names your account; the welcome tab then says whose library it
-  saves to, the popup says Signed in as …, and Settings › Account lists the
-  browser you signed in with (Chrome on Mac), the extension adding no row of
-  its own. In a second browser already signed in to inteligir.com, the first
-  toolbar click saves with no other step.
-- **Save.** The toolbar button on an article. Passing: it lands in Unsorted,
-  read, with its title, text and, where the site lets the extension read it,
-  its cover, and a second click says it is already in your library.
-  Right-click a link and an image: each saves, and the right-click menu offers
-  no Save as a highlight.
-- **A link the cloud couldn't read.** Serve a page on your home network
-  (`python3 -m http.server` on the Mac, at its LAN address), save that address
-  with Add › Save a link…, and wait for "Page not read". Then click the
-  extension's toolbar button on that page. Passing: the popup says it is already
-  in your library, and the item opens read with the page's text, titled by the
-  page. Edit the page and click again. Passing: the text stays as first read.
-  Vitest proves the rule over the cell; only a browser reads a real page the
-  cloud can't reach.
-- **Offline.** Turn the network off and click the toolbar button on an article.
-  Passing: the popup says Saved when you're back online; turn it on, and within
-  a minute the page is in the library.
-- **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
-  its tooltip says Inteligir can't save this kind of page; after a save it
-  shows "✓" for two seconds.
-- **Signed out on the site.** Sign out of inteligir.com in that browser, then
-  click the toolbar button on an article. Passing: the popup says Saved once
-  you sign in to Inteligir again, and the welcome page (right-click the
-  toolbar button › Options) links Sign in to Inteligir. Sign in again on the
-  site. Passing: within a minute the waiting page is in the library.
-- **Signed out from another device.** Sign that browser out in Settings ›
-  Account on the Mac, then click the toolbar button on an article. Passing:
-  the same waiting line, and the page lands once you sign in again.
-- **Whose library, once the welcome tab is closed.** Close the tab the install
-  opened, then right-click the toolbar button and choose Options. Passing: the
-  welcome page opens in a tab and says whose library this browser saves to.
-  Vitest proves the manifest's `options_ui`, not that the browser opens it.
-- **A save through a restart.** Turn the network off, save a page, and quit
-  the browser while the save is under way or waiting. Turn the network on and
-  start the browser without touching the extension. Passing: the page is in
-  the library within four minutes, with no click. The suite triggers the fake
-  browser's `onStartup`, so that a real browser start wakes a stopped worker is
-  proved only here.
-- **The store link**, once the listing is public. Passing: the site's Save
-  from anywhere link (inteligir.com) and Get the Inteligir extension on
-  inteligir.com/connect/extension each open the extension's Web Store page.
+- **The store build** loads in Chrome, Arc, Brave and Edge with the id
+  `EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`), and
+  the Web Store listing and the site's Save link open it.
+- **Sign in** through the welcome tab and `/connect/extension`; the browser
+  shows in Settings › Account.
+- **Save**: the toolbar saves, a second save says already saved, right-click
+  saves a link and an image, the badge shows ! and ✓, and a home-network page
+  the cloud can't reach saves as the extension read it.
+- **A waiting save**: one made offline, across a browser restart, or signed out
+  lands later with no click.
 
 ### The iPhone app, on the internal build
 
-On the owner's iPhone, installed from TestFlight, never a development build. An
-account whose library holds about 2,000 items gives the timing check its load.
-
-- **The share extension's first build.** The first `pnpm testflight:mobile`
-  (interactive) registers the App Group `group.com.inteligir.mobile` and the
-  share extension's profile. Passing: the upload passes with no ITMS-91053 for
-  the `.appex`.
-
-- **Sign in** with the account's email and password. Passing: the library
-  shows. Kill the app and open it again. Passing: the splash holds until it
-  knows, the sign-in form never flashes, and the phone is still signed in,
-  what it last showed there before the first answer. The first launch of this
-  build over one that held a device credential opens on the sign-in screen,
-  once. Open the app again eight days later. Passing: still signed in, since a
-  sign-in lasts 60 days from its last use.
-- **Create an account.** Signed out, choose Create an account and enter a
-  name, an email, a password and a fresh invite code. Passing: the library
-  opens, empty; a used code says the invite doesn't work.
-- **Search.** Search the library for a word only an article's body holds,
-  then sign out and in again. Passing: the search finds it (the cell's search,
-  online), and the second sign-in starts from an empty cache with no error.
-- **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
-  keyboard's microphone each land once; the selection handles and the edit
-  menu work, with no floating toolbar; the formatting toolbar rides the
-  keyboard; and the typing shows on the Mac as it lands. Background the
-  phone's app, change a note on the Mac, come back. Passing: the change shows.
-- **The editor's edges.** Passing: on the oldest iPhone the app installs on, a
-  cold open of an item is editable within a second; New note opens with the
-  caret in its body and the keyboard up; a link to an item pushes its item and
-  back returns; an external link opens Safari and the page never navigates; a
-  chart and tabs refuse edits; a Mermaid diagram draws, and recolours with no
-  flash when dark mode flips; dark mode follows the system, with no light edge
-  behind a pushed screen or the keyboard, even after switching it with the app
-  open; typing and then backgrounding and killing the app keeps what was typed.
-- **Fonts, equations and the keyboard.** Passing: a note's text is Inter and a
-  code block the code face, never a system fallback; an equation draws in
-  KaTeX's faces; tapping into the 17px text never zooms the page; typing at the
-  end of a long note keeps the caret above the keyboard; and a picker's field
-  (the `/` menu, `[[`) takes the focus with the keyboard up. The page's fonts
-  ride its sheet as data, which only a device's web view proves.
-- **The note's connection comes back.** In a note, lock the phone for a minute,
-  unlock it and type. Passing: the typing shows on the Mac. Turn on airplane
-  mode in a note. Passing: it says Needs a connection at once and takes no
-  typing; turn airplane mode off. Passing: the note takes typing again with no
-  reopening, and it shows on the Mac.
-- **The `[[` picker on the iOS keyboard.** In a note on the phone, type `[[`
-  on the iOS keyboard, then a few letters of a title, and pick a row. Passing:
-  the picker opens on the second `[`, the link lands with the item's title and
-  no `[` before it, and an `@` typed in a note stays an `@`.
-- **A picture in a note.** Copy a photo in Photos, tap at the end of a line
-  of a note and paste. Passing: the picture lands under the line and draws,
-  and the item at `/library` in a browser shows it. Then open, on the phone, a
-  note the Mac pasted a picture, a video and a PDF into. Passing: the picture draws, the video plays
-  in the note, and the PDF shows as a card naming it, with no Download. Turn
-  on airplane mode and open the note again. Passing: the picture still draws.
-- **A large paste.** Copy a long article's whole text (about 20,000 words) in
-  Safari and paste it into a note. Passing: it lands whole within a few
-  seconds, the note scrolls without stutter, and the Mac shows it.
-- **Both devices at once.** Type in one paragraph of a note on the phone and in
-  another on the Mac at once, then in the same paragraph on both. Passing: each
-  device shows the other's typing as it lands, and nothing is lost.
-- **Leaving a note that holds typing not yet sent.** Type a line in a note, turn
-  on airplane mode at once, and swipe back. Passing: it asks "Leave without
-  saving?"; Stay keeps the note open with the line, and Discard edits leaves.
-  Online, type and swipe back at once. Passing: it leaves with no question, and
-  the line is on the Mac.
-- **A picture pasted just before you leave.** Paste a large picture into a note
-  and swipe back at once. Passing: the leave waits for it, and the picture is
-  there on reopen and on the Mac.
-- **iOS 16.4.** On an iPhone, or the simulator, on iOS 16.4, open a note and
-  type. Passing: it opens and takes the typing.
-- **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
-  library and the items opened before show, a note opened before read-only
-  under Needs a connection; a picture item
-  opened once before opens in the viewer, and one never opened says it is not on
-  this iPhone yet; a note whose text holds a picture the Mac pasted, opened once
-  online, draws it offline. Save a link or a thought, New note, add a photo and
-  Move to Deleted. Passing: each says Needs a connection. Share a page from
-  Safari, kill the app and open it. Passing: the library says "1 save waiting".
-  Turn airplane mode off. Passing: the save lands, the line goes, and the item
-  shows on the Mac.
-- **Deleted.** Move an item to Deleted on the phone, then restore it on the Mac.
-  Passing: it leaves both libraries and comes back with its text.
-- **Photos.** Add one from the camera and one from the library. Passing: each
-  is an image item of about 1 MB or less, draws on the Mac, and has no
-  location: the Mac's Info shows no place, and the original opened in Preview
-  shows no GPS tab in its Inspector (⌘I).
-- **The agent, online only.** Open the agent, ask it to tag an item, approve
-  what it asks, then turn on airplane mode and send again. Passing: the reply
-  writes in as it comes, the approval lands, the tag shows on both devices,
-  the thread lists on the Mac too, and offline the send says Needs a
-  connection and sends nothing.
-- **A Mac's edit arrives at once.** With the phone's app in the foreground on an
-  item, edit that item's title or first line on the Mac. Passing: the change
-  shows on the phone within seconds (the account's socket dialed from the device
-  by its ticket).
-- **Sign out.** With a share waiting (airplane mode), Sign out. Passing: it
-  asks first, "Sign out and discard saves waiting?" over a line counting the
-  one save; confirmed, the sign-in screen shows at once, even offline. Signed
-  in again and signed out online, Settings › Account on the Mac no longer
-  lists the phone (its session ends once its copy is gone).
-- **Revoke.** Sign the phone in again and, with its app open, choose Sign out on
-  its row in Settings › Account on the Mac. Passing: the sign-in screen says
-  this iPhone was signed out once its next call hears it, and a relaunch stays
-  signed out. Again with the app in the background: sign it out from the Mac,
-  then bring it to the front. Passing: the sign-in screen shows with no tap,
-  since a return to the front asks Better Auth. No suite runs this on a real
-  device.
-- **No iCloud backup of the library.** Settings › your name › iCloud › Manage
-  Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
-  small fraction of what it shows (the kept library and the shares waiting
-  are out of the backup), and shares made in airplane mode do not grow it.
-- **A new phone signs in as itself.** Restore this iPhone's encrypted backup
-  onto another iPhone and open the app. Passing: it shows the sign-in screen
-  (the Keychain's session is this device's only), and once signed in
-  Settings › Account on the Mac lists it beside the first phone.
-- **Safari's sign-in stays Safari's.** Sign in to inteligir.com in Safari on
-  the phone as a different account, then open the app. Passing: the app still
-  shows its own account's library, since its requests omit the shared cookie
-  jar.
-- **Share a page.** Share a page from Safari to Save to Inteligir. Passing: it
-  opens at once as its link, "Waiting to be read", and fills in with its title,
-  site, cover and article once the cloud reads it. From YouTube and Mail: the
-  link is saved and read the same way, a video's text its description. From X: a
-  post fills in with its words once the cloud reads it, rather than staying
-  blank under the title X. Shared offline: the library says "1 save waiting",
-  and it lands as its link once back online. Shared signed out: it waits for the sign-in. A
-  photo does not offer Inteligir. Share a second page while the first is still
-  saving: both are saved, and each opens in turn. Share a page the library
-  already holds: that item opens, with no second card and nothing on it changed.
-  Share a page only your home network reaches: its card says "Page not read".
-- **A short link.** Share a shortened https link (a `bit.ly` one). Passing: once
-  the cloud reads it, the item holds the page it leads to, under the short
-  address. Share a short link to a page the library already holds. Passing: it
-  stays an item of its own. From Notes, share `Look at this https://bit.ly/…`.
-  Passing: the page names the item once read, and "Look at this" is its note.
-- **A shared address to its last character.** Share
-  `https://en.wikipedia.org/wiki/Oklahoma!` from Safari. Passing: the item's
-  address keeps the `!` and it reads as the musical. Vitest reads
-  expo-share-intent's search out of its build, but only a device runs the
-  Swift handoff.
-- **A link inside shared text.** From Notes, share
-  `Read https://en.wikipedia.org/wiki/Mercury_(planet) tonight`. Passing: once
-  the cloud reads it, the item reads the planet, and "Read tonight" is its
-  note. Move it to Deleted, then share three lines with the link on the middle
-  one. Passing: its note keeps the two other lines on their own lines. Share
-  `これ見て https://en.wikipedia.org/wiki/Oklahoma。次の文`. Passing: the item
-  reads the state and its note is `これ見て 次の文`, which also proves the link's
-  pattern on the phone's own engine, since vitest runs V8. Moving each item to
-  Deleted before the next share of the same page (a share of an address the
-  library holds opens that item and adds no note), from Notes share
-  `the post (https://en.wikipedia.org/wiki/Oklahoma) says it well`, then
-  `[the state](https://en.wikipedia.org/wiki/Oklahoma)`. Passing: each saves
-  the state's address, its notes "the post says it well" and "the state".
-- **New note with no words.** New note, then go back without typing. Passing:
-  the Library row, its long-press sheet and the item's screen title read
-  Untitled. Type a line and go back. Passing: they read that line. Phone
-  components do not run under vitest.
-- **The item in view loads first.** Sign in afresh to the 2,000-item account,
-  open an item, follow a link to another item in it, then go back at once.
-  Passing: the item you went back to shows its text while the library's list
-  is still loading.
-- **The library.** Passing: a 2,000-item library scrolls with covers; an
-  offline launch shows placeholders for covers not yet seen; and the picture
-  and PDF viewers open.
-- **The screens in light and dark.** With the system in Light, open the
-  library, an item and its Info sheet, a picture in the viewer,
-  the agent and, signed out, the sign-in screen; switch to Dark in Control
-  Center with the app open and look again. Passing: every screen has the
-  colors, spacing, type sizes and corners the build before it had (nativewind's
-  release candidate), a field's placeholder is muted, a pressed text button
-  dims, no line of text runs into the next, and the switch recolours each
-  screen without a relaunch.
-- **An update reaches an installed build.** While the internal build is the
-  only one out, `pnpm hotfix:mobile` from the release commit, then open the app
-  twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`
-  (`eas update:list --branch production` names the group) counts a launch. An
-  update that matches no build is the fingerprint trap in § Hotfixes. Then
-  publish one whose only change is the editor's (a word its `/` menu shows)
-  and open a note twice. Passing: the menu shows the change, so the editor
-  rides the update.
-- **The note's Embed from URL dialog covers the screen on iOS 26.** In a note,
-  choose Embed from URL in the `/` menu with the note scrolled down. Passing:
-  the dimmed backdrop reaches every edge of the screen, and Cancel fades the
-  dialog out.
-
-- **Sign out during an upload.** Start a large upload on a slow link, then Sign
-  out. Passing: the sign-out finishes at once. That React Native's fetch honours
-  the abort cannot run under vitest.
-- **This build over the last.** Install this build over the one TestFlight
-  last served, signed in, with a share waiting. In the release that ends the
-  device credential the update opens on the sign-in screen once instead, and a
-  share still waiting from the old build is let go at that sign-in. Otherwise,
-  passing: it opens signed in,
-  what it last showed is there, and the share lands. No suite installs one
-  build over another.
-- **Approvals on the phone.** Have the agent ask to save a link, then to move
-  twelve items to Deleted. Passing: the save's card shows the host and a
-  selectable whole address, and the delete's shows the count and the titles the
-  phone holds, with "and N more" past ten.
-  `apps/mobile/src/app/agent/[thread].tsx` cannot run under vitest.
-- **A turn under way.** Ask the agent something it answers by thinking alone.
-  Passing: while it works the block shows its notes and no summary line, with
-  "Working…" below; when it ends the block reads "Thought it through", and the
-  Mac reads the same. The phone's suites have no renderer.
-- **A hostile cover.** Save a link whose page's `og:image` is a solid-colour PNG
-  of about 30000 x 30000, from the phone's share sheet and from the Mac.
-  Passing: the cover is not kept, and the library opens and scrolls with no
-  crash on repeated launches. The phone's suites have no native modules.
-- **A huge image item.** Add a 30000 x 30000 PNG as an image item from the Mac.
-  Passing: its card on the phone shows the plain placeholder, the library
-  survives a relaunch, and the item still opens in the viewer. That last rests
-  on the native loader's downsampling, which no suite runs.
-- **A cover whose header no reader here knows.** Add an AVIF or HEIC of over 50
-  million pixels from the Mac. Passing: its card shows the placeholder with no
-  crash, and an ordinary AVIF or HEIC draws its thumbnail. This is
-  `apps/mobile/src/files/expo-thumbnail.ts`'s measure through
-  expo-image-manipulator, which only runs on a device.
-- **A 48-megapixel JPEG.** Add one from the Mac. Passing: its card draws a
-  thumbnail, with no placeholder and no crash, while the rows around it fill in
-  one at a time. The phone's suites have no native modules.
-- **Reconnecting.** In airplane mode open a picture item never drawn on this
-  phone, see "It comes once your library can be reached", and turn airplane
-  mode off with the screen open. Passing: the picture appears, and so does a
-  library card's cover placeholder, without scrolling or leaving. The phone's
-  suites have no renderer.
-- **The sign-in behind the lock screen.** Sign in, lock the phone for a minute,
-  unlock, force-quit and reopen. Passing: the library opens signed in, with no
-  sign-in screen. Restart the phone, unlock it and open the app. Passing: the
-  same. Lock the phone during a pull-to-refresh and unlock it. Passing: still
-  signed in, and the next pull works. This proves the Keychain's when-unlocked
-  class, which only runs on a device.
-- **Stop beside a question.** Ask the agent to delete an item. While its
-  question waits, Stop shows beside it. Press Stop. Passing: the question reads
-  Declined, the answer ends Stopped, and nothing moves to Deleted. Press Cancel
-  on a second ask. Passing: that call alone is turned down and the answer goes
-  on. No suite draws this screen.
-- **What sign-out leaves behind.** Read a library image and share a page, sign
-  out, then inspect the app's Library/Caches HTTP cache (`Cache.db`,
-  `fsCachedData`). Passing: it holds no library file and no session cookie. A suite
-  proves the Worker's no-store on device reads; nothing on the phone clears the
-  system's HTTP cache, so only this check shows nothing lands there.
+- **The build**: the first `pnpm testflight:mobile` registers the App Group and
+  the share extension, this build installs over the last, and an EAS update
+  reaches the installed build.
+- **Sign-in**: Sign in and Create an account; still signed in after a week, a
+  lock and a restart (Keychain); Safari's sign-in stays Safari's; no iCloud
+  backup growth; a restored backup on another phone signs in as itself.
+- **The editor on real WebKit**: typing, autocorrect, the keyboard's mic, the
+  `[[` picker, a 20,000-word paste, and the Embed dialog covering the screen on
+  iOS 26.
+- **The editor's edges** on the oldest supported iPhone and on iOS 16.4: a cold
+  open under a second, Inter and KaTeX faces, no zoom, the caret above the
+  keyboard, Mermaid in dark mode.
+- **Live**: phone and Mac typing in one note at once, a Mac edit arriving at
+  once, a reconnect after a lock or airplane mode, and Leave without saving
+  with unsent typing.
+- **An offline launch**: items read-only, Needs a connection, and "1 save
+  waiting", which lands once back online.
+- **Shares** from Safari, YouTube, Mail, X and Notes (text, Japanese, a bit.ly
+  link, `https://en.wikipedia.org/wiki/Oklahoma!`); a duplicate share opens the
+  item; Page not read says why.
+- **Photos** from the camera and the library at 1 MB or less with no GPS, a
+  picture pasted in a note, and pictures, video and PDFs read across devices.
+- **Hostile images**: a 30000 x 30000 PNG, an AVIF or HEIC over 50 megapixels,
+  a 48-megapixel JPEG and a hostile `og:image` cover each draw or refuse with no
+  crash.
+- **The agent on the phone**: approvals, Stop beside a question, thinking shown,
+  and an offline send refused.
+- **Sign-out**: with a share waiting, a revoke in the foreground and the
+  background, and mid-upload; the app's Library/Caches holds nothing after.
 
 ### The iPhone app, in the simulator or a development build
 
-- **The note page's policy under WebKit.** In a release build in the
-  simulator (`pnpm --filter @repo/mobile exec expo run:ios --configuration
-  Release`), whose page carries its content policy, open a note holding an
-  equation, a picture and a web link. Passing: the note takes typing, its fonts
-  and the equation draw, and the link opens Safari while the page never
-  navigates; the policy's refusals are otherwise proven in Chromium alone.
-- **The share address.** In the simulator, share a link from Safari to the
-  app, once with the app quit and once with it open. Passing: `+native-intent`
-  lands on the Library both times, with no Unmatched-route screen flashing
-  first.
-- **A killed page reloads.** In the simulator, quit the note's
-  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
-  reloads with its text and dials its connection again: a line typed then
-  shows on the Mac.
+- **A release build in the simulator**: the editor's content policy under
+  WebKit, the `+native-intent` share address, a killed WebContent process
+  reloading, and every screen in light and dark.
 
 ### The site
 
-- **A password reset arrives.** On production, for a known address, since a
-  preview binds no mail and logs instead. Passing: Forgot password on
-  inteligir.com mails a reset link from `no-reply@inteligir.app` (the
-  `RESET_FROM_ADDRESS` in `apps/web/cloudflare.config.ts`), and the link sets a
-  new password, and every device signed in before it, the phone and the
-  browser extension included, is signed out at its next call. The send runs
-  under `ctx.waitUntil` after the answer, and no suite runs it against real
-  mail.
-- **The pitch.** Passing: `apps/web/public/og.jpg` and the Web Store listing's
-  copy read with the library's pitch (one library for everything you save),
-  and an inteligir.com link pasted into a chat app previews with it.
-- **The library cell on a preview and in production.** On the PR's Worker
-  preview, sign in as the phone does against the preview's D1
-  (`apps/web/README.md` § Previews: `curl -s -c jar -H 'expo-origin:
-  inteligir://' -H 'content-type: application/json' --data
-  '{"email":"…","password":"…"}' <preview>/api/auth/sign-in/email`), mint its
-  socket's ticket (`curl -s -X POST -b jar -H 'expo-origin: inteligir://' -H
-  'x-inteligir-build: <version>+mobile' -H 'content-type: application/json'
-  --data '{}' <preview>/v1/rpc/account/socketTicket`), then
-  open `wss://<preview>/v1/socket?ticket=<the ticket>` within the minute
-  (`websocat`) and send `ping`. Passing: the upload took the `exports` map in
-  `apps/web/cloudflare.config.ts` (`LibraryDO` and `AgentThreadDO` live,
-  `ThreadSyncDO`, `RepoCell` and `Registry` each `state: "deleted"`), the
-  upgrade answers 101 and `ping` answers `pong`, from the account's `LibraryDO`
-  that only `ctx.exports` reaches. On the production deploy, passing is the
-  same, and its output says, for each of the three tombstones, whether it may
-  leave the map; one it clears is deleted from the map in the next change.
-- **A new library schema.** When the cell's migrations
-  (`packages/db/src/cell/migrations`) moved since the last
-  deploy, open the library on the preview and then in production. Passing, for
-  an added migration: the library opens as it was, with no error and no
-  `cell-schema-reset` in the Worker's log. Passing, for a regenerated baseline
-  or a cell still holding tables no migration made (every cell, on the first
-  deploy of drizzle's schema): it opens on an empty library with no error, and
-  the log shows one `cell-schema-reset` for the account. No suite deploys over
-  a cell.
-
-- **A link the cloud reads.** On the production deploy, have a connected
-  assistant save a long public article's link (`save_link`), and another's to a
-  PDF. Passing: within a minute each item holds the page's title, site, cover
-  and text, or the PDF as its file; the queue dashboard shows `inteligir-fill`
-  consumed and nothing in `inteligir-fill-failed`; and the Worker's logs show
-  the consumer's invocations inside their CPU and memory, none exceeded.
-- **An import in the cloud.** Signed in as the phone (the session cookie under
-  `expo-origin`, as above), upload a Raindrop CSV
-  and an Obsidian vault's zip to `/v1/blobs/<sha>` and start each with
-  `library.imports.start` (`packages/contract/src/library/library-contract.ts`). Passing: each import
-  ends `done` with its counts, its links filled as above, and the Worker's logs
-  show each alarm run inside its CPU, none exceeded.
-- **The way into the library.** On a preview, signed out, choose Open your
-  library at the top of `<preview>/`. Passing: it reaches the sign-in and comes
-  back to `<preview>/library`; the same link is on `<preview>/about`,
-  `<preview>/contact`, `<preview>/privacy` and `<preview>/terms`; and the header doesn't crowd the page
-  at phone width. No suite or scenario looks at the header's layout.
-- **Creating an account from the site.** With a fresh invite code, submit the
-  form at `<preview>/app/sign-up` with no next. Passing: it lands in
-  `<preview>/library`, signed in. Repeat from `<preview>/library` signed out,
-  choosing Sign up on the sign-in page. Passing: it lands in the library. No
-  suite or scenario submits this form.
-- **Sign-up comes back.** Signed out, holding an unused invite, add the
-  connector in claude.ai and choose Sign up on the sign-in page it opens.
-  Passing: creating the account lands on the consent page, not the library,
-  and Allow connects. No suite or scenario submits this form.
-- **The share cards.** Paste an inteligir.com/about and an inteligir.com/privacy
-  link into a chat app. Passing: each previews with its description, which names
-  one library on every device and what each device sends. No suite reads a chat
-  app's preview.
-- **A file that hashes to another sha.** On a preview, `PUT /v1/blobs/<sha>`
-  with bytes that hash to another sha. Passing: it answers 400, not 500, which
-  proves real R2's refusal reaches the Worker as a message ending in `(10037)`,
-  the message the route reads; the suites prove that only against miniflare.
-- **An import past a row.** On a preview, import a zip holding a note with 3 MB
-  of frontmatter and one small note, then a Raindrop CSV with a 3 MB note cell
-  and one normal row. Passing: each ends `done` with added 1, unreadable 1.
-  Local workerd took a 3 MB row and refused only at 9 MB, so no suite meets the
-  platform's 2 MB row limit.
-- **A reset from a consent page.** With the sending domain live, open the
-  connector's consent page signed out, choose Forgot your password?, and open the
-  real email in a different browser. Passing: the reset page's Sign in link
-  carries the way back, and signing in lands on the consent page, not the
-  library. Check the Password changed view's Sign in link here too: no suite
-  draws that view, since it follows a submit.
+- **A password reset** mailed on production signs every device out, and a
+  reset or sign-up started from the consent page lands back there.
+- **Share cards** for /about and /privacy in a chat app; `apps/web/public/og.jpg`
+  and the store listing's pitch are current.
 
 ### The library in a browser tab
 
-- **The library's page on a preview and in production.** Sign in at
-  `<preview>/app/sign-in` with an account of the preview's D1 that a device
-  has filled, and open `<preview>/library`. Passing: the page draws the
-  library's items with no policy violation in the console;
-  `<preview>/library?item=<id>` opens that
-  item, and a reload keeps it open; `<preview>/library/assets/<a file the page
-  loaded>` answers from the asset server with no Worker invocation in the logs;
-  and `<preview>/libraryish` answers the site's 404. On the production deploy,
-  passing is the same at `inteligir.com/library`.
-- **The page in Safari, Chrome and Firefox.** In each, signed in, open
-  `/library`, then edit an item on the Mac or in a second tab. Passing: the
-  edit shows in the tab without a reload; with the network off, the open item
-  says Needs a connection and takes no typing, Settings › Account's rows say
-  "Needs a connection", and a line typed just before the network went lands in
-  the Mac's copy once it is back.
-- **A tab that holds a change asks before it goes, in Safari, Chrome and
-  Firefox.** Type a line in an item and turn the network off at once, then
-  close the tab, and reload it. Passing: the browser asks before each, and
-  nothing asks once the network is back and the line has landed. Then, online,
-  type a line with the same note open in the Mac app. Passing: the line shows
-  in the Mac's window as you type it, and leaving the item asks nothing.
-- **One note on two devices and the agent at once.** On a preview, open one
-  note in a tab and in the Mac app, type in different paragraphs at once, then
-  in the same paragraph, and ask the agent (a real turn, through the
-  preview's gateway) to rewrite a third while you type. Passing: each window
-  shows the other's typing and the agent's as they happen, nothing is lost and
-  no merge message shows; Undo this turn then takes the agent's words back
-  and keeps all you typed, and when you typed inside a paragraph the agent
-  added, it names the note that text went from. Leave the tab on a note for a
-  minute with no typing, then type. Passing: the typing lands in the Mac's
-  window (the 20 s heartbeat crossed Cloudflare's edge). Delete forever the
-  note from the Mac. Passing: the tab says the item isn't in your library (the
-  4404 close crossed the edge). No suite runs a real edge or a real turn.
-- **A long item's outline and its formulas, in the tab and in the Mac app.**
-  Open an item with three headings or more and scroll it, then import a zip
-  holding a note whose text is `:formula[5]{source="2+2"}` and open that note.
-  Passing: an outline rail sits at the window's right, its light following the
-  heading under the scroll, a hover lists the headings and a click lands on
-  one; and the imported pill reads 4 once the note opens.
-- **A list nested to the limit.** On a preview Worker, import a zip holding one
-  note with a list nested 128 levels and one nested 129. Passing: the first
-  lands and the agent's view reads it; the second is left out and
-  counted under "couldn't be read". Only a Worker has a Worker's stack.
-- **An equation, a diagram and a date open offline.** Open an item holding an
-  equation, a Mermaid diagram and a date, go back to the library, turn the
-  network off and open it again. Passing: each draws, read-only under Needs a
-  connection, and no "Something went wrong" screen shows.
-- **A dialog's backdrop covers the screen in Safari on an iPhone with iOS 26.**
-  Open `/library` in Safari on the phone, scroll the grid down, then open a
-  card's Quick Look and, from ⌘P's Save a link…, its dialog. Passing: the dimmed
-  backdrop reaches under the browser's own bars at the top and bottom, with no
-  undimmed strip, before and after the scroll.
-- **Popups fade out in Safari and in the Mac app.** In Safari, and in the Mac
-  app's window, open and close a dialog (Escape, and its Cancel), a card's
-  menu (Escape, and a row) and a tooltip (point at Settings in the rail, then
-  away). Passing: each fades out rather than vanishing at once, and nothing is
-  left on screen after it.
-- **⌘P in Safari and the Mac app.** Open ⌘P, press ↓ and ↑, type a word an item
-  holds, then press Return. Passing: the field keeps the caret throughout, the
-  light moves row by row and lands on the first hit as the hits arrive, the
-  footer names what Return does, and Return opens the lit hit with the find bar
-  on the word; VoiceOver reads the field as a combo box and each row as it
-  lights.
-- **An unread page says why on a tap and on a hover.** On a card whose page
-  could not be read, tap "Page not read" in Safari on an iPhone, and point at it
-  in the Mac app's window. Passing: the reason opens in a small popover in each,
-  and its words can be selected and copied without opening the item or the
-  card's menu.
-- **Every device in Settings › Account.** On a preview, signed in from two
-  browsers. Passing: Settings › Account in each lists both, marks This device
-  with no Sign out on its row, and Sign out on the other row ends that
-  browser's session at its next action. Sign out at the bottom returns to the
-  sign-in and leaves the other browser signed in.
-- **A tab left open keeps its sign-in.** Sign in at `/library` and leave the tab
-  open for more than a day. Passing: the session cookie's expiry has moved
-  forward with no reload. No suite reads a real browser's cookie.
-- **A list pasted from a real document, in the tab and in the Mac app.** Copy a
-  nested, lettered list from Google Docs and from Word and paste it into an
-  item. Passing: every block saves. The suites only ran hand-written HTML.
-- **A session that ran out, then someone else.** Sign in as one account, choose
-  a tag in the rail and fold a heading, then delete the session cookie with no
-  tab open. Sign in as a second account at `/app/sign-in`, or sign up with an
-  invite. Passing: the library opens on All items with no old tag in the title,
-  and a new paste carries no tag. The suites stub the sign-in.
+- **The production deploy**: `/library` with no policy error, a `?item=` deep
+  link, its assets and a 404; the account socket's 101 and ping/pong; a new cell
+  schema migrates; and the output says which deleted class may leave the
+  `exports` map in `apps/web/cloudflare.config.ts`.
+- **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
+  prompt with unsent typing, popups fading, ⌘P, VoiceOver, a Docs or Word list
+  paste, and a tab left open keeping its sign-in.
+- **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
+  Page not read opens its popover on a tap, and the header fits a phone.
 
 ### The connector
 
-Each on the PR's Worker preview, whose connector is
-`https://<preview>/connector` (`apps/web/README.md` § Previews), and again on
-production's, `https://inteligir.com/connector`, signed in to an account on
-that deployment.
+On a preview's `/connector` and on production's, signed in to an account there.
 
-- **claude.ai lets the library in.** Settings › Connectors › Add custom
-  connector, at the connector's address. Passing: the browser reaches the
-  consent page, signing in first, which asks "Allow Claude to read and change
-  your library?" under the account's email; Allow returns to claude.ai
-  connected; a chat that asks for a note finds and reads it, one that asks to
-  fix a typo in it edits it, and the fix reaches the Mac with no reload.
-  Disconnect ends it: in Settings › Account › Connected assistants, press
-  Disconnect on the assistant just connected.
-  Passing: it leaves the list, its next call is refused, and the next chat
-  asks to connect again.
-- **Claude Code lets the library in.** `claude mcp add --transport http
-  inteligir <connector>`, then `/mcp` and Authenticate. Passing: the consent
-  page warns "This sends access to an app on this computer.", Allow ends at
-  Claude Code's own callback, `/mcp` lists the 9 tools, and a `read_item` of
-  a long note answers in the conversation rather than as a file.
-- **ChatGPT lets the library in.** Developer mode, then a connector at the
-  connector's address with OAuth. Passing: the consent page names ChatGPT;
-  with "Only let it read the library" ticked, ChatGPT lists the four reading
-  tools and no write; the connector's description in ChatGPT reads as the
-  instructions' first paragraph (`packages/service/src/connector/connector-server.ts`).
+- **claude.ai**: add the custom connector, consent, read, edit, Disconnect; a
+  sign-up from the consent page returns to it.
+- **Claude Code**: `claude mcp add`, the consent page's warning, 9 tools, and
+  `read_item` answering inline.
+- **ChatGPT**: a developer-mode connector, consent, and the four reading tools
+  alone under read-only.
 
 ### The built-in agent
 
-Production and the previews each have their own AI Gateway and Anthropic
-workspace (`packages/service/README.md` § The built-in agent); nothing here crosses
-them. An account has two turns a UTC day (`AGENT_ALLOWANCE` in
-`packages/service/agent-limits.ts`): spread a check that takes more across accounts or
-days, and run turns that must fall an hour apart either side of midnight UTC.
+Each target has its own AI Gateway and Anthropic workspace. An account has two
+turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
 
-- **Each target's gateway holds its key and admits only us.** In the Cloudflare
-  dashboard, AI Gateway: `inteligir` and `inteligir-preview`, each with
-  Authenticated Gateway on, its token the target's `AI_GATEWAY_TOKEN`
-  (production's Worker secret; the previews' base-config secret), the target's
-  own Anthropic workspace key stored under `default`, Require provider
-  credentials on, caching, rate limiting and guardrails off, its logs keeping
-  no payload (the setting off, as every request's `cf-aig-collect-log-payload:
-  false` asks), and a spend limit for each account, split by the `account`
-  every request's `cf-aig-metadata` names: $3 a UTC day on `inteligir`, $1 on
-  `inteligir-preview`. Set it before the Deploy that ships it: the allowance
-  books no stream cut before it ended, and lets a day's last turn finish past
-  its cost, and this limit is what bounds both. Passing: a request without
-  `cf-aig-authorization` is refused; one with it, no `x-api-key` and
-  `cf-aig-metadata: {"account":"check"}` answers 200 for `max_tokens: 1` on
-  `claude-sonnet-5-5`; the gateway's log shows that request with its cost and
-  no prompt or reply, and `check` under its metadata's `account`.
-- **Production's Worker names its gateway.** The newest Deploy run's "Build &
-  deploy web" step printed `true` from its gateway check before `cf deploy`,
-  and signed in on inteligir.com, `library.agent.send({ text: "Hello." })`
-  answers `running`, never `SERVICE_UNAVAILABLE`. A check that fails means the
-  repository's `CLOUDFLARE_ACCOUNT_ID` secret is missing, or names an account
-  other than the gateway's (`apps/web/README.md` § Build & deploy, step 7).
-- **Each Anthropic workspace is its own and capped.** Production and preview
-  workspaces, never the Default Workspace, each with a monthly spend limit; the
-  organization is out of the Evaluation tier before the first outside tester.
-- **A real turn runs on a preview.** Signed in on a preview:
-  `library.agent.send({ text: "Tag my newest link travel." })`. Passing: the
-  answer is `running`, the account's socket carries `preview` frames before
-  the reply ends, and a `moved` frame naming the thread lets them go, the
-  thread's events land once each
-  (`library.agent.events`), its one change set is labelled Agent in
-  `library.history.list` and Undo this turn takes it back, and
-  `library.agent.status` counts one turn less; the gateway's log shows one
-  request a step, the second and later with cache reads; the Worker's log has
-  no `agent-thinking-dropped` and no 400; the reply's `input_transformations`
-  is present and empty (the beta headers reached Anthropic).
-- **A deploy mid-turn costs one call.** Send "Write me a 2,000-word note about
-  tea", and deploy the preview again while it streams. Passing: the turn ends
-  `done` within about a minute of the deploy, one note lands, in one change
-  set, the gateway shows the cut request and one re-send of the same size, and
-  `library.agent.status` counts one turn less.
-- **A turn stops after twenty steps.** On a preview, ask for twenty-five
-  notes, one at a time, then send "Go on." in that thread. Passing: the first
-  turn ends `budget` with twenty replies, the gateway's log shows twenty
-  requests for it, the second turn makes the rest, and the day's two turns are
-  spent.
-- **A declined turn finishes on the fallback.** On a preview, in a thread that
-  already has one answered turn, ask something Sonnet 5.5 declines under its
-  `cyber` category. Passing: the reply opens with a `fallback` block naming
-  `claude-sonnet-5` and answers, the gateway's log shows that request priced as
-  Sonnet 5's, and the Worker's log has no 400 and no `agent-thinking-dropped`.
-  Sonnet 5 takes no system message mid-conversation, so a 400 here means the
-  per-account words a turn carries must move.
-- **A spent per-account limit ends a turn as unreachable.** On a preview, set
-  the gateway's per-account limit to its least, spend it with one turn, send
-  again, then put the limit back. Passing: the second turn ends `unavailable`
-  after its retries, `library.agent.status` gives that turn back, and the
-  gateway's log shows a 429. Keep that 429's body: it is what would tell the
-  limit from Anthropic's rate limit, which the Worker cannot yet.
-- **Approvals with a real model.** "Delete my oldest note": allow it, then ask
-  again and deny, then ask again and leave it ten minutes. Passing: Deleted
-  holds one note, the denial and the timeout each leave the note, and the
-  reply says so. "Save https://example.com/a-long-path?utm_source=x": deny it,
-  then ask again and allow. Passing: it asks first on a card showing the host
-  and the address without its tracking part; the denial leaves no item, the
-  allow saves it (a preview leaves it unread), and the reply says which
-  happened.
-- **A deploy that changes the prompt between two turns.** Ten steps in one
-  thread on a preview (ask for ten notes, one at a time), then deploy the
-  preview again with a change to `packages/agent-skills`, and send again in
-  that thread. Passing: the reply answers; the Worker's log shows
-  `agent-definition-taken-up` for the thread, and no 400 and no
-  `agent-thinking-dropped`.
-- **A long conversation compacts, and goes on after a pause and a deploy.** On
-  a preview, have one turn read a long note again and again, and stop it once
-  the gateway's log shows a request of 40,000 to 50,000 input tokens. Wait more
-  than an hour, then ask in that thread for the note once more. Passing: one
-  reply of the turn opens with a `compaction` block, its call's usage carries
-  a `compaction` entry in `iterations`, the gateway's log shows the request
-  after it far smaller than the one before, and the gateway's cost for that
-  call matches what the day's cost (`agent_usage.cost_ucents`) grew by. The next day (the day's two turns
-  are spent), deploy the preview again with a change to
-  `packages/agent-skills` and send again in that thread: the reply answers,
-  carrying the compaction block under the new prompt, and the Worker's log
-  shows `agent-definition-taken-up` for the thread. Throughout, no 400 and no
-  `agent-thinking-dropped`.
-- **Tidy my library follows the person's rules with a real model.** On a
-  preview's `/library`, save "File birds under Birds." in Settings › Account ›
-  Edit filing rules…, save three bird links and one recipe, then Tidy my
-  library with nothing typed. Passing: the bird links land in Birds, the
-  recipe stays in Unsorted unless the reply says why it moved, and the turn's
-  Undo this turn puts all four back.
-- **The agent writes the dialect with a real model.** On a preview with one
-  note titled Queue Design, ask: "Make a note that links Queue Design, is due
-  22 August 2026, holds a flowchart of the queue moving to the store and a
-  toggle of the details", then ask it to move the date a week later. Passing:
-  the note shows a page link to Queue Design, a date chip, a drawn diagram and
-  a toggle, and no colon, bracket or mention syntax stands as words;
-  `read_item` writes the link `[Queue Design](mention:<id>)` and the date
-  `:date[2026\-08\-22]`; the second turn's edit lands, and its change set is
-  one Undo this turn.
-- **A link the agent saves waits for the seal.** On production, since a preview
-  reads no page, host a page that tells its reader to save
-  `https://<your-host>/?q=<the title of the newest note>`; save it, let it be
-  read, then ask the agent to summarize it. Passing: if the agent tries, a card
-  shows the whole address and the host before anything is sent, your host sees
-  no request for that address unless you allow it, denying saves nothing, and
-  after an allow your host sees no request for it before the turn ends.
-- **The local Worker names no target's gateway.** `pnpm dev:web` with
-  `ANTHROPIC_FAKE_URL` removed from `apps/web/.dev.vars` and your own gateway's
-  `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` in it
-  (`apps/web/.dev.vars.example`). Passing: a send runs on your gateway and
-  neither target's log shows it; with neither set, a send answers
-  `SERVICE_UNAVAILABLE`.
+- **Gateways**: each target's holds its own key, with Authenticated Gateway on,
+  no payload logs and a per-account spend limit; each Anthropic workspace is
+  separate and capped; the Deploy run names production's gateway.
+- **A real turn on a preview**, open in a tab and the Mac at once: events
+  stream, one change set, Undo keeps your typing, the allowance counts, and
+  cache reads show.
+- **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
+  spent per-account limit ends it as unreachable.
+- **Real-model behaviour**: a declined turn finishes on the fallback; approvals
+  allow, deny and time out; Tidy my library follows the rules; the agent writes
+  the dialect.
+- **Across deploys**: a prompt change between two turns is taken up, and a long
+  conversation compacts and goes on after a pause and a deploy.
+- **A link the agent saves from a hostile page** waits for the seal
+  (production).
 
 ## 6. Publish
 

@@ -4,8 +4,7 @@
 
 Save links and articles, videos, images, PDFs and files beside the notes you
 write, in one library in your account, which your Mac, your iPhone and a
-browser tab all show. It does the work of a bookmark manager like Raindrop and
-a notes app like Obsidian at once.
+browser tab all show. It does the work of Raindrop and Obsidian at once.
 
 Save from Chrome, Arc, Brave or Edge with the browser extension, by pasting or
 dropping onto the window, or from your iPhone's share sheet. The extension
@@ -50,8 +49,8 @@ the connector a person's own assistant reaches the library through. Its code is
 [`packages/service`](./packages/service/README.md), over the wire and library
 model of [`packages/contract`](./packages/contract/README.md) and the schemas
 of [`packages/db`](./packages/db/README.md). The iPhone
-app ([`apps/mobile`](./apps/mobile/README.md)) and the library's page, in a
-browser tab or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md)),
+app ([`apps/mobile`](./apps/mobile/README.md)) and the library tab, in a
+browser or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md)),
 each read and write the library online through one `/v1` wire, their reads
 cached by TanStack Query and refreshed when the account's socket says what
 moved; the browser extension
@@ -65,7 +64,7 @@ conversation, its tools the library's procedures.
 
 ### Install & run
 
-The Mac app is a window on the site's library page (inteligir.com/library).
+The Mac app is a window on the site's library (inteligir.com/library).
 The signed, notarized macOS build is on the latest GitHub release (the site's
 Download button reads it), and an installed app offers each update, which
 installs on Restart. The iPhone app ships to TestFlight by EAS, and the
@@ -76,7 +75,7 @@ From a checkout, with the prerequisites in
 
 ```bash
 pnpm install
-cp apps/web/.dev.vars.example apps/web/.dev.vars
+cp .env.example .env
 pnpm dev:web   # the Worker on miniflare at http://localhost:5174 (/library)
 pnpm dev       # the Mac app's window on that Worker's /library
 ```
@@ -89,17 +88,15 @@ and no model; [`AGENTS.md`](./AGENTS.md) § Quickstart says how to sign in.
 [`AGENTS.md`](./AGENTS.md) § Map has one line per workspace, and each
 workspace's README its own layout.
 
-Boundaries are enforced, not documented: `tools/repo-guards` derives the
-dependency DAG from the tree and fails on an undeclared edge, a cycle or an
-import the importer's manifest does not list, and `oxlint.config.ts` fails a
-package acquiring a platform it may not have (`@repo/contract` runs in the
-Worker, the browser and the phone, so it touches neither node nor react). knip fails
-a dependency nothing imports, and an export nothing reaches.
+Boundaries are enforced, not documented: pnpm and tsc refuse an import the
+importer's manifest does not list, `oxlint.config.ts`'s restricted imports fail
+a package acquiring a platform it may not have (`@repo/contract` runs in the
+Worker, the browser and the phone, so it touches neither node nor react), and
+knip fails a dependency nothing imports and an export nothing reaches.
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — the premises,
-the quickstart and the rules, and the index of the `CLAUDE.md` beside each
-workspace's code that holds its durable decisions; `CONTEXT.md` is the domain
-glossary.
+the quickstart and the rules, and which workspaces keep a `CLAUDE.md` of
+decisions beside their code; `CONTEXT.md` is the domain glossary.
 
 ### Develop
 
