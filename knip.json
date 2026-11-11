@@ -25,11 +25,6 @@
       "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
       "ignore": ["src/types/highlight-js.d.ts"],
       "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
-    },
-    "tools/e2e": {
-      // spawned by path from cloud-worker.ts
-      "entry": ["src/harness/worker-host.ts"],
-      "project": ["src/**/*.ts"]
     }
   }
 }

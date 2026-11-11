@@ -42,7 +42,7 @@ type Worker = NonNullable<MiniflareOptions["workers"]>[number];
 const text = (value: string): Binding => ({ type: "text", value });
 const json = (value: Json): Binding => ({ type: "json", value });
 
-export interface CloudOptions {
+interface CloudOptions {
   // over cloudflare.config.ts's text bindings
   readonly vars?: Readonly<Record<string, string>>;
   // over its JSON bindings, each replaced whole
