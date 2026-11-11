@@ -15,7 +15,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write && turbo run format:fix",
     "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
-    "knip": "knip && knip --production",
+    "knip": "knip",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "package:desktop": "turbo run package --filter=@repo/desktop",
