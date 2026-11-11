@@ -1,4 +1,4 @@
-// CLAUDE.md § THE TAB ASKS BEFORE IT LOSES THE OPEN ITEM'S EDIT: the open note is asked whether it
+// CLAUDE.md § The tab asks before it loses the open item's edit: the open note is asked whether it
 // stored every edit made here before the page leaves it, and an edit typed while no connection
 // could carry it is given up only on the person's word.
 

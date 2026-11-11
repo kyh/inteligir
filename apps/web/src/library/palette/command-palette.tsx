@@ -1,4 +1,4 @@
-// CLAUDE.md § THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P. One field over the library and the page's
+// CLAUDE.md § There is one search surface, and it is ⌘P. One field over the library and the page's
 // commands: what is typed is searched by the cell's full-text index (titles, notes and saved
 // articles), ranked as the cell ranks it for every device; a hit opens its item with the find
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs

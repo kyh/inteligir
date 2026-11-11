@@ -8,13 +8,13 @@ attribution header on each file.
 
 ## Consumers
 
-- `apps/web/src/library` — the product's page
+- `apps/web/src/library` — the library tab
 - `packages/editor` — note editor
 - `apps/mobile/src/editor/page` — the phone's DOM component, its note's editor
 - `apps/web` — the site and the auth pages
 - `apps/extension` — the extension's popup and welcome page
-- `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which the orphan guard
-  does not count as a consumer
+- `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which knip does not
+  count as a consumer
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import
 path exports such as `@repo/ui/components/button` and
@@ -70,5 +70,5 @@ document-class effect races the first.
 `pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
 the sources through the React Compiler as the shipped page does, which
 `components/compiled-under-test.test.tsx` pins. Type safety is
-`pnpm --filter @repo/ui typecheck`; the per-export orphan guard is
-`tools/repo-guards/src/ui-orphan-exports.test.ts` (`packages/ui/CLAUDE.md`).
+`pnpm --filter @repo/ui typecheck`; an export nothing outside the gallery
+imports is knip's to find (`knip.json`, `packages/ui/CLAUDE.md`).

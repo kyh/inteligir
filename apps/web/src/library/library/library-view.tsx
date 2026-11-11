@@ -1,4 +1,4 @@
-// CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. With nothing open the page is
+// CLAUDE.md § The library is home, and an item is shown by its kind. With nothing open the page is
 // the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
 // an empty scope says why and offers a next step.
 

@@ -35,7 +35,7 @@ export const libraryQueries = ({ client, orpc }: CloudWire) => ({
 
   scopes: () => orpc.library.listing.scopes.queryOptions(),
 
-  // CLAUDE.md § THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P. The library's side only, ranked by the
+  // CLAUDE.md § There is one search surface, and it is ⌘P. The library's side only, ranked by the
   // cell; the hits typed before stay up while the next words are asked
   search: (words: string) =>
     orpc.library.listing.page.queryOptions({

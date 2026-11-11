@@ -1,4 +1,4 @@
-// CLAUDE.md § TIDY MY LIBRARY IS A REQUEST FROM UNSORTED. "Tidy my library" opens a new
+// CLAUDE.md § Tidy my library is a request from Unsorted. "Tidy my library" opens a new
 // conversation on a fixed request, sent from Unsorted with whatever the person adds for this one
 // run; the person's filing rules are no part of it, since every turn carries the rules the cell
 // read for it, so the request never says whether the library has any.

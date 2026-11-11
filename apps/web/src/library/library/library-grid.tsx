@@ -1,4 +1,4 @@
-// CLAUDE.md § THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS. The
+// CLAUDE.md § The grid's selection is a store, a click selects and a double-click opens. The
 // listing as cards: the pages the cell answered so far, only the cards in view drawn, and the next
 // page asked for as the view nears the end of what is read. The grid
 // owns the gestures (the selection, the focus, the keys of LIBRARY_SHORTCUTS' grid rows and the

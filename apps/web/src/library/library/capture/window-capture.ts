@@ -1,4 +1,4 @@
-// CLAUDE.md § A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED. A paste lands
+// CLAUDE.md § A save from the window is a paste or a drop that no field claimed. A paste lands
 // where nothing takes text; a drop lands where no field, row, card or editor took it, and a drop
 // that holds nothing to save keeps the browser's own handling. WebKit fires no paste on a target
 // that is not editable, so ⌘V there first moves the focus to a 1×1 off-screen catcher, without

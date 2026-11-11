@@ -11,7 +11,7 @@ The editor is the largest single thing in the product, and its markdown has one
 invariant — **reading a file in keeps every letter, and writing it back keeps
 what it means**. Splitting it out makes that invariant a package boundary: the
 rule table, the suites that hold its meaning and the kit-parity guards live
-together, and the library's page above it (`apps/web/src/library`) consumes an editor rather
+together, and the library tab above it (`apps/web/src/library`) consumes an editor rather
 than containing one. The cell runs the same codec headless
 (`packages/service/src/library/library-router.ts`), and the phone's DOM component hosts
 the editor whole (`apps/mobile/src/editor/page/note-page.tsx`).
@@ -63,7 +63,7 @@ src/
                        # time spelling
   text/                # ONE Myers diff over a sequence, bounded by an edit
                        # budget
-  mention/             # page links: the `[[` picker over Plate's mention
+  mention/             # item links: the `[[` picker over Plate's mention
                        # input, its order, the insert and Create, the chip
   properties/          # the panel of an item's typed properties
   lib/                 # debounce, the one door a diagram's markup becomes
@@ -135,7 +135,7 @@ src/
   card may save a file (`savesFiles`). Beside it sit the library's titles, an
   item's id and the title it goes by, which a host hands `setLibraryTitles`
   each time its listing of them answers: the `[[` picker's rows and the name a
-  page link shows, subscribed to rather than read, because they move with the
+  item link shows, subscribed to rather than read, because they move with the
   library while the host never does. Its `EditorHostActions`
   are what the editor asks the shell for (Ask agent and a `#tag` chip's
   `showTag`, and the note an extract or

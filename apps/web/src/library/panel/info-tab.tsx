@@ -1,4 +1,4 @@
-// CLAUDE.md § AN ITEM'S INFO IS ITS FIELDS, AND A WRITE SHOWS BEFORE IT LANDS. Info reads the item's
+// CLAUDE.md § An item's Info is its fields, and a write shows before it lands. Info reads the item's
 // row as the cell holds it (its fields, its card's counts), read again as either moves, and writes a
 // field as one change the cell makes, laid over what the page shows at once, so a pin, a move, a
 // tag or a property reads as done before it lands. Every part of it is the cell's, so it waits for

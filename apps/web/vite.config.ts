@@ -8,8 +8,8 @@ import { defineConfig } from "vite";
 import type { Rolldown } from "vite";
 
 // a component the compiler skipped, said as the build runs (react.dev/reference/react-compiler/
-// logger): the card grid is the one it may name (packages/ui/CLAUDE.md § THE CARD GRID IS
-// VIRTUALIZED BY UNIFORM ROWS)
+// logger): the card grid is the one it may name (packages/ui/CLAUDE.md § The card grid is
+// virtualized by uniform rows)
 const reportSkips: Logger = {
   logEvent: (filename, event) => {
     if (event.kind !== "CompileError" && event.kind !== "PipelineError") {
@@ -21,7 +21,7 @@ const reportSkips: Logger = {
   },
 };
 
-// src/library/CLAUDE.md § THE LIBRARY IS ONE CHUNK. A route file's own module stays out, since the
+// src/library/CLAUDE.md § The library is one chunk. A route file's own module stays out, since the
 // route tree the site's entry imports holds its options, and so do the router's split halves of
 // it, each a chunk of its own: grouped, rolldown 1.2 hands the router a namespace its facade never
 // defines. What they reach goes in, and so does what the beforeLoad imports lazily, the tab's

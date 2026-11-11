@@ -72,15 +72,13 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 - **Adding a skill** is one directory, one `SKILL.md`, and a row under the hub's "Focused
   Contracts", which places it in the prompt. A new construct
   lands in the editor kit, the rule table and `fence-langs` FIRST, then the words.
-- The files are ordinary tracked markdown: oxfmt formats them, and the dangling-reference guard
-  sweeps them like any other `.md`.
+- The files are ordinary tracked markdown, which oxfmt formats.
 
 ## Testing
 
-No suite of its own — `package.json` has no scripts. `tools/repo-guards/src/agent-skills.test.ts`
-pins the set (every directory holds a `SKILL.md`, the hub names every focused skill and no
-phantom), holds every `inteligir-*` fence an example opens to `@repo/editor/markdown/fence-langs`,
-runs the script's `--check` against the committed module, which the script holds under 100,000
+No suite of its own — `package.json` has no scripts. `@repo/service`'s `test` script runs
+`node scripts/agent-prompt.ts --check`, which fails when the committed module differs from the
+skills, when the hub names a skill with no `SKILL.md`, or when the prompt passes 100,000
 characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache.
 `packages/editor/src/skill-examples.test.ts` reads every `markdown` example through the codec:
 each must read, keep its letters, write its own fixpoint, and leave no construct it spells as

@@ -1,5 +1,5 @@
-// What the page does about an edit it holds when it is about to go (CLAUDE.md § THE TAB ASKS
-// BEFORE IT LOSES THE OPEN ITEM'S EDIT): an edit not yet written lives only in its memory, so while
+// What the page does about an edit it holds when it is about to go (CLAUDE.md § The tab asks
+// before it loses the open item's edit): an edit not yet written lives only in its memory, so while
 // one is held the browser asks before the tab closes, reloads or goes elsewhere. The listener is
 // there only while something is held, as MDN advises, since it keeps the page from the
 // back-forward cache (https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event).

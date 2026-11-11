@@ -26,7 +26,7 @@ export const sessionEndOf = (cause: unknown): SessionEnd | null => {
   return failure?.kind === "session" ? failure.end : null;
 };
 
-// CLAUDE.md § A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.
+// CLAUDE.md § A session's end is answered however the tab meets it.
 export const createCloudWire = (
   transport: V1Transport,
   onSessionEnd: (end: SessionEnd) => void,
