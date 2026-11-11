@@ -9,8 +9,6 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
 
 ## Project Overview
 
-**The code is in transit**: PR #907's stages, #926 to #936, move it here; these premises win.
-
 - **Every item is fields plus a body of Plate blocks**: a link its url and the
   clipped article, a file its bytes in R2, a note what you write, in Notion's
   blocks plus formulas, charts, canvas, HTML, Mermaid, tabs and columns. Why:
