@@ -1,8 +1,9 @@
 # CONTEXT.md — the domain glossary
 
-What the words mean. The decision files (`AGENTS.md` § Decisions) record **why
-a choice was made**; this records **what a term names**, where it lives, and
-— the part worth reading — the neighbouring concept it gets confused with.
+What the words mean. The decision files (the `CLAUDE.md` beside each
+workspace's code) record **why a choice was made**; this records **what a term
+names**, where it lives, and — the part worth reading — the neighbouring
+concept it gets confused with.
 
 Rules for this file: every entry points at the module that OWNS the concept
 rather than restating its implementation, because the module's own header is the
@@ -112,7 +113,7 @@ note's blocks.
 it: a `pre` and a `turn` Yjs update around each edit, the first `pre` the
 whole note, which Undo this turn replays into a fresh doc and undoes as a
 forward edit (`packages/service/src/note/turn-log.ts`), pruned a day after
-the turn's change set leaves the undo window. Not a page history: it holds
+the turn's change set leaves the undo window. Not a version history: it holds
 only agent turns.
 
 **moved frame** — what the account's socket tells every device once a write
@@ -188,11 +189,11 @@ The name the codec writes an item under follows one rule,
 name every disk takes, never refused, and its `[` and `]`, which would end a
 link to it, become `(` and `)`.
 
-**page link** — a link from one item to another: Plate's mention, its key the
+**item link** — a link from one item to another: Plate's mention, its key the
 item's id and its value the title it was written with, in markdown
 `[Title](mention:<id>)` (`@repo/editor/markdown/md-rules`). It shows the title
 its item goes by now, so no rename breaks it. Not a web link, and not
-`[[Title]]`, which only an import and the agent's text read, as a page link to
+`[[Title]]`, which only an import and the agent's text read, as an item link to
 the one item so titled or as the text it is
 (`@repo/editor/markdown/remark-wiki-import`).
 
@@ -213,11 +214,12 @@ every device they sign in on reads online.
 **item** — one card the library lists: a row of fields in the cell and a body
 of Plate blocks, its **note object**'s **live document**
 (`@repo/contract/library/library-item`), whatever its kind; a link, a
-video, an image, a PDF and a note the person wrote are each one. A markdown
-file an import reads becomes one item, its frontmatter read into the item's
-fields by `readItemFacts` (`@repo/editor/items/item-frontmatter`). Listed in
+video, an image, a PDF and a note the person wrote are each one, and "item" is
+the only word for them: a page is a web page, and a bookmark Raindrop's. A
+markdown file an import reads becomes one item, its frontmatter read into the
+item's fields by `readItemFacts` (`@repo/editor/items/item-frontmatter`). Listed in
 memory by `@repo/contract/library/library-index`, which the cell builds over its
-rows for each `library.listing.page`, and which also builds the page, the
+rows for each `library.listing.page`, and which also builds the listing, the
 rail's counts and the titles the cell and the fake cell answer.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
@@ -279,8 +281,8 @@ a report or a screenshot means translating back. "Note" means only what the
 person writes (New note, the Notes chip); a saved page, a picture or a PDF is an
 item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
-**Library** — the page's home: the account's LIBRARY CELL as the person sees
-it, every item one card in one grid
+**Library** — the library tab's home: the account's LIBRARY CELL as the person
+sees it, every item one card in one grid
 (`apps/web/src/library/library/library-view.tsx`), read from the LIBRARY
 CELL through `/v1`, a query per screen that the account's socket invalidates
 (`apps/web/src/library/cloud/library-queries.ts`). The browser tab opens it
@@ -297,7 +299,7 @@ there when the screen shows no folder.
 **Needs a connection** — what a screen says of something only the cloud
 answers (the open item's typing, ⌘P's search, the agent and its Undo, import,
 the account) while the device is offline: the open item reads but takes no
-edit (`packages/editor/src/item/item-editor.tsx`), and on the library's page a
+edit (`packages/editor/src/item/item-editor.tsx`), and in the library tab a
 call waits rather than fails
 (`apps/web/src/library/cloud/needs-connection.tsx`); the iPhone says it of a
 save, a photo and a delete, and keeps only a share
