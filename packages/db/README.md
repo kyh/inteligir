@@ -30,7 +30,7 @@ drizzle.config.thread.ts # a conversation's migrations, for the same driver
 ## Scripts
 
 - `pnpm --filter @repo/db run --silent export` prints the D1 schema's DDL,
-  which `@repo/service`'s suites and the e2e harness apply as one D1 batch.
+  which `@repo/service`'s suites and the e2e fixture apply as one D1 batch.
 - `pnpm --filter @repo/db push` and `studio` reach the local D1, the file
   `pnpm dev:web` keeps under `apps/web/.wrangler/state`; it appears on the
   first request that touches D1 (`AGENTS.md` § Quickstart).
@@ -60,7 +60,7 @@ conversation's: `@repo/service` runs them as each object wakes
 The package has no suites of its own: its schemas run where they are read.
 `@repo/service`'s workerd suites apply the D1 DDL `export` prints and open
 every object through its migrations, so a schema change is tested by
-`pnpm --filter @repo/service test`, and the e2e harness applies the same DDL
+`pnpm --filter @repo/service test`, and the e2e fixture applies the same DDL
 to each Worker it boots. `tools/repo-guards/src/d1-unique-index.test.ts`
 refuses a `.unique()` in the D1 schema. `pnpm --filter @repo/db typecheck`
 checks the schemas and the configs.

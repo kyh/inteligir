@@ -54,9 +54,9 @@ src/
   **/*.test.ts       the site's suites under node, the library's under jsdom
 ```
 
-Three programs check `src/`: `tsconfig.page.json` the pages as they ship
-(ES2023 and the DOM, the Mac app's floor), `tsconfig.json` the suites beside
-them, and `src/worker/tsconfig.json` the Worker.
+Two programs check `src/`: `tsconfig.json` the pages and their suites (ES2023
+and the DOM, the Mac app's WebKit 16.6 ceiling), and `src/worker/tsconfig.json`
+the Worker; `scripts/tsconfig.json` checks the scripts.
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
 declare `BufferSource`/`BodyInit` globally with different bounds, so one
@@ -109,8 +109,7 @@ its door: `context.doors`, which the entry builds per request with
 types by the service's DOM-safe leaf, so the site's program loads none of the
 service's code. Each door answers its own methods, its 405 and its own throw,
 and refuses a path its row in `DOOR_ROUTES` does not name
-(`packages/service/src/door-routes.ts`, one route file a row by
-`tools/repo-guards/src/route-paths.test.ts`); `routes/api/$.ts` and
+(`packages/service/src/door-routes.ts`); `routes/api/$.ts` and
 `routes/v1/$.ts` answer a plain 404, so an unknown API path never renders the
 site's page. What each door does, its sessions, refusals, floor and
 throttles, is `packages/service/README.md` § The doors and § Auth.
@@ -148,7 +147,7 @@ pnpm -F @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
 ## Dev
 
 ```bash
-cp .dev.vars.example .dev.vars    # set BETTER_AUTH_SECRET to anything
+cp .env.example .env              # at the repo root; runs unedited
 pnpm dev:web                      # vite + miniflare on :5174 (pinned, strictPort)
 
 # The local D1 file is materialized lazily, on the first request that touches
@@ -163,7 +162,7 @@ pnpm --filter @repo/db push
 > `studio` are the local ones.
 
 `pnpm dev:web` also starts the scripted Messages API on :5177
-(`tools/messages-fake`), and `ANTHROPIC_FAKE_URL` in `.dev.vars` points the
+(`tools/messages-fake`), and `ANTHROPIC_FAKE_URL` in the root `.env` points the
 built-in agent at it: each conversation's object runs its turns through the
 SDK as it does deployed, with no key and no model, and the cell runs the tools
 the script names. The suites bind the same name, and their outbound service
