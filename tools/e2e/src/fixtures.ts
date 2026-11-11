@@ -408,7 +408,14 @@ export const upload = async (
 
 // `typed` at the end of the open note's line that reads `line`
 export const typeAfter = async (page: Page, line: string, typed: string): Promise<void> => {
-  await page.locator(EDITOR).getByText(line, { exact: true }).click();
+  const drawn = page.locator(EDITOR).getByText(line, { exact: true });
+  const box = await drawn.boundingBox();
+  if (box === null) {
+    throw new Error(`"${line}" is not drawn`);
+  }
+  // clicked at its end, not its middle: a live edit landing before the editor reads the caret End
+  // moved puts it back where the click left it
+  await drawn.click({ position: { x: box.width - 1, y: box.height / 2 } });
   await page.keyboard.press("End");
   await page.keyboard.type(typed);
 };
