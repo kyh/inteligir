@@ -1,5 +1,5 @@
-// the editor's rule table reads these and the skills guard holds the skills to them; a drifted
-// spelling silently opens the block as plain code.
+// the editor's rule table and the skills' examples read these; a drifted spelling silently opens
+// the block as plain code.
 
 export const CHART_LANG = "inteligir-chart";
 export const CANVAS_LANG = "inteligir-canvas";

@@ -208,8 +208,8 @@ sign-in form never flashes over a device that is signed in.
   reconnect, the socket's upgrade from the device and a Mac's edit arriving on
   it, a share from another app, offline and online, the agent, a live
   sign-in, an EAS Update landing, typing in a note on a real WebKit and
-  keyboard, and how the screens look in light and dark. Each is a check with how to run it and what
-  passing looks like in `docs/releasing.md` § 5, run on every release's
+  keyboard, and how the screens look in light and dark. Each is a line of the
+  phone's smoke list in `docs/releasing.md` § 5, run on every release's
   internal build; a native module a development build predates needs that
   build rebuilt (`pnpm --filter @repo/mobile ios`).
 

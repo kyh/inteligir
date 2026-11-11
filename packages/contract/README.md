@@ -70,7 +70,7 @@ src/
   library-scope.ts     # the library's scopes, one spelling every listing and view context reads
   client-build.ts      # the build every request names, and the floor it is held to
   cloud-origin.ts      # the production origin a client falls back to
-  library-page.ts      # where the site serves the library's page
+  library-page.ts      # where the site serves the library tab
   connector.ts         # the connector's path, which an assistant is pointed at
   bytes.ts             # the byte primitives, on globals every target has
   extension/           # the extension's key, id, origin and store link, and the connect page's messages

@@ -1,11 +1,11 @@
 # `@repo/web` — inteligir.com
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
-one origin: the TanStack Start pages, the library's page at `/library`, Better
+one origin: the TanStack Start pages, the library tab at `/library`, Better
 Auth on D1 and every device's session, each account's library cell (a SQLite
 Durable Object holding the library and its devices' sockets), the connector a
 person's own assistant reaches the library through. The wire contract is
-`@repo/contract/v1` — the Worker implements it; the library's page (the Mac
+`@repo/contract/v1` — the Worker implements it; the library tab (the Mac
 app's window and the browser tab), the phone and the extension consume it.
 The cloud's code is `@repo/service`'s (`packages/service`) and the D1 schema
 `@repo/db`'s (`packages/db`): this app is the site and the entry that deploys
@@ -38,7 +38,7 @@ src/
     oauth/,          method to its @repo/service door; api/$ and v1/$ answer
     [.]well-known/,  a plain 404
     connect/authorize.ts, connector.ts
-  library/           The library's page: its code, styles and decisions
+  library/           The library tab: its code, styles and decisions
                      (library/CLAUDE.md), suites under jsdom
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client and the tab's session read, session
@@ -172,9 +172,9 @@ answers it with the fake's handler and refuses every other address
 The Worker's suites are `@repo/service`'s, inside workerd on a config of its
 own (`packages/service/README.md` § Testing). This app's are two vitest
 projects (`vitest.config.ts`): `site`, under node, rendering its routes to a
-string as the Worker's SSR does, and `library`, the library's page under jsdom,
+string as the Worker's SSR does, and `library`, the library tab under jsdom,
 compiled by the React Compiler as it ships. `pnpm --filter @repo/web test` runs
-both; `typecheck` runs the page, suites, Worker and scripts programs.
+both; `typecheck` runs the app, Worker and scripts programs.
 
 ## Build & deploy (owner-only)
 

@@ -1,6 +1,6 @@
 // How the phone signs in, keeps its sign-in and lets it go: Better Auth's own routes, through its
 // Expo client in the app (`../lib/app-runtime.ts`), which keeps the session cookie in the Keychain,
-// and through a stand-in the scenario suite runs under node. Nothing here names a platform.
+// and through a stand-in its suites run under node. Nothing here names a platform.
 
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import type { SignUpRequest } from "@repo/contract/account/account-schema";

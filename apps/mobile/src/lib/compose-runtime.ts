@@ -1,7 +1,6 @@
 // The platform-free half of the composition root: app-runtime.ts binds it to Better Auth's Expo
 // client, the phone's key-value store, its file folder, the global fetch, React Native's socket and
-// the OS, so every move between signed in and signed out runs under test, and the scenario suite
-// drives it under node against a real Worker.
+// the OS, so every move between signed in and signed out runs under test.
 //
 // Signed in, the phone reads the account's library from the cloud through TanStack Query, whose
 // cache the app keeps between launches, so what was last read shows offline; the account's socket

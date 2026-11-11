@@ -3,7 +3,7 @@
 //! it hides it, so the page keeps its state for the Dock's next click.
 
 use tauri::utils::config::FrontendDist;
-use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, PermissionResponse};
+use tauri::webview::{DownloadEvent, NewWindowResponse, PermissionResponse};
 use tauri::{
     AppHandle, Config, Manager, Runtime, Url, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
@@ -32,8 +32,8 @@ fn on_origin(url: &Url, origin: &Url) -> Url {
     moved
 }
 
-/// The window on a local Worker, at the configured path: the packaged smoke's, and a debug window's
-/// beside a Worker on another port. It names this machine or the app refuses to start, so no build
+/// The window on a local Worker, at the configured path: a debug window's beside a Worker on
+/// another port. It names this machine or the app refuses to start, so no build
 /// loads a site its environment chose from elsewhere, and none silently falls back to production.
 pub fn follow_local_site(config: &mut Config) -> Result<(), String> {
     let Ok(value) = std::env::var(LOCAL_SITE_VAR) else {
@@ -132,17 +132,6 @@ pub fn create_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 eprintln!("[desktop] a download from {} did not finish", url.scheme());
             }
             true
-        })
-        .on_page_load(|_, payload| {
-            if let PageLoadEvent::Finished = payload.event() {
-                // the packaged smoke reads this line; the query stays out of the log
-                let url = payload.url();
-                println!(
-                    "[desktop] window loaded {}{}",
-                    url.origin().ascii_serialization(),
-                    url.path()
-                );
-            }
         });
     let builder = if cfg!(debug_assertions) {
         builder.title("Inteligir (Dev)")

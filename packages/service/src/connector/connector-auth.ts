@@ -58,7 +58,7 @@ export const grantMetadataSchema = z.strictObject({ clientName: z.string().min(1
 export type GrantMetadata = z.infer<typeof grantMetadataSchema>;
 
 // the deployment's origin as the config declares it: an https origin, or http on a loopback host
-// under `vite dev` and the e2e harness
+// under `vite dev` and the e2e fixture
 const siteOriginSchema = z.url({ protocol: /^https?$/u }).transform((value, issue) => {
   const { origin } = new URL(value);
   if (origin !== value) {

@@ -3,9 +3,9 @@
 The built-in agent's panel as every device reads it. A conversation is the
 account's, the same on the Mac, in the browser tab and on the phone, so what a
 panel makes of it is one package: each device draws it in its own way (the
-library's page with `@repo/ui`, the phone with React Native) over the same
+library tab with `@repo/ui`, the phone with React Native) over the same
 rows, words and sends. It names no platform and no UI, and holds only what
-every device draws: Undo and Tidy my library are the page's own
+every device draws: Undo and Tidy my library are the tab's own
 (`apps/web/src/library/agent/`), and each device keeps the reply being written
 as its socket carries it.
 

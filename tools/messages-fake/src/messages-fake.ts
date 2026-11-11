@@ -1,5 +1,5 @@
 // A scripted Claude Messages API with no model and no account behind it, for the local Worker
-// (`pnpm dev:web`), the e2e scenarios and the Worker's suites: the built-in agent's client reaches
+// (`pnpm dev:web`), the e2e flows and the Worker's suites: the built-in agent's client reaches
 // it at `<origin>/v1/messages`, as it reaches AI Gateway at its route's `/v1/messages`, so every
 // thread runs its one code path. It answers only a streamed request carrying the gateway's token
 // header and the account its metadata names, refuses what Claude Sonnet 5.5 refuses

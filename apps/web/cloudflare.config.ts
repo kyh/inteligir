@@ -69,7 +69,7 @@ const shared = {
   // what one account's library may hold, its files and its change sets included: 1 GiB
   LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
-  // suites, the e2e harness, a local script's root .env
+  // suites, the e2e fixture, a local script's root .env
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
   // dev server cannot load a module this file also loads (@repo/service/fill-queues)

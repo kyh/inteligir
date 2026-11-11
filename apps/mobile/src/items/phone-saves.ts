@@ -4,7 +4,7 @@
 // answers that item and changes nothing. Every save names its item's id and an op id minted before
 // its first call, so a resend after a lost answer lands once. A file a note's text names is sent up
 // by its sha the same way, before the write naming it. A save never throws: it answers what became
-// of it. Platform-free: the suites and the scenario suite run it under node.
+// of it. Platform-free: its suites run it under node.
 
 import { CHANGE_REFUSED, sharedFailure } from "@repo/contract/library/call-outcome";
 import type { UploadOutcome } from "@repo/contract/library/call-outcome";

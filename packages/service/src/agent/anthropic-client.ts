@@ -6,9 +6,9 @@
 // `cf-aig-authorization`, and every request asks the gateway to keep no prompt or reply, only its
 // metadata, the account it is for among them. The SDK retries nothing, since a thread sends a cut or failed call again itself, whole
 // (`./thread-loop`). With no gateway the client is null: every send answers that the agent cannot
-// be reached, and nothing is faked. The local Worker and the e2e scenarios name instead the
+// be reached, and nothing is faked. The local Worker and the e2e flows name instead the
 // scripted Messages API on this machine (tools/messages-fake) by `ANTHROPIC_FAKE_URL`, which only
-// `vite dev` and the e2e harness declare and which names a loopback address alone, so a deployed
+// `vite dev` and the e2e fixture declare and which names a loopback address alone, so a deployed
 // Worker never reaches a fake. The client is built with every value given, never the SDK's
 // defaults, which read `process.env`.
 

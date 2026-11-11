@@ -4,7 +4,7 @@
 // a resend after a lost answer lands once. A pass sends the oldest first, one pass at a time: one
 // that lands goes, one the cloud cannot answer now stops the pass for the next, and one no resend
 // can land is parked with the cloud's words until the person sends it again or lets it go. Leaving
-// the account clears every one. Platform-free: the suites and the scenario suite run it under node.
+// the account clears every one. Platform-free: its suites run it under node.
 
 import { z } from "zod";
 import { createExternalStore } from "../lib/external-store";

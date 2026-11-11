@@ -4,7 +4,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 import { messagesService } from "./messages-service.ts";
 
 // no migration files exist; the D1 DDL is derived from its schema by @repo/db's export script, the
-// one the e2e harness runs too, since two spellings drift. Resolved from this file: cwd is this
+// one the e2e fixture runs too, since two spellings drift. Resolved from this file: cwd is this
 // package under vitest but the repo root under knip.
 const TEST_SCHEMA = execFileSync("pnpm", ["--filter", "@repo/db", "run", "--silent", "export"], {
   cwd: import.meta.dirname,
