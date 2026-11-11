@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { deferred } from "@repo/contract/test-support/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -58,7 +59,7 @@ describe("Info over an item", () => {
 
   it("pins the item at once, before the cell answers", async () => {
     const { cell, id } = cellWithALink();
-    const landed = Promise.withResolvers<null>();
+    const landed = deferred();
     const { calls, library } = fakePageLibrary({
       answer: async (call) => {
         if (call.path === "library.items.organize") {
@@ -80,7 +81,7 @@ describe("Info over an item", () => {
       { input: { ids: [id], pinned: true }, path: "library.items.organize" },
     ]);
     expect(cell.item(id)?.fields.pinnedAt).toBeNull();
-    landed.resolve(null);
+    landed.resolve();
     await waitFor(() => {
       expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
     });
@@ -99,7 +100,7 @@ describe("Info over an item", () => {
 
   it("adds a property at once, as one field op over the item, and reads none of its body", async () => {
     const { cell, id } = cellWithALink();
-    const landed = Promise.withResolvers<null>();
+    const landed = deferred();
     const { calls, library } = fakePageLibrary({
       answer: async (call) => {
         if (call.path === "library.write") {
@@ -121,7 +122,7 @@ describe("Info over an item", () => {
       { input: { itemId: id, ops: [{ key: "status", op: "property", value: "draft" }] } },
     ]);
     expect(cell.item(id)?.fields.properties).toStrictEqual({});
-    landed.resolve(null);
+    landed.resolve();
     await waitFor(() => {
       expect(cell.item(id)?.fields.properties).toStrictEqual({ status: "draft" });
     });

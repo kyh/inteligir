@@ -1,21 +1,12 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // ES2024 and node for the suites and the configs, which run on node and read sources off
-    // disk. The pages' own ceiling is tsconfig.page.json's ES2023, the stdlib of the Mac app's
-    // WebKit.
-    "lib": ["ES2024", "dom", "dom.iterable"],
+    // the Mac app's WebKit 16.6 stdlib: Vite lowers syntax, never stdlib
+    "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
-    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.suites.json"
+    "types": ["vite/client", "node"]
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"],
-  // `src/worker` is its OWN program (src/worker/tsconfig.json), not a stylistic
-  // split: workerd and the DOM each declare `BufferSource` / `BodyInit`
-  // globally with different bounds, so one program would type-check the Worker
-  // against a stdlib it never runs on. Keeping the two halves in separate
-  // DIRECTORIES is what lets every tool that resolves a file's config by
-  // walking up (tsc, the editor, oxlint's type-aware pass) find the right one.
-  // `pnpm typecheck` runs every program.
+  // workerd's and the DOM's globals clash, so src/worker is a program of its own
   "exclude": ["node_modules", "dist", ".wrangler", ".tanstack", "src/worker"]
 }

@@ -4,6 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
+import { deferred } from "@repo/contract/test-support/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
@@ -360,7 +361,7 @@ describe("the agent panel's conversation", () => {
   });
 
   it("offers no Undo until every page of the conversation's sets is read, then every one", async () => {
-    const older = Promise.withResolvers<null>();
+    const older = deferred();
     const { calls, library } = fakePageLibrary({
       answer: async ({ path, input }) => {
         if (path !== "library.history.list") {
@@ -384,7 +385,7 @@ describe("the agent panel's conversation", () => {
     expect(document.querySelectorAll("[data-turn-ended]")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
-    older.resolve(null);
+    older.resolve();
     const { turn, whole } = await twoTurnsDrawn();
     expect(heldDown(turn)).toBe(false);
     expect(heldDown(whole)).toBe(false);
@@ -507,7 +508,7 @@ describe("the agent panel's conversation", () => {
   });
 
   it("stays down behind an undo in flight, then takes back what that one left", async () => {
-    const answered = Promise.withResolvers<null>();
+    const answered = deferred();
     const cell = takesBackOnce([set("s2", 2), set("s1", 1)], async ({ path }) => {
       if (path === "library.history.undo") {
         await answered.promise;
@@ -533,7 +534,7 @@ describe("the agent panel's conversation", () => {
       await delay(0);
     });
     expect(callsTo(calls, "library.history.list")).toHaveLength(reads);
-    answered.resolve(null);
+    answered.resolve();
     await waitFor(() => {
       expect(heldDown(whole)).toBe(false);
     });
@@ -629,8 +630,8 @@ describe("the agent panel's conversation", () => {
 
     it("stays down online until the undo is answered and the list read again", async () => {
       const refused = vi.spyOn(toast, "error");
-      const answered = Promise.withResolvers<null>();
-      const reread = Promise.withResolvers<null>();
+      const answered = deferred();
+      const reread = deferred();
       let pressed = false;
       const cell = takesBackOnce([set("s1", 1)], async ({ path }) => {
         if (pressed) {
@@ -650,7 +651,7 @@ describe("the agent panel's conversation", () => {
         expect(heldDown(turn)).toBe(true);
       });
       fireEvent.click(turn);
-      answered.resolve(null);
+      answered.resolve();
       await waitFor(() => {
         expect(cell.landed).toStrictEqual([["s1"]]);
       });
@@ -659,7 +660,7 @@ describe("the agent panel's conversation", () => {
       });
       expect(heldDown(turn)).toBe(true);
       fireEvent.click(turn);
-      reread.resolve(null);
+      reread.resolve();
       await gone();
       expect(cell.landed).toStrictEqual([["s1"]]);
       expect(refused).not.toHaveBeenCalled();
@@ -716,7 +717,7 @@ describe("the agent panel's conversation", () => {
 
     it("stays down while a conversation press reads online, which then lands whole", async () => {
       const refused = vi.spyOn(toast, "error");
-      const read = Promise.withResolvers<null>();
+      const read = deferred();
       let pressed = false;
       const cell = takesBackOnce([set("s2", 2), set("s1", 1)], async ({ path }) => {
         if (pressed && path === "library.history.list") {
@@ -736,7 +737,7 @@ describe("the agent panel's conversation", () => {
         expect(heldDown(turn)).toBe(true);
       });
       fireEvent.click(turn);
-      read.resolve(null);
+      read.resolve();
       await gone();
       expect(cell.landed).toStrictEqual([["s2", "s1"]]);
       expect(refused).not.toHaveBeenCalled();
@@ -744,7 +745,7 @@ describe("the agent panel's conversation", () => {
 
     it("holds from the press, however long the open item's write takes", async () => {
       const refused = vi.spyOn(toast, "error");
-      const written = Promise.withResolvers<null>();
+      const written = deferred();
       const flushOpen = vi.fn<() => Promise<void>>(async () => {
         await written.promise;
       });
@@ -766,7 +767,7 @@ describe("the agent panel's conversation", () => {
         await delay(0);
       });
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([]);
-      written.resolve(null);
+      written.resolve();
       await waitFor(() => {
         expect(cell.landed).toStrictEqual([["s1"]]);
       });
@@ -775,7 +776,7 @@ describe("the agent panel's conversation", () => {
 
     it("keeps a second press from a long conversation's undos until the last lands", async () => {
       const refused = vi.spyOn(toast, "error");
-      const answered = Promise.withResolvers<null>();
+      const answered = deferred();
       const sets = Array.from({ length: BULK_ITEMS_MAX + 1 }, (_, at) =>
         set(`s${String(at)}`, BULK_ITEMS_MAX + 1 - at),
       );
@@ -799,7 +800,7 @@ describe("the agent panel's conversation", () => {
         expect(heldDown(whole)).toBe(true);
       });
       fireEvent.click(whole);
-      answered.resolve(null);
+      answered.resolve();
       await waitFor(() => {
         expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
       });

@@ -18,7 +18,7 @@
     "generate": "cf workers types",
     "og:cards": "node scripts/og-cards.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.page.json && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
   },
   "dependencies": {
     "@orpc/client": "catalog:",
