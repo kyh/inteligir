@@ -1,73 +1,24 @@
 # Decisions: @repo/db
 
-The D1 accounts database's schema, each library cell's, each note's and each
-conversation's, and how each ships: D1's by `drizzle-kit push`, the objects'
-as the migrations each runs when it wakes. `AGENTS.md` § Decisions says how a bullet is written
-and cited.
+The D1 accounts database's schema, and each library cell's, each note's and
+each conversation's: D1's ships by `drizzle-kit push`, each object's as the
+migrations it runs when it wakes.
 
 ## Schemas
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
-  files.** One deployer and no users (`AGENTS.md` § Project Overview), so a
-  push may drop a column Better Auth does not write, and the schema follows
-  what its generator prints for the plugin set (`packages/db/src/d1/schema.ts`
-  says how). The suites and the e2e harness derive the DDL by `drizzle-kit
-  export` and send it as one D1 batch. Rejected: migration files (a history for
-  installs nobody holds). The first outside tester is the trigger for
-  migrations. `packages/service/vitest.config.ts`,
-  `tools/e2e/src/harness/cloud-worker.ts`.
-
-- **Declare D1 uniques as named unique indexes, never `.unique()`**
-  (`packages/db/src/d1/schema.ts`). Production D1 holds every unique as
-  drizzle-kit 0.31's `<table>_<column>_unique` index, which
-  `uniqueIndex("<table>_<column>_unique")` matches, so `drizzle-kit push
-  --explain` reports no changes; refuse any plan that recreates a table
-  (`tools/repo-guards/src/d1-unique-index.test.ts`). Rejected: inline
-  `.unique()`, which drizzle-kit 1.0 plans as a table recreate whose `DROP`
-  cascades through every `ON DELETE CASCADE` child (D1 ignores `PRAGMA
-  foreign_keys=OFF`), and `push` applies it without asking.
-
-- **THE CELL'S SCHEMA IS DRIZZLE'S, MIGRATED WHEN THE CELL WAKES.**
-  `@repo/db/cell/schema` declares every table but the search index, an FTS5
-  table sqlite-core cannot declare, which a custom migration of its own makes;
-  drizzle-kit generates the rest (`packages/db/drizzle.config.cell.ts`). The
-  cell runs drizzle's migrator under `blockConcurrencyWhile` on every wake,
-  first wiping a cell that holds tables drizzle did not make or a migration
-  this build's journal lacks, and logs the names a failed run left pending,
-  since the migrator's rollback drops the failing statement's error. No table
-  is STRICT or WITHOUT ROWID, which sqlite-core cannot spell and a generated
-  table rebuild would drop, no trigger sits on one, for the same rebuild, and
-  `meta.v` declares no type, so a value reads back as it was written.
-  Rejected: a hand-written DDL versioned by a `meta` row (a second spelling of
-  the tables, and every version bump wiped every cell).
-  `packages/db/src/cell/schema.ts`, `packages/service/src/library/cell-db.ts`.
-
-- **EACH NOTE'S SCHEMA IS DRIZZLE'S TOO, MIGRATED IN ITS CONSTRUCTOR.**
-  `@repo/db/note/schema` declares a note's tables (its one meta row, the
-  updates it stored since its last snapshot, the snapshot's parts, each
-  turn's log and cursor, and the op ids it answered), and drizzle-kit
-  generates its migrations (`packages/db/drizzle.config.note.ts`). The note
-  runs them in its constructor under `blockConcurrencyWhile`, as the cell
-  does, never in y-partyserver's `onLoad`, which runs only once a socket or a
-  call starts the server. A snapshot part is at most 1 MiB, inside a Durable
-  Object's 2 MB row. Rejected: the note's rows in the cell (every keystroke
-  through the account's one object); migrating in `onLoad` (a plain call that
-  reads no document would meet no tables).
-  `packages/db/src/note/schema.ts`, `packages/service/src/note/note-db.ts`,
-  `packages/service/src/object-schema.ts`.
-
-- **EACH CONVERSATION'S SCHEMA IS DRIZZLE'S TOO, MIGRATED IN ITS CONSTRUCTOR.**
-  `@repo/db/thread/schema` declares a conversation's tables (its one meta row,
-  the definitions its turns ran under, the transcript, its turns, model calls
-  and tool calls, and the outbox it pushes to the cell), and drizzle-kit
-  generates its migrations (`packages/db/drizzle.config.thread.ts`). The
-  object runs them in its constructor under `blockConcurrencyWhile`, before
-  `agents/lifecycle`'s job queue makes its own table on its first job, which
-  the migrator's check would take, on a new conversation, for a table drizzle
-  did not make. The transcript is append-only by its one insert site, never a
-  trigger, which a generated table rebuild would drop. Rejected: a
-  hand-written DDL versioned by a `meta` row (a second spelling of the tables,
-  and every version bump wiped every conversation).
-  `packages/db/src/thread/schema.ts`,
-  `packages/service/src/agent/thread-db.ts`,
-  `packages/service/src/agent/agent-thread.ts`.
+  files.** One deployer and no users, so a history serves nobody; the suites and
+  the e2e apply the DDL `drizzle-kit export` prints. `tools/e2e/src/fixtures.ts`.
+- **Declare D1 uniques as named unique indexes, never `.unique()`.** drizzle-kit
+  1.0 plans `.unique()` as a table recreate whose `DROP` cascades through every
+  child on D1. `tools/repo-guards/src/d1-unique-index.test.ts`.
+- **The cell's schema is drizzle's, migrated when the cell wakes.** A
+  hand-written DDL is a second spelling of the tables; no table is STRICT,
+  WITHOUT ROWID or triggered, which a generated rebuild drops.
+  `packages/db/src/cell/schema.ts`.
+- **Each note's schema is drizzle's too, migrated in its constructor.**
+  y-partyserver's `onLoad` runs only once a socket or a call starts the server,
+  so a plain call would meet no tables. `packages/db/src/note/schema.ts`.
+- **Each conversation's schema is drizzle's too, migrated in its constructor.**
+  It runs before `agents/lifecycle` makes its job table, which the migrator
+  would take for one drizzle did not make. `packages/db/src/thread/schema.ts`.

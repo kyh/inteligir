@@ -246,7 +246,7 @@ end them, and the account's deletion revokes every one.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/auth/invite.ts`). `POST /api/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/account/account-schema`, which the
-  page, the gate and the e2e harness share with `AUTH_API_PATHS`) and refuses a
+  page, the gate and the e2e share with `AUTH_API_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
   `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
@@ -367,9 +367,9 @@ and every request asks the gateway to keep no prompt or reply and names the
 conversation's account in `cf-aig-metadata`, which the gateway's per-account
 spend limit splits by, bounding what no usage books: a stream cut before it
 ended, and a day's last reply past its cost. A Worker with
-no gateway refuses every send. `vite dev` names no target's gateway: its
-`.dev.vars` names the scripted Messages API or a gateway of the developer's
-own (`apps/web/.dev.vars.example`).
+no gateway refuses every send. `vite dev` names no target's gateway: the
+root `.env` names the scripted Messages API or a gateway of the developer's
+own (`.env.example`).
 
 ## Testing
 

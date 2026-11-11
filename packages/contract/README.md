@@ -30,13 +30,12 @@ anywhere else).
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the Mac's and the browser's page, on
 node, on workerd and in React Native, and `oxlint.config.ts` refuses a node or
-react import here, and the `crypto` and `URL` globals in the model,
-`tools/repo-guards` a `@tauri-apps` one, a markdown parser and any workspace
-edge at all (`tools/repo-guards/src/dep-dag.test.ts`), so no client bundles
-the service's code or `@repo/db`'s drizzle. Callers supply the clock, the
-random bytes and every fresh id. It is kyh/init's contract package, but for
-one edge: init's reads its db, and here `@repo/db` reads this one
-(`apps/web/CLAUDE.md`).
+react import here, and the `crypto` and `URL` globals in the model, and its
+`package.json` names no workspace, no `@tauri-apps` and no markdown parser, so
+no client bundles the service's code or `@repo/db`'s drizzle. Callers supply
+the clock, the random bytes and every fresh id. It is kyh/init's contract
+package, but for one edge: init's reads its db, and here `@repo/db` reads this
+one (`apps/web/CLAUDE.md`).
 
 ## Layout
 
@@ -97,8 +96,7 @@ src/
 - **apps/extension** reaches the library's saves and the account's sign-out
   through `v1`, and its connect page's messages through
   `extension/`: a browser install updates on the Web Store's cadence, so
-  the one build floor holds it as it holds the others (`DECLARED_EDGES` in
-  `tools/repo-guards/src/dep-dag.test.ts`).
+  the one build floor holds it as it holds the others.
 
 ## Invariants
 
@@ -131,11 +129,9 @@ src/
   (`client-build.ts`); `CLIENT_OUTDATED` ends a sign-in as outdated, not signed
   out: the session stands, and only an update moves past it. A page the
   Worker served names none, and the socket opens on a ticket a call minted.
-- **One spelling per route path.** `tools/repo-guards/src/route-paths.test.ts`
-  sweeps the repo for the literal strings behind `V1_RPC_PATH` and
-  `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
-  it, but for a route the site's router types, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
-  `docs/privacy.md`.
+- **One spelling per route path.** `V1_RPC_PATH` and `LIBRARY_PAGE_PATH` are
+  their paths' one spelling, but for a route the site's router types, and every
+  `/v1` route here keeps a row in `docs/privacy.md`.
 - **The socket's `moved` frame is a hint, never state.** It says what a write
   moved, and a client reads that again over `/v1`. A `preview` frame carries the
   reply the agent is writing, which no read ever answers, and a `moved` frame
@@ -161,5 +157,5 @@ pnpm --filter @repo/contract typecheck
 ```
 
 A change to a row reaches every client and the Worker at once: run the
-service's suites (`pnpm --filter @repo/service test`) and the e2e scenarios
+service's suites (`pnpm --filter @repo/service test`) and the e2e flows
 that drive the row, since the contract's own suites answer it only in process.
