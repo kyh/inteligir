@@ -297,9 +297,10 @@ The apps also hold to these, plainly:
   reaches your library. A picture you paste into a note's text is not saved
   again: it reaches your library as the file you pasted, with whatever details
   it carries.
-- **The Mac app keeps no copy of your library.** It shows your library from
-  our website, and keeps the site's sign-in cookie and the page's settings in
-  its own web storage on that Mac. The app keeps no log.
+- **The Mac app shows your library from our website.** It keeps the site's
+  sign-in cookie and the page's settings in its own web storage on that Mac,
+  and each file you opened in its web cache, as a browser does for your
+  library in a tab; signing out empties neither cache. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as
 Anthropic's Claude, which our cloud runs to operate the built-in agent you can
@@ -472,8 +473,8 @@ us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
-  account, sessions, the invite you redeemed, a row for each assistant
-  you disconnected and the throttling rows;
+  account, sessions, the invite you redeemed, an unused password-reset link,
+  a row for each assistant you disconnected and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
@@ -569,8 +570,8 @@ you block our website's session cookie in your browser, you cannot sign in to
 its account pages or your library there, and the browser extension, which
 rides that cookie, is signed out with it; the Mac app and the iPhone app keep
 their own. If you clear our website's web storage, it forgets
-your theme and shows its dark one, and your library in a browser tab forgets its
-settings and layout and follows your device's theme.
+your theme and follows your device's, and your library in a browser tab forgets
+its settings and layout.
 
 **Do Not Track.** Some Internet browsers may be configured to send "Do Not
 Track" signals to the online services that you visit. We currently do not

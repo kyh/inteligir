@@ -13,8 +13,8 @@ outright.
 | The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
 The three manifests carry one version (`apps/desktop`, `apps/extension`,
-`apps/mobile`, set in § 1), since the extension calls `/v1` as the apps do and
-one client build floor holds them all, and a release's notes are
+`apps/mobile`, set in § 1), since one client build floor holds the phone and
+the extension alike, and a release's notes are
 `CHANGELOG.md`'s top section, which `apps/desktop/scripts/release-notes.ts`
 refuses to print until it is titled for that version.
 
@@ -86,9 +86,9 @@ connect page messages must be that item's. Once:
 On main, clean, at the commit to ship:
 
 1. Set `version` in `apps/desktop/package.json`, `apps/extension/package.json`
-   and `apps/mobile/package.json` to the release's `<version>`. The shell
-   reports its own version, the phone's marketing version is its package's,
-   and each app names it in every call.
+   and `apps/mobile/package.json` to the release's `<version>`. The Mac app's
+   About and its update feed read it, and the phone and the extension name it
+   in every call.
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
@@ -144,9 +144,9 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 
    Deploy never touches the schema, so it belongs in D1 before the code that
    needs it reaches main. A plan found here means main's Worker already runs
-   on an older schema: push it now. D1's `revoked_grant` table goes in before
-   the Worker deploys, since every connector call reads it and fails without
-   it.
+   on an older schema: push it now. D1's `revoked_grant` table goes in alone
+   before the Worker deploys (`push:remote --tablesFilter revoked_grant`),
+   since every connector call reads it; the drops wait for Deploy as above.
 
 2. **The Worker.** Nothing the Worker builds from has changed since what it
    deployed, and the deployed Worker answers the newest routes:
@@ -183,12 +183,6 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
 the owner's iPhone from the `Owner` group. Nothing reaches the `Cohort` group
 yet.
 
-§ 3's Worker comes before this build: every save's answer carries `created`,
-which an older Worker doesn't send. This build drops the phone's local Expo
-module for the HTTP cache, and the config plugin and the fingerprint rules that
-carried the old editor page, native changes that move the fingerprint, so it
-ships as a new EAS build, never an EAS Update (§ Hotfixes).
-
 ## 5. The owner's checks
 
 One smoke list per surface, each check needing what no agent can run: a
@@ -212,8 +206,9 @@ production and the previews share nothing.
 - **The fill queues** on production: `inteligir-fill` consumed with
   `inteligir-fill-failed` as its dead-letter queue, and a link a connected
   assistant saves is read.
-- **Imports on a preview**: a Raindrop CSV, an Obsidian zip and a 3 MB row
-  land, and a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
+- **Imports on a preview**: a Raindrop CSV and an Obsidian zip land, a 3 MB
+  note in either is counted unreadable while the rest lands, and a
+  `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
 - **A PR preview's lifecycle**: closing a PR with a preview deletes it, closing
   one without takes Cloudflare's 10025 as nothing to do, and a stranger's
   `<!-- worker-previews -->` comment is ignored.
@@ -233,9 +228,7 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   newest macOS.
 - **First run on a fresh macOS user**: the site's sign-in in the window, an
   invite sign-up, still signed in after Quit; a dev build keeps a store of its
-  own; This Mac shows in Settings › Account.
-- **Update**: a build one behind offers Download, then Restart opens the new
-  version.
+  own; the Mac app shows in Settings › Account as This device.
 - **Window**: the system title bar, close hides it, offline it says so, and
   View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
@@ -404,14 +397,12 @@ Only once every check in § 5 has passed, and the three close together.
   updater has no build before it that reads `latest.json`, since 0.6.0 reads
   another feed and its people download this one, so that release skips this,
   and the next starts from that build. On a Mac running the previous release,
-  open the app and wait a minute, or choose Settings › About › Check for
-  updates. Passing: it finds `<version>` and downloads it by itself,
-  Settings › About says it installs when you quit, and the app menu offers
-  Restart to Update; Quit and reopen, and About Inteligir names `<version>`,
-  with the library as it was. Again from the previous build, type in an item
-  and choose Restart to Update from the app menu at once. Passing: the app
-  relaunches at once as `<version>`, with the words just typed still in the
-  item.
+  open the app, or choose Check for Updates… in the app menu. Passing: the
+  corner card offers `<version>`, Download fills its bar, Settings › About
+  says `Inteligir <version> installs when it restarts.`, and Restart to update
+  relaunches the app; About Inteligir names `<version>`, with the library as
+  it was. Again from the previous build, type in a note and choose Restart to
+  update at once. Passing: the words just typed are still in the note.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
   build loaded. Passing: the install prompt names inteligir.com as the one
