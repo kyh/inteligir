@@ -54,8 +54,7 @@ const worker = defineWorker({
 // wire it does not speak. A change that drops a /v1 shape an older build reads owes the floor, and
 // the release after it raises this to its own version (docs/releasing.md § 1, step 3); every
 // checkout reports the last release's version, so the floor never passes one before then.
-// The next release owes the floor: this Worker answers no wire a 0.6.0 build speaks.
-const MIN_CLIENT_BUILD = "0.6.0";
+const MIN_CLIENT_BUILD = "0.7.0";
 
 // what both modes bind alike
 const shared = {
