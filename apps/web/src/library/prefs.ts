@@ -1,0 +1,125 @@
+// CLAUDE.md § A tab preference is a row
+
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
+import { parseTheme } from "@repo/ui/lib/theme";
+import type { Theme } from "@repo/ui/lib/theme";
+import { useCallback, useState } from "react";
+import { z } from "zod";
+import { libraryScopeSchema } from "@repo/contract/library-scope";
+import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
+
+export interface PagePref<Value, Fallback> {
+  readonly key: string;
+  readonly schema: z.ZodType<Value, string>;
+  readonly fallback: Fallback;
+}
+
+const pref = <Value>(
+  key: string,
+  schema: z.ZodType<Value, string>,
+  fallback: NoInfer<Value>,
+): PagePref<Value, Value> => ({ fallback, key, schema });
+
+// a row with nothing to say until something writes it
+const unsetPref = <Value>(
+  key: string,
+  schema: z.ZodType<Value, string>,
+): PagePref<Value, null> => ({ fallback: null, key, schema });
+
+const json = <Value>(schema: z.ZodType<Value>) =>
+  z.codec(z.string(), z.unknown().pipe(schema), {
+    decode: (raw, payload) => {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return parsed;
+      } catch {
+        payload.issues.push({ code: "custom", input: raw, message: "not JSON" });
+        return z.NEVER;
+      }
+    },
+    encode: (value) => JSON.stringify(value),
+  });
+
+const flag = z.stringbool({ case: "sensitive", falsy: ["false"], truthy: ["true"] });
+
+// Clamped with the rail's own bounds, or a stored width the rail cannot produce comes back on reload.
+const railWidth = z.codec(
+  z.string(),
+  z
+    .number()
+    .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)))),
+  { decode: Number, encode: String },
+);
+
+const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
+
+// the orders the grid offers; a search ranks, so it takes none of them
+export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
+export type LibrarySort = (typeof LIBRARY_SORTS)[number];
+
+export const PREFS = {
+  appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
+  // the scope the library opens on; a folder that is no longer listed reads as every item
+  libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
+  librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
+  // closed until asked for: the open item's panel button or an ask of the agent opens it
+  panelOpen: pref("inteligir.panel-open", flag, false),
+  // the right panel is the same primitive as the rail, dragged by the same handle
+  panelWidth: pref("inteligir.panel-width", railWidth, 320),
+  railTagsOpen: pref("inteligir.rail-tags-open", flag, true),
+  sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
+  // the document's own `spellcheck`, which every field inherits unless it sets its own
+  spellcheck: pref("inteligir.spellcheck", flag, true),
+  // the account `account-storage.ts` holds for: its opaque id, as nothing here needs its address
+  storageAccount: unsetPref("inteligir.storage-account", z.string()),
+  theme: pref("inteligir.theme", themeName, "system"),
+};
+
+const store = (key: string, value: string | null): void => {
+  try {
+    if (value === null) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // A full or blocked store loses a preference, nothing more.
+  }
+};
+
+export const readPref = <Value, Fallback>(row: PagePref<Value, Fallback>): Value | Fallback => {
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(row.key);
+  } catch {
+    return row.fallback;
+  }
+  if (raw === null) {
+    return row.fallback;
+  }
+  const decoded = row.schema.safeParse(raw);
+  return decoded.success ? decoded.data : row.fallback;
+};
+
+export const writePref = <Value>(row: PagePref<Value, unknown>, value: Value): void => {
+  store(row.key, row.schema.encode(value));
+};
+
+export const forgetPref = (row: PagePref<unknown, unknown>): void => {
+  store(row.key, null);
+};
+
+export const usePref = <Value>(
+  row: PagePref<Value, Value>,
+): readonly [Value, (next: Value) => void] => {
+  const [value, setValue] = useState(() => readPref(row));
+  // as stable as useState's own setter: callers hold it in memos that an effect reads
+  const choose = useCallback(
+    (next: Value): void => {
+      writePref(row, next);
+      setValue(next);
+    },
+    [row],
+  );
+  return [value, choose];
+};

@@ -1,75 +1,118 @@
-import { KEYS, createSlatePlugin } from "platejs";
-import type { SlateEditor } from "platejs";
+// An image in an item is a block the library holds (by its bytes' sha, or a web address). A file
+// pasted or dropped into the text is kept in the library: the editor takes the event, so the
+// browser neither opens the file nor drops it as text, has the host keep each file's bytes by
+// their sha (`keepFile`) under the type the file came with, or plain bytes when the browser could
+// not tell, and inserts the block that names it where the paste or the drop landed, a picture as
+// an image, a recording as a video and anything else as a file, several in the order they came. A
+// file past the library's size is refused in words, and nothing of it is read. Only the editor the
+// file came into inserts its block, and only while its edits still reach the note: one that went
+// read-only, or closed, while the bytes were kept says it could not add the file.
+
+import { KEYS, PathApi } from "platejs";
+import type { PathRef, SlateEditor, TElement, TRange } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
-import { getEditorHostIo } from "@repo/editor/host-io";
-import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { isLiveEditor } from "@repo/editor/live-editor";
-import { ImageElement } from "@repo/editor/nodes/image-node";
+import { keptFileType } from "@repo/contract/items/item-kind";
 import { toast } from "@repo/ui/components/sonner";
 
-// The live half is a separate plugin on the same key: DOM paste/drop handlers exist only on React plugins.
-const imageBasePlugin = createSlatePlugin({
-  key: KEYS.img,
-  node: { isElement: true, isVoid: true },
-});
+import { announceFileKeep } from "@repo/editor/file-keeps";
+import { getEditorHostIo } from "@repo/editor/host-io";
+import type { EditorHostIo } from "@repo/editor/host-io";
+import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { editsReachNote } from "@repo/editor/live/yjs-binding";
+import { ImageElement } from "@repo/editor/nodes/image-node";
 
-export const ImageBaseKit = [imageBasePlugin];
+const MB = 1024 * 1024;
 
-const extFromMime = (mime: string): string => {
-  const subtype = mime.slice("image/".length).split("+")[0] ?? "";
-  if (subtype === "jpeg") {
-    return ".jpg";
+export const fileTooLarge = (name: string, maxBytes: number): string =>
+  `“${name}” is larger than ${String(Math.floor(maxBytes / MB))} MB, the most one file can be.`;
+
+export const fileNotKept = (name: string): string =>
+  `Couldn't add “${name}” to this note. Try again.`;
+
+// what a paste's clipboard or a drop's drag hands over
+interface Transfer {
+  readonly files: Iterable<File>;
+  readonly types: readonly string[];
+}
+
+// the files the editor keeps from a paste or a drop: the person's own, but not a browser's copy of
+// a web picture, which also carries the page's own markup to paste
+export const filesToKeep = (data: Transfer, from: "paste" | "drop"): File[] =>
+  from === "paste" && data.types.includes("text/html") ? [] : [...data.files];
+
+// the block a kept file is drawn by
+const blockOf = (file: File, sha: string): TElement => {
+  const children = [{ text: "" }];
+  if (file.type.startsWith("image/")) {
+    return { children, sha, type: KEYS.img };
   }
-  if (subtype === "svg") {
-    return ".svg";
+  if (file.type.startsWith("video/")) {
+    return { children, sha, type: KEYS.video };
   }
-  return subtype ? `.${subtype}` : ".png";
+  return { children, name: file.name === "" ? "File" : file.name, sha, type: KEYS.file };
 };
 
-const imageFilesFrom = (files: FileList | null | undefined): File[] => {
-  if (!files) {
-    return [];
+// the file's bytes kept by the host, or null when they could not be read or kept
+const keepOne = async (io: EditorHostIo, file: File): Promise<{ readonly sha: string } | null> => {
+  try {
+    return await io.keepFile(new Uint8Array(await file.arrayBuffer()), keptFileType(file.type));
+  } catch {
+    return null;
   }
-  return [...files].filter((file) => file.type.startsWith("image/"));
 };
 
-const writeAsset = async (file: File, name: string): Promise<string> => {
-  const written = await getEditorHostIo().writeVaultAsset({ baseName: name, file });
-  return written.path;
-};
-
-// A paste, a drop and a host's photo picker all land their written image here, so the three agree
-// on the bytes. False when the note closed while the image was written: it is in the vault and in
-// no note, and the toast says where it went.
-export const insertVaultImage = (editor: SlateEditor, path: string): boolean => {
-  if (!isLiveEditor(editor)) {
-    toast.warning(`Added ${path} to the vault, but its note closed before the image landed`);
-    return false;
-  }
-  insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });
-  return true;
-};
-
-// Never rejects: the handlers have already eaten the event, so a rejection reaches nobody — toast instead.
-export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Promise<void> => {
-  for (const file of files) {
-    const name = file.name === "" ? `pasted-image${extFromMime(file.type)}` : file.name;
-    try {
-      const path = await writeAsset(file, name);
-      if (!insertVaultImage(editor, path)) {
-        return;
+// each file in turn, kept and then placed: the first where the paste or the drop landed, each
+// later one right after the block placed before it, both followed as the text moves while the
+// bytes are read, so the files keep their order and the caret rests past the last one
+const placeFiles = async (
+  editor: SlateEditor,
+  files: readonly File[],
+  at: TRange | null,
+): Promise<void> => {
+  const io = getEditorHostIo();
+  const place = at === null ? null : editor.api.rangeRef(at);
+  let last: PathRef | null = null;
+  try {
+    for (const file of files) {
+      if (file.size > io.fileMaxBytes) {
+        toast.error(fileTooLarge(file.name, io.fileMaxBytes));
+        continue;
       }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      toast.error(`Couldn't add ${name} — ${detail}`);
-      return;
+      const kept = await keepOne(io, file);
+      if (kept === null || !editsReachNote(editor)) {
+        toast.error(fileNotKept(file.name));
+        continue;
+      }
+      const previous = last?.current ?? null;
+      const target = place?.current ?? null;
+      if (previous === null && target !== null) {
+        editor.tf.select(target);
+      }
+      const placed = insertVoidAndEscape(
+        editor,
+        blockOf(file, kept.sha),
+        previous === null ? undefined : PathApi.next(previous),
+      );
+      last?.unref();
+      last = placed === null ? null : editor.api.pathRef(placed);
     }
+  } finally {
+    place?.unref();
+    last?.unref();
   }
 };
 
+const keepFiles = (editor: SlateEditor, files: readonly File[], at: TRange | null): void => {
+  announceFileKeep(editor, placeFiles(editor, files, at));
+};
+
+// a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist
+// only on React plugins.
 export const ImageKit = [
   createPlatePlugin({
+    // the picture still draws read-only; only its paste and drop wait for an editable editor
+    editOnly: { handlers: true, inject: false, render: false },
     key: KEYS.img,
     node: { isElement: true, isVoid: true },
   })
@@ -77,28 +120,21 @@ export const ImageKit = [
     .extend(() => ({
       handlers: {
         onDrop: ({ editor, event }) => {
-          const files = imageFilesFrom(event.dataTransfer.files);
+          const files = filesToKeep(event.dataTransfer, "drop");
           if (files.length === 0) {
             return false;
           }
           event.preventDefault();
-          // drop where the pointer landed, not at the stale caret.
-          const at = editor.api.findEventRange(event);
-          if (at) {
-            editor.tf.select(at);
-          }
-          void ingestImageFiles(editor, files);
+          keepFiles(editor, files, editor.api.findEventRange(event) ?? editor.selection);
           return true;
         },
-        // a browser image-copy also ships an <img> in text/html; only a real file paste is intercepted.
         onPaste: ({ editor, event }) => {
-          const clipboard = event.clipboardData;
-          const files = imageFilesFrom(clipboard.files);
-          if (files.length === 0 || clipboard.types.includes("text/html")) {
+          const files = filesToKeep(event.clipboardData, "paste");
+          if (files.length === 0) {
             return false;
           }
           event.preventDefault();
-          void ingestImageFiles(editor, files);
+          keepFiles(editor, files, editor.selection);
           return true;
         },
       },

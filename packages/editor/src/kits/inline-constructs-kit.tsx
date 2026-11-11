@@ -1,34 +1,23 @@
 import { useRef, useState } from "react";
-import { KEYS, createSlatePlugin, NodeApi, TextApi } from "platejs";
+import { KEYS, NodeApi, TextApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
-import { COMMENT_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
 import { formulaNodeFromTyped, isFormulaPill } from "@repo/editor/formulas/formula-entry";
 
-const formulaPillBasePlugin = createSlatePlugin({
-  key: FORMULA_PILL_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-const commentMarkerBasePlugin = createSlatePlugin({
-  key: COMMENT_MARKER_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-export const InlineConstructsBaseKit = [formulaPillBasePlugin, commentMarkerBasePlugin];
+import { formulaPillBasePlugin } from "./headless/inline-constructs-base";
 
 /* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
    the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
    raw <button> for controls that carry a product Tooltip instead of a native title (see
-   __tests__/icon-button-tooltips.test.ts). */
+   ../icon-button-tooltips.test.ts). */
 const FormulaPillElement = (props: PlateElementProps) => {
   const [editing, setEditing] = useState(false);
   const pillRef = useRef<HTMLSpanElement | null>(null);
@@ -68,14 +57,6 @@ const FormulaPillElement = (props: PlateElementProps) => {
 };
 
 /* oxlint-enable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role */
-
-// Renders nothing: the anchor is plumbing for the comment surface, not prose.
-const CommentMarkerElement = (props: PlateElementProps) => (
-  <PlateElement {...props} as="span" className="inline-block">
-    <span contentEditable={false} aria-hidden className="sr-only" />
-    {props.children}
-  </PlateElement>
-);
 
 const FORMULA_COMPLETION_RE = /\{\{(?<body>[^{}\n]+)\}$/u;
 
@@ -149,5 +130,4 @@ export const InlineConstructsKit = [
         },
       },
     })),
-  commentMarkerBasePlugin.withComponent(CommentMarkerElement),
 ];

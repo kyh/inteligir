@@ -30,7 +30,9 @@ const parseAccept = (header: string): MediaRange[] =>
   header.split(",").flatMap((raw) => {
     const [media = "", ...params] = raw.split(";");
     const [type, subtype] = media.trim().toLowerCase().split("/");
-    return type && subtype ? [{ q: parseQ(params), subtype, type }] : [];
+    return type !== undefined && type !== "" && subtype !== undefined && subtype !== ""
+      ? [{ q: parseQ(params), subtype, type }]
+      : [];
   });
 
 const specificity = (range: MediaRange): number => {
@@ -64,14 +66,15 @@ export const prefersMarkdown = (accept: string | null): boolean => {
   return qualityOf(ranges, "markdown") > qualityOf(ranges, "html");
 };
 
-export const markdownResponse = (body: string, init: ResponseInit = {}): Response =>
-  new Response(body, {
-    status: 200,
-    ...init,
-    headers: {
-      "Cache-Control": "public, max-age=300",
-      "Content-Type": "text/markdown; charset=utf-8",
-      Vary: VARY,
-      ...init.headers,
-    },
+export const markdownResponse = (body: string, init: ResponseInit = {}): Response => {
+  // the caller's headers over these, in whichever of HeadersInit's shapes they came
+  const headers = new Headers({
+    "Cache-Control": "public, max-age=300",
+    "Content-Type": "text/markdown; charset=utf-8",
+    Vary: VARY,
   });
+  for (const [name, value] of new Headers(init.headers)) {
+    headers.set(name, value);
+  }
+  return new Response(body, { status: 200, ...init, headers });
+};

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>An app shell</title>
+    <meta property="og:title" content="Release notes, version 4" />
+    <meta property="og:image" content="javascript:alert(1)" />
+    <meta property="og:image:url" content="https://cdn.app.example/v4.png" />
+    <script>
+      document.write("<p>injected</p>");
+    </script>
+  </head>
+  <body onload="steal()">
+    <iframe src="https://ads.example/frame"></iframe>
+    <main>
+      <h1>Release notes, version 4</h1>
+      <p>
+        Version 4 brings <a href="javascript:alert(2)">offline mode</a>, faster search and a new
+        export format.
+      </p>
+      <p onclick="track()">
+        Offline mode keeps the last thirty days of documents on the device, so you can read and edit
+        them without a connection.
+      </p>
+      <h2>Fixed</h2>
+      <ul>
+        <li>The editor no longer loses the cursor after an undo.</li>
+        <li>Exports keep their images.</li>
+      </ul>
+      <form action="https://app.example/feedback"><textarea>Tell us what you think</textarea></form>
+      <object data="/plugin.swf"></object>
+    </main>
+    <noscript><p>This app needs JavaScript.</p></noscript>
+  </body>
+</html>

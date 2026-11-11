@@ -1,192 +1,66 @@
 # @repo/db
 
-The local SQLite database: drizzle over better-sqlite3, the committed SQL
-migrations applied on boot, and the row-level writers for threads, events,
-queued messages, pending interactions and the sync outbox. A standalone write
-announces through `@repo/domain`'s `DbNotifier`; a write composed into the
-server's transaction is announced by its composer after the commit.
-
-## Why it exists
-
-One process opens this file — `inteligir serve` — and every durable fact
-about a conversation lives in it. Keeping the writers here rather than inside
-the server's services makes each one's concurrency claim a unit that runs
-against a real file: "two writers never allocate the same sequence", "one
-claimant per queued message", "a settle for a stale turn is a typed no-op".
-The package sits BELOW the wire (`@repo/db` → `@repo/domain` only, pinned by
-`tools/repo-guards/src/dep-dag.test.ts`): an edge to `@repo/contract` would drag
-the oRPC contract and its `@repo/notes` edge into a package that only writes
-rows. The events, threads, queue and interaction writers are vendored from bb
-(MIT) and carry its header.
+Four kinds of database's drizzle schemas. The D1 accounts database: Better
+Auth's tables, the invite codes and the connector's revoked grants, the client
+the Worker opens over its binding, and the drizzle-kit configs that push the
+schema. Each account's library cell, each item's note and each conversation
+with the built-in agent: their SQLite tables and the migrations drizzle-kit
+generates from them, which each object runs when it wakes. The
+Worker's code (`@repo/service`) imports both, and the cell's columns are held
+to `@repo/contract`'s vocabularies; nothing else ships them.
 
 ## Layout
 
 ```
-src/
-  connection.ts            # the one way a connection opens and a write begins
-  schema.ts                # the tables, each constraint beside its reason
-  migrate.ts               # the boot's migration pass over drizzle/
-  meta.ts                  # the schema version a file was migrated to
-  ids.ts                   # the prefixed ids every row is keyed by
-  events.ts                # a thread's append-only event log
-  threads.ts               # thread rows, their paged listing and the lifecycle CAS
-  queued-messages.ts       # messages waiting for a thread's turn
-  pending-interactions.ts  # provider prompts waiting on the user's answer
-  json-column.ts           # the one parse every json column is read back through
-  sync-outbox.ts           # what this install has yet to push, and where its pull is
-  __tests__/               # real files under a temp dir
-drizzle/                   # the committed SQL migrations, one folder per generation
-drizzle.config.ts          # where `pnpm --filter @repo/db db:generate` writes the next one
+src/d1/schema.ts         # the ONE D1 schema, as Better Auth's generator prints it
+src/d1/client.ts         # createDb: drizzle over the D1 binding
+src/cell/schema.ts       # the ONE cell schema: every table but the search index
+src/cell/migrations/     # drizzle-kit's migrations, and the search index's own
+src/note/schema.ts       # the ONE note schema: its Yjs updates, snapshot, turn log and answered ops
+src/note/migrations/     # drizzle-kit's migrations for a note
+src/thread/schema.ts     # the ONE conversation schema: its transcript, turns, calls and outbox
+src/thread/migrations/   # drizzle-kit's migrations for a conversation
+drizzle.config.ts        # the remote D1, over d1-http (owner only)
+drizzle.config.local.ts  # the local Worker's miniflare D1 file
+drizzle.config.cell.ts   # the cell's migrations, for the durable-sqlite driver
+drizzle.config.note.ts   # a note's migrations, for the same driver
+drizzle.config.thread.ts # a conversation's migrations, for the same driver
 ```
 
-## Invariants
+## Scripts
 
-- **WAL + `synchronous=NORMAL`, on purpose.** No fsync per commit; a power
-  loss can drop the last transactions and cannot corrupt the file. Pinned by
-  `db.test.ts`. `auto_vacuum=INCREMENTAL` takes effect only on a brand-new
-  file; an existing one converts on its next full VACUUM. It only marks a
-  deleted row's pages free: `closeConnection` runs `incremental_vacuum` before
-  the close to hand them back, best effort, so a crash or a file another writer
-  holds leaves them for the next clean close.
-- **`writeTransaction` is the ONE spelling of `BEGIN IMMEDIATE`** (repo
-  Decisions). The write lock is taken up front, so a read-then-write can never
-  hit `SQLITE_BUSY` upgrading midway; `appendEventsInTransaction` reads its
-  high-water and inserts under the caller's, which is what makes the unique
-  index a backstop rather than the mechanism.
-- **Migrations are committed SQL, applied on boot, and every generation bumps
-  `meta.schema_version` to its own index.** One baseline, written by
-  `drizzle-kit generate`, seeds `meta.schema_version = '1'` and the one
-  `sync_state` row by hand-appended inserts; every later generation is
-  appended by `db:generate` and bumps the version. The migration-folder count
-  IS the version: `getSchemaVersion` refuses a file above it, because an older
-  build opening a newer database applies nothing and would otherwise read a
-  schema it does not know. Foreign keys are OFF around the migrator — the
-  pragma is a silent no-op inside the transaction drizzle wraps each migration
-  in, and a table rebuild's DROP would cascade-wipe the children — and
-  `foreign_key_check` refuses the boot afterwards. The folder is a
-  PARAMETER: the CLI resolves the source tree first and the staged
-  `dist/drizzle` only where `@repo/db` cannot be resolved (`apps/cli/src/paths.ts`);
-  this package never probes another package's layout. Never hand-edit a
-  migration that shipped.
-- **A file migrated through a generation this build does not carry is refused,
-  never migrated.** The migrator keys the applied set on the folder name, so a
-  ledger naming a migration missing here that sorts before the newest one
-  here (a file on a history this build lacks, a row with no name at all)
-  would have the baseline laid over its tables; `runMigrations` throws
-  `UnknownMigrationHistoryError` first, whose message says to wipe the file
-  and restart. The server's boot does exactly that
-  (`apps/cli/src/server/open-database.ts`). A name sorting after the newest is
-  a newer build's, which the ceiling above refuses.
-- **The migrations and `src/schema.ts` agree, and neither checks the other.**
-  `schema-agreement.test.ts` migrates a scratch file, builds a second from
-  `drizzle-kit export`'s DDL, and diffs `sqlite_master` with normalized SQL —
-  table members sorted, because `ALTER TABLE … ADD COLUMN` appends where a
-  fresh `CREATE TABLE` places the column as declared, and index columns not,
-  because column order inside an index is the index. A drift names the object
-  and the fix.
-- **A column pair that only means something together is held by a CHECK.** A
-  synced event's device and position, a claim's time and token, and the
-  skipped-row marker's row and build are each both set or both null, and an
-  approval carries a decision exactly when it is resolved. A provider
-  session's id needs its harness and an origin's note id its path, while either
-  first half stands alone: a synced `thread/meta` binds the harness before this
-  device opens a session, and a note with no id is bound by its path. The
-  readers still narrow, since drizzle types each column alone.
-- **An event's scope is enforced twice.** `threadEventSchema.parse` at the
-  write applies the per-type scope policy, and `events_scope_shape_check`
-  backstops it in SQL: turn scope ⇒ `turn_id` set, thread scope ⇒ null. Turn
-  content before its `turn/started` is stored throws
-  `MissingTurnStartedError`, and a batch rolls back whole — a bad tail never
-  leaves a good head behind.
-- **`events.sequence` is per-thread arrival order and is never renumbered.** A
-  synced row also carries `(origin_device_id, origin_device_seq)` under its
-  own unique index — keyed on the device's position, not the account-global
-  `seq`, because signing in again resets the cursor and the same `seq` then
-  names another account's row. SQLite treats nulls as distinct there, so
-  locally written rows coexist. `appendSyncedEventsInTransaction` answers the
-  rows that LANDED, not a count, so lifecycle projects over what landed.
-- **A stored row this build cannot read costs that row, never the thread.** No
-  CHECK constrains `events.type` and a new event type ships without a
-  migration, so a newer build sharing the data dir can leave a row this
-  grammar refuses. `listStoredThreadEvents` leaves it out and reports it
-  through `onSkipped`; the timeline projector
-  (`apps/cli/src/server/threads/timeline-projection.ts`) warns once and reads
-  past it.
-- **Every json column is parsed here, never by a caller.** Writers take the
-  typed value and readers hand it back through its schema
-  (`readJsonColumn`): an approval's payload the grammar refuses reads as
-  null, which still leaves the card its Deny, and a queued message's
-  attachments as none, which still leaves the message.
-- **The outbox stores the bytes it will send, once, at enqueue.** The log
-  calls a position replayed with a different body `sync-conflict`, so
-  re-serializing at push time is not a retry. `device_seq` is its own counter
-  in `sync_state` — not `MAX()` over a queue that shrinks as pushes are acked,
-  not `events.sequence` — allocated as ONE range per batch so a concurrent
-  writer cannot interleave. No foreign key to `threads`: a cascade would drop
-  a position the log's high-water has passed. The ack deletes through the
-  pushed batch's own high-water, so an enqueue that landed mid-push survives.
-  The row the contract refuses is left out of the push but stays inside that
-  high-water, in `apps/cli/src/server/cloud/outbox.ts`, which reads this queue.
-- **A sign-out forgets the positions, never the device ids.** `resetSyncState`
-  clears the outbox and puts the `sync_state` row back
-  as the baseline seeded it, every column at its declared default, in one
-  transaction, and keeps `sync_own_devices`: the log still holds rows under
-  every id this install signed in as, and the install holds those events
-  locally with a null origin, which `events_origin_idx` cannot match. A pull
-  skips a row under any of those ids; forgetting one doubles everything written
-  under it.
-- **A pulled row this build cannot read is pulled again by the next build.**
-  The planner moves the cursor past it, so `recordSkippedRow` writes the
-  lowest such row and the running build into `sync_state` in the transaction
-  that moves the cursor, and `takeRewindIfBuildChanged` puts the cursor back to
-  just before it when a different build opens the session, clearing the
-  marker. The replay lands nothing twice: a foreign row dedupes on its origin
-  and the planner skips this install's own. The build is the CLI's version,
-  not `meta.schema_version`, which counts migrations, and a new event type
-  ships without one. A sign-out clears the marker with the positions.
-- **The thread listing is a keyset, never an offset.** A page continues after
-  the last row's `(updated_at, id)`, live rows before archived, so a thread
-  touched mid-walk jumps above the cursor rather than shifting every row behind
-  it into the page before; each segment is a partial index on `(updated_at,
-  id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
-  recovery reads `listRunningThreads`, unpaged, because it must reach every
-  turn left running.
-- **The lifecycle CAS names the turn.**
-  `applyThreadLifecycleEventInTransaction` evaluates `@repo/domain`'s
-  transition table, then updates only where status AND `active_turn_id` still
-  match, so a settle validated against turn A cannot land after turn B bound.
-  The loser is a typed `cas-conflict`, never a throw.
-- **Notifications follow the commit, never precede it.** A standalone writer
-  takes a `DbNotifier` and announces after its own write commits. An
-  `*InTransaction` writer announces nothing: the server composes it into one
-  immediate transaction and its `NotificationBuffer` announces after the
-  commit, so a subscriber never sees rolled-back state. That is how an archive
-  lands (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a
-  thread the log created bare (`applyThreadMetaInTransaction`), each beside the
-  event that tells other devices. `setThreadProviderSession` announces nothing
-  on purpose: the provider session is runtime plumbing, not a fact a client
-  renders.
-- **A claim has no TTL, so boot releases them all.** One server owns a data
-  dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
-  in `ThreadService.boot()` (`apps/cli/src/server/threads/service.ts`).
+- `pnpm --filter @repo/db run --silent export` prints the D1 schema's DDL,
+  which `@repo/service`'s suites and the e2e fixture apply as one D1 batch.
+- `pnpm --filter @repo/db push` and `studio` reach the local D1, the file
+  `pnpm dev:web` keeps under `apps/web/.wrangler/state`; it appears on the
+  first request that touches D1 (`AGENTS.md` § Quickstart).
+- `pnpm --filter @repo/db generate:cell` writes a migration for a change to
+  `src/cell/schema.ts`. The search index is an FTS5 table sqlite-core cannot
+  declare, so it is a custom migration of its own
+  (`drizzle-kit generate --custom`).
+- `pnpm --filter @repo/db generate:note` writes a migration for a change to
+  `src/note/schema.ts`.
+- `pnpm --filter @repo/db generate:thread` writes a migration for a change to
+  `src/thread/schema.ts`.
 
-## Seams
+> **Never run `push:remote` or `studio:remote`.** Both load
+> `drizzle.config.ts` with the root `.env.production.local` creds and hit the
+> PRODUCTION D1.
 
-- `DbNotifier` (`@repo/domain/notifier`) — the announcement port every
-  standalone writer takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
-- `DbTransaction` and the `*InTransaction` variants — how the server composes
-  append, lifecycle projection, queue touch and outbox enqueue into ONE
-  immediate transaction (`apps/cli/src/server/threads/thread-ingest.ts`). An
-  append, a lifecycle move, an enqueue, a claim and a claimed delete have no
-  standalone twin: one would be an append that skips the lifecycle projection
-  and the outbox, and a second spelling of `BEGIN IMMEDIATE`. Tests run them
-  through `writeTransaction` as the server does.
-- `runMigrations(db, folder?)` — the staged-content seam the packaged CLI
-  drives.
+D1 has no migration files: its schema ships by `drizzle-kit push`, and a
+unique is a named unique index, never `.unique()`. A cell's schema ships as
+migrations, since a Durable Object has no push, and so do a note's and a
+conversation's: `@repo/service` runs them as each object wakes
+(`packages/service/src/library/cell-db.ts`, `packages/service/src/note/note-db.ts`,
+`packages/service/src/agent/thread-db.ts`). Why each is so is this package's
+[`CLAUDE.md`](CLAUDE.md).
 
 ## Testing
 
-`pnpm --filter @repo/db test` — vitest over real files in a temp dir
-(`__tests__/open-temp-db.ts`, disposed with the test).
-`schema-agreement.test.ts` spawns `drizzle-kit`, so it carries its own 30s
-budget.
+The package has no suites of its own: its schemas run where they are read.
+`@repo/service`'s workerd suites apply the D1 DDL `export` prints and open
+every object through its migrations, so a schema change is tested by
+`pnpm --filter @repo/service test`, and the e2e fixture applies the same DDL
+to each Worker it boots. `tools/repo-guards/src/d1-unique-index.test.ts`
+refuses a `.unique()` in the D1 schema. `pnpm --filter @repo/db typecheck`
+checks the schemas and the configs.

@@ -1,8 +1,9 @@
 # CONTEXT.md — the domain glossary
 
-What the words mean. The decision files (`AGENTS.md` § Decisions) record **why
-a choice was made**; this records **what a term names**, where it lives, and
-— the part worth reading — the neighbouring concept it gets confused with.
+What the words mean. The decision files (the `CLAUDE.md` beside each
+workspace's code) record **why a choice was made**; this records **what a term
+names**, where it lives, and — the part worth reading — the neighbouring
+concept it gets confused with.
 
 Rules for this file: every entry points at the module that OWNS the concept
 rather than restating its implementation, because the module's own header is the
@@ -11,226 +12,342 @@ not belong here.
 
 ---
 
-## The vault
+## The library in the cloud
+
+One library cell per account, the devices that read it online, and the agents
+that reach it.
+
+**library cell** — one account's whole library: a SQLite Durable Object,
+`LibraryDO`, in the Worker (`packages/service/src/library/library-do.ts`), named
+`library:<userId>` only from a verified session or grant, or from what the cell
+itself gave out: a fill message or a conversation's name. It holds the items, a
+**seed** for each body no note holds yet, folders, tags, links, threads, change
+sets and the account's live sockets, and it writes every row: every `/v1`
+library call and every **connector** call is forwarded to it, while a note's
+body is its **note object**'s, which pushes its **projection** here. R2 holds
+the bytes it names by hash, and D1 only the accounts. Not what a device shows:
+every app reads the cell online, and keeps at most a cache of what it last read,
+which a **moved frame** tells it to read again.
+
+**principal** — who a library call is by, as the Worker verified it: the
+account and the actor whose **change set** its writes join (a **session**,
+named by the door it came through: the site's tab or the Mac app's window, the
+iPhone, or the browser extension; or a **connected assistant** under one grant,
+the only actor with scopes). The Worker
+stamps it on the call it forwards to the **library cell** and drops any copy the
+request brought (`packages/service/src/library/library-principal.ts`). Not a
+credential: the cell never sees one.
+
+**change set** — the unit of undo. Every write lands in one, which records each
+item it touched before and after, its actor (the person in one session, the
+agent, an assistant, an import, a fill or an undo) and when it opened and
+sealed. A person's writes seal after 15 s of quiet or 60 s in all, and their
+typing in a note joins no set, so Undo takes back fields, folders and what an
+agent, an assistant, an import or a fill wrote; a **turn** is one set; a
+**connected assistant**'s writes are one set per grant, sealed after 10 idle
+minutes. Undo reverts a set's fields three-way and its note edits from the
+note's **turn log**, newest first, and keeps every later edit; an undo is a set
+of its own. The cell keeps each until seven days after it sealed
+(`packages/service/src/library/change-sets.ts`,
+`packages/service/src/library/change-set-prune.ts`), and the revert is
+`@repo/service/library/revert-change`'s.
+
+**block** — one top-level element of a note's live document, a Plate element
+named by its id and its **section**. The agent edits a body by block id: a
+change names the block as the writer read it, and one whose block moved since
+is refused with the block as it is. A list item is a block, since lists are
+flat indent lists. Not a Plate node at any depth: a block's children are inside
+it. Its vocabulary is `@repo/contract/library/library-nodes`, how the editor
+reads one `packages/editor/src/live/element-block.ts`.
+
+**section** — which part of an item a **block** belongs to: `note`, what the
+person wrote, or `article`, the page's readable text a fill wrote, an attribute
+of each top-level block of the **live document**. A fill and Refresh replace
+only `article` blocks, where the old article began or after everything when
+there was none, so reading a page again never touches the person's writing
+(`packages/service/src/note/article-body.ts`); a block a person splits or
+inserts is the note's (`packages/editor/src/live/note-section.ts`). An item's
+markdown writes the article as one top-level `article` container after the note,
+its colon fence longer than any inside it (`@repo/editor/codec/item-markdown`).
+Not a heading's stretch of a note (its outline), and not a folder.
+
+**live document** — a note's body as one Yjs document (root `content`, a
+`Y.XmlText`), each top-level **block** carrying its **section**, which every
+device's editor and the agent edit at once
+(`packages/editor/src/live/yjs-binding.ts`; seeded and read as blocks by
+`note-blocks.ts`). An editor's ⌘Z is a `Y.UndoManager` over its own changes
+alone. Not an offline copy: a device holds it only while the note's socket is
+open, and no presence crosses it.
+
+**note object** — `NoteDO`, one y-partyserver Durable Object per item, named
+`note:<accountId>:<itemId>` only by `packages/service/src/note/note-stub.ts`,
+holding the item's **live document** in its own SQLite
+(`packages/service/src/note/note-do.ts`). A device reaches it at
+`/v1/notes/<itemId>` on the account socket's ticket (`note-routes.ts`), the
+agent through the cell, by block id. Its first load takes the cell's
+**seed**, and each debounced save pushes a **projection**. Its standing is
+open, full, in Deleted or gone
+(`packages/service/src/note/note-standing.ts`): an item in Deleted opens
+read-only and takes no edit; a note past 8 MiB holds edits back and says so
+until a compaction makes room, and a frame past 1 MiB is refused; a purged
+note is gone for good. Not the **library cell**: typing never passes
+through it.
+
+**seed** — the body the **library cell** keeps for an item until its **note
+object** first opens: blocks in reading order, written by a save, a fill, an
+import or a new note in the cell's own transaction, read by the note's first
+load and dropped only once the note says it stored them
+(`packages/service/src/library/cell-body.ts`, `cell-notes.ts`). Not a cache:
+once the note holds the body, the cell never takes it back.
+
+**projection** — what a **note object** pushes to the **library cell** on
+each debounced save: the body's digest (its lead, preview, outline, words,
+headings, tags and files), its text, its links and the note's size, ordered by
+a version so a late push is stale (`NoteProjection` in
+`packages/service/src/note/note-wire.ts`, landed by `cell-notes.ts`). It joins
+no **change set**, and the account's socket tells devices only when what a
+listing shows moved. Not the body: the cell keeps what it derives, never the
+note's blocks.
+
+**turn log** — a **note object**'s record of each agent **turn** that edited
+it: a `pre` and a `turn` Yjs update around each edit, the first `pre` the
+whole note, which Undo this turn replays into a fresh doc and undoes as a
+forward edit (`packages/service/src/note/turn-log.ts`), pruned a day after
+the turn's change set leaves the undo window. Not a version history: it holds
+only agent turns.
+
+**moved frame** — what the account's socket tells every device once a write
+commits: each item it moved at its sequence, whether a folder moved, and which
+threads, a list past `MOVED_IDS_MAX` saying "all"
+(`packages/service/src/library/cell-moved.ts`, the frame in
+`@repo/contract/library/library-socket`). A device asks again for what
+it shows of those, and for everything each time its socket opens
+(`@repo/contract/library/account-socket`). A hint, never the state: a
+frame carries no row, so one missed loses nothing.
+
+**share outbox** — the iPhone's shares from other apps still to land, each kept
+in its key-value store before its first call and sent until the cloud answers
+it, through a relaunch too (`apps/mobile/src/items/share-outbox.ts`); a share
+the cloud refuses is **parked** with its words, for Try again or Let it go.
+The one write a device keeps offline, with the browser extension's retry
+queue, which holds a save's url and title the same way. Not a queue of edits:
+a save typed into the app, a photo and a delete each need a connection.
+
+**connector** — the library as a remote MCP server: `/connector` on the Worker
+(`packages/service/src/connector/connector-route.ts`), the library's procedures
+tagged as tools
+(`packages/service/src/connector/library-tools.ts`) and served in the account's
+cell (`connector-server.ts`), behind OAuth from
+`@cloudflare/workers-oauth-provider` (`connector-auth.ts`) with a
+read-and-change scope, `library`, and a read-only one, `library:read`. Every
+**connected assistant** calls it. `/v1` serves the same procedures, of which
+the apps call only a few, and the **built-in agent**'s cell runs them for it
+with no connector between. Connector is Claude's word for it and the
+product's, which never says MCP.
+
+**connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
+Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our
+consent page (`packages/service/src/connector/consent-route.ts`); its model
+runs on its own plan, never ours. Each one is a grant on the account, which
+`account.assistants` lists and revokes (`assistant-grants.ts`), and Settings ›
+Account shows. Not the **built-in agent**, though both call the same tools.
+
+**built-in agent** — the app's own agent: our loop over Claude, a Durable
+Object for each **thread** (`packages/service/src/agent/agent-thread.ts`),
+calling Claude through AI Gateway. It changes the library only through the
+account's cell, by the procedures the **connector** serves, run as the
+agent's; it has no shell, files or web of its own, deleting and saving a link
+are the calls that ask the person first, and it runs on our bill, within the
+account's allowance. Not a **connected assistant**.
+
+**turn** — one message to the **built-in agent** and the work it does until
+Claude ends it, the person stops it, or its twentieth step does; waiting on an
+approval does not end it. The cell counts it against the day before it
+starts, caps each step, and books what it cost after, and its writes are one
+**change set**, which "Undo this turn" reverts. A send while its thread's turn runs
+waits its turn (`packages/service/src/agent/agent-turns.ts`). Not a connected
+assistant's call, which is no turn.
+
+**thread** — a conversation with the **built-in agent**, the account's, so
+every device shows it: its transcript in its own object and its events as rows
+of the cell, which each device reads online (`agent-turns.ts`).
+
+## The library
 
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
-`.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
-"Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
-what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — every note the UI creates is `.md` unless the name typed for it already
-ends in a doc extension, so a `.txt` in the vault is indexed and linkable but
-minted only by name. It is also WIDER than what a link may leave off: `.md`
-alone, so a `.txt` note links as `[[todo.txt]]`.
+`.txt` (`@repo/contract/knowledge/doc-file`, the single source of that answer).
+"Doc" is a CLASSIFICATION, not a shape: it decides which file of an imported
+zip becomes a note. It is deliberately WIDER than what the codec writes, every
+note as `.md`, and WIDER than what a zip's link may leave off: `.md` alone, so
+a `.txt` note in a zip links as `[[todo.txt]]`.
 
-**note** — a doc as a user and the knowledge surfaces address it: the filename
-IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`). A name
-may not hold `[` or `]`, which would end a link to it.
+**note** — an item of kind `note`, the text a person writes. An imported doc
+whose `kind:` is missing or unknown is one, its filename its title, with no
+slug layer.
+The name the codec writes an item under follows one rule,
+`@repo/contract/items/item-name`, whatever its kind: a title is repaired into a
+name every disk takes, never refused, and its `[` and `]`, which would end a
+link to it, become `(` and `)`.
 
-**line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
-`\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading
-of "what a line is" anywhere else is a file-corruption bug waiting to happen;
-the line diff's LF-only split (`text/line-diff`) is the one deliberate
-exception, because diff3 joins its segments back into the file's own bytes. Not
-a write unit: joining a split back rewrites every terminator, so writes go
-through the vault's whole-file CAS, never through a re-joined split.
+**item link** — a link from one item to another: Plate's mention, its key the
+item's id and its value the title it was written with, in markdown
+`[Title](mention:<id>)` (`@repo/editor/markdown/md-rules`). It shows the title
+its item goes by now, so no rename breaks it. Not a web link, and not
+`[[Title]]`, which only an import and the agent's text read, as an item link to
+the one item so titled or as the text it is
+(`@repo/editor/markdown/remark-wiki-import`).
 
-**projection** — what ONE parse of a doc yields: title, headings, links, tags,
-aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`). An
-index stores projections, not documents.
+**line** — a line's content EXCLUDES its terminator. The markdown codec reads
+`\r\n` and `\r` as `\n` at every entry (`lfOnly` in
+`@repo/editor/markdown/md-read`), so past it every line ends in `\n`. The line
+diff (`@repo/editor/text/line-diff`) is one Myers diff over any sequence: an
+agent's edit lines up the blocks it wrote with those it read, and a put a
+block's text by code point. Not a write unit: a **block** of the **live
+document** is.
 
-**conflict copy** — the other device's whole version of a file both devices
-changed where their edits overlap, written beside it as `<name> (conflict,
-<device>)<ext>`, while the path keeps the line merge with this device's lines at
-the overlaps. A note's copy drops its `id:`, so the two never answer to one
-`[[Title|uuid]]` link. Which paths get one is `@repo/notes/sync/reconcile-file`,
-the one verdict the desktop's sync and the phone's write queue both run; the
-name and the sentence every surface says about it are
-`@repo/notes/sync/conflict-copy`. Not the open note's own overlap: a save that
-meets a concurrent write merges into the buffer and makes no copy
-(`packages/editor/src/vault-editor.ts`), because the person is looking at the
-note and its History holds the rest.
+## Items
 
-## The phone's write queue
+**library** — everything a person saved and wrote, their account's: one
+library cell in the cloud (`LibraryDO`, `packages/service/src/library/`), which
+every device they sign in on reads online.
 
-The phone's unsent edits (`apps/mobile/src/notes/vault-outbox.ts`) have five
-words of their own, used across the outbox, the mirror and the reconcile.
+**item** — one card the library lists: a row of fields in the cell and a body
+of Plate blocks, its **note object**'s **live document**
+(`@repo/contract/library/library-item`), whatever its kind; a link, a
+video, an image, a PDF and a note the person wrote are each one, and "item" is
+the only word for them: a page is a web page, and a bookmark Raindrop's. A
+markdown file an import reads becomes one item, its frontmatter read into the
+item's fields by `readItemFacts` (`@repo/editor/items/item-frontmatter`). Listed in
+memory by `@repo/contract/library/library-index`, which the cell builds over its
+rows for each `library.listing.page`, and which also builds the listing, the
+rail's counts and the titles the cell and the fake cell answer.
 
-**fence** — a check that the sign-in a piece of work began under is still the
-one it may write for (`Fence` in `apps/mobile/src/lib/phone-db.ts`, made by
-`apps/mobile/src/lib/sign-in-fence.ts`). Work reads it after every await, and
-`fencedExclusive` again inside the transaction, so a wipe queued ahead of a
-write wins. A sign-out, a revocation and a new sign-in each make every earlier
-fence fall. Not a lock: nothing waits on a fence, and work under one that fell
-ends without writing.
+**kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
+or `file` (`ITEM_KINDS` in `@repo/contract/items/item-kind`), one of the item's
+fields. An imported markdown file's is its `kind:` key, and a missing or
+unknown one is a note; a saved file's is its extension's (`fileKindOf`); a
+saved url's is `kindForUrl` (`@repo/contract/items/item-url`). `link`, `video`
+and `audio` are the url kinds, the only ones a fill reads.
 
-**settle** — the one change set an outbox row goes as, kept on the row
-(`settle` in `apps/mobile/src/notes/outbox-ops.ts`): a **pin**, or the set
-reconciling a stale one made (`apps/mobile/src/notes/outbox-reconcile.ts`),
-with the vault's version it was reconciled against and the text it was made
-from. A row with no settle goes as its own intent. Not a **turn** settling,
-which is a thread's turn ending, and not a refresh's `settled`
-(`apps/mobile/src/notes/vault-mirror.ts`), which says the tree it listed agrees
-with every write the phone landed since.
+**Unsorted** — where an item filed in no folder shows: its `folderId` is null
+or names a deleted folder (the `unsorted` scope of
+`@repo/contract/library-scope`). Not a folder: an item stays Unsorted until it is
+filed, whatever it is tagged.
 
-**pin** — a text row's first set, kept as its **settle** before it is sent
-(`pinText` in `apps/mobile/src/notes/vault-outbox.ts`): a resend after a lost
-answer is that same set, which the vault answers as already held, and a text
-coalesced meanwhile lands rebased onto it rather than reconciled against the
-phone's own write.
+**filing rules** — what the person wrote for the agent about their library, one
+row of the account's library cell (`packages/service/src/library/library-rules.ts`)
+written only from Settings › Account, which every turn of the built-in agent
+carries after the person's message. Tidy my library files and tags by them. An
+import reads an `AGENTS.md` as a note, never as filing rules, unless it says what the library's rules say, when it adds
+nothing. Not the repo's `AGENTS.md`.
 
-**land** — a set the vault committed, moved into the phone's mirror in the
-transaction that retires its row (`landInMirror` in
-`apps/mobile/src/notes/vault-mirror.ts`), each path it moved stamped so a
-refresh that listed the tree before the landing leaves those rows alone. A
-text written while the set was out stays queued as a write over what landed.
+**fill** — the cloud's reading of a link the library holds unread (a
+`saveLink`, a refresh, an import's): the cell asks the fill queue, and the
+Worker's consumer reads the page with `@repo/page-reader` and lands only its
+`article` blocks and the fill-owned fields (`site`, `author`, `published`,
+`description`, the cover, the original file of an address that answered with
+one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
+in place of the address an unread item goes by; it calls no model and never
+writes `url` or `savedAt` (`packages/service/src/fill/`). An item's `fetchState` says where it stands:
+`pending`, `filled` or `failed`, its **reading**. A page the extension read an article from is
+saved read and never filled; one it did not goes to the
+fill as its link (`deviceKeepsReading` in `@repo/contract/items/link-fill`).
 
-**park** — an outbox row the vault refused for a reason no resend passes, kept
-with its bytes until the user retries it, saves a text or a photo as new, or
-discards it (`PARKING_CODES` in `apps/mobile/src/notes/vault-outbox.ts`). The
-rows on other paths go on, and a row sharing a path with it waits behind it.
-Not unreachable, which stops the whole queue and parks nothing.
+**reading** — whether a saved page has been read into its item: none (a note,
+a file), pending, read, or failed with why. The one value an item's
+`fetchState`, `fetchError` and `fetchedAt` spell, which every writer moves and
+every surface reads alike (`@repo/contract/library/item-reading`). Not the
+**fill**: the fill is one reader that moves it, the extension's read and an
+import others.
 
-## The agent
+**cover** — an item's picture: its `coverSha` field, the hash of a file the
+library keeps in R2, which a fill sets from the page it read and an import reads
+from `assets/covers/` (`COVERS_DIR`). Not an image item: a cover is
+part of its item, and is never a card of its own.
 
-The four words below are one chain and are constantly swapped for each other.
-Read them together.
-
-**thread** — the durable conversation, a row in this app's own SQLite (`threads`
-in `@repo/db/schema`). It survives process restarts and owns its title, its
-status, the turn that status describes and — for a doc-attached action — its
-origin note (see **view context vs thread origin**). Everything the user can
-reopen lives here.
-
-**turn** — one request-to-settle exchange inside a thread. It names no table: a
-turn exists only as the SCOPE its events share (`@repo/db/ids`), and the
-thread's active turn is the one its status describes. The id is the host's
-alone, since ACP names no turns
-(`apps/cli/src/server/agents/runtime-manager.ts`).
-
-**session** — the PROVIDER's own conversation, cached on the thread row so a
-later turn resumes into it (`@repo/db/threads`). A session is disposable: it is
-reaped when idle, closed when the host abandons a turn on it, and dies with the
-provider process, while the thread and its events do not. Only its harness
-travels: another device opens a session of its own. Not to be confused with the
-auth **session** in `apps/web` — a signed-in user's row in D1 — which shares
-only the word.
-
-**scope** — how far up an event's meaning reaches: the thread, or one turn
-(`@repo/domain/thread-event-scope`). Turn scope is the default reading, and each
-exception states its reason beside it in the event grammar, so an event that
-escapes turn chronology has to justify it in writing. The rule is enforced at
-parse and by a CHECK on the `events` table, because a turn-scoped row with no
-turn id is a row no query can place.
-
-**view context vs thread origin** — two answers to "which doc is this about",
-and they are not interchangeable. A **view context**
-(`@repo/domain/view-context`) rides ONE message: the path and the revision its
-bytes hashed to at submit, consumed by that turn's prompt. It is EPHEMERAL and a
-statement about the PAST — the screen the message left from, which is what
-"this" and "here" in it refer to — so nothing has to reconcile it when the user
-navigates away. A **thread origin** is the DURABLE binding an action makes: the
-note it was composed over, found by the note's frontmatter id so a move anywhere
-keeps it (`apps/cli/src/server/threads/thread-origins.ts`). A message can carry
-a view context into a thread with no origin. Neither is a **context path**: a
-note the user @-mentioned, which rides beside the message's text and, being part
-of what was asked rather than a statement about the screen, survives the queue.
-
-**dispatch** — a CLOUD word first: a row in the account's dispatch inbox
-(`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a
-Mac's agent anything: a turn any Mac may claim, or the answer to an **approval**
-a Mac opened for a phone-started turn, which only that Mac may claim. A dispatch
-is not a thread event: once a Mac takes a turn in, the thread's request row
-carries the dispatch id (while the thread is busy, the queued message carries it
-until it becomes that row), and the log is the record from then on. Locally the
-word also names a runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet.
-
-## "event" means four things
-
-Four different layers all say "event", and only the first is durable product
-state.
-
-- **thread event** — the PERSISTED log entry (`@repo/domain/provider-event`,
-  despite the file's name), one row in the `events` table, sequenced per thread.
-  This is what a client replays and what syncs.
-- **provider event** — the runtime's EMITTED grammar
-  (`@repo/agent-runtime/vocabulary/provider-event`). The two grammars are
-  near-twins with the same file name and are not the same set: the runtime
-  constructs its events and never parses them, and
-  `apps/cli/src/server/agents/runtime-manager.ts` is the one place that narrows
-  onto the persisted grammar.
-- **sync event** — the cloud's unit of transfer
-  (`@repo/contract/cloud/sync/sync-schema`), which the Worker merges, dedupes
-  and orders WITHOUT reading. A sync event carries a thread event; it is not
-  one.
-- **filesystem event** — what the vault watcher reports
-  (`apps/cli/src/server/vault/watcher`). Not `fileChange`, a thread event ITEM
-  type: the agent's own report of what it wrote, which an agent commit stages.
-
-The local realtime bus is deliberately NOT in this list. It carries **change
-kinds** (`@repo/domain/change-kinds`) — invalidation pings naming a
-subscription target, never payloads. A client told "events-appended" refetches;
-it is never handed the event.
+**url key** — the one key two spellings of one link share: the scheme, `www.`,
+a default port, tracking parameters and a non-route fragment dropped, the host
+folded, the query sorted (`urlKey` in `@repo/contract/items/item-url`). A save of
+a url whose key a live item holds answers that item. Not what an item's url holds: that is
+`cleanUrl`, which drops only the userinfo and the tracking parameters, and
+the key is a derived row, never a field.
 
 ## The words the user sees
 
 The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,
-so each word below stands for an engine concept with another name in code.
-Reading a report or a screenshot means translating back.
+and it calls the whole of it the **library** and what is in it **items**, so
+each word below stands for an engine concept with another name in code. Reading
+a report or a screenshot means translating back. "Note" means only what the
+person writes (New note, the Notes chip); a saved page, a picture or a PDF is an
+item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
-**Sync** — the rail footer's state, Sync now, and Settings › Vault's Sync row:
-the VAULT's pass against where it syncs
-(`apps/cli/src/server/vault/git-engine.ts`), worded in one place
-(`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is a vault with
-nowhere to sync; "Synced by iCloud Drive" is a folder another service syncs,
-which the app leaves to it; "Sync paused" is any state only the engine can
-explain. Not the THREAD sync: actions reach other devices through the account's
-merged log on their own (`apps/cli/src/server/cloud/sync-pass.ts`), with no
-button, and never ride the vault's remote.
+**Library** — the library tab's home: the account's LIBRARY CELL as the person
+sees it, every item one card in one grid
+(`apps/web/src/library/library/library-view.tsx`), read from the LIBRARY
+CELL through `/v1`, a query per screen that the account's socket invalidates
+(`apps/web/src/library/cloud/library-queries.ts`). The browser tab opens it
+at `/library` once signed in.
 
-**History** — the panel tab listing a note's versions: the vault's own git log
-for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
-by when and by whom (you, the agent, or another device), never by a commit
-subject or sha. Restoring one is an ordinary guarded write of its bytes. Not the
-editor's own undo (⌘Z), which lives and dies with the open note, and not **Undo
-changes**.
+**Items** — the cards the library lists, one per item row, a note, a saved
+link, an image, a PDF or any other file alike
+(`library.listing.page`). Not docs: a doc is a file
+classification of the import.
 
-**Undo changes** — the button under an agent's reply, and the Undo on the "Agent
-edited N notes" toast: a three-way revert of one turn's commit
-(`apps/cli/src/server/threads/turn-undo.ts`), which keeps every edit made since;
-a note whose later edits overlap the turn's is kept whole and named. Not a
-History restore, which puts back exact bytes and so drops whatever came after.
+**Unsorted** — the rail's row: every item filed in no folder. A new save lands
+there when the screen shows no folder.
 
-**Kept both versions** — what the window says when a sync met a note two devices
-changed on the same lines: the **conflict copy** above, worded by
-`@repo/notes/sync/conflict-copy` and said once per report. There is no conflict
-state to clear: sync never stops for one.
+**Needs a connection** — what a screen says of something only the cloud
+answers (the open item's typing, ⌘P's search, the agent and its Undo, import,
+the account) while the device is offline: the open item reads but takes no
+edit (`packages/editor/src/item/item-editor.tsx`), and in the library tab a
+call waits rather than fails
+(`apps/web/src/library/cloud/needs-connection.tsx`); the iPhone says it of a
+save, a photo and a delete, and keeps only a share
+(**share outbox**). Never said of a note that holds its edits back (full, or
+in Deleted) or that refused a paste too large for it: each says its own words,
+and a hold outranks the connection.
 
-**Account** and **Devices** — Settings › Account: an inteligir account (Better
-Auth, in `apps/web`) and this install's DEVICE CREDENTIAL, the one secret a Mac
-or a phone keeps after signing in
-(`apps/cli/src/server/cloud/credential-store.ts`). Devices lists the account's
-credentials and revokes a lost one; each sign-in mints a new device, and this
-Mac leaves only by signing out. Not the agent's sign-in (**Sign in with
-Claude**), which holds no inteligir account.
+**Undo** — "Undo this turn" under an agent's turn and "Undo this conversation"
+under a conversation: `library.history.undo` over the CHANGE SETS named, in a
+change set of its own, for seven days after each set sealed. Not the editor's
+own undo (⌘Z), which takes back only this device's typing and lives and dies
+with the open note. What an agent's turn wrote in a note, that note takes back
+from its **turn log** as a forward edit, keeping every later edit; typing inside
+a block the turn added goes with it, and Undo names each note it went from. An
+item whose later field edits overlap the set's is kept whole and named. An item
+a rule holds back (an address another item holds now) is named apart, and its
+set can be undone again, as can a set of which only kept items remain, since
+nothing of it went back.
 
-**Advanced** — Settings › Advanced
-(`apps/workspace/src/app/settings/advanced-section.tsx`), the one product
-surface that keeps the engine's words: where the vault syncs, the raw sync state
-and git's last error, the thread sync's, this device's id, the data folder and
-the debug-logging switch. Every other surface points here ("Sync details…")
-rather than quoting it.
+**Deleted** — the rail's row: the items deleted, each restorable, and "Empty
+Deleted…", which removes them for good.
 
-**Connectors** — Settings › Connectors: the MCP servers in the DEFAULT agent's
-own user config, read and edited through its bundled binary
-(`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by the
-vendor's own login; the app keeps no registry. Not **Connected folders**
-(`folders` in `@repo/contract/local`): directories outside the vault the agent
-may read.
+**Sign in to Inteligir** — the browser extension's sign-in, which is the
+browser's own: the extension reads that browser's **session** cookie for the
+site and sends it with each save, so signing out of the site signs it out too.
+The site's `/connect/extension` page only tells it where the site is and is
+answered with the account it found signed in there; nothing crosses, and the
+extension adds no row to **Devices**
+(`apps/extension/src/background/sign-in.ts`,
+`apps/extension/src/background/connection.ts`).
 
-**Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the vendor's
-own login, run by the server (`apps/cli/src/server/agents/agent-sign-in.ts`)
-into the vendor's shared store (`~/.claude`, `~/.codex`). "Claude" is the
-`claude` harness and "ChatGPT" the `codex` one (`@repo/domain/harness`); since
-the store is shared, signing out here signs the vendor's own app out too. Not an
-inteligir **Account**.
+**session** — one device's sign-in, Better Auth's own row: a browser tab or the
+Mac app's window holds its cookie, the iPhone keeps it in the Keychain, and the
+browser extension rides its browser's. It lasts 60 days from its last use, an
+account holds 20 (a sign-in past that ends the one used longest ago), and a
+password reset ends them all (`packages/service/src/auth/auth.ts`). Not a
+credential of our own: there is none.
+
+**Account**, **Devices** and **Connected assistants** — Settings › Account: an
+inteligir account (Better Auth, `packages/service/src/auth/auth.ts`), its
+**sessions**, each listed by the device its user agent names (Chrome on Mac,
+iPhone) with This device marked, and the assistants a person let into the
+library through the **connector**
+(`apps/web/src/library/settings/account-section.tsx`). Every other device
+can be signed out from there and every assistant disconnected; this device
+leaves by Sign out.
+
+**Built-in agent** — Settings › Account's switch and the panel's **Agent** tab:
+the account's conversations with the BUILT-IN AGENT, the same on every device
+(`apps/web/src/library/agent/agent-panel.tsx`). "The agent has used today's
+allowance" is its `AGENT_BUDGET` refusal.

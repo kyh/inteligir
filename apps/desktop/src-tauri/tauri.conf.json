@@ -5,29 +5,24 @@
   "version": "../package.json",
   "identifier": "com.inteligir.desktop",
   "build": {
-    "beforeDevCommand": "pnpm --filter @repo/workspace exec vite",
-    "devUrl": "http://localhost:31000",
-    "frontendDist": "../../workspace/dist/first-run",
+    "devUrl": "http://localhost:5174/library",
+    "frontendDist": "https://inteligir.com/library",
     "removeUnusedCommands": true
   },
   "app": {
-    "windows": [],
-    "security": {
-      "csp": {
-        "default-src": "'self'",
-        "script-src": "'self'",
-        "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: blob:",
-        "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost",
-        "object-src": "'none'",
-        "base-uri": "'self'",
-        "form-action": "'self'",
-        "frame-ancestors": "'none'",
-        "frame-src": "'self'",
-        "worker-src": "'none'"
+    "windows": [
+      {
+        "label": "main",
+        "title": "Inteligir",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "dragDropEnabled": false,
+        "zoomHotkeysEnabled": true,
+        "create": false
       }
-    }
+    ]
   },
   "bundle": {
     "active": true,

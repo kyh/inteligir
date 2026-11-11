@@ -7,9 +7,15 @@ type TextChild = string | number;
 export const isTextChild = (node: ReactNode): node is TextChild =>
   typeof node === "string" || typeof node === "number";
 
+const isNodeList = (content: ReactNode): content is readonly ReactNode[] => Array.isArray(content);
+
+// a node's children as a list, one child or many
+export const childList = (content: ReactNode): readonly ReactNode[] =>
+  isNodeList(content) ? content : [content];
+
 // the leading strings are the label; whatever follows is drawn as given
 export const splitLeadingText = (content: ReactNode) => {
-  const nodes: ReactNode[] = Array.isArray(content) ? content : [content];
+  const nodes = childList(content);
   const leading: TextChild[] = [];
   for (const node of nodes) {
     if (!isTextChild(node)) {

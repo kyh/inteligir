@@ -1,18 +1,12 @@
-import {
-  BaseBlockquotePlugin,
-  BaseH1Plugin,
-  BaseH2Plugin,
-  BaseH3Plugin,
-  BaseHorizontalRulePlugin,
-  BlockquoteRules,
-  HeadingRules,
-  HorizontalRuleRules,
-} from "@platejs/basic-nodes";
+import { BlockquoteRules, HeadingRules, HorizontalRuleRules } from "@platejs/basic-nodes";
 import {
   BlockquotePlugin,
   H1Plugin,
   H2Plugin,
   H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
   HorizontalRulePlugin,
 } from "@platejs/basic-nodes/react";
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
@@ -22,31 +16,16 @@ import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/rea
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
 import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
 
-export const BasicBlocksBaseKit = [
-  BaseH1Plugin,
-  BaseH2Plugin,
-  BaseH3Plugin,
-  BaseBlockquotePlugin,
-  BaseHorizontalRulePlugin,
-];
-
-// A `listStyleType` block hosts BlockList's <ul> inside it and a wikiEmbed expands into
-// block content; either inside <p>/<h*> is invalid DOM and React logs a nesting error.
-const hostsBlockContent = (element: TElement): boolean => {
-  if (stringProp(element, "listStyleType") !== undefined) {
-    return true;
-  }
-  return element.children.some(
-    (child) => ElementApi.isElement(child) && child.type === WIKI_EMBED_KEY,
-  );
-};
+// A `listStyleType` block hosts BlockList's <ul> inside it, which inside <p>/<h*> is invalid DOM
+// and React logs a nesting error.
+const hostsBlockContent = (element: TElement): boolean =>
+  stringProp(element, "listStyleType") !== undefined;
 
 const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
   function Element(props: PlateElementProps) {
@@ -91,7 +70,8 @@ const ParagraphElement = (props: PlateElementProps) => (
   />
 );
 
-const heading = (as: "h1" | "h2" | "h3") => blockElement(as, "relative px-0.5");
+const heading = (as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
+  blockElement(as, "relative px-0.5");
 
 const CalloutMarkerLeaf = (props: PlateLeafProps) => (
   <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />
@@ -143,6 +123,10 @@ export const BasicBlocksKit = [
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),
+  // read from markdown and stored, though the editor offers none to write
+  H4Plugin.withComponent(heading("h4")),
+  H5Plugin.withComponent(heading("h5")),
+  H6Plugin.withComponent(heading("h6")),
   BlockquotePlugin.configure({ inputRules: [BlockquoteRules.markdown()] }).withComponent(
     BlockquoteElement,
   ),

@@ -2,7 +2,9 @@
 // html payload, and what tabs and columns hold. The lock guards the model rather than the
 // buttons, so no surface's edit reaches what such a block holds, while the block itself can
 // still be inserted, removed or moved whole: a re-seed lands, and a deleted block comes back
-// with one undo. An op it refuses never applies, so history never records it either.
+// with one undo. An op it refuses never applies, so history never records it either. Another
+// device's change always lands, since the note's live document already holds it, and so does a
+// normalizer's fix, since Slate's own normalizer loops forever on a fix that never lands.
 
 import { ElementApi, KEYS, NodeApi, PathApi, createSlatePlugin } from "platejs";
 import type { Operation, Path, SlateEditor, TRange } from "platejs";
@@ -15,6 +17,7 @@ import {
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
 } from "@repo/editor/dialect-node-keys";
+import { appliesRemoteChange } from "@repo/editor/live/yjs-binding";
 
 const RICH_BLOCK_LOCK_KEY = "richBlockLock";
 
@@ -116,47 +119,37 @@ const aimsInsideLocked = (editor: SlateEditor): boolean => {
 const lockInstalled = (editor: SlateEditor): boolean =>
   Object.hasOwn(editor.plugins, RICH_BLOCK_LOCK_KEY);
 
-// an edge of the selection sits inside a block the lock holds, where nothing inserted lands
-export const selectionEdgeLocked = (editor: SlateEditor): boolean =>
-  editor.selection !== null && lockInstalled(editor) && edgeInsideLocked(editor, editor.selection);
-
-const lifted = new WeakSet<SlateEditor>();
-
-// A comment's markers are its anchor, not the content of the block they sit in, so a thread
-// deleted elsewhere takes its markers out of a locked block too. Every op `fn` applies passes, the
-// normalization a `withoutNormalizing` inside it runs on the way out included.
-export const withRichBlockLockLifted = (editor: SlateEditor, fn: () => void): void => {
-  if (lifted.has(editor)) {
-    fn();
-    return;
-  }
-  lifted.add(editor);
-  try {
-    fn();
-  } finally {
-    lifted.delete(editor);
-  }
-};
-
 export const RichBlockLockKit = [
-  createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(({ editor, tf: { apply } }) => {
-    const locked = lockedBlockTypes(editor);
-    return {
-      transforms: {
-        apply(op) {
-          if (!lifted.has(editor) && refuses(editor, locked, op)) {
-            return;
-          }
-          apply(op);
+  createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(
+    ({ editor, tf: { apply, normalize } }) => {
+      const locked = lockedBlockTypes(editor);
+      let normalizing = 0;
+      return {
+        transforms: {
+          apply(op) {
+            if (normalizing === 0 && !appliesRemoteChange(editor) && refuses(editor, locked, op)) {
+              return;
+            }
+            apply(op);
+          },
+          normalize(options) {
+            normalizing += 1;
+            try {
+              normalize(options);
+            } finally {
+              normalizing -= 1;
+            }
+          },
         },
-      },
-    };
-  }),
+      };
+    },
+  ),
   // A tap lands the DOM caret in a locked block's text, which is outside the editable, and
   // slate-react defers a plain character's insert to an input event the browser never fires
   // there; the deferred insert then lands wherever anyone types next. So a keystroke aimed inside
   // a locked block is refused before slate-react takes it.
   createPlatePlugin({
+    editOnly: true,
     handlers: {
       onDOMBeforeInput: ({ editor, event }) => {
         if (!aimsInsideLocked(editor)) {

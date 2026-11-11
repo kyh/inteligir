@@ -1,104 +1,100 @@
-import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import { titleKey } from "@repo/contract/library/derive-item";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
+
+import { foldTitle } from "@repo/editor/mention/rank-titles";
+import type { FoldedTitle } from "@repo/editor/mention/rank-titles";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep
 // node's click run outside React or with no route to the shell's owner, and host.ts hands
 // components the same object. The shell implements these types; declaring them beside the app's
-// provider would put a type edge back across the package boundary.
+// provider would put a type edge back across the package boundary. Everything is the library's own
+// key: an item by its id, a file by its bytes' sha.
 
-export interface VaultEntry {
-  path: string;
-  name: string;
-  kind: "doc" | "other";
+// an item a page link can name, as the library's titles list it: its id and the title it goes by now
+export interface LinkTarget {
+  readonly id: string;
+  readonly title: string;
 }
 
-// `exists` names a taken path without a notice, so a caller can step past it; `refused` is final,
-// and the session has said whatever there was to say.
-export type CreateNewFileResult =
-  | { readonly kind: "created"; readonly path: string }
-  | { readonly kind: "exists"; readonly path: string }
-  | { readonly kind: "refused" };
-
-export interface VaultActions {
-  /** A failed flush of the current note refuses to navigate. */
-  openFile: (path: string) => void;
-  /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
-  editNote: (path: string, content: string) => void;
-  /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */
-  registerNoteSerializeFlush: (path: string, flush: () => void) => void;
-  /** Open-or-create: an existing file opens untouched, so templates and daily notes can re-run it. */
-  createFile: (path: string, content?: string) => Promise<void>;
-  /** Creates without opening; an existing file counts as success. */
-  createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
-  /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
-  createNewFileAt: (path: string, seedContent: string) => Promise<CreateNewFileResult>;
-  renameEntry: (from: string, to: string) => Promise<boolean>;
-  deleteEntry: (path: string) => Promise<void>;
-  flush: () => Promise<boolean>;
+export interface LibraryTitles {
+  // in the library's order, which the `[[` picker ranks within
+  readonly targets: readonly (LinkTarget & FoldedTitle)[];
+  // the name an item goes by now, the one its card shows
+  readonly byId: ReadonlyMap<string, string>;
+  // the item words name by `titleKey`, the first the library lists; an untitled one goes by none
+  readonly byKey: ReadonlyMap<string, LinkTarget>;
 }
 
-// The knowledge index's resolver over the listing, so a link the editor draws lands where the
-// index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
-// refresh, so a link re-renders on that alone.
-export interface LinkResolver {
-  resolveWikiTarget: (target: string, alias?: string) => string | null;
-  /** `target` is an md url as `mdLinkTarget` reads it; tried beside `fromPath`, then from the root. */
-  resolveMdTarget: (target: string, fromPath: string) => string | null;
-  /** The index's wiki targets the resolver was built over: notes first, then attachments. */
-  targets: readonly WikiTarget[];
-}
+// Beside the host rather than in it: the titles move with the library while the host never
+// changes, so only a page link and the picker re-render, and the titles outlive a host installed
+// again. Each keystroke in the picker reads them, so every key and fold is made once per listing.
+const titles = createStore<LibraryTitles>()(() => ({
+  byId: new Map(),
+  byKey: new Map(),
+  targets: [],
+}));
 
-// The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a
-// field because the resolver is rebuilt on every vault refresh while the actions never change, so
-// only its readers re-render.
-export type LinkResolverStore = Pick<
-  StoreApi<LinkResolver>,
+export const libraryTitles: Pick<
+  StoreApi<LibraryTitles>,
   "getState" | "getInitialState" | "subscribe"
->;
+> = titles;
 
-// A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
-export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
-
-// `files` moved a listing row (a create, rename, delete or a change the watcher saw), and
-// `paths: null` is one nobody could attribute, so every reader re-checks; `content` rewrote one
-// file in place and moved no row.
-export type VaultChangedEvent =
-  | { readonly kind: "files"; readonly paths: readonly string[] | null }
-  | { readonly kind: "content"; readonly path: string };
-
-export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean =>
-  event.kind === "files" ? event.paths === null || event.paths.includes(path) : event.path === path;
-
-// `picked` is an image the host has already written to the vault; `refused` is one it would not
-// take, and `message` says why in the user's words.
-export type PickImageResult =
-  | { readonly kind: "picked"; readonly path: string }
-  | { readonly kind: "cancelled" }
-  | { readonly kind: "refused"; readonly message: string };
+// what a host hands the editor each time its listing of the library's titles answers
+export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
+  const byKey = new Map<string, LinkTarget>();
+  for (const target of targets) {
+    const key = titleKey(target.title);
+    if (key !== "" && !byKey.has(key)) {
+      byKey.set(key, target);
+    }
+  }
+  titles.setState({
+    byId: new Map(targets.map((target) => [target.id, target.title])),
+    byKey,
+    targets: targets.map((target) => ({ ...target, folded: foldTitle(target.title) })),
+  });
+};
 
 export interface EditorHostIo {
-  vault: VaultActions;
-  linkResolver: LinkResolverStore;
-  readVaultFile: (payload: { path: string }) => Promise<string>;
-  readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
-  /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
-  writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
-  readNoteFormulas: (payload: { noteId: string }) => Promise<{
-    path: string;
-    formulas: CollectedFormula[];
-  } | null>;
-  onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. Null where no server answers one, and the block offers no Run. */
-  htmlFrameUrl: string | null;
-  /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
-  pickImage: (() => Promise<PickImageResult>) | null;
+  // shows the item a link, an embed or a chip names
+  readonly openItem: (itemId: string) => void;
+  // another item's blocks in reading order, as the library holds them now: an embed's, or a pill's
+  // a formula names; null for an item the library holds none of
+  readonly readItemBlocks: (itemId: string) => Promise<readonly LibraryBlock[] | null>;
+  // these items moved, or `null`: any of them may have
+  readonly onItemsChanged: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
+  // a file of the library by its sha, from where this device draws its files, its type the one the
+  // file was kept as; rejects while the device can reach no copy of it
+  readonly readFile: (sha: string) => Promise<Blob>;
+  // bytes a block is about to name (a picture pasted into the text): kept on this device by their
+  // sha and sent up ahead of the write that names them; rejects when they could not be kept
+  readonly keepFile: (
+    bytes: Uint8Array<ArrayBuffer>,
+    mime: string,
+  ) => Promise<{ readonly sha: string }>;
+  // the most one file can be, past which the library takes none
+  readonly fileMaxBytes: number;
+  // whether a file card can hand a file's bytes to the system to save, as a browser tab and the
+  // Mac's window can; the phone's page cannot
+  readonly savesFiles: boolean;
+  readonly notes: NoteHost;
 }
 
-export interface CommentActions {
-  /** False means refused; the caller strips the markers it minted. */
-  create: (id: string, text: string) => Promise<boolean>;
-  open: (ids: string[]) => void;
+// How a note's live document is reached (`item/note-connection.ts`): its socket dials the cloud's
+// origin, at the path the Worker answers the note at, on the account socket's ticket.
+export interface NoteHost {
+  // the cloud's origin (`https://…`), named by the host, since a page loaded from a file or a dev
+  // server has a location of its own
+  readonly socketOrigin: string;
+  // asked again on every dial, so a ticket that ran out is never sent twice
+  readonly socketTicket: () => Promise<string>;
+  readonly notePath: (itemId: string) => string;
+  // the host's own word that it has no connection, which turns an open note read-only at once,
+  // ahead of any socket noticing
+  readonly offline: () => boolean;
+  readonly onOfflineChange: (listener: () => void) => () => void;
 }
 
 export interface AgentRequestActions {
@@ -107,11 +103,24 @@ export interface AgentRequestActions {
   showTag: (tag: string) => void;
 }
 
-// What the editor asks the shell for beyond the vault. Every field is required, so a host that
-// leaves one out fails to typecheck rather than drawing a button that does nothing.
+// a note a host makes of blocks the editor moves out of an item: its title, and its blocks in
+// reading order, all of them the person's writing
+interface NewNote {
+  readonly title: string;
+  readonly blocks: readonly LibraryBlock[];
+}
+
+export interface ItemActions {
+  // makes `note` in the folder of the item the editor shows and answers its id; rejects when the
+  // note was not made
+  readonly createNote: (note: NewNote) => Promise<string>;
+}
+
+// What the editor asks the shell for beyond reading the library. Every field is required, so a
+// host that leaves one out fails to typecheck rather than drawing a button that does nothing.
 export interface EditorHostActions {
   readonly agent: AgentRequestActions;
-  readonly comments: CommentActions;
+  readonly items: ItemActions;
 }
 
 export interface EditorHost {
@@ -121,26 +130,12 @@ export interface EditorHost {
 
 let installed: EditorHost | null = null;
 
-// The host a writer outside the note's tree flushes through (`flushOpenNote`). A disposer clears
-// it only while it still names that disposer's host, so a dispose landing after a newer install
-// keeps the newer one's flush.
-let flushing: EditorHost | null = null;
-
-// Installed once, ahead of the first render: the note the boot opens mounts hooks that read the
-// host as they render. The disposer ends the host's flush and leaves the host installed until the
-// next install replaces it, because an answer in flight when the note unmounts still reads it.
-export const installEditorHost = (host: EditorHost): (() => void) => {
+// Installed once, ahead of the first render: the item the boot opens mounts hooks that read the
+// host as they render. It stays installed until the next install replaces it, because an answer in
+// flight when the item unmounts still reads it.
+export const installEditorHost = (host: EditorHost): void => {
   installed = host;
-  flushing = host;
-  return () => {
-    if (flushing === host) {
-      flushing = null;
-    }
-  };
 };
-
-export const installedFlush = (): (() => Promise<boolean>) | null =>
-  flushing === null ? null : flushing.io.vault.flush;
 
 const installedHost = (): EditorHost => {
   if (installed === null) {

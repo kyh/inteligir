@@ -2,9 +2,9 @@ import { useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
-import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
-import { TAGS_KEY } from "@repo/notes/markdown/frontmatter";
-import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
+import { isTagName, TAG_NAME_RULE } from "@repo/contract/knowledge/tag-grammar";
+import { TAGS_KEY } from "@repo/editor/markdown/frontmatter";
+import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -193,13 +193,13 @@ export const UnsupportedField = ({
 }) => (
   <div className="flex min-h-7 items-center px-1.5">
     <pre
-      title="Unsupported YAML — preserved byte-for-byte."
+      title="This value can't be edited here."
       className={cn(
         "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
         "font-mono text-body whitespace-pre text-muted-foreground",
       )}
     >
-      {prop.rawYaml === "" ? "—" : prop.rawYaml}
+      {prop.raw === "" ? "—" : prop.raw}
     </pre>
   </div>
 );

@@ -1,176 +1,91 @@
 # Decisions: @repo/mobile
 
-The phone: its editor page, its offline store and queue, and how it ships.
-`AGENTS.md` § Decisions says how a bullet is written and cited.
+The phone: its editor, its cache, its shares and its files, the agent, its look, and how it ships.
 
-## Editor and dialect
+## The phone's editor
 
-- **THE PHONE'S EDITOR IS A VITE PAGE CARRIED IN THE BINARY: ONE CLASSIC SCRIPT
-  IN A WEBVIEW, BEHIND A TYPED, NONCE-STAMPED BRIDGE** (owner decision).
-  Rejected: a React Native renderer of the dialect, which cannot edit and
-  degrades every construct it does not model. Expo DOM components were rejected
-  too: they compile the editor a second way and typecheck it under the phone's
-  TypeScript 6, where the editor's own toolchain is Vite, the React Compiler and
-  TypeScript 7. WKWebView loads no module script, and no `crossorigin` tag, from
-  `file://` (vitejs/vite#14483), so the build is one IIFE and fails on anything
-  else (`apps/mobile-editor/vite/classic-page.ts`). Native reaches the page only
-  through a door installed non-writable on `window`, never a message event a
-  child frame's `parent.postMessage` could forge, and every frame after `init`
-  carries its nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`); the wire
-  breaks freely, since both ends ship in one binary
-  (`apps/mobile-editor/src/bridge/protocol.ts`), and the page's host is the
-  editor's own write policy over it
-  (`apps/mobile-editor/src/host/page-host.ts`). The page ships in the app
-  bundle, so a note opens offline (`apps/mobile/plugins/with-editor-page.js`),
-  and its build joins the native fingerprint
-  (`apps/mobile/fingerprint.config.js`), so an EAS Update bundled beside another
-  page matches no install. The native end is one policy
-  (`apps/mobile/src/editor/editor-host.ts`): the WebView loads the page and the
-  frames it makes, hands a followed web link to Safari and refuses the rest, and
-  its origin list admits every address, because the library hands whatever that
-  list refuses to the OS before the policy runs. A write's base is compared with
-  the text the phone holds, under the store's write lock, so a change a sync
-  landed since comes back for the page's own merge
-  (`apps/mobile/src/notes/notes-store.ts`). `apps/mobile/src/editor/__tests__/`,
-  and `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
-  `file://` against a scripted phone.
+- **The phone's editor is an Expo DOM component over `@repo/editor`, built by `expo export` and
+  shipped in EAS updates, on react-native-webview** (owner decision). One editor on every device, a
+  fix a JS update, and react-native-webview's navigation policy and keyboard raised by code.
+  `apps/mobile/src/editor/page/note-page.tsx`.
+- **The phone's editor is one chunk, its fonts written into its sheet.** An exported page fails to
+  load a lazy chunk it split off (`EXPO_NO_BUNDLE_SPLITTING`) or a file the export moved.
+  `apps/mobile/inline-fonts.js`.
+- **Native reaches the phone's editor only through its actions and props, and the web view is one
+  policy.** Actions answer in JSON and props are a few primitives sent every render, since a
+  handle into the editor is lost with each reload.
+  `apps/mobile/src/editor/page/library-actions.ts`.
+- **The web view hands a web link a tap followed to Safari and refuses the rest.** Its origin list
+  admits every address, since the library hands what that list refuses to the OS before the policy
+  runs. `apps/mobile/src/editor/web-view-policy.ts`.
+- **A production editor inserts its content policy before it draws, its one connection the note's
+  socket.** Expo's door into the page carries no nonce, so only the editor's own script may run.
+  `apps/mobile/src/editor/page/page-policy.ts`.
+- **The phone edits a note live as every device does, and reads what it last held with no
+  connection.** It turns read-only the moment the network or iOS's suspension cuts the socket, and
+  its life is one value, since a second ask or leave must not be representable.
+  `apps/mobile/src/editor/note-page-life.ts`.
+- **New note opens with the caret at the end and the keyboard up, and a tag chip does nothing on
+  the phone** (owner decision). `apps/mobile/src/editor/page/page-host.ts`.
 
-## Cloud, sync and accounts
+## Cloud and accounts
 
-- **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
-  `SyncRuntime`, the login flow and the dispatch runtime publish stores the
-  screens subscribe to, so a poll pass, a revocation, a refused login and where
-  a request to a Mac stands are shown; a refused request or capture keeps its
-  words and the reason until dismissed. A sign-in is ONE session: every runtime reads under
-  `SyncRuntime`'s, so a revocation any request hears ends the sign-in for all,
-  and each checks its fence before recording a refusal, so one heard under an
-  earlier sign-in never ends the next
-  (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist is the route
-  guard's answer (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`), never
-  a per-screen branch. `apps/mobile/src/sync/sync-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`,
-  `apps/mobile/src/dispatch/dispatch-runtime.ts`.
+- **On the phone, the runtime that moves a value is the one that notifies.** A sign-in is one
+  library made and closed together, so a revocation any call hears ends it for all, once, and the
+  route guard alone decides which screens exist. `apps/mobile/src/lib/app-runtime.ts`.
+- **The phone reads through TanStack Query, its cache kept between launches, and holds its socket
+  only in the foreground.** What was last read shows offline and a write is never kept, since the
+  cloud keeps the truth, and iOS suspends a background app's socket anyway.
+  `apps/mobile/src/lib/compose-runtime.ts`.
+- **The phone's key-value store is out of the device backup, and its files are in the cache**
+  (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,
+  and a sign-in, sign-out or revocation clears the cache, shares and files.
+  `apps/mobile/modules/backup-exclusion`.
+- **A file's bytes are kept by their hash, fetched once, in the purgeable cache.** A file over 512
+  KB lists from a thumbnail and no cover decodes past `FILL_LIMITS.coverMaxPixels`, since a few
+  bytes can name a bitmap that kills the app on every launch.
+  `apps/mobile/src/files/expo-thumbnail.ts`.
+- **The phone signs in with a Better Auth session, kept by its Expo client in the Keychain, this
+  device only, while unlocked.** Every call sends it under `expo-origin` with `credentials: "omit"`,
+  since a credential of the phone's own is a second kind of sign-in for no gain.
+  `apps/mobile/src/auth/keychain-storage.ts`.
+- **A phone save is one create where the library's scope saves.** A link waits for the cloud's
+  fill and a thought is a note named by its first line, and a save, a new note or a delete needs a
+  connection and says so, since only a share waits. `apps/mobile/src/items/phone-saves.ts`.
+- **A phone photo is an image item of its own, at most 2048px with no EXIF, a JPEG unless it was a
+  PNG.** The Mac's editor draws no HEIC, no location may reach the library, and a JPEG draws
+  transparency black. `apps/mobile/src/items/photo-plan.ts`.
+- **A share is a save the app makes, kept on the phone before its first call until it lands; the
+  share extension only hands it over.** The outbox sends what waits at each launch, resume and
+  reconnect, so it lands once, and a sign-out with any asks, then discards them (owner decision).
+  `apps/mobile/src/items/share-outbox.ts`.
+- **A shared text's link is read whole, to its last character.** Every spelling of the link comes
+  out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an
+  accented letter and saves the wrong page. `apps/mobile/src/items/link-in-text.ts`.
+- **The phone asks the account's built-in agent, online only, through the panel every device
+  draws.** A send and an approval need a connection, since a turn runs in the cloud, and Undo of a
+  turn is the Mac's or a tab's. `apps/mobile/src/app/agent/[thread].tsx`.
 
-- **THE PHONE HOLDS THE ACCOUNT'S SOCKET ONLY IN THE FOREGROUND, AND A RUNNING
-  TURN'S TEXT IS NEVER STORED.** A desktop pushes a running turn every second
-  and a half and the cloud pings every other socket on each push, so a phone
-  with the socket reads a reply as it grows; the background closes it, since iOS
-  suspends the app anyway, and the poll stays for a missed ping. The deltas the
-  store drops are folded in memory until each item's `item/completed`
-  (`apps/mobile/src/sync/live-turns.ts`), fed only what a page landed, so a page
-  pulled twice folds once. Rejected: holding the deltas in the phone's database,
-  which a long turn fills with tokens its settled items already carry, and
-  folding an item this launch never saw start, which would draw the tail as the
-  reply. `apps/mobile/src/sync/sync-runtime.ts`.
+## The look
 
-- **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND ITS MIRRORED COMMIT MOVES
-  ONLY WHEN THE MIRROR IS WHOLE.** One expo-sqlite file in Documents, never the
-  purgeable cache, kept out of the iCloud device backup (owner decision: it
-  downloads again) by the local module `apps/mobile/modules/backup-exclusion`,
-  as is the outbox's folder of staged photos, whose rows that file holds
-  (`excludedFromBackup` in `apps/mobile/src/notes/outbox-files.ts`). A row per
-  file the tree names holds its oid, the commit its blob first appeared at (so
-  an attachment is fetched once), and for a note or a comment store its text
-  with the frontmatter id and aliases, so the resolver's alias and uuid tiers
-  answer on the phone. The commit advances only when no wanted row is empty, so
-  a refresh cut short resumes. Rejected: a body cache keyed `(commit, path)`
-  beside a tree held in memory, which shows nothing on a cold offline launch,
-  loses every body to any commit, and holds no frontmatter. A sign-in, a
-  sign-out and a revocation wipe the rows and the attachments; the boot restore
-  keeps them. The phone's database has ONE `user_version`, so a table another
-  module adds is a step in `apps/mobile/src/lib/phone-db.ts`. Until the first
-  build EAS makes (`easProject` in `apps/mobile/app.config.js`), no phone holds
-  a file worth upgrading, so the schema is ONE step edited in place and a stored
-  row's parser defaults no field for an older row; from that build on, a step is
-  appended, never edited. `apps/mobile/src/notes/vault-mirror.ts`,
-  `apps/mobile/src/notes/notes-store.ts`.
+- **The phone is styled with NativeWind over the app's own tokens, as kyh/init's phone is** (owner
+  decision). One sheet's light and dark variables, named as the web's tokens, and `palette.ts` only
+  for a colour React Native takes as a value, since `StyleSheet.create` respells it per screen.
+  `apps/mobile/src/styles.css`.
+- **The phone's style pins are NativeWind's release candidate pair, set up as its install says, and
+  a rem is the web's.** nativewind 5.0.0-rc.0, react-native-css 3.1.0-rc.0 and lightningcss 1.30.1
+  exact, since a later lightningcss may fail to read the sheet. `pnpm-workspace.yaml`.
+- **A multi-line phone field is padded `pt-*` and `pb-*`.** `py-*` compiles to `paddingBlock`, and
+  iOS gives a multi-line `TextInput` with no `paddingTop` its own 5.
+  `apps/mobile/src/styles.test.ts`.
 
-- **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
-  CONFLICTS.** A write is durable in the phone's `outbox` table before it
-  resolves, and reads, the listing and the resolver see it from then on; the
-  rows go to `POST /v1/vault/commit` oldest first, one change set per row, on
-  every write, resume, reconnect and a backoff. A write carries the text it was
-  computed from, the editor's `expected` guard, compared with the text the phone
-  holds under the store's write lock; a mismatch answers what the phone holds
-  for the page's own merge, never a merge in the store, which would be a second
-  write policy beside the editor's. A write to a path whose last row writes it
-  replaces the text and KEEPS THE FIRST BASE, so three offline saves are one
-  write. A 409 is settled on the phone by `reconcileFile`
-  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, and the result
-  and its copy land as ONE set, kept on the row before it is sent, so an answer
-  lost after the vault applied it is resent unchanged and answered as already
-  held. A landing moves the mirror in the transaction that retires the row and
-  stamps what it moved, and a refresh skips every row stamped after it read,
-  because its tree may predate the write. Nothing is dropped: unreachable keeps
-  the queue, a refusal no resend passes PARKS its row with its bytes while other
-  paths go on, and a sign-out with anything unsent asks first (owner decision:
-  it then discards them, and a revocation wipes them with the mirror). Rejected:
-  a merge on the Worker, a second policy beside the desktop's; and replaying the
-  intent after a lost answer, which reconciles the phone against its own landed
-  set and can copy it again. `apps/mobile/src/notes/vault-outbox.ts`,
-  `apps/mobile/src/notes/outbox-reconcile.ts`,
-  `tools/e2e/src/scenarios/phone-offline-edit.ts`.
+## Shipping
 
-- **THE PHONE'S FILE VERBS PLAN WITH THE SERVER'S PURE RULES, AND EACH IS ONE
-  CHANGE SET.** Create, rename, delete and a photo
-  (`apps/mobile/src/notes/file-ops.ts`) run the rules the server does
-  (`plan-rename`, `store-removal`, `asset-name` in `@repo/notes`), because a
-  phone copy is a second spelling that drifts. A rename plans over the phone's
-  own link graph and queues the move, the note's new text and every rewritten
-  note as ONE row, a changed text going as a delete and a put under the guards a
-  move takes; a rewritten note another device changed first keeps its bytes and
-  is named (`reconcileRename` in `apps/mobile/src/notes/outbox-reconcile.ts`),
-  and the old stem's alias still answers its link. A delete carries the note's
-  comment store, so a note the vault keeps because another device edited it
-  keeps its comments. Notes only: no folder verbs on the phone in 0.6 (owner
-  decision). A photo is a JPEG at most 2048px on its long edge
-  (`apps/mobile/src/notes/photo-ingest.ts`): a HEIC is no asset type the vault
-  takes and the Mac's editor cannot draw it, and the re-encode writes no EXIF,
-  so no location reaches the vault's history. Rejected: link rewrites as rows of
-  their own, which could land a rename without the links it moved, and a typed
-  name cleaned up rather than refused, which shows a title that was never saved.
-
-- **A PHONE COMMENT IS ITS MARKERS AND ITS ENTRY IN ONE CHANGE SET** (owner
-  decision: the phone comments and replies). The touch toolbar's Comment puts
-  the kit's markers in only at Save, and the page's flush that writes them goes
-  as `addComment`, not `write`, carrying the comment
-  (`apps/mobile-editor/src/host/page-host.ts`); the phone plans the entry under
-  its write lock and queues the note and its store as ONE `comment` row
-  (`editComments` in `apps/mobile/src/notes/notes-store.ts`), a note without an
-  id minting one by the desktop's line cut (`@repo/notes/comments/comment-key`),
-  every entry signed `user`. A reply, a resolve and a delete are rows of the
-  store alone (`apps/mobile/src/notes/comment-ops.ts`); a deleted thread's
-  markers go as the desktop's do, through the page's live editor and its next
-  write (`commentsRemoved`). The page draws its ranges by the note's threads and
-  which are resolved, as the desktop's editor does: the editor ports send
-  `commentMeta` when the page opens a note, after each of the phone's own
-  comment verbs, and when a pull changes the note's store or its id
-  (`apps/mobile/src/editor/editor-ports.ts`). A stale set is settled per path
-  (`reconcileComment` in `apps/mobile/src/notes/outbox-reconcile.ts`): the note
-  as a write is, and the store by its entries, so a comment another device made
-  meanwhile keeps both threads. Rejected: markers in at the field's opening, as
-  the desktop's popover does, which the 600ms autosave writes long before there
-  is a comment, so a pull could find markers with nothing behind them; and a
-  store write in a row of its own after the note's, which is the same gap.
-  Residual: a hardware chord's create lands its entry in a set of its own; and
-  when two devices each give one id-less note its first comment at once, the
-  other's thread waits under an id no note carries.
-
-## Repo guards, vendoring and tooling
-
-- **THE PHONE SHIPS THROUGH EAS TO TESTFLIGHT, AND AN UNSET CLOUD URL IS THE
-  PRODUCTION ORIGIN ON BOTH CLIENTS.** `pnpm testflight:mobile` builds on EAS
-  and submits, iPhone only (owner decision); the signing credentials live on
-  EAS, never in the repo, and build numbers are EAS's (`appVersionSource:
-  remote` in `apps/mobile/eas.json`), so no commit bumps one. The marketing
-  version is `apps/mobile/package.json`'s, one product version with the CLI and
-  the desktop, and EAS builds with the repo's node and pnpm
-  (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is an EAS
-  Update to builds of the same native fingerprint, a native change a new build
-  (owner decision). `PRODUCTION_CLOUD_ORIGIN` (`@repo/contract/cloud/origin`) is
-  the one spelling the CLI's config and the phone's `getCloudUrl` fall back to;
-  the phone reads `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a malformed
-  one. Rejected: per-profile env in `eas.json`, a second spelling of the origin,
-  and a fallback to a dead host, which made a misconfigured build one that could
-  only fail. `apps/mobile/src/__tests__/app-config.test.ts` holds the store
-  config to what App Store Connect judges.
+- **The phone ships through EAS to TestFlight, and an unset cloud URL is the production origin on
+  both clients.** iPhone only (owner decision), credentials and build numbers EAS's, and
+  `PRODUCTION_CLOUD_ORIGIN` the one fallback, since per-profile env respells the origin.
+  `apps/mobile/eas.json`.
+- **The phone's version is the product's, and its share extension a signed target of its own.** A
+  JS-only fix is an EAS Update to builds of the same fingerprint and a native change a new build
+  (owner decision); the App Group and its one extension are held to what App Store Connect judges.
+  `apps/mobile/src/app-config.test.ts`.

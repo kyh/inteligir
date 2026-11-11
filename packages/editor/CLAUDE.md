@@ -1,256 +1,144 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it round-trips, and the open note's write policy.
-`AGENTS.md` § Decisions says how a bullet is written and cited.
+The editor, the dialect it reads and writes, an item's live note, and the grammar, links and a
+file's facts it reads.
 
 ## Shape
 
-The Plate WYSIWYG: kits and nodes for every dialect construct, the md-rules
-table, the fixpoint serializer and its fixture matrix, and the open-note runtime
-(vault-session, note-runtime, open-note-store) a host drives through three
-seams: `VaultSessionPorts` (`packages/editor/src/note/vault-session.ts`), the
-`GuardedVaultPort` its one write policy runs over
-(`packages/editor/src/guarded-vault-io.ts`) and the `EditorHost` singleton
-(`packages/editor/src/host-io.ts`, opened to React by `host.ts`): its
-`EditorHostIo`, which also carries the link resolver store and note formulas so
-no host writes its own, the `EditorHostActions` a deep node asks the shell
-through (Ask agent, `showTag`, a comment's create and open, all required),
-installed by one `installEditorHost` call per host.
-`node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect fields ride
-`TElement`'s open index signature, so every read arrives as `unknown` and
-becomes a domain value there alone, which is why no walk narrows structurally.
+The Plate WYSIWYG: a kit and node per dialect construct, the md-rules table over Plate's stock
+markdown, and the item editor (`packages/editor/src/item/item-editor.tsx`) bound to its note's live
+document. A host drives it through the `EditorHost` singleton (`packages/editor/src/host-io.ts`),
+installed once per host by `installEditorHost`, so no host keeps a store of its own.
+`packages/editor/src/node-props.ts` is the Slate decode boundary: a node's dialect fields arrive as
+`unknown` and become domain values there alone.
 
 ## Editor and dialect
 
-- **THE EDITOR IS A WYSIWYG OVER A BYTE-DISCIPLINED SERIALIZER, AND EVERY SAVE
-  GOES THROUGH `serializeNote`** (epic #579, owner decision). Plate.js over one
-  owned parse, one rule table and a bounded fixpoint. Byte stability is a
-  contract defended by tests, not a property of the data model: canonical files
-  round-trip byte-exact, churn-class constructs may canonicalize on the first
-  save (stated per fixture), and a file the pipeline cannot round-trip opens
-  raw; the fixtures are formatter-exempt because their bytes are the assertion.
-  The live save, an extract and the gate all call `serializeNote`, because the
-  rule table expects its pre-pass over the whole value. Rejected: a paragraph
-  rule's prune, under which a heading or a list item saved `**a****b**`, and
-  Plate's own `serializeMd`, which skips the pre-pass and writes a ZWSP beside
-  every chip. `packages/editor/src/markdown/markdown-doc.ts`,
-  `packages/editor/README.md` § Invariants.
+- **The editor is a WYSIWYG over an item's blocks, and every markdown the codec writes goes through
+  `serializeNote`** (owner decision). Plate's stock markdown plus one rule table, meaning the tested
+  contract and never bytes, since a byte-exact codec of our own would be most of the editor's code.
+  `packages/editor/src/markdown/md-matrix.test.ts`.
+- **`readMarkdown` refuses with a typed reason, never a throw.** Nesting past `LIST_MAX_INDENT` or
+  `READ_MAX_DEPTH`, or a stack that runs out, is `too-deep` and a throwing rule `failed`, and every
+  caller refuses either, so no platform reads what another refuses.
+  `packages/editor/src/markdown/md-read.ts`.
+- **The markdown runs headless, and the codec sits beside the library.** `@repo/editor/codec/*`
+  and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does
+  and `import(export(item))` means the item, ids aside. `packages/editor/src/headless-kits.test.ts`.
+- **The editor ships its behaviour CSS, and the appearance dials are one declaration.** Every hook
+  is spelled once, since a missing sheet fails no other test; the tokens are declared in
+  `apps/web/src/library/styles/globals.css`, and the phone's editor sets `--editor-size` 16px or
+  more, since iOS zooms smaller text. `packages/editor/src/style-hooks.ts`.
+- **Notes speak the inteligir dialect, stock markdown with directives** (owner decision).
+  CommonMark and GFM, an item link as Plate's mention `[Title](mention:<id>)`, `:date`/`:formula`
+  pills, `$$` math, GitHub alerts, `inteligir-*` fences and `:::` containers; what markdown cannot
+  spell is lost on a write, each loss in the changelog. `packages/editor/src/markdown/md-rules.ts`.
+- **Every fence name lives in `@repo/editor/markdown/fence-langs`, and the skills' examples read as
+  what they show.** A drifted spelling opens the block as plain code, and an example the codec
+  cannot hold teaches the agent to lose words. `packages/editor/src/skill-examples.test.ts`.
+- **A directive the dialect does not name is its text, and typed text stays text.** An unknown
+  directive is restored to the bytes that wrote it, and a `:` is escaped only before `date` or
+  `formula`, so `10:30` stays as typed. `packages/editor/src/markdown/md-text-safety.test.ts`.
+- **The dialect has no JSX, and raw HTML is its text.** Its blocks are remark-directive containers
+  and a tag is the text it spells, since an MDX tokenizer or a raw html node is a second spelling
+  the editor cannot edit. `packages/editor/src/markdown/md-plugins.ts`.
+- **The alert is the only callout** (owner decision). A quote led by `[!NOTE]` to `[!CAUTION]` is
+  that alert, and any other marker, an `inteligir-callout` fence or a `<callout>` tag stays text,
+  since five alerts need no second grammar. `packages/editor/src/markdown/md-alerts.test.ts`.
+- **An item's properties are its fields, and only a file has frontmatter.** Each row's edit is one
+  property op, and the title, tags, folder and pin are Info's, so no key has two editors; a `---`
+  fence in a paste or an agent's text is a YAML code block.
+  `packages/editor/src/item/item-properties.ts`.
+- **The Plate slash menu is the insertion surface, and the touch toolbar is its soft-keyboard
+  twin.** Each row writes its own fixpoint and no other row's bytes, a touch button is a row of a
+  table the desktop reads, and an empty inline equation writes no bytes (owner decision).
+  `packages/editor/src/slash-items.tsx`.
+- **A binding is spelled from the table its listener reads, never as a literal.** Five tables own
+  every chord, every label and key glyph derives from their rows, and a chord two tables share is
+  refused, since both would run. `packages/editor/src/mark-shortcuts.ts`.
+- **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
+  a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
+  merges. `apps/web/src/library/library/library-verbs.ts`.
+- **An extract is one undo step, and its note is an item of its own.** The host makes the note of
+  the very blocks first, then the removal and the link land as their own undo step, since
+  create-or-reuse by title lost the blocks. `packages/editor/src/extract-note.ts`.
+- **A formula recompute is not an edit, and a bound ref's item is found by id.** A pass reads only
+  the items its pills name, and its display lands outside the note's undo (`withoutSaving`), so one
+  undo reaches the person's own edit. `packages/editor/src/formulas/formula-recompute.ts`.
+- **A block overlay names its block by node id and subscribes to the document.** A path goes stale
+  after an insert above, and Plate turns ids off under NODE_ENV=test, so such a suite mounts with
+  ids on. `packages/editor/src/block-draggable.tsx`.
+- **A save keeps every line break.** The model holds both breaks as one `"\n"`, so each saves as a
+  backslash break and a url before one is written `<url>`; a save may split a line, never join two.
+  `packages/editor/src/markdown/md-stringify.test.ts`.
+- **Typing in a long note walks it only through a recorded budget, and pays for no store atom per
+  block.** A pass over a 10k-line note is a named row timed as a ratio, so a new pass fails by its
+  name and a slow runner never does; `SKIP_TYPING_BUDGET` skips it on the swapping macOS runner.
+  `packages/editor/src/typing-budget.test.tsx`.
+- **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
+  the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
+  whole-block op lands, since hiding the buttons lets a paste or key in.
+  `packages/editor/src/kits/rich-block-lock-kit.ts`.
+- **A Mermaid fence is drawn by Pele, synchronously, and its theme is CSS.** Pele reads Mermaid
+  into SVG with no dependency in each change's layout effect, where mermaid.js is 2 MB, async and
+  bakes its theme into its DOM. `packages/editor/src/nodes/code-block-mermaid.tsx`.
+- **A diagram loads nothing, and its markup becomes nodes only through the inert-SVG parse.**
+  Nothing remote draws in an item, so only the svg namespace's elements survive, less every
+  script, handler and outside reference. `packages/editor/src/lib/inert-svg.ts`.
+- **A long note renders in runs of a hundred blocks that skip paint off screen, every block
+  mounted.** Slate needs every node's DOM for a selection or find, so runs replace virtualization,
+  and where WebKit keeps no scroll anchor the editor keeps one.
+  `packages/editor/src/run-anchoring.ts`.
+- **An item is edited by its id, over its note's live document, drawn once that has synced.** No
+  device seeds a note, a socket down past 3 s turns the editor read-only, and a leave asks
+  `whenSaved`, since block ops after a pause need a merge a live document does not.
+  `packages/editor/src/item/note-connection.ts`.
+- **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
+  `readItemBlocks`, `onItemsChanged` and `notes` take ids and `readFile` a sha, since paths a host
+  mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
+- **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
+  by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
+  bytes held until a pause were lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
+- **A fold is the device's view state, and holds none of the library's words.** It sits in local
+  storage under a hash of the heading, dropped on leaving the account, since a fold in the cell
+  makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
+- **A table cell keeps a code span's and an equation's pipes, and its `<br/>` parts its blocks.**
+  gfm splits a row at every bare pipe and the writer joins a cell's blocks with `<br/>`, so both
+  read back as written. `packages/editor/src/markdown/md-rules.ts`.
+- **With no connection an item reads but takes no edit.** It goes read-only under Plate's
+  `readOnly` and says "Needs a connection", every writing handler `editOnly`, since the cloud is the
+  truth; typing from before the drop reaches the note once it is back.
+  `packages/editor/src/read-only-handlers.test.ts`.
+- **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
+  picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
+  `tools/e2e/src/editor.spec.ts`.
+- **A note's body is one live document, every editor of it bound innermost, and every kit fixes
+  its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
+  changes, since `@platejs/yjs` takes no custom provider without a type assertion.
+  `packages/editor/src/live/yjs-binding.ts`.
+- **The editor and `@repo/ui` reach no oRPC module.** Expo's DOM bundle compiles classes to
+  functions and oRPC's builder dies under that at boot while typecheck stays green, so lint refuses
+  `@orpc/*` and every `@repo/contract` module that reaches it. `oxlint.config.ts`.
 
-- **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
-  DECLARATION.** The editor's sheet reaches each host through its `globals.css`
-  import, and every hook is spelled once, pinned both ways and to each host's
-  import, because a missing sheet fails no other test
-  (`packages/editor/src/style-hooks.ts`). The tokens are declared once in
-  `apps/workspace/src/styles/globals.css` and read with no fallback; the phone
-  page writes its own value for each, no dials, `--editor-size` at 16px or more
-  because iOS zooms into smaller text
-  (`tools/repo-guards/src/appearance-tokens.test.ts` counts the writes). No
-  accent axis: nothing in Plate consumes a hue.
+## The grammar, links and a file's facts
 
-- **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
-  `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
-  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
-  [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
-  `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
-  `:::columns` containers, and `![](url)` embeds, all valid markdown, all
-  round-tripping. Pills, dates, comment anchors and `:::` lines are read from
-  finished text, so a backslash before one's first character keeps it text
-  (`\@2026-08-22`), and the serializer writes that escape before a text the next
-  parse would read as one, so text a person types stays text. Only a web url
-  embeds, since `![](path)` is a vault image, and alt text or a title keeps a
-  web image an image. Every spelling lives in one place
-  (`@repo/notes/markdown/fence-langs`), and
-  `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
-  `apps/cli/seed/` to it. Plain nested `.md`: no bundles, no meta.json.
-
-- **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
-  in any flow container, a `:::` closing the innermost, and every tag is html,
-  the editor's own only where it is a bare `<u>`
-  (`@repo/notes/markdown/remark-containers`). Rejected: jsx tags for the toggle,
-  columns, dates and embeds, which kept an MDX tokenizer and its guards in the
-  grammar and a jsx writer in the serializer, and wrote tags other markdown
-  tools draw as raw html; and a date as a `[[YYYY-MM-DD]]` link, which costs the
-  chip and its calendar.
-
-- **THE ALERT IS THE ONLY CALLOUT** (owner decision): an `inteligir-callout`
-  fence is a plain code block and a `<callout>` tag is carried as its source,
-  both saved byte-exact. Rejected: reading either as a callout, a second grammar
-  with its own node and index pass for kinds the five alerts cannot spell.
-
-- **FRONTMATTER IS THE ONLY PROPERTY STORE**: no metadata table, a note's UUID
-  is its `id:`, and YAML the typing rules cannot represent is preserved
-  byte-exactly. `@repo/notes/markdown/frontmatter`.
-
-- **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
-  one `OpenNoteStore`, and every surface reads the open note. Registries keyed
-  on a note's path keep that key so a late answer cannot land on the note that
-  replaced it. There is no raw/rich toggle: the surface derives from
-  `packages/editor/src/note/markdown-gate.ts` alone.
-
-- **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
-  SOFT-KEYBOARD TWIN.** Slash items are grouped data; every row's markdown must
-  re-parse to a modeled construct and be its own fixpoint, no row excepted, and
-  no two rows may write the same bytes: a second name for a construct is a
-  keyword on its row (`/day` finds Date). A soft keyboard has no chord and a
-  finger no hover, so the touch kit adds a keyboard toolbar whose every button
-  is a row of a table the desktop reads; only what no table holds is a touch row
-  of its own, and the toolbar's suite refuses anything else. A locked editor
-  offers no rich-block row. An empty inline equation writes no bytes, by owner
-  decision: markdown has no empty inline math.
-  `packages/editor/src/slash-items.tsx`,
-  `packages/editor/src/touch-toolbar.tsx`.
-
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON THE TEMPLATE'S OWN
-  BYTES.** A template is a doc under `templates/` (a fixed convention like the
-  daily folder, no setting); `templates/Daily.md` shapes the daily note. Exactly
-  three placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced in place on
-  the raw markdown, so the formula grammar never sees them and every other
-  `{{…}}` is a pill left byte-exact. The title is a file name, which can spell
-  markdown and yaml, so it is escaped for where it lands, and only as much as
-  the next parse needs. Rejected: escaping every punctuation mark, which writes
-  `Mike\'s` into the file, and re-serializing the template, which restyles bytes
-  the author wrote. That expansion loads both parsers, so the folder names live
-  apart from it (`@repo/notes/templates/folders`), where the contract and every
-  command-line verb read them. A note minted from a template drops the
-  template's `id:`, because two notes with one id make the uuid link tier
-  ambiguous. `@repo/notes/templates/placeholders`,
-  `packages/editor/src/insert-template.ts`.
-
-- **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Five tables own every chord and each handler walks its own; the
-  marks' table builds Plate's own shortcut config, so Plate's defaults never
-  run. Every label is derived from those rows (`@repo/ui/lib/hotkey-spelling`),
-  so a rebinding leaves no stale label. A chord two tables share is refused,
-  because a key both claim runs both. A row claims shift explicitly, so an
-  unshifted row never fires on a shifted chord. The rail's `[` and the panel's
-  `]` are BARE rows, answering only with focus outside a field, since a bare key
-  is a character wherever text is typed.
-  `packages/editor/src/mark-shortcuts.ts`,
-  `apps/workspace/src/app/global-shortcuts.ts`.
-
-- **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  Pinning travels with the file, so every device and the agent agree; a pinned
-  note tops the recents with no Pinned heading, which would cost more height
-  than it explains. The edit cuts or appends the key's own lines rather than
-  re-serializing the frontmatter, which restyles every flow list; unpinning
-  removes the key, never writes `false`. The open note takes the edit through
-  the live editor, so the autosave carries it; any other note is a guarded write
-  whose mismatch is reported, never merged. The pinned set is the index's, so a
-  pin shows after the sweep. `@repo/notes/markdown/frontmatter`,
-  `apps/workspace/src/app/note/pin-note.ts`.
-
-- **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
-  HISTORY BATCH.** ⌘⇧O opens the palette on the open note's outline and lands
-  through the TOC's own jump (`packages/editor/src/toc.tsx`). The outline is
-  walked once, by whatever opens the page, and rides the page, never walked in
-  render: the workspace sits outside the Plate provider, so a render-time read
-  is one nothing refreshes. "Extract to new note" creates the note through the
-  exclusive create before touching the buffer, because create-or-reuse would
-  count an existing file as success and the blocks would leave for a note that
-  never received them; blocks anchoring a comment are refused, since the thread
-  would stay behind. The removal and the `[[link]]` land in one flush, so one
-  undo restores both; the created file stays, because the vault has no
-  transaction and a note that exists is truer than an edit that never happened.
-  `packages/editor/src/extract-note.ts`.
-
-- **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY ID.**
-  A bound ref names its note by frontmatter `id`, which the index's wiki-targets
-  rows carry, so a host reads only that note; reading every doc to find one id
-  is rejected, since a recompute runs after each typing pause. The display a
-  recompute rewrites lands outside the undo history, because the user never
-  typed it and one undo must reach their own last edit. The id has one reader,
-  in `@repo/notes/markdown/frontmatter`. `packages/editor/src/note-formulas.ts`,
-  `packages/editor/src/formulas/formula-recompute.ts`.
-
-- **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE DOCUMENT.**
-  A path goes stale after an insert above, since Plate re-renders a block only
-  when its own node changes, so the heading fold and the drag handle key a block
-  by its node id and read the document through a selector that moves only when
-  what they draw does. Plate turns the id plugin off under NODE_ENV=test, so
-  such a suite mounts the harness with ids on.
-  `packages/editor/src/heading-collapse.tsx`,
-  `packages/editor/src/block-draggable.tsx`.
-
-- **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
-  An embed inside an embed stays a chip, the nesting stop, so the only cycle
-  left to refuse is a note embedding itself
-  (`packages/editor/src/transclusion-guard.ts`). PlateStatic's default element
-  draws a void empty or throws, so the static table holds a row for every void
-  (`packages/editor/src/transclusion.tsx`).
-
-- **A SAVE KEEPS EVERY LINE BREAK, AND ONE THAT WOULD JOIN TWO LINES OPENS
-  RAW.** Plate's default text rule drops a leading `"\n"`, a soft break after
-  any inline node, so the rule table keeps it. A paragraph's soft break saves as
-  a hard break, since the model holds both as one `"\n"`; the hard break is `\`,
-  except after a bare url, which would read it back as its own, and a bare url
-  is an opaque inline, never `html`, which would turn the break into a space.
-  The gate backs it: a save may split a line but never join two.
-  `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
-
-- **COMMENT MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
-  DECORATION.** A block comment is a marker line above a fence and another below
-  it, so markers pair in document order over the whole note. Rejected: pairing
-  per block, which draws a two-paragraph comment as two orphans, and refusing a
-  selection that crosses blocks. The ranges are returned for the root alone,
-  because a per-text decoration leaves an untouched middle block with a stale
-  tint. `packages/editor/src/comments/comment-ranges.ts`.
-
-- **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
-  BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
-  the settle after typing may each walk the whole note only through passes a row
-  names with its reason, and their times are held as ratios (to how a keystroke
-  grows with the note, to the parse of the same note) so a slow runner cannot
-  fail them. A pass is found, never declared: a block near the note's end
-  records the stack of every read of it, so a new pass fails named by its
-  function, where instrumenting the known passes would miss the one nobody
-  instrumented. A pass a keystroke cannot afford caches by top-level block,
-  since an edit keeps every untouched block by identity.
-  `packages/editor/src/__tests__/typing-budget.test.tsx`, held by the Linux CI
-  job: on the 7 GB macOS runner the note swaps, so that job sets
-  `SKIP_TYPING_BUDGET` (`packages/editor/vitest.config.ts`).
-
-- **THE PHONE RUNS THE DESKTOP'S EDITOR THROUGH A TOUCH KIT, AND ITS RICH BLOCKS
-  ARE READ-ONLY IN THE MODEL** (owner decision). The touch kit is COMPOSED, the
-  content kit plus the lock and the touch chrome, rather than the desktop kit
-  minus its pointer chrome, so a pointer surface added to the desktop stays off
-  the phone until someone names it there
-  (`packages/editor/src/kits/touch-editor-kit.ts`). A chart, a canvas, an html
-  block, tabs and columns are read-only there: every op inside one is refused,
-  while a whole-block insert, remove or move passes, so a re-seed lands and one
-  undo restores a deleted block
-  (`packages/editor/src/kits/rich-block-lock-kit.ts`). Hiding the edit buttons
-  alone was rejected, since a paste, a key or a transform from elsewhere would
-  still reach the block. A keystroke aimed inside a locked block is refused at
-  `beforeinput` too: slate-react defers a plain character to an input event the
-  browser never fires there, so the model guard alone let it land wherever the
-  user typed next. A host with no html frame draws no Run.
-
-## Vault: writes, git and containment
-
-- **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
-  ABOUT.** A refused write keeps the buffer dirty, said once per failure and
-  retried on a backoff, since nothing else re-arms the autosave. A guarded write
-  that finds no file, its merge's retry included, answers `vanished` and is
-  never retried; refusing to leave it would hold the user there for good, so
-  leaving asks: discard, or re-create the note from the buffer.
-  `packages/editor/src/note/note-runtime.ts`,
-  `packages/editor/src/guarded-vault-io.ts`.
-
-- **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT THE BUFFER OVER AN
-  OVERLAP SAYS SO.** The line diff runs inside a save's CAS retry, where an
-  unbounded trace cost gigabytes for two long, far-apart notes; past its budget
-  it answers one hunk, which diff3 reads as one changed region. Conflicting on
-  every over-budget merge is rejected: it would warn when nothing was lost. A
-  conflicted merge's toast opens that note's History (owner decision).
-  `@repo/notes/text/line-diff`, `packages/editor/src/vault-editor.ts`.
-
-- **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
-  session suspends the note's controller across the move: edits still land in
-  the buffer while saves and reloads wait, and it resumes at the new path, or
-  the old one when the move failed. Disposing it and opening the new path was
-  rejected: a keystroke typed during the move reached no controller. At a new
-  path the resume reads before it writes, because the guarded io holds no base
-  for a path it never read and the move writes the old name into the note as an
-  alias. `packages/editor/src/vault-editor.ts`,
-  `packages/editor/src/note/vault-session.ts`.
+- **Every reader parses through one plugin list, and no input throws out of it.** The codec, an
+  import, a paste and the editor read through `MD_REMARK_PLUGINS`, and an unused definition or a
+  footnote stays the words written, since two grammars drift.
+  `packages/editor/src/markdown/md-corpus.test.ts`.
+- **An md url has one reading, and only an import resolves one by path.** Past the import an item is
+  reached by id and a file by sha, and only an http(s) url reaches the browser, since no item has a
+  path to resolve against. `packages/editor/src/codec/import-plan.ts`.
+- **A `[[…]]` names what the resolver answers to.** Obsidian's links are read only where markdown
+  comes in from outside, and `.md` is the one extension a link leaves off, so a `.txt` note links
+  as `[[todo.txt]]`. `packages/editor/src/knowledge/link-resolve.test.ts`.
+- **An agent's edit matches once and reads again only the blocks it spans.** The rest are matched
+  by content and keep their ids, since re-reading a whole item turns every block's id over.
+  `packages/editor/src/codec/item-edit.ts`.
+- **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
+  the codec read them into the item's fields through `readItemFacts`, the filename the title, and
+  `title:` is written only when the stem cannot carry it.
+  `packages/editor/src/items/item-frontmatter.ts`.
+- **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
+  the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and
+  input of our own respell what Plate's mention does. `packages/editor/src/kits/mention-kit.tsx`.

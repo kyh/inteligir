@@ -8,11 +8,11 @@
    here would make every app ship every other app's classes */
 @source "../**/*.{ts,tsx}";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   /* Fluid's type scale, at the compact step the product pins
-     (`apps/workspace/src/app/workspace-context.tsx`). The numbers are the compact column
+     (`apps/web/src/library/library-layout.tsx`). The numbers are the compact column
      of `typeScale` in lib/size-context.tsx, which is the scale's one declaration; a region on
      the default step reads `typeScale` or `useSize().text` rather than these utilities.
      `type-scale.test.ts` keeps the two in step. */
@@ -275,6 +275,10 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* the containing block of a dialog's backdrop where iOS WebKit draws it absolute, so it
+       covers the visual viewport after a scroll (https://base-ui.com/react/overview/quick-start);
+       each page's root element carries `isolate`, so a popup portalled into body stays above it */
+    position: relative;
   }
 
   ::-webkit-scrollbar {
@@ -376,11 +380,8 @@
 
 /* Popup motion ported from joshpuckett/bloom (MIT). Base UI holds the popup mounted through
    data-closed until these animations end.
-   spring and fade are separate animations: the spring's linear() overshoots past 1, and on
-   filter: blur() that interpolates to a negative radius, which the browser drops.
-   the blur is on the children, never the popup: a filter makes the popup a backdrop root and the
-   backdrop-blur glass has nothing left to sample. enter fills backwards, not both, because a
-   forwards fill leaves filter: blur(0) at rest, still a backdrop root. */
+   spring and fade are separate animations: the spring's linear() overshoots past 1, which a
+   transform can carry and an opacity cannot. */
 @keyframes bloom-shell-in {
   from {
     transform: translate3d(var(--bloom-in-x, 0), var(--bloom-in-y, 0), 0) scale(0.95);
@@ -414,28 +415,6 @@
   }
   to {
     opacity: 0;
-  }
-}
-
-@keyframes bloom-items-in {
-  from {
-    opacity: 0;
-    filter: blur(10px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-@keyframes bloom-items-out {
-  from {
-    opacity: 1;
-    filter: blur(0);
-  }
-  to {
-    opacity: 0;
-    filter: blur(10px);
   }
 }
 
@@ -492,21 +471,9 @@
     bloom-fade-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
-/* only for popups whose children are a static list: a filtering surface remounts its children on
-   every keystroke, which would replay the blur on each one */
-.bloom-popup-items[data-open] > * {
-  animation: bloom-items-in 200ms ease-out 30ms backwards;
-}
-
-.bloom-popup-items[data-closed] > * {
-  animation: bloom-items-out 150ms ease-out forwards;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .bloom-popup[data-open],
-  .bloom-popup[data-closed],
-  .bloom-popup-items[data-open] > *,
-  .bloom-popup-items[data-closed] > * {
+  .bloom-popup[data-closed] {
     animation-duration: 1ms;
     animation-delay: 0ms;
   }

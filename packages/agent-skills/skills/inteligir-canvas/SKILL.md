@@ -1,8 +1,3 @@
----
-name: inteligir-canvas
-description: Canvas blocks in inteligir notes — when a spatial sketch is the right answer, and the exact grid payload.
----
-
 # inteligir Canvas
 
 Canvas is a rough spatial surface: boxes, connectors, and relative position. It
@@ -11,9 +6,10 @@ is not a diagram renderer and not a place for readable sentences.
 ## When To Reach For It
 
 Use canvas when someone asks for a canvas, edits an existing one, or wants a
-sketch they can rearrange. Use a **`plaintext` code fence** for a generic flow,
-wireframe, or menu sketch — ASCII stays readable everywhere, including in a diff.
-Use a chart for quantity and an image for anything polished.
+sketch they can rearrange. Use a **`mermaid` code fence** for a flowchart or a
+sequence, and a **`plaintext` code fence** for a wireframe or menu sketch — both
+stay readable as text everywhere. Use a chart for quantity and an image for
+anything polished.
 
 The test: if the words matter more than where the boxes sit, canvas is the wrong
 block.
@@ -51,8 +47,8 @@ The labels line must be valid compact JSON on one line.
 
 ## Drawing Something Readable
 
-- Count columns deliberately, or generate the rows programmatically. Hand-aligned
-  ASCII drifts by one character and the whole sketch skews.
+- Count columns deliberately. Hand-aligned ASCII drifts by one character and the
+  whole sketch skews.
 - Favor rectangles, straight connectors, and generous space.
 - Do not draw arrowheads out of `<` and `>`; show direction with layout and
   labels.

@@ -2,8 +2,17 @@
 // operation re-resolves the element's path and no-ops when it is gone:
 // restoring text over an undo corrupts history.
 
-import { NodeApi } from "platejs";
+import { KEYS, NodeApi, createSlatePlugin } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
+
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+
+// the elements a picker keeps its query in, which stand in a block only while it is open
+export const PICKER_INPUT_TYPES: readonly string[] = [
+  KEYS.slashInput,
+  KEYS.mentionInput,
+  FORMULA_INPUT_KEY,
+];
 
 export type ComboboxCancelCause = "arrowLeft" | "arrowRight" | "backspace" | "deselect" | "escape";
 
@@ -11,6 +20,24 @@ const elementPath = (editor: SlateEditor, element: TElement): Path | null => {
   const path = editor.api.findPath(element);
   return path ?? null;
 };
+
+// A key typed between a picker opening and its input taking focus reaches Slate with the caret in
+// the picker's element, a void, where a plain insert is dropped; it lands in the element's hidden
+// text instead, which the input absorbs as its query.
+export const PickerRaceKit = [
+  createSlatePlugin({ key: "pickerRacedKeys" }).overrideEditor(
+    ({ editor, tf: { insertText } }) => ({
+      transforms: {
+        insertText(text, options) {
+          const raced =
+            options?.at === undefined &&
+            editor.api.some({ match: { type: [...PICKER_INPUT_TYPES] } });
+          insertText(text, raced ? { ...options, voids: true } : options);
+        },
+      },
+    }),
+  ),
+];
 
 // Keystrokes that landed in the element's text child between the trigger keydown and the input taking focus.
 export const racedComboboxText = (element: TElement): string => NodeApi.string(element);

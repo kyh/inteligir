@@ -1,0 +1,256 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  BLOCK_MAX_BYTES,
+  BLOCK_MAX_DEPTH,
+  LIST_MAX_INDENT,
+  collectFileShas,
+  libraryBlockSchema,
+  libraryNodeSchema,
+  storableBlockSchema,
+} from "./library-nodes";
+import type { LibraryNode } from "./library-nodes";
+
+const leaf = [{ text: "" }];
+const sha = "a".repeat(64);
+
+// one of every block the vocabulary holds, as the editor's kits write them
+const EVERY_BLOCK = [
+  {
+    checked: false,
+    children: [
+      { bold: true, text: "Bold" },
+      { italic: true, text: " italic" },
+      { children: [{ code: true, text: "link" }], type: "a", url: "https://example.com" },
+      { children: leaf, key: "item-2", type: "mention", value: "Other" },
+      { children: leaf, key: "item-4", type: "mention", value: "" },
+      { text: " #work/plans " },
+      { children: leaf, date: "2026-07-01", type: "date" },
+      {
+        children: leaf,
+        display: "12,000",
+        meta: "id=f1;name=budget",
+        source: "1000*12",
+        type: "formulaPill",
+      },
+      { children: leaf, texExpression: "x^2", type: "inline_equation" },
+    ],
+    id: "p1",
+    indent: 1,
+    listStyleType: "todo",
+    type: "p",
+  },
+  { children: [{ text: "Title" }], id: "h1", type: "h1" },
+  { children: [{ text: "Part" }], id: "h2", type: "h2" },
+  { children: [{ text: "Section" }], id: "h3", type: "h3" },
+  { children: [{ text: "Four" }], id: "h4", type: "h4" },
+  { children: [{ text: "Five" }], id: "h5", type: "h5" },
+  { children: [{ text: "Six" }], id: "h6", indent: 1, listStyleType: "disc", type: "h6" },
+  { children: [{ text: "Quote" }], id: "q1", type: "blockquote" },
+  {
+    children: [{ children: [{ text: "const a = 1;" }], type: "code_line" }],
+    id: "c1",
+    lang: "ts",
+    type: "code_block",
+  },
+  { children: leaf, id: "hr1", indent: 2, type: "hr" },
+  {
+    children: [
+      {
+        children: [
+          { children: [{ children: [{ text: "a" }], type: "p" }], type: "th" },
+          { children: [{ children: [{ text: "b" }], type: "p" }], type: "td" },
+        ],
+        type: "tr",
+      },
+    ],
+    id: "t1",
+    indent: 2,
+    type: "table",
+  },
+  { children: [{ text: "More" }], id: "tg1", type: "toggle" },
+  {
+    children: [
+      { children: [{ children: [{ text: "left" }], type: "p" }], type: "column", width: "50%" },
+    ],
+    id: "cols",
+    type: "column_group",
+  },
+  {
+    children: [
+      { children: [{ children: [{ text: "one" }], type: "p" }], label: "One", type: "tab_panel" },
+    ],
+    id: "tabs",
+    type: "tab_group",
+  },
+  { children: leaf, id: "eq", texExpression: "\\int x", type: "equation" },
+  { caption: [{ text: "A cover" }], children: leaf, id: "img1", sha, type: "img", width: 300 },
+  { children: leaf, id: "img2", type: "img", url: "https://example.com/a.png" },
+  {
+    caption: [{ text: "alt" }],
+    children: leaf,
+    id: "img3",
+    title: "A title",
+    type: "img",
+    url: "https://example.com/a.png",
+  },
+  { children: leaf, id: "f1", name: "paper.pdf", sha, type: "file" },
+  { children: leaf, id: "v1", type: "video", url: "https://www.youtube.com/watch?v=x" },
+  { children: leaf, id: "m1", type: "media_embed", url: "https://twitter.com/a/status/1" },
+  { children: leaf, id: "ch", type: "chart_block", value: "{}" },
+  { children: leaf, id: "cv", type: "canvas_block", value: "[inteligir:grid:v2]" },
+  { children: leaf, id: "ht", type: "html_block", value: "<div></div>" },
+];
+
+describe("the persisted node set", () => {
+  it.each(EVERY_BLOCK.map((block) => [block.type, block] as const))(
+    "holds a %s block",
+    (_, block) => {
+      expect(libraryBlockSchema.safeParse(block).error?.issues).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ["a prop no node names", { children: [{ text: "a" }], color: "red", id: "p", type: "p" }],
+    ["a type no kit has", { children: [{ text: "a" }], id: "p", type: "callout" }],
+    ["a top-level block without its id", { children: [{ text: "a" }], type: "p" }],
+    ["a nested-only element at the top", { children: [{ text: "a" }], id: "r", type: "tr" }],
+    ["an image with both a sha and a url", { children: leaf, id: "i", sha, type: "img", url: "u" }],
+    ["an image with neither", { children: leaf, id: "i", type: "img" }],
+    ["a mark spelled false", { children: [{ bold: false, text: "a" }], id: "p", type: "p" }],
+    ["a void with text inside", { children: [{ text: "x" }], id: "hr", type: "hr" }],
+    ["an id with a newline", { children: [{ text: "a" }], id: "a\nb", type: "p" }],
+    [
+      "a block's ref, which no link reaches",
+      { children: [{ text: "a" }], id: "p", ref: "a", type: "p" },
+    ],
+    ["a table's alignment", { align: ["left"], children: [], id: "t", type: "table" }],
+    [
+      "a link's title",
+      {
+        children: [{ children: [{ text: "a" }], title: "t", type: "a", url: "https://a.b" }],
+        id: "p",
+        type: "p",
+      },
+    ],
+    [
+      "an id below the top level, which only the editor holds",
+      {
+        children: [{ children: [{ text: "a" }], id: "line", type: "code_line" }],
+        id: "c",
+        type: "code_block",
+      },
+    ],
+    ["a heading past six", { children: [{ text: "a" }], id: "h", type: "h7" }],
+    [
+      "a list nested past what the writer holds",
+      { children: [{ text: "a" }], id: "l", indent: LIST_MAX_INDENT + 1, type: "p" },
+    ],
+    [
+      "a date that is no day",
+      { children: [{ children: leaf, date: "2026-02-30", type: "date" }], id: "p", type: "p" },
+    ],
+    [
+      "a tag node, which a tag's text stands for",
+      { children: [{ children: leaf, type: "tag", value: "work" }], id: "p", type: "p" },
+    ],
+    [
+      "a page link to no item",
+      {
+        children: [{ children: leaf, key: "", type: "mention", value: "Note" }],
+        id: "p",
+        type: "p",
+      },
+    ],
+    [
+      "a wiki link, which a page link stands for",
+      {
+        children: [{ children: leaf, itemId: "i", title: "N", type: "wikiLink" }],
+        id: "p",
+        type: "p",
+      },
+    ],
+    [
+      "source no node models",
+      { children: [{ children: leaf, source: "<!-- x -->", type: "opaque" }], id: "p", type: "p" },
+    ],
+  ])("refuses %s", (_, block) => {
+    expect(libraryBlockSchema.validate(block)).toBe(false);
+  });
+
+  it("holds a list as deep as the writer does", () => {
+    expect(
+      libraryBlockSchema.validate({
+        children: [{ text: "a" }],
+        id: "l",
+        indent: LIST_MAX_INDENT,
+        type: "p",
+      }),
+    ).toBe(true);
+  });
+
+  it("reads a text leaf and an inline element as nodes", () => {
+    expect(libraryNodeSchema.validate({ text: "plain" })).toBe(true);
+    expect(libraryNodeSchema.validate({ children: leaf, date: "2024-02-29", type: "date" })).toBe(
+      true,
+    );
+  });
+
+  it("stores what it parses as written", () => {
+    const [first] = EVERY_BLOCK;
+    expect(storableBlockSchema.parse(first)).toStrictEqual(first);
+  });
+});
+
+// built bottom up, so a depth no recursion survives can still be made
+const nested = (depth: number): LibraryNode => {
+  let node: LibraryNode = { text: "deep" };
+  for (let level = 1; level <= depth; level += 1) {
+    node = { children: [node], type: "blockquote" };
+  }
+  return node;
+};
+
+describe("a block the library stores", () => {
+  it("refuses a block nested past the limit before the recursive parse reads it", () => {
+    const tooDeep = { children: [nested(BLOCK_MAX_DEPTH + 5)], id: "deep", type: "blockquote" };
+    const parsed = storableBlockSchema.safeParse(tooDeep);
+    expect(parsed.success).toBe(false);
+    expect(JSON.stringify(parsed.error?.issues)).toContain("nests deeper");
+    const pathological = { children: [nested(20_000)], id: "deeper", type: "blockquote" };
+    expect(storableBlockSchema.validate(pathological)).toBe(false);
+  });
+
+  it("refuses a block larger than a row may hold", () => {
+    const big = { children: [{ text: "x".repeat(BLOCK_MAX_BYTES) }], id: "big", type: "p" };
+    const parsed = storableBlockSchema.safeParse(big);
+    expect(JSON.stringify(parsed.error?.issues)).toContain("larger than");
+  });
+});
+
+describe(collectFileShas, () => {
+  it("finds every file a block names, at any depth, and no web address", () => {
+    const other = "b".repeat(64);
+    const shas = new Set<string>();
+    for (const block of EVERY_BLOCK) {
+      collectFileShas(libraryBlockSchema.parse(block), shas);
+    }
+    collectFileShas(
+      libraryBlockSchema.parse({
+        children: [
+          {
+            children: [
+              { children: leaf, sha: other, type: "video" },
+              { children: leaf, type: "img", url: "https://example.com/a.png" },
+            ],
+            type: "column",
+          },
+        ],
+        id: "c9",
+        type: "column_group",
+      }),
+      shas,
+    );
+    expect([...shas].toSorted()).toStrictEqual([sha, other]);
+  });
+});

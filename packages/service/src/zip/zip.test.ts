@@ -1,0 +1,252 @@
+// The zip reader over other writers' zips: what fflate zips reads back file for file, and so does
+// one whose directory ends in ZIP64's records, as a zip of more files than a plain one counts ends;
+// a zip Python's zipfile wrote reads as it was written; and what a stranger's zip may hold that a
+// library must not take is refused or left out.
+
+import { zipSync } from "fflate";
+import type { ZippableFile } from "fflate";
+import { describe, expect, it } from "vitest";
+
+import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "./zip-read";
+import type { ByteSource } from "./zip-read";
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+const sourceOf = (bytes: Uint8Array): ByteSource => ({
+  read: async (offset, length) => await Promise.resolve(bytes.slice(offset, offset + length)),
+  size: bytes.length,
+});
+
+const MODIFIED = new Date(Date.UTC(2026, 9, 1, 12, 30, 0));
+
+const deflated = (text: string): ZippableFile => [
+  encoder.encode(text),
+  { level: 6, mtime: MODIFIED },
+];
+const stored = (text: string): ZippableFile => [
+  encoder.encode(text),
+  { level: 0, mtime: MODIFIED },
+];
+
+const contents = async (bytes: Uint8Array): Promise<Record<string, string>> => {
+  const source = sourceOf(bytes);
+  const entries = await readZipEntries(source);
+  const read: Record<string, string> = {};
+  for (const entry of entries) {
+    read[entry.path] = decoder.decode(await readZipEntry(source, entry, 1024 * 1024));
+  }
+  return read;
+};
+
+// a Python 3 zipfile of `Notes/Café.md` deflated, a folder entry, and `stored.txt` stored
+const PYTHON_ZIP =
+  "UEsDBBQAAAgIABqoXF3JAHJCLAAAAHgAAAAOAAAATm90ZXMvQ2Fmw6kubWRTVnBOTDu8kovLUSEvvyRVobwos6QkNU8hqVIhESiQkVqkkFhQoMelTGV1AFBLAwQUAAAACAAaqFxdAAAAAAIAAAAAAAAABgAAAE5vdGVzLwMAUEsDBBQAAAAAAAAAIQBleNFaDwAAAA8AAAAKAAAAc3RvcmVkLnR4dHN0b3JlZCBhcyBpdCBpc1BLAQIUAxQAAAgIABqoXF3JAHJCLAAAAHgAAAAOAAAAAAAAAAAAAACAAQAAAABOb3Rlcy9DYWbDqS5tZFBLAQIUAxQAAAAIABqoXF0AAAAAAgAAAAAAAAAGAAAAAAAAAAAAEAD9QVgAAABOb3Rlcy9QSwECFAMUAAAAAAAAACEAZXjRWg8AAAAPAAAACgAAAAAAAAAAAAAAgAF+AAAAc3RvcmVkLnR4dFBLBQYAAAAAAwADAKgAAAC1AAAAAAA=";
+
+// a Python 3 zipfile whose one entry is named `../evil.txt`
+const CLIMBING_ZIP =
+  "UEsDBBQAAAAAABqoXF0OHyZLDgAAAA4AAAALAAAALi4vZXZpbC50eHRvdXQgb2YgdGhlIHppcFBLAQIUAxQAAAAAABqoXF0OHyZLDgAAAA4AAAALAAAAAAAAAAAAAACAAQAAAAAuLi9ldmlsLnR4dFBLBQYAAAAAAQABADkAAAA3AAAAAAA=";
+
+const fromBase64 = (text: string): Uint8Array =>
+  Uint8Array.from(atob(text), (char) => char.codePointAt(0) ?? 0);
+
+// the one entry a zip of one file lists
+const onlyEntry = async (source: ByteSource) => {
+  const [entry] = await readZipEntries(source);
+  if (entry === undefined) {
+    throw new Error("the zip listed no entry");
+  }
+  return entry;
+};
+
+const U16_MAX = 0xff_ff;
+const U32_MAX = 0xff_ff_ff_ff;
+const END_LENGTH = 22;
+
+// the zip with its directory's end written as ZIP64's: the ZIP64 end record and its locator, then
+// a plain end whose count, size and offset each defer to them
+const asZip64 = (zip: Uint8Array): Uint8Array => {
+  const endAt = zip.length - END_LENGTH;
+  const end = new DataView(zip.buffer, zip.byteOffset + endAt, END_LENGTH);
+  const count = end.getUint16(10, true);
+  const size = end.getUint32(12, true);
+  const offset = end.getUint32(16, true);
+  const bytes = new Uint8Array(endAt + 56 + 20 + END_LENGTH);
+  bytes.set(zip.subarray(0, endAt));
+  const data = new DataView(bytes.buffer);
+  data.setUint32(endAt, 0x06_06_4b_50, true);
+  data.setBigUint64(endAt + 4, 44n, true);
+  data.setBigUint64(endAt + 24, BigInt(count), true);
+  data.setBigUint64(endAt + 32, BigInt(count), true);
+  data.setBigUint64(endAt + 40, BigInt(size), true);
+  data.setBigUint64(endAt + 48, BigInt(offset), true);
+  const locatorAt = endAt + 56;
+  data.setUint32(locatorAt, 0x07_06_4b_50, true);
+  data.setBigUint64(locatorAt + 8, BigInt(endAt), true);
+  data.setUint32(locatorAt + 16, 1, true);
+  const plainAt = locatorAt + 20;
+  data.setUint32(plainAt, 0x06_05_4b_50, true);
+  data.setUint16(plainAt + 8, U16_MAX, true);
+  data.setUint16(plainAt + 10, U16_MAX, true);
+  data.setUint32(plainAt + 12, U32_MAX, true);
+  data.setUint32(plainAt + 16, U32_MAX, true);
+  return bytes;
+};
+
+// a zip that is only a directory of one entry, by its name, its size and its extra field
+const directoryOf = (name: string, size: number, extra: Uint8Array): Uint8Array => {
+  const written = encoder.encode(name);
+  const record = 46 + written.length + extra.length;
+  const bytes = new Uint8Array(record + 22);
+  const data = new DataView(bytes.buffer);
+  data.setUint32(0, 0x02_01_4b_50, true);
+  data.setUint32(24, size, true);
+  data.setUint16(28, written.length, true);
+  data.setUint16(30, extra.length, true);
+  bytes.set(written, 46);
+  bytes.set(extra, 46 + written.length);
+  data.setUint32(record, 0x06_05_4b_50, true);
+  data.setUint16(record + 8, 1, true);
+  data.setUint16(record + 10, 1, true);
+  data.setUint32(record + 12, record, true);
+  return bytes;
+};
+
+describe("a zip fflate writes", () => {
+  it("reads back file for file, deflated or stored, its UTF-8 names whole", async () => {
+    const bytes = zipSync({
+      "Notes/Café.md": deflated("# Café\n\nDeflated, and read back.\n".repeat(50)),
+      "assets/raw.bin": stored("stored as it is"),
+      "empty.md": deflated(""),
+    });
+    await expect(contents(bytes)).resolves.toStrictEqual({
+      "Notes/Café.md": "# Café\n\nDeflated, and read back.\n".repeat(50),
+      "assets/raw.bin": "stored as it is",
+      "empty.md": "",
+    });
+  });
+
+  it("reads a directory that ends in ZIP64's records", async () => {
+    const bytes = asZip64(zipSync({ "a.md": deflated("first"), "f/b.txt": stored("second") }));
+    await expect(contents(bytes)).resolves.toStrictEqual({ "a.md": "first", "f/b.txt": "second" });
+  });
+
+  it("refuses an entry whose bytes do not match its CRC", async () => {
+    const bytes = zipSync({ "note.md": stored("the bytes as written") });
+    const source = sourceOf(bytes);
+    const entry = await onlyEntry(source);
+    // the stored bytes follow the 30-byte local header and the name
+    const at = 30 + "note.md".length;
+    bytes[at] = 255 - (bytes[at] ?? 0);
+    await expect(readZipEntry(source, entry, 1024)).rejects.toBeInstanceOf(ZipError);
+  });
+
+  it("refuses an entry whose deflated bytes are damaged, and reads the one after it", async () => {
+    const words = "deflated words\n".repeat(20);
+    const bytes = zipSync({ "a.md": deflated(words), "b.md": deflated("the next one") });
+    // a deflate block's first byte, set to a block type deflate does not have
+    bytes[30 + "a.md".length] = 0xff;
+    const source = sourceOf(bytes);
+    const [damaged, next] = await readZipEntries(source);
+    if (damaged === undefined || next === undefined) {
+      throw new Error("the zip listed fewer entries than it holds");
+    }
+    await expect(readZipEntry(source, damaged, 1024)).rejects.toMatchObject({ fault: "corrupt" });
+    await expect(
+      new Response(await openZipEntry(source, damaged)).arrayBuffer(),
+    ).rejects.toBeInstanceOf(ZipError);
+    expect(decoder.decode(await readZipEntry(source, next, 1024))).toBe("the next one");
+  });
+
+  it("keeps a read that failed its own error, which says nothing of the entry", async () => {
+    const bytes = zipSync({ "a.md": deflated("deflated words\n".repeat(20)) });
+    const source = sourceOf(bytes);
+    const entry = await onlyEntry(source);
+    const down = new Error("the bucket is down");
+    const failing: ByteSource = {
+      // the local header reads, and the entry's own bytes do not
+      read: async (offset, length) => {
+        if (length !== 30) {
+          throw down;
+        }
+        return await source.read(offset, length);
+      },
+      size: source.size,
+    };
+    await expect(readZipEntry(failing, entry, 1024)).rejects.toBe(down);
+  });
+
+  it("refuses an entry its directory says is encrypted", async () => {
+    const bytes = zipSync({ "secret.md": deflated("hidden") });
+    const source = sourceOf(bytes);
+    const plain = await onlyEntry(source);
+    expect(plain.encrypted).toBe(false);
+    // the general purpose flags of the directory's one entry, whose low bit says encrypted
+    const flags = bytes.length - 22 - (46 + "secret.md".length) + 8;
+    bytes[flags] = (bytes[flags] ?? 0) + 1;
+    const entry = await onlyEntry(source);
+    expect(entry.encrypted).toBe(true);
+    await expect(readZipEntry(source, entry, 1024)).rejects.toMatchObject({
+      fault: "encrypted",
+    });
+  });
+});
+
+describe("a zip another writer made", () => {
+  it("reads as Python's zipfile wrote it, its folder entry left out", async () => {
+    await expect(contents(fromBase64(PYTHON_ZIP))).resolves.toStrictEqual({
+      "Notes/Café.md": "# Café\n\nA note written by another app.\n".repeat(3),
+      "stored.txt": "stored as it is",
+    });
+  });
+
+  it("leaves out a name that climbs out of the zip", async () => {
+    await expect(readZipEntries(sourceOf(fromBase64(CLIMBING_ZIP)))).resolves.toStrictEqual([]);
+  });
+
+  it("refuses an entry whose local header the directory places past the end", async () => {
+    const bytes = zipSync({ "note.md": stored("the bytes as written") });
+    // the directory's one entry's local header offset, 42 bytes into its 46-byte record, set two
+    // bytes short of the end, too few to hold even the header's signature
+    const field = bytes.length - 22 - (46 + "note.md".length) + 42;
+    new DataView(bytes.buffer).setUint32(field, bytes.length - 2, true);
+    const source = sourceOf(bytes);
+    const entry = await onlyEntry(source);
+    await expect(readZipEntry(source, entry, 1024)).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it("refuses a ZIP64 locator that points past the end", async () => {
+    // a ZIP64 locator naming a record far past the file, then the directory's end saying ZIP64
+    const bytes = new Uint8Array(20 + 22);
+    const data = new DataView(bytes.buffer);
+    data.setUint32(0, 0x07_06_4b_50, true);
+    data.setBigUint64(8, 1000n, true);
+    data.setUint32(16, 1, true);
+    data.setUint32(20, 0x06_05_4b_50, true);
+    data.setUint16(30, 0xff_ff, true);
+    data.setUint16(28, 0xff_ff, true);
+    data.setUint32(32, 0xff_ff_ff_ff, true);
+    data.setUint32(36, 0xff_ff_ff_ff, true);
+    await expect(readZipEntries(sourceOf(bytes))).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it("refuses a ZIP64 extra cut short of the sizes it says it holds", async () => {
+    // an entry whose size defers to a ZIP64 extra that says eight bytes and holds two
+    const zip = directoryOf("big.bin", U32_MAX, Uint8Array.of(1, 0, 8, 0, 0, 0));
+    await expect(readZipEntries(sourceOf(zip))).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it.each(["Notes/", "Notes\\"])("leaves out the folder entry %s", async (name) => {
+    await expect(
+      readZipEntries(sourceOf(directoryOf(name, 0, new Uint8Array()))),
+    ).resolves.toStrictEqual([]);
+  });
+
+  it("is refused when it is no zip at all", async () => {
+    await expect(
+      readZipEntries(sourceOf(encoder.encode("a CSV, not a zip"))),
+    ).rejects.toMatchObject({
+      fault: "not-a-zip",
+    });
+  });
+});

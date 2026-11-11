@@ -24,7 +24,7 @@ const card = (slug: string, alt: string): PageMeta["image"] => ({
 export const PAGES = {
   about: {
     description:
-      "Why Inteligir exists: plain markdown notes you own, an AI agent on your own Claude or ChatGPT plan, and every change it makes reversible.",
+      "Why Inteligir exists: one library on every device you use, an AI agent built in, and every change it makes reversible.",
     image: card("about", "About Inteligir"),
     kind: "about",
     path: "/about",
@@ -40,8 +40,9 @@ export const PAGES = {
   },
   home: {
     description:
-      "A notes app for the Mac where an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you. Every change is kept and can be undone.",
+      "One library for the links, articles, images, PDFs and files you save and the notes you write, on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
     image: {
+      // what og.jpg shows, the tagline written into it included
       alt: "Inteligir: the workspace for knowledge work",
       height: 1080,
       path: "/og.jpg",
@@ -49,11 +50,11 @@ export const PAGES = {
     },
     kind: "home",
     path: "/",
-    title: "the workspace for knowledge work",
+    title: "one library for everything you save",
   },
   privacy: {
     description:
-      "Inteligir's privacy policy: exactly what leaves your Mac when you use the app, the site and an account, and what never does.",
+      "Inteligir's privacy policy: exactly what each device sends, what our cloud keeps and for how long, and how to delete it.",
     image: card("privacy", "Inteligir privacy policy"),
     kind: "legal",
     path: "/privacy",

@@ -10,7 +10,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
-import { PopupExit } from "@repo/ui/lib/popup-exit";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
@@ -52,22 +52,28 @@ interface DropdownMenuProps {
 
 const DropdownMenu = ({
   children,
-  open,
+  open: openProp,
   defaultOpen = false,
   onOpenChange,
   disabled = false,
   modal = false,
   size,
 }: DropdownMenuProps) => {
+  // the Root is always controlled, by the caller's open or else this one, since the popup's
+  // presence reads the open it is handed (`@repo/ui/lib/popup-presence`)
+  const [ownOpen, setOwnOpen] = useState(defaultOpen);
+  const open = openProp ?? ownOpen;
   const root = (
     <Menu.Root
       open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        setOwnOpen(next);
+        onOpenChange?.(next);
+      }}
       disabled={disabled}
       modal={modal}
     >
-      {children}
+      <PopupOpen open={open}>{children}</PopupOpen>
     </Menu.Root>
   );
 
@@ -144,23 +150,22 @@ const DropdownMenuContent = ({
   const hidden = { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 };
 
   return (
-    <Menu.Portal>
-      <Menu.Positioner
-        side={side}
-        align={align}
-        sideOffset={sideOffset}
-        alignOffset={alignOffset}
-        anchor={anchor}
-        className="z-50 outline-none"
-      >
-        <DropdownItemsContext value={itemsCtx}>
-          <Menu.Popup
-            ref={composeRefs<HTMLDivElement>(containerRef, ref)}
-            render={(popupProps, state) => {
-              const exiting = state.transitionStatus === "ending";
-              const { style: baseStyle, ...rest } = motionProps(popupProps);
-              return (
-                <PopupExit exiting={exiting}>
+    <PopupPresence>
+      <Menu.Portal keepMounted>
+        <Menu.Positioner
+          side={side}
+          align={align}
+          sideOffset={sideOffset}
+          alignOffset={alignOffset}
+          anchor={anchor}
+          className="z-50 outline-none"
+        >
+          <DropdownItemsContext value={itemsCtx}>
+            <Menu.Popup
+              ref={composeRefs<HTMLDivElement>(containerRef, ref)}
+              render={(popupProps) => {
+                const { style: baseStyle, ...rest } = motionProps(popupProps);
+                return (
                   <Elevated
                     {...rest}
                     offset={2}
@@ -169,49 +174,49 @@ const DropdownMenuContent = ({
                       transformOrigin: side === "top" ? "bottom center" : "top center",
                     })}
                     initial={hidden}
-                    animate={exiting ? hidden : { opacity: 1, scaleY: 1, y: 0 }}
-                    transition={exiting ? spring.fast.exit : spring.fast}
+                    animate={{ opacity: 1, scaleY: 1, transition: spring.fast, y: 0 }}
+                    exit={{ ...hidden, transition: spring.fast.exit }}
                   />
-                </PopupExit>
-              );
-            }}
-            onMouseEnter={() => {
-              handleMouseEnter();
-              setFocusedIndex(null);
-            }}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            onFocus={(e) => {
-              const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
-              const idx = row === null ? -1 : orderedRows.indexOf(row);
-              if (idx !== -1) {
-                setActiveIndex(idx);
-                setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
-              }
-            }}
-            onBlur={(e) => {
-              if (containerRef.current?.contains(e.relatedTarget) === true) {
-                return;
-              }
-              setFocusedIndex(null);
-              setActiveIndex(null);
-            }}
-            className={cn(
-              `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
-              className,
-            )}
-          >
-            <MeasureOnOpen measure={measureItems} />
-            <ProximityOverlays
-              hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
-              focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
-              session={session}
-            />
-            {children}
-          </Menu.Popup>
-        </DropdownItemsContext>
-      </Menu.Positioner>
-    </Menu.Portal>
+                );
+              }}
+              onMouseEnter={() => {
+                handleMouseEnter();
+                setFocusedIndex(null);
+              }}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              onFocus={(e) => {
+                const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
+                const idx = row === null ? -1 : orderedRows.indexOf(row);
+                if (idx !== -1) {
+                  setActiveIndex(idx);
+                  setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
+                }
+              }}
+              onBlur={(e) => {
+                if (containerRef.current?.contains(e.relatedTarget) === true) {
+                  return;
+                }
+                setFocusedIndex(null);
+                setActiveIndex(null);
+              }}
+              className={cn(
+                `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
+                className,
+              )}
+            >
+              <MeasureOnOpen measure={measureItems} />
+              <ProximityOverlays
+                hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
+                focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
+                session={session}
+              />
+              {children}
+            </Menu.Popup>
+          </DropdownItemsContext>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </PopupPresence>
   );
 };
 

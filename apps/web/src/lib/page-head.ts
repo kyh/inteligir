@@ -1,7 +1,7 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { statedDate } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
-import { pageGraph } from "@/lib/structured-data";
+import type { PageMeta } from "#lib/page-meta";
+import { statedDate } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
+import { pageGraph } from "#lib/structured-data";
 
 const absolute = (path: string): string => `${siteConfig.url}${path === "/" ? "" : path}`;
 
@@ -10,8 +10,8 @@ export const pageTitle = (page: PageMeta): string =>
 
 /**
  * A route's head: its title, description, Open Graph and Twitter tags and its own JSON-LD. The
- * root route carries the site-wide defaults, and Start keeps the deepest match's tag for each
- * name or property, so these override them. The canonical link is the root document's.
+ * site's layout carries the site-wide defaults and the canonical link, and Start keeps the deepest
+ * match's tag for each name or property, so these override them.
  */
 export const pageHead = (page: PageMeta, options: { dateModified?: string } = {}) => {
   const title = pageTitle(page);

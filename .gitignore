@@ -7,6 +7,8 @@ node_modules
 
 # testing
 coverage
+test-results/
+playwright-report/
 
 # tanstack start / cloudflare (.wrangler/ holds local dev state)
 .tanstack/
@@ -16,12 +18,8 @@ coverage
 # build output
 dist/
 .output/
-# the desktop app's git and node, fetched and pinned by apps/desktop/scripts/fetch-git.ts and
-# fetch-node.ts at package time
-apps/desktop/resources/git/
-apps/desktop/resources/git.partial/
-apps/desktop/resources/node/
-apps/desktop/resources/node.partial/
+# wxt's generated types and tsconfig (apps/extension), written by `wxt prepare`
+.wxt/
 
 # misc
 .DS_Store

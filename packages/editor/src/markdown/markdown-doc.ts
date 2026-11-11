@@ -1,214 +1,139 @@
-// Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so a rich save is
-// a minimal diff. Unmodelled constructs become opaque nodes rather than a refusal.
-// Plate's deserializeMd is banned (`@repo/editor/kits/markdown-kit` says why).
+// Markdown in and out of an item's blocks, headless. Markdown is stock and lossy: a read keeps every
+// letter a person wrote, and a write keeps what the blocks mean, never the bytes they came from.
 
+import type { Root } from "mdast";
 import { ElementApi, createSlateEditor } from "platejs";
-import type { SlateEditor, Value } from "platejs";
-import { serializeMd } from "@platejs/markdown";
-
-import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import type { SlateEditor, TElement, Value } from "platejs";
+import { MarkdownPlugin } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
-import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
+import { recordFlowSpans } from "@repo/editor/markdown/flow-spans";
+import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
+import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
+import { readMarkdown } from "@repo/editor/markdown/md-read";
+import type { MarkdownRead, ReadOptions } from "@repo/editor/markdown/md-read";
+import {
+  ARTICLE_SECTION_KEY,
+  markListNesting,
+  nestInLists,
+  pruneEmptyEquations,
+} from "@repo/editor/markdown/md-rules";
 
-export { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+// fresh per call: Slate editors carry mutable state
+export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
-// Why a file opens Raw: never its bytes, which always parse, but the editor's limits or its bugs,
-// and the file keeps its bytes either way.
-export type GateReason =
-  | ConvertFailure
-  // re-serializing never settles on one set of bytes
-  | { kind: "unstable" }
-  // the file parses, but re-serializing drops content or joins its lines
-  | { kind: "roundtrip-loss" }
-  // the pipeline threw, or answered a document the editor cannot hold
-  | { kind: "pipeline-error" };
+const isSection = (block: TElement): boolean => block.type === ARTICLE_SECTION_KEY;
 
-// `normalizes`: rich-safe, but the first save restyles markup.
-export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | GateReason;
-
-export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
-  switch (analysis.kind) {
-    case "canonical":
-    case "normalizes": {
-      return null;
-    }
-    default: {
-      return analysis;
-    }
-  }
-};
-
-export const describeGateReason = (reason: GateReason): string => {
-  switch (reason.kind) {
-    case "too-deep": {
-      return "This note nests deeper than the rich editor can hold — opened in Raw";
-    }
-    case "unstable": {
-      return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";
-    }
-    case "roundtrip-loss": {
-      return "Rich editing would change this file's content — opened in Raw to protect it";
-    }
-    case "pipeline-error": {
-      return "The rich editor failed on this file — opened in Raw to protect it";
-    }
-    default: {
-      const exhaustive: never = reason;
-      return exhaustive;
-    }
-  }
-};
-
-export class RoundTripError extends Error {
-  readonly reason: GateReason;
-
-  constructor(reason: GateReason) {
-    super(describeGateReason(reason));
-    this.name = "RoundTripError";
-    this.reason = reason;
-  }
-}
-
-// fresh per call: Slate editors carry mutable state.
-const makeEditor = () => createSlateEditor({ plugins: BASE_KIT });
-
-const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
-
-const lineEndOffsets = (lines: readonly string[]): number[] => {
-  const ends: number[] = [];
-  let at = 0;
-  for (const line of lines) {
-    at += line.length;
-    ends.push(at);
-  }
-  return ends;
-};
-
-// A save may restyle markup or split a line (two date chips become two paragraphs), but joining
-// two lines changes what the note says without losing a letter: `[[A]]\n[[B]]` as `[[A]][[B]]`.
-// So every offset where a source line's letters end must still end a saved line.
-const keepsText = (source: string, saved: string): boolean => {
-  const sourceLines = source.split("\n").map(letters);
-  const savedLines = saved.split("\n").map(letters);
-  if (sourceLines.join("") !== savedLines.join("")) {
-    return false;
-  }
-  const savedEnds = new Set([0, ...lineEndOffsets(savedLines)]);
-  return lineEndOffsets(sourceLines).every((end) => savedEnds.has(end));
-};
-
-type Converted =
-  | { ok: true; value: Value; editor: SlateEditor }
-  | { ok: false; reason: GateReason };
-
-const convert = (md: string): Converted => {
-  const editor = makeEditor();
-  const converted = mdToSlate(editor, md);
-  if (!converted.ok) {
-    return converted;
-  }
-  // mdast root children are flow content, so every rule yields a block; a text at the root would be
-  // a rule bug that Slate's normalizer drops, so the note opens raw rather than losing it
-  if (!ElementApi.isElementList(converted.nodes)) {
-    return { ok: false, reason: { kind: "pipeline-error" } };
-  }
-  return { editor, ok: true, value: converted.nodes };
-};
-
-type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
-
-// The one way a value becomes bytes, the live save's and an extract's as well as the gate's: the
-// rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
-export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
-
-// stringify overflows the stack at the same depth the conversion does
-const serialize = (editor: SlateEditor, value: Value): Serialized => {
-  try {
-    return { ok: true, out: serializeNote(editor, value) };
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return { ok: false, reason: { kind: "too-deep" } };
-    }
-    throw error;
-  }
-};
-
-const roundTripResult = (md: string): Serialized => {
-  const converted = convert(md);
-  if (!converted.ok) {
-    return converted;
-  }
-  return serialize(converted.editor, converted.value);
-};
-
-// `out` is trusted only if re-serializing reproduces it byte-exactly; a third probe
-// distinguishes "stabilizes at pass 2" from "never settles".
-type Fixpoint = { stable: true; at: string } | { stable: false; reason: GateReason };
-
-const findFixpoint = (out: string): Fixpoint => {
-  let current = out;
-  for (let pass = 0; pass < 2; pass += 1) {
-    const next = roundTripResult(current);
-    if (!next.ok) {
-      return { reason: next.reason, stable: false };
-    }
-    if (next.out === current) {
-      return { at: current, stable: true };
-    }
-    current = next.out;
-  }
-  return { reason: { kind: "unstable" }, stable: false };
-};
-
-export const analyzeMarkdown = (md: string): DocAnalysis => {
-  if (md.trim() === "") {
-    return { kind: "canonical" };
-  }
-  const serialized = roundTripResult(md);
-  if (!serialized.ok) {
-    return serialized.reason;
-  }
-  const { out } = serialized;
-  if (out === md) {
-    return { kind: "canonical" };
-  }
-  const fixpoint = findFixpoint(out);
-  if (!fixpoint.stable) {
-    return fixpoint.reason;
-  }
-  if (out.trimEnd() === md.trimEnd() && fixpoint.at === out) {
-    return { kind: "canonical" };
-  }
-  // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the text.
-  return keepsText(md, out) && keepsText(md, fixpoint.at)
-    ? { kind: "normalizes" }
-    : { kind: "roundtrip-loss" };
-};
+// the editor holds no section, so an `:::article` reads as the blocks inside it
+const flattenSections = (blocks: readonly TElement[]): TElement[] =>
+  blocks.flatMap((block) =>
+    isSection(block) ? block.children.filter((child) => ElementApi.isElement(child)) : [block],
+  );
 
 export const parseMarkdown = (
   md: string,
-): { ok: true; value: Value } | { ok: false; reason: GateReason } => {
-  const converted = convert(md);
-  if (!converted.ok) {
-    return converted;
-  }
-  return { ok: true, value: converted.value };
+  editor: SlateEditor = headlessEditor(),
+  options: ReadOptions = {},
+): MarkdownRead => {
+  const read = readMarkdown(editor, md, options);
+  return read.ok ? { ok: true, value: flattenSections(read.value) } : read;
 };
 
-export const roundTrip = (md: string): string => {
-  const serialized = roundTripResult(md);
-  if (!serialized.ok) {
-    throw new RoundTripError(serialized.reason);
+export interface MarkdownSections {
+  readonly note: TElement[];
+  // the page a fill read, which an export writes inside a top-level `:::article`
+  readonly article: TElement[] | null;
+}
+
+// an item's file: what stands outside a top-level `:::article` is the note, what it holds the page
+export const parseMarkdownSections = (
+  md: string,
+  editor: SlateEditor = headlessEditor(),
+  options: ReadOptions = {},
+): { ok: true; sections: MarkdownSections } | Extract<MarkdownRead, { ok: false }> => {
+  const read = readMarkdown(editor, md, options);
+  if (!read.ok) {
+    return read;
   }
-  const fixpoint = findFixpoint(serialized.out);
-  if (!fixpoint.stable) {
-    throw new RoundTripError(fixpoint.reason);
-  }
-  return fixpoint.at;
+  const sections = read.value.filter(isSection);
+  return {
+    ok: true,
+    sections: {
+      article: sections.length === 0 ? null : flattenSections(sections),
+      note: read.value.filter((block) => !isSection(block)),
+    },
+  };
 };
 
-export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
+export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
+  editor
+    .getApi(MarkdownPlugin)
+    .markdown.serialize({ value: markListNesting(pruneEmptyEquations(value)) });
+
+export interface SpannedNote {
+  readonly markdown: string;
+  // where each top-level node the rules wrote (a block, or a run of list items as one list) sits
+  readonly spans: readonly FlowSpan[];
+}
+
+// the same bytes, with where each top-level node landed: what the codec's view of an item maps an
+// edit back to its blocks by
+export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNote => {
+  const recorder = recordFlowSpans();
+  const markdown = editor.getApi(MarkdownPlugin).markdown.serialize({
+    remarkStringifyOptions: {
+      ...MD_STRINGIFY,
+      handlers: {
+        ...MD_STRINGIFY.handlers,
+        root: (node: Root, parent, state, info) =>
+          recorder.root({ ...node, children: nestInLists(node.children) }, parent, state, info),
+      },
+    },
+    value: markListNesting(pruneEmptyEquations(value)),
+  });
+  return { markdown, spans: recorder.spans };
+};
+
+const LETTER_RE = /[\p{L}\p{N}]/gu;
+
+const letterCounts = (text: string): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const [letter] of text.toLowerCase().matchAll(LETTER_RE)) {
+    counts.set(letter, (counts.get(letter) ?? 0) + 1);
+  }
+  return counts;
+};
+
+// the share of the source's letters and digits the written text still holds, as a multiset, so a
+// letter dropped is not paid back by one the writer added
+export const lettersKept = (source: string, written: string): number => {
+  const before = letterCounts(source);
+  const after = letterCounts(written);
+  let total = 0;
+  let kept = 0;
+  for (const [letter, count] of before) {
+    total += count;
+    kept += Math.min(count, after.get(letter) ?? 0);
+  }
+  return total === 0 ? 1 : kept / total;
+};
+
+// an imported page (the fill's article) as the bytes its blocks write
+export interface ImportedDoc {
+  markdown: string;
+  kept: number;
+}
+
+// null when the read refuses the page: a page is hostile input, so no failure escapes the fill
+export const canonicalizeImported = (md: string): ImportedDoc | null => {
+  if (md.trim() === "") {
+    return { kept: 1, markdown: "" };
+  }
+  const editor = headlessEditor();
+  const read = parseMarkdown(md, editor);
+  if (!read.ok) {
+    return null;
+  }
+  const markdown = `${serializeNote(editor, read.value).trimEnd()}\n`;
+  return { kept: lettersKept(md, markdown), markdown };
+};

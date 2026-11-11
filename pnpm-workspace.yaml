@@ -5,110 +5,182 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.9.0
-  # exact: the v2 beta breaks between patches; the four must resolve to one build
+  # exact: the v2 beta breaks between patches, and @orpc/mcp pins its siblings exactly, so every
+  # oRPC package must resolve to one build
   "@orpc/client": 2.0.0-beta.45
   "@orpc/contract": 2.0.0-beta.45
+  "@orpc/mcp": 2.0.0-beta.45
+  "@orpc/openapi": 2.0.0-beta.45
   "@orpc/server": 2.0.0-beta.45
   "@orpc/tanstack-query": 2.0.0-beta.45
-  # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
-  # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
-  "@agentclientprotocol/claude-agent-acp": 0.81.0
-  "@agentclientprotocol/codex-acp": 1.13.0
-  "@agentclientprotocol/sdk": 1.5.0
-  # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.152.0
-  # exact: 1.65 drops `experimental.newConfig`, which `cf build` (cf beta) is configured through
+  # exact: @orpc/mcp's peer, whose tool-definition API the registrar calls; a 2.x minor may move it
+  "@modelcontextprotocol/server": 2.4.0
+  # exact, as its server sibling: the suites and the e2e drive the connector with the client the
+  # server release is tested against, and the two move together
+  "@modelcontextprotocol/client": 2.4.0
+  # exact: the built-in agent's Messages client, whose minor releases may break its types
+  # (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#semantic-versioning); it types
+  # every beta a thread's request sends (thinking-binding-controls-2026-08-01,
+  # server-side-fallback-2026-07-01), and a bump runs the thread suites against the scripted
+  # Messages API first
+  "@anthropic-ai/sdk": 1.3.0
+  # exact: 0.x minors break, and only `agents/lifecycle` is imported (oxlint.config.ts refuses
+  # every other subpath), the job queue and the one alarm each conversation's object runs on; a
+  # bump runs the thread suites first
+  agents: 0.31.0
+  # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
+  # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
+  # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's
+  # Babel plugin is built against (its @babel/types ^7)
+  "@babel/core": ^7.29.0
+  "@rolldown/plugin-babel": ^0.2.4
+  "@types/babel__core": ^7.20.5
+  babel-plugin-react-compiler: ^1.0.0
+  # exact: the last 1.x with `experimental.newConfig`, the option a 1.x build reads
+  # cloudflare.config.ts through; the line cf itself builds with is the 2.0 beta
+  # (developers.cloudflare.com/cf/projects)
   "@cloudflare/vite-plugin": 1.64.0
-  "@cloudflare/vitest-pool-workers": ^0.22.0
+  "@cloudflare/vitest-plugin": ^1.4.8
+  # exact: the connector's OAuth server, whose consent and resource-server helpers the Worker calls;
+  # its 1.x minors have renamed options (1.2's requiredScopes replaced scopes_supported)
+  "@cloudflare/workers-oauth-provider": 1.2.4
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
-  # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
-  "@hono/node-server": ~1.19.17
-  "@hono/node-ws": ^1.3.1
-  "@parcel/watcher": ^2.6.0
+  # every workspace's tsconfig extends its base.json, as kyh/init's do
+  "@kyh/tsconfig": ^1.3.0
+  # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
+  # phone compute one hash with no platform crypto
+  "@noble/hashes": ^2.4.0
+  # exact, the playwright-core apps/web pins, so the two share one Chromium build
+  "@playwright/test": 1.63.0
+  # exact: binds the editor to a note's live document; unreleased since 2023, so its bugs are ours,
+  # and it moves with yjs only once the binding suites pass on the pair
+  "@slate-yjs/core": 1.0.2
+  # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
+  "@tailwindcss/postcss": ^4.3.3
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
   "@tanstack/react-query": ^5.104.5
+  # exact, the react-query build the lockfile resolves: each persister peers react-query at its own
+  # version, and the phone's persisted cache is read back in the shape that build dehydrates
+  "@tanstack/query-async-storage-persister": 5.105.0
+  "@tanstack/react-query-persist-client": 5.105.0
   # exact: the committed route tree is an artifact of the plugin version
   "@tanstack/react-router": 1.170.46
   "@tanstack/react-start": 1.169.4
-  "@tanstack/router-plugin": 1.168.48
-  "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.2
-  # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
-  # lifting it needs a production D1 schema change first
-  "@better-auth/drizzle-adapter": 1.7.2
-  better-auth: 1.7.2
-  better-sqlite3: ^13.0.3
-  citty: ^0.2.2
+  # exact, and the same as the @better-auth/core override: the four are released in lockstep, and
+  # a pair one patch apart resolves a second core
+  "@better-auth/drizzle-adapter": 1.7.18
+  "@better-auth/expo": 1.7.18
+  better-auth: 1.7.18
   cn: ^0.4.0
-  consola: ^3.4.2
+  # exact: 0.x output moves between patches; the fill corpus pins it
+  defuddle: 0.19.5
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
   eas-cli: 24.12.1
-  esbuild: ^0.28.2
+  # a block's order key, between two neighbours, with no renumbering
+  fractional-indexing: ^4.0.0
   expo: ~57.0.27
   expo-constants: ~57.0.21
   expo-crypto: ~57.0.3
   expo-file-system: ~57.0.7
   expo-image-manipulator: ~57.0.21
   expo-image-picker: ~57.0.20
+  expo-linking: ~57.0.12
   expo-network: ~57.0.2
   expo-router: ~57.0.25
   expo-secure-store: ~57.0.4
+  # third-party (achorein/expo-share-intent), so `npx expo install --fix` does not manage it; its
+  # major tracks the Expo SDK (8.x peers expo ^57), and the `expo-*` ignore below skips it, so an
+  # SDK upgrade bumps it by hand
+  expo-share-intent: ~8.0.1
   expo-splash-screen: ~57.0.9
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
-  hono: ^4.13.13
   jsdom: ^30.1.3
+  # the note object reads a sync frame's header with yjs's own decoder; one copy, the one yjs resolves
+  lib0: 0.2.119
   lucide-react: ^1.61.0
-  nanoid: ^6.0.2
+  mdast-util-to-markdown: ^2.2.0
+  # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
+  motion: ^14.9.1
+  # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
+  # what a note's object inherits
+  partyserver: 0.5.10
+  # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
+  # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
+  nativewind: 5.0.0-rc.0
+  react-native-css: 3.1.0-rc.0
+  # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2005, and its
+  # major tracks the TypeScript it embeds, the 7 every program here checks under
+  oxlint-tsgolint: ^7.0.2005
+  # the editor and the note object, whose headless editor applies the agent's changes, run one Plate
+  platejs: ^53.5.2
+  # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
+  postcss: ^8.5.29
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
   react-native: ~0.86.3
+  # the web runtime the phone's DOM component renders on, which Expo's DOM components need outside
+  # Expo Web
+  react-native-web: ~0.21.0
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
   # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
   react-native-webview: 13.16.1
+  # exact, as react-native-webview is: the phone draws no animation, but react-native-css's runtime
+  # requires reanimated for a transition class and Metro resolves that require at bundle time, and
+  # worklets is reanimated 4's own peer
+  react-native-reanimated: 4.5.1
+  react-native-worklets: 0.10.1
+  remark-directive: ^4.0.0
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
+  # exact, the one @platejs/slate pins: the live binding narrows Plate's editor to slate's own type
+  # with its guard, so the two must be one slate, and it moves only with a Plate bump
+  slate: 0.146.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.15
   typescript: ^7.0.2
   unified: ^11.0.5
-  # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
-  # dies at module scope with a bare 500
-  vite: 8.1.6
-  # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
+  vite: ^8.3.5
   vitest: ^4.1.12
   # exact: a beta, whose config API moves between releases
-  cf: 1.0.0-beta.12
-  # the one wrangler resolves; tools/e2e reads `cf build` output with it
-  miniflare: 5.20261019.2-beta
-  wrangler: ^4.152.0
+  cf: 1.0.0-beta.23
+  # the one cf resolves; tools/e2e boots `cf build` output with it
+  miniflare: 5.20261023.0-beta
+  wrangler: ^4.153.0
+  # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it
+  # overrides, and the editor's provider is its client half, which must match it
+  y-partyserver: 2.2.0
   yaml: ^2.9.1
+  # exact, on 13, and one copy: a note's live document, its stored state and its turn log are this
+  # encoding on every device and in its object, a second copy breaks yjs's own constructor checks,
+  # and @slate-yjs/core 1.0.2 binds against 13's types; 14 is a beta it predates
+  yjs: 13.6.33
   zod: ^4.6.7
   zustand: ^5.0.16
 
 catalogs:
-  # the SDK-blessed react/typescript; bump only with an Expo SDK upgrade
+  # the SDK-blessed typescript; bump only with an Expo SDK upgrade
   expo:
-    react: 19.2.3
     typescript: ~6.0.3
 
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
-# so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand
+# so typescript (shared with web) cannot be listed; its `expo:` row is reverted by hand.
+# nativewind too: its `latest` is the Tailwind 3 line, so a sweep would move the phone off Tailwind 4
 update:
   ignoreDeps:
     - expo
@@ -117,16 +189,24 @@ update:
     - react-native
     - react-native-*
     - "@react-native/*"
+    - nativewind
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
+# an exclusion admits one version still inside the cooldown and is deleted once that version is a
+# day old; an install drops by itself one the lockfile no longer resolves
+minimumReleaseAgeExcludePrune: true
+
+# an install drops a catalog entry no manifest spells any more
+catalogPrune: true
 
 blockExoticSubdeps: true
 
 allowBuilds:
-  "@parcel/watcher": true
   "@tailwindcss/oxide": true
-  better-sqlite3: true
+  # agents' mimetext's @babel/runtime-corejs3: a postinstall that only prints a funding notice; an
+  # install refuses a build left undecided (ERR_PNPM_IGNORED_BUILDS)
+  core-js-pure: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
   esbuild: true
@@ -134,27 +214,64 @@ allowBuilds:
   protobufjs: false
   workerd: true
 
+# agents 0.31.0 asks for the MCP SDK's client and server at exactly 2.3.1, for the MCP
+# capabilities this Worker never imports (only `agents/lifecycle` is); the catalog's 2.4.0 is the
+# one copy installed, so this silences the report and overrides nothing
+peerDependencyRules:
+  allowedVersions:
+    "agents>@modelcontextprotocol/client": 2.4.0
+    "agents>@modelcontextprotocol/server": 2.4.0
+
 overrides:
+  # agents' Vite plugin compiles decorators with Babel 8, and the Worker imports only
+  # `agents/lifecycle`, which needs neither package (pnpm.io/settings/dependency-resolution: "`-` to
+  # remove it"); installed, Babel 8 becomes the core every Babel 7 plugin under apps/web resolves its
+  # peer to
+  "agents>@babel/plugin-proposal-decorators": "-"
+  "agents>@rolldown/plugin-babel": "-"
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
-  "@better-auth/core": 1.7.2
+  "@better-auth/core": 1.7.18
+  # NativeWind 5's install pins lightningcss at 1.30.1, since past it react-native-css "may encounter
+  # deserialization errors" on the phone's sheet (nativewind.dev/v5/getting-started/installation);
+  # scoped to the two that compile that sheet, since Tailwind pins its own, exactly
+  "@expo/metro-config>lightningcss": 1.30.1
+  "react-native-css>lightningcss": 1.30.1
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
+  # one react-native and one expo in the tree, the phone's: @react-three/fiber (the site) names both
+  # as optional peers, which would otherwise resolve to the newest of each beside the phone's
+  react-native: "catalog:"
+  expo: "catalog:"
+
+# partyserver and y-partyserver peer @cloudflare/workers-types for their declarations, which the
+# runtime types `cf workers types` generates already supply; a required peer would be installed and
+# threaded through every package that names it optionally (drizzle-orm, wrangler)
+packageExtensions:
+  partyserver:
+    peerDependenciesMeta:
+      "@cloudflare/workers-types":
+        optional: true
+  y-partyserver:
+    peerDependenciesMeta:
+      "@cloudflare/workers-types":
+        optional: true
 
 patchedDependencies:
-  # the adapter marks every session root trusted, which has codex load the vault's own .codex
-  # config, hooks and exec policies, and no per-session option reaches it; the vault is synced
-  # content, so the patch marks it untrusted, dropped once upstream lets the client decide
-  "@agentclientprotocol/codex-acp@1.13.0": patches/@agentclientprotocol__codex-acp@1.13.0.patch
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does
-  "@platejs/core@53.3.15": patches/@platejs__core@53.3.15.patch
-  # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
-  # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
-  # requests, so it stays until a release exposes a size
-  durable-git@0.0.8: patches/durable-git@0.0.8.patch
+  "@platejs/core@53.5.2": patches/@platejs__core@53.5.2.patch
   # micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
+  # before every commit React reads the focused element's selection as text offsets, which for a
+  # contenteditable walks every node of the open note; the editor keeps its own selection, so the
+  # patch reads none there, dropped once a release stops walking it
+  react-dom@19.2.8: patches/react-dom@19.2.8.patch
+  # on a selectionchange with the caret outside Slate's text, slate-react puts the page's selection
+  # back on the editor's, though an input inside a void holds the focus, so a picker's query or a
+  # rich block's field stops taking typing a moment after it opens; the patch restores only while
+  # the editor itself is focused, dropped once a release does
+  slate-react@0.145.1: patches/slate-react@0.145.1.patch

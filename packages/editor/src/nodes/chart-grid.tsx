@@ -73,11 +73,7 @@ export const chartWithCellValue = (
 export const chartWithRowLabel = (chart: ChartPayload, row: number, label: string): ChartPayload =>
   mapPoints(chart, (points) => points.map((point, i) => (i === row ? { ...point, label } : point)));
 
-export const chartWithSeriesName = (
-  chart: ChartPayload,
-  column: number,
-  name: string,
-): ChartPayload => {
+const chartWithSeriesName = (chart: ChartPayload, column: number, name: string): ChartPayload => {
   if ("data" in chart) {
     return chart;
   }

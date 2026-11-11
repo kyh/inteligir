@@ -1,14 +1,8 @@
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
-import { FileTextIcon } from "lucide-react";
 import { KEYS } from "platejs";
 import type { PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { isTemplatePath } from "@repo/notes/templates/folders";
-
-import { useWikiTargets } from "@repo/editor/host";
-import { insertTemplate } from "@repo/editor/insert-template";
 import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { EmbedUrlDialogHost } from "@repo/editor/embed-url-dialog";
 import {
@@ -21,40 +15,16 @@ import {
   InlineComboboxItem,
 } from "@repo/editor/inline-combobox";
 import { GROUPS } from "@repo/editor/slash-items";
-import type { SlashItem } from "@repo/editor/slash-items";
-
-const TEMPLATES_GROUP = "Templates";
-
-// a template is a row only while it exists: the rows follow the host's live listing rather than
-// being pinned in GROUPS, and the group is absent when the folder is.
-const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
-  targets
-    .filter((target) => isTemplatePath(target.path))
-    .map((target) => ({
-      description: target.path,
-      icon: <FileTextIcon />,
-      keywords: ["template"],
-      label: target.title,
-      onSelect: (editor) => {
-        void insertTemplate(editor, target.path);
-      },
-      value: `template:${target.path}`,
-    }));
-
-const useTemplateItems = (): SlashItem[] => templateItems(useWikiTargets());
 
 const SlashInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
-  const templates = useTemplateItems();
   const locked = useRichBlocksLocked();
-  const offered = locked
+  const groups = locked
     ? GROUPS.map(({ group, items }) => ({
         group,
         items: items.filter((item) => item.richBlock !== true),
       }))
     : GROUPS;
-  const groups =
-    templates.length === 0 ? offered : [...offered, { group: TEMPLATES_GROUP, items: templates }];
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox element={element} trigger="/">

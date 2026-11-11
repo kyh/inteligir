@@ -1,7 +1,15 @@
-import { defineConfig } from "drizzle-kit";
+import type { Config } from "drizzle-kit";
 
-export default defineConfig({
+// Targets the remote D1 over d1-http; needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_DATABASE_ID
+// and CLOUDFLARE_D1_TOKEN. Local pushes use drizzle.config.local.ts. No migration files:
+// one deployer, an additive schema, and the suites derive their DDL from schema.ts.
+export default {
+  dbCredentials: {
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+    databaseId: process.env.CLOUDFLARE_DATABASE_ID ?? "",
+    token: process.env.CLOUDFLARE_D1_TOKEN ?? "",
+  },
   dialect: "sqlite",
-  out: "./drizzle",
-  schema: "./src/schema.ts",
-});
+  driver: "d1-http",
+  schema: "./src/d1/schema.ts",
+} satisfies Config;

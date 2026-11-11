@@ -1,11 +1,76 @@
-import { fileURLToPath } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import viteReact from "@vitejs/plugin-react";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
+import type { Logger } from "babel-plugin-react-compiler";
 import { defineConfig } from "vite";
+import type { Rolldown } from "vite";
 
-const src = fileURLToPath(new URL("src", import.meta.url));
+// a component the compiler skipped, said as the build runs (react.dev/reference/react-compiler/
+// logger): the card grid is the one it may name (packages/ui/CLAUDE.md § The card grid is
+// virtualized by uniform rows)
+const reportSkips: Logger = {
+  logEvent: (filename, event) => {
+    if (event.kind !== "CompileError" && event.kind !== "PipelineError") {
+      return;
+    }
+    const at = event.fnLoc === null ? "" : `:${String(event.fnLoc.start.line)}`;
+    const why = event.kind === "CompileError" ? event.detail.reason : event.data;
+    console.warn(`React Compiler skipped ${filename ?? "a module"}${at}: ${why}`);
+  },
+};
+
+// src/library/CLAUDE.md § The library is one chunk. A route file's own module stays out, since the
+// route tree the site's entry imports holds its options, and so do the router's split halves of
+// it, each a chunk of its own: grouped, rolldown 1.2 hands the router a namespace its facade never
+// defines. What they reach goes in, and so does what the beforeLoad imports lazily, the tab's
+// open. A module the site reaches too is left to rolldown's own chunks, which the library's chunk
+// imports.
+const LIBRARY_ROUTE_SPLIT = /[\\/]src[\\/]routes[\\/]library(?:\.tsx|[\\/])[^?]*\?tsr-split=/u;
+const LIBRARY_ROUTE_FILE = /[\\/]src[\\/]routes[\\/]library\.tsx$/u;
+
+type ChunkingContext = Rolldown.ChunkingContext;
+
+// whether every path into a module starts at a library route; a cycle counts as a site path, so
+// a module whose answer is still being worked out is no proof
+const reachedOnlyFromLibrary = (
+  id: string,
+  context: ChunkingContext,
+  known: Map<string, boolean>,
+): boolean => {
+  if (LIBRARY_ROUTE_SPLIT.test(id)) {
+    return true;
+  }
+  const settled = known.get(id);
+  if (settled !== undefined) {
+    return settled;
+  }
+  known.set(id, false);
+  const info = context.getModuleInfo(id);
+  const only =
+    info !== null &&
+    !info.isEntry &&
+    info.importers.length + info.dynamicImporters.length > 0 &&
+    info.importers.every((importer) => reachedOnlyFromLibrary(importer, context, known)) &&
+    info.dynamicImporters.every(
+      (importer) =>
+        LIBRARY_ROUTE_FILE.test(importer) || reachedOnlyFromLibrary(importer, context, known),
+    );
+  known.set(id, only);
+  return only;
+};
+
+const answers = new WeakMap<ChunkingContext, Map<string, boolean>>();
+
+const libraryChunk = (id: string, context: ChunkingContext): string | null => {
+  if (LIBRARY_ROUTE_SPLIT.test(id)) {
+    return null;
+  }
+  const known = answers.get(context) ?? new Map<string, boolean>();
+  answers.set(context, known);
+  return reachedOnlyFromLibrary(id, context, known) ? "library" : null;
+};
 
 export default defineConfig({
   plugins: [
@@ -16,16 +81,39 @@ export default defineConfig({
     // the entry lives in src/worker because that directory is its own tsconfig program and the
     // entry names Env.
     tanstackStart({ server: { entry: "./worker/server.ts" } }),
-    // compiler: true is the only consumer of the oxc-transform-react devDependency.
-    viteReact({ compiler: true }),
+    viteReact(),
+    // the React Compiler, react.dev's Vite path (react.dev/learn/react-compiler/installation)
+    babel({ presets: [reactCompilerPreset({ logger: reportSkips })] }),
     tailwindcss(),
   ],
-  // the dev SSR runner does not read tsconfig paths, unlike vite build.
-  resolve: {
-    alias: { "@": src },
+  // strictPort: every doc and script names :5174, so failing to bind beats moving. No CORS of the
+  // dev server's own: its default answers every preflight itself, for loopback pages alone, and the
+  // deployed Worker answers none, so a page on another origin would read here what it never could
+  // there
+  server: { cors: false, port: 5174, strictPort: true },
+  environments: {
+    client: {
+      build: {
+        // the library's chunk is about 3.2 MB on purpose (above), so the ceiling (kB) is there to
+        // catch a dependency that doubles it
+        chunkSizeWarningLimit: 6000,
+        // the group leaves what it reaches through a barrel (lucide-react, Base UI) to rolldown's own
+        // chunks, which import the group back; rolldown's advice for a group that takes no
+        // dependencies is both of these, or a chunk reads an export the cycle has yet to run
+        rolldownOptions: {
+          preserveEntrySignatures: "allow-extension",
+          output: {
+            strictExecutionOrder: true,
+            codeSplitting: {
+              groups: [
+                { debugName: "library", includeDependenciesRecursively: false, name: libraryChunk },
+              ],
+            },
+          },
+        },
+      },
+    },
+    // `cf deploy` uploads whatever source maps the build emits
+    ssr: { build: { sourcemap: true } },
   },
-  // strictPort: every doc and script names :5174, so failing to bind beats moving.
-  server: { port: 5174, strictPort: true },
-  // `cf deploy` uploads whatever source maps the build emits
-  environments: { ssr: { build: { sourcemap: true } } },
 });

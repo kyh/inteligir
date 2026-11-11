@@ -1,18 +1,9 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // ES2023 is the repo-wide floor and the CEILING here: these components are
-    // bundled into apps/web and the workspace UI, which ship at Vite's
-    // default `baseline-widely-available` target (Safari 16.4). Vite transforms
-    // syntax, never stdlib — an ES2024+ builtin (Object.groupBy,
-    // Set.intersection, Promise.withResolvers, iterator helpers) would typecheck
-    // and then throw in a supported browser. Same trap, worse, if @repo/ui ever
-    // becomes a mobile dep: Hermes.
+    // Safari 16.4's stdlib: Vite lowers syntax, never stdlib
     "lib": ["ES2023", "dom", "dom.iterable"],
-    // react-jsx, not the init template's `preserve`: both consumers are
-    // react-jsx and both pull these sources into their own programs via the
-    // `@repo/ui/*` paths, so `preserve` checks the same files twice under two
-    // JSX resolution rules.
+    // not init's `preserve`: both consumers check these sources under react-jsx
     "jsx": "react-jsx",
     "types": []
   },

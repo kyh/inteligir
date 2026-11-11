@@ -1,27 +1,23 @@
 {
   "name": "@repo/desktop",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "The Inteligir desktop shell: a Tauri window over the local server's own page, supervising that server as a child process.",
+  "description": "The Inteligir Mac app: a Tauri window on the library's page the site serves, with the stock updater.",
   "author": "kyh",
   "type": "module",
   "scripts": {
-    "build:shell": "tauri build --debug --no-bundle",
-    "dev": "tauri dev",
+    "dev": "tauri dev --config src-tauri/tauri.local.conf.json",
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "package": "node scripts/package.ts",
-    "smoke": "node scripts/smoke-packaged.ts",
     "tauri": "tauri",
     "test": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p scripts && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "devDependencies": {
-    "@repo/contract": "workspace:*",
-    "@repo/workspace": "workspace:*",
+    "@kyh/tsconfig": "catalog:",
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
-    "inteligir": "workspace:*",
     "typescript": "catalog:",
     "zod": "catalog:"
   }

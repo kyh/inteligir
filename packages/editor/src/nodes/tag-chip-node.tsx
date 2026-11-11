@@ -1,6 +1,5 @@
 // A leaf decoration, never a node, so a `#tag` costs the file only the bytes typed. Not a
-// focusable control: a tabbable element mid-paragraph wrecks caret navigation; the keyboard
-// route is typing `tag:<name>` into the palette.
+// focusable control: a tabbable element mid-paragraph wrecks caret navigation.
 
 import { PlateLeaf } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
@@ -27,7 +26,7 @@ export const TagChipLeaf = (props: PlateLeafProps) => {
             getEditorHostActions().agent.showTag(tag);
           }
         },
-        title: `Show notes tagged #${tag}`,
+        title: `Show items tagged #${tag}`,
       }}
     />
   );

@@ -6,22 +6,24 @@
 // ancestor scrolls, so the container adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";
+import type { RenderChunkFn } from "platejs";
 import { PlateContainer, PlateContent } from "platejs/react";
 import type { PlateContentProps } from "platejs/react";
 
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import type { EditorProfile } from "@repo/editor/editor-profile";
-import { TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
+import { anchorRun } from "@repo/editor/run-anchoring";
+import { EDITOR_CHUNK, TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
 import { cn } from "@repo/ui/lib/cn";
 
 // select-text opts out of the shell's global user-select: none; ignore-click-outside/toolbar keeps editor clicks from closing the floating toolbar
 const CONTAINER_CLASS =
   "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
 
-// Shared by PlateContent, the title and the raw textarea. On the desktop 48px min keeps the 44px
-// drag gutter inside the clip; no fallback for the inset, which would be the measure spelled
-// twice. Touch draws no drag gutter, and 28px still holds a heading's fold chevron, which hangs
-// 24px left of it.
+// Shared by PlateContent and the lines a surface says above it or in its place. On the desktop
+// 48px min keeps the 44px drag gutter inside the clip; no fallback for the inset, which would be
+// the measure spelled twice. Touch draws no drag gutter, and 28px still holds a heading's fold
+// chevron, which hangs 24px left of it.
 const COLUMN_PX = {
   desktop: "px-12 sm:px-[max(48px,var(--editor-column-inset))]",
   touch: "px-7",
@@ -39,6 +41,17 @@ const EDITOR_CLASS = cn(
   "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
 );
 
+// only a run of blocks draws a box: a chunk of chunks adds nothing to the dom
+const EditorChunk: RenderChunkFn = ({ attributes, children, lowest }) =>
+  // oxlint-disable-next-line typescript/no-unsafe-return -- Plate types a chunk's children `any`; a run of runs draws them as given
+  lowest ? (
+    <div {...attributes} ref={anchorRun} className={EDITOR_CHUNK}>
+      {children}
+    </div>
+  ) : (
+    children
+  );
+
 export const EditorContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <PlateContainer className={cn(CONTAINER_CLASS, className)} {...props} />
 );
@@ -49,6 +62,7 @@ export const Editor = ({ className, ...props }: PlateContentProps) => {
     <PlateContent
       className={cn(EDITOR_CLASS, editorColumnPx(profile), className)}
       disableDefaultStyles
+      renderChunk={EditorChunk}
       {...props}
     />
   );

@@ -1,5 +1,5 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
+import type { PageMeta } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
 
 const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
 
@@ -39,7 +39,7 @@ export const siteGraph = () => ({
       "@type": "SoftwareApplication",
       applicationCategory: "ProductivityApplication",
       description:
-        "A local-first notes app for the Mac in which an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you.",
+        "One library for the links, articles, images, PDFs and files you save and the notes you write, kept in your account and shown on your Mac, your iPhone and in a browser, with a built-in AI agent that files, tags and edits it with you.",
       downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,
@@ -100,9 +100,3 @@ export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {
     ],
   };
 };
-
-// `<` escaped so no string in the graph can close the inline <script> it is embedded in
-type JsonLdGraph = ReturnType<typeof siteGraph> | ReturnType<typeof pageGraph>;
-
-export const serializeJsonLd = (graph: JsonLdGraph): string =>
-  JSON.stringify(graph).replaceAll("<", String.raw`\u003c`);

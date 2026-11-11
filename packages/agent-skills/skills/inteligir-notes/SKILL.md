@@ -1,43 +1,51 @@
----
-name: inteligir-notes
-description: The persisted note syntax for inteligir vaults. Read this before creating or editing any note, choosing a block, or writing a construct the editor must round-trip.
----
-
 # inteligir Notes
 
-A vault is a git repository of ordinary markdown files. Every note is one `.md`
-file; the app reads and writes those bytes and nothing else. Anything you write
-here a person can read in a plain text editor, and anything that survives a save
-is what this skill describes.
+Every item in the library, a note the person wrote or a link, an image or a PDF they saved, is a
+record: its fields (title, tags, folder, the page's facts) and a body of blocks. `read_item`
+answers the fields as data and the body as markdown in this dialect, and `edit_item` and
+`create_note` take the same dialect back. Anything you write the editor shows as a real block, and
+anything it keeps is what this section describes. Before saving, filing or tagging an item, read
+inteligir Items below.
 
-Read this first. Focused skills own the exact contract for the constructs that
-need one — they are listed at the bottom.
+The focused sections after this one own the exact contract for the constructs that need one; they
+are listed at the end of this section.
 
 ## The Rules That Never Bend
 
-1. **The file is the note.** Write markdown. Do not create a database, an index,
-   or a metadata file; the app owns those and keeps them outside the vault.
-2. **Bytes round-trip.** Every construct below survives an open-and-save
-   unchanged. A construct spelled wrong does not error — it stays literal text,
-   which is a silent failure. Follow the grammar exactly.
-3. **Preserve what you did not come to change.** Frontmatter keys, comment
-   markers, formula identities, and unfamiliar syntax all stay as found.
+1. **An item's text is the note.** Write markdown in this dialect. Never restate an item's fields
+   (its title, tags, url) in its text: they live in its fields, and `organize_items` changes them.
+   An item has no frontmatter, so a `---` block opening the text stays a code block.
+2. **A construct reads back as itself.** Every construct below keeps its meaning through an
+   edit, though the library may respell it: a rule as `***`, a bare address as `<https://…>`. A
+   construct spelled wrong does not error; it stays literal text, which is a silent failure.
+   Follow the grammar exactly.
+3. **Preserve what you did not come to change.** Formula identities, link ids and unfamiliar
+   syntax all stay as found. `edit_item` changes only the passages you name, so
+   name only what you mean to change.
 
-## Layout
+## How An Item Reads
 
-```plaintext
-vault/
-  Some Note.md
-  Projects/Roadmap.md            # folders nest freely
-  assets/diagram.png             # images and media
-  .inteligir/comments/<id>.json  # a note's comments, keyed by its frontmatter id
+`read_item` answers a page of the item's text, from a block position, and the position the next
+page starts at. A saved link's text has two parts: the person's own note first, then the page the
+library read, between a line of colons followed by `article` and a closing line of as many
+colons:
+
+```text
+For Tuesday: the part about owning your files.
+
+:::article
+File over app is a philosophy: if you want to create digital artifacts that last…
+:::
 ```
 
-The title is the filename, not a frontmatter field and not the H1. Renaming a
-note renames its file, and the app rewrites the links that pointed at it.
+The article's fence is one colon longer than any tab, toggle or column fence inside it, so it may
+read `::::article` and close with `::::`. The note is the person's; the article is the page as it
+was read, and reading the page again replaces it. Write in the note, never in the article, and
+never move or remove either line.
 
-A note's optional stable identity is frontmatter `id:`. Links may target it, so
-never invent, copy, or reassign one.
+The text is written as the library spells it: a backslash before a character that would
+otherwise read as syntax (`\*`, `\[\[`), inside a date's, a pill's or a tab's brackets too
+(`:date[2026-08-22]`, `:::tab[Q\&A]`). Quote it that way in `edit_item`'s old text.
 
 ## Choosing A Block
 
@@ -52,9 +60,9 @@ never invent, copy, or reassign one.
 | Detail most readers can skip                      | Toggle                              | A section the reader must scroll past        |
 | Short blocks read side by side                    | Columns                             | A table holding paragraphs                   |
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
-| Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
-| Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
-| A question needing an answer                      | Comment                             | A `TODO:` line in the body                   |
+| A flowchart, sequence or timeline                 | Mermaid diagram                     | ASCII boxes and arrows                       |
+| Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use Mermaid   |
+| A styled layout no block can draw                 | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 
 When two fit, take the one that reads faster.
@@ -63,8 +71,8 @@ When two fit, take the one that reads faster.
 
 ### Headings, Lists, Quotes
 
-One `# H1` opens the body; sections use `##` through `####`. Checklists are
-`- [ ]` and `- [x]`. Blockquotes are `>`.
+One `# H1` opens a note's text; sections use `##` through `####`. Checklists are `- [ ]` and
+`- [x]`. Blockquotes are `>`. A rule is `***`.
 
 ```markdown
 # Migration Plan
@@ -79,33 +87,43 @@ We are moving the queue first and the store after.
 
 ### Tables
 
-One row per line, a consistent column count, and inline content only — links,
-wiki links, emphasis, inline code, images, formula pills. Block content (lists,
-fences, callouts) cannot live in a cell; put it after the table.
+One row per line, a consistent column count, and inline content only — links, links to items,
+emphasis, inline code, images, dates, formula pills. Block content (lists, fences, callouts)
+cannot live in a cell; put it after the table.
 
 ```markdown
-| Stage | Owner | Note             |
-| ----- | ----- | ---------------- |
-| Queue | Ana   | [[Queue Design]] |
+| Stage | Owner | Note                                                         |
+| ----- | ----- | ------------------------------------------------------------ |
+| Queue | Ana   | [Queue Design](mention:9e64c3df-c1e2-4a4d-8c07-91528f422413) |
 ```
 
-A literal pipe in a cell is `\|`. Inside a table cell, escape a pill's own pipes
-as `\|` (see inteligir-formulas § In Tables).
+A literal pipe in a cell is `\|`. A second line in a cell is `<br/>`. Columns are never aligned:
+a `:---:` row reads as a plain one.
 
 ### Code
 
-Ordinary fences with a language tag. An unknown tag is preserved and rendered
-without highlighting. Use a `plaintext` fence for ASCII diagrams.
+Ordinary fences with a language tag. An unknown tag is preserved and rendered without
+highlighting. Use a `plaintext` fence for ASCII diagrams.
+
+A `mermaid` fence is drawn as the diagram its Mermaid source describes, and one that does not
+parse shows where it failed:
+
+````markdown
+```mermaid
+flowchart LR
+  Queue --> Store
+```
+````
 
 ### Callouts
 
-A GitHub alert: a blockquote whose first line is the marker alone, then the
-body on `> ` lines. The body is ordinary markdown — links and pills inside it
-stay live, and a bare `>` line separates its paragraphs.
+A GitHub alert: a blockquote whose first line is the marker alone, then the body on `> ` lines.
+The body is ordinary markdown — links and pills inside it stay live, and a bare `>` line separates
+its paragraphs.
 
 ```markdown
 > [!WARNING]
-> Confirm the rollback path before [[Queue Design]] moves.
+> Confirm the rollback path before [Queue Design](mention:9e64c3df-c1e2-4a4d-8c07-91528f422413) moves.
 ```
 
 Pick the marker by what the reader must do with it:
@@ -122,8 +140,7 @@ Only these five markers make an alert.
 
 ### Charts
 
-An `inteligir-chart` fence holding JSON. Types are `bar`, `line`, `area`, and
-`stacked-bar`.
+An `inteligir-chart` fence holding JSON. Types are `bar`, `line`, `area`, and `stacked-bar`.
 
 ````markdown
 ```inteligir-chart
@@ -131,25 +148,27 @@ An `inteligir-chart` fence holding JSON. Types are `bar`, `line`, `area`, and
 ```
 ````
 
-One series uses `data`; several use `series`, each with a `name` and its own
-`data`. `stacked-bar` takes `data` only. Every point needs a string `label` and
-a numeric `value`. JSON that does not parse or does not match stays a code
-block — which is the failure you will see if you guess at the shape.
+One series uses `data`; several use `series`, each with a `name` and its own `data`.
+`stacked-bar` takes `data` only. Every point needs a string `label` and a numeric `value`. JSON
+that does not parse or does not match stays a code block — which is the failure you will see if
+you guess at the shape.
 
 ### Tabs
 
 ```markdown
-:::tabs
-=== Draft
+::::tabs
+:::tab[Draft]
 What we have now.
+:::
 
-=== Shipped
+:::tab[Shipped]
 What changed.
 :::
+::::
 ```
 
-The first thing inside `:::tabs` must be a `=== Label` line; content before it
-keeps the whole block as plain text. Panels hold ordinary markdown. Reach for a
+Each panel is a `:::tab[Label]` block inside a `::::tabs` block. A label is plain words: marks,
+links and pills in one are kept as their words alone. Panels hold ordinary markdown. Reach for a
 table instead when the reader needs to see all panels at once.
 
 ### Toggles
@@ -167,63 +186,75 @@ The first block is the summary; everything after it folds under it.
 ### Columns
 
 ```markdown
-:::columns
+::::columns
 :::column
 The left column.
 :::
 
-:::column 40%
+:::column{width="40%"}
 The right column, resized.
 :::
-
-:::
+::::
 ```
 
-Only `:::column` blocks sit inside `:::columns`. A width appears only after
-someone resizes a column; never invent one.
+Only `:::column` blocks sit inside `::::columns`. A width appears only after someone resizes a
+column; never invent one.
 
-### How `:::` Blocks Close
+### How Colon Blocks Close
 
-Tabs, toggles and columns nest inside each other, a callout, a quote or a list,
-and each `:::` closes the innermost one still open. A block that never closes,
-or holds something its kind does not allow, stays plain text. Leave a blank
-line before a `:::` that follows a list, a quote or a table, which would
-otherwise read the marker as one of its own lines, and after a marker that a
-`---` rule follows, which would otherwise underline the marker into a heading.
+A colon block opens with a line of three or more colons and its name, and closes at the next line
+of at least as many colons, so a block holding others takes a longer fence than they do, as
+`::::tabs` holds `:::tab` blocks; a toggle in a column in a group of columns is `:::toggle` in
+`::::column` in `:::::columns`. A block never closed runs to the end of the text, so close every
+one, and an unknown name (`:::note`) stays its own text.
 
 ### Inline
 
-| Form         | Syntax                                  |
-| ------------ | --------------------------------------- |
-| Wiki link    | `[[Note Title]]`                        |
-| Date         | `@2026-08-22`                           |
-| Highlight    | `<mark data-color="yellow">text</mark>` |
-| Underline    | `<u>text</u>`                           |
-| Tag          | `#tag`                                  |
-| Formula pill | `{{2+2\|4}}`                            |
+| Form                     | Syntax                       |
+| ------------------------ | ---------------------------- |
+| Link to an item          | `[Note Title](mention:<id>)` |
+| Link to an item by title | `[[Note Title]]`             |
+| Date                     | `:date[2026-08-22]`          |
+| Tag                      | `#tag`                       |
+| Formula pill             | `:formula[4]{source="2+2"}`  |
+| Strikethrough            | `~~text~~`                   |
+| Inline math              | `$$E = mc^2$$`               |
 
-Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
-which is how you write an example of any syntax on this page. In prose, a
-backslash before a date, a pill, a comment marker or a `:::` line keeps it
-plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
+```markdown
+Ship the queue by :date[2026-08-22]; it moves :formula[1,200]{source="1200"} jobs a day.
+```
 
-Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
-belongs in an `inteligir-html` fence.
+`[[Note Title]]` links the one item with that title once you write it, and otherwise stays text
+(inteligir Links). Code — inline or fenced — is inert: nothing inside it is parsed as a
+construct, which is how you write an example of any syntax on this page. In prose, a backslash
+before the colon keeps a date or a pill plain text: `\:date[2026-08-22]`. A date that is no day
+of the calendar stays text.
+
+### What Markdown Cannot Hold
+
+- Underline and a picture's size are the editor's alone: `read_item` shows such words and
+  pictures plain, and a block you rewrite loses them.
+- A link's title (`[words](https://… "title")`) and a table's column alignment are dropped.
+- Raw HTML (`<u>`, `<mark>`, `<div>`) reads as the text it spells, so a styled layout belongs in
+  an `inteligir-html` fence.
+- A highlight (`==…==`), a comment (`%%…%%`), a block id (`^ref`) and a footnote (`[^1]`) are
+  plain text.
 
 ## Focused Contracts
 
+Each is a section of this prompt, after this one:
+
 - Structure and readability: `inteligir-writing`
-- Frontmatter: `inteligir-frontmatter`
-- Links, embeds, media: `inteligir-links`
+- Items, saving, filing and tagging: `inteligir-items`
+- An item's fields: `inteligir-fields`
+- Links, embeds, files: `inteligir-links`
 - Formulas and variables: `inteligir-formulas`
-- Comments and the sidecar: `inteligir-comments`
 - Canvas: `inteligir-canvas`
 - HTML blocks: `inteligir-html`
 
 ## Before You Finish
 
-- Frontmatter (if any) opens the file, one H1 follows, then the body.
+- A new note's text opens with one H1, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
-- Frontmatter, comment markers, and formula identities you did not come to
-  change are byte-identical to what you found.
-- Nothing outside the vault's `.md` files and `assets/` was created.
+- Formula identities and link ids you did not come to change are exactly as you read them.
+- A saved link's article is as you read it, and you wrote only in its note.

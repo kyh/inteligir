@@ -8,33 +8,33 @@ import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
 import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
-import { FrontmatterKit } from "@repo/editor/kits/frontmatter-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
 import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
 import { MathKit } from "@repo/editor/kits/math-kit";
-import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
+import { MentionKit } from "@repo/editor/kits/mention-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
-import { CommentGutterKit } from "@repo/editor/comments/comment-gutter";
-import { CommentKit } from "@repo/editor/comments/comment-kit";
 import { EditorShortcutsKit } from "@repo/editor/editor-shortcuts";
 import { FindBarKit } from "@repo/editor/find-bar";
 import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
 import { InlineConstructsKit } from "@repo/editor/kits/inline-constructs-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
-import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
-import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
+import { PickerRaceKit } from "@repo/editor/combobox-input";
+import { NoteSectionPlugin } from "@repo/editor/live/note-section";
+import { PickerOwnerPlugin } from "@repo/editor/live/picker-owner";
 
-// Everything the document is made of: every node, the dialect's inputs and decorations, the
-// comment decoration and the markdown wiring. Every surface composes this whole, so a note reads
+// Everything the document is made of: every node, the dialect's inputs and decorations and the
+// markdown wiring. Every surface composes this whole, so a note reads
 // and serializes alike wherever it is open.
 export const CONTENT_KIT = [
+  // first, so every other insertText override, a picker's trigger included, sees a key before it
+  ...PickerRaceKit,
   ...BasicMarksKit,
   ...BasicBlocksKit,
   ...CodeBlockKit,
@@ -47,24 +47,20 @@ export const CONTENT_KIT = [
   ...ImageKit,
   ...DateKit,
   ...MathKit,
-  ...OpaqueKit,
-  ...FrontmatterKit,
-  ...WikiLinkKit,
+  ...MentionKit,
   ...InlineConstructsKit,
   ...RichBlocksKit,
-  ...CommentKit,
   ...TabsKit,
-  ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
   // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,
   ...MarkdownKit,
+  NoteSectionPlugin,
+  PickerOwnerPlugin,
 ];
 
-// A later plugin's aboveNodes wraps an earlier one's, so the gutter stays inside the fold that
-// hides its block, and both inside the drag handle.
+// A later plugin's aboveNodes wraps an earlier one's, so the fold stays inside the drag handle.
 export const DESKTOP_CHROME_KIT = [
-  ...CommentGutterKit,
   ...HeadingCollapseKit,
   ...SlashKit,
   ...EditorShortcutsKit,

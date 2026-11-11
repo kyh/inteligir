@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { getLinkAttributes, unwrapLink } from "@platejs/link";
-import { ArrowRightIcon, ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
+import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
@@ -9,9 +9,8 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
-import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
-import { isHttpUrl, openExternalUrl } from "@repo/editor/lib/url";
-import { useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
+import { isHttpUrl } from "@repo/editor/lib/url";
 import { stringProp } from "@repo/editor/node-props";
 
 const PopoverButton = ({
@@ -43,13 +42,9 @@ export const LinkElement = (props: PlateElementProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
+  // only an http(s) url is handed to the browser: an item is linked by `[[…]]`, never by an
+  // address, so any other url offers no Open
   const url = stringProp(element, "url") ?? "";
-  const notePath = useOpenNotePath();
-  // a vault url opens in the app, and one the listing does not hold offers no Open: the
-  // browser has no route to a vault path. only an http(s) url is handed to the browser.
-  const linked = useVaultLinkTarget(url, notePath);
-  const vaultPath = linked?.path ?? null;
-  const { openFile } = useVaultActions();
 
   const close = () => {
     setOpen(false);
@@ -151,17 +146,6 @@ export const LinkElement = (props: PlateElementProps) => {
                   }}
                 >
                   <ExternalLinkIcon />
-                </PopoverButton>
-              )}
-              {vaultPath !== null && (
-                <PopoverButton
-                  title="Open link"
-                  onClick={() => {
-                    close();
-                    openFile(vaultPath);
-                  }}
-                >
-                  <ArrowRightIcon />
                 </PopoverButton>
               )}
               <PopoverButton

@@ -1,106 +1,148 @@
-import { useMemo, useSyncExternalStore } from "react";
+// The composition root's native half: composeRuntime bound to Better Auth's Expo client over the
+// Keychain, expo-sqlite's key-value store, the file folder, the global fetch, React Native's socket
+// and the OS's app state, built once for the app's life. A screen reaches the library through the hooks in
+// library-hooks.ts, over TanStack Query, whose online state is the network's and whose focus is
+// the app's.
+
+import { expoClient } from "@better-auth/expo/client";
+import { focusManager, onlineManager } from "@tanstack/react-query";
+import { createAuthClient } from "better-auth/client";
+import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
-import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
-import { createKeychainCredentials } from "../credential/secure-store-credential";
-import {
-  pendingCaptures,
-  threadDispatches,
-  threadListEntries,
-} from "../dispatch/dispatch-projection";
-import type {
-  PendingCaptures,
-  ThreadDispatches,
-  ThreadListEntry,
-} from "../dispatch/dispatch-projection";
-import type {
-  AskAgentRequest,
-  CancelOutcome,
-  DispatchOutcome,
-  DispatchState,
-} from "../dispatch/dispatch-runtime";
-import { createEditorPorts } from "../editor/editor-ports";
-import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
-import { defaultDeviceName } from "../login/device-name";
+import { defaultDatabaseDirectory } from "expo-sqlite";
+import { SQLiteStorage } from "expo-sqlite/kv-store";
+import { z } from "zod";
+import type { SignUpRequest } from "@repo/contract/account/account-schema";
+import { hexFromBytes } from "@repo/contract/bytes";
+import { PHONE_ORIGIN } from "@repo/contract/origin";
+import { uuidV7 } from "@repo/contract/library/uuid-v7";
+import { keychainStorage } from "../auth/keychain-storage";
+import { phoneAuthOver } from "../auth/phone-auth";
+import type { PhoneAuth } from "../auth/phone-auth";
+import { expoFileFolder } from "../files/expo-file-folder";
+import { shrinkToThumbnail } from "../files/expo-thumbnail";
+import type { KvStorage } from "../items/share-outbox";
 import type { LoginRequest, LoginState } from "../login/login-store";
-
-import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
-import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
-import type { CreatedNote, RenamedNote } from "../notes/file-ops";
-import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
-import { excludedFromBackup } from "../notes/outbox-files";
-import { ingestPhoto } from "../notes/photo-ingest";
-import type { OutboxStatus } from "../notes/vault-outbox";
-import type { LiveItem } from "../sync/live-turns";
-import { rnSocketDial } from "../sync/rn-socket-dial";
-import type { SyncStatus } from "../sync/sync-runtime";
-import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
-import type { ThreadProjection } from "../sync/thread-projection";
-import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
-import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
-import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
-import { createExpoSqlDriver } from "./expo-sql-driver";
-import { openPhoneDb } from "./phone-db";
-
-let runtime: AppRuntime | null = null;
-
-// console.warn would raise a LogBox toast per skipped row or offline pass.
-const devLog = (message: string): void => {
-  if (__DEV__) {
-    console.log(`sync: ${message}`);
-  }
-};
+import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
+import { systemClock } from "./system-clock";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
 const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 
+// a block's id on this phone: what a thought's paragraphs are named by
+const newBlockId = (): string => Crypto.randomUUID();
+
+const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
+  hexFromBytes(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
+
+// the store's folder is taken out of the device backup with its first write; expo-sqlite types its
+// default folder as any
+const keptOutOfBackup = (store: SQLiteStorage): KvStorage => {
+  let excluded: Promise<void> | null = null;
+  const excludeOnce = async (): Promise<void> => {
+    const directory = z.string().safeParse(defaultDatabaseDirectory);
+    excluded ??= directory.success ? excludeFromBackup(directory.data) : Promise.resolve();
+    await excluded;
+  };
+  return {
+    getAllKeys: async () => await store.getAllKeys(),
+    getItem: async (key) => await store.getItem(key),
+    removeItem: async (key) => {
+      await store.removeItem(key);
+    },
+    setItem: async (key, value) => {
+      await store.setItem(key, value);
+      await excludeOnce();
+    },
+  };
+};
+
+// Better Auth's Expo client: it keeps the session cookie in the Keychain, under keys named
+// `inteligir_…`, and names the app's scheme in `expo-origin` on every call of its own, the origin
+// the cloud trusts for the phone's sign-in
+const phoneAuth = (cloudUrl: string): PhoneAuth =>
+  phoneAuthOver(
+    createAuthClient({
+      baseURL: cloudUrl,
+      plugins: [
+        expoClient({
+          scheme: PHONE_ORIGIN.replace(/:\/\/$/u, ""),
+          storage: keychainStorage(SecureStore),
+          storagePrefix: "inteligir",
+        }),
+      ],
+    }),
+    cloudUrl,
+  );
+
+let runtime: AppRuntime | null = null;
+
 const build = (): AppRuntime => {
+  const cloudUrl = getCloudUrl();
   const rt = composeRuntime({
-    attachments: createExpoAttachmentFiles(),
+    auth: phoneAuth(cloudUrl),
     build: { platform: "mobile", version: appVersion() },
-    cloudUrl: getCloudUrl(),
-    credentials: createKeychainCredentials(SecureStore),
-    db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
-    deviceName: defaultDeviceName(),
-    mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
-    mintNoteId: Crypto.randomUUID,
-    outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
-    randomBytes: Crypto.getRandomBytes,
-    sha1: async (bytes) =>
-      new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
-    sync: { onDebug: devLog, openSocket: createCloudSocketOpener(rnSocketDial) },
+    clock: systemClock,
+    cloudUrl,
+    // React Native's WebSocket: it opens with the ticket a `/v1` call minted, in the query string,
+    // as every client does, never a header
+    dial: (url) => new WebSocket(url),
+    fetch: async (request) => await globalThis.fetch(request),
+    folder: expoFileFolder,
+    newBlockId,
+    newId: () => uuidV7(Date.now(), Crypto.getRandomBytes(16)),
+    sha256Hex,
+    shrinkCover: shrinkToThumbnail,
+    storage: keptOutOfBackup(new SQLiteStorage("inteligir-kv")),
   });
+  // the app reaches the cloud while it is in front and online, and the runtime hears each edge of
+  // that once, so a wake that also brings the network back resumes once; a phone back online in
+  // the background waits for the foreground
+  const reach = { front: true, online: true };
+  let reached = true;
+  const judge = (): void => {
+    const reaches = reach.front && reach.online;
+    if (reaches === reached) {
+      return;
+    }
+    reached = reaches;
+    if (reaches) {
+      rt.resume();
+    } else {
+      rt.suspend();
+    }
+  };
   // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
   // `inactive` is a passing state on iOS (a pulled-down notification centre), not a departure.
   AppState.addEventListener("change", (state) => {
-    if (state === "active") {
-      rt.resume();
-    } else if (state === "background") {
-      rt.suspend();
+    focusManager.setFocused(state === "active");
+    if (state === "active" || state === "background") {
+      reach.front = state === "active";
+      judge();
     }
   });
-  // a phone back online sends what it saved offline without waiting for the retry timer; in the
-  // background it waits for the foreground, which reopens the socket too
-  let online = true;
-  addNetworkStateListener((network) => {
-    const reachable = network.isInternetReachable ?? network.isConnected ?? false;
-    if (reachable && !online && AppState.currentState === "active") {
-      rt.resume();
-    }
-    online = reachable;
+  onlineManager.setEventListener((setOnline) => {
+    const subscription = addNetworkStateListener((network) => {
+      reach.online = network.isInternetReachable ?? network.isConnected ?? false;
+      setOnline(reach.online);
+      judge();
+    });
+    return () => {
+      subscription.remove();
+    };
   });
   return rt;
 };
 
-const getRuntime = (): AppRuntime => {
+export const getRuntime = (): AppRuntime => {
   runtime ??= build();
   return runtime;
 };
@@ -109,168 +151,23 @@ export const ensureStarted = async (): Promise<void> => {
   await getRuntime().start();
 };
 
-export const syncNow = async (): Promise<void> => {
-  await getRuntime().sync.syncNow();
-};
-
-export const logout = async (options?: { discardUnsent?: boolean }): Promise<LogoutOutcome> =>
+export const logout = async (options?: { discardWaiting?: boolean }): Promise<LogoutOutcome> =>
   await getRuntime().logout(options);
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
 };
 
-export const refreshNotes = async (): Promise<void> => {
-  await getRuntime().notes.refresh();
+export const signUp = async (request: SignUpRequest): Promise<void> => {
+  await getRuntime().login.signUp(request);
 };
 
-export const readNote = async (path: string): Promise<NoteRead> =>
-  await getRuntime().notes.readNote(path);
-
-export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(note);
-
-export const createNote = async (dir: string): Promise<CreatedNote> =>
-  await getRuntime().fileOps.create(dir);
-
-export const renameNote = async (from: string, name: string): Promise<RenamedNote> =>
-  await getRuntime().fileOps.rename(from, name);
-
-export const deleteNote = async (path: string): Promise<void> => {
-  await getRuntime().fileOps.remove(path);
-};
-
-// the view context's revision: the sha-256 of the note's bytes as the screen showed them
-const noteRevision = async (content: string): Promise<string> =>
-  hexFromBytes(
-    new Uint8Array(
-      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
-    ),
-  );
-
-// the editor page's ports over the store and the file verbs, bound to their native halves: the
-// photo picker, a held file's bytes, the revision hash and a new thread's id
-export const createNoteEditorPorts = (
-  screen: Pick<
-    EditorPortsArgs,
-    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
-  >,
-): EditorPorts => {
-  const rt = getRuntime();
-  return createEditorPorts({
-    ...screen,
-    comments: rt.comments,
-    fileOps: rt.fileOps,
-    newThreadId: () => rt.dispatch.newThreadId(),
-    pickImage: async () => await ingestPhoto(rt.fileOps),
-    readBase64: async (uri) => await new File(uri).base64(),
-    revisionOf: noteRevision,
-    store: rt.notes,
-  });
-};
-
-// one per load of the editor page
-export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
-export const useNotesTree = (): NotesTreeState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
-};
-
-// what has not reached the vault: the parked changes and the conflicts the queue settled
-export const useOutboxStatus = (): OutboxStatus => {
-  const { status } = getRuntime().notes.outbox;
-  return useSyncExternalStore(status.subscribe, status.get);
-};
-
-export const retryUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.retry(seq);
-};
-
-// the path the change was kept at, or null when it had nothing to keep
-export const saveUnsentAsNew = async (seq: number): Promise<string | null> =>
-  await getRuntime().notes.outbox.saveAsNew(seq);
-
-export const discardUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.discard(seq);
-};
-
-export const dismissSyncNotice = (id: number): void => {
-  getRuntime().notes.outbox.dismiss(id);
-};
-
-export const useSyncStatus = (): SyncStatus => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.sync.subscribe, rt.sync.get);
+export const useSession = (): PhoneSession => {
+  const { session } = getRuntime();
+  return useSyncExternalStore(session.subscribe, session.get);
 };
 
 export const useLoginState = (): LoginState => {
   const rt = getRuntime();
   return useSyncExternalStore(rt.login.subscribe, rt.login.get);
-};
-
-const useDispatchState = (): DispatchState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.dispatch.subscribe, rt.dispatch.get);
-};
-
-// the synced threads and those that so far exist only on this phone, each with what it is doing
-export const useThreadList = (): readonly ThreadListEntry[] => {
-  const rt = getRuntime();
-  const threads = useSyncExternalStore(rt.store.subscribeThreads, rt.store.snapshotThreads);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () =>
-      threadListEntries(
-        liveThreadsFirst(threads.map((thread) => projectThread(thread))),
-        dispatches,
-      ),
-    [threads, dispatches],
-  );
-};
-
-export const useThread = (threadId: string): ThreadProjection | null => {
-  const rt = getRuntime();
-  const thread = useSyncExternalStore(rt.store.subscribeThreads, () =>
-    rt.store.snapshotThread(threadId),
-  );
-  return useMemo(() => (thread === null ? null : projectThread(thread)), [thread]);
-};
-
-// what the thread's running turn has streamed so far, cleared as its items settle
-export const useLiveItems = (threadId: string): readonly LiveItem[] => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.live.subscribe, () => rt.live.snapshot(threadId));
-};
-
-export const useDispatches = (threadId: string): ThreadDispatches => {
-  const thread = useThread(threadId);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () => threadDispatches(threadId, thread, dispatches),
-    [threadId, thread, dispatches],
-  );
-};
-
-export const usePendingCaptures = (): PendingCaptures => {
-  const dispatches = useDispatchState();
-  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
-};
-
-export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.askAgent(request);
-
-export const capture = async (text: string): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.capture(text);
-
-export const answerApproval = async (
-  approvalId: string,
-  decision: PendingInteractionApprovalDecision,
-): Promise<DispatchOutcome> => await getRuntime().dispatch.answer(approvalId, decision);
-
-export const cancelDispatch = async (id: string): Promise<CancelOutcome> =>
-  await getRuntime().dispatch.cancel(id);
-
-export const dismissDispatch = async (id: string): Promise<void> => {
-  await getRuntime().dispatch.dismiss(id);
 };

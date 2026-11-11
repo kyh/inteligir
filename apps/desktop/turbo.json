@@ -2,55 +2,16 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
-    // with @repo/workspace's first-run page inside it. cargo keeps its own incremental cache, keyed
-    // on what turbo cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op
-    // compile.
-    "build:shell": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
-    // The .app is where the halves meet: the shell compiled with the first-run page inside it, the
-    // node it ships, and the CLI bundle, which already carries the app page, as a resource.
+    // The .app: the shell compiled around the site's URL, signed, and the release's assets.
     "package": {
-      "dependsOn": ["^build"],
       "outputs": [".output/bin/**"],
       // Not a pure function of the source: the signature comes from the keychain and the
       // notarization ticket from Apple, and a cache hit would replay an unsigned artifact over a
       // signing key that has since appeared.
       "cache": false,
-      // the signing identity and the updater's key: strict env mode strips anything unnamed before
-      // the Tauri CLI reads it. The notary's key is .release's alone (scripts/package.ts)
-      "passThroughEnv": [
-        "APPLE_SIGNING_IDENTITY",
-        "INTELIGIR_PACK_UNSIGNED",
-        "TAURI_SIGNING_PRIVATE_KEY",
-        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-      ]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      // The shell runs the CLI's bundle, so a stale `dist/` is a shell running last week's
-      // server with no error anywhere. esbuild rebuilds it in milliseconds; iterating on the
-      // server itself is `pnpm cli serve` in its own terminal, which this shell adopts.
-      "dependsOn": ["^build"],
-      // strict env mode strips anything unnamed, and the shell resolves its target through the
-      // server's `resolveAppConfig`, so it needs that module's whole table. Held against
-      // `ENV_VAR_NAMES` by tools/repo-guards/src/turbo-passthrough.test.ts.
-      "passThroughEnv": [
-        "INTELIGIR_AGENT",
-        "INTELIGIR_CLAUDE_MODEL",
-        "INTELIGIR_CLOUD_URL",
-        "INTELIGIR_CODEX_MODEL",
-        "INTELIGIR_DATA_DIR",
-        "INTELIGIR_DEBUG",
-        "INTELIGIR_PORT",
-        "INTELIGIR_SLOW_READS",
-        "INTELIGIR_SYNC_INTERVAL_MS",
-        "INTELIGIR_VAULT_DIR",
-        "INTELIGIR_VAULT_REMOTE"
-      ]
+      // how the pack signs: strict env mode strips anything unnamed before scripts/package.ts reads
+      // it. The notary's and the updater's keys are .release's alone
+      "passThroughEnv": ["APPLE_SIGNING_IDENTITY", "INTELIGIR_PACK_UNSIGNED"]
     }
   }
 }

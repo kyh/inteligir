@@ -1,4 +1,4 @@
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/origin";
 
 const isWebOrigin = (url: URL): boolean =>
   (url.protocol === "https:" || url.protocol === "http:") && url.origin !== "";
@@ -11,9 +11,9 @@ const parseUrl = (value: string): URL | null => {
   }
 };
 
-// unset is production, as it is for the desktop, so a store build carries no value and cannot
-// point anywhere else. no LAN-host fallback: the Worker's dev server binds localhost, so a guessed
-// Metro-host origin never answers a phone.
+// unset is production, so a store build carries no value and cannot point anywhere else. no
+// LAN-host fallback: the Worker's dev server binds localhost, so a guessed Metro-host origin never
+// answers a phone.
 export const getCloudUrl = (): string => {
   // spelled whole: Metro inlines an EXPO_PUBLIC_ variable only at a static member access.
   const raw = process.env.EXPO_PUBLIC_CLOUD_URL;

@@ -1,31 +1,74 @@
-import { PAGES } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
+import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { PAGES } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
 
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
 // agent that negotiates text/markdown, so the two representations cannot drift
 
 const { contact, downloadUrl, github, name, url } = siteConfig;
+const libraryUrl = `${url}${LIBRARY_PAGE_PATH}`;
 
-export const homeMarkdown = `# ${name}: the workspace for knowledge work
+export const homeMarkdown = `# ${name}: one library for everything you save
 
-${name} is a notes app for the Mac where an AI agent edits your notes with you. You write, and
-when you ask, the agent reads your notes, drafts, reorganizes and answers from them, editing the
-same files you do. Every change it makes is kept in your notes' history, so any of it can be
-undone.
+${name} keeps everything you save and write in one library: links and articles, videos, images,
+PDFs and files, beside the notes you write. It does the work of a bookmark manager like Raindrop and
+a notes app like Obsidian at once. The library lives in your ${name} account, and your Mac, your
+iPhone and a browser all show it. When you ask, the built-in AI agent files, tags, summarizes and edits
+it with you.
 
-## How it works
+## Save from anywhere
 
-- **Your notes stay yours.** They are plain markdown files in a folder on your Mac. The app, its
-  search and the agent all run on that Mac.
-- **The agent runs on the plan you already have.** Sign in with a paid Claude plan or any ChatGPT
-  plan; ${name} never bills you for model usage and never asks for an API key.
-- **An account is optional.** Without one ${name} is a local notes app that makes no cloud request.
-  With one, your notes and conversations sync between your devices, and a hosted copy of your
-  notes is kept for your phone and your other Macs.
+- **From your browser.** [The ${name} extension](${EXTENSION_STORE_URL}) for Chrome, Arc, Brave and
+  Edge saves the page you're on with one click, or a link or an image from the right-click menu.
+- **From the window.** Paste a link, or drag links and files onto the app. Any file up to 100 MB is
+  kept as it is.
+- **From your iPhone.** Share a page or a link to ${name} from any app. It's saved at once and our
+  cloud reads the page; shared offline, it waits on your iPhone until you're back online.
 
-${name} runs on Macs with Apple silicon and is shared with a small invited group for now.
+Saving is instant and free, and calls no model. The extension reads the title, picture and text of
+the page you save from it when it can, and our cloud reads every other link.
+
+## Read what you saved
+
+A saved page opens as its readable article; a picture, a PDF or a video opens in its own viewer.
+
+## Write notes
+
+The same library holds what you write, in a rich editor: links between notes, tags, tables,
+callouts, charts and formulas.
+
+## Folders, tags and Tidy my library
+
+New saves wait in Unsorted. File them into folders and tag them yourself, or choose Tidy my library
+and the agent files and tags everything waiting, following filing rules you write in your own words.
+
+## Your library, on every device
+
+Your library is kept in your account in our cloud, and the Mac app, the iPhone app and
+[your library](${libraryUrl}) in a browser each show it whenever you're online. Your iPhone keeps
+what you last opened, so it still shows with no connection, and a page you save from the browser
+extension or your iPhone's share sheet while offline waits there and lands once you're back.
+
+Your Raindrop bookmarks come in from a backup with their collections and tags, each one's
+highlights quoted in its note, and an Obsidian folder comes in as a zip.
+
+## The agent is built in
+
+The agent runs in our cloud on Anthropic's Claude, on our account, so you need no plan and we never
+ask for an API key. Each account gets a free daily allowance. What the agent reads to answer you goes
+to Anthropic. It asks before it deletes anything, and Undo under each answer takes its changes back
+for seven days.
+
+Your own Claude or ChatGPT can reach the same library through the connector, once you allow it.
+
+## An account is required
+
+Your first 1 GB is free. Creating an account takes an invite code while ${name} is
+shared with a small invited group. The Mac app runs on Macs with Apple silicon.
 
 - [Download for Mac](${downloadUrl})
+- [Open your library](${libraryUrl})
 - [About ${name}](${url}/about)
 - [Contact](${url}/contact)
 - [Privacy](${url}/privacy)
@@ -34,33 +77,33 @@ ${name} runs on Macs with Apple silicon and is shared with a small invited group
 
 export const aboutMarkdown = `# About ${name}
 
-${name} is a notes app built around one idea: an AI agent should work in your notes the way a
-thoughtful collaborator would, in the open, on files you own, with every change reversible. It
-is made for knowledge workers (writers, researchers, analysts, operators), not for developers,
-and nothing about using it requires a terminal.
+${name} is one library for everything you save and write, built around one idea: what you keep
+should be on every device you use, and an AI agent should work in it the way a thoughtful
+collaborator would, in the open, with every change it makes reversible. It is made for knowledge workers
+(writers, researchers, analysts, operators), not for developers.
 
 ## What makes it different
 
-- **Local-first.** Your notes are ordinary markdown files in a folder you choose. They open in
-  any other editor, and they keep working if ${name} ever goes away.
-- **Your own model plan.** The agent runs on your Mac through your own Claude or ChatGPT sign-in.
-  ${name} does not resell model access, has no API-key fallback, and never routes a model call
-  through its own servers.
-- **History by default.** Every edit, yours or the agent's, is recorded, so you can see what
-  changed and take any of it back.
-- **Sync when you want it.** An optional account syncs your notes, your conversations with the
-  agent and your quick captures across your Macs and your phone. The hosted copy of your notes is
-  free up to about 1 GB.
+- **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
+  and your Mac, your iPhone and a browser all show it; your iPhone keeps what you last opened, to
+  read with no connection.
+- **Saving is instant and free.** The extension reads the page you save from it when it can, our
+  cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
+  you ask.
+- **The agent is built in.** It runs in our cloud on our account with Anthropic, so you need no plan
+  and we never ask for an API key. What it reads to answer you goes to Anthropic. Your own Claude or
+  ChatGPT can reach the same library through the connector.
+- **An account is required, and its first 1 GB is free.** A single file can be up to 100 MB.
 
 ## Who makes it
 
 ${name} is an independent, open-source project by Kaiyu Hsu, released under the MIT license. The
 source code, the release notes and the issue tracker all live on
-[GitHub](${github}). It is currently shared with a small invited group on Macs with Apple
-silicon while it matures.
+[GitHub](${github}). It is currently shared with a small invited group while it matures.
 
-Read the [privacy policy](${url}/privacy) for exactly what leaves your Mac, or
-[get in touch](${url}/contact).
+Your library is encrypted at rest but not end to end, so we can read what our cloud holds. The
+[privacy policy](${url}/privacy) says exactly what each device sends and what our cloud keeps. For
+anything else, [get in touch](${url}/contact).
 `;
 
 export const contactMarkdown = `# Contact ${name}
@@ -77,7 +120,7 @@ data.
 
 Bugs and feature requests are best filed as
 [issues on GitHub](${github}/issues), where you can also follow what is being worked on and read
-the source. Please leave the contents of your notes out of a public issue.
+the source. Please leave the contents of your library out of a public issue.
 
 ## Elsewhere
 
@@ -92,38 +135,54 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 
 export const llmsTxt = `# ${name}
 
-> ${name} is a local-first notes app for the Mac in which an AI agent, running on the user's own
-> Claude or ChatGPT plan, reads and edits the user's markdown notes alongside them.
+> ${name} is a library of everything a person saves and writes (links, articles, videos, images,
+> PDFs, files and their own notes), kept in their account and shown on their Mac, their iPhone
+> and in a browser, with a built-in AI agent that files, tags, summarizes and edits it with them.
 
-${name} stores notes as plain markdown files in a folder on the user's Mac. The app, its search
-and the agent run on that Mac; an optional account adds sync across Macs and an iPhone app. It is
-open source (MIT), available for Apple silicon Macs, and shared with a small invited group.
+An account is required, and its first 1 GB is free; creating one takes an invite code. The library
+is kept in the account, in ${name}'s cloud. A browser tab at ${libraryUrl}, the Mac app's window on
+it and the iPhone app show it online, and the iPhone keeps what it last read to show with no
+connection; a page saved from the browser extension or the iPhone's share sheet while offline waits
+and lands once back online. ${name} saves from Chrome,
+Arc, Brave and Edge through its browser extension, by pasting or dragging onto the window, and from
+the iPhone share sheet, and keeps any file up to 100 MB. The extension reads the page it saves when
+it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
+in that cloud on Anthropic's Claude, on ${name}'s account, within a free daily allowance. A person's
+own Claude or ChatGPT can reach the same library through the connector at ${url}/connector. It imports
+Raindrop backups and zips of notes such as an Obsidian folder. It is open source (MIT), and shared with a small invited group; the
+Mac app is for Apple silicon.
 
 ## When to use ${name}
 
-- A person wants an AI agent to draft, reorganize, summarize or answer questions from their own
-  notes, with every agent edit recorded and reversible.
-- A person wants notes as plain markdown files they own on disk, not in a proprietary cloud.
-- A person already pays for Claude or ChatGPT and wants that plan, not a separate subscription or
-  API key, to power the agent.
+- A person wants to replace a bookmark manager like Raindrop or Pocket and a notes app like
+  Obsidian with one library on every device they use.
+- A person wants an AI agent to file, tag, summarize or answer questions from what they saved and
+  wrote, with every agent edit recorded and reversible.
+- A person wants that agent built in, with no plan to buy and no API key to manage.
+- A person uses Claude or ChatGPT and wants it to search, read and change what they saved.
 
 ## When not to use ${name}
 
-- The person is on Windows, Linux or an Intel Mac.
+- The person wants an app on Windows, Linux, Android or an Intel Mac: there the library is a browser
+  tab that needs a connection.
+- The person needs what they keep encrypted end to end: ${name} can read what its cloud holds.
 - The person needs real-time multi-user collaboration on the same document.
+- The person saves from Safari or Firefox on the Mac: the extension is for Chromium browsers.
+- A team wants one library shared between its members.
 
 ## Pages
 
 - [Home](${url}/): what ${name} is and how it works
 - [About](${url}/about): principles and who makes it
 - [Contact](${url}/contact): email and GitHub
-- [Privacy Policy](${url}/privacy): exactly what leaves the user's Mac and what never does
+- [Privacy Policy](${url}/privacy): exactly what each device sends and what the cloud keeps
 - [Terms of Use](${url}/terms): the terms for using the site and the apps
 
 ## Optional
 
 - [Download](${downloadUrl}): the signed macOS build
-- [Source code](${github}): the open-source repository
+- [Your library](${libraryUrl}): the library in a browser tab, after signing in
+- [Source code](${github}): the open-source code
 - [Sitemap](${url}/sitemap.xml)
 `;
 

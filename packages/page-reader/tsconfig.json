@@ -1,0 +1,10 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // the stdlib of the programs that bundle it; the DOM is the host's (linkedom)
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    // the suite reads its corpus off disk
+    "types": ["node"]
+  },
+  "include": ["src", "vitest.config.ts"]
+}

@@ -1,0 +1,32 @@
+diff --git a/dist/index.es.js b/dist/index.es.js
+index 481f58f009996280b76fcf15417db95886f6985e..032e558d49eccbec135e03ee156bd687580e838f 100644
+--- a/dist/index.es.js
++++ b/dist/index.es.js
+@@ -3052,7 +3052,10 @@ const Editable = /*#__PURE__*/forwardRef((props, forwardedRef) => {
+           if (!ReactEditor.isComposing(editor) && !(androidInputManager !== null && androidInputManager !== void 0 && androidInputManager.hasPendingChanges()) && !(androidInputManager !== null && androidInputManager !== void 0 && androidInputManager.isFlushing())) {
+             const isCaretOutsideText = domSelection.isCollapsed && !isInSlateText(anchorNode);
+             if (isCaretOutsideText && editor.selection && Range.equals(range, editor.selection)) {
+-              restoreDomSelection(editor, domSelection, state);
++              // an input inside a void holds the focus and its own caret, which a restore would take
++              if (activeElement === _el) {
++                restoreDomSelection(editor, domSelection, state);
++              }
+             } else {
+               Transforms.select(editor, range);
+             }
+diff --git a/dist/index.js b/dist/index.js
+index bc9a02adc20ac27bbaf2fba883f6c20c6379d943..6c89d403ae9cc8360cb1729edb492ec13a1439d1 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3558,7 +3558,10 @@ var Editable = /*#__PURE__*/React.forwardRef(function (props, forwardedRef) {
+             if (!ReactEditor.isComposing(editor) && !(androidInputManager !== null && androidInputManager !== void 0 && androidInputManager.hasPendingChanges()) && !(androidInputManager !== null && androidInputManager !== void 0 && androidInputManager.isFlushing())) {
+               var isCaretOutsideText = domSelection.isCollapsed && !isInSlateText(anchorNode);
+               if (isCaretOutsideText && editor.selection && slate.Range.equals(range, editor.selection)) {
+-                restoreDomSelection(editor, domSelection, state);
++                // an input inside a void holds the focus and its own caret, which a restore would take
++                if (activeElement === _el) {
++                  restoreDomSelection(editor, domSelection, state);
++                }
+               } else {
+                 slate.Transforms.select(editor, range);
+               }

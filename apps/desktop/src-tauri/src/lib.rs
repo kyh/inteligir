@@ -1,139 +1,62 @@
-//! The Inteligir desktop shell: a Rust window over the page the local server serves, the server
-//! itself as the one child it supervises, and what only a native host can do for that page: menus,
-//! the menu-bar icon, dialogs, Finder, and the updates.
+//! The Inteligir Mac app: one window on the library's page the site serves, the macOS menu, and
+//! the update flow the page drives through three commands.
 
-mod answer;
-mod commands;
-mod diagnostics;
-mod dialogs;
-mod door;
-mod files;
-mod first_run;
-mod launch;
 mod menu;
 mod navigation;
-mod paths;
-mod runtime;
-mod server;
-mod server_log;
-mod shell;
-mod tray;
-mod update_state;
 mod updater;
-mod vaults;
 mod window;
 
-use tauri::{Manager, RunEvent};
-
-use crate::shell::Shell;
-use crate::updater::Updates;
-
-/// SIGTERM and SIGINT quit as Quit does, so the server's teardown runs: a `kill`, launchd at
-/// shutdown and Ctrl-C under `tauri dev` all flush the vault's pending commit. A handler, not a
-/// blocked mask: nothing of it reaches the children the shell starts.
-#[cfg(unix)]
-fn quit_on_signals(app: &tauri::AppHandle) {
-    use signal_hook::consts::{SIGINT, SIGTERM};
-    use signal_hook::iterator::Signals;
-    match Signals::new([SIGTERM, SIGINT]) {
-        Ok(mut signals) => {
-            let app = app.clone();
-            std::thread::spawn(move || {
-                if signals.forever().next().is_some() {
-                    app.exit(0);
-                }
-            });
-        }
-        Err(error) => eprintln!("[desktop] a SIGTERM will not stop the server first: {error}"),
-    }
+fn fail(error: &dyn std::fmt::Display) -> ! {
+    eprintln!("[desktop] Inteligir failed to start: {error}");
+    std::process::exit(1);
 }
 
 pub fn run() {
-    let context = tauri::generate_context!();
-    // `plugins.updater` in tauri.conf.json names the feed and its key; a shell outside a bundle has
-    // nothing to replace
-    let updates_configured = context.config().plugins.0.contains_key("updater");
-    let version = context.package_info().version.to_string();
-    let bundled = std::env::current_exe().is_ok_and(|exe| runtime::is_bundled(&exe));
-
-    let mut builder = tauri::Builder::default();
-    // first, as the plugin asks: a second launch of the app hands over to this one before anything
-    // else runs, since two shells would race for the port and the loser would adopt the winner. The
-    // packaged app alone: the plugin keys on the bundle id, machine-wide, so a development shell or
-    // the scenario suite's would otherwise hand over to an installed Inteligir and quit
-    if bundled {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            shell::show_current_window(app);
-        }));
+    let mut context = tauri::generate_context!();
+    if let Err(error) = window::follow_local_site(context.config_mut()) {
+        fail(&error);
     }
-    builder = builder
-        .plugin(tauri_plugin_dialog::init())
-        // only Rust opens links (window.rs): the plugin's own script would catch a `_blank` click
-        // and ask for a command no page is granted, so the link would do nothing
+    // `plugins.updater`, which the pack writes, turns updates on; under `tauri dev` there is no
+    // bundle to replace
+    let updates = context.config().plugins.0.contains_key("updater") && !tauri::is_dev();
+
+    let mut builder = tauri::Builder::default()
+        // only Rust opens links (window.rs): the plugin's own script would catch a `_blank`
+        // click and ask for a command the page is not granted, so the link would do nothing
         .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
                 .build(),
         );
-    if updates_configured && bundled {
+    if updates {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     let built = builder
-        .manage(Updates::new(
-            &version,
-            updater::disabled_reason(updates_configured, bundled),
-        ))
+        .manage(updater::Updates::new(updates))
         .invoke_handler(tauri::generate_handler![
-            commands::diagnostics_get_state,
-            commands::diagnostics_open_data_folder,
-            commands::diagnostics_restart,
-            commands::diagnostics_set_debug,
-            commands::diagnostics_show_log,
-            commands::first_run_finish,
-            commands::first_run_get_state,
-            commands::first_run_pick_folder,
-            commands::first_run_pick_parent,
-            commands::paths_open,
-            commands::paths_reveal,
-            commands::print_page,
-            commands::updates_check,
-            commands::updates_download,
-            commands::updates_get_state,
-            commands::updates_install,
-            commands::vaults_forget,
-            commands::vaults_get_state,
-            commands::vaults_open,
-            commands::vaults_pick,
+            updater::check_for_updates,
+            updater::download_update,
+            updater::install_update,
         ])
         .on_menu_event(|app, event| menu::on_event(app, &event))
-        .setup(move |app| {
-            app.manage(Shell::new(bundled));
-            #[cfg(unix)]
-            quit_on_signals(app.handle());
-            let launching = app.handle().clone();
-            std::thread::spawn(move || shell::start(&launching));
+        .setup(|app| {
+            menu::install(app.handle())?;
+            window::create_main(app.handle())?;
             Ok(())
         })
         .build(context);
 
-    let app = match built {
-        Ok(app) => app,
-        Err(error) => {
-            eprintln!("[desktop] Inteligir failed to start: {error}");
-            std::process::exit(1);
-        }
-    };
-    app.run(|app, event| match event {
-        // closing the last window hides the app in the menu bar; Quit is the way out
-        RunEvent::ExitRequested {
-            code: None, api, ..
-        } => api.prevent_exit(),
-        // Cmd+Q ends in applicationWillTerminate, with nothing after it to wait in, so the
-        // server's flush is waited for here
-        RunEvent::Exit => shell::stop_owned_server(app),
+    match built {
+        // closing the window hides it, so the Dock's click brings the same page back
         #[cfg(target_os = "macos")]
-        RunEvent::Reopen { .. } => shell::show_current_window(app),
-        _ => {}
-    });
+        Ok(app) => app.run(|app, event| {
+            if let tauri::RunEvent::Reopen { .. } = event {
+                window::show_main(app);
+            }
+        }),
+        #[cfg(not(target_os = "macos"))]
+        Ok(app) => app.run(|_, _| {}),
+        Err(error) => fail(&error),
+    }
 }

@@ -16,8 +16,8 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # a backstop over the e2e runner's per-scenario deadlines
-    timeout-minutes: 30
+    # a backstop: verify and the flows run about 25 minutes on a four-core runner
+    timeout-minutes: 45
     env:
       TURBO_TELEMETRY_DISABLED: 1
     steps:
@@ -42,11 +42,9 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
-      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit), its menu
-      # bar icon loads the appindicator at runtime, and the shell scenarios drive the window
-      # through WebKit's own WebDriver
+      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit)
       - name: Desktop system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev
 
       # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
       - name: Desktop Rust toolchain
@@ -63,35 +61,23 @@ jobs:
       - name: Verify
         run: pnpm verify
 
+      # the full Chromium, which loads an extension, at the lockfile's Playwright's version
       - name: E2E browser
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # a global install a developer makes once, so verify does not repeat it. pnpm, not npm: only
-        # PNPM_HOME is on PATH here. pinned by hand: a global install rides no lockfile and no release
-        # cooldown
-        run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
+        run: pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium
 
-      - name: E2E shell driver
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # tauri-driver fronts WebKitWebDriver for the shell scenarios, a cargo install a developer
-        # makes once. pinned by hand, like agent-browser: a cargo install rides no lockfile. the Rust
-        # cache keeps the binary, so a warm run only checks it is that version
-        run: cargo install tauri-driver --version 2.1.0 --locked
-
+      # outside verify on purpose: every unit can pass while the composition fails
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # outside verify on purpose: it boots real instances and drives them over the wire, because
-        # every unit can pass while the composition fails. The two steps above provide the browser
-        # and the shell's WebDriver and xvfb-run the display, so a skip is a broken setup, and
-        # --no-skip fails it rather than passing it behind a green step
-        run: xvfb-run -a pnpm e2e --no-skip
+        run: pnpm e2e
 
-  # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
-  # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the
+  # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
+  # compiles and runs only here; typecheck, lint, knip, format and build read no platform, so the
   # check job alone runs them
   test-macos:
     runs-on: macos-latest
-    # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold
-    # release build of the shell is several minutes of it
+    # a backstop: the suites carry no deadline of their own, and a cold build of the shell is
+    # several minutes of it
     timeout-minutes: 50
     env:
       TURBO_TELEMETRY_DISABLED: 1
@@ -110,7 +96,6 @@ jobs:
           install: false
 
       - name: Install
-        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Desktop Rust toolchain
@@ -124,13 +109,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: Smoke desktop
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # only a macOS host can pack or boot the .app, and packing takes minutes, so it stays out of
-        # verify, which runs on every platform
-        env:
-          # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
-          # apps/desktop/turbo.json passes it through turbo's strict env
-          INTELIGIR_PACK_UNSIGNED: 1
-        run: pnpm smoke:desktop

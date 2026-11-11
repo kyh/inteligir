@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { statedDate } from "@/lib/page-meta";
-import { SITEMAP_PATHS } from "@/lib/site-content";
-import { buildSitemap } from "@/lib/sitemap";
+import { statedDate } from "#lib/page-meta";
+import { SITEMAP_PATHS } from "#lib/site-content";
+import { buildSitemap } from "#lib/sitemap";
 
 import privacy from "../../../../docs/privacy.md?raw";
 import terms from "../../../../docs/terms.md?raw";

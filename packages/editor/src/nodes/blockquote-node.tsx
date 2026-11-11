@@ -60,8 +60,6 @@ const ALERTS = {
   },
 } satisfies Record<AlertVariant, AlertPresentation>;
 
-export const alertPresentation = (variant: AlertVariant): AlertPresentation => ALERTS[variant];
-
 // the calloutMarker decoration runs the same alertMarkerPrefix, so badge and hiding cannot disagree.
 const alertQuoteMarker = (
   editor: SlateEditor,

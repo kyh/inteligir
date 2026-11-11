@@ -2,10 +2,18 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    // the Env and runtime types src/worker/tsconfig.json includes, derived from cloudflare.config.ts
+    "generate": {
+      "outputs": [".cloudflare/types/**"]
+    },
     "build": {
       // /privacy and /terms bundle docs/privacy.md and docs/terms.md, which sit in no workspace,
       // so turbo hashes them only where they are named.
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md", "$TURBO_ROOT$/docs/terms.md"],
+      // the account cloudflare.config.ts names the agent's AI Gateway under, baked into the Build
+      // Output as AGENT_GATEWAY_URL; strict env mode hands a task nothing unnamed, and `env`
+      // rather than passThroughEnv hashes it, so a build made without it is never the one deployed
+      "env": ["CLOUDFLARE_ACCOUNT_ID"],
       // the Build Output `cf deploy --prebuilt` uploads
       "outputs": [".cloudflare/output/**"]
     }

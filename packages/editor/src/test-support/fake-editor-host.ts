@@ -1,132 +1,154 @@
-import { createStore } from "zustand/vanilla";
+import { fileSha } from "@repo/contract/library/file-sha";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import { notePath } from "@repo/contract/library/library-socket";
 
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-
-import { installEditorHost } from "@repo/editor/host-io";
+import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type {
   AgentRequestActions,
-  CommentActions,
-  CreateNewFileResult,
   EditorHostIo,
-  LinkResolver,
-  ReadVaultAssetResult,
-  VaultActions,
+  ItemActions,
+  LinkTarget,
+  NoteHost,
 } from "@repo/editor/host-io";
 
-export interface HostCall {
-  readonly action: keyof VaultActions;
-  readonly args: readonly unknown[];
-}
+type HostCall =
+  | { readonly action: "openItem"; readonly args: readonly [string] }
+  | { readonly action: "createNote"; readonly args: readonly unknown[] }
+  | { readonly action: "keepFile"; readonly args: readonly [Uint8Array, string] };
 
 export interface FakeEditorHostOptions {
-  readonly resolveWikiTarget?: (target: string) => string | null;
-  readonly resolveMdTarget?: (target: string, fromPath: string) => string | null;
-  readonly readVaultAsset?: (path: string) => ReadVaultAssetResult;
-  // a note's bytes by path; a path it answers null for reads as missing
-  readonly readVaultFile?: (path: string) => string | null;
-  readonly wikiTargets?: readonly WikiTarget[];
-  // a create the session refuses answers null or `refused`, as the real one does after it has said why
-  readonly refuseCreates?: boolean;
-  // answers the rename in place of the immediate success, so a case can hold it in flight
-  readonly renameEntry?: VaultActions["renameEntry"];
-  // answers the exclusive create in place of `created`, still recorded, so a case can hold it in
-  // flight or find a name taken that the listing lacks
-  readonly createNewFileAt?: VaultActions["createNewFileAt"];
-  // answers the flush in place of the immediate success, still recorded, so a case can refuse it,
-  // reject it or hold it past the flush's timeout
-  readonly flush?: VaultActions["flush"];
-  readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
-  // null is a host with no frame to run an html block in
-  readonly htmlFrameUrl?: string | null;
-  readonly pickImage?: EditorHostIo["pickImage"];
-  readonly comments?: CommentActions;
+  // the library's titles, as a host hands them over
+  readonly titles?: readonly LinkTarget[];
+  // an item's blocks by its id, as the device holds them now; null reads as not on the device
+  readonly itemBlocks?: (itemId: string) => readonly LibraryBlock[] | null;
+  // the library's files by sha, which a kept file joins
+  readonly files?: ReadonlyMap<string, Blob>;
+  // answers a kept file in place of keeping it, still recorded, so a case can refuse it
+  readonly keepFile?: EditorHostIo["keepFile"];
+  readonly fileMaxBytes?: number;
+  readonly savesFiles?: boolean;
+  // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
+  // refuse it
+  readonly createNote?: ItemActions["createNote"];
   readonly agent?: AgentRequestActions;
+  // whether the host starts with no connection, which `goOffline` changes
+  readonly offline?: boolean;
+  // answers a note socket's ticket in place of a fresh one, so a case can hold a dial
+  readonly socketTicket?: NoteHost["socketTicket"];
 }
 
 const ignore = (): void => {
   // the fake shell has no panel, rail or composer to answer with
 };
 
-export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
+// the library's cap, as the hosts install it
+const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
-// Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
-// shell refuses every comment and hears every other ask as nothing.
+// the cloud a note's socket dials, apart from the page's own location
+export const NOTES_ORIGIN = "https://notes.test";
+
+// Installs the singleton the hooks read and hands the editor the library's titles; the io half
+// answers from the items and files it is handed, keeps a file by its real sha and then draws it
+// (refusing one with no type, as the hosts do), dials a note at the Worker's path on
+// `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing, and an
+// open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
+// host's change feed does, and `goOffline` that the connection went or came back.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
-  const record =
-    <T>(action: keyof VaultActions, answer: T) =>
-    (...args: readonly unknown[]): T => {
-      calls.push({ action, args });
-      return answer;
-    };
-  const recordVoid =
-    (action: keyof VaultActions) =>
-    (...args: readonly unknown[]): void => {
-      calls.push({ action, args });
-    };
+  const files = new Map(options.files);
+  const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
+  const offlineListeners = new Set<() => void>();
+  let offline = options.offline ?? false;
+  let made = 0;
+  let tickets = 0;
 
-  const vault: VaultActions = {
-    createFile: record("createFile", Promise.resolve()),
-    createFileAt: async (path, seedContent) => {
-      calls.push({ action: "createFileAt", args: [path, seedContent] });
-      return await Promise.resolve(options.refuseCreates === true ? null : path);
+  const notes: NoteHost = {
+    notePath,
+    offline: () => offline,
+    onOfflineChange: (listener) => {
+      offlineListeners.add(listener);
+      return () => {
+        offlineListeners.delete(listener);
+      };
     },
-    createNewFileAt: async (path, seedContent) => {
-      calls.push({ action: "createNewFileAt", args: [path, seedContent] });
-      if (options.createNewFileAt !== undefined) {
-        return await options.createNewFileAt(path, seedContent);
+    socketOrigin: NOTES_ORIGIN,
+    socketTicket: async () => {
+      tickets += 1;
+      if (options.socketTicket !== undefined) {
+        return await options.socketTicket();
       }
-      const result: CreateNewFileResult =
-        options.refuseCreates === true ? { kind: "refused" } : { kind: "created", path };
-      return await Promise.resolve(result);
+      return await Promise.resolve(`ticket-${String(tickets)}`);
     },
-    deleteEntry: record("deleteEntry", Promise.resolve()),
-    editNote: recordVoid("editNote"),
-    flush: async () => {
-      calls.push({ action: "flush", args: [] });
-      return await (options.flush === undefined ? Promise.resolve(true) : options.flush());
-    },
-    openFile: recordVoid("openFile"),
-    registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
-    renameEntry: options.renameEntry ?? record("renameEntry", Promise.resolve(true)),
   };
 
-  const linkResolver = createStore<LinkResolver>()(() => ({
-    resolveMdTarget: options.resolveMdTarget ?? (() => null),
-    resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
-    targets: options.wikiTargets ?? [],
-  }));
+  const items: ItemActions = {
+    createNote: async (note) => {
+      calls.push({ action: "createNote", args: [note] });
+      if (options.createNote !== undefined) {
+        return await options.createNote(note);
+      }
+      made += 1;
+      return await Promise.resolve(`note-${String(made)}`);
+    },
+  };
 
+  setLibraryTitles(options.titles ?? []);
   const io: EditorHostIo = {
-    htmlFrameUrl: options.htmlFrameUrl === undefined ? FAKE_HTML_FRAME_URL : options.htmlFrameUrl,
-    linkResolver,
-    onVaultChanged: () => () => {
-      // the fake vault announces no change, so there is no subscription to end
+    fileMaxBytes: options.fileMaxBytes ?? FILE_MAX_BYTES,
+    keepFile: async (bytes, mime) => {
+      calls.push({ action: "keepFile", args: [bytes, mime] });
+      if (options.keepFile !== undefined) {
+        return await options.keepFile(bytes, mime);
+      }
+      // as the hosts do, which keep no file without a type
+      if (mime === "") {
+        return await Promise.reject(new Error("a file is kept under a type"));
+      }
+      const sha = fileSha(bytes);
+      files.set(sha, new Blob([bytes], { type: mime }));
+      return await Promise.resolve({ sha });
     },
-    pickImage: options.pickImage ?? null,
-    readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
-    readVaultAsset: async ({ path }) =>
-      await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
-    readVaultFile: async ({ path }) => {
-      const content = options.readVaultFile?.(path) ?? null;
-      return await (content === null
-        ? Promise.reject(new Error(`ENOENT ${path}`))
-        : Promise.resolve(content));
+    onItemsChanged: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
-    vault,
-    writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
+    openItem: (itemId) => {
+      calls.push({ action: "openItem", args: [itemId] });
+    },
+    readFile: async (sha) => {
+      const file = files.get(sha);
+      return await (file === undefined
+        ? Promise.reject(new Error(`no file ${sha}`))
+        : Promise.resolve(file));
+    },
+    notes,
+    readItemBlocks: async (itemId) => await Promise.resolve(options.itemBlocks?.(itemId) ?? null),
+    savesFiles: options.savesFiles ?? true,
   };
 
-  const uninstall = installEditorHost({
+  installEditorHost({
     actions: {
       agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
-      comments: options.comments ?? {
-        create: async () => await Promise.resolve(false),
-        open: ignore,
-      },
+      items,
     },
     io,
   });
 
-  return { calls, uninstall };
+  return {
+    calls,
+    changed: (ids: ReadonlySet<string> | null) => {
+      for (const listener of listeners) {
+        listener(ids);
+      }
+    },
+    files,
+    goOffline: (next: boolean) => {
+      offline = next;
+      for (const listener of offlineListeners) {
+        listener();
+      }
+    },
+  };
 };

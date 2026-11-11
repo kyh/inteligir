@@ -1,5 +1,5 @@
 // what a url embeds as, spelled once for the insert that makes an embed and the parse that reads
-// `![](url)` back as one: only a url on the web embeds, since `![](path)` is a vault image, and a
+// `![](url)` back as one: only a url on the web embeds, since `![](path)` is a picture in the folder, and a
 // url naming no video, tweet or pdf is a page.
 
 import { KEYS } from "platejs";

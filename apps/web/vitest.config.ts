@@ -1,61 +1,48 @@
-import { execFileSync } from "node:child_process";
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
-import { defineConfig } from "vitest/config";
-import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
+import babel from "@rolldown/plugin-babel";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { configDefaults, defineConfig } from "vitest/config";
 
-// resolved from this file: cwd is apps/web under vitest but the repo root under knip.
-const HERE = import.meta.dirname;
-
-// no migration files exist; the DDL is derived from the schema by db:export. the script rather than
-// the command, because the e2e harness derives the same DDL and two spellings drift.
-const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
-  cwd: HERE,
-  encoding: "utf-8",
-});
-
-// BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / a Worker secret), so the test env
-// supplies one.
-const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
-
+// the Worker's code and its suites are @repo/service's
 export default defineConfig({
-  plugins: [
-    cloudflareTest({
-      // not cloudflare.config.ts's entrypoint: the deployed entry also mounts the SSR handler,
-      // whose virtual modules only the start plugin supplies.
-      main: "./src/worker/index.ts",
-      // the pool reads only wrangler's config format, so the bindings cloudflare.config.ts declares
-      // are restated here
-      miniflare: {
-        compatibilityDate,
-        compatibilityFlags,
-        d1Databases: ["DB"],
-        r2Buckets: ["PACK_CACHE"],
-        durableObjects: {
-          THREAD_SYNC: { className: "ThreadSyncDO", useSQLite: true },
-          REPO: { className: "RepoCell", useSQLite: true },
-          REGISTRY: { className: "Registry", useSQLite: true },
-        },
-        bindings: {
-          BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
-          // not the deployed floor, so a test that passes reads the binding: every test client sends
-          // this version (buildHeaders in cloud-helpers.ts), and client-floor.test.ts goes under it
-          MIN_CLIENT_BUILD: "1.2.0",
-          // every test shares one ip; vault-rate-limit.test.ts flips this per test.
-          RATE_LIMIT_DISABLED: "true",
-          TEST_SCHEMA,
-          // small enough that a test fills a vault with a few pushes
-          VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
+  test: {
+    maxWorkers: 2,
+    projects: [
+      {
+        // the site's suites, which render its routes to a string as the Worker's SSR does
+        test: {
+          exclude: [...configDefaults.exclude, "src/library/**"],
+          include: ["src/**/*.test.ts"],
+          name: "site",
         },
       },
-    }),
-  ],
-  // this config does not run the start plugin that reads tsconfig paths.
-  resolve: {
-    alias: { "@": `${HERE}/src` },
-  },
-  test: {
-    include: ["src/**/*.test.ts"],
-    maxWorkers: 1,
-    setupFiles: ["./src/worker/__tests__/apply-schema.ts"],
+      {
+        // The library's suites, under jsdom, compiled like the shipped bundle, so a component the
+        // compiler memoizes wrongly fails here rather than only in the built page. Test files stay
+        // uncompiled: a fixture hook minted inside a factory is hoisted to module scope with no
+        // diagnostic.
+        plugins: [
+          viteReact(),
+          babel({
+            // the plugin's own default (node_modules and rolldown's runtime), which an exclude
+            // replaces
+            exclude: [
+              /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/u,
+              /\.test\.tsx?$/u,
+              /\/test-support\//u,
+            ],
+            presets: [reactCompilerPreset()],
+          }),
+        ],
+        test: {
+          include: ["src/library/**/*.test.ts", "src/library/**/*.test.tsx"],
+          name: "library",
+          setupFiles: [
+            "src/library/test-support/jsdom-stubs.ts",
+            "src/library/test-support/dom-timeouts.ts",
+            "src/library/test-support/console-error-gate.ts",
+          ],
+        },
+      },
+    ],
   },
 });

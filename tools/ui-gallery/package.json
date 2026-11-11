@@ -8,19 +8,21 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@repo/ui": "workspace:*",
-    "lucide-react": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:"
-  },
   "devDependencies": {
+    "@babel/core": "catalog:",
+    "@kyh/tsconfig": "catalog:",
+    "@repo/ui": "workspace:*",
+    "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "oxc-transform-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"
   }

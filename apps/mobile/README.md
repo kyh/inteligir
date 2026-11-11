@@ -1,387 +1,252 @@
 # @repo/mobile — the inteligir phone
 
-A full editor over the account's hosted vault. **The agent and the vault
-ENGINE stay on the desktop** (issue #542's re-founding): the phone holds the
-SYNCED THREADS, ASKS a Mac's agent and hands it CAPTURES for Inbox.md through
-the DISPATCH inbox and holds a MIRROR of every note's text, reaching
-`@repo/contract/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
-`@repo/notes` (wiki resolution, the rename and delete rules and the one
-conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
-editor page's wire). No agent, no vault checkout, no git client — notes arrive
-over the /v1/vault read rows into a local SQLite file and open offline in the
-desktop's own editor, and the phone's edits wait in a durable outbox beside
-them until the guarded commit route takes them.
+The account's library on the phone, online first: the cloud holds it, and the
+phone reads it through `/v1` (`@repo/contract`) with TanStack Query, whose
+cache it keeps between launches, so what it last read shows offline. A save,
+a photo and the agent need a connection and say so; only a share from another
+app waits on the phone, in its outbox, until the library can be reached. It
+edits a note live in the editor every device draws, `@repo/editor` in an Expo
+DOM component, and draws the built-in agent's conversations from
+`@repo/agent-panel`.
 
-Expo + expo-router; `src/sync` is the RN implementation of the `@repo/contract/cloud`
-wire.
+Expo + expo-router; the runtime the screens use is composed platform-free
+(`src/lib/compose-runtime.ts`), so its suites run it under node.
 
 ## Layout
 
 ```
 src/
-  sync/         the RN client of @repo/contract/cloud's thread sync: the pull loop,
-                the threads in SQLite and a running turn's live fold; rn-socket-dial.ts
-                is its one platform line, which only the app's composition imports
-  dispatch/     asking a Mac's agent: the durable requests, their runtime, and what
-                the screens draw beside the log
-  credential/   the device credential at rest, in the Keychain (expo-secure-store)
-  login/        signing this phone in to an account
-  editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge
-  notes/        the vault on the phone: the mirror, the notes store, the outbox and the
-                file and comment verbs; photo-ingest.ts and the expo-*-files.ts
-                adapters are its native halves
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
-                its binding to the device), the SQL port with phone-db.ts's
-                migrations, and backup-exclusion.ts over modules/backup-exclusion, the
-                one native module this app carries
+                its binding to the device), the /v1 transport, the screens' queries
+                over the library (library-hooks.ts), backup-exclusion.ts over the
+                module of that name, the native module this app carries, and
+                palette.ts, the colors a prop takes as a value, with theme.ts's useTheme
+                over the system's scheme
+  auth/         the phone's sign-in: Better Auth's Expo client, its session cookie in the
+                Keychain (expo-secure-store)
+  login/        signing this phone in to an account, or making one with an invite code
+  files/        the library's files by their hash, cached with their thumbnails
+                (expo-file-folder.ts and expo-thumbnail.ts the native halves)
+  editor/       an item's note: page/ is the DOM component, @repo/editor in a web view
+                (note-page.tsx, its host and its content policy), and beside it the
+                native half: the page's actions over the library, the web view's load
+                policy, and a leave's ask
+  items/        saving a link, a thought, a new note or a photo, what a share hands over,
+                the outbox that keeps a share until it lands, the inbox that hands it
+                there, and an item's Info
+  library/      the Library screen: a listing by scope, kind and search, its cards, and
+                the saves waiting
   ui/           controls the screens share
-  app/          expo-router screens; _layout.tsx holds the splash and the route guard
-plugins/        with-editor-page.js: the built page into the app bundle
+  styles.css    the classes every screen writes: Tailwind's utilities over the palette,
+                compiled for React Native by nativewind (The look, below)
+  app/          expo-router screens: index.tsx is the Library, item/ an item in the editor,
+                view/ a file full size, agent/ the agent's conversations; _layout.tsx holds
+                the splash, the query cache, the share provider and the route guard, and
+                +native-intent.ts lands the share extension's handoff on the Library
+metro.config.js withNativewind, and postcss.config.js Tailwind's PostCSS plugin: the
+                sheet's two compilers; nativewind-env.d.ts gives `className` its types,
+                and inline-fonts.js writes the phone's editor's fonts into its sheet
 ```
 
-## The storage choice
+## The look
 
-The two sync stores — the pull cursor and the applied thread log — **must
-agree**, so they live in one `SyncStore`, durable in `inteligir.db`
-(`sync/sqlite-sync-store.ts`): `thread_sync` holds the cursor, `thread_events`
-each held event by its log seq, and `synced_threads` each thread's last seq. A
-pulled page is ONE transaction — its events, the threads it moves and the
-cursor past it land together or not at all — and reaches memory only once it
-commits; own rows are skipped by device id and a row at or below the cursor is
-passed over, so a page applied twice lands once. The screens read the memory
-synchronously (`useSyncExternalStore`), and the boot restore reads the tables
-back BEFORE the sign-in is published: a cold launch lists every thread offline,
-and its first pull asks after the saved cursor, never 0. The write is async in
-the shared contract (`pullPages` awaits `applyPlan`) rather than a synchronous
-write-through over expo-sqlite's sync API: every module's writes share one
-queue on the file, and a synchronous write on the JS thread while another
-module's transaction holds it would fail as locked rather than wait.
+The screens are styled with nativewind, as kyh/init's phone is: a screen writes
+`className` with Tailwind's utilities, and Metro compiles `src/styles.css`
+through PostCSS (`postcss.config.js`) and then react-native-css
+(`withNativewind` in `metro.config.js`). Metro resolves every import of
+`react-native` to react-native-css's own `View`, `Text`, `Pressable`,
+`TextInput`, `Image`, `ScrollView`, `FlatList`, `KeyboardAvoidingView` and
+`ActivityIndicator`, which read their `className` (a list's
+`contentContainerClassName` too); what it does not wrap, `SafeAreaView`, a
+WebView, `Modal`, `RefreshControl` and the navigator, takes a `style`. The
+sheet is imported once, by `app/_layout.tsx`.
 
-**The grammar the held events were parsed with** is stored beside the cursor,
-as the SHA-1 of the event schema's JSON Schema, and a build whose grammar
-differs drops the tables and pulls the log from 0. It has to: the rows the old
-build skipped as unreadable are behind the cursor, and every held event lost the
-fields the old grammar did not name, because its objects strip unknown keys. So
-the phone keeps no skipped-row marker, unlike the desktop's rewind: a grammar
-change re-reads everything. A held row this build cannot read starts the store
-over the same way. A sign-in, a sign-out and a revocation wipe the three
-tables, and the boot restore keeps them; a page that started before a wipe
-never lands (a reset generation, re-checked inside the transaction). There is
-no thread outbox: the phone appends nothing to the log and claims nothing from
-the inbox, so it has nothing to hold. Its own NOTE edits are another matter,
-below, and so are its requests to a Mac and its captures: the
-`dispatch_outbox` table is durable, and it is not a log outbox — nothing in it
-ever reaches the thread log (Asking a Mac, below).
+- **The palette is variables.** `styles.css` declares each token (background,
+  foreground, card, card-foreground, primary, primary-foreground, muted,
+  muted-foreground, border, input, destructive) light at `:root` and dark under
+  `prefers-color-scheme: dark`, and `@theme inline` maps them to
+  `bg-card`, `text-muted-foreground`, `border-border` and the rest, so the
+  system's scheme recolours every screen with no `dark:` in it.
+- **A value outside a class reads `lib/palette.ts`**: a navigator's options, an
+  `ActivityIndicator`, a safe area's or a WebView's background, through
+  `useTheme()`; a field's placeholder is a `placeholder:` class. It holds only
+  the tokens read that way, at the sheet's values, and `src/styles.test.ts`
+  compiles the sheet as Metro does and holds the two equal in both schemes, so
+  such a color changes in both or the suite fails.
+- **A rem is the web's.** react-native-css reads every rem at the sheet's
+  `:root` font size, 16px, so Tailwind's spacing and radii are the web's:
+  `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and preflight
+  layered and its utilities unlayered, as NativeWind 5 sets a sheet up. The type
+  sizes are the phone's own, named by their px (`text-12` to `text-30`), each a
+  size alone, and a reading line's height is a `leading-*` class beside it.
+- **A multi-line field is padded `pt-*` and `pb-*`.** `py-*` compiles to
+  `paddingBlock`, and iOS gives a multi-line `TextInput` with no `paddingTop`
+  its own 5; the sheet's suite fails on one.
+- **A class is written out whole**, never assembled from parts, since Tailwind
+  makes only the classes a source spells (`ui/text-button.tsx` picks its size
+  from a table of them).
 
-The log holds what the thread view draws from and no more: a streaming delta
-moves the cursor and the thread's recency and is dropped, because each
-completed item carries its deltas' final text. A long streamed turn costs the
-phone's disk its items, not its tokens.
+## The library and its cache
 
-**A running turn's text is transient** (`sync/live-turns.ts`). The page that
-lands a delta also hands it to an in-memory fold, which draws the agent's text
-and its reasoning under the running indicator until the item's
-`item/completed` lands, and drops a turn's rows when the turn completes, and
-all of them on a sign-in, a sign-out or a revocation. It is never persisted: a
-relaunch mid-turn draws nothing for an item it did not see start, because the
-deltas before its cursor are gone and a fold from the middle would show the
-tail as the reply. The store feeds it only what a page landed, so a page pulled
-twice folds once and a page a reset dropped folds never.
+Every screen reads through TanStack Query over the contract's procedures
+(`src/lib/library-hooks.ts`): the Library a page of `library.listing.page` at a
+time, its search the same row's `words`, an item `library.items.get`, the
+folders `library.listing.scopes` and a link's names `library.listing.titles`.
+The cache is kept in expo-sqlite's key-value store between launches
+(`@tanstack/react-query-persist-client`), out of the device backup, and a
+build that changes starts it over; a file's address and a write are never
+kept. Its online state is the network's and its focus the app's
+(`src/lib/app-runtime.ts`), so a screen asks again when either comes back.
 
-**The phone holds the account's socket while it is signed in and in the
-foreground** (`sync/sync-runtime.ts`). A sync ping past the cursor pulls, so a
-turn the desktop pushes every second and a half reads as it grows; a vault
-ping refreshes the notes; a dispatch ping asks the inbox, which is how a Mac's
-question reaches the phone. Going to the background closes it and stops the
-poll; coming back opens it and pulls. A drop re-dials on a backoff; a sign-out
-or a refused credential closes it for good. The 60s poll stays, since the
-socket is latency and never correctness.
+A write goes at once and says "Needs a connection" when it cannot. A note's
+body is the exception: its page edits the note's live document over the
+note's own socket, which it dials on a ticket the phone fetched, and with no
+connection draws what the phone last read of it, read-only.
 
-The **device credential** is durable in `expo-secure-store` (the Keychain /
-Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
-mirroring the desktop's `<dataDir>/device-credential`. It is written
-`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`, so a backup restored onto another phone
-carries no credential and that phone signs in as a device of its own; a write
-deletes the key first, since a set over an existing item keeps the
-accessibility it was written with.
+The account's socket, dialed by ticket, never by a header, says what each
+write moved, and the queries reading it ask again; an open socket asks
+everything again, since a write may have landed while none was open. The
+foreground holds it, the background closes it.
 
-**Every note's text** is durable in `inteligir.db`, one expo-sqlite file in
-the app's Documents (`lib/expo-sql-driver.ts`), never `Paths.cache`, which iOS
-purges under storage pressure. Its directory is kept out of the phone's iCloud
-backup (owner decision: it downloads again from the hosted vault) by the local
-native module `modules/backup-exclusion`, and so is the outbox's folder of
-staged photos (`excludedFromBackup` in `notes/outbox-files.ts`), flagged before
-every stage, since the rows naming them live in that database. The mirror (`notes/vault-mirror.ts`)
-keeps a row per file the hosted tree names — path, blob oid, size, the commit
-its blob first appeared at, and for a note or a comment store its text with
-the frontmatter id and aliases read once as it lands. A refresh walks the tree
-at head, stops after one page when head is the mirrored commit, and otherwise
-applies the whole listing in one transaction: a row whose oid is unchanged is
-left alone, a blob already held under another path (a move, a copy) is copied
-locally, and a path the tree no longer names goes. What is left empty is
-fetched forty paths to a `POST /v1/vault/files` pinned to that commit, each
-answer stored in its own transaction and only onto a row still naming the
-answer's oid. The mirrored commit moves only once every wanted row holds its
-text, so a refresh cut short resumes from the empty rows. So a cold launch
-shows the list and opens every note before any request, and a refresh that
-fails keeps the list it has and says why above it. "Loading your vault…"
-shows only on a FIRST mirror, with its count.
+## Files
 
-The listing (paths, aliases and ids, which the editor page's own resolver
-reads, so `[[Some Alias]]` and `[[Title|uuid]]` resolve) comes from the rows.
-`attachmentFile(path)` downloads an attachment on its first ask, at the
-commit its blob first appeared at, into `Paths.cache/attachments/<oid><ext>`,
-so an image a commit leaves alone is never fetched again; the editor page
-reads it from there, a photo not yet sent from its staged file.
+A file is kept by its hash (`src/files/file-cache.ts`), fetched once however
+many screens ask, in `Paths.cache`, which iOS keeps out of the backup and may
+purge; a file over 512 KB lists from a 320 px thumbnail made once. A picture
+past what a phone may decode shows the card's placeholder. A screen waiting on
+a file it could not reach asks again once the phone is back online. A file the
+phone sends up is kept as a fetched file is, so it never downloads what it
+sent. A screen draws a file as an item's own, its card's cover or its
+viewer's original, and the phone's editor draws one a note names from the cache
+through its `readFile` action, as the type it was kept or served as. A sign-out moves the cache's generation, so a download begun
+before it lands nothing.
 
-A sign-in, a sign-out and a revocation wipe the rows and the attachment files;
-the boot RESTORE keeps them — that launch is what the mirror exists for. Which
-transition it is comes from the composition root, which knows, rather than
-from comparing bearers inside the store. Every await re-checks the session,
-and a wipe bumps a generation every write re-checks inside its transaction,
-so a batch that started before the wipe never lands; the notes store and the
-dispatch runtime each hold that fence as a `lib/sign-in-fence.ts`. The
-database has ONE `user_version` (`lib/phone-db.ts`): a table another module
-adds is a step there. Until the first build EAS makes, the schema is one step
-edited in place; from that build on, a step is appended, never edited.
+## Sharing to the phone
 
-## Unsent edits
+The share extension hands a page, a link or text to the app, which reads it
+(`src/items/share-payload.ts`) and keeps it in its outbox
+(`src/items/share-outbox.ts`) before the first call, then sends it: a page or
+a link is saved as its link, which the cloud reads once it lands, and text
+alone as a thought. Words shared beside the link are a new item's note. A
+share the cloud cannot be reached for waits, through a relaunch, and goes once
+the phone is back; the Library says how many saves are waiting
+(`src/library/unsent-banner.tsx`), and a sign-out with any asks first.
 
-A write lands on the phone the moment it is durable in the `outbox` table
-(`notes/vault-outbox.ts`), and every read and the listing the editor page
-resolves links over see it from then on (`notes/vault-overlay.ts`): a pending
-edit reads as the note, a create and a staged photo list before the vault holds them, a rename
-moves the row and rewrites the links naming it now, a delete hides the
-note and its comment store, and a comment reads as its store and its note.
-The rows are sent oldest first,
-one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
-when expo-network says the phone is back online, and on a backoff after a
-failure, one pass at a time (`createSingleFlight` from
-`@repo/contract/cloud/sync/sync-session`).
+## The agent
 
-- **A write carries the text it was computed from.** The store compares it
-  with the text the phone holds, under the lock every change on the phone
-  takes, and a mismatch hands back what the phone holds for the editor page's
-  own merge: the page runs the desktop's write policy, so the phone runs no
-  second one. Three saves of one note before it is sent are ONE row: a write
-  to a path whose last row writes it replaces the text and keeps the first
-  base.
-- **A stale write is reconciled here, with the desktop's own verdict.** The
-  Worker never merges: its 409 carries what the head holds and who wrote it,
-  and `notes/outbox-reconcile.ts` runs `reconcileFile` from
-  `@repo/notes/sync/reconcile-file` on it, so a far edit merges, a true
-  overlap keeps the phone's version and copies the other device's under the
-  name that module gives it, a note deleted elsewhere comes back with the
-  phone's edit, and a delete of a note edited elsewhere is dropped. The result
-  and its copy go as ONE change set, and that set is kept on the row before it
-  is sent, so an answer lost after the vault applied it is resent as the same
-  set, which the vault answers as already held: nothing is duplicated.
-- **A landing moves the mirror in the transaction that retires the row**, and
-  stamps the paths it moved (`mirror_landings`); a refresh reads the stamp
-  before it lists the tree and leaves every row stamped after it alone, since
-  its listing may predate the write. A write made while its row was out stays
-  queued, rebased onto what landed.
-- **Nothing drops the user's text.** An unreachable vault stops the queue and
-  keeps every row; a refusal no resend passes (too large, a name another note
-  holds in other capitals) parks that row with its bytes, and the rows on
-  other paths go on. The published status (`outbox.status`) counts what is
-  unsent and lists each parked row with Retry, Save as new note and Discard,
-  and each conflict in `describeSyncConflict`'s words, for the editor's UI.
-- **A rename and a delete are one set each** (`notes/file-ops.ts`). A rename
-  carries the move, the note's own new text (its old name kept as an alias,
-  its own links rewritten) and every note whose links name it, planned over
-  the phone's own link graph with `@repo/notes/knowledge/plan-rename`, the
-  server's rules; a note another device changed first keeps its bytes and is
-  named, and the alias still answers its link. A delete carries the note's
-  comment store unless another note carries its id
-  (`@repo/notes/comments/store-removal`), so a note the vault keeps, because
-  another device edited it, keeps its comments too.
-- **A comment is one set too** (`notes/comment-ops.ts`). A new one is the
-  editor page's save that writes its markers, which carries it (`addComment`
-  on the bridge): the store plans its entry under the write lock from the
-  texts the phone holds and queues the note and its comment store as ONE
-  `comment` row, minting a note without an id one by the desktop's line cut.
-  A reply, a resolve and a delete are the store alone; a deleted thread's
-  markers go through the page's editor and its next write, as the desktop's
-  do. The editor ports tell the page each thread its note's store holds and
-  which are resolved (`commentMeta`), so its ranges draw as the desktop's. A
-  stale set settles the note as a write and the store by its entries, so a
-  comment another device made meanwhile keeps both threads.
-- **A photo lands in the default attachments folder** (`assets/`), since the
-  Mac's attachment choice lives in its own data folder, under a free name
-  (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot
-  show a HEIC, and the re-encode leaves the photo's location behind.
-- **Signing out asks first.** `logout` refuses while an edit is unsent or a
-  request no Mac holds yet waits (a sign-out drops the phone's waiting rows
-  from the inbox with its device), and the home screen's confirm names both
-  counts; a discard wipes the rows and the staged photos with the mirror,
-  and the requests with them, and so does a revocation.
-
-## Captures
-
-The home screen's capture box hands a Mac a line for the vault's `Inbox.md`:
-a `capture` row in `dispatch_outbox`, sent to the account's dispatch inbox like
-a request (below) and kept on the phone until a Mac says it wrote it, so a
-capture typed offline is sent after a relaunch. Any Mac that is open claims it,
-whether or not it takes the phone's requests, and appends it as a bullet;
-`Inbox.md` merges by union, so two devices' captures both land. The box says
-Captured once the row is kept, and under it how many captures no Mac holds
-yet (Not sent yet — retrying, or waiting for your Mac); a refused capture keeps
-its words and the reason until Dismiss.
-
-## Asking a Mac
-
-The phone asks a Mac's agent through the same inbox: it posts a
-`turn` row to the account's dispatch inbox (`POST /v1/sync/dispatch`) and never
-claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
-note opens a new thread under an id the phone mints (`thr_` and 16 random
-bytes), and its first message names the note as the thread's origin and the
-sha-256 of the bytes the note screen showed as its view context's revision.
-
-- **A request is durable before it is sent.** Send writes the row to
-  `dispatch_outbox` with an id minted here, the body frozen as it will be
-  sent; a send the cloud never answered is resent under the same id on resume,
-  on reconnect and on the poll below, and the inbox answers a resend as the row
-  it already holds.
-- **Its fate is polled only while it moves.** While a request waits, a
-  question waits for an answer or a thread is running, and only while the app
-  is in the foreground, `dispatch-runtime.ts` asks every
-  `DISPATCH_STATUS_POLL_MS` (10s) for the rows' states and whether a Mac is
-  listening, lists the open approvals, and pulls the log when a Mac has taken
-  a request or a turn runs. The words: Not sent yet — retrying; Waiting for your
-  Mac…, or, with no Mac listening, Waiting for your Mac — open inteligir on it
-  to run this, or, when a Mac is open with Let my phone ask this Mac off,
-  Waiting for your Mac — turn on “Let my phone ask this Mac” in its Settings;
-  Your Mac has it; and a running turn's Your Mac is working….
-- **The log replaces it, once.** A row leaves when a pulled
-  `client/turn/requested` carries its id, and the thread view filters the
-  pending rows by the same ids, so the message is never drawn twice between
-  the pull and the delete.
-- **Cancel takes back only what no Mac holds**; one a Mac claimed stays, as
-  Your Mac has it. A refused request keeps its words and the Mac's reason until
-  Dismiss.
-- **A phone-started turn's approvals are answered here** (owner decision): the
-  card shows what the agent asks to do and the answers it offers, and the
-  answer is an `answer` row only the Mac that asked may claim.
-- **Every request rides the sync runtime's session**, and checks its fence
-  before it records a refusal, so a refusal heard under an earlier sign-in
-  never ends the one that replaced it. A sign-in, a sign-out and a revocation
-  empty the table; the boot restore keeps it.
+The agent is the account's: the phone lists the same conversations as the
+Mac and draws a thread's events and approvals from `@repo/agent-panel`,
+natively (`src/app/agent/`), and the reply being written as the account's
+socket carries it (`src/lib/thread-previews.ts`). Asking about an item sends
+it as the view's context. A send and an approval need a connection and say so
+rather than queue, since a turn runs in the cloud.
 
 ## The sign-in seam
 
-A phone joins an account the way the desktop does: the account's own email
-and password, posted once to `POST /v1/device/login`, answered with this
-phone's own `igd_…` device credential. The contract's login flow
-(`@repo/contract/cloud/device/login-flow`, the same one the desktop runs) posts the
-row and writes the answer through the injected credential store — here the
-Keychain adapter, which also activates the sync and notes runtimes. The
-password is held nowhere on the phone: it crosses the wire once and only the
-device credential remains, revocable from the account's Devices page. A
-refusal on the wire and a Keychain that cannot write, read or delete all land
-in the one store the screen reads, so each is shown rather than dropped; a
-credential the Keychain could not keep is signed out before the error shows.
+A phone joins an account with a Better Auth session, as the site does: the
+account's own email and password, or a new account with an invite code through
+the cloud's one sign-up door, sent once through Better Auth's Expo client
+(`src/auth/phone-auth.ts`, bound in `src/lib/app-runtime.ts`). The client keeps
+the session cookie in the Keychain, this device only, while unlocked
+(`src/auth/keychain-storage.ts`), and every `/v1` call carries it with the
+app's scheme as its origin and no shared cookie jar (`src/lib/phone-transport.ts`).
+The password is held nowhere on the phone: it crosses the wire once and only
+the session remains, which Settings › Account lists as iPhone and can end. Each launch and each return to the front asks Better Auth for the
+session, which keeps a phone in use signed in. A refusal on the wire and a
+Keychain that cannot write all land in the one store the screen reads
+(`src/login/login-store.ts`), so each is shown rather than dropped; a session
+the Keychain could not keep is signed out before the error shows.
 
-Signing out is the sync runtime dropping its credential
-(`sync/sync-runtime.ts`), and a live credential it drops is sent to
-`POST /v1/device/sign-out` first, on a client of its own, so the account's
-device slot comes back. The phone never waits on it: a sign-out the cloud
-never hears leaves the row active for the Devices page to revoke.
-
-The notes store holds no client of its own: it reads under the sync runtime's
-session, so one fence covers every request a sign-in makes, and an
-`unauthorized` from a vault read, a request or a pull ends the sign-in for all
-of them. The composition root then idles the tree and wipes the mirror and
-the threads, and keeps the credential, so the sign-in screen can say this device was
-signed out. A `client-outdated` ends the sign-in too, as `outdated`, but wipes
-nothing: the cloud refused this build, not the credential, so that screen asks
-for an update instead, and the next build resumes from what the phone holds. Which screens exist is the ROUTE GUARD's answer
-(`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
-signed-in screens and `app/sign-in.tsx` each sit behind one guard, and a
-revocation takes the signed-in history away with it. A cold launch is
-`restoring` until the Keychain read ends, and the splash stays up and no
-navigator mounts until then, so the sign-in form never flashes over a device
-that is signed in.
+A sign-in is one library (`src/lib/compose-runtime.ts`): its `/v1` client and
+query helpers, its saves, its shares and its previews, made together and
+closed together. An `unauthorized` any of its calls hears, or a session Better
+Auth no longer holds, ends it for all of them and takes the cache, the files,
+the shares and the session, which stays only when the copy would not go, so
+the next launch meets the same refusal; the sign-in screen says this device
+was signed out from the session's notice. A `client-outdated` ends it as `outdated` and clears
+nothing, so the next build resumes from what the phone holds. Which screens exist is the ROUTE
+GUARD's answer (`Stack.Protected` in `app/_layout.tsx`), never a per-screen
+branch, and a cold launch is `restoring` until the Keychain read ends, so the
+sign-in form never flashes over a device that is signed in.
 
 ## Verified vs device-side
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
-  repo-wide `pnpm verify`): the sync client (pull applies by global seq
-  idempotently, and a pass neither pushes a thread event nor claims a row),
-  the thread store over `node:sqlite` (a relaunch listing its threads and
-  pulling on from its cursor, a page whose transaction fails, a grammar change,
-  an unreadable row, a page racing a sign-out),
-  the credential codec, the credential's Keychain accessibility (over a
-  stand-in Keychain), the outbox folder's backup flag before each stage, the
-  sign-in store, the notes store, the vault mirror
-  (its SQL run for real, over `node:sqlite` on a temp file: the oid delta, a
-  relaunch that cannot reach the cloud, a batch cut short, a batch that
-  outlives its sign-in), the outbox (offline edits across a relaunch, the
-  coalesced write, a merge, a copy, a lost answer, a parked row, a refresh
-  racing a landing), the dispatch runtime (a resend under
-  the same id across a relaunch, the log replacing a pending row once, every
-  state's words, cancel, a refusal kept, a stale sign-in's refusal, an approval
-  answered, the foreground poll, a capture kept offline across a relaunch and
-  dropped once a Mac wrote it), the socket (a ping past the cursor pulls and
-  one it covers does not, the background closes it and a resume dials again,
-  a sign-out and a refused credential close it for good), the live fold (a
-  turn's deltas, an item settling, a turn ending, a reset), and the
-  composition's restore, sign-out, revocation and resume, the file verbs (a rename's rewritten link and alias,
-  a note changed under it, a delete's comment store, a new note stepping past
-  a taken name, a photo's size and cap), the editor page's native end (every
-  frame kind to its port, a foreign document's, another load's and a
-  malformed frame dropped, a flush held until the page answers, the load
-  policy) and its ports (a write landing, a sync landed since the read
-  handed back, a deleted note, attachments on demand, the change feed, the
-  routes) — all against faked fetch. Unit tests, no device. `tools/e2e/src/scenarios/phone-offline-edit.ts` and
-  `phone-file-ops-hosted.ts` run the same composition under node against a
-  real Worker and a desktop.
-- **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
+  repo-wide `pnpm verify`): the composition's restore, sign-in, sign-out,
+  revocation and outdated build over a fake cell, what the socket's frames ask
+  again and what the cache keeps, the session's Keychain accessibility (over a
+  stand-in Keychain), the sign-in over Better Auth's own client, what each
+  `/v1` request carries, the sign-in store, the file cache
+  (the thumbnail, the generation), the phone's editor's actions over the fake cell
+  (every answer JSON, a file's bytes base64, a refusal its words), its host
+  (what native's props move, a leave's ask answered by where the note
+  stands), its content policy and the web view's load policy, the share
+  payload and the shares' outbox, and the Library's query. Unit tests, no
+  device.
+- **The store config** (`src/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
   package's, the encryption answer is given, no permission carries an Expo
   default purpose string, and every required-reason API a linked module's
   privacy manifest declares is declared by the app's. A new native module that
   brings a manifest or a permission fails it until `app.config.js` says why.
+- **The stylesheet** (`src/styles.test.ts`): it compiles `src/styles.css` with
+  the screens' own classes, Tailwind under PostCSS and then react-native-css as
+  Metro does, and holds every token to one light and one dark value, those a
+  prop reads to `lib/palette.ts`, each color class to its token's variable, a
+  rem to 16px, a size class to a size alone, a line-height and a placeholder
+  class to what they draw, and no multi-line field to `py-*`.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
-  offline, on Linux and macOS alike.
+  and the stylesheet into it, and the phone's editor's DOM bundle beside it
+  (`dist/www.bundle`, one page and its one script), offline, on Linux and
+  macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
   app actually booting, the held splash and the route guard's redirects, the
-  Keychain, expo-sqlite and the backup exclusion, the attachment and staged
-  files, the resume and the reconnect, the socket's upgrade from the device
-  and a running turn's reply growing on it, a live sign-in, an EAS Update
-  landing, the offline check, photos, asking a Mac and the editor on a real
-  WebKit. Each is a check with how to run it and what passing looks like in
-  `docs/releasing.md` § 5, run on every release's internal build; a native
-  module a development build predates needs that build rebuilt
-  (`pnpm --filter @repo/mobile ios`).
+  Keychain, the kept cache and the shares waiting in expo-sqlite's key-value
+  store, the backup exclusion, the file cache and photos, the resume and the
+  reconnect, the socket's upgrade from the device and a Mac's edit arriving on
+  it, a share from another app, offline and online, the agent, a live
+  sign-in, an EAS Update landing, typing in a note on a real WebKit and
+  keyboard, and how the screens look in light and dark. Each is a line of the
+  phone's smoke list in `docs/releasing.md` § 5, run on every release's
+  internal build; a native module a development build predates needs that
+  build rebuilt (`pnpm --filter @repo/mobile ios`).
 
 ## Dev
 
 ```bash
-pnpm --filter @repo/mobile ios                                              # builds the editor page, then the app
+pnpm --filter @repo/mobile ios                                              # a development build
 pnpm --filter @repo/mobile dev                                              # against the production cloud
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The note screen's editor is `@repo/mobile-editor`'s built page, carried in the
-app bundle by `plugins/with-editor-page.js`, so it changes only with a new
-native build: `pnpm --filter @repo/mobile ios` builds the page first, and
-`pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the
-JavaScript alone; there is no dev server for the page (its CSP refuses the
-script a Vite dev page injects), and Safari's Web Inspector reaches it in a
-development build (`webviewDebuggingEnabled`).
+A note's editor is a DOM component (`src/editor/page/note-page.tsx`), which
+Metro serves beside the app's JavaScript, so an edit to it or to
+`@repo/editor` reloads like any other; its content policy is a production
+build's alone, since Metro's own scripts come from its server, and Safari's
+Web Inspector reaches the page in a development build
+(`webviewDebuggingEnabled`). On a physical phone, Metro's address over the
+network is plain http, which is no secure context, so the page has no
+`crypto.randomUUID` or `crypto.subtle` and the editor fails: run
+`pnpm --filter @repo/mobile exec expo start --tunnel`, or use the simulator,
+whose localhost is one.
 
-Unset, the phone talks to the production origin, the same rule the desktop
-follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, the one
-spelling both read). `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time,
-through `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no
-value and cannot point anywhere else. A value that is not an absolute http(s)
-URL throws rather than guessing, and there is no LAN-host fallback: the
-Worker's dev server binds localhost, so an origin derived from the Metro host
-could never answer a phone. The simulator shares the Mac's localhost; a
-physical phone needs a URL it can reach.
+The stylesheet is compiled from the classes Tailwind found in `src/` when Metro
+last transformed it, so a class just added that draws nothing under a running
+`dev` needs `pnpm --filter @repo/mobile dev --clear`; `pnpm --filter
+@repo/mobile test` compiles it the same way without a device.
+
+Unset, the phone talks to the production origin in every build
+(`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/origin`, which the extension
+reads too).
+`EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time, through
+`src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no value and
+cannot point anywhere else. A value that is not an absolute http(s) URL throws
+rather than guessing, and there is no LAN-host fallback: the Worker's dev
+server binds localhost, so an origin derived from the Metro host could never
+answer a phone. The simulator shares the Mac's localhost; a physical phone
+needs a URL it can reach.
 
 ## Shipping
 
@@ -391,13 +256,11 @@ gates and the owner's device checks, and this section is the phone's own half.
 The credentials (the distribution certificate, the provisioning profile, the
 App Store Connect API key) live on EAS, never in this repo, and build numbers
 are EAS's (`appVersionSource: remote`, `autoIncrement`), so no commit bumps
-one. The marketing version is `package.json`'s, the product version the CLI
-and the desktop carry (`tools/repo-guards/src/release-versions.test.ts`).
+one. The marketing version is `package.json`'s, the product version the Mac
+app and the extension carry.
 `eas.json` names the node and pnpm the repo is checked with, and no
 `.easignore`: EAS falls back to `.gitignore`, which keeps `.release/` and
-every `.env*` out of the upload. The editor page is gitignored build output,
-so EAS builds it in the `eas-build-post-install` hook, and `testflight` builds
-it first on this machine too, since the fingerprint below is taken on both.
+every `.env*` out of the upload.
 
 ```bash
 pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
@@ -430,49 +293,35 @@ If EAS's install fails under pnpm 12, the fallback is a custom build,
 ### Beta App Review account (one-time, owner)
 
 A build going to testers outside the team waits for Apple's Beta App Review,
-and the reviewer needs a sign-in that never expires into an account that
-already holds notes: the phone signs in, never signs up, and shows nothing
-without a vault.
+and the reviewer needs a sign-in into an account that already holds items,
+which lasts 60 days from its last use: the reviewer signs in, never signs up.
 
 1. Mint a production invite with a fresh code, the recipe in
-   `apps/web/README.md` § Auth:
+   `apps/web/README.md` § Invites:
    ```bash
    pnpm --filter @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
      --sql "INSERT INTO invite_code (code) VALUES ('<fresh code>')"
    ```
 2. Sign up with it at `https://inteligir.com/app/sign-up`: an address you
    read, and a long password.
-3. Seed the account's hosted vault once, from scratch dirs, so your own
-   instance never signs in to it. A new vault takes the starter notes, and
-   signing in sends them to the empty account:
-   ```bash
-   # in each of two terminals
-   export INTELIGIR_DATA_DIR=/tmp/review-seed/data INTELIGIR_VAULT_DIR=/tmp/review-seed/vault
-   pnpm cli serve                                  # the first terminal
-   pnpm cli cloud login --email <review address>   # the second: it asks for the password
-   pnpm cli vault sync
-   pnpm cli vault status                           # the account's vault, nothing left to send
-   ```
-   Then stop the server, revoke that seeding device at
-   `https://inteligir.com/app/devices` signed in as the review account, and
-   delete `/tmp/review-seed`. Passing: the internal build, signed in as the
-   review account, lists the starter notes.
+3. Give the account a few items once: open `https://inteligir.com/library`
+   signed in as the review account, save a link, write a note and add a
+   picture. Passing: the internal build, signed in as the review account,
+   lists them.
 4. Keep the address and the password in `.release/` (gitignored), and enter
    them as Test Information's Beta App Review sign-in, with these notes:
-   > Sign in with the account above; its notes are already there. Everything
-   > but Ask agent works on the phone alone, offline included. Ask agent sends
-   > the request to a Mac signed in to the same account, which runs the agent
-   > on its owner's own plan. No Mac is online during review, so a request
-   > shows "Waiting for your Mac — open inteligir on it to run this" and stays
-   > queued.
-5. Each review signs in as a new device, and an account holds 20: revoke the
-   old review devices at `https://inteligir.com/app/devices` before the next
-   submission.
+   > Sign in with the account above; its items are already there. What the
+   > phone last read opens offline; saving and the agent need a
+   > connection. A link shared from another app while offline waits on the
+   > phone until it is back online, and the page is then read in the cloud.
+5. Each review signs in as a new session. An account keeps 20, a sign-in
+   past that ending the one used longest ago, so old review sessions need no
+   clearing before the next submission.
 
 ### Per release (owner)
 
 `docs/releasing.md` says when each step runs: steps 1 to 3 before anything is
-published, 4 to 6 once the Mac app and the CLI are out.
+published, 4 to 6 once the Mac app and the extension are out.
 
 1. **Pre-flight.** `docs/privacy.md` names every flow the phone makes (each
    `/v1` route it calls is a row of its table, and Expo's update check is
@@ -488,10 +337,10 @@ published, 4 to 6 once the Mac app and the CLI are out.
    the words a tester reads (never git, commit, remote, repo, terminal, CLI,
    PATH or MCP):
 
-   > Sign in with your Inteligir account's email and password. Your notes
-   > arrive and open offline. Edit a note here and see it on your Mac, add a
-   > photo, and ask your Mac's agent from a note (Inteligir needs to be open on
-   > the Mac). Take a screenshot to send us feedback.
+   > Sign in with your Inteligir account's email and password. Your library
+   > arrives, and what you last read opens offline. Save a link from the share
+   > sheet, write a note on your Mac and read it here, and add a photo. Take a
+   > screenshot to send us feedback.
 
    Each version's first build for the group goes through Beta App Review
    before any tester sees it, usually within a day; later builds of that
@@ -499,7 +348,7 @@ published, 4 to 6 once the Mac app and the CLI are out.
 
 5. **Invite.** Per-tester email invites or one public link, the owner's call at
    this step. Either way a tester needs an account first, which takes an
-   invite code (`apps/web/README.md` § Auth): the phone signs in, never signs
+   invite code (`apps/web/README.md` § Invites): the phone signs in, never signs
    up.
 6. **Upkeep.** A build expires 90 days after upload, so a cohort still testing
    then needs a new build of the same version (`pnpm testflight:mobile` from a
@@ -516,12 +365,10 @@ code fingerprints the same (`runtimeVersion: { policy: "fingerprint" }`), so a
 change to a native module, a config plugin or the SDK needs
 `pnpm testflight:mobile` instead. The script clears `EXPO_PUBLIC_CLOUD_URL`
 because, unlike `eas build`, `eas update` bundles with this shell's environment,
-and a leftover local origin would ship to every phone. The editor page is
-native too: it ships in the binary, so `fingerprint.config.js` adds its build
-to the fingerprint and `hotfix` builds the page before taking it. An update
-bundled beside a changed page matches no installed build and reaches nobody;
-a page change needs `pnpm testflight:mobile`, since the bridge between the
-page and the JavaScript breaks freely between releases. The fingerprint also
+and a leftover local origin would ship to every phone. The editor ships in
+the update: its DOM bundle is exported beside the app's JavaScript, in one
+chunk (`EXPO_NO_BUNDLE_SPLITTING`), so an editor fix is a hotfix too. The
+fingerprint also
 covers the app config, `version` included, so an update bundled after a
 version bump reaches nobody either: a hotfix is published from a branch off
 the tag of the build TestFlight serves (`docs/releasing.md` § Hotfixes).

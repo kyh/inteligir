@@ -22,6 +22,8 @@ import {
 } from "@repo/editor/combobox-input";
 import type { ComboboxCancelCause } from "@repo/editor/combobox-input";
 import { matchesHotkey } from "@repo/editor/editor-shortcuts";
+import { ownsPicker } from "@repo/editor/live/picker-owner";
+import { undoStackSizes } from "@repo/editor/live/yjs-binding";
 
 interface FilterItem {
   value: string;
@@ -29,10 +31,10 @@ interface FilterItem {
   keywords?: string[] | undefined;
   label?: string | undefined;
 }
-export type FilterFn = (item: FilterItem, search: string) => boolean;
+type FilterFn = (item: FilterItem, search: string) => boolean;
 
 interface InlineComboboxContextValue {
-  commit: (focusEditor: boolean) => void;
+  commit: () => void;
   filter: FilterFn | false;
   inputProps: {
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -40,7 +42,6 @@ interface InlineComboboxContextValue {
   inputRef: React.RefObject<HTMLInputElement | null>;
   registerVisibleItem: () => () => void;
   setHasEmpty: (hasEmpty: boolean) => void;
-  showTrigger: boolean;
   trigger: string;
   value: string;
   visibleCount: number;
@@ -61,24 +62,30 @@ const defaultFilter: FilterFn = ({ group, keywords = [], label, value }, search)
   return [...new Set(terms)].some((keyword) => filterWords(keyword, search));
 };
 
+// Typing `suffix` after words closes the picker on them: `words` reads the text typed before it,
+// and a blank answer leaves the suffix typed into the query.
+interface ComboboxCloser {
+  readonly suffix: string;
+  readonly words: (typed: string) => string;
+  readonly pick: (words: string) => void;
+}
+
 interface InlineComboboxProps {
   children: React.ReactNode;
   element: TElement;
   trigger: string;
   filter?: FilterFn | false;
-  hideWhenNoValue?: boolean;
-  showTrigger?: boolean;
   value?: string;
   setValue?: (value: string) => void;
+  closeOn?: ComboboxCloser;
 }
 
-const InlineCombobox = ({
+const OwnedCombobox = ({
   children,
+  closeOn,
   element,
   filter = defaultFilter,
-  hideWhenNoValue = false,
   setValue: setValueProp,
-  showTrigger = true,
   trigger,
   value: valueProp,
 }: InlineComboboxProps) => {
@@ -123,51 +130,47 @@ const InlineCombobox = ({
     [editor, element, trigger],
   );
 
-  const commit = React.useCallback(
-    (focusEditor: boolean) => {
-      if (closedRef.current) {
-        return;
-      }
-      closedRef.current = true;
-      commitComboboxInput(editor, element, focusEditor);
-    },
-    [editor, element],
-  );
+  const commit = React.useCallback(() => {
+    if (closedRef.current) {
+      return;
+    }
+    closedRef.current = true;
+    commitComboboxInput(editor, element, true);
+  }, [editor, element]);
 
   React.useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Keystrokes that beat the input's focus land in the element's hidden text
-  // child; each batch is spliced at the input caret, cleared from Slate and focus retaken.
+  // Keystrokes that beat the input's focus land in the element's hidden text child
+  // (PickerRaceKit). Each batch is cleared from Slate and typed into the input as the browser types,
+  // since Base UI narrows and highlights only on the input's own change: a query set from here
+  // would leave Enter no row to pick.
   const raced = racedComboboxText(element);
-  const pendingCaretRef = React.useRef<number | null>(null);
   React.useEffect(() => {
-    if (closedRef.current || raced.length === 0) {
+    const input = inputRef.current;
+    if (closedRef.current || raced.length === 0 || input === null) {
       return;
     }
     const absorbed = absorbRacedComboboxText(editor, element);
     if (absorbed.length === 0) {
       return;
     }
-    const input = inputRef.current;
-    const { current } = valueRef;
-    const caret = input?.selectionStart ?? current.length;
-    setValue(current.slice(0, caret) + absorbed + current.slice(caret));
-    pendingCaretRef.current = caret + absorbed.length;
-    input?.focus();
-  }, [raced, editor, element, setValue]);
-  React.useLayoutEffect(() => {
-    const pos = pendingCaretRef.current;
-    if (pos === null) {
-      return;
-    }
-    pendingCaretRef.current = null;
-    inputRef.current?.setSelectionRange(pos, pos);
-  });
+    input.focus();
+    // oxlint-disable-next-line typescript/no-deprecated -- the one way to type into an input as the browser does, its input event and undo step included
+    input.ownerDocument.execCommand("insertText", false, absorbed);
+  }, [raced, editor, element]);
 
   const onInputValueChange = React.useCallback(
     (nextValue: string) => {
+      if (closeOn !== undefined && nextValue.endsWith(closeOn.suffix)) {
+        const words = closeOn.words(nextValue.slice(0, -closeOn.suffix.length));
+        if (words !== "") {
+          commit();
+          closeOn.pick(words);
+          return;
+        }
+      }
       const input = inputRef.current;
       if (input && document.activeElement === input) {
         const fixed = reconcileInsertionCaret(valueRef.current, nextValue, input.selectionStart);
@@ -177,7 +180,7 @@ const InlineCombobox = ({
       }
       setValue(nextValue);
     },
-    [setValue],
+    [closeOn, commit, setValue],
   );
 
   const selected = useSelected();
@@ -211,8 +214,9 @@ const InlineCombobox = ({
         cancel("arrowRight");
         return;
       }
-      const isUndo = Hotkeys.isUndo(event) && editor.history.undos.length > 0;
-      const isRedo = Hotkeys.isRedo(event) && editor.history.redos.length > 0;
+      const { undos, redos } = undoStackSizes(editor);
+      const isUndo = Hotkeys.isUndo(event) && undos > 0;
+      const isRedo = Hotkeys.isRedo(event) && redos > 0;
       if (isUndo || isRedo) {
         event.preventDefault();
         if (isUndo) {
@@ -238,7 +242,7 @@ const InlineCombobox = ({
   }, []);
   const [hasEmpty, setHasEmpty] = React.useState(false);
 
-  const open = (visibleCount > 0 || hasEmpty) && (!hideWhenNoValue || value.length > 0);
+  const open = visibleCount > 0 || hasEmpty;
 
   const contextValue = React.useMemo<InlineComboboxContextValue>(
     () => ({
@@ -248,12 +252,11 @@ const InlineCombobox = ({
       inputRef,
       registerVisibleItem,
       setHasEmpty,
-      showTrigger,
       trigger,
       value,
       visibleCount,
     }),
-    [commit, filter, inputProps, registerVisibleItem, showTrigger, trigger, value, visibleCount],
+    [commit, filter, inputProps, registerVisibleItem, trigger, value, visibleCount],
   );
 
   // no onOpenChange: open is derived, and Base UI's escape/outside-click close requests route through cancel
@@ -273,6 +276,17 @@ const InlineCombobox = ({
   );
 };
 
+// Another device's open picker draws as its trigger alone: its query is that device's, and an input
+// here would take the caret into it.
+const InlineCombobox = (props: InlineComboboxProps) => {
+  const editor = useEditorRef();
+  return ownsPicker(editor, props.element) ? (
+    <OwnedCombobox {...props} />
+  ) : (
+    <span contentEditable={false}>{props.trigger}</span>
+  );
+};
+
 const InlineComboboxInput = ({
   className,
   ref: refProp,
@@ -282,18 +296,12 @@ const InlineComboboxInput = ({
   ref?: React.Ref<HTMLInputElement>;
   placeholder?: string;
 }) => {
-  const {
-    inputProps,
-    inputRef: contextRef,
-    showTrigger,
-    trigger,
-    value,
-  } = useInlineComboboxContext();
+  const { inputProps, inputRef: contextRef, trigger, value } = useInlineComboboxContext();
   const ref = useComposedRef(refProp, contextRef);
 
   return (
     <>
-      {showTrigger && trigger}
+      {trigger}
       <span className="relative min-h-[1lh]">
         <span aria-hidden="true" className="invisible overflow-hidden text-nowrap">
           {(value || placeholder) ?? "​"}
@@ -343,7 +351,6 @@ const InlineComboboxContent = ({
 
 const InlineComboboxItem = ({
   className,
-  focusEditor = true,
   group,
   keywords,
   label,
@@ -352,7 +359,6 @@ const InlineComboboxItem = ({
   children,
 }: {
   className?: string;
-  focusEditor?: boolean | undefined;
   group?: string | undefined;
   keywords?: string[] | undefined;
   label?: string | undefined;
@@ -371,8 +377,6 @@ const InlineComboboxItem = ({
     if (visible) {
       return registerVisibleItem();
     }
-    // oxlint-disable-next-line no-useless-return -- noImplicitReturns rejects falling off the end when the other arm returns a cleanup
-    return;
   }, [visible, registerVisibleItem]);
 
   if (!visible) {
@@ -384,7 +388,7 @@ const InlineComboboxItem = ({
     <Combobox.Item
       className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
       onClick={(event) => {
-        commit(focusEditor);
+        commit();
         onClick?.(event);
       }}
       value={value}

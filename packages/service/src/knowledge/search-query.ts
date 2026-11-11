@@ -1,0 +1,92 @@
+// The one search policy. Stopwords are dropped, not OR-ed in (a
+// note would match on `i` alone); a query left with nothing keeps its tokens as
+// a conjunction, since an empty match expression is every item in the library.
+// The prefix term is the last raw token, not the last surviving one: a term
+// followed by a stopword was already finished typing.
+
+import { stemmer } from "stemmer";
+
+// the fold matches fts5's unicode61 (`remove_diacritics 2` in the cell's `search_fts` migration):
+// the stem is computed here and the tokenizer folds it there, so `acción` and `accion` have to stem
+// alike
+const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");
+
+export const tokenize = (text: string): string[] =>
+  foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
+
+export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, meta: 2, title: 10 } as const;
+
+// `stemmer` is imported here and nowhere else, so the index and the snippet cut cannot diverge
+export const stemToken = (token: string): string => stemmer(token);
+
+// a shadow indexed beside the literal text, never a replacement: a prefix run
+// against stems dies where the suffix begins (`hirin` vs `hire`; 86 of 1,555 measured
+// prefixes stop retrieving), which is also why fts5's own `porter` tokenizer is not used.
+// order and repetition are kept so bm25 sees the same tf as the literal field
+export const stemText = (text: string): string => tokenize(text).map(stemToken).join(" ");
+
+export interface SearchQueryTerm {
+  token: string;
+  stem: string;
+  prefix: boolean;
+}
+
+export interface SearchQueryPlan {
+  terms: readonly SearchQueryTerm[];
+  match: "all" | "any";
+}
+
+// at or below, the query is a lookup and every term is required; above, a sentence the ranking decides
+const CONJUNCTION_MAX_TERMS = 2;
+
+// below this a conjunction and a disjunction ask the same question
+const RELAXABLE_MIN_TERMS = 2;
+
+// shorter than the published lists: words with a topical reading ("other", "more", "few") stay searchable
+const STOPWORDS = new Set(
+  `a about above after again against all am an and any are as at
+   be because been before being below between both but by
+   can could did do does doing done down during
+   each for from further
+   had has have having he her here hers herself him himself his how
+   i if in into is it its itself
+   just me my myself
+   nor not now of off on once only or our ours ourselves out over
+   s should so some such
+   t than that the their theirs them themselves then there these they this those through to too
+   under until up us
+   very was we were what when where whether which while who whom why will with would
+   you your yours yourself`
+    .split(/\s+/u)
+    .filter((word) => word !== ""),
+);
+
+const isStopword = (token: string): boolean => STOPWORDS.has(token);
+
+// a query is a box still being typed into, so its last word also matches as a prefix
+export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
+  const raw = tokenize(query);
+  const typing = raw.at(-1);
+  if (typing === undefined) {
+    return [];
+  }
+
+  const unique = [...new Set(raw)];
+  const content = unique.filter((token) => !isStopword(token));
+  const terms = (content.length > 0 ? content : unique).map((token) => ({
+    prefix: token === typing,
+    stem: stemToken(token),
+    token,
+  }));
+
+  if (content.length > CONJUNCTION_MAX_TERMS) {
+    return [{ match: "any", terms }];
+  }
+  if (content.length < RELAXABLE_MIN_TERMS) {
+    return [{ match: "all", terms }];
+  }
+  return [
+    { match: "all", terms },
+    { match: "any", terms },
+  ];
+};

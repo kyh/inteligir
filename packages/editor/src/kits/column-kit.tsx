@@ -1,87 +1,11 @@
-// Not @platejs/layout's plugins: its withColumn normalizer stamps width="33.333333333333336%"
-// into every bare group on the first edit, breaking byte stability. Widths enter the document
-// only through the resize commit in column-node.tsx.
+// The plugins and their stable-width normalizer are headless (headless/column-base.ts).
 
-import { ElementApi, KEYS, PathApi, createSlatePlugin } from "platejs";
-import type { OverrideEditor, PluginConfig } from "platejs";
+import { KEYS, PathApi } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { ColumnElement, ColumnGroupElement } from "@repo/editor/nodes/column-node";
 
-type ColumnConfig = PluginConfig<"column">;
-
-const withStableColumns: OverrideEditor<ColumnConfig> = ({
-  editor,
-  tf: { normalizeNode, selectAll },
-  type,
-}) => ({
-  transforms: {
-    normalizeNode(entry) {
-      const [node, path] = entry;
-      if (ElementApi.isElement(node) && node.type === editor.getType(KEYS.columnGroup)) {
-        const [first] = node.children;
-        if (
-          node.children.length === 1 &&
-          ElementApi.isElement(first) &&
-          first.type === editor.getType(KEYS.p)
-        ) {
-          editor.tf.unwrapNodes({ at: path });
-          return;
-        }
-        if (!node.children.some((child) => ElementApi.isElement(child) && child.type === type)) {
-          editor.tf.unwrapNodes({ at: path });
-          return;
-        }
-        if (node.children.length < 2) {
-          editor.tf.withoutNormalizing(() => {
-            editor.tf.unwrapNodes({ at: path });
-            editor.tf.unwrapNodes({ at: path });
-          });
-          return;
-        }
-      }
-      if (ElementApi.isElement(node) && node.type === type && node.children.length === 0) {
-        editor.tf.removeNodes({ at: path });
-        return;
-      }
-      normalizeNode(entry);
-    },
-    selectAll: () => {
-      const at = editor.selection;
-      if (!at) {
-        return selectAll();
-      }
-      const column = editor.api.above({ match: { type } });
-      if (!column) {
-        return selectAll();
-      }
-      let [, targetPath] = column;
-      if (
-        editor.api.isStart(editor.api.start(at), targetPath) &&
-        editor.api.isEnd(editor.api.end(at), targetPath)
-      ) {
-        targetPath = PathApi.parent(targetPath);
-      }
-      if (targetPath.length === 0) {
-        return selectAll();
-      }
-      editor.tf.select(targetPath);
-      return true;
-    },
-  },
-});
-
-const ColumnItemBasePlugin = createSlatePlugin({
-  key: KEYS.column,
-  node: { isContainer: true, isElement: true, isStrictSiblings: true },
-}).overrideEditor(withStableColumns);
-
-const ColumnGroupBasePlugin = createSlatePlugin({
-  key: KEYS.columnGroup,
-  node: { isContainer: true, isElement: true },
-});
-
-export const ColumnBaseKit = [ColumnGroupBasePlugin, ColumnItemBasePlugin];
+import { ColumnGroupBasePlugin, ColumnItemBasePlugin } from "./headless/column-base";
 
 export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3): void => {
   const emptyBlock = () => ({ children: [{ text: "" }], type: editor.getType(KEYS.p) });

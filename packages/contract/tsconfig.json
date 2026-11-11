@@ -1,9 +1,7 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // WebWorker, not DOM: the fetch/Response/crypto surface without claiming a
-    // document — this contract loads in the desktop page, on node, on workerd
-    // and in React Native.
+    // WebWorker, not DOM: fetch and crypto with no document, as on every runtime this loads in
     "lib": ["ES2023", "WebWorker"],
     "types": []
   },

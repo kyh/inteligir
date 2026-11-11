@@ -1,5 +1,5 @@
-// The stack's pushes and the params they carry, spelled once for every screen that opens a note or a
-// thread. Outside src/app, so expo-router makes no route of it.
+// The stack's pushes and the params they carry, spelled once for every screen that opens an item,
+// a file or a conversation. Outside src/app, so expo-router makes no route of it.
 
 import { router } from "expo-router";
 
@@ -7,23 +7,35 @@ import { router } from "expo-router";
 export const firstParam = (value: string | string[] | undefined): string | null =>
   (Array.isArray(value) ? value[0] : value) ?? null;
 
-// the router takes params as an open record, so these say they are one
-export interface ThreadParams {
-  [param: string]: string | undefined;
-  id: string;
-  note: string;
-  quote?: string;
-  revision?: string;
-}
+// the param an item opened to be written in carries
+export const FOCUS = "1";
 
-export const openNote = (path: string, focus?: "title" | "body"): void => {
-  const segments = path.split("/");
+// an item in its note page, by its id; `focus`: the caret at the end of its body, the keyboard up
+export const openItem = (itemId: string, options: { readonly focus?: boolean } = {}): void => {
   router.push({
-    params: focus === undefined ? { path: segments } : { focus, path: segments },
-    pathname: "/notes/[...path]",
+    params: options.focus === true ? { focus: FOCUS, id: itemId } : { id: itemId },
+    pathname: "/item/[id]",
   });
 };
 
-export const openThread = (params: ThreadParams): void => {
-  router.push({ params, pathname: "/thread/[id]" });
+// an item's file full size: a picture, a PDF, a file
+export const openViewer = (itemId: string): void => {
+  router.push({ params: { id: itemId }, pathname: "/view/[id]" });
+};
+
+// the route a conversation not yet begun is opened at
+export const NEW_THREAD = "new";
+
+// the built-in agent: a conversation by its id, or a new one, asked from an item when one is named
+export const openAgent = (threadId?: string, fromItem?: string): void => {
+  const id = threadId ?? NEW_THREAD;
+  router.push({
+    params: fromItem === undefined ? { thread: id } : { item: fromItem, thread: id },
+    pathname: "/agent/[thread]",
+  });
+};
+
+// the built-in agent's conversations
+export const openConversations = (): void => {
+  router.push({ pathname: "/agent" });
 };

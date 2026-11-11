@@ -1,10 +1,10 @@
 import { useState, useTransition } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useHydrated } from "@tanstack/react-router";
 
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "#lib/site-config";
 
 export const AuthShell = ({
   title,
@@ -72,6 +72,9 @@ export const settleAuthSubmit = async (
 export const useAuthSubmit = (submit: AuthSubmit) => {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // a submit before hydration is the browser's own: a GET that reloads the page with the password
+  // in its address
+  const hydrated = useHydrated();
 
   const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,7 +88,7 @@ export const useAuthSubmit = (submit: AuthSubmit) => {
     });
   };
 
-  return { error, onSubmit, pending };
+  return { error, onSubmit, pending, ready: hydrated };
 };
 
 export const AuthError = ({ message }: { message: string | null }) => {

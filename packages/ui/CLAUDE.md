@@ -1,83 +1,40 @@
 # Decisions: @repo/ui
 
-The shared component vocabulary, its type roles and its motion. `AGENTS.md` §
-Decisions says how a bullet is written and cited.
+The shared component vocabulary, its type roles and its motion.
 
-## Shape
+## Components
 
-A LIBRARY AHEAD OF ITS CONSUMERS: `packages/ui/src/ai` holds components no
-surface draws on yet, kept by owner decision and listed one by one in
-`AWAITING_CONSUMER` (`tools/repo-guards/src/ui-package.ts`), which the
-per-export orphan guard reads, so one more unconsumed export still fails.
-
-## Editor and dialect
-
-- **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
-  `Button` trims its text with `text-box`, which only a block container honours,
-  so an inline svg inside the label's span is pushed above it. `labelChildren`
-  (`packages/ui/src/components/button.tsx`) lifts every element child out beside
-  the trimmed text, however the icon was passed; "which children are text" is
-  spelled once, in `@repo/ui/lib/text-children`.
-
-- **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
-  hand-positioned div**, which owns no dismissal, flipping, layering or focus
-  and drifts on scroll. A selection-anchored surface hands the Positioner a
-  virtual anchor (`comments/comment-kit.tsx`, `block-menu.tsx`). Base UI is
-  reached only through `@repo/ui` (the one exception is `inline-combobox.tsx`),
-  and a missing primitive is added there first, with a gallery demo. The find
-  bar hangs under the top bar's Find through `setFindBarAnchor`
-  (`packages/editor/src/find-bar.tsx`), since the editor never reaches the
-  shell; the wiki-link preview is the HoverCard, because Popover has no hover
-  mode (`packages/editor/src/wiki/wiki-chip.tsx`); the ⌘K composer is a non-modal
-  `Dialog` whose `finalFocus` returns through the editor
-  (`apps/workspace/src/app/actions/action-composer.tsx` says why). The selection
-  toolbar (`packages/editor/src/selection-toolbar.tsx`) is the one exception:
-  with no open/dismiss lifecycle, a Popover would still need its
-  selection-driven `open` and its `frozen` hold.
-
-- **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
-  body 12, subtitle 13, title 15, display 24 — the compact column of `typeScale`
-  (`packages/ui/src/lib/size-context.tsx`), drawn as the `text-caption | body |
-  subtitle | title | display` utilities in `packages/ui/src/styles/globals.css`,
-  whose numbers `lib/__tests__/type-scale.test.ts` derives from the map. No
-  `text-sm`, `text-xs` or px/rem literal in the chrome, because a role says what
-  a line IS and a scale held by convention drifts:
-  `tools/repo-guards/src/type-roles.test.ts` holds it, `packages/ui/src/ai`
-  included less `AWAITING_CONSUMER` (owner decision). THE MERGE ENGINE HAS TO BE
-  TOLD THEY ARE SIZES: an unknown value after `text-` reads as a colour, so
-  `cn("text-body", "text-muted-foreground")` drops the size. `cn` is configured
-  once (`packages/ui/src/lib/cn.ts`) and imported from there: a second,
-  unconfigured `cn` drops the size again. THE NOTE IS NOT CHROME: its prose
-  keeps the appearance dials and sizes in em, the title a multiple of
-  `--editor-size` (`packages/editor/src/editor-column.tsx`), and a fixed size
-  that is part of the note is a reasoned `PROSE_SIZES` row in that guard.
-
-- **A POPUP'S MOTION RIDES ITS POPUP ELEMENT, AND REDUCED MOTION IS ONE
-  POLICY.** Base UI unmounts a closing popup once the Popup element's own
-  animations finish, so a framer popup renders its Popup as the motion element,
-  with no `actionsRef` hold or fallback timer, each exit wrapped in `PopupExit`
-  (`packages/ui/src/lib/popup-exit.tsx`). Reduced motion is `MotionPolicy`
-  (`packages/ui/src/lib/motion-policy.tsx`) at each app root, and tw-animate's
-  classes collapse to 1ms in `packages/ui/src/styles/globals.css`, so no class
-  carries a `motion-reduce:` suffix.
-
-## Repo guards, vendoring and tooling
-
-- **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under
-  the wildcard-exported directories needs a consumer outside the gallery or a
-  reasoned allowance row (`tools/repo-guards/src/ui-orphan-exports.test.ts` says
-  why neither a file guard nor knip can ask this). Base UI's `render` prop is
-  the polymorphism channel; there is no Slot.
-
-- **A ROW DOES NOT ANSWER FOR ITS OWN POSITION; ITS CONTAINER DOES.** A
-  conditional row changes where its siblings sit without re-rendering them, so a
-  row deriving its index from the DOM needs an effect with no dependency array,
-  and that rule suppression makes the compiler skip the whole component. The
-  list keeps the set and reads document order itself, through one registry
-  (`useRowOrder` in `packages/ui/src/hooks/use-row-order.ts`), syncing once per
-  commit in the layout phase: a sync per row mounts a thousand-row tree in tens
-  of seconds, and a microtask can render a frame late with the pills at the old
-  rects. The lit row rides a store, so a hover step re-renders two rows, not the
-  list (`packages/ui/src/components/__tests__/row-registry.test.tsx`).
-  `react/rule-suppression` refuses a new `exhaustive-deps` or `rules-of-hooks`
-  suppression, the ones the compiler bails on.
+- **Every component has a surface that draws it** (owner decision). A component or export nothing
+  draws is deleted, not held for a coming surface, since git keeps it; knip finds one, and the
+  gallery counts as no consumer. `knip.json`.
+- **`@repo/ui` reaches no oRPC module, as the editor does not.** The phone's DOM bundle loads both,
+  so lint refuses `@orpc/*` and the oRPC-reaching `@repo/contract` modules here too.
+  `oxlint.config.ts`.
+- **An icon beside a label is a sibling of the label, never inside it.** `Button` trims its text
+  with `text-box`, which only a block container honours, so `labelChildren` lifts every element
+  child out beside the trimmed text. `packages/ui/src/components/button.tsx`.
+- **Every floating surface is a Base UI primitive through `@repo/ui`, never a hand-positioned div.**
+  A div owns no dismissal, flipping, layering or focus and drifts on scroll; the selection toolbar
+  is the one exception, and Base UI's `render` prop is the polymorphism channel, with no Slot.
+  `packages/ui/src/components/popover.tsx`.
+- **The chrome has five type roles, and they are Fluid's ladder.** caption 11, body 12, subtitle 13,
+  title 15, display 24, as `text-<role>` utilities, since a role says what a line is and a
+  convention drifts; the note is not chrome, its prose in em off the appearance dials.
+  `packages/ui/src/lib/size-context.tsx`.
+- **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
+  untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
+  unconfigured `cn`. `packages/ui/src/lib/cn.ts`.
+- **A popup's motion rides its popup element, on Base UI's documented motion path, and reduced
+  motion is one policy.** Motion starts the exit in the closing commit, so the fade Base UI waits on
+  is running when it looks; `MotionPolicy` replaces every `motion-reduce:` class.
+  `packages/ui/src/lib/popup-presence.tsx`.
+- **A picker is Base UI's Autocomplete or Combobox, never a hand-rolled listbox.** Base UI owns the
+  popup, its arrows and an IME-safe Enter, which a listbox of our own kept right under five lint
+  suppressions. `packages/ui/src/components/command.tsx`.
+- **A row does not answer for its own position; its container does.** The list reads document order
+  once a commit through `useRowOrder`, since a row reading its index from the DOM needs an effect
+  that makes the compiler skip it. `packages/ui/src/hooks/use-row-order.ts`.
+- **The card grid is virtualized by uniform rows, and its one component is the React Compiler's one
+  exception.** Every cell is `cellHeight(cellWidth)` tall, so nothing is measured, and
+  `useVirtualizer` is read in render, so the compiler skips that component alone.
+  `packages/ui/src/components/card-grid.tsx`.

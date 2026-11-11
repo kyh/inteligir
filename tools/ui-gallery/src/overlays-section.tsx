@@ -11,7 +11,6 @@ import {
 import { Button } from "@repo/ui/components/button";
 import {
   CommandDialog,
-  CommandEmpty,
   CommandFooter,
   CommandGroup,
   CommandInput,
@@ -19,23 +18,23 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import type { CommandRow, CommandRowGroup } from "@repo/ui/components/command";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogPopup,
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
-import { InputMessage } from "@repo/ui/components/input-message";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
+import { SidebarGroupAction } from "@repo/ui/components/sidebar-core";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { FileTextIcon, SettingsIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { FileTextIcon, FolderPlusIcon } from "lucide-react";
+import { useState } from "react";
 
-import { Demo, GallerySection } from "./gallery-chrome";
+import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const confirmedNote = (confirmed: boolean | null): string | undefined => {
   if (confirmed === null) {
@@ -44,20 +43,47 @@ const confirmedNote = (confirmed: boolean | null): string | undefined => {
   return confirmed ? "You confirmed." : "You cancelled.";
 };
 
+// the demo's rows, which a page filters by its own query before the palette draws them
+interface DemoRow extends CommandRow {
+  readonly caps?: readonly string[];
+}
+
+const demoRow = (label: string, caps?: readonly string[]): DemoRow => ({
+  action: label,
+  caps,
+  label,
+  onSelect: () => {
+    // the demo's rows run nothing; the footer names what Enter would do
+  },
+  value: label,
+});
+
+const PALETTE_ROWS: readonly CommandRowGroup<DemoRow>[] = [
+  { heading: "Items", items: [demoRow("Release checklist"), demoRow("Weekly review")] },
+  {
+    heading: "Commands",
+    items: [demoRow("New note", ["⌘", "N"]), demoRow("Open settings", ["⌘", ","])],
+  },
+];
+
+const filterRows = (query: string): CommandRowGroup<DemoRow>[] =>
+  PALETTE_ROWS.map((group) => ({
+    heading: group.heading,
+    items: group.items.filter((row) => row.label.toLowerCase().includes(query.toLowerCase())),
+  })).filter((group) => group.items.length > 0);
+
 export const OverlaysSection = () => {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const [popupText, setPopupText] = useState("");
-  const regionRef = useRef<HTMLDivElement | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
+  const paletteGroups = filterRows(paletteQuery.trim());
 
   const ask = async () => {
     setConfirmed(
       await confirm({
-        body: "The buffer has edits that are not on disk yet.",
+        body: "This item has edits that are not saved yet.",
         confirmLabel: "Discard",
         destructive: true,
         title: "Discard unsaved changes?",
@@ -79,10 +105,8 @@ export const OverlaysSection = () => {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Rename note</DialogTitle>
-              <DialogDescription>
-                The filename is the title — renaming rewrites the links that point here.
-              </DialogDescription>
+              <DialogTitle>Rename folder</DialogTitle>
+              <DialogDescription>Everything in it stays where it is.</DialogDescription>
             </DialogHeader>
             <div className="mt-6 flex justify-end gap-2">
               <Button
@@ -106,43 +130,6 @@ export const OverlaysSection = () => {
       </Demo>
 
       <Demo
-        name="DialogPopup"
-        purpose="A non-modal dialog that brings its own surface and floats inside the region it serves, as the composer floats over the note."
-      >
-        <div
-          ref={regionRef}
-          className="relative flex h-44 w-full items-start rounded-lg border border-line p-3"
-        >
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setPopupOpen(true);
-            }}
-          >
-            Ask the agent
-          </Button>
-        </div>
-        <Dialog open={popupOpen} onOpenChange={setPopupOpen} modal={false}>
-          <DialogPopup
-            container={regionRef}
-            aria-label="Ask the agent"
-            className="absolute inset-x-3 bottom-3"
-          >
-            <InputMessage
-              value={popupText}
-              onValueChange={setPopupText}
-              placeholder="Ask the agent… Escape or a click outside leaves"
-              sendLabel="Send"
-              onSend={() => {
-                setPopupText("");
-                setPopupOpen(false);
-              }}
-            />
-          </DialogPopup>
-        </Dialog>
-      </Demo>
-
-      <Demo
         name="AlertDialog"
         purpose="A dialog the reader cannot dismiss by accident, for a choice that costs something."
       >
@@ -157,9 +144,9 @@ export const OverlaysSection = () => {
         <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this note permanently?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this item forever?</AlertDialogTitle>
               <AlertDialogDescription>
-                It is already in the trash. Deleting it now skips the 30-day window.
+                Its text and files are gone for good. This can&apos;t be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -204,9 +191,9 @@ export const OverlaysSection = () => {
           <PopoverTrigger render={<Button variant="secondary">Open popover</Button>} />
           <PopoverContent className="w-64">
             <div className="flex flex-col gap-1 text-sm">
-              <p className="text-base font-medium">Auto-commit</p>
+              <p className="text-base font-medium">Waiting for a connection</p>
               <p className="text-muted-foreground">
-                Writes are committed on a rolling window, not per keystroke.
+                Your changes wait on this device and send themselves once you are back online.
               </p>
             </div>
           </PopoverContent>
@@ -223,8 +210,8 @@ export const OverlaysSection = () => {
             <div className="flex flex-col gap-1 text-xs">
               <p className="text-sm font-medium">Welcome to inteligir</p>
               <p className="whitespace-pre-wrap text-muted-foreground">
-                This folder is your vault: plain markdown files that belong to you, versioned with
-                git.
+                Everything you save lands in your library: links, articles, pictures, PDFs and
+                notes.
               </p>
             </div>
           </HoverCardContent>
@@ -233,18 +220,20 @@ export const OverlaysSection = () => {
 
       <Demo
         name="Tooltip"
-        purpose="Names a control that shows only an icon. Never holds the only copy of anything."
+        purpose="Names a control that shows only an icon. An icon-size Button draws its aria-label as its own, so only a trigger that draws none, like a sidebar's group action, is wrapped. Never holds the only copy of anything."
       >
-        <Tooltip content="New note">
+        <DemoCase label="icon-size Button">
           <Button size="icon" variant="ghost" aria-label="New note">
             <FileTextIcon />
           </Button>
-        </Tooltip>
-        <Tooltip content="Settings" side="right">
-          <Button size="icon" variant="ghost" aria-label="Settings">
-            <SettingsIcon />
-          </Button>
-        </Tooltip>
+        </DemoCase>
+        <DemoCase label="wrapped group action">
+          <Tooltip content="New folder" side="right">
+            <SidebarGroupAction aria-label="New folder">
+              <FolderPlusIcon />
+            </SidebarGroupAction>
+          </Tooltip>
+        </DemoCase>
       </Demo>
 
       <Demo
@@ -261,32 +250,28 @@ export const OverlaysSection = () => {
         </Button>
         <CommandDialog
           open={paletteOpen}
-          onOpenChange={setPaletteOpen}
-          title="Command palette"
-          description="Open a note or run a command"
+          onOpenChange={(open) => {
+            setPaletteOpen(open);
+            setPaletteQuery("");
+          }}
+          title="Search"
+          description="Search the library, or run a command"
+          query={paletteQuery}
+          onQueryChange={setPaletteQuery}
+          groups={paletteGroups}
         >
-          <CommandInput
-            placeholder="Search notes or commands…"
-            aria-label="Search notes or commands"
-            value={paletteQuery}
-            onValueChange={setPaletteQuery}
-          />
+          <CommandInput aria-label="Search the library" placeholder="Search the library…" />
           <CommandList>
-            <CommandEmpty>Nothing matches.</CommandEmpty>
-            <CommandGroup heading="Notes">
-              <CommandItem action="Release checklist">Release checklist</CommandItem>
-              <CommandItem action="Weekly review">Weekly review</CommandItem>
-            </CommandGroup>
-            <CommandGroup heading="Commands">
-              <CommandItem action="New note">
-                New note
-                <CommandShortcut caps={["⌘", "N"]} />
-              </CommandItem>
-              <CommandItem action="Open settings">
-                Open settings
-                <CommandShortcut caps={["⌘", ","]} />
-              </CommandItem>
-            </CommandGroup>
+            {paletteGroups.map((group) => (
+              <CommandGroup key={group.heading} heading={group.heading}>
+                {group.items.map((row) => (
+                  <CommandItem key={row.value} row={row}>
+                    {row.label}
+                    {row.caps === undefined ? null : <CommandShortcut caps={row.caps} />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
           <CommandFooter />
         </CommandDialog>

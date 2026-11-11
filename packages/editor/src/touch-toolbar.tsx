@@ -1,36 +1,31 @@
 // A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
 // indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu, the comment chord), so a
-// rename lands on both surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
+// twin reads (the mark chords, the editor's shortcuts, the slash menu), so a rename lands on both
+// surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
 // In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
 // keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
 // chrome speaks the type roles.
 
 import { useState } from "react";
-import type { InputHTMLAttributes, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { upsertLink } from "@platejs/link";
 import { KEYS } from "platejs";
-import type { RangeRef, TRange } from "platejs";
+import type { RangeRef } from "platejs";
 import {
   createPlatePlugin,
+  useEditorReadOnly,
   useEditorRef,
-  useEditorSelector,
   useMarkToolbarButtonState,
-  useSelectionExpanded,
 } from "platejs/react";
-import type { PlateEditor } from "platejs/react";
 import {
   BoldIcon,
   CodeIcon,
-  ImageIcon,
   ItalicIcon,
   KeyboardOffIcon,
   Link2Icon,
   ListIndentDecreaseIcon,
   ListIndentIncreaseIcon,
-  MessageSquarePlusIcon,
   Redo2Icon,
-  SparklesIcon,
   UnderlineIcon,
   Undo2Icon,
 } from "lucide-react";
@@ -40,17 +35,7 @@ import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
-import { askAgentAboutSelection } from "@repo/editor/agent-request";
-import {
-  ADD_COMMENT_SHORTCUT,
-  anchorNewComment,
-  selectionTakesComment,
-} from "@repo/editor/comments/comment-kit";
-import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
-import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
-import type { PickImageResult } from "@repo/editor/host-io";
-import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcuts";
@@ -58,9 +43,7 @@ import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
 export const TOUCH_ACTIONS = {
-  "ask-agent": { icon: SparklesIcon, label: "Ask agent" },
   "hide-keyboard": { icon: KeyboardOffIcon, label: "Hide keyboard" },
-  image: { icon: ImageIcon, label: "Add image" },
   indent: { icon: ListIndentIncreaseIcon, label: "Indent" },
   link: { icon: Link2Icon, label: "Link" },
   outdent: { icon: ListIndentDecreaseIcon, label: "Outdent" },
@@ -184,123 +167,17 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: the agent, and a new comment the host writes. The comment's
-// field takes the row, so its markers go in only once there is text to write beside them.
-const SelectionButtons = ({
-  editor,
-  onComment,
-}: {
-  editor: PlateEditor;
-  onComment: () => void;
-}) => {
-  const expanded = useSelectionExpanded();
-  const commentable = useEditorSelector(selectionTakesComment, []);
-  return (
-    <>
-      <ActionButton
-        action="ask-agent"
-        disabled={!expanded}
-        onPress={() => {
-          askAgentAboutSelection(editor);
-        }}
-      />
-      <ToolbarButton label={ADD_COMMENT_SHORTCUT.label} disabled={!commentable} onPress={onComment}>
-        <MessageSquarePlusIcon />
-      </ToolbarButton>
-      <Sep />
-    </>
-  );
-};
-
-// A refused create strips the markers it went in with, as the desktop's popover does, and the host
-// says why.
-const commentOn = (editor: PlateEditor, at: TRange, text: string): void => {
-  editor.tf.select(at);
-  const id = anchorNewComment(editor);
-  if (id === null) {
-    return;
-  }
-  void (async () => {
-    const created = await getEditorHostActions()
-      .comments.create(id, text)
-      .catch(() => false);
-    if (!created) {
-      removeCommentMarkers(editor, [id]);
-    }
-  })();
-};
-
-// Never rejects: the press has already happened, so a rejection would reach nobody.
-const pickImageInto = async (
-  editor: PlateEditor,
-  pickImage: () => Promise<PickImageResult>,
-): Promise<void> => {
-  let picked: PickImageResult;
-  try {
-    picked = await pickImage();
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    toast.error(`Couldn't add the image — ${detail}`);
-    return;
-  }
-  if (picked.kind === "picked") {
-    insertVaultImage(editor, picked.path);
-  } else if (picked.kind === "refused") {
-    toast.error(picked.message);
-  }
-};
-
-// a field that takes the row: a link's address, or a comment's text
-type PromptKind = "link" | "comment";
-
-interface PromptField {
-  readonly icon: IconComponent;
-  readonly label: string;
-  readonly placeholder: string;
-  readonly submit: string;
-  readonly input: Pick<
-    InputHTMLAttributes<HTMLInputElement>,
-    "autoCapitalize" | "autoCorrect" | "enterKeyHint" | "inputMode" | "type"
-  >;
-}
-
-// the comment's words are the desktop popover's
-const PROMPT_FIELDS = {
-  comment: {
-    icon: MessageSquarePlusIcon,
-    input: { enterKeyHint: "send", type: "text" },
-    label: "Comment",
-    placeholder: "Comment…",
-    submit: "Save",
-  },
-  link: {
-    icon: Link2Icon,
-    input: {
-      autoCapitalize: "none",
-      autoCorrect: "off",
-      enterKeyHint: "done",
-      inputMode: "url",
-      type: "url",
-    },
-    label: "Link address",
-    placeholder: "Paste or type a link…",
-    submit: "Apply",
-  },
-} satisfies Record<PromptKind, PromptField>;
-
-const ToolbarPrompt = ({
+// the link's address takes the row
+const LinkPrompt = ({
   initialValue,
-  kind,
   onCancel,
   onSubmit,
 }: {
   initialValue: string;
-  kind: PromptKind;
   onCancel: () => void;
   onSubmit: (value: string) => void;
 }) => {
   const [value, setValue] = useState(initialValue);
-  const { icon: Icon, input, label, placeholder, submit } = PROMPT_FIELDS[kind];
   return (
     <form
       className="flex min-w-0 flex-1 items-center gap-1 px-2"
@@ -309,12 +186,16 @@ const ToolbarPrompt = ({
         onSubmit(value.trim());
       }}
     >
-      <Icon className="size-5 shrink-0 text-muted-foreground" />
+      <Link2Icon className="size-5 shrink-0 text-muted-foreground" />
       <input
-        {...input}
+        autoCapitalize="none"
+        autoCorrect="off"
+        enterKeyHint="done"
+        inputMode="url"
+        type="url"
         autoFocus
-        aria-label={label}
-        placeholder={placeholder}
+        aria-label="Link address"
+        placeholder="Paste or type a link…"
         value={value}
         onChange={(event) => {
           setValue(event.target.value);
@@ -325,52 +206,48 @@ const ToolbarPrompt = ({
         Cancel
       </Button>
       <Button variant="ghost" size="compact" type="submit" className="h-11 text-primary">
-        {submit}
+        Apply
       </Button>
     </form>
   );
 };
 
-// A ref rather than the range: a sync can rebase or re-seed the note under the open field, and a
-// plain range would then land on whatever text took its place.
-interface OpenPrompt {
-  readonly kind: PromptKind;
-  readonly at: RangeRef;
-}
-
 const TouchToolbar = () => {
   const editor = useEditorRef();
-  // the field that has the row and where what it takes lands, held while the field has the focus;
-  // null is the row of buttons
-  const [prompt, setPrompt] = useState<OpenPrompt | null>(null);
-  // what a field held when its text went away under it, offered again when that field next opens
-  const [draft, setDraft] = useState<{ kind: PromptKind; value: string } | null>(null);
-  const { pickImage } = getEditorHostIo();
+  const readOnly = useEditorReadOnly();
+  // where the link field's address lands, held while the field has the row; null is the row of
+  // buttons. A ref rather than the range: a sync can rebase or re-seed the note under the open
+  // field, and a plain range would then land on whatever text took its place.
+  const [prompt, setPrompt] = useState<RangeRef | null>(null);
+  // what the field held when its text went away under it, offered again when it next opens
+  const [draft, setDraft] = useState<string | null>(null);
 
-  const openPrompt = (kind: PromptKind): void => {
+  const openPrompt = (): void => {
     if (editor.selection !== null) {
-      setPrompt({ at: editor.api.rangeRef(editor.selection, { affinity: "inward" }), kind });
+      setPrompt(editor.api.rangeRef(editor.selection, { affinity: "inward" }));
     }
   };
 
-  const closePrompt = ({ at, kind }: OpenPrompt, value: string): void => {
+  // `value` null is a cancel, and an empty address links nothing
+  const closePrompt = (at: RangeRef, value: string | null): void => {
     const range = at.unref();
     setPrompt(null);
     setDraft(null);
-    if (value === "") {
+    if (value === null || value === "") {
       return;
     }
     if (range === null) {
-      setDraft({ kind, value });
-      toast.warning("The note changed — select the text again.");
-    } else if (kind === "link") {
+      setDraft(value);
+      toast.warning("The item changed — select the text again.");
+    } else {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
-    } else {
-      commentOn(editor, range, value);
     }
   };
 
+  if (readOnly) {
+    return null;
+  }
   return (
     <div
       role="toolbar"
@@ -380,12 +257,6 @@ const TouchToolbar = () => {
       {prompt === null ? (
         <>
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
-            <SelectionButtons
-              editor={editor}
-              onComment={() => {
-                openPrompt("comment");
-              }}
-            />
             {MARK_SHORTCUTS.map((row) => (
               <MarkButton key={row.action} row={row} />
             ))}
@@ -415,20 +286,7 @@ const TouchToolbar = () => {
               }}
             />
             <Sep />
-            <ActionButton
-              action="link"
-              onPress={() => {
-                openPrompt("link");
-              }}
-            />
-            {pickImage === null ? null : (
-              <ActionButton
-                action="image"
-                onPress={() => {
-                  void pickImageInto(editor, pickImage);
-                }}
-              />
-            )}
+            <ActionButton action="link" onPress={openPrompt} />
             <Sep />
             <ActionButton
               action="undo"
@@ -451,11 +309,10 @@ const TouchToolbar = () => {
           />
         </>
       ) : (
-        <ToolbarPrompt
-          kind={prompt.kind}
-          initialValue={draft?.kind === prompt.kind ? draft.value : ""}
+        <LinkPrompt
+          initialValue={draft ?? ""}
           onCancel={() => {
-            closePrompt(prompt, "");
+            closePrompt(prompt, null);
             editor.tf.focus();
           }}
           onSubmit={(value) => {

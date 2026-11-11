@@ -4,7 +4,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
-import { animate, motion, useMotionValue } from "framer-motion";
+import { animate, motion, useMotionValue } from "motion/react";
 
 import { useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";

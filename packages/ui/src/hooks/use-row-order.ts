@@ -1,7 +1,7 @@
-// The row registry the lists here share (SidebarMenu, DropdownMenuContent, CommandDialog). A row
-// does not answer for its own position: it hands the list its element, and the list reads
-// document order itself. Registering only marks the set dirty, so the rows one commit mounts or
-// unmounts are read once, in the layout phase of the commit after, before anything paints.
+// The row registry the lists here share (SidebarMenu, DropdownMenuContent). A row does not answer
+// for its own position: it hands the list its element, and the list reads document order itself.
+// Registering only marks the set dirty, so the rows one commit mounts or unmounts are read once,
+// in the layout phase of the commit after, before anything paints.
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { RefObject } from "react";

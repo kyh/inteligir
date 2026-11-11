@@ -1,20 +1,18 @@
 // No TagChipBaseKit: a decoration never enters the value, and a base twin is the first step
-// toward a tag node in the user's bytes. Suppression mirrors @repo/notes/knowledge/link-extract
+// toward a tag node in the user's bytes. Suppression mirrors @repo/editor/knowledge/link-extract
 // (tags only in mdast text nodes) — a chip the index does not know navigates to an empty list.
 
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 
-import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
+import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
 
-import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 
 const isSuppressedAncestor = (editor: SlateEditor, type: string): boolean =>
   type === editor.getType(KEYS.codeBlock) ||
   type === editor.getType(KEYS.codeLine) ||
-  type === editor.getType(KEYS.link) ||
-  type === FRONTMATTER_KEY;
+  type === editor.getType(KEYS.link);
 
 const TagChipPlugin = createSlatePlugin({
   decorate: ({ editor, entry: [node, path] }) => {

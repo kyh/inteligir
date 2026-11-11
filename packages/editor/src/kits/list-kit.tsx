@@ -1,24 +1,41 @@
 import { KEYS } from "platejs";
 import type { SlateEditor } from "platejs";
-import { BaseIndentPlugin } from "@platejs/indent";
 import { IndentPlugin } from "@platejs/indent/react";
-import { BaseListPlugin, BulletedListRules, OrderedListRules, TaskListRules } from "@platejs/list";
+import { BulletedListRules, OrderedListRules, TaskListRules } from "@platejs/list";
 import { ListPlugin } from "@platejs/list/react";
 
 import { BlockList } from "@repo/editor/block-list";
 
-// toggle is indentable so list/indent props survive on blocks nested inside a toggle body.
-const INDENTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.toggle];
+import { INDENTABLE, INDENT_OPTIONS, LISTABLE } from "./headless/list-base";
 
-export const ListBaseKit = [
-  BaseIndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: { offset: 24 } }),
-  BaseListPlugin.configure({ inject: { targetPlugins: INDENTABLE } }),
-];
+// what css spells a bullet with; every other style a pasted list carries is a kind of number
+const BULLET_STYLES: ReadonlySet<string> = new Set(["circle", "disc", "none", "square"]);
+
+// a pasted list is styled however its page styled it, and a block stores only a bullet or a number
+const storedListStyle = (style: string): string | undefined => {
+  if (style === "") {
+    return undefined;
+  }
+  return BULLET_STYLES.has(style) ? "disc" : "decimal";
+};
 
 export const ListKit = [
-  IndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: { offset: 24 } }),
+  IndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: INDENT_OPTIONS }),
   ListPlugin.configure({
-    inject: { targetPlugins: INDENTABLE },
+    inject: { targetPlugins: LISTABLE },
+    // Plate's own parse of an item, but for the style it would keep as written
+    parsers: {
+      html: {
+        deserializer: {
+          parse: ({ editor, element }) => ({
+            indent:
+              Number(element.dataset.indent ?? element.getAttribute("aria-level")) || undefined,
+            listStyleType: storedListStyle(element.dataset.listStyleType ?? ""),
+            type: editor.getType(KEYS.p),
+          }),
+        },
+      },
+    },
     inputRules: [
       BulletedListRules.markdown(),
       BulletedListRules.markdown({ variant: "*" }),

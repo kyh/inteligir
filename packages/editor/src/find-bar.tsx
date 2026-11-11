@@ -14,6 +14,7 @@ import {
   PlateLeaf,
   createPlatePlugin,
   createTPlatePlugin,
+  useEditorReadOnly,
   useEditorRef,
   useEditorSelector,
   usePluginOption,
@@ -22,17 +23,17 @@ import type { PlateLeafProps } from "platejs/react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
-import { findTextOffsets } from "@repo/notes/knowledge/text-matches";
-import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { findTextOffsets } from "@repo/editor/knowledge/text-matches";
+import type { TextMatchOptions } from "@repo/editor/knowledge/text-matches";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { revealCentered } from "@repo/editor/scroll-reveal";
 
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace" | "replace-all";
 
@@ -47,7 +48,7 @@ const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
   { action: "find-next", hotkey: "mod+g", label: "Next match" },
   { action: "find-previous", hotkey: "mod+shift+g", label: "Previous match" },
-  { action: "open-replace", hotkey: "mod+alt+f", label: "Find and replace in the note" },
+  { action: "open-replace", hotkey: "mod+alt+f", label: "Find and replace" },
   REPLACE_ALL_SHORTCUT,
 ];
 
@@ -62,7 +63,7 @@ const OPTION_CHIPS: readonly { readonly option: keyof TextMatchOptions; readonly
     { label: "Whole word", option: "wholeWord" },
   ];
 
-// A jump from the vault search brings that search's options with its query, so the bar lights
+// A jump from the library's search brings that search's options with its query, so the bar lights
 // the matches the palette listed and the ordinal counts among them; typing a query drops them.
 interface FindSearch {
   query: string;
@@ -91,9 +92,8 @@ const FindBarPlugin = createTPlatePlugin<PluginConfig<"findBar", FindBarOptions>
   },
 });
 
-// The element the bar hangs under, registered by whatever surface draws the Find button; the
-// editor never reaches the shell, so the shell hands it the anchor. Null while no such button is
-// on screen (zen hides it), and the bar falls back to the note column's corner.
+// The element the bar hangs under: the item view's slot above the note, since the editor never
+// reaches the shell, so the shell hands it over. Null only before that view first commits.
 const anchorStore = createStore<HTMLElement | null>()(() => null);
 
 export const setFindBarAnchor = (element: HTMLElement | null): void => {
@@ -143,9 +143,6 @@ const searchMatches = (editor: SlateEditor, search: FindSearch): TRange[] => {
   return matches;
 };
 
-export const collectFindMatches = (editor: SlateEditor, query: string): TRange[] =>
-  searchMatches(editor, { options: FIELD_MATCHING, query });
-
 const activeIndexIn = (matches: readonly TRange[], active: TRange | null): number =>
   active === null ? -1 : matches.findIndex((match) => RangeApi.equals(match, active));
 
@@ -164,7 +161,9 @@ const scrollToMatch = (editor: SlateEditor, match: TRange): void => {
     const domRange = editor.api.toDOMRange(match);
     const container = domRange?.startContainer;
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (target !== null) {
+      revealCentered(target);
+    }
   } catch {
     // a leaf the view has not drawn has no DOM range
   }
@@ -189,7 +188,7 @@ export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }
 
 // leaves focus where it is, for a surface drawn over the note: moving it to the editor would
 // close a non-modal popup holding it, since those close on focus-out
-export const hideFindBar = (editor: SlateEditor): void => {
+const hideFindBar = (editor: SlateEditor): void => {
   setFindBar(editor, { active: null, open: false });
 };
 
@@ -307,7 +306,9 @@ const OpenFindBar = () => {
   const search = usePluginOption(FindBarPlugin, "search");
   const active = usePluginOption(FindBarPlugin, "active");
   const replace = usePluginOption(FindBarPlugin, "replace");
-  const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen");
+  // a replace is an edit, which a read-only note takes none of
+  const replaceOffered = !useEditorReadOnly();
+  const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen") && replaceOffered;
   const anchor = useStore(anchorStore);
   const inputRef = useRef<HTMLInputElement>(null);
   // an edit moves the count and the active match without touching the options
@@ -338,24 +339,28 @@ const OpenFindBar = () => {
   const body = (
     <>
       <div className="flex items-center gap-1.5">
-        <Tooltip content="Toggle replace">
-          <button
-            type="button"
-            aria-label="Toggle replace"
-            aria-expanded={replaceOpen}
-            onClick={() => {
-              setFindBar(editor, { replaceOpen: !replaceOpen });
-            }}
-            className={BAR_BUTTON_CLASS}
-          >
-            <ChevronRightIcon className={cn("transition-transform", replaceOpen && "rotate-90")} />
-          </button>
-        </Tooltip>
+        {replaceOffered ? (
+          <Tooltip content="Toggle replace">
+            <button
+              type="button"
+              aria-label="Toggle replace"
+              aria-expanded={replaceOpen}
+              onClick={() => {
+                setFindBar(editor, { replaceOpen: !replaceOpen });
+              }}
+              className={BAR_BUTTON_CLASS}
+            >
+              <ChevronRightIcon
+                className={cn("transition-transform", replaceOpen && "rotate-90")}
+              />
+            </button>
+          </Tooltip>
+        ) : null}
         <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           ref={inputRef}
-          aria-label="Find in note"
-          placeholder="Find in note"
+          aria-label="Find"
+          placeholder="Find…"
           value={search.query}
           onChange={(event) => {
             setFindQuery(editor, event.target.value);
@@ -470,21 +475,6 @@ const OpenFindBar = () => {
     </>
   );
 
-  // The bar hangs under the Find button when a surface has one, and falls back to the note
-  // column's corner when none is on screen (zen). Absolute, not fixed: inside the note column,
-  // never over the panel beside it.
-  if (anchor === null) {
-    return (
-      <div
-        className={cn(
-          "absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md px-2 py-1 print:hidden",
-          surfaceClasses(3),
-        )}
-      >
-        {body}
-      </div>
-    );
-  }
   return (
     <Popover
       open

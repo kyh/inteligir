@@ -2,32 +2,28 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import { useLayoutEffect, useState } from "react";
-import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import type { HTMLAttributes, RefAttributes } from "react";
+import { ChevronDownIcon } from "lucide-react";
 
 import { Collapse } from "@repo/ui/lib/collapse";
-import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cn } from "@repo/ui/lib/cn";
 
 interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   label?: string;
   doneLabel: string;
   working?: boolean;
-  defaultExpanded?: boolean;
 }
 
 const Thinking = ({
   label = "Thinking",
   doneLabel,
   working = false,
-  defaultExpanded = false,
   className,
   children,
   ref,
   ...props
 }: ThinkingProps & RefAttributes<HTMLDivElement>) => {
-  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
-  const expanded = manualExpanded ?? defaultExpanded;
+  const [expanded, setExpanded] = useState(false);
   const [traceEl, setTraceEl] = useState<HTMLDivElement | null>(null);
   const [ruleHeight, setRuleHeight] = useState(0);
   // observed rather than measured per render: the trace reflows (wrapping, fonts) with no render of this component
@@ -55,7 +51,7 @@ const Thinking = ({
         type="button"
         aria-expanded={expanded}
         onClick={() => {
-          setManualExpanded(!expanded);
+          setExpanded(!expanded);
         }}
         data-slot="thinking-trigger"
         className="-mx-1.5 flex w-fit items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 hover:bg-hover"
@@ -107,123 +103,25 @@ const Thinking = ({
   );
 };
 
-const THINKING_ROW =
-  "flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left animate-in fade-in slide-in-from-bottom-1 fill-mode-both";
-
-type ThinkingKind = "step" | "reasoning" | "tool";
-
-// HTMLElement: a selectable row renders a <button>; onClick is omitted so it cannot replace onSelect
-interface ThinkingRowProps extends Omit<HTMLAttributes<HTMLElement>, "onSelect" | "onClick"> {
-  kind?: ThinkingKind;
-  secondary?: ReactNode;
-  mono?: boolean;
-  added?: number;
-  removed?: number;
-  pending?: boolean;
-  onSelect?: () => void;
-  selected?: boolean;
-}
-
-const RowIcon = ({ kind, pending }: { kind: ThinkingKind; pending: boolean }) => {
-  if (kind === "reasoning") {
-    return null;
-  }
-  if (pending) {
-    return (
-      <span
-        aria-hidden
-        className="size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-line-strong border-t-ink-2"
-      />
-    );
-  }
-  return <CheckIcon size={14} strokeWidth={2.5} className="shrink-0 text-ink-3" />;
-};
-
-const ThinkingRow = ({
-  kind = "step",
-  secondary,
-  mono = false,
-  added,
-  removed,
-  pending = false,
-  onSelect,
-  selected = false,
+const ThinkingReasoning = ({
   className,
   children,
   ref,
   ...props
-}: ThinkingRowProps & RefAttributes<HTMLElement>) => {
-  const body = (
-    <>
-      <RowIcon kind={kind} pending={pending} />
-      <span
-        className={cn(
-          "min-w-0 truncate text-body",
-          kind === "reasoning"
-            ? "whitespace-normal leading-relaxed text-ink-2"
-            : "font-medium text-ink",
-        )}
-      >
-        {children}
-      </span>
-      {secondary === undefined ? null : (
-        <span className={cn("shrink-0 text-caption text-ink-3", mono && "font-mono")}>
-          {secondary}
-        </span>
-      )}
-      {added === undefined && removed === undefined ? null : (
-        <span className="shrink-0 font-mono text-caption tabular-nums">
-          <span className="text-success">+{added ?? 0}</span>{" "}
-          <span className="text-destructive">−{removed ?? 0}</span>
-        </span>
-      )}
-    </>
-  );
-
-  if (onSelect === undefined) {
-    return (
-      <div
-        ref={composeRefs(ref)}
-        data-slot={`thinking-${kind}`}
-        className={cn(THINKING_ROW, className)}
-        {...props}
-      >
-        {body}
-      </div>
-    );
-  }
-  return (
-    <button
-      ref={composeRefs(ref)}
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      data-slot={`thinking-${kind}`}
-      className={cn(
-        THINKING_ROW,
-        "transition-colors duration-150",
-        selected ? "bg-surface-inset" : "hover:bg-hover",
-        className,
-      )}
-      {...props}
-    >
-      {body}
-    </button>
-  );
-};
-
-type ThinkingPartProps = Omit<ThinkingRowProps, "kind">;
-
-const ThinkingStep = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
-  <ThinkingRow kind="step" {...props} />
+}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    data-slot="thinking-reasoning"
+    className={cn(
+      "flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left animate-in fade-in slide-in-from-bottom-1 fill-mode-both",
+      className,
+    )}
+    {...props}
+  >
+    <span className="min-w-0 truncate text-body leading-relaxed whitespace-normal text-ink-2">
+      {children}
+    </span>
+  </div>
 );
 
-const ThinkingReasoning = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
-  <ThinkingRow kind="reasoning" {...props} />
-);
-
-const ThinkingTool = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
-  <ThinkingRow kind="tool" {...props} />
-);
-
-export { Thinking, ThinkingStep, ThinkingReasoning, ThinkingTool };
+export { Thinking, ThinkingReasoning };

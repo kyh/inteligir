@@ -1,10 +1,21 @@
 import { Link } from "@tanstack/react-router";
+import type { ComponentProps } from "react";
 import Markdown from "react-markdown";
+import type { ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { SiteHeader } from "@/components/site-header";
-import { rehypeHeadingIds } from "@/lib/heading-ids";
-import { siteConfig } from "@/lib/site-config";
+import { SiteHeader } from "#components/site-header";
+import { rehypeHeadingIds } from "#lib/heading-ids";
+import { siteConfig } from "#lib/site-config";
+
+// a policy's table holds sentences, headers included, so it scrolls in a box of its own at a width
+// its columns can wrap in: typeset's unwrapped headers would otherwise set the page's width, and its
+// max-content scroll puts each sentence on one line
+const WideTable = ({ node: _node, ...props }: ComponentProps<"table"> & ExtraProps) => (
+  <div className="typeset-scroll">
+    <table {...props} className="w-auto min-w-full [&_th]:min-w-36 [&_th]:whitespace-normal" />
+  </div>
+);
 
 export const MarkdownPage = ({ markdown }: { markdown: string }) => (
   <>
@@ -14,7 +25,11 @@ export const MarkdownPage = ({ markdown }: { markdown: string }) => (
         {siteConfig.name}
       </Link>
       <article className="typeset">
-        <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHeadingIds]}>
+        <Markdown
+          components={{ table: WideTable }}
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHeadingIds]}
+        >
           {markdown}
         </Markdown>
       </article>

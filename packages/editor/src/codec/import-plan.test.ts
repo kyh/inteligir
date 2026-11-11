@@ -1,0 +1,456 @@
+import { describe, expect, it } from "vitest";
+
+import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { collectFileShas } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
+
+import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
+import { basenamePath, dirnamePath } from "@repo/contract/knowledge/folder-path";
+
+import {
+  importPathKind,
+  importPlannedDoc,
+  openPlan,
+  planFileItems,
+  planImport,
+  unwrapExport,
+} from "./import-plan";
+import type { ImportEntry, PlanIds } from "./import-plan";
+import type { ImportedFields } from "./item-markdown";
+
+const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
+const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
+
+// an Obsidian vault beside a note this app wrote, the binaries named by a pretend sha
+const OBSIDIAN_VAULT = {
+  ".obsidian/app.json": '{"theme":"moonstone"}',
+  "Notes/Daily.md": [
+    "# Daily",
+    "",
+    "See [[Project X#^goal]], [[Project X|the project]], [[PX]] and [[Missing]].",
+    "",
+    "An ==important== line %%not shown%% under #log and #log/today.",
+    "",
+    "![[shot.png|300]]",
+    "",
+    "![[board.canvas]]",
+    "",
+    `By id: [[Renamed|${PROJECT_ID}]]`,
+    "",
+  ].join("\n"),
+  "Projects/Project X.md": [
+    "---",
+    `id: ${PROJECT_ID}`,
+    "aliases: [PX]",
+    "tags: [work]",
+    "status: active",
+    "---",
+    "",
+    "The goal is shipping. ^goal",
+    "",
+    "| a | b |",
+    "| - | - |",
+    "| 1 | 2 |",
+    "",
+    "^tbl",
+    "",
+  ].join("\n"),
+  "Inbox/Read later.md": [
+    "---",
+    `id: ${PAGE_ID}`,
+    "kind: link",
+    "url: https://example.com/read",
+    "saved: 2026-05-01T10:00:00Z",
+    "fetched: 2026-05-01T10:00:05Z",
+    "---",
+    "",
+    "![](assets/covers/0123456789abcdef.jpg)",
+    "",
+    ":::article",
+    "",
+    "The page says a passage here, with #hashtag text.",
+    "",
+    ":::",
+    "",
+  ].join("\n"),
+} satisfies Record<string, string>;
+
+const shaOf = (path: string): string =>
+  [...path]
+    .map((char) => (char.codePointAt(0) ?? 0).toString(16).padStart(2, "0"))
+    .join("")
+    .padEnd(64, "0")
+    .slice(0, 64);
+
+const BINARIES = new Map(
+  [
+    "assets/shot.png",
+    "assets/covers/0123456789abcdef.jpg",
+    "board.canvas",
+    "Untitled.base",
+    "orphan.pdf",
+    "Reports/Q3 report.docx",
+    "Projects/Specs/spec.pdf",
+    "assets/covers/fedcba9876543210.jpg",
+  ].map((path) => [path, shaOf(path)]),
+);
+
+const counters = (): PlanIds & { newBlockId: () => string } => {
+  let next = 0;
+  const mint = (prefix: string) => () => {
+    next += 1;
+    return `${prefix}${String(next)}`;
+  };
+  let uuid = 0;
+  return {
+    newBlockId: mint("b"),
+    newItemId: () => {
+      uuid += 1;
+      return `0195f3a0-5c1e-7000-9000-${String(uuid).padStart(12, "0")}`;
+    },
+  };
+};
+
+interface LibraryItem {
+  readonly itemId: string;
+  readonly folderPath: string;
+  readonly fields: ImportedFields;
+  readonly blocks: readonly { block: LibraryBlock; section: "note" | "article" }[];
+}
+
+interface Folder {
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly name: string;
+}
+
+interface ReadLibrary {
+  readonly items: LibraryItem[];
+  readonly folders: Folder[];
+  readonly skipped: string[];
+}
+
+// the folder each item sits in and every folder above it, as the cell makes them, each by its path
+const foldersOf = (items: readonly LibraryItem[]): Folder[] => {
+  const paths = new Set<string>();
+  for (const item of items) {
+    for (let path = item.folderPath; path !== ""; path = dirnamePath(path)) {
+      paths.add(path);
+    }
+  }
+  return [...paths].map((path) => {
+    const parent = dirnamePath(path);
+    return { id: path, name: basenamePath(path), parentId: parent === "" ? null : parent };
+  });
+};
+
+// the three passes over a folder's files, as an import job runs them
+const readFolder = (
+  files: Readonly<Record<string, string>>,
+  binaries: ReadonlyMap<string, string>,
+): ReadLibrary => {
+  const ids = counters();
+  const skipped: string[] = [];
+  const entries: ImportEntry[] = [];
+  const texts = new Map<string, string>();
+  const listed = unwrapExport([
+    ...Object.entries(files).map(([path, text]) => ({ path, text })),
+    ...[...binaries].map(([path, sha]) => ({ path, sha })),
+  ]);
+  for (const entry of listed) {
+    const { path } = entry;
+    const kind = importPathKind(path);
+    if ("sha" in entry) {
+      if (kind === "file") {
+        entries.push({ kind, path, sha: entry.sha });
+      } else {
+        skipped.push(path);
+      }
+    } else if (kind === "doc") {
+      entries.push({ kind, path, text: entry.text });
+      texts.set(path, entry.text);
+    } else if (kind === "skipped") {
+      skipped.push(path);
+    }
+  }
+  const plan = planImport(entries, ids);
+  const reader = openPlan(plan);
+  const attached = new Set<string>();
+  const originals = new Set<string>();
+  const items: LibraryItem[] = [];
+  for (const doc of plan.docs) {
+    const read = importPlannedDoc(reader, doc, texts.get(doc.path) ?? "", {
+      ...ids,
+      now: CODEC_NOW,
+    });
+    if (!read.ok) {
+      throw new Error(`${read.path}: ${read.reason}`);
+    }
+    const { coverSha, originalSha } = read.read.item.fields;
+    for (const sha of [coverSha, originalSha]) {
+      if (sha !== null) {
+        attached.add(sha);
+      }
+    }
+    for (const { block } of read.read.item.blocks) {
+      collectFileShas(block, attached);
+    }
+    if (originalSha !== null) {
+      originals.add(originalSha);
+    }
+    items.push({
+      blocks: read.read.item.blocks,
+      fields: read.read.item.fields,
+      folderPath: dirnamePath(doc.path),
+      itemId: doc.itemId,
+    });
+  }
+  for (const item of planFileItems(plan, { attached, originals }, ids, CODEC_NOW)) {
+    items.push({ ...item, blocks: [] });
+  }
+  return { folders: foldersOf(items), items, skipped };
+};
+
+const byTitle = (library: ReadLibrary, title: string): LibraryItem => {
+  const item = library.items.find((candidate) => candidate.fields.title === title);
+  if (item === undefined) {
+    throw new Error(`no item titled ${title}`);
+  }
+  return item;
+};
+
+const nodesOf = (item: LibraryItem): LibraryNode[] => {
+  const all: LibraryNode[] = [];
+  const walk = (node: LibraryNode): void => {
+    all.push(node);
+    if (!("text" in node)) {
+      for (const child of node.children) {
+        walk(child);
+      }
+    }
+  };
+  for (const { block } of item.blocks) {
+    walk(block);
+  }
+  return all;
+};
+
+const textOf = (item: LibraryItem): string =>
+  nodesOf(item)
+    .flatMap((node) => ("text" in node ? [node.text] : []))
+    .join("");
+
+describe("an Obsidian vault read into the library", () => {
+  const library = readFolder(OBSIDIAN_VAULT, BINARIES);
+  const daily = byTitle(library, "Daily");
+  const project = byTitle(library, "Project X");
+
+  it("skips Obsidian's settings", () => {
+    expect(library.skipped).toStrictEqual([".obsidian/app.json"]);
+    expect(library.items.map((item) => item.fields.title).toSorted()).toStrictEqual([
+      "Daily",
+      "Project X",
+      "Q3 report",
+      "Read later",
+      "Untitled",
+      "board",
+      "orphan",
+      "spec",
+    ]);
+  });
+
+  it("reads an AGENTS.md at the root as a note like any other", () => {
+    const { items, skipped } = readFolder({ "AGENTS.md": "File under Inbox.\n" }, new Map());
+    expect(items.map((item) => [item.fields.title, item.folderPath])).toStrictEqual([
+      ["AGENTS", ""],
+    ]);
+    expect(skipped).toStrictEqual([]);
+  });
+
+  it("makes no item of a cover no item holds", () => {
+    expect(
+      library.items.some(
+        (item) => item.fields.originalSha === shaOf("assets/covers/fedcba9876543210.jpg"),
+      ),
+    ).toBe(false);
+  });
+
+  it("files every item in its folder", () => {
+    expect(daily.folderPath).toBe("Notes");
+    expect(project.folderPath).toBe("Projects");
+    expect(byTitle(library, "orphan").folderPath).toBe("");
+    // a file alone in a folder of its own sits under the folder its parent already is
+    expect(byTitle(library, "spec").folderPath).toBe("Projects/Specs");
+  });
+
+  it("links a page by path, name and alias, its anchor and alias dropped, and leaves a miss its text", () => {
+    const links = nodesOf(daily).flatMap((node) =>
+      "type" in node && node.type === "mention" ? [node] : [],
+    );
+    expect(links.map(({ key, value }) => ({ key, value }))).toStrictEqual([
+      { key: PROJECT_ID, value: "Project X" },
+      { key: PROJECT_ID, value: "Project X" },
+      { key: PROJECT_ID, value: "Project X" },
+    ]);
+    expect(textOf(daily)).toContain(" and [[Missing]].");
+    expect(textOf(daily)).toContain(`By id: [[Renamed|${PROJECT_ID}]]`);
+  });
+
+  it("keeps a `^ref` the words it is: no block is named by one", () => {
+    expect(project.blocks.map(({ block }) => block.type)).toStrictEqual(["p", "table", "p"]);
+    expect(textOf(project)).toContain("The goal is shipping. ^goal");
+    expect(textOf(project)).toContain("^tbl");
+  });
+
+  it("keeps a comment, a highlight and a tag the text they are", () => {
+    expect(textOf(daily)).toContain(
+      "An ==important== line %%not shown%% under #log and #log/today.",
+    );
+  });
+
+  it("reads a link this app's export wrote by its item's id, and one to no item as its words", () => {
+    const { items } = readFolder(
+      {
+        "Beta.md": `---\nid: ${PROJECT_ID}\n---\nBeta's words.\n`,
+        "Alpha.md": `See [Old title](mention:${PROJECT_ID}) and [Gone](mention:0195f3a0-5c1e-7000-8000-0000000000ff).\n`,
+      },
+      new Map(),
+    );
+    const alpha = items.find((item) => item.fields.title === "Alpha");
+    expect(alpha?.blocks.map(({ block }) => block)).toMatchObject([
+      {
+        children: [
+          { text: "See " },
+          { key: PROJECT_ID, type: "mention", value: "Beta" },
+          { text: " and Gone." },
+        ],
+        type: "p",
+      },
+    ]);
+  });
+
+  it("plans no more aliases than an item holds", () => {
+    const aliases = Array.from(
+      { length: ITEM_FIELD_CAPS.listEntries + 1 },
+      (_, index) => `- a${String(index)}`,
+    );
+    const plan = planImport(
+      [{ kind: "doc", path: "Many.md", text: `---\naliases:\n${aliases.join("\n")}\n---\n` }],
+      counters(),
+    );
+    expect(plan.docs[0]?.aliases).toHaveLength(ITEM_FIELD_CAPS.listEntries);
+  });
+
+  it("embeds an image with its width and a canvas as a file, and keeps the canvas an item", () => {
+    const media = daily.blocks.flatMap(({ block }) =>
+      block.type === "img" || block.type === "file" ? [block] : [],
+    );
+    expect(media).toMatchObject([
+      { sha: shaOf("assets/shot.png"), type: "img", width: 300 },
+      { name: "board.canvas", sha: shaOf("board.canvas"), type: "file" },
+    ]);
+    expect(byTitle(library, "board").fields).toMatchObject({
+      kind: "file",
+      originalName: "board.canvas",
+      originalSha: shaOf("board.canvas"),
+    });
+    expect(byTitle(library, "orphan").fields).toMatchObject({
+      kind: "pdf",
+      originalSha: shaOf("orphan.pdf"),
+    });
+  });
+
+  it.each(["a%20b.png", "100%.png", "a b.png"])("embeds %s as the bytes it names", (name) => {
+    const sha = shaOf(name);
+    const { items } = readFolder({ "Note.md": `![[${name}]]\n` }, new Map([[name, sha]]));
+    expect(items.map((item) => item.fields.title)).toStrictEqual(["Note"]);
+    expect(items[0]?.blocks.map(({ block }) => block)).toMatchObject([{ sha, type: "img" }]);
+  });
+
+  it("keeps a property no field reads, and the item's own id", () => {
+    expect(project.itemId).toBe(PROJECT_ID);
+    expect(project.fields).toMatchObject({
+      aliases: ["PX"],
+      properties: { status: "active" },
+      tags: ["work"],
+    });
+  });
+
+  it("reads a saved link: its cover and its page", () => {
+    const page = byTitle(library, "Read later");
+    expect(page.fields).toMatchObject({
+      coverSha: shaOf("assets/covers/0123456789abcdef.jpg"),
+      fetchState: "filled",
+    });
+    expect(page.blocks.map(({ section }) => section)).toStrictEqual(["article"]);
+    // the page's hashtags are the page's text
+    expect(textOf(page)).toContain("with #hashtag text.");
+  });
+});
+
+// a library as content alone: ids aside, items by title
+const contentOf = (library: ReadLibrary) =>
+  library.items
+    .map((item) => ({
+      blocks: item.blocks.map((placed) => ({ ...placed, block: withoutId(placed.block) })),
+      fields: item.fields,
+      folderPath: item.folderPath,
+    }))
+    .toSorted((a, b) => a.fields.title.localeCompare(b.fields.title));
+
+describe("a path in a folder of bytes", () => {
+  it.each([".env", ".gitignore", "notes.md", "Thumbs.db.bak"])(
+    "reads %s as a file in a bytes folder",
+    (name) => {
+      expect(importPathKind(`assets/0123456789abcdef/${name}`)).toBe("file");
+    },
+  );
+});
+
+describe("a folder an export was unpacked to", () => {
+  const TOP = "Library 2026-11-07";
+  const under = <Value>(entries: Iterable<readonly [string, Value]>): [string, Value][] =>
+    [...entries].map(([path, value]) => [`${TOP}/${path}`, value]);
+  const litter = {
+    ".DS_Store": "left by Finder",
+    [`${TOP}/.DS_Store`]: "left by Finder",
+    [`__MACOSX/${TOP}/._Daily.md`]: "left by the Mac's zip",
+  };
+
+  it("reads as the folder itself, what a Mac's Compress adds passed over", () => {
+    const plain = readFolder(OBSIDIAN_VAULT, BINARIES);
+    const wrapped = readFolder(
+      { ...Object.fromEntries(under(Object.entries(OBSIDIAN_VAULT))), ...litter },
+      new Map(under(BINARIES)),
+    );
+    expect(contentOf(wrapped)).toStrictEqual(contentOf(plain));
+    expect(wrapped.skipped.toSorted()).toStrictEqual(
+      [...plain.skipped, ".DS_Store", ".DS_Store", `__MACOSX/${TOP}/._Daily.md`].toSorted(),
+    );
+  });
+
+  it("takes a kept file for the mark of an export", () => {
+    expect(
+      unwrapExport([{ path: `${TOP}/assets/shot.png` }, { path: `${TOP}/Filed/Spec.md` }]),
+    ).toStrictEqual([{ path: "assets/shot.png" }, { path: "Filed/Spec.md" }]);
+  });
+
+  it.each([
+    ["a folder with no mark of an export", ["MyVault/.obsidian/app.json", "MyVault/Daily.md"]],
+    ["a file beside the folder", [`${TOP}/assets/shot.png`, "Stray.md"]],
+    ["a second folder beside it", [`${TOP}/assets/shot.png`, "Other/Note.md"]],
+    ["an export at the root", ["assets/shot.png", "Daily.md"]],
+    ["an export whose only folder is its assets", ["assets/shot.png"]],
+    ["nothing but what a Mac left", ["__MACOSX/assets/._shot.png"]],
+    ["a mark that is a file", [`${TOP}/assets`, `${TOP}/Daily.md`]],
+  ])("keeps %s", (_zip, paths) => {
+    const entries = paths.map((path) => ({ path }));
+    expect(unwrapExport(entries)).toStrictEqual(entries);
+  });
+
+  it("keeps an Obsidian vault's folder as a folder", () => {
+    const { folders, items } = readFolder({ "MyVault/Notes/Daily.md": "A note.\n" }, new Map());
+    expect(items.map((item) => item.folderPath)).toStrictEqual(["MyVault/Notes"]);
+    expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["MyVault", "Notes"]);
+  });
+});
