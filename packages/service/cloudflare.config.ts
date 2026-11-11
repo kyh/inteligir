@@ -12,7 +12,7 @@ import * as entrypoint from "./src/test-support/test-worker.ts" with { type: "cf
 // `cf workers types` types this package's program from. The deployed Worker is apps/web's, whose
 // program checks every module of this package its entry reaches against what it binds, so a binding
 // named here and not there fails its build. Not the app's config: that one brings the fill queue's
-// consumers, which would take a suite's messages behind its back, and the developer's .dev.vars.
+// consumers, which would take a suite's messages behind its back, and secrets read from the shell.
 const worker = defineWorker({
   name: "inteligir-service-test",
   entrypoint,
@@ -26,7 +26,7 @@ const worker = defineWorker({
 });
 
 // the app's bindings, typed as it types them, each with the value every suite runs on; text rather
-// than secret(), which would have the plugin read the shell's environment and .dev.vars
+// than secret(), which would have the plugin read the shell's environment
 /** @public */
 export default defineConfig(({ mode }) => ({
   worker: {

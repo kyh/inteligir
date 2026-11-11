@@ -14,11 +14,12 @@
   },
   "scripts": {
     "build": "cf build",
-    "dev": "cf dev",
+    "dev": "pnpm with-env cf dev",
     "generate": "cf workers types",
     "og:cards": "node scripts/og-cards.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts",
+    "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
     "@orpc/client": "catalog:",
