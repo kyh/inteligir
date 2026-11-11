@@ -17,7 +17,7 @@
 /* The phone's palette: a variable per token, light here and dark under the system's scheme below.
    src/lib/palette.ts holds the same values of the tokens React Native takes as a value rather than
    a class, and src/styles.test.ts compiles this sheet to hold the two equal. No @repo/ui import: it
-   is web-only, and the dep-dag guard refuses the edge. */
+   is web-only. */
 :root {
   --background: #fafafa;
   --foreground: #171717;
