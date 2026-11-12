@@ -9,8 +9,6 @@ export const FILL_QUEUE = "inteligir-fill";
 // what the first queue's retries could not read lands here, and its consumer says the failure in
 // the item, so no link waits unread for good
 export const FILL_FAILED_QUEUE = "inteligir-fill-failed";
-// a preview's, which nothing consumes (developers.cloudflare.com/workers/previews/resources/)
-export const FILL_PREVIEW_QUEUE = "inteligir-fill-preview";
 
 // the queue's own retries of a message; the consumer's last delivery says the failure in the item
 // rather than asking for another

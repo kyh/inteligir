@@ -15,7 +15,7 @@ import { sendResetEmail } from "./reset-email";
 import { capSessions } from "./session-devices";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
-// it is derived from the request origin, so localhost, preview and prod need none.
+// it is derived from the request origin, so localhost and prod need none.
 
 // The HTTP router's alone: auth.api still calls each. Every device calls sign-in, get-session and
 // sign-out, the site the reset pair too, and the invite gate forwards sign-up; a route no client
