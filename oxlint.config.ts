@@ -78,6 +78,17 @@ const NOTE_PAGE_WALL = {
   message: "the phone's note page imports nothing of the app outside page/ (page-host.ts)",
   regex: "^(?:\\.\\./|@/)",
 };
+// Tauri answers only inside the Mac app's window, so one module checks for it and speaks the shell
+const DESKTOP_BRIDGE = "apps/web/src/library/shell/desktop-bridge.ts";
+const SHELL_API = {
+  message: "only the library's shell/desktop-bridge.ts reaches the Mac app",
+  regex: "^@tauri-apps/",
+};
+const LIBRARY_IMPORTS = [
+  { message: "the library runs in a browser, where no node module loads", regex: NODE },
+  CONFIG_MODULES,
+  AGENTS_SDK,
+];
 
 // an override's options replace the base's, so each restates the repo-wide row
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
@@ -194,18 +205,18 @@ export default defineConfig({
     {
       excludeFiles: tests,
       files: ["apps/web/src/**"],
-      rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK]) },
+      rules: {
+        "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK, SHELL_API]),
+      },
     },
     {
-      excludeFiles: tests,
+      excludeFiles: [...tests, DESKTOP_BRIDGE],
       files: ["apps/web/src/library/**"],
-      rules: {
-        "no-restricted-imports": restrictedImports([
-          { message: "the library runs in a browser, where no node module loads", regex: NODE },
-          CONFIG_MODULES,
-          AGENTS_SDK,
-        ]),
-      },
+      rules: { "no-restricted-imports": restrictedImports([...LIBRARY_IMPORTS, SHELL_API]) },
+    },
+    {
+      files: [DESKTOP_BRIDGE],
+      rules: { "no-restricted-imports": restrictedImports(LIBRARY_IMPORTS) },
     },
     {
       // Start's middleware `next` is a continuation, not a Node callback
