@@ -10,9 +10,14 @@
 // of its own is made.
 
 import { compareText } from "@repo/contract/library/order-key";
+import { inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import { changeSets } from "@repo/db/cell/schema";
+
 import type { TurnUndone } from "../note/note-wire";
+import type { CellDb } from "./cell-db";
+import { listChunks } from "./cell-db";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
@@ -23,7 +28,6 @@ import type { CellRefusal } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
 import { sealChangeSet } from "./change-sets";
 import { readLiveItem } from "./library-queries";
-import { chunkStatement } from "./library-sql";
 import type { SqlStatements } from "./library-sql";
 import { revertChangeSets } from "./revert-change";
 import type { FillChange, ItemChange, ItemNow } from "./revert-change";
@@ -38,48 +42,37 @@ export interface UndoAnswer {
   readonly lostText: readonly string[];
 }
 
-const setRowSchema = z.object({
-  actor: z.string(),
-  id: z.string(),
-  opened_at: z.number(),
-  sealed_at: z.number().nullable(),
-  undone_by: z.string().nullable(),
-});
-
-type SetRow = z.infer<typeof setRowSchema>;
-
 const setItemSchema = z.object({
   after_fields: z.string().nullable(),
   before_fields: z.string().nullable(),
   item_id: z.string(),
 });
 
-const loadSets = (sql: SqlStatements, ids: readonly string[]): SetRow[] => {
-  const rows: SetRow[] = [];
-  for (const statement of chunkStatement({
-    each: "?",
-    head: "SELECT id, actor, opened_at, sealed_at, undone_by FROM change_sets WHERE id IN (",
-    rows: [...new Set(ids)].map((id) => [id]),
-    separator: ", ",
-    tail: ")",
-  })) {
-    rows.push(...sql.all(statement.sql, statement.params).map((row) => setRowSchema.parse(row)));
-  }
-  return rows;
+const SET_COLUMNS = {
+  actor: changeSets.actor,
+  id: changeSets.id,
+  openedAt: changeSets.openedAt,
+  sealedAt: changeSets.sealedAt,
+  undoneBy: changeSets.undoneBy,
 };
 
+const loadSets = (db: CellDb, ids: readonly string[]) =>
+  listChunks([...new Set(ids)]).flatMap((chunk) =>
+    db.select(SET_COLUMNS).from(changeSets).where(inArray(changeSets.id, chunk)).all(),
+  );
+
 // the sets asked for, newest first; refuses an id no set has, and a set already undone
-const undoableSets = (sql: SqlStatements, ids: readonly string[]): SetRow[] => {
-  const sets = loadSets(sql, ids);
+const undoableSets = (db: CellDb, ids: readonly string[]) => {
+  const sets = loadSets(db, ids);
   if (sets.length !== new Set(ids).size) {
     refuse({ kind: "not-found" });
   }
   for (const set of sets) {
-    if (set.undone_by !== null) {
-      refuse({ changeSetId: set.id, kind: "already-undone", undoneBy: set.undone_by });
+    if (set.undoneBy !== null) {
+      refuse({ changeSetId: set.id, kind: "already-undone", undoneBy: set.undoneBy });
     }
   }
-  return sets.toSorted((a, b) => b.opened_at - a.opened_at || compareText(b.id, a.id));
+  return sets.toSorted((a, b) => b.openedAt - a.openedAt || compareText(b.id, a.id));
 };
 
 const fillRowSchema = z.object({ after_fields: z.string(), before_fields: z.string() });
@@ -135,7 +128,7 @@ export interface NoteToUndo {
 // What an undo asks of notes before its write, newest set first: each item an agent's set touched
 // whose body is its note's. A person's sets are field writes alone, so they ask nothing.
 export const planUndo = (storage: CellStorage, changeSetIds: readonly string[]): NoteToUndo[] =>
-  undoableSets(storage, changeSetIds)
+  undoableSets(storage.db, changeSetIds)
     .filter((set) => set.actor === "agent")
     .flatMap((set) =>
       setItems(storage, set.id).flatMap((row) => {
@@ -176,10 +169,10 @@ export const undoChangeSets = (
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {
   const { now, storage } = scope;
-  const sets = undoableSets(storage, changeSetIds);
+  const sets = undoableSets(storage.db, changeSetIds);
   // a set still open closes first, so what it did is fixed
   for (const set of sets) {
-    if (set.sealed_at === null) {
+    if (set.sealedAt === null) {
       sealChangeSet(storage, set.id, now);
     }
   }

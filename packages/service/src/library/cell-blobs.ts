@@ -12,11 +12,9 @@
 import { and, eq, exists, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { blobs, blobUploads, itemBlobs, jobs } from "@repo/db/cell/schema";
+import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readCount, writeMeta } from "./library-queries";
-import { chunkStatement } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -76,19 +74,14 @@ const recountRefs = (db: CellDb, shas: readonly string[]): void => {
 
 // what a fields part or a block version of the item names, kept with it
 export const keepSetFiles = (
-  statements: SqlStatements,
+  db: CellDb,
   itemId: string,
   hash: string,
   shas: readonly string[],
 ): void => {
-  for (const statement of chunkStatement({
-    each: "(?, ?, ?)",
-    head: "INSERT INTO change_set_blobs (item_id, hash, sha256) VALUES ",
-    rows: [...new Set(shas)].map((sha) => [itemId, hash, sha]),
-    separator: ", ",
-    tail: " ON CONFLICT DO NOTHING",
-  })) {
-    statements.run(statement.sql, statement.params);
+  const rows = [...new Set(shas)].map((sha256) => ({ hash, itemId, sha256 }));
+  for (const chunk of insertChunks(changeSetBlobs, rows)) {
+    db.insert(changeSetBlobs).values(chunk).onConflictDoNothing().run();
   }
 };
 

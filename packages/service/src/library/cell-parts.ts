@@ -11,20 +11,21 @@ import type { SqlStatements } from "./library-sql";
 import { z } from "zod";
 
 import { fieldFilesOf, keepSetFiles } from "./cell-blobs";
+import type { CellStorage } from "./cell-storage";
 
 const INSERT_PART =
   "INSERT INTO snapshot_parts (item_id, hash, json) VALUES (?, ?, ?) ON CONFLICT DO NOTHING";
 
 // the fields' part, and the files they name kept beside it; answers its hash
 export const storeFieldsPart = (
-  sql: SqlStatements,
+  storage: CellStorage,
   itemId: string,
   fields: LibraryItemFields,
 ): string => {
   const json = canonicalJson(fields);
   const hash = contentHash(json);
-  sql.run(INSERT_PART, [itemId, hash, json]);
-  keepSetFiles(sql, itemId, hash, fieldFilesOf(fields));
+  storage.run(INSERT_PART, [itemId, hash, json]);
+  keepSetFiles(storage.db, itemId, hash, fieldFilesOf(fields));
   return hash;
 };
 

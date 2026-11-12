@@ -3,11 +3,12 @@
 // files only they held. The job drops a page of entries per alarm run, again at once while
 // more wait, and otherwise once a day.
 
-import { chunkStatement } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import { snapshotParts } from "@repo/db/cell/schema";
 import { dropSetFiles } from "./cell-blobs";
+import { listChunks } from "./cell-db";
 import type { CellStorage } from "./cell-storage";
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -22,24 +23,6 @@ export const PRUNE_EVERY_MS = DAY_MS;
 const entryRowSchema = z.object({ change_set_id: z.string(), item_id: z.string() });
 const hashRowSchema = z.object({ hash: z.string() });
 const refsRowSchema = z.record(z.string(), z.string().nullable());
-
-const deleteIn = (
-  sql: SqlStatements,
-  head: string,
-  headParams: readonly (string | number)[],
-  ids: readonly string[],
-): void => {
-  for (const statement of chunkStatement({
-    each: "?",
-    head,
-    headParams,
-    rows: ids.map((id) => [id]),
-    separator: ", ",
-    tail: ")",
-  })) {
-    sql.run(statement.sql, statement.params);
-  }
-};
 
 // the parts of the item no change set still names, and what they alone held of the library's files
 const collectGarbage = (storage: CellStorage, itemId: string, now: number): void => {
@@ -58,7 +41,12 @@ const collectGarbage = (storage: CellStorage, itemId: string, now: number): void
     .all("SELECT hash FROM snapshot_parts WHERE item_id = ?", [itemId])
     .map((row) => hashRowSchema.parse(row).hash)
     .filter((hash) => !named.has(hash));
-  deleteIn(storage, "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (", [itemId], parts);
+  for (const chunk of listChunks(parts, 1)) {
+    storage.db
+      .delete(snapshotParts)
+      .where(and(eq(snapshotParts.itemId, itemId), inArray(snapshotParts.hash, chunk)))
+      .run();
+  }
   dropSetFiles(storage, itemId, parts, now);
 };
 

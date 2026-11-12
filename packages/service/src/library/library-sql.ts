@@ -4,7 +4,6 @@
 
 import type { z } from "zod";
 
-import { utf8ByteLength } from "@repo/contract/library/canonical-json";
 import type { sqlValueSchema } from "./sql-value";
 
 export type SqlValue = z.infer<typeof sqlValueSchema>;
@@ -25,74 +24,6 @@ export interface SqlStatements {
 export interface SqlPort extends SqlStatements {
   readonly transaction: <T>(work: () => T) => T;
 }
-
-// A SQLite Durable Object binds at most 100 parameters to one statement and reads at most 100 KB
-// of statement text (https://developers.cloudflare.com/durable-objects/platform/limits/); every
-// many-row statement is cut under whichever binds first.
-export const SQL_MAX_PARAMS = 100;
-export const SQL_MAX_STATEMENT_BYTES = 100_000;
-
-export interface RepeatedStatement {
-  // the text before the repeated part, and the parameters it binds there
-  readonly head: string;
-  readonly headParams?: readonly SqlValue[];
-  // one repetition's text, holding one `?` per parameter of its row
-  readonly each: string;
-  readonly separator: string;
-  readonly tail?: string;
-  readonly rows: readonly (readonly SqlValue[])[];
-}
-
-const placeholdersIn = (text: string): number => text.split("?").length - 1;
-
-// the fewest statements that carry every row in order, each under both caps; no rows, none
-export const chunkStatement = (statement: RepeatedStatement): SqlStatement[] => {
-  const { each, head, rows, separator } = statement;
-  const headParams = statement.headParams ?? [];
-  const tail = statement.tail ?? "";
-  const width = placeholdersIn(each);
-  if (placeholdersIn(head) !== headParams.length || placeholdersIn(tail) !== 0) {
-    throw new Error("a repeated statement's head binds its own parameters and its tail none");
-  }
-  const fixedBytes = utf8ByteLength(head) + utf8ByteLength(tail);
-  const eachBytes = utf8ByteLength(each);
-  const separatorBytes = utf8ByteLength(separator);
-  const statements: SqlStatement[] = [];
-  let count = 0;
-  let params: SqlValue[] = [];
-  const close = (): void => {
-    if (count > 0) {
-      statements.push({
-        params: [...headParams, ...params],
-        sql: `${head}${Array.from({ length: count }, () => each).join(separator)}${tail}`,
-      });
-    }
-    count = 0;
-    params = [];
-  };
-  const bytesWith = (rowsIn: number): number =>
-    fixedBytes + rowsIn * eachBytes + Math.max(0, rowsIn - 1) * separatorBytes;
-  if (headParams.length + width > SQL_MAX_PARAMS || bytesWith(1) > SQL_MAX_STATEMENT_BYTES) {
-    throw new Error("one row of this statement is past a SQLite Durable Object's limits");
-  }
-  for (const row of rows) {
-    if (row.length !== width) {
-      throw new Error(
-        `a row binds ${String(row.length)} values where its text holds ${String(width)}`,
-      );
-    }
-    const fits =
-      headParams.length + params.length + width <= SQL_MAX_PARAMS &&
-      bytesWith(count + 1) <= SQL_MAX_STATEMENT_BYTES;
-    if (!fits) {
-      close();
-    }
-    params.push(...row);
-    count += 1;
-  }
-  close();
-  return statements;
-};
 
 // the store's own database holds a row this build cannot read: a host answers it as corruption
 export class LibraryRowError extends Error {

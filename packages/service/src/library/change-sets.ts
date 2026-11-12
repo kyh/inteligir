@@ -237,7 +237,7 @@ const otherSetSchema = z.object({ change_set_id: z.string() });
 // the set's first write to the item keeps the item as it was; and the other open set whose after
 // is the item as it is now writes that after down, since this write is about to change it
 export const touchItem = (
-  sql: SqlStatements,
+  sql: CellStorage,
   change: {
     readonly setId: string;
     readonly itemId: string;

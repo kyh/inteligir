@@ -70,7 +70,7 @@ src/
                        # The library's SQL and undo:
     cell-db.ts         # drizzle over the cell, its DDL applied on wake,
                        # inserts cut under the bound-parameter cap
-    library-sql.ts     # the raw port, statement chunking
+    library-sql.ts     # the raw port and its row error
     sql-value.ts       # a SQL value and row as zod
     library-queries.ts # an item's rows: drizzle for its row and derived rows,
                        # raw statements for its text and the search index
@@ -156,8 +156,7 @@ src/
   its own methods, its 405 and its own throw.
 - `SqlPort` (`src/library/library-sql.ts`): one statement per call. The cell
   binds `ctx.storage.sql` to it, with `transactionSync` as its
-  `transaction(work)`, and a plan (`library-queries.ts`) runs over it through
-  `runPlan`.
+  `transaction(work)`, and the search index (`library-queries.ts`) runs over it.
 
 ## The doors
 
