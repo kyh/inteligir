@@ -740,6 +740,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.62.0(@types/react@19.2.17)(react@19.2.8)
+      negotiator:
+        specifier: ^1.1.0
+        version: 1.1.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -792,6 +795,9 @@ importers:
       '@types/babel__core':
         specifier: 'catalog:'
         version: 7.20.5
+      '@types/negotiator':
+        specifier: ^0.6.5
+        version: 0.6.5
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -5414,6 +5420,9 @@ packages:
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
+
+  '@types/negotiator@0.6.5':
+    resolution: {integrity: sha512-MPOlB48mfWhoUlynY0ga7CFsXIPcH6vGPkjzXMn2p+4PH1QUyn2KPtw0hrLLmO6SaX4zse3X6h2x/083vveAlA==}
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
@@ -17147,6 +17156,8 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/ms@2.1.0': {}
+
+  '@types/negotiator@0.6.5': {}
 
   '@types/node@24.19.2':
     dependencies:
