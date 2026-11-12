@@ -40,7 +40,7 @@ src/
     connect/authorize.ts, connector.ts
   library/           The library tab: its code, styles and decisions
                      (library/CLAUDE.md), suites under jsdom
-  components/        The site's own components (auth card, header, theme, orb)
+  components/        The site's own components (auth card, header, theme)
   lib/               Better Auth client and the tab's session read, session
                      guard, document policy, site config (the Download
                      button's fixed dmg link among it), page markdown
