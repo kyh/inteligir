@@ -43,8 +43,9 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
   tiers or flags, invite-only and free for now (1 GB, a daily agent allowance).
   Why: a feature nobody can reach is weight.
 - **No users yet, so every format may change**, behind the build floor it
-  raises, with no migration or old-shape reader; strike this before the first
-  outside tester. Why: a shim for nobody is code every change steps around.
+  raises, with no old-shape reader, and a Durable Object whose schema changed
+  starts over empty; strike this before the first outside tester. Why: a shim
+  for nobody is code every change steps around.
 
 ## Map
 
@@ -55,7 +56,7 @@ apps/mobile            * the iPhone app: native lists, the share sheet, the edit
 apps/extension         * the Chromium extension: Save to /v1 on the browser's own sign-in
 packages/contract      * the client-safe /v1 contract and the library model every end parses
 packages/service       * the cloud's code: auth, /v1, connector, fills, each cell, note and conversation
-packages/db            * drizzle's schemas for D1 and each object's SQLite, with their migrations
+packages/db            * drizzle's schemas for D1 and each object's SQLite, with each object's DDL
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over its host's DOM
 packages/agent-panel   * the built-in agent's panel every device draws

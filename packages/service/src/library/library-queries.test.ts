@@ -29,7 +29,6 @@ import {
 } from "./library-queries";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { runPlan } from "./library-sql";
 import type { SqlStatement } from "./library-sql";
 import { noteFields, paragraph } from "@repo/contract/test-support/library-items";
 
@@ -104,7 +103,7 @@ const offer = (storage: CellStorage, id: string, state: Laid, seq: number) =>
     storeBodyText(storage.db, id, body.text);
     storeLinks(storage.db, id, body.links);
     storeTags(storage.db, id, derived.tags);
-    runPlan(storage, storeSearchRow(id, { ...derived.search, body: body.text }));
+    storeSearchRow(storage, id, { ...derived.search, body: body.text });
     return derived;
   });
 
@@ -188,8 +187,8 @@ describe("items", () => {
         }),
       ).toBe(false);
       expect(laidOf(storage, "item-1")).toStrictEqual(newer);
-      expect(runPlan(storage, searchLibrary("older", 10))).toStrictEqual([]);
-      expect(runPlan(storage, searchLibrary("newer", 10)).map((hit) => hit.itemId)).toStrictEqual([
+      expect(searchLibrary(storage, "older", 10)).toStrictEqual([]);
+      expect(searchLibrary(storage, "newer", 10).map((hit) => hit.itemId)).toStrictEqual([
         "item-1",
       ]);
       expect(
@@ -241,7 +240,7 @@ describe("items", () => {
         updatedAt: 8,
       });
       expect(readSeedBlocks(storage.db, "gone")).toStrictEqual([]);
-      expect(runPlan(storage, searchLibrary("findable", 10))).toStrictEqual([]);
+      expect(searchLibrary(storage, "findable", 10)).toStrictEqual([]);
       expect(storage.all("SELECT count(*) AS n FROM item_tags", [])).toStrictEqual([{ n: 0 }]);
     });
   });
@@ -254,9 +253,9 @@ describe("items", () => {
         false,
       );
       expect(laidOf(storage, "kept")).toStrictEqual(state);
-      expect(
-        runPlan(storage, searchLibrary("findable", 10)).map((hit) => hit.itemId),
-      ).toStrictEqual(["kept"]);
+      expect(searchLibrary(storage, "findable", 10).map((hit) => hit.itemId)).toStrictEqual([
+        "kept",
+      ]);
       expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(
         true,
       );
@@ -372,10 +371,11 @@ describe("search", () => {
         "gone",
         itemOf([paragraph("a", "gardening")], noteFields({ deletedAt: 1, title: "Old" })),
       );
-      expect(
-        runPlan(storage, searchLibrary("gardening", 10)).map((hit) => hit.itemId),
-      ).toStrictEqual(["titled", "body"]);
-      expect(runPlan(storage, searchLibrary("garden", 10)).map((hit) => hit.itemId)).toStrictEqual([
+      expect(searchLibrary(storage, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
+        "titled",
+        "body",
+      ]);
+      expect(searchLibrary(storage, "garden", 10).map((hit) => hit.itemId)).toStrictEqual([
         "titled",
         "body",
       ]);
@@ -400,9 +400,7 @@ describe("search", () => {
             ),
           ),
         );
-        expect(runPlan(storage, searchLibrary("word", 1)).map((hit) => hit.itemId)).toStrictEqual([
-          "huge",
-        ]);
+        expect(searchLibrary(storage, "word", 1).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
       });
     },
   );
@@ -421,7 +419,7 @@ describe(literalMatches, () => {
       );
       put(storage, "two", itemOf([paragraph("a", "slow")], noteFields({ title: "Two" })));
       put(storage, "gone", itemOf([paragraph("a", "quick")], noteFields({ deletedAt: 1 })));
-      expect(runPlan(storage, literalMatches("QUICK", { after: null, limit: 10 }))).toStrictEqual([
+      expect(literalMatches(storage, "QUICK", { after: null, limit: 10 })).toStrictEqual([
         { itemId: "one", text: "The Quick fox" },
       ]);
       expect(
@@ -436,13 +434,13 @@ describe(literalMatches, () => {
         put(storage, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
       }
       const before = statements.length;
-      const first = runPlan(storage, literalMatches("xyzzy", { after: null, limit: 3 }));
+      const first = literalMatches(storage, "xyzzy", { after: null, limit: 3 });
       expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
       const reads = statements
         .slice(before)
         .filter((statement) => statement.sql.startsWith("SELECT text FROM body_texts"));
       expect(reads).toHaveLength(3);
-      expect(runPlan(storage, literalMatches("xyzzy", { after: "c", limit: 3 }))).toStrictEqual([
+      expect(literalMatches(storage, "xyzzy", { after: "c", limit: 3 })).toStrictEqual([
         { itemId: "d", text: "item d holds xyzzy" },
       ]);
     });

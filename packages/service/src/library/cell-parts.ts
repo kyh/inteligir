@@ -6,46 +6,34 @@ import { contentHash } from "@repo/contract/library/content-hash";
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { and, eq } from "drizzle-orm";
+
+import { snapshotParts } from "@repo/db/cell/schema";
 import { LibraryRowError } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
-import { z } from "zod";
-
 import { fieldFilesOf, keepSetFiles } from "./cell-blobs";
-
-const INSERT_PART =
-  "INSERT INTO snapshot_parts (item_id, hash, json) VALUES (?, ?, ?) ON CONFLICT DO NOTHING";
+import type { CellDb } from "./cell-db";
 
 // the fields' part, and the files they name kept beside it; answers its hash
-export const storeFieldsPart = (
-  sql: SqlStatements,
-  itemId: string,
-  fields: LibraryItemFields,
-): string => {
+export const storeFieldsPart = (db: CellDb, itemId: string, fields: LibraryItemFields): string => {
   const json = canonicalJson(fields);
   const hash = contentHash(json);
-  sql.run(INSERT_PART, [itemId, hash, json]);
-  keepSetFiles(sql, itemId, hash, fieldFilesOf(fields));
+  db.insert(snapshotParts).values({ hash, itemId, json }).onConflictDoNothing().run();
+  keepSetFiles(db, itemId, hash, fieldFilesOf(fields));
   return hash;
 };
 
-const partRowSchema = z.object({ json: z.string() });
-
-export const readFieldsPart = (
-  sql: SqlStatements,
-  itemId: string,
-  hash: string,
-): LibraryItemFields => {
-  const [row] = sql.all("SELECT json FROM snapshot_parts WHERE item_id = ? AND hash = ?", [
-    itemId,
-    hash,
-  ]);
-  const part = partRowSchema.safeParse(row);
-  if (!part.success) {
+export const readFieldsPart = (db: CellDb, itemId: string, hash: string): LibraryItemFields => {
+  const part = db
+    .select({ json: snapshotParts.json })
+    .from(snapshotParts)
+    .where(and(eq(snapshotParts.itemId, itemId), eq(snapshotParts.hash, hash)))
+    .get();
+  if (part === undefined) {
     throw new LibraryRowError(`the fields ${hash} of ${itemId} are not kept`);
   }
   let value: unknown;
   try {
-    value = JSON.parse(part.data.json);
+    value = JSON.parse(part.json);
   } catch (error) {
     throw new LibraryRowError(`the fields ${hash} are not JSON`, { cause: error });
   }

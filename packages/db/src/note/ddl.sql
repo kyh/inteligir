@@ -1,8 +1,11 @@
+-- Written by packages/db/scripts/object-ddl.ts from src/note/schema.ts: edit the schema,
+-- then run `pnpm --filter @repo/db ddl`.
+
 CREATE TABLE `applied_ops` (
 	`op_id` text PRIMARY KEY,
 	`answer` text NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `note_meta` (
 	`id` integer PRIMARY KEY,
 	`version` integer DEFAULT 0 NOT NULL,
@@ -16,24 +19,24 @@ CREATE TABLE `note_meta` (
 	`person_edited` integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "note_meta_one" CHECK("id" = 1)
 );
---> statement-breakpoint
+
 CREATE TABLE `note_updates` (
 	`id` integer PRIMARY KEY,
 	`bytes` blob NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `snapshot_parts` (
 	`part` integer PRIMARY KEY,
 	`bytes` blob NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `turn_cursors` (
 	`change_set_id` text PRIMARY KEY,
 	`seq` integer NOT NULL,
 	`state_vector` blob NOT NULL,
 	`at` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `turn_log` (
 	`change_set_id` text NOT NULL,
 	`seq` integer NOT NULL,
@@ -43,5 +46,5 @@ CREATE TABLE `turn_log` (
 	CONSTRAINT `turn_log_pk` PRIMARY KEY(`change_set_id`, `seq`, `part`),
 	CONSTRAINT "turn_log_kind" CHECK("kind" IN ('pre', 'turn'))
 );
---> statement-breakpoint
+
 CREATE INDEX `turn_cursors_at` ON `turn_cursors` (`at`);

@@ -18,7 +18,8 @@ import { createDb } from "@repo/db/d1/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { accountBlobPrefix } from "./cell-blobs";
 import { noteStub } from "../note/note-stub";
-import { cellDbOf, migrateCell } from "./cell-db";
+import { CELL_SCHEMA, cellDbOf } from "./cell-db";
+import { applyObjectSchema } from "../object-schema";
 import { notesHeld } from "./cell-notes";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
@@ -42,7 +43,7 @@ const R2_PAGE = 1000;
 
 // an empty schema and the time it was deleted, which every later call to the cell meets
 const markDeleted = async (ctx: DurableObjectState, env: Env): Promise<void> => {
-  await migrateCell(ctx.storage);
+  await applyObjectSchema(ctx.storage, CELL_SCHEMA);
   openCellLibrary(ctx, env).tombstone();
 };
 

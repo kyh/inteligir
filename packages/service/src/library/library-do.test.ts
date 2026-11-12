@@ -1,7 +1,7 @@
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "@repo/db/d1/client";
@@ -25,6 +25,7 @@ import {
   refusalOf,
 } from "../test-support/library-cell";
 import { threadHolds, threadOf } from "../test-support/agent-turns";
+import { SCHEMA_HASH_KEY } from "../object-schema";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
@@ -200,7 +201,7 @@ describe("the library cell", () => {
     expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
   });
 
-  it("wakes started over empty when it applied a migration this build lacks", async () => {
+  it("wakes started over empty when another build's DDL made it", async () => {
     const stub = cellOf();
     await inCell(stub, (state) => {
       landedValue(
@@ -210,16 +211,14 @@ describe("the library cell", () => {
           id: crypto.randomUUID(),
         }),
       );
-      state.storage.sql.exec(
-        "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES ('', 0, 'later')",
-      );
+      state.storage.kv.put(SCHEMA_HASH_KEY, "later");
     });
     await evictDurableObject(stub);
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
     expect(warned).toHaveBeenCalledWith({
       event: "cell-schema-reset",
-      found: expect.objectContaining({ kind: "drizzle" }),
+      found: expect.objectContaining({ hash: "later" }),
     });
     warned.mockRestore();
   });
@@ -311,6 +310,11 @@ describe("deleting the account from its cell", () => {
         .all();
       return rows.length;
     };
+    const [invite] = await db
+      .select({ code: inviteCode.code })
+      .from(inviteCode)
+      .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`)
+      .all();
     // two conversations the account's threads name, each holding rows in its own object
     const threadIds = ["thread-0", "thread-1"];
     for (const threadId of threadIds) {
@@ -379,6 +383,13 @@ describe("deleting the account from its cell", () => {
     });
     // another account's files stay
     await expect(files(accountBlobPrefix(stranger))).resolves.toBe(1);
+    // the invite names nobody now, and stays spent
+    const spent = await db
+      .select({ redeemedAt: inviteCode.redeemedAt })
+      .from(inviteCode)
+      .where(eq(inviteCode.code, invite?.code ?? ""))
+      .get();
+    expect(spent?.redeemedAt).not.toBeNull();
   });
 
   // a thousand and five puts to R2, past one listing's page on purpose

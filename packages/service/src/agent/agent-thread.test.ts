@@ -308,7 +308,7 @@ describe("a conversation's object", () => {
   );
 
   it(
-    "keeps its transcript across a second wake, its tables migrated once",
+    "keeps its transcript across a second wake, its tables made once",
     { timeout: TURN_MS },
     async () => {
       const account = agentAccount();

@@ -20,7 +20,7 @@ import (the root `oxlint.config.ts`), and the library model's modules
 (`src/library/`'s SQL and undo, `src/knowledge/`, `src/items/`, `src/imports/`,
 `src/text/`, `src/note/turn-log.ts`) take no `crypto` or `URL` global either:
 the clock, random bytes and fresh ids come in as ports. The cell's SQL is the
-Durable Object's own, drizzle over `@repo/db`'s cell schema with raw plans
+Durable Object's own, drizzle over `@repo/db`'s cell schema with raw statements
 beside it, so every suite that reaches it runs in workerd.
 
 ## Layout
@@ -40,7 +40,7 @@ src/
   plain-http.ts        # the answers outside the one wire, in HTTP's statuses
   rate-limit.ts        # the D1 fixed window every throttled route spends
   log.ts               # an error logged whole, its causes included
-  object-schema.ts     # a Durable Object's drizzle migrations, run as it wakes
+  object-schema.ts     # a Durable Object's DDL, applied as it wakes
   auth/                # Better Auth factory, invite gate, reset email, the
                        # account's sessions as its devices, account deletion
   wire/                # /v1's one wire: the principal a session verifies to
@@ -68,12 +68,12 @@ src/
                        # note before the write (article-landing.ts) and its
                        # imports (cell-imports.ts).
                        # The library's SQL and undo:
-    cell-db.ts         # drizzle over the cell, its migrations run on wake,
+    cell-db.ts         # drizzle over the cell, its DDL applied on wake,
                        # inserts cut under the bound-parameter cap
-    library-sql.ts     # the raw port, plans as generators, statement chunking
+    library-sql.ts     # the raw port and its row error
     sql-value.ts       # a SQL value and row as zod
     library-queries.ts # an item's rows: drizzle for its row and derived rows,
-                       # plans for its seed and the search index
+                       # raw statements for the search index and its scan
     revert-change.ts   # a change set's fields taken back three ways, the
                        # set's after as the base, newest set first
   note/                # each item's note: NoteDO (note-do.ts), a y-partyserver
@@ -126,7 +126,7 @@ src/
     decode-text.ts     # a page's bytes decoded by the charset it declares
   zip/                 # the zip reader imports read by
   types/               # the highlight.js stub that keeps the DOM lib out, a
-                       # migration's `.sql` text and a suite's `?raw` import
+                       # DDL's `.sql` text and a suite's `?raw` import
   test-support/        # the suites' Worker (test-worker.ts), the schema setup,
                        # the client helpers and the test env's types, a cell
                        # and a conversation's loop under test, and the
@@ -156,8 +156,7 @@ src/
   its own methods, its 405 and its own throw.
 - `SqlPort` (`src/library/library-sql.ts`): one statement per call. The cell
   binds `ctx.storage.sql` to it, with `transactionSync` as its
-  `transaction(work)`, and a plan (`library-queries.ts`) runs over it through
-  `runPlan`.
+  `transaction(work)`, and the search index (`library-queries.ts`) runs over it.
 
 ## The doors
 

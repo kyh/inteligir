@@ -12,8 +12,7 @@
 // holds no work, so every `drive` job it finds is an orphan, woken at once, and every call left
 // streaming a dead instance's, cut. Each RPC starts the lifecycle, as native RPC needs, and is safe
 // to repeat. A cell that answers that it holds no such thread has the object purge itself. Its
-// schema is migrated in the constructor, before Lifecycle's first job makes its own table, which a
-// later migration would take for tables drizzle did not make.
+// schema is applied in the constructor, before Lifecycle's first job makes its own table.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { Lifecycle } from "agents/lifecycle";
@@ -25,7 +24,7 @@ import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { openWithSchema } from "../object-schema";
 import { anthropicClient } from "./anthropic-client";
-import { migrateThread, threadDbOf } from "./thread-db";
+import { THREAD_SCHEMA, threadDbOf } from "./thread-db";
 import { cutCall, nextDrive, RESTING } from "./thread-drive";
 import type { Drive, DriveEffect, DriveEvent } from "./thread-drive";
 import {
@@ -88,7 +87,7 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    openWithSchema(ctx, "thread", migrateThread);
+    openWithSchema(ctx, THREAD_SCHEMA);
   }
 
   #host(): ThreadHost {

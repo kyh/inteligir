@@ -10,13 +10,10 @@
 // name it.
 
 import { and, eq, exists, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
 
-import { blobs, blobUploads, itemBlobs, jobs } from "@repo/db/cell/schema";
+import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readCount, writeMeta } from "./library-queries";
-import { chunkStatement } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -38,8 +35,6 @@ export const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): stri
 export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]): string[] => [
   ...new Set([...fieldFilesOf(fields), ...bodyFiles]),
 ];
-
-const shaRowSchema = z.object({ sha256: z.string() });
 
 const heldShas = (db: CellDb, shas: readonly string[]): Set<string> => {
   const held = new Set<string>();
@@ -76,19 +71,14 @@ const recountRefs = (db: CellDb, shas: readonly string[]): void => {
 
 // what a fields part or a block version of the item names, kept with it
 export const keepSetFiles = (
-  statements: SqlStatements,
+  db: CellDb,
   itemId: string,
   hash: string,
   shas: readonly string[],
 ): void => {
-  for (const statement of chunkStatement({
-    each: "(?, ?, ?)",
-    head: "INSERT INTO change_set_blobs (item_id, hash, sha256) VALUES ",
-    rows: [...new Set(shas)].map((sha) => [itemId, hash, sha]),
-    separator: ", ",
-    tail: " ON CONFLICT DO NOTHING",
-  })) {
-    statements.run(statement.sql, statement.params);
+  const rows = [...new Set(shas)].map((sha256) => ({ hash, itemId, sha256 }));
+  for (const chunk of insertChunks(changeSetBlobs, rows)) {
+    db.insert(changeSetBlobs).values(chunk).onConflictDoNothing().run();
   }
 };
 
@@ -119,21 +109,20 @@ export const awaitNameAgain = (db: CellDb, sha: string, at: number): void => {
 // parts and block versions of the item no change set names any more: the alarm's next run asks
 // about what they named
 export const dropSetFiles = (
-  storage: CellStorage,
+  db: CellDb,
   itemId: string,
   hashes: readonly string[],
   now: number,
 ): void => {
-  const shas = hashes.flatMap((hash) =>
-    storage
-      .all("DELETE FROM change_set_blobs WHERE item_id = ? AND hash = ? RETURNING sha256", [
-        itemId,
-        hash,
-      ])
-      .map((row) => shaRowSchema.parse(row).sha256),
+  const shas = listChunks(hashes, 1).flatMap((chunk) =>
+    db
+      .delete(changeSetBlobs)
+      .where(and(eq(changeSetBlobs.itemId, itemId), inArray(changeSetBlobs.hash, chunk)))
+      .returning({ sha256: changeSetBlobs.sha256 })
+      .all(),
   );
-  for (const sha of new Set(shas)) {
-    awaitNameAgain(storage.db, sha, now);
+  for (const sha of new Set(shas.map((row) => row.sha256))) {
+    awaitNameAgain(db, sha, now);
   }
 };
 
@@ -190,9 +179,12 @@ export const storeItemBlobs = (
 export const dropItemBlobs = (storage: CellStorage, itemId: string, now: number): void => {
   const { db } = storage;
   const shas = deleteItemBlobs(db, itemId);
-  const kept = storage
-    .all("DELETE FROM change_set_blobs WHERE item_id = ? RETURNING sha256", [itemId])
-    .map((row) => shaRowSchema.parse(row).sha256);
+  const kept = db
+    .delete(changeSetBlobs)
+    .where(eq(changeSetBlobs.itemId, itemId))
+    .returning({ sha256: changeSetBlobs.sha256 })
+    .all()
+    .map((row) => row.sha256);
   recountRefs(db, shas);
   for (const sha of new Set([...shas, ...kept])) {
     awaitNameAgain(db, sha, now);

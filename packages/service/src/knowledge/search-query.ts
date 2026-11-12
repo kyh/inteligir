@@ -6,7 +6,7 @@
 
 import { stemmer } from "stemmer";
 
-// the fold matches fts5's unicode61 (`remove_diacritics 2` in the cell's `search_fts` migration):
+// the fold matches fts5's unicode61 (`remove_diacritics 2` in the cell's `search_fts` DDL):
 // the stem is computed here and the tokenizer folds it there, so `acción` and `accion` have to stem
 // alike
 const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");

@@ -1,6 +1,5 @@
 // The library cell's SQLite, two ways over one database: drizzle's builders (`db`) for the tables
-// that outlive the block rows, change sets and the agent's tables, and the port
-// `@repo/service/library/library-sql` runs those raw plans and the search index over: `sql.exec`
+// its schema declares, and the port `./library-sql` types for the search index: `sql.exec`
 // is synchronous and runs one statement a call, and a transaction is `transactionSync`, which
 // commits when its work returns and rolls back when it throws, drizzle's statements inside it
 // included (https://developers.cloudflare.com/durable-objects/api/sql-storage/). Every cursor is

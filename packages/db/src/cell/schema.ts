@@ -1,8 +1,7 @@
 // The library cell's SQLite: every table but `search_fts`, an FTS5 virtual table sqlite-core cannot
-// declare, which its own custom migration makes. drizzle-kit generates the cell's migrations from
-// this file (drizzle.config.cell.ts). No table is STRICT or WITHOUT ROWID, which sqlite-core cannot
-// spell and a generated recreate would drop, and no trigger sits on one, since a recreate drops
-// that too: the search index is kept in code.
+// declare, which scripts/object-ddl.ts appends to the DDL drizzle-kit exports from this file
+// (ddl.sql). No table is STRICT or WITHOUT ROWID, and no trigger sits on one, since the exported
+// DDL spells none of them: the search index is kept in code.
 
 import { sql } from "drizzle-orm";
 import {

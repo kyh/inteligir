@@ -22,7 +22,6 @@ import { waitingPayloads } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { readItem, readLiveItem, storeLinks, storeSearchRow, storeTags } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
-import { runPlan } from "./library-sql";
 
 // a session's socket on an item's note: writable, read-only while the item is in Deleted, or none
 // for an item the library does not hold; recorded, so the session's end closes it
@@ -140,7 +139,7 @@ export const landProjection = (
     .where(eq(items.id, itemId))
     .run();
   storeBodyText(db, itemId, projection.text);
-  runPlan(scope.storage, storeSearchRow(itemId, { ...derived.search, body: projection.text }));
+  storeSearchRow(scope.storage, itemId, { ...derived.search, body: projection.text });
   if (linksChanged) {
     storeLinks(db, itemId, projection.links);
   }
