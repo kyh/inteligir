@@ -49,7 +49,7 @@ const ROLLING_CACHE = { type: "ephemeral" } as const;
 
 // the input a request is compacted at, the least the API takes: a turn after a pause writes its
 // whole prompt to the 1-hour cache again, about 20 cents at 50,000 tokens and 60 at the API's
-// default, 150,000, against a day of a dollar
+// default, 150,000
 const COMPACTION_TRIGGER_TOKENS = 50_000;
 
 // ---- what a transcript row holds ----

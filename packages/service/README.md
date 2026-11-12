@@ -28,7 +28,7 @@ beside it, so every suite that reaches it runs in workerd.
 ```
 compatibility.ts       # workerd's date and flags, for both configs
 fill-queues.ts         # the fills' queues, for both configs and the suites
-agent-limits.ts        # the built-in agent's daily allowance and list prices
+agent-limits.ts        # the built-in agent's daily allowance
 messages-service.ts    # the suites' outbound service: the scripted Messages API
 cloudflare.config.ts   # the suites' Worker, never deployed; the Env's source
 scripts/agent-prompt.ts  # writes src/agent/agent-prompt.ts from @repo/agent-skills
@@ -336,25 +336,24 @@ carrying no thinking from before that turn.
 
 A person's send (`library.agent.send`) is admitted in one transaction of the
 account's cell: refused `SERVICE_UNAVAILABLE` while the agent is off or the
-Worker has no Claude to call, `AGENT_BUDGET` once the day's turns or list cost
+Worker has no Claude to call, `AGENT_BUDGET` once the day's turns
 (`AGENT_ALLOWANCE`) are spent, queued behind its thread's open turn or while
 the account runs two, and otherwise opened and handed to its thread's object,
 again every 30 seconds until it lands. The object streams each model call
 with previews to the account's sockets, every call asking the same
-`max_tokens`, and lands only the whole reply, as returned, beside its usage; a
+`max_tokens`, and lands only the whole reply, as returned; a
 call an instance died reading is sent again whole, and a turn ends `budget`
 before a call past its twentieth reply. A conversation past 50,000 input
 tokens, the least the API compacts at, is compacted by the API inside the
 request that reaches them, its summary landing with the reply, and every
 request after carries the conversation from that summary on; at the API's
 default of 150,000, a turn after a pause would write its whole prompt to the
-cache again for 60 cents of a day's dollar. Every tool call runs in the cell
+cache again for 60 cents. Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id
 derived from the call's, so one run again lands once; a deletion waits for the
 person. What the turn did reaches the cell as pushes, each once by its
 sequence, stored as the thread's events, a short progress note before each
-tool call among them, and each reply's usage, booked at list price
-(`AGENT_PRICES`) on the day its turn started; the push that ends a turn seals
+tool call among them; the push that ends a turn seals
 its one change set, gives back a turn Claude could not be reached for, never
 one the person stopped, and lets the links it saved be read.
 
@@ -365,8 +364,9 @@ workspace key with provider credentials required and Authenticated Gateway
 on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
 and every request asks the gateway to keep no prompt or reply and names the
 conversation's account in `cf-aig-metadata`, which the gateway's per-account
-spend limit splits by, bounding what no usage books: a stream cut before it
-ended, and a day's last reply past its cost. A Worker with
+spend limit splits by: the agent's one dollar cap, whose 429, carrying no
+Anthropic `request-id`, ends the turn as the day's allowance, where Anthropic's
+own 429 is sent again. A Worker with
 no gateway refuses every send. `vite dev` names no target's gateway: the
 root `.env` names the scripted Messages API or a gateway of the developer's
 own (`.env.example`).

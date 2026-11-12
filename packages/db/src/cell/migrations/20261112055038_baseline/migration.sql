@@ -31,8 +31,7 @@ CREATE TABLE `agent_turns` (
 --> statement-breakpoint
 CREATE TABLE `agent_usage` (
 	`day` text PRIMARY KEY,
-	`turns` integer NOT NULL,
-	`cost_ucents` integer NOT NULL
+	`turns` integer NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `applied_ops` (

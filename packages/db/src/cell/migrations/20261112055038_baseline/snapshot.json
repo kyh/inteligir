@@ -1,10 +1,10 @@
 {
-  "id": "d28ee35e-4213-470e-939f-1ef8a6159b83",
-  "prevIds": [
-    "4d74100b-57bf-4053-a057-889f208248d5"
-  ],
   "version": "7",
   "dialect": "sqlite",
+  "id": "f6366872-3578-407a-8a13-6d6308ee2253",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
       "name": "agent_pushes",
@@ -277,16 +277,6 @@
       "default": null,
       "generated": null,
       "name": "turns",
-      "entityType": "columns",
-      "table": "agent_usage"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "cost_ucents",
       "entityType": "columns",
       "table": "agent_usage"
     },

@@ -327,13 +327,14 @@ Each target has its own AI Gateway and Anthropic workspace. An account has two
 turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
 
 - **Gateways**: each target's holds its own key, with Authenticated Gateway on,
-  no payload logs and a per-account spend limit; each Anthropic workspace is
+  no payload logs and a spend limit of $5 a day split by the `account`
+  metadata key; each Anthropic workspace is
   separate and capped; the Deploy run names production's gateway.
 - **A real turn on a preview**, open in a tab and the Mac at once: events
   stream, one change set, Undo keeps your typing, the allowance counts, and
   cache reads show.
 - **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
-  spent per-account limit ends it as unreachable.
+  spent per-account limit ends it as the day's allowance.
 - **Real-model behaviour**: a declined turn finishes on the fallback; approvals
   allow, deny and time out; Tidy my library follows the rules; the agent writes
   the dialect.

@@ -200,10 +200,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **An approval waits on the person ten minutes in the thread's own rows, and a
   cancel denies before it stops.** A tool that waits in memory dies with an
   eviction. `packages/service/src/agent/thread-loop.ts`.
-- **Every turn is counted before it starts, every step capped, and every reply
-  booked once it lands** (owner decision: a daily allowance per account, the
-  gateway's spend limit behind it). Reserving each call would guess Claude's
-  bill. `packages/service/src/agent/agent-allowance.ts`.
+- **Every turn is counted before it starts and every step capped; the dollars
+  are the gateway's spend limit alone, which ends the turn it refuses** (owner
+  decision: a daily allowance per account, $5 a day per account behind it). A
+  ledger of our own prices every reply a second time.
+  `packages/service/src/agent/agent-allowance.ts`.
 - **A thread is the account's: its events are the cell's rows its object's
   outbox pushes** (owner decision: the phone asks the agent too). The Agents
   SDK's client socket is a second socket and auth beside the account's.
@@ -217,7 +218,7 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   thinking blocks, which every run expects to be none. `tools/e2e/src/fixtures.ts`.
 - **A long conversation is compacted by the API at 50,000 tokens, and a deploy's
   definition is taken up between turns.** A resumed turn writes its prompt to
-  the cache again, 60 cents of the day's dollar at 150,000.
+  the cache again, 60 cents at 150,000.
   `packages/service/src/agent/thread-request.ts`.
 - **Saving a link is the agent's one way out of the library, and the person sees
   the whole address before it goes.** A saved page the agent read can ask it to

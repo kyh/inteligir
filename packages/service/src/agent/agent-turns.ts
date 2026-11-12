@@ -1,12 +1,11 @@
 // The built-in agent's turns, as the account's cell keeps them: `library.agent.*` as the person
 // asks, and the three calls each conversation's object makes back (`./thread-wire`). A send is let
-// in, in one transaction, when the agent is on and Claude reachable, and the day's turns and cost
-// allow it: a new thread gets its row, and the turn opens, or waits behind its thread's open turn
+// in, in one transaction, when the agent is on and Claude reachable, and the day's turns allow it: a new thread gets its row, and the turn opens, or waits behind its thread's open turn
 // or while the account runs as many as it may at once. An open turn is handed to its thread's
 // object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every tool
 // call runs here, under the turn, against the library's own procedures; and what the turn did
-// lands here as pushes, each once by its sequence, as the thread's stored events and each reply's
-// usage, booked at list price on the day the turn started. The push that ends a turn seals it: one
+// lands here as pushes, each once by its sequence, as the thread's stored events. The push that
+// ends a turn seals it: one
 // change set, the turn given back when Claude could not be reached, the links it saved read, and
 // the next waiting send let in. A watch job asks after a turn whose object it has not heard from
 // in five minutes.
@@ -34,18 +33,8 @@ import type { LibraryEngine } from "../library/library-engine";
 import { filingRules } from "../library/library-rules";
 import { errorFields } from "../log";
 import { pushedEventId, storeEvent, turnEventId } from "./agent-events";
-import {
-  allowanceOf,
-  bookCost,
-  bookTurn,
-  dayOf,
-  nextDayAt,
-  pricesOf,
-  priceUsage,
-  turnsLeft,
-  usageReportSchema,
-} from "./agent-allowance";
-import type { Allowance, PriceTable } from "./agent-allowance";
+import { allowanceOf, bookTurn, dayOf, nextDayAt, turnsLeft } from "./agent-allowance";
+import type { Allowance } from "./agent-allowance";
 import { agentConfigured } from "./anthropic-client";
 import { turnUserMessage } from "./turn-message";
 import {
@@ -76,7 +65,6 @@ import { previewRequestSchema, pushRequestSchema, toolRequestSchema } from "./th
 import type {
   CellAnswer,
   PreviewRequest,
-  PushEntry,
   PushRequest,
   ThreadInspection,
   ToolAnswer,
@@ -557,25 +545,8 @@ export const runTurnTool = async (
 
 const pushOutcomeSchema = z.object({ kind: z.enum(["landed", "unknown-thread", "turn-closed"]) });
 
-// a reply's usage at list price, booked on the day its turn started; a report this build cannot
-// read books nothing, and is logged
-const bookUsage = (
-  sql: SqlStatements,
-  turn: OpenTurn,
-  entry: Extract<PushEntry, { readonly kind: "usage" }>,
-  prices: PriceTable,
-): void => {
-  const report = usageReportSchema.safeParse(entry.usage);
-  if (!report.success) {
-    console.error({ event: "agent-usage-malformed", issues: report.error.issues.length });
-    return;
-  }
-  bookCost(sql, dayOf(turn.startedAt), priceUsage(report.data, entry.model, prices));
-};
-
 // one push of a thread's object, applied once by its sequence in one transaction: its events
-// stored, its replies' usage booked, the thread's status moved, and the turn sealed by the push
-// that ends it
+// stored, the thread's status moved, and the turn sealed by the push that ends it
 export const landPush = async (
   cell: AgentCell,
   request: PushRequest,
@@ -587,7 +558,6 @@ export const landPush = async (
     return { ok: true, value: null };
   }
   const push = parsed.data;
-  const prices = pricesOf(cell.env);
   const allowance = allowanceOf(cell.env);
   const landed = cell.library.landApart(
     { answer: pushOutcomeSchema, opId: undefined },
@@ -606,23 +576,14 @@ export const landPush = async (
       }
       heardFrom(storage, push.threadId, scope.now);
       let ended: TurnEndReason | null = null;
-      for (const [index, entry] of push.entries.entries()) {
-        if (entry.kind === "usage") {
-          bookUsage(storage, named.turn, entry, prices);
-          continue;
-        }
-        storeEvent(
-          scope,
-          push.threadId,
-          pushedEventId(push.threadId, push.seq, index),
-          entry.event,
-        );
-        if (entry.event.type === "approval.asked" || entry.event.type === "approval.answered") {
-          moveWaiting(storage, push.threadId, entry.event.type === "approval.asked" ? 1 : -1);
+      for (const [index, event] of push.events.entries()) {
+        storeEvent(scope, push.threadId, pushedEventId(push.threadId, push.seq, index), event);
+        if (event.type === "approval.asked" || event.type === "approval.answered") {
+          moveWaiting(storage, push.threadId, event.type === "approval.asked" ? 1 : -1);
           restatus(scope, push.threadId);
         }
-        if (entry.event.type === "turn.ended") {
-          ended = entry.event.reason;
+        if (event.type === "turn.ended") {
+          ended = event.reason;
         }
       }
       if (ended !== null) {
