@@ -56,12 +56,6 @@ passed; § 7's checks need the published release.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials
   `.env.example` names.
-- **The phone**: `apps/mobile/README.md` § One-time setup (EAS, the App Store
-  Connect record, the `Owner` group) and § Beta App Review account. Passing:
-  `easProject` in `apps/mobile/app.config.js` and
-  `submit.production.ios.ascAppId` in `apps/mobile/eas.json` are committed, and
-  `pnpm --filter @repo/mobile exec eas config --platform ios` shows the bundle
-  identifier `com.inteligir.mobile`.
 
 ## Once per product: the extension's store item
 
@@ -82,6 +76,45 @@ connect page messages must be that item's. Once:
    naming the id Chrome derives from it; set `EXTENSION_ID` to that, which is
    the draft's id on its dashboard too.
 4. Commit both. Every later upload is § 6's.
+
+## Once per product: the phone's TestFlight
+
+The phone ships through EAS Build to TestFlight, iPhone only. The credentials
+(the distribution certificate, the provisioning profile, the App Store Connect
+API key) live on EAS, never in this repo, and build numbers are EAS's
+(`appVersionSource: remote`), so no commit bumps one; `eas.json` names no
+`.easignore`, so EAS falls back to `.gitignore`, which keeps `.release/` and
+every `.env*` out of the upload. Once:
+
+1. `pnpm --filter @repo/mobile exec eas login`, then
+   `pnpm --filter @repo/mobile exec eas init`. EAS cannot write a dynamic
+   config, so commit the owner and project id it prints into `easProject` in
+   `apps/mobile/app.config.js`; that one value also points EAS Update at the
+   project.
+2. The first `pnpm testflight:mobile` logs into the Apple team that signs the
+   Mac app and lets EAS create and keep the certificate, the profile and an App
+   Store Connect API key. Its submit creates the App Store Connect record for
+   `com.inteligir.mobile`; commit that record's id as
+   `submit.production.ios.ascAppId` in `apps/mobile/eas.json`.
+3. In App Store Connect › TestFlight, create the internal group `Owner` with
+   yourself in it, and the external group `Cohort`. Every build reaches `Owner`
+   first, and `Cohort` only once it has passed there.
+4. Fill TestFlight's Test Information: a beta description, a feedback email
+   you read, `https://inteligir.com/privacy` as the privacy policy, and the
+   Beta App Review sign-in: mint a production invite (`apps/web/README.md` §
+   Invites), sign up with it at `https://inteligir.com/app/sign-up` with an
+   address you read and a long password, and give the account a link, a note
+   and a picture from `https://inteligir.com/library`. Keep the sign-in in
+   `.release/`, and give the reviewer these notes:
+   > Sign in with the account above; its items are already there. What the
+   > phone last read opens offline; saving and the agent need a
+   > connection. A link shared from another app while offline waits on the
+   > phone until it is back online, and the page is then read in the cloud.
+
+Passing: `pnpm --filter @repo/mobile exec eas config --platform ios` shows the
+bundle identifier `com.inteligir.mobile`. If EAS's install fails under pnpm 12,
+the fallback is a custom build, `.eas/build/production.yml`, that installs with
+`pnpm install --frozen-lockfile --filter @repo/mobile...`.
 
 ## 1. Version and changelog
 
@@ -166,24 +199,28 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    tab.
 
 3. **The fill queues.** `pnpm --filter @repo/web exec cf queues list` names
-   `inteligir-fill` and `inteligir-fill-failed`; a deploy that binds them
-   refuses without them (`apps/web/README.md` § Build & deploy, step 6b), and
-   Deploy's token holds Queues: Edit.
+   `inteligir-fill` and `inteligir-fill-failed`, the one made by hand
+   (`apps/web/README.md` § Build & deploy), and Deploy's token holds Queues:
+   Edit.
 
 4. **The connector's OAuth namespace.** `pnpm --filter @repo/web exec cf kv
    namespaces list` names the namespace the first deploy created for
-   `OAUTH_KV` (it declares no id, `apps/web/README.md` § Build & deploy, step
-   6c), and Deploy's token holds Workers KV Storage: Edit. The production
+   `OAUTH_KV`, and Deploy's token holds Workers KV Storage: Edit. The production
    Worker's metadata names its own origin:
    `curl -s https://inteligir.com/.well-known/oauth-authorization-server`
    answers `"issuer":"https://inteligir.com"`.
 
 ## 4. The phone's internal build
 
-`apps/mobile/README.md` § Per release, steps 1 to 3: the pre-flight,
-`pnpm testflight:mobile` from the release commit, and the build installed on
-the owner's iPhone from the `Owner` group. Nothing reaches the `Cohort` group
-yet.
+1. **Pre-flight.** `docs/privacy.md` names every address the phone talks to,
+   Expo's update check among them, and the release commit is green in CI.
+2. **Build.** `pnpm testflight:mobile` from the release commit. Passing: App
+   Store Connect's processing email carries no warning (a missing purpose
+   string, an undeclared required-reason API); a warning is a fix and a new
+   build, never a waiver.
+3. **Internal.** Install the build from the `Owner` group on your iPhone, from
+   TestFlight and never as a development build, for § 5's iPhone checks.
+   Nothing reaches the `Cohort` group yet.
 
 ## 5. The owner's checks
 
@@ -365,8 +402,20 @@ Only once every check in § 5 has passed, and the three close together.
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404.
 
-2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 and
-   5: What to Test, Beta App Review, then the invites.
+2. **The phone's cohort.** Add the build to the `Cohort` group with its What
+   to Test, in the words a tester reads:
+
+   > Sign in with your Inteligir account's email and password. Your library
+   > arrives, and what you last read opens offline. Save a link from the share
+   > sheet, write a note on your Mac and read it here, and add a photo. Take a
+   > screenshot to send us feedback.
+
+   A version's first build for the group waits for Beta App Review, usually a
+   day. Then invite testers, by email or one public link; each needs an
+   account first, which takes an invite code (`apps/web/README.md` § Invites).
+   A build expires 90 days after upload, so a cohort still testing then needs
+   a new build of the same version (Hotfixes, below).
+
 3. **The extension.** Upload
    `apps/extension/.output/inteligir-extension-<version>.zip` to the store
    item, and keep the listing true to what it does: the description, the
@@ -412,18 +461,21 @@ Only once every check in § 5 has passed, and the three close together.
 
 ## Hotfixes
 
-- **The phone, JavaScript alone**: an EAS Update, never a new build
-  (`apps/mobile/README.md` § Hotfixes has the mechanics). Branch from the tag
-  of the build TestFlight serves, apply the fix, and run `pnpm --filter @repo/mobile hotfix`
-  there. An update reaches only builds whose fingerprint matches, and the fingerprint
-  covers the app config, `version` included, so one bundled after a version
-  bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
-  names what differs. The editor rides the JavaScript, so its fixes are
-  updates too. Passing: as the update check in § 5. A bad update is rolled back with
-  `pnpm --filter @repo/mobile exec eas update:rollback <group id>`.
+- **The phone, JavaScript alone**: an EAS Update to the `production` channel,
+  never a new build. Branch from the tag of the build TestFlight serves, apply
+  the fix, and run `pnpm --filter @repo/mobile hotfix` there; the script clears
+  `EXPO_PUBLIC_CLOUD_URL`, since `eas update` bundles with this shell's
+  environment. An update reaches only builds whose fingerprint matches, and the
+  fingerprint covers the app config, `version` included, so one bundled after
+  a version bump reaches nobody;
+  `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
+  names what differs. The editor's DOM bundle rides the JavaScript, so its
+  fixes are updates too. Passing: as the update check in § 5. A bad update is
+  rolled back with `pnpm --filter @repo/mobile exec eas update:rollback <group id>`.
 - **The phone, anything native** (a module, a config plugin, the SDK): a new
-  build of the same version, `pnpm testflight:mobile` from
-  a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
+  build of the same version, `pnpm testflight:mobile` from a branch off the
+  tag, then § 4 from step 3. `pnpm --filter @repo/mobile exec eas
+  build:version:get --platform ios` prints the latest build number.
 - **The Mac app or the extension**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its
   JavaScript hotfixes then branch from the tag of the build TestFlight serves.

@@ -42,71 +42,18 @@ What each device sends, and where: [docs/privacy.md](./docs/privacy.md).
 
 ## For developers
 
-Each account's library is one SQLite Durable Object, its library cell, on the
-one Cloudflare Worker [`apps/web`](./apps/web/README.md), which also serves the
-site, the accounts, the library's files in R2, the reading of saved pages and
-the connector a person's own assistant reaches the library through. Its code is
-[`packages/service`](./packages/service/README.md), over the wire and library
-model of [`packages/contract`](./packages/contract/README.md) and the schemas
-of [`packages/db`](./packages/db/README.md). The iPhone
-app ([`apps/mobile`](./apps/mobile/README.md)) and the library tab, in a
-browser or the Mac app's window ([`apps/desktop`](./apps/desktop/README.md)),
-each read and write the library online through one `/v1` wire, their reads
-cached by TanStack Query and refreshed when the account's socket says what
-moved; the browser extension
-([`apps/extension`](./apps/extension/README.md)) saves over the same wire, on
-the browser's own sign-in to the site. Every device signs in with Better
-Auth's own session. A
-saved page is read by the extension that saved it, on the device, and by the
-Worker's fill otherwise, off a Queue. The built-in agent is
-the Worker's own loop over Claude through AI Gateway, one Durable Object a
-conversation, its tools the library's procedures.
+One Cloudflare Worker ([`apps/web`](./apps/web/README.md)) serves the site,
+the accounts and the cloud, each account's library one SQLite Durable Object;
+the Mac app's window, the browser tab, the iPhone app and the browser extension
+read and write it online over one `/v1` wire. The signed Mac build is on the
+latest GitHub release, the iPhone app ships to TestFlight and the extension to
+the Chrome Web Store ([`docs/releasing.md`](./docs/releasing.md)).
 
-### Install & run
-
-The Mac app is a window on the site's library (inteligir.com/library).
-The signed, notarized macOS build is on the latest GitHub release (the site's
-Download button reads it), and an installed app offers each update, which
-installs on Restart. The iPhone app ships to TestFlight by EAS, and the
-extension to the Chrome Web Store ([`docs/releasing.md`](./docs/releasing.md)).
-
-From a checkout, with the prerequisites in
-[`docs/development.md`](./docs/development.md#prerequisites) installed:
-
-```bash
-pnpm install
-cp .env.example .env
-pnpm dev:web   # the Worker on miniflare at http://localhost:5174 (/library)
-pnpm dev       # the Mac app's window on that Worker's /library
-```
-
-The local Worker's built-in agent answers from a scripted Claude, with no key
-and no model; [`AGENTS.md`](./AGENTS.md) § Quickstart says how to sign in.
-
-### Layout
-
-[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace, and each
-workspace's README its own layout.
-
-Boundaries are enforced, not documented: pnpm and tsc refuse an import the
-importer's manifest does not list, `oxlint.config.ts`'s restricted imports fail
-a package acquiring a platform it may not have (`@repo/contract` runs in the
-Worker, the browser and the phone, so it touches neither node nor react), and
-knip fails a dependency nothing imports and an export nothing reaches.
-
-**[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — the premises,
-the quickstart and the rules, and which workspaces keep a `CLAUDE.md` of
-decisions beside their code; `CONTEXT.md` is the domain glossary.
-
-### Develop
-
-[`docs/development.md`](./docs/development.md) owns the commands, the ports,
-where state lives and the gate. The one line every change runs before it is
-committed:
-
-```bash
-pnpm format:fix && pnpm verify
-```
+- [`AGENTS.md`](./AGENTS.md): the premises, the quickstart, the map of
+  workspaces and the rules; each workspace's README its own map.
+- [`docs/development.md`](./docs/development.md): every command, port and
+  gate.
+- [`CONTEXT.md`](./CONTEXT.md): what the words mean.
 
 ## License
 

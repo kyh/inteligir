@@ -36,6 +36,9 @@ clock, random bytes and fresh ids are injected.
 - **A url has one key, computed without the platform's URL.** React Native's
   `URL` is not WHATWG, so the phone and the Mac would disagree.
   `packages/contract/src/items/item-url.ts`.
+- **A device keeps a reading only for its article; the fill, the last reader, keeps a page that
+  named itself.** An item saved read is never filled, so a device hands the fill what it could not
+  read, and nothing reads after the fill. `packages/contract/src/items/link-fill.ts`.
 - **No reader decides what a doc is on its own.** A private `.md` rule leaves
   out every `.txt` note and disagrees on a name's case.
   `packages/contract/src/knowledge/doc-file.ts`.

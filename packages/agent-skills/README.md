@@ -13,11 +13,10 @@ connector serves (`read_item` answers an item's text in this dialect, `edit_item
 `create_note` take it back), and the dialect — `[Title](mention:<id>)` and `[[Title]]` links,
 `:date[…]` and `:formula[…]{…}` pills, the colon blocks, the `inteligir-*` fences, the
 `:::article` section, and what markdown cannot hold — is not something a model guesses right.
-The agent has no shell and no files, so nothing here is read at run time: every word is inlined
-into the system prompt, in a fixed order, the same bytes for every
-conversation of every account, so all of them read one cached prefix. Each conversation freezes the
-prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
-start of the conversation's next turn, never mid-turn (`packages/service/src/agent/thread-loop.ts`).
+The agent has no shell and no files, so nothing here is read at run time:
+`packages/service/src/agent/agent-prompt.ts` imports every file as text (Vite's `?raw`) and joins
+them in the hub's order, the same bytes for every conversation of every account, so all of them
+read one cached prefix; a deploy that changes them is taken up at a conversation's next turn.
 
 ## Layout
 
@@ -47,17 +46,10 @@ skills/
 Each `SKILL.md` is its contract, every word of it read by the agent, and ends with a "Before You
 Finish" checklist the agent runs against its own edit.
 
-## How it reaches the agent
-
-`packages/service/src/agent/agent-prompt.ts` imports this package's files as text (Vite's `?raw`)
-and joins them into the prompt — `built-in-agent.md`, the hub, then every focused contract in the
-hub's order — which every new conversation sends as its system. The prompt is code the Worker
-ships, so a PR's skills are the ones its preview runs.
-
 ## Invariants
 
-- **Text, never code.** `@repo/service` imports the files as strings through the `exports` map,
-  and declares the dependency so a change here marks the Worker changed.
+- **Text, never code.** `@repo/service` declares the dependency, so a change here marks the Worker
+  changed.
 - **Written for the library's tools alone.** The agent has no shell, no files and no web: a skill
   names a tool, never a command, a path on disk or a CLI verb.
 - **The spec is the parser's.** A construct a skill teaches reads back as the node it shows, and
@@ -70,7 +62,6 @@ ships, so a PR's skills are the ones its preview runs.
 - **Adding a skill** is one directory, one `SKILL.md`, a row under the hub's "Focused
   Contracts", and the same row in `agent-prompt.ts`'s list, which places it in the prompt. A new construct
   lands in the editor kit, the rule table and `fence-langs` FIRST, then the words.
-- The files are ordinary tracked markdown, which oxfmt formats.
 
 ## Testing
 
