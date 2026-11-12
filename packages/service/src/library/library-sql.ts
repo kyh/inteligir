@@ -6,7 +6,7 @@ import type { z } from "zod";
 
 import type { sqlValueSchema } from "./sql-value";
 
-export type SqlValue = z.infer<typeof sqlValueSchema>;
+type SqlValue = z.infer<typeof sqlValueSchema>;
 export type SqlRow = Readonly<Record<string, SqlValue>>;
 
 export interface SqlStatement {
