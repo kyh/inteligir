@@ -22,9 +22,9 @@
       "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.{cell,note,thread}.ts"] }
     },
     "packages/service": {
-      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
+      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts"],
       "ignore": ["src/types/highlight-js.d.ts"],
-      "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
+      "ignoreDependencies": ["cloudflare"]
     }
   }
 }

@@ -11,6 +11,5 @@
     "allowImportingTsExtensions": true
   },
   "include": [".", ".cloudflare/types/index.d.ts"],
-  // scripts/ is node's own program
-  "exclude": ["node_modules", "scripts"]
+  "exclude": ["node_modules"]
 }

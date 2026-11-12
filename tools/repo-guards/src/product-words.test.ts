@@ -33,12 +33,7 @@ const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 const LEGAL_PAGES = ["docs/privacy.md", "docs/terms.md"] as const;
 
 // a file that may say a word, and why: a row that no longer matches anything is stale
-const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>([
-  [
-    "packages/service/src/agent/agent-prompt.ts",
-    "the built-in agent's instructions keep their words (AGENTS.md § Rules that matter)",
-  ],
-]);
+const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>();
 
 interface Word {
   name: string;

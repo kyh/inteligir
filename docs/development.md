@@ -105,11 +105,10 @@ never drawn by hand: `pnpm --filter @repo/web og:cards`
 `apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
 Playwright's Chromium, and sits outside `pnpm verify` and the build.
 
-The built-in agent's system prompt, `packages/service/src/agent/agent-prompt.ts`,
-is written, never edited by hand: `pnpm --filter @repo/service agent-prompt`
-(`packages/service/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`,
-and `@repo/service`'s `test` script first fails a tree whose module differs
-from what it would write (`packages/service/README.md` § The built-in agent).
+The built-in agent's system prompt is `@repo/agent-skills`'s files, which
+`packages/service/src/agent/agent-prompt.ts` imports as text in the hub's
+order; a new skill is a row there beside its row in the hub
+(`packages/service/README.md` § The built-in agent).
 
 ## Browser extension
 

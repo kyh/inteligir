@@ -31,7 +31,6 @@ fill-queues.ts         # the fills' queues, for both configs and the suites
 agent-limits.ts        # the built-in agent's daily allowance
 messages-service.ts    # the suites' outbound service: the scripted Messages API
 cloudflare.config.ts   # the suites' Worker, never deployed; the Env's source
-scripts/agent-prompt.ts  # writes src/agent/agent-prompt.ts from @repo/agent-skills
 src/
   doors.ts             # each door apps/web's Start routes hand a request to
   doors-api.ts         # the doors' types, naming only Request and Response
@@ -95,8 +94,8 @@ src/
                        # library-tools.ts) and the account's grants
                        # (assistant-grants.ts)
   agent/               # the built-in agent: its one definition
-                       # (library-agent.ts) and its generated prompt
-                       # (agent-prompt.ts), each conversation's object,
+                       # (library-agent.ts) and its prompt, read from
+                       # @repo/agent-skills (agent-prompt.ts), each conversation's object,
                        # AgentThreadDO (agent-thread.ts), with its tables
                        # (thread-db.ts), its loop (thread-loop.ts), its drive
                        # (thread-drive.ts), each tool call's state
@@ -327,9 +326,8 @@ SDK: Lifecycle's durable job queue and its one alarm drive the loop, wake a
 conversation whose instance died, and deny an approval nobody answered in ten
 minutes. Its definition is code, the same bytes for every account: the model
 and effort (`src/agent/library-agent.ts`), the system prompt
-(`src/agent/agent-prompt.ts`, which `pnpm --filter @repo/service agent-prompt`
-writes from `@repo/agent-skills`; edit the skills and run it, never the
-module) and the tools (`agent-tools.ts`). A thread freezes them at its first
+(`src/agent/agent-prompt.ts`, `@repo/agent-skills`'s files read as text at
+build time, in the hub's order) and the tools (`agent-tools.ts`). A thread freezes them at its first
 turn and replays them byte for byte; a deploy that changes them is taken up at
 the start of the thread's next turn, never mid-turn, its requests from then on
 carrying no thinking from before that turn.
@@ -405,9 +403,8 @@ other address.
 
 ```bash
 pnpm --filter @repo/service generate      # the Env and runtime types, from cloudflare.config.ts
-pnpm --filter @repo/service typecheck     # this program, and scripts/ under node
+pnpm --filter @repo/service typecheck     # this program
 pnpm --filter @repo/service test          # the three projects above
-pnpm --filter @repo/service agent-prompt  # rewrite the agent's prompt from @repo/agent-skills
 ```
 
 The program and the type claims read the `Env` `generate` writes, which no
