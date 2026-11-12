@@ -19,7 +19,7 @@ import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 
-import { useCloud, useWire } from "../cloud/library-context";
+import { usePageLibrary } from "../cloud/library-context";
 import { uploadFile } from "../cloud/library-files";
 import type { V1Queries } from "../cloud/v1";
 import { runBulk } from "./bulk-actions";
@@ -212,8 +212,8 @@ export interface NoteMade {
 const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
 
 export const useLibraryVerbs = () => {
-  const { client, orpc } = useWire();
-  const cloud = useCloud();
+  const { cloud, wire } = usePageLibrary();
+  const { client, orpc } = wire;
   const queryClient = useQueryClient();
 
   const readAgain = async (): Promise<void> => {

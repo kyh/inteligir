@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { z } from "zod";
 
-import { useCloud, useWire } from "../cloud/library-context";
+import { usePageLibrary } from "../cloud/library-context";
 import { FileRefusedError, uploadFile } from "../cloud/library-files";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { refusalText } from "@repo/contract/refusal-text";
@@ -59,8 +59,8 @@ const SOURCES: readonly { source: ImportSource; label: string; accept: string }[
 ];
 
 const ImportRow = () => {
-  const { client, orpc } = useWire();
-  const cloud = useCloud();
+  const { cloud, wire } = usePageLibrary();
+  const { client, orpc } = wire;
   const queryClient = useQueryClient();
   const pickerRef = useRef<HTMLInputElement | null>(null);
   const [source, setSource] = useState<ImportSource>("raindrop");

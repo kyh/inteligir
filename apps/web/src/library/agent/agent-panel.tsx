@@ -38,7 +38,7 @@ import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
-import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -184,7 +184,7 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
 };
 
 const useLivePreview = (threadId: string | null): string | null => {
-  const socket = useSocket();
+  const { socket } = usePageLibrary();
   const [preview, setPreview] = useState<{ threadId: string; text: string } | null>(null);
   useEffect(
     () =>
@@ -218,7 +218,7 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { client, orpc } = useWire();
+  const { client, orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
   const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
@@ -390,7 +390,7 @@ const Composer = ({
   dispatch: (event: ComposerEvent) => void;
   viewContext: () => AgentViewContext | undefined;
 }) => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const [text, setText] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const tidying = composer.kind === "tidying";

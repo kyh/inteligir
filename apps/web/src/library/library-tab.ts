@@ -15,7 +15,6 @@ import { activeSession, keepSession, SIGN_IN_PATH, signInHref } from "#lib/auth-
 import type { SessionState } from "#lib/auth-client";
 
 import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";
-import { createPageAuth } from "./cloud/auth-client";
 import { createLeaveGuard } from "./cloud/leave-guard";
 import type { LeaveGuard } from "./cloud/leave-guard";
 import type { LeaveReason, PageLibrary } from "./cloud/library-context";
@@ -206,7 +205,6 @@ const open = async (): Promise<TabOpening> => {
   });
   const library: PageLibrary = {
     account: { email: user.email, name: user.name },
-    auth: createPageAuth(cloud),
     cloud,
     leave,
     left: (why) => {
