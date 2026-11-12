@@ -1,10 +1,8 @@
-// Every device signed in by Better Auth's own session: the door each one reaches `/v1` by, the
-// routes it signs in and out on, the devices it lists and ends, the cap a new sign-in keeps the
-// account under, and its deletion with the password asked again.
+// Every device signed in by Better Auth's own session: the routes it signs in and out on, the
+// devices it lists and ends, and the cap a new sign-in keeps the account under. The door each one
+// reaches `/v1` by is `wire/v1-rpc.test.ts`'s.
 
-import { hexFromBytes } from "@repo/contract/bytes";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/library/library-socket";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { env, exports } from "cloudflare:workers";
@@ -13,10 +11,9 @@ import { describe, expect, it } from "vitest";
 
 import { deviceNameOf, MAX_SESSIONS_PER_ACCOUNT } from "./auth/session-devices";
 import { createDb } from "@repo/db/d1/client";
-import { session, user } from "@repo/db/d1/schema";
+import { session } from "@repo/db/d1/schema";
 import {
   BROWSER_USER_AGENT,
-  buildHeaders,
   cookieHeaderOf,
   drained,
   extensionHeaders,
@@ -26,7 +23,6 @@ import {
   phoneHeaders,
   PHONE_USER_AGENT,
   sessionHeaders,
-  sessionTokenOf,
   signInPhone,
   signUpUser,
   userIdOf,
@@ -65,81 +61,6 @@ const authPost = async (
       method: "POST",
     }),
   );
-
-describe("a session's doors to /v1", () => {
-  it("reads the extension's bearer, the browser's own signed cookie, and names its writes by it", async () => {
-    const { cookie } = await signUpUser("door-extension@example.test");
-    const extension = v1Link(extensionHeaders(cookie));
-    await extension.library.items.createNote({ markdown: "Saved from the toolbar." });
-    const { changeSets } = await extension.library.history.list({});
-    expect(changeSets[0]?.label).toBe("You from the browser extension");
-    const { devices } = await extension.account.devices.list();
-    expect(devices.filter((device) => device.current)).toHaveLength(1);
-  });
-
-  it("refuses a bearer no session signed, and never reads the cookie beside it", async () => {
-    const { cookie } = await signUpUser("door-unsigned@example.test");
-    const [token = "", signature = ""] = decodeURIComponent(sessionTokenOf(cookie)).split(".");
-    for (const bearer of [token, `${token}.${signature.split("").toReversed().join("")}`]) {
-      const forged = v1Link({
-        ...sessionHeaders(cookie),
-        ...buildHeaders(),
-        authorization: `Bearer ${bearer}`,
-      });
-      await expect(forged.refusalOf(forged.account.devices.list())).resolves.toMatchObject(
-        UNAUTHORIZED,
-      );
-    }
-    const asBearer = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    await expect(asBearer.json()).resolves.toBeNull();
-  });
-
-  it("reads the phone's cookie under its app scheme, and no cookie another caller sends", async () => {
-    const email = "door-phone@example.test";
-    await signUpUser(email);
-    const cookie = await signInPhone(email);
-    const phone = v1Link(phoneHeaders(cookie));
-    await phone.library.items.createNote({ markdown: "Written on the phone." });
-    const { changeSets } = await phone.library.history.list({});
-    expect(changeSets[0]?.label).toBe("You on your iPhone");
-
-    for (const headers of [
-      { ...buildHeaders(), cookie },
-      { ...buildHeaders(), cookie, "expo-origin": "exp://192.168.1.2:8081" },
-      { ...buildHeaders(), cookie, "sec-fetch-site": "cross-site" },
-    ]) {
-      const other = v1Link(headers);
-      await expect(other.refusalOf(other.account.devices.list())).resolves.toMatchObject(
-        UNAUTHORIZED,
-      );
-    }
-  });
-
-  it("serves an app's file with no-store, and the site's page its kept copy", async () => {
-    const email = "door-blob@example.test";
-    const { cookie } = await signUpUser(email);
-    const phoneCookie = await signInPhone(email);
-    const bytes = new TextEncoder().encode("kept or not");
-    const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-    const url = `${ORIGIN}${V1_BLOBS_PATH}/${sha}`;
-    const put = await drained(
-      exports.default.fetch(url, {
-        body: bytes,
-        headers: { ...phoneHeaders(phoneCookie), "content-type": "image/png" },
-        method: "PUT",
-      }),
-    );
-    expect(put.status).toBe(201);
-    for (const headers of [phoneHeaders(phoneCookie), extensionHeaders(cookie)]) {
-      const read = await drained(exports.default.fetch(url, { headers }));
-      expect(read.headers.get("cache-control")).toBe("no-store");
-    }
-    const tab = await drained(exports.default.fetch(url, { headers: sessionHeaders(cookie) }));
-    expect(tab.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
-  });
-});
 
 describe("Better Auth's routes for every device", () => {
   it("answers a sign-in with its cookie and no token a script could read", async () => {
@@ -312,36 +233,6 @@ describe("the account's devices, its sessions", () => {
     await expect(closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
     const tab = v1Link(sessionHeaders(cookie));
     await expect(tab.refusalOf(tab.account.devices.list())).resolves.toMatchObject(UNAUTHORIZED);
-  });
-});
-
-describe("deleting the account under a session", () => {
-  it("asks the phone for the password, and deletes the account with the right one", async () => {
-    const email = "delete-phone@example.test";
-    const { cookie } = await signUpUser(email);
-    const accountId = await userIdOf(cookie);
-    const phone = v1Link(phoneHeaders(await signInPhone(email)));
-    await expect(
-      phone.refusalOf(phone.account.delete({ password: "not-the-password" })),
-    ).resolves.toMatchObject({ code: "INVALID_CREDENTIALS", defined: true, status: 401 });
-    await expect(liveSessionsOf(accountId)).resolves.toHaveLength(2);
-
-    await expect(phone.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
-      deleted: true,
-    });
-    const left = await createDb(env.DB).select().from(user).where(eq(user.id, accountId)).get();
-    expect(left).toBeUndefined();
-    await expect(liveSessionsOf(accountId)).resolves.toHaveLength(0);
-  });
-
-  it("deletes from the extension on the browser's session", async () => {
-    const { cookie } = await signUpUser("delete-extension@example.test");
-    const accountId = await userIdOf(cookie);
-    await expect(
-      v1Link(extensionHeaders(cookie)).account.delete({ password: PASSWORD }),
-    ).resolves.toStrictEqual({ deleted: true });
-    const left = await createDb(env.DB).select().from(user).where(eq(user.id, accountId)).get();
-    expect(left).toBeUndefined();
   });
 });
 

@@ -21,7 +21,6 @@ const MODEL_SUITES = [
 
 // the suites that open the account's socket or a note's
 const SOCKET_SUITES = [
-  "src/account-delete.test.ts",
   "src/library/library-socket.test.ts",
   "src/note/note-live.test.ts",
   "src/session-devices.test.ts",

@@ -1,7 +1,7 @@
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "@repo/db/d1/client";
@@ -310,6 +310,11 @@ describe("deleting the account from its cell", () => {
         .all();
       return rows.length;
     };
+    const [invite] = await db
+      .select({ code: inviteCode.code })
+      .from(inviteCode)
+      .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`)
+      .all();
     // two conversations the account's threads name, each holding rows in its own object
     const threadIds = ["thread-0", "thread-1"];
     for (const threadId of threadIds) {
@@ -378,6 +383,13 @@ describe("deleting the account from its cell", () => {
     });
     // another account's files stay
     await expect(files(accountBlobPrefix(stranger))).resolves.toBe(1);
+    // the invite names nobody now, and stays spent
+    const spent = await db
+      .select({ redeemedAt: inviteCode.redeemedAt })
+      .from(inviteCode)
+      .where(eq(inviteCode.code, invite?.code ?? ""))
+      .get();
+    expect(spent?.redeemedAt).not.toBeNull();
   });
 
   // a thousand and five puts to R2, past one listing's page on purpose

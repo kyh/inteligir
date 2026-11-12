@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildHeaders,
   drained,
+  extensionHeaders,
   ORIGIN,
   phoneHeaders,
   sessionHeaders,
@@ -251,6 +252,10 @@ describe("a file's bytes", () => {
 
     const whole = await drained(exports.default.fetch(urlOf(sha), { headers: auth }));
     expect(whole.headers.get("cache-control")).toBe("no-store");
+    const extension = await drained(
+      exports.default.fetch(urlOf(sha), { headers: extensionHeaders(cookie) }),
+    );
+    expect(extension.headers.get("cache-control")).toBe("no-store");
     const range = await drained(
       exports.default.fetch(urlOf(sha), { headers: { ...auth, range: "bytes=0-1" } }),
     );
