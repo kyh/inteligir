@@ -983,6 +983,9 @@ importers:
       '@slate-yjs/core':
         specifier: 'catalog:'
         version: 1.0.2(slate@0.146.0)(yjs@13.6.33)
+      diff:
+        specifier: ^9.0.0
+        version: 9.0.0
       katex:
         specifier: ^0.19.1
         version: 0.19.1
