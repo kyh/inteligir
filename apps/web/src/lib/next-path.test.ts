@@ -41,6 +41,13 @@ describe("the sign-in return path", () => {
       expect(internalNextPath(value), String(value)).toBeNull();
     }
   });
+
+  it.each(["//evil.example/steal", "/\\evil.example/steal", "/.//evil.example/steal"])(
+    "is no way back an account page links on, for %s",
+    (stranger) => {
+      expect(authPageSearchSchema.parse({ next: stranger }).next).toBeUndefined();
+    },
+  );
 });
 
 describe("where a sign-in or a sign-up lands", () => {

@@ -1,8 +1,7 @@
 // The library cell's SQLite: every table but `search_fts`, an FTS5 virtual table sqlite-core cannot
-// declare, which its own custom migration makes. drizzle-kit generates the cell's migrations from
-// this file (drizzle.config.cell.ts). No table is STRICT or WITHOUT ROWID, which sqlite-core cannot
-// spell and a generated recreate would drop, and no trigger sits on one, since a recreate drops
-// that too: the search index is kept in code.
+// declare, which scripts/object-ddl.ts appends to the DDL drizzle-kit exports from this file
+// (ddl.sql). No table is STRICT or WITHOUT ROWID, and no trigger sits on one, since the exported
+// DDL spells none of them: the search index is kept in code.
 
 import { sql } from "drizzle-orm";
 import {
@@ -365,12 +364,10 @@ export const agentQueue = sqliteTable(
   (t) => [index("agent_queue_order").on(t.queuedAt, t.id)],
 );
 
-// what the built-in agent spent on each UTC day: its turns, and their calls' list cost in
-// micro-cents
+// the turns the built-in agent began on each UTC day
 export const agentUsage = sqliteTable("agent_usage", {
   day: text().primaryKey(),
   turns: integer().notNull(),
-  costUcents: integer("cost_ucents").notNull(),
 });
 
 export const importJobs = sqliteTable(

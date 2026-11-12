@@ -10,7 +10,6 @@ import { AppState } from "react-native";
 import { getCloudUrl } from "@/lib/cloud-url";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
-import { systemClock } from "@/lib/system-clock";
 import { noteActions } from "./note-actions";
 import { notePageLife } from "./note-page-life";
 import type { NotePageLifeStore } from "./note-page-life";
@@ -63,7 +62,7 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
     [library],
   );
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [life] = useState(() => notePageLife({ clock: systemClock, deep }));
+  const [life] = useState(() => notePageLife({ deep }));
   const { asked, life: now } = useSyncExternalStore(life.subscribe, life.get);
   useEffect(() => {
     life.place(deep);

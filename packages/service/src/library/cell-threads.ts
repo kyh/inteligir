@@ -3,10 +3,12 @@
 
 import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
 import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
-import type { SqlRow, SqlStatements } from "./library-sql";
-import { jsonTextSchema } from "./sql-value";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 
+import { threadEvents as threadEventRows, threads } from "@repo/db/cell/schema";
+import { jsonTextSchema } from "./sql-value";
+import type { CellDb } from "./cell-db";
 import type { LandingScope } from "./cell-landing";
 import { offsetOf } from "./cell-reads";
 import { refuse } from "./cell-refusal";
@@ -14,65 +16,25 @@ import { refuse } from "./cell-refusal";
 type ThreadRow = z.infer<typeof threadRowSchema>;
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
-const threadSqlSchema = z.object({
-  created_at: z.number(),
-  id: z.string(),
-  status: z.enum(THREAD_STATUSES),
-  title: z.string(),
-  updated_at: z.number(),
-});
+const statusSchema = z.enum(THREAD_STATUSES);
 
-const threadEventSqlSchema = z.object({
-  at: z.number(),
-  event_id: z.string(),
-  idx: z.number(),
-  json: z.string(),
-  thread_id: z.string(),
-  type: z.string(),
-});
-
-const THREAD_COLUMNS = "id, title, status, created_at, updated_at";
-
-const threadRowFrom = (raw: SqlRow): ThreadRow => {
-  const row = threadSqlSchema.parse(raw);
-  return {
-    createdAt: row.created_at,
-    id: row.id,
-    status: row.status,
-    title: row.title,
-    updatedAt: row.updated_at,
-  };
-};
-
-const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at";
-
-const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
-  const row = threadEventSqlSchema.parse(raw);
-  return {
-    at: row.at,
-    event: jsonTextSchema.parse(row.json),
-    eventId: row.event_id,
-    idx: row.idx,
-    threadId: row.thread_id,
-    type: row.type,
-  };
-};
-
-const threadExists = (sql: SqlStatements, threadId: string): boolean =>
-  sql.all("SELECT 1 FROM threads WHERE id = ?", [threadId]).length > 0;
+const threadExists = (db: CellDb, threadId: string): boolean =>
+  db.select({ id: threads.id }).from(threads).where(eq(threads.id, threadId)).get() !== undefined;
 
 // the newest-touched first
 export const listThreads = (
-  sql: SqlStatements,
+  db: CellDb,
   input: { readonly cursor?: string | undefined; readonly limit: number },
 ) => {
   const offset = offsetOf(input.cursor);
-  const rows = sql
-    .all(
-      `SELECT ${THREAD_COLUMNS} FROM threads ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`,
-      [input.limit + 1, offset],
-    )
-    .map(threadRowFrom);
+  const rows = db
+    .select()
+    .from(threads)
+    .orderBy(desc(threads.updatedAt), desc(threads.id))
+    .limit(input.limit + 1)
+    .offset(offset)
+    .all()
+    .map((row): ThreadRow => ({ ...row, status: statusSchema.parse(row.status) }));
   return {
     cursor: rows.length > input.limit ? String(offset + input.limit) : null,
     threads: rows.slice(0, input.limit),
@@ -81,29 +43,32 @@ export const listThreads = (
 
 // a thread's stored events after position `after`, in order
 export const threadEvents = (
-  sql: SqlStatements,
+  db: CellDb,
   input: { readonly threadId: string; readonly after?: number | undefined; readonly limit: number },
 ) => {
-  if (!threadExists(sql, input.threadId)) {
+  if (!threadExists(db, input.threadId)) {
     return refuse({ kind: "not-found" });
   }
-  const rows = sql
-    .all(
-      `SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE thread_id = ? AND idx > ?
-       ORDER BY idx LIMIT ?`,
-      [input.threadId, input.after ?? -1, input.limit + 1],
+  const rows = db
+    .select()
+    .from(threadEventRows)
+    .where(
+      and(eq(threadEventRows.threadId, input.threadId), gt(threadEventRows.idx, input.after ?? -1)),
     )
-    .map(threadEventRowFrom);
+    .orderBy(asc(threadEventRows.idx))
+    .limit(input.limit + 1)
+    .all()
+    .map(({ json, ...row }): ThreadEventRow => ({ ...row, event: jsonTextSchema.parse(json) }));
   return { events: rows.slice(0, input.limit), more: rows.length > input.limit };
 };
 
 // the thread and every event it stored
 export const deleteThread = (scope: LandingScope, threadId: string): void => {
-  const { storage } = scope;
-  if (!threadExists(storage, threadId)) {
+  const { db } = scope.storage;
+  if (!threadExists(db, threadId)) {
     refuse({ kind: "not-found" });
   }
-  storage.run("DELETE FROM thread_events WHERE thread_id = ?", [threadId]);
-  storage.run("DELETE FROM threads WHERE id = ?", [threadId]);
+  db.delete(threadEventRows).where(eq(threadEventRows.threadId, threadId)).run();
+  db.delete(threads).where(eq(threads.id, threadId)).run();
   scope.moved.thread(threadId);
 };

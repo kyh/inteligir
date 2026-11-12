@@ -14,7 +14,8 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useAccount, useLeft, usePageAuth, useWire } from "../cloud/library-context";
+import { authClient } from "#lib/auth-client";
+import { usePageLibrary } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
@@ -35,7 +36,7 @@ export const accountReads = (orpc: CloudWire["orpc"]) => ({
 // this device's own row has no Sign out: it leaves through the account's, which clears its cookie
 // too
 const DevicesRow = () => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const nowMs = useNow();
   const devices = useQuery(accountReads(orpc).devices);
@@ -85,7 +86,7 @@ const DevicesRow = () => {
 };
 
 const AssistantsRow = () => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const assistants = useQuery(accountReads(orpc).assistants);
   const revoke = useMutation(
@@ -139,7 +140,7 @@ const AssistantsRow = () => {
 const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 const AgentRow = () => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const status = useQuery(accountReads(orpc).agent);
   const setEnabled = useMutation(
@@ -178,7 +179,7 @@ const AgentRow = () => {
 };
 
 const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => void }) => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const [text, setText] = useState(initial);
   const save = useMutation(
@@ -220,7 +221,7 @@ const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => voi
 // the rules the built-in agent follows over its own taste, which Tidy my library files by; the
 // starter rules fill the page the first time, until the person saves their own
 const FilingRulesRow = () => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const [open, setOpen] = useState(false);
   const rules = useQuery(
     orpc.library.agent.rules.queryOptions({ input: open ? undefined : skipToken }),
@@ -264,12 +265,11 @@ const FilingRulesRow = () => {
 };
 
 const DeleteAccount = () => {
-  const { client } = useWire();
-  const left = useLeft();
+  const { left, wire } = usePageLibrary();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const remove = useMutation({
-    mutationFn: async (typed: string) => await client.account.delete({ password: typed }),
+    mutationFn: async (typed: string) => await wire.client.account.delete({ password: typed }),
     onError: (cause) => {
       toast.error(refusalText(cause, "The account couldn't be deleted."));
     },
@@ -293,8 +293,8 @@ const DeleteAccount = () => {
         <DialogContent>
           <DialogTitle>Delete your account?</DialogTitle>
           <DialogDescription>
-            Your library, its files, its history and your conversations with the agent are deleted
-            from our cloud for good. Type your password to go on.
+            Your library, its files and your conversations with the agent are deleted from our cloud
+            for good. Type your password to go on.
           </DialogDescription>
           <form
             className="flex flex-col gap-2"
@@ -329,11 +329,12 @@ const DeleteAccount = () => {
 };
 
 export const AccountSection = () => {
-  const account = useAccount();
-  const auth = usePageAuth();
-  const left = useLeft();
+  const { account, left } = usePageLibrary();
   const signOut = useMutation({
-    mutationFn: auth.signOut,
+    // a refusal or no answer rejects, so the page stays signed in and says so
+    mutationFn: async () => {
+      await authClient.signOut({ fetchOptions: { throw: true } });
+    },
     onError: (cause) => {
       toast.error(refusalText(cause, "Signing out didn't work. Try again."));
     },

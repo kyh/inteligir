@@ -5,9 +5,6 @@
   "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over a DOM the host hands it. One reading for everything that fills a link: the Worker's fill and the extension's worker.",
   "type": "module",
   "exports": {
-    "./extract-page": "./src/extract-page.ts",
-    "./linkedom-page": "./src/linkedom-page.ts",
-    "./page-facts": "./src/page-facts.ts",
     "./page-reading": "./src/page-reading.ts",
     "./read-html": {
       "types": "./src/read-html-api.ts",

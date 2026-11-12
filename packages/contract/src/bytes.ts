@@ -1,12 +1,6 @@
 // web-crypto globals only: this leaf loads on workerd, node, the browser and hermes.
 
-export const hexFromBytes = (bytes: Uint8Array): string => {
-  let hex = "";
-  for (const byte of bytes) {
-    hex += byte.toString(16).padStart(2, "0");
-  }
-  return hex;
-};
+import { bytesToHex } from "@noble/hashes/utils.js";
 
 // btoa is a global on workerd, node, the browser and hermes (rn 0.74+); Buffer is not. chunked:
 // a whole asset spread into fromCharCode overflows the argument list.
@@ -30,5 +24,5 @@ export const bytesFromBase64 = (value: string): Uint8Array<ArrayBuffer> =>
 
 export const sha256Hex = async (value: string): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return hexFromBytes(new Uint8Array(digest));
+  return bytesToHex(new Uint8Array(digest));
 };

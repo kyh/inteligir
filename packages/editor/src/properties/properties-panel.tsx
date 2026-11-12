@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 
@@ -192,8 +192,8 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
 // the rows a source holds, each editable in place
 export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) => {
   const snapshot = useSyncExternalStore(source.subscribe, source.snapshot);
-  const properties = useMemo(() => source.read(snapshot), [source, snapshot]);
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
+  const properties = source.read(snapshot);
 
   const commit = (edit: PropertyEdit) => {
     source.commit(edit);

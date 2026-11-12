@@ -1,5 +1,4 @@
-import { fakeClock } from "@repo/contract/test-support/fake-clock";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SESSION_READ_MS, signInHref } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
@@ -12,14 +11,20 @@ const SIGNED_IN: SessionState = {
   user: { email: "person@example.com", id: "u1", name: "" },
 };
 
-// a tab's session over a hand-run clock, the keeper's reads answered in turn and then signed in,
-// with each page it went to and each time it dropped its guard or forgot the account's storage
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// a tab's session, the keeper's reads answered in turn and then signed in, with each page it went
+// to and each time it dropped its guard or forgot the account's storage
 const tabOver = (answers: SessionState[] = []) => {
-  const clock = fakeClock();
   const went: string[] = [];
   const counts = { dropped: 0, forgotten: 0, heard: 0 };
   const tab = createTabSession({
-    clock,
     forget: () => {
       counts.forgotten += 1;
     },
@@ -39,7 +44,7 @@ const tabOver = (answers: SessionState[] = []) => {
   tab.store.subscribe(() => {
     counts.heard += 1;
   });
-  return { clock, counts, standing: tab.store.get, tab, went };
+  return { counts, standing: tab.store.get, tab, went };
 };
 
 describe("where a tab's session stands", () => {
@@ -79,22 +84,17 @@ describe("where a tab's session stands", () => {
   });
 
   it("finds out at the keeper's read that the session ended elsewhere, and leaves once", async () => {
-    const { clock, standing, went } = tabOver([
+    const { standing, went } = tabOver([
       { kind: "unknown", message: "Something went wrong — try again." },
       { kind: "signed-out" },
       { kind: "signed-out" },
     ]);
-    clock.advance(SESSION_READ_MS);
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(SESSION_READ_MS);
     expect(standing()).toStrictEqual({ kind: "live" });
 
-    clock.advance(SESSION_READ_MS);
-    await vi.waitFor(() => {
-      expect(went).toStrictEqual([signInHref(HERE)]);
-    });
-    clock.advance(SESSION_READ_MS);
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(SESSION_READ_MS);
+    expect(went).toStrictEqual([signInHref(HERE)]);
+    await vi.advanceTimersByTimeAsync(SESSION_READ_MS);
     expect(went).toHaveLength(1);
   });
 });

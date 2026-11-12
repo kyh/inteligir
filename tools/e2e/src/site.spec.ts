@@ -6,11 +6,11 @@ import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
-import { socketUrl } from "@repo/contract/library/account-socket";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
+  socketUrl,
   V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";

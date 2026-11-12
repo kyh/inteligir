@@ -7,7 +7,7 @@
 // verified and handed in as `authInfo`, and registers the grant's tools on it: about 2.5 ms of CPU
 // for the full grant's tools and 1 ms for the read-only ones, warm, and 20 to 27 ms for the
 // first in a fresh isolate (measured in node, on V8; workerd's clock stands still under CPU, so a
-// preview's Worker profile is the measure there). 2025-era clients are answered statelessly, a
+// deployed Worker's profile is the measure there). 2025-era clients are answered statelessly, a
 // request at a time, as 2026-07-28 ones are, and a JSON-RPC batch is refused. The built-in agent
 // reaches the same procedures in the cell, by no server (`../agent/agent-tools`).
 

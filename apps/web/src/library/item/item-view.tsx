@@ -17,8 +17,7 @@ import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
-import { isTextEntryTarget } from "../global-shortcuts";
-import { libraryShortcutFor } from "../library/library-keys";
+import { shortcutFor } from "../shortcuts";
 import { useLibraryVerbs } from "../library/library-verbs";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
@@ -80,10 +79,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProp
   const modifier = platformShortcutModifier();
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (isTextEntryTarget(event.target)) {
-      return;
-    }
-    if (libraryShortcutFor(event, "item", modifier)?.action === "back-to-library") {
+    if (shortcutFor(event.nativeEvent, "item", modifier)?.action === "back-to-library") {
       event.preventDefault();
       onBack();
     }

@@ -24,23 +24,21 @@ clock, random bytes and fresh ids are injected.
 - **The listing is in memory over what it filters and orders by, and pinned
   leads it.** One assembly answers for the cell and the fake cell alike, and a
   host hands a batch's rows whole. `packages/contract/src/library/library-index.ts`.
-- **One fake cell answers every client's suites.** A fake per client is a second
-  copy of the cell's rules. `packages/contract/src/test-support/fake-cell.ts`.
+- **One fake cell answers every client's suites, over the cell's own folder and
+  organize rules.** A fake per client, or rules spelled twice, drift from what
+  the cell refuses. `packages/contract/src/library/cell-rules.ts`.
 - **An item's reading is one value, which every writer moves and every surface
-  reads alike.** Three fields set by hand badged a failure over a read.
+  reads alike.** Three fields set by hand can badge a failure over a read.
   `packages/contract/src/library/item-reading.ts`.
-- **The account socket's hint is one value moved by one step.** Flags and a
-  generation counter left a refused ticket ticketing for good.
-  `packages/contract/src/library/account-socket.ts`.
 
 ## Items and files
 
 - **A url has one key, computed without the platform's URL.** React Native's
   `URL` is not WHATWG, so the phone and the Mac would disagree.
   `packages/contract/src/items/item-url.ts`.
+- **A device keeps a reading only for its article; the fill, the last reader, keeps a page that
+  named itself.** An item saved read is never filled, so a device hands the fill what it could not
+  read, and nothing reads after the fill. `packages/contract/src/items/link-fill.ts`.
 - **No reader decides what a doc is on its own.** A private `.md` rule leaves
   out every `.txt` note and disagrees on a name's case.
   `packages/contract/src/knowledge/doc-file.ts`.
-- **An import takes off a sole top folder only when it holds `assets/`.** An
-  Obsidian vault's top folder is one the person named.
-  `packages/editor/src/codec/import-plan.ts`.

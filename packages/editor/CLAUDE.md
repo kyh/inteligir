@@ -23,8 +23,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   caller refuses either, so no platform reads what another refuses.
   `packages/editor/src/markdown/md-read.ts`.
 - **The markdown runs headless, and the codec sits beside the library.** `@repo/editor/codec/*`
-  and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does
-  and `import(export(item))` means the item, ids aside. `packages/editor/src/headless-kits.test.ts`.
+  and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does,
+  and a body read back from what it wrote is that body, ids aside.
+  `packages/editor/src/headless-kits.test.ts`.
 - **The editor ships its behaviour CSS, and the appearance dials are one declaration.** Every hook
   is spelled once, since a missing sheet fails no other test; the tokens are declared in
   `apps/web/src/library/styles/globals.css`, and the phone's editor sets `--editor-size` 16px or
@@ -53,15 +54,13 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   twin.** Each row writes its own fixpoint and no other row's bytes, a touch button is a row of a
   table the desktop reads, and an empty inline equation writes no bytes (owner decision).
   `packages/editor/src/slash-items.tsx`.
-- **A binding is spelled from the table its listener reads, never as a literal.** Five tables own
-  every chord, every label and key glyph derives from their rows, and a chord two tables share is
-  refused, since both would run. `packages/editor/src/mark-shortcuts.ts`.
-- **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
-  a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
-  merges. `apps/web/src/library/library/library-verbs.ts`.
+- **A binding is spelled from the table its listener reads, never as a literal.** The editor's
+  three tables and the tab's one, its rows scoped by listener, own every chord, and every label and
+  key glyph derives from their rows, since a literal drifts from what the key does.
+  `packages/editor/src/mark-shortcuts.ts`.
 - **An extract is one undo step, and its note is an item of its own.** The host makes the note of
   the very blocks first, then the removal and the link land as their own undo step, since
-  create-or-reuse by title lost the blocks. `packages/editor/src/extract-note.ts`.
+  create-or-reuse by title loses the blocks. `packages/editor/src/extract-note.ts`.
 - **A formula recompute is not an edit, and a bound ref's item is found by id.** A pass reads only
   the items its pills name, and its display lands outside the note's undo (`withoutSaving`), so one
   undo reaches the person's own edit. `packages/editor/src/formulas/formula-recompute.ts`.
@@ -98,7 +97,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
 - **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
-  bytes held until a pause were lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
+  bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
 - **A fold is the device's view state, and holds none of the library's words.** It sits in local
   storage under a hash of the heading, dropped on leaving the account, since a fold in the cell
   makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
@@ -129,6 +128,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **An md url has one reading, and only an import resolves one by path.** Past the import an item is
   reached by id and a file by sha, and only an http(s) url reaches the browser, since no item has a
   path to resolve against. `packages/editor/src/codec/import-plan.ts`.
+- **An import takes off a sole top folder only when it holds `assets/`.** An
+  Obsidian vault's top folder is one the person named.
+  `packages/editor/src/codec/import-plan.ts`.
 - **A `[[…]]` names what the resolver answers to.** Obsidian's links are read only where markdown
   comes in from outside, and `.md` is the one extension a link leaves off, so a `.txt` note links
   as `[[todo.txt]]`. `packages/editor/src/knowledge/link-resolve.test.ts`.
@@ -136,8 +138,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   by content and keep their ids, since re-reading a whole item turns every block's id over.
   `packages/editor/src/codec/item-edit.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
-  the codec read them into the item's fields through `readItemFacts`, the filename the title, and
-  `title:` is written only when the stem cannot carry it.
+  the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
   the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and

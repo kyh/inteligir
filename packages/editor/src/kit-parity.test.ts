@@ -8,16 +8,22 @@ import { z } from "zod";
 
 import { libraryBlockSchema } from "@repo/contract/library/library-nodes";
 
+import { DragKit } from "@repo/editor/block-draggable";
 import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
+import { FindBarKit } from "@repo/editor/find-bar";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
+import { BlockMenuKit } from "@repo/editor/kits/block-menu-kit";
+import { CONTENT_KIT, DESKTOP_CHROME_KIT } from "@repo/editor/kits/editor-kit";
+import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
+import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
+import { RichBlockLockKit } from "@repo/editor/kits/rich-block-lock-kit";
 import { blockOfElement } from "@repo/editor/live/element-block";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
+import { TouchToolbarKit } from "@repo/editor/touch-toolbar";
 
 const FIXTURES = fileURLToPath(new URL("test-support/fixtures/corpus/", import.meta.url));
 
@@ -78,24 +84,24 @@ describe("kit parity (Base half)", () => {
   });
 });
 
-describe("kit parity (live editor mirror)", () => {
+describe.each(Object.entries(PROFILE_KITS))("kit parity (the %s kit)", (profile, kit) => {
   const base = createSlateEditor({ plugins: BASE_KIT });
-  const live = createSlateEditor({ plugins: EDITOR_KIT });
+  const live = createSlateEditor({ plugins: kit });
 
   it("both editors register every vocabulary node plugin", () => {
     for (const key of VOCABULARY_PLUGIN_KEYS) {
       expect(key in base.plugins, `BASE_KIT must register ${key}`).toBe(true);
-      expect(key in live.plugins, `EDITOR_KIT must register ${key}`).toBe(true);
+      expect(key in live.plugins, `the ${profile} kit must register ${key}`).toBe(true);
     }
   });
 
-  it("EDITOR_KIT is a plugin superset of BASE_KIT", () => {
+  it("is a plugin superset of BASE_KIT, so nothing it opens is lost on save", () => {
     const liveKeys = new Set(Object.keys(live.plugins));
     const missing = Object.keys(base.plugins).filter((key) => !liveKeys.has(key));
-    expect(missing, "BASE_KIT plugins missing from the live editor").toStrictEqual([]);
+    expect(missing, `BASE_KIT plugins missing from the ${profile} kit`).toStrictEqual([]);
   });
 
-  it("the live editor shares the MarkdownPlugin config by reference", () => {
+  it("shares the MarkdownPlugin config by reference", () => {
     const options = live.getOptions(MarkdownPlugin);
     expect(options.rules).toBe(MD_RULES);
     expect(options.remarkPlugins).toBe(MD_REMARK_PLUGINS);
@@ -128,7 +134,7 @@ describe("kit parity (live editor mirror)", () => {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [
         ["BASE_KIT", base],
-        ["EDITOR_KIT", live],
+        [profile, live],
       ] as const) {
         expect(editor.api.isInline(el), `${label}: ${type} must be inline`).toBe(true);
         expect(editor.api.isVoid(el), `${label}: ${type} must be void`).toBe(true);
@@ -162,14 +168,14 @@ describe("kit parity (live editor mirror)", () => {
     expect(jsx).toStrictEqual([]);
   });
 
-  it("the live editor serializes the corpus to BASE_KIT's bytes", () => {
+  it("serializes the corpus to BASE_KIT's bytes", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
       const src = readFileSync(`${FIXTURES}${name}`, "utf-8");
       const parsed = parseMarkdown(src);
       if (!parsed.ok) {
         continue;
       }
-      expect(serializeNote(live, parsed.value), `${name} must write alike in both editors`).toBe(
+      expect(serializeNote(live, parsed.value), `${name} must write alike in both kits`).toBe(
         serializeNote(base, parsed.value),
       );
     }
@@ -189,6 +195,41 @@ const pluginNode = z.object({
     isVoid: z.boolean().optional(),
     type: z.string(),
   }),
+});
+
+// what a kit registers once Plate has resolved it (nested plugins included), core plugins aside
+const CORE_KEYS = new Set(Object.keys(createSlateEditor().plugins));
+const keysOf = (plugins: readonly AnyPluginConfig[]): string[] =>
+  Object.keys(editorOf(plugins).plugins).filter((key) => !CORE_KEYS.has(key));
+
+describe("the kits' chrome", () => {
+  const content = keysOf(CONTENT_KIT);
+  const desktopChrome = keysOf(DESKTOP_CHROME_KIT);
+  const desktop = keysOf(PROFILE_KITS.desktop);
+  const touch = keysOf(PROFILE_KITS.touch);
+
+  it("the desktop kit is CONTENT_KIT then DESKTOP_CHROME_KIT, and no plugin sits in both", () => {
+    expect(desktop).toStrictEqual([...content, ...desktopChrome]);
+    expect(desktopChrome.filter((key) => content.includes(key))).toStrictEqual([]);
+  });
+
+  // the two kits are composed apart, so this is what says neither dropped a plugin the other kept
+  it("the desktop and touch kits differ by exactly the pointer chrome and the touch chrome", () => {
+    const pointerChrome = keysOf([
+      ...FindBarKit,
+      ...DragKit,
+      ...BlockMenuKit,
+      ...FloatingToolbarKit,
+    ]);
+    expect(
+      desktop.filter((key) => !touch.includes(key)).toSorted(),
+      "desktop-only plugins",
+    ).toStrictEqual(pointerChrome.toSorted());
+    expect(
+      touch.filter((key) => !desktop.includes(key)).toSorted(),
+      "touch-only plugins",
+    ).toStrictEqual(keysOf([...RichBlockLockKit, ...TouchToolbarKit]).toSorted());
+  });
 });
 
 // each element type with how Slate holds it
@@ -232,8 +273,6 @@ const targets = (plugins: readonly AnyPluginConfig[], key: string): string[] => 
 // must read a node as the others do and write the same fix for the same state, or a reader fixes
 // what its writer left and two readers fix it twice.
 describe("kit parity (one live document)", () => {
-  const KITS = { desktop: EDITOR_KIT, touch: TOUCH_EDITOR_KIT };
-
   const corpus = readdirSync(FIXTURES)
     .toSorted()
     .map((name) => ({ name, value: readValue(readFileSync(`${FIXTURES}${name}`, "utf-8")) }));
@@ -259,7 +298,7 @@ describe("kit parity (one live document)", () => {
     },
   ];
 
-  it.each(Object.entries({ base: BASE_KIT, ...KITS }))(
+  it.each(Object.entries({ base: BASE_KIT, ...PROFILE_KITS }))(
     "the %s kit indents and lists every block the model lets carry it",
     (_, kit) => {
       expect(targets(kit, KEYS.indent)).toStrictEqual(carrying("indent"));
@@ -267,11 +306,14 @@ describe("kit parity (one live document)", () => {
     },
   );
 
-  it.each(Object.entries(KITS))("the %s kit holds every element as BASE_KIT does", (_, kit) => {
-    expect(schemaOf(kit)).toStrictEqual(schemaOf(BASE_KIT));
-  });
+  it.each(Object.entries(PROFILE_KITS))(
+    "the %s kit holds every element as BASE_KIT does",
+    (_, kit) => {
+      expect(schemaOf(kit)).toStrictEqual(schemaOf(BASE_KIT));
+    },
+  );
 
-  it.each(Object.entries(KITS))(
+  it.each(Object.entries(PROFILE_KITS))(
     "the %s kit normalizes what it is handed as BASE_KIT does",
     (_, kit) => {
       for (const { name, value } of handed) {

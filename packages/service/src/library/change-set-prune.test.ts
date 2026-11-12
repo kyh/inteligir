@@ -2,6 +2,7 @@ import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   cellOf,
   clockAt,
@@ -9,8 +10,6 @@ import {
   engineIn,
   inCell,
   landedValue,
-  noteFields,
-  paragraph,
   person,
   placed,
   storedItemOf,
@@ -50,7 +49,7 @@ describe("the change-set prune", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "the first line")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: itemId,
         }),
       );
@@ -115,7 +114,7 @@ describe("the change-set prune", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed([line]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: itemId,
         }),
       );
@@ -147,7 +146,7 @@ describe("the change-set prune", () => {
         landedValue(
           createItem(library, FILL_ACTOR, {
             blocks: placed([paragraph("a", String(index))]),
-            fields: noteFields(),
+            fields: noteFixture(),
             id: crypto.randomUUID(),
           }),
         );
@@ -170,7 +169,7 @@ describe("the change-set prune", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "a line")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: crypto.randomUUID(),
           opId,
         }),

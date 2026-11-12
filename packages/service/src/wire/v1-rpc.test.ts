@@ -1,6 +1,6 @@
-// `/v1/rpc` end to end, as an app's link calls it: the Worker's floor and session, the principal
-// it stamps on what it forwards, one account's cell out of another's reach, and the status every
-// refusal answers under.
+// `/v1/rpc` end to end, as an app's link calls it: the Worker's floor and the door each device's
+// session comes through, the principal it stamps on what it forwards, one account's cell out of
+// another's reach, and the status every refusal answers under.
 
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
@@ -10,20 +10,19 @@ import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { markGrantRevoked } from "../connector/revoked-grants";
 import { createDb } from "@repo/db/d1/client";
-import { rateLimit, revokedGrant, session, user } from "@repo/db/d1/schema";
-import { accountBlobPrefix, blobKey } from "../library/cell-blobs";
+import { session } from "@repo/db/d1/schema";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
-import { holderRateKey } from "../rate-limit";
 import {
   buildHeaders,
   drained,
+  extensionHeaders,
   ORIGIN,
-  PASSWORD,
   phoneHeaders,
   sessionHeaders,
   sessionIdOf,
+  sessionTokenOf,
+  spendMinute,
   signInPhone,
   signOutPhone,
   signUpUser,
@@ -91,32 +90,62 @@ describe("the one wire's door", () => {
     }
   });
 
-  it("reaches the account's own library on the phone's session", async () => {
-    const { phone } = await signedUp("rpc-phone@example.test");
+  it("reaches the account's own library on the phone's cookie under its app scheme, and no cookie another caller sends", async () => {
+    const { phone, phoneCookie } = await signedUp("rpc-phone@example.test");
     const { item } = await phone.library.items.createNote({ markdown: "From the phone." });
     const read = await phone.library.items.read({ id: item.id });
     expect(read.view.markdown).toBe("From the phone.\n");
     const history = await phone.library.history.list({});
     expect(history.changeSets[0]?.label).toBe("You on your iPhone");
-  });
 
-  it("refuses a bearer that does not verify, and never reads the cookie beside it", async () => {
-    const { cookie } = await signedUp("rpc-bad-bearer@example.test");
-    const forged = v1Link({
-      ...sessionHeaders(cookie),
-      authorization: "Bearer not-a-session",
-    });
-    // each call made in its turn, so no refusal waits unheard behind another
-    for (const call of [
-      async () => await forged.library.items.list({}),
-      async () => await forged.account.devices.list(),
+    for (const headers of [
+      { ...buildHeaders(), cookie: phoneCookie },
+      { ...buildHeaders(), cookie: phoneCookie, "expo-origin": "exp://192.168.1.2:8081" },
+      { ...buildHeaders(), cookie: phoneCookie, "sec-fetch-site": "cross-site" },
     ]) {
-      await expect(forged.refusalOf(call())).resolves.toMatchObject({
+      const other = v1Link(headers);
+      await expect(other.refusalOf(other.account.devices.list())).resolves.toMatchObject({
         code: "UNAUTHORIZED",
-        defined: true,
         status: 401,
       });
     }
+  });
+
+  it("reads the extension's bearer, the browser's own signed cookie, and names its writes by it", async () => {
+    const { cookie } = await signedUp("rpc-extension@example.test");
+    const extension = v1Link(extensionHeaders(cookie));
+    await extension.library.items.createNote({ markdown: "Saved from the toolbar." });
+    const { changeSets } = await extension.library.history.list({});
+    expect(changeSets[0]?.label).toBe("You from the browser extension");
+    const { devices } = await extension.account.devices.list();
+    expect(devices.filter((device) => device.current)).toHaveLength(1);
+  });
+
+  it("refuses a bearer no session signed, and never reads the cookie beside it", async () => {
+    const { cookie } = await signedUp("rpc-bad-bearer@example.test");
+    const [token = "", signature = ""] = decodeURIComponent(sessionTokenOf(cookie)).split(".");
+    for (const bearer of [
+      "not-a-session",
+      token,
+      `${token}.${signature.split("").toReversed().join("")}`,
+    ]) {
+      const forged = v1Link({ ...sessionHeaders(cookie), authorization: `Bearer ${bearer}` });
+      // each call made in its turn, so no refusal waits unheard behind another
+      for (const call of [
+        async () => await forged.library.items.list({}),
+        async () => await forged.account.devices.list(),
+      ]) {
+        await expect(forged.refusalOf(call())).resolves.toMatchObject({
+          code: "UNAUTHORIZED",
+          defined: true,
+          status: 401,
+        });
+      }
+    }
+    const asBearer = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    await expect(asBearer.json()).resolves.toBeNull();
   });
 
   it("reaches the library from the site's own tab on its session, and from no other page", async () => {
@@ -322,14 +351,7 @@ describe("every refusal's status", () => {
 
     it("refuses a session past its minute's calls, on the library and the account alike", async () => {
       const { phone, phoneCookie } = await signedUp("rpc-limited@example.test");
-      await createDb(env.DB)
-        .insert(rateLimit)
-        .values({
-          count: 1200,
-          id: crypto.randomUUID(),
-          key: holderRateKey("rpc", await sessionIdOf(phoneCookie)),
-          lastRequest: Date.now(),
-        });
+      await spendMinute(env.RPC_LIMIT, await sessionIdOf(phoneCookie));
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
         async () => await phone.library.items.list({}),
@@ -365,7 +387,7 @@ describe("the account's rows", () => {
     });
   });
 
-  it("ends a browser tab's own session and its cookie when it signs out", async () => {
+  it("ends a browser tab's own session, its cookie and its cached files when it signs out", async () => {
     const { cookie, phone } = await signedUp("rpc-tab-sign-out@example.test");
     const signedOut = await drained(
       exports.default.fetch(`${ORIGIN}/api/auth/sign-out`, {
@@ -376,46 +398,12 @@ describe("the account's rows", () => {
     );
     expect(signedOut.status).toBe(200);
     expect(signedOut.headers.getSetCookie().join("\n")).toMatch(/session_token=;/u);
+    expect(signedOut.headers.get("clear-site-data")).toBe('"cache"');
     const tab = v1Link(sessionHeaders(cookie));
     await expect(tab.refusalOf(tab.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
     await expect(phone.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
-  });
-
-  it("deletes the account with its password asked again, and everything it held goes", async () => {
-    const email = "rpc-delete@example.test";
-    const { accountId, phone, phoneCookie } = await signedUp(email);
-    await phone.library.items.createNote({ markdown: "Soon gone." });
-    await env.BLOBS.put(blobKey(accountId, "c".repeat(64)), "bytes");
-    const db = createDb(env.DB);
-    await markGrantRevoked(db, { accountId, grantId: "disconnected" });
-
-    await expect(phone.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
-      deleted: true,
-    });
-
-    await expect(db.select().from(user).where(eq(user.id, accountId)).all()).resolves.toStrictEqual(
-      [],
-    );
-    await expect(
-      db.select().from(revokedGrant).where(eq(revokedGrant.userId, accountId)).all(),
-    ).resolves.toStrictEqual([]);
-    await expect(
-      db.select().from(session).where(eq(session.userId, accountId)).all(),
-    ).resolves.toStrictEqual([]);
-    const files = await env.BLOBS.list({ prefix: accountBlobPrefix(accountId) });
-    expect(files.objects).toStrictEqual([]);
-    await inCell(cellOf(accountId), (state) => {
-      const library = engineIn(state, clockAt());
-      expect(library.deletedAt()).not.toBeNull();
-      expect(library.head()).toBe(0);
-    });
-    const after = v1Link(phoneHeaders(phoneCookie));
-    await expect(after.refusalOf(after.library.items.list({}))).resolves.toMatchObject({
-      code: "UNAUTHORIZED",
-      status: 401,
-    });
   });
 });

@@ -5,8 +5,9 @@
 // message that opened a turn by the turn.
 
 import type { AgentEvent } from "@repo/contract/library/agent-events";
-import { z } from "zod";
+import { eq, max } from "drizzle-orm";
 
+import { threadEvents } from "@repo/db/cell/schema";
 import type { LandingScope } from "../library/cell-landing";
 
 export const pushedEventId = (threadId: string, seq: number, index: number): string =>
@@ -15,8 +16,6 @@ export const pushedEventId = (threadId: string, seq: number, index: number): str
 export const turnEventId = (threadId: string, turn: number): string =>
   `${threadId}:turn:${String(turn)}`;
 
-const idxSchema = z.object({ idx: z.number() });
-
 // the event kept as the thread's next, once: one kept before is left as it is
 export const storeEvent = (
   scope: LandingScope,
@@ -24,25 +23,29 @@ export const storeEvent = (
   eventId: string,
   event: AgentEvent,
 ): void => {
-  const { storage } = scope;
-  if (storage.all("SELECT 1 FROM thread_events WHERE event_id = ?", [eventId]).length > 0) {
+  const { db } = scope.storage;
+  const kept = db
+    .select({ eventId: threadEvents.eventId })
+    .from(threadEvents)
+    .where(eq(threadEvents.eventId, eventId))
+    .get();
+  if (kept !== undefined) {
     return;
   }
-  const [last] = storage.all(
-    "SELECT coalesce(max(idx), -1) AS idx FROM thread_events WHERE thread_id = ?",
-    [threadId],
-  );
-  storage.run(
-    `INSERT INTO thread_events (event_id, thread_id, idx, type, json, at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
+  const last = db
+    .select({ idx: max(threadEvents.idx) })
+    .from(threadEvents)
+    .where(eq(threadEvents.threadId, threadId))
+    .get();
+  db.insert(threadEvents)
+    .values({
+      at: scope.now,
       eventId,
+      idx: (last?.idx ?? -1) + 1,
+      json: JSON.stringify(event),
       threadId,
-      idxSchema.parse(last).idx + 1,
-      event.type,
-      JSON.stringify(event),
-      scope.now,
-    ],
-  );
+      type: event.type,
+    })
+    .run();
   scope.moved.thread(threadId);
 };

@@ -1,6 +1,5 @@
-import { Suspense, lazy } from "react";
 import type { ComponentProps } from "react";
-import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import Markdown from "react-markdown";
 import type { ExtraProps } from "react-markdown";
 
@@ -10,12 +9,6 @@ import { pageHead } from "#lib/page-head";
 import { siteConfig } from "#lib/site-config";
 import { homeMarkdown } from "#lib/site-content";
 import { SiteHeader } from "#components/site-header";
-
-// three.js is most of this page's weight; imported statically it would hold hydration, and the CTA with it
-const HeroOrb = lazy(async () => {
-  const module = await import("#components/hero-orb");
-  return { default: module.HeroOrb };
-});
 
 // themed tokens, not literal hex: dark is the default theme, so a hardcoded near-black pill vanishes into it
 const CTA_PILL =
@@ -50,16 +43,7 @@ const Page = () => (
       <section className="sr-only">
         <Markdown components={{ a: UntabbableAnchor }}>{homeMarkdown}</Markdown>
       </section>
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="h-48 w-48">
-          <ClientOnly fallback={null}>
-            <Suspense fallback={null}>
-              <HeroOrb />
-            </Suspense>
-          </ClientOnly>
-        </div>
-      </div>
-      <div className="flex flex-col items-center gap-3 px-6 pb-10">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 pb-10">
         <a
           href={siteConfig.downloadUrl}
           className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}

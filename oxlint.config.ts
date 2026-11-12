@@ -9,7 +9,7 @@ const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx", "**/*.spec
 // regexes, not groups: a group matches gitignore-style, so "react" would also refuse "@platejs/react"
 const NODE = "^node:";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
-const PANEL_IMPORTS =
+const CLIENT_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
 type ImportPattern =
@@ -78,6 +78,17 @@ const NOTE_PAGE_WALL = {
   message: "the phone's note page imports nothing of the app outside page/ (page-host.ts)",
   regex: "^(?:\\.\\./|@/)",
 };
+// Tauri answers only inside the Mac app's window, so one module checks for it and speaks the shell
+const DESKTOP_BRIDGE = "apps/web/src/library/shell/desktop-bridge.ts";
+const SHELL_API = {
+  message: "only the library's shell/desktop-bridge.ts reaches the Mac app",
+  regex: "^@tauri-apps/",
+};
+const LIBRARY_IMPORTS = [
+  { message: "the library runs in a browser, where no node module loads", regex: NODE },
+  CONFIG_MODULES,
+  AGENTS_SDK,
+];
 
 // an override's options replace the base's, so each restates the repo-wide row
 const restrictedImports = (patterns: readonly ImportPattern[]) => [
@@ -130,6 +141,31 @@ export default defineConfig({
       rules: { "anti-slop/no-module-mocking": "off" },
     },
     {
+      // an icon-only button shows the product's Tooltip, never the OS's; @repo/ui's Button drops
+      // the native title itself
+      files: ["packages/editor/**"],
+      rules: {
+        "react/forbid-dom-props": [
+          "error",
+          {
+            forbid: [
+              {
+                disallowedFor: ["button"],
+                message: "wrap an icon-only button in @repo/ui's <Tooltip> with an aria-label",
+                propName: "title",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // the two per-block handles keep the native title: one Tooltip root per block in a long
+      // note is a cost nobody measured
+      files: ["packages/editor/src/block-draggable.tsx"],
+      rules: { "react/forbid-dom-props": "off" },
+    },
+    {
       // a stub is `async` to match its port, and vitest types its asymmetric matchers `any`
       files: tests,
       rules: {
@@ -157,11 +193,7 @@ export default defineConfig({
       NODE_OR_REACT,
       "@repo/page-reader reads over its host's DOM",
     ),
-    platformPurity(
-      "packages/agent-panel",
-      PANEL_IMPORTS,
-      "@repo/agent-panel names no platform and no UI",
-    ),
+    platformPurity("packages/client", CLIENT_IMPORTS, "@repo/client names no platform and no UI"),
     platformPurity("apps/extension", NODE, "@repo/extension runs in the browser"),
     platformPurity("packages/ui", NODE, "@repo/ui is browser-only", NO_ORPC_IN_PAGE),
     {
@@ -194,18 +226,18 @@ export default defineConfig({
     {
       excludeFiles: tests,
       files: ["apps/web/src/**"],
-      rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK]) },
+      rules: {
+        "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK, SHELL_API]),
+      },
     },
     {
-      excludeFiles: tests,
+      excludeFiles: [...tests, DESKTOP_BRIDGE],
       files: ["apps/web/src/library/**"],
-      rules: {
-        "no-restricted-imports": restrictedImports([
-          { message: "the library runs in a browser, where no node module loads", regex: NODE },
-          CONFIG_MODULES,
-          AGENTS_SDK,
-        ]),
-      },
+      rules: { "no-restricted-imports": restrictedImports([...LIBRARY_IMPORTS, SHELL_API]) },
+    },
+    {
+      files: [DESKTOP_BRIDGE],
+      rules: { "no-restricted-imports": restrictedImports(LIBRARY_IMPORTS) },
     },
     {
       // Start's middleware `next` is a continuation, not a Node callback
@@ -292,6 +324,8 @@ export default defineConfig({
       "error",
       { considerDefaultExhaustiveForUnions: true },
     ],
+    // the React Compiler memoizes a context's value, as it does every value it compiles
+    "react/jsx-no-constructed-context-values": "off",
     // a string spread here means its code points
     "typescript/no-misused-spread": ["error", { allow: [{ from: "lib", name: "string" }] }],
     "require-await": "off",

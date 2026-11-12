@@ -12,6 +12,7 @@
     "zip": "NODE_ENV=production wxt zip --mode store"
   },
   "dependencies": {
+    "@noble/hashes": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/page-reader": "workspace:*",

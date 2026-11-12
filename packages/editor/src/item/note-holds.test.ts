@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 
 import type { NoteEdits } from "./note-connection";
 import { noteHolds } from "./note-holds";

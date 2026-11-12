@@ -16,13 +16,14 @@ import { createDb } from "@repo/db/d1/client";
 import { connectorAuth } from "./connector-auth";
 import { doorAt } from "../door-routes";
 import { rateLimit, session } from "@repo/db/d1/schema";
-import { CALLER_IP_HEADER, callerRateKey, grantRateKey } from "../rate-limit";
+import { CALLER_IP_HEADER, callerRateKey } from "../rate-limit";
 import {
   drained,
   ORIGIN,
   sessionHeaders,
   sessionTokenOf,
   signUpUser,
+  spendMinute,
   userIdOf,
 } from "../test-support/cloud-helpers";
 import {
@@ -446,15 +447,7 @@ describe("the connector's budgets", () => {
     const minted = await connectAssistant(cookie);
     const listed = await accountClient(cookie).account.assistants.list();
     const [grant] = listed.assistants;
-    const spent = { count: 1_000_000, lastRequest: Date.now() };
-    await createDb(env.DB)
-      .insert(rateLimit)
-      .values({
-        id: crypto.randomUUID(),
-        key: grantRateKey(grant?.grantId ?? ""),
-        ...spent,
-      })
-      .onConflictDoUpdate({ set: spent, target: rateLimit.key });
+    await spendMinute(env.CONNECTOR_LIMIT, grant?.grantId ?? "");
     const refused = await initialize({ authorization: `Bearer ${minted.access_token}` });
     expect(refused.status).toBe(429);
     expect(refused.headers.get("retry-after")).toBe("60");

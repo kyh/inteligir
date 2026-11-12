@@ -12,16 +12,9 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "wxt";
-import { z } from "zod";
 
 import extensionPackage from "./package.json" with { type: "json" };
-import {
-  cloudHostPattern,
-  connectPagePattern,
-  DEV_CLOUD_ORIGIN,
-  extensionManifest,
-  flavorOfMode,
-} from "./src/manifest";
+import { DEV_CLOUD_ORIGIN, extensionManifest, flavorOfMode } from "./src/manifest";
 import { WORKER_CONDITIONS } from "./worker-conditions";
 
 // the extension's version is its package's
@@ -41,32 +34,10 @@ const shippedFiles = (dir: string): string[] =>
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .toSorted();
 
-// the fields the store zip refuses on, read as the store would read the file
-const storeManifestSchema = z.looseObject({
-  externally_connectable: z.looseObject({ matches: z.array(z.string()) }),
-  host_permissions: z.array(z.string()).optional(),
-  version: z.string(),
-});
-
-// what the store signs: no key, since the Web Store signs the item with its own, the production
-// site its one host and never every site, that site's connect page the one that may message it, no
-// file naming a checkout's cloud, and the zip holding exactly the build's files
+// what the store signs: no file naming a checkout's cloud, and the zip holding exactly the build's
+// files. Its manifest is extensionManifest("store"), held there by build:manifestGenerated, whose
+// key, host and connect page src/manifest.test.ts pins
 const checkStoreZip = (outDir: string, zipPath: string): void => {
-  const manifest = storeManifestSchema.parse(
-    JSON.parse(readFileSync(path.join(outDir, "manifest.json"), "utf-8")),
-  );
-  if ("key" in manifest) {
-    fail("the store manifest carries a key: the Web Store signs the item with its own");
-  }
-  if (
-    !isDeepStrictEqual(manifest.host_permissions, [cloudHostPattern("store")]) ||
-    JSON.stringify(manifest).includes("<all_urls>")
-  ) {
-    fail("the store manifest asks for a host but the production site's");
-  }
-  if (!isDeepStrictEqual(manifest.externally_connectable.matches, [connectPagePattern("store")])) {
-    fail("the store manifest lets a page other than the production connect page message it");
-  }
   const files = shippedFiles(outDir);
   for (const file of NAMED_FILES.filter((named) => !files.includes(named))) {
     fail(`the store build has no ${file}`);

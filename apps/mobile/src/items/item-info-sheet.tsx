@@ -2,18 +2,9 @@
 // the item's own fields and the folders the library lists.
 
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { KIND_LABELS } from "@repo/client/library-labels";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { SPACE } from "@/lib/theme";
-
-const KIND_LABELS: Record<LibraryItemFields["kind"], string> = {
-  audio: "Audio",
-  file: "File",
-  image: "Image",
-  link: "Link",
-  note: "Note",
-  pdf: "PDF",
-  video: "Video",
-};
 
 export interface InfoFolder {
   readonly id: string;

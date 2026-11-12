@@ -6,7 +6,6 @@ import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/contract/bytes";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
-import { fakeClock } from "@repo/contract/test-support/fake-clock";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -44,9 +43,7 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
   const runtime = composeRuntime({
     auth: fakePhoneAuth().auth,
     build: { platform: "mobile", version: "1.0.0" },
-    clock: fakeClock(),
     cloudUrl: "https://cell.test",
-    dial: null,
     fetch: async (request) => await network.transport.fetch(request),
     folder: memoryFolder(),
     newBlockId: idSource(),
@@ -55,6 +52,7 @@ const pageOver = async (cell: FakeCell, { changedBytes = false } = {}) => {
       await Promise.resolve(changedBytes ? sha256(Uint8Array.of(0)) : sha256(bytes)),
     shrinkCover: async () => await Promise.resolve(null),
     storage: memoryKv(),
+    WebSocket: null,
   });
   await runtime.start();
   await runtime.login.login({ email: "ada@example.com", password: "a long password" });

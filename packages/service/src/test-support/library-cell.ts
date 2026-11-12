@@ -3,8 +3,6 @@
 // Object, so every statement meets a SQLite Durable Object's own limits.
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { ordsBetween } from "@repo/contract/library/order-key";
-import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 import { heldBody } from "../library/cell-body";
 import { readItem } from "../library/library-queries";
@@ -132,45 +130,12 @@ export const undoFields = (
   changeSetIds: readonly string[],
 ) => library.undo(actor, { changeSetIds }, { notes: new Map(), undoSetId: crypto.randomUUID() });
 
-export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt: Date.UTC(2026, 8, 1),
-  site: null,
-  tags: [],
-  title: "A note",
-  url: null,
-  ...overrides,
-});
-
-export const paragraph = (id: string, text: string): LibraryBlock => ({
-  children: [{ text }],
-  id,
-  type: "p",
-});
-
-// blocks in the order given, keyed as the library mints keys
+// blocks in the order given, in one section
 export const placed = (
   blocks: readonly LibraryBlock[],
   section: LibrarySection = "note",
-): { block: LibraryBlock; ord: string; section: LibrarySection }[] => {
-  const keys = ordsBetween(null, null, blocks.length);
-  return blocks.map((block, index) => ({ block, ord: keys[index] ?? "a0", section }));
-};
+): { block: LibraryBlock; section: LibrarySection }[] =>
+  blocks.map((block) => ({ block, section }));
 
 // the value of a result the test expects to land
 export const landedValue = <T>(result: CellResult<T>): T => {

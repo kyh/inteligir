@@ -1,0 +1,11 @@
+The Inteligir app's shell is built from the Rust crates below, each listed with its version, its licence and its source. The licence texts follow, each once, after the crates it covers.
+
+{{#each crates}}
+{{{package.name}}} {{{package.version}}} — {{{license}}} — {{#if package.repository}}{{{package.repository}}}{{else}}https://crates.io/crates/{{{package.name}}}{{/if}}
+{{/each}}
+{{#each licenses}}
+
+---- {{{name}}}: {{#each used_by}}{{{crate.name}}} {{{crate.version}}}{{#unless @last}}, {{/unless}}{{/each}}
+
+{{{text}}}
+{{/each}}

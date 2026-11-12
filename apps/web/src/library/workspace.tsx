@@ -5,8 +5,9 @@
 // grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
 // open it.
 
-import { viewContextOf } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { viewContextOf } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
+import { saveFolderOf } from "@repo/client/library-labels";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
@@ -28,17 +29,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useStore } from "zustand";
 
-import {
-  useCloud,
-  useLeaveGuard,
-  useLibraryQueries,
-  useSocket,
-  useWire,
-} from "./cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
 import { cellStanding } from "./cloud/needs-connection";
 import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
-import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
+import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
 import { leaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
@@ -52,7 +47,7 @@ import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
 import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
+import { listingQuery, listingView, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
@@ -82,9 +77,7 @@ interface TagSubject {
 }
 
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
-  const wire = useWire();
-  const cloud = useCloud();
-  const socket = useSocket();
+  const { cloud, socket, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
@@ -183,7 +176,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   // CLAUDE.md § The tab asks before it loses the open item's edit: an edit reaches the note as it is
   // typed, so the tab holds one only while it was typed with no connection to carry it
-  const leave = useLeaveGuard();
+  const { leave } = usePageLibrary();
   useEffect(
     () =>
       note === null ? undefined : leave.hold({ holding: note.unsent, onMove: note.subscribe }),
@@ -241,7 +234,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     void navigate({ search: true, to: "/library/settings" });
   };
 
-  useGlobalShortcuts({ enabled: !covered, modifier }, (action) => {
+  useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
         revealPanel("agent");

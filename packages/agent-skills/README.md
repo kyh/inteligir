@@ -13,11 +13,10 @@ connector serves (`read_item` answers an item's text in this dialect, `edit_item
 `create_note` take it back), and the dialect — `[Title](mention:<id>)` and `[[Title]]` links,
 `:date[…]` and `:formula[…]{…}` pills, the colon blocks, the `inteligir-*` fences, the
 `:::article` section, and what markdown cannot hold — is not something a model guesses right.
-The agent has no shell and no files, so nothing here is read at run time: every word is inlined
-into the system prompt, in a fixed order, the same bytes for every
-conversation of every account, so all of them read one cached prefix. Each conversation freezes the
-prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
-start of the conversation's next turn, never mid-turn (`packages/service/src/agent/thread-loop.ts`).
+The agent has no shell and no files, so nothing here is read at run time:
+`packages/service/src/agent/agent-prompt.ts` imports every file as text (Vite's `?raw`) and joins
+them in the hub's order, the same bytes for every conversation of every account, so all of them
+read one cached prefix; a deploy that changes them is taken up at a conversation's next turn.
 
 ## Layout
 
@@ -47,19 +46,10 @@ skills/
 Each `SKILL.md` is its contract, every word of it read by the agent, and ends with a "Before You
 Finish" checklist the agent runs against its own edit.
 
-## How it reaches the agent
-
-`packages/service/scripts/agent-prompt.ts` (`pnpm --filter @repo/service agent-prompt`) builds the prompt from
-this package — `built-in-agent.md`, the hub, then every focused contract in the hub's order — and
-writes it as the Worker's module `packages/service/src/agent/agent-prompt.ts`, which every new
-conversation sends as its system. The prompt is code the Worker ships, so a PR's skills are the ones
-its preview runs. Edit a file here, run the script, and commit what it writes.
-
 ## Invariants
 
-- **Files, never imports.** Nothing imports this package's files as modules; the script reads them
-  through the `exports` map, and `@repo/service` declares the dependency so a change here marks
-  the Worker changed.
+- **Text, never code.** `@repo/service` declares the dependency, so a change here marks the Worker
+  changed.
 - **Written for the library's tools alone.** The agent has no shell, no files and no web: a skill
   names a tool, never a command, a path on disk or a CLI verb.
 - **The spec is the parser's.** A construct a skill teaches reads back as the node it shows, and
@@ -69,17 +59,16 @@ its preview runs. Edit a file here, run the script, and commit what it writes.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
   turn; what a turn needs rides its messages: the view context the person's message, and the
   filing rules a system message after it.
-- **Adding a skill** is one directory, one `SKILL.md`, and a row under the hub's "Focused
-  Contracts", which places it in the prompt. A new construct
+- **Adding a skill** is one directory, one `SKILL.md`, a row under the hub's "Focused
+  Contracts", and the same row in `agent-prompt.ts`'s list, which places it in the prompt. A new construct
   lands in the editor kit, the rule table and `fence-langs` FIRST, then the words.
-- The files are ordinary tracked markdown, which oxfmt formats.
 
 ## Testing
 
-No suite of its own — `package.json` has no scripts. `@repo/service`'s `test` script runs
-`node scripts/agent-prompt.ts --check`, which fails when the committed module differs from the
-skills, when the hub names a skill with no `SKILL.md`, or when the prompt passes 100,000
-characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache.
+No suite of its own — `package.json` has no scripts. `packages/service/src/agent/agent-prompt.test.ts`
+fails when the prompt's list and the hub's rows differ, or when the prompt passes 100,000
+characters, about 25,000 tokens: a prompt longer than that is one no turn should pay to cache; a
+row naming no `SKILL.md` fails the build.
 `packages/editor/src/skill-examples.test.ts` reads every `markdown` example through the codec:
 each must read, keep its letters, write its own fixpoint, and leave no construct it spells as
 text, and together they show every construct only the dialect spells.

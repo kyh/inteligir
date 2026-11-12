@@ -1,16 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { AlertDialog } from "@base-ui/react/alert-dialog";
 
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@repo/ui/components/alert-dialog";
 import { Button } from "@repo/ui/components/button";
+import { DialogCard, renderDialogBackdrop } from "@repo/ui/components/dialog";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 
 export interface ConfirmOptions {
   title: React.ReactNode;
@@ -87,43 +82,62 @@ export const ConfirmDialogHost = () => {
     confirmStore.set(null);
   };
 
+  const open = pending !== null;
+
+  // Dialog's backdrop and card over the alert primitive's own parts, which keep the alertdialog
+  // role and refuse an outside-press dismissal; controlled, since the Portal's presence reads the
+  // open it is handed
   return (
-    <AlertDialog
-      open={pending !== null}
-      onOpenChange={(open) => {
-        if (!open) {
+    <AlertDialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
           settle(false);
         }
       }}
     >
-      <AlertDialogContent size="sm" initialFocus={destructive ? cancelButtonRef : confirmButtonRef}>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{options?.title}</AlertDialogTitle>
-        </AlertDialogHeader>
-        {options?.body !== undefined && (
-          <AlertDialogDescription>{options.body}</AlertDialogDescription>
-        )}
-        <AlertDialogFooter>
-          <Button
-            ref={cancelButtonRef}
-            variant="secondary"
-            onClick={() => {
-              settle(false);
-            }}
-          >
-            {options?.cancelLabel ?? "Cancel"}
-          </Button>
-          <Button
-            ref={confirmButtonRef}
-            variant={destructive ? "destructive" : "primary"}
-            onClick={() => {
-              settle(true);
-            }}
-          >
-            {options?.confirmLabel ?? "Confirm"}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <PopupOpen open={open}>
+        <PopupPresence>
+          <AlertDialog.Portal keepMounted>
+            <AlertDialog.Backdrop render={renderDialogBackdrop} />
+            <AlertDialog.Popup
+              initialFocus={destructive ? cancelButtonRef : confirmButtonRef}
+              render={(popupProps) => (
+                <DialogCard popupProps={popupProps} className="grid w-full max-w-xs gap-6" />
+              )}
+            >
+              <AlertDialog.Title className="text-center font-heading text-title font-medium">
+                {options?.title}
+              </AlertDialog.Title>
+              {options?.body !== undefined && (
+                <AlertDialog.Description className="text-subtitle text-balance text-muted-foreground md:text-pretty *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
+                  {options.body}
+                </AlertDialog.Description>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  ref={cancelButtonRef}
+                  variant="secondary"
+                  onClick={() => {
+                    settle(false);
+                  }}
+                >
+                  {options?.cancelLabel ?? "Cancel"}
+                </Button>
+                <Button
+                  ref={confirmButtonRef}
+                  variant={destructive ? "destructive" : "primary"}
+                  onClick={() => {
+                    settle(true);
+                  }}
+                >
+                  {options?.confirmLabel ?? "Confirm"}
+                </Button>
+              </div>
+            </AlertDialog.Popup>
+          </AlertDialog.Portal>
+        </PopupPresence>
+      </PopupOpen>
+    </AlertDialog.Root>
   );
 };

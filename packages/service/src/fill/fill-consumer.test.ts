@@ -69,12 +69,12 @@ describe("a saved link's reading", () => {
       await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
       const item = await itemIn(accountId, itemId);
       expect(item?.fields).toMatchObject({
-        author: "A. Lindqvist (JSON-LD)",
-        description: "Plain files outlive the apps that made them.",
+        author: "Ada Lindqvist",
+        description: "A short argument for plain files over databases.",
         fetchError: null,
         fetchState: "filled",
         lang: "en",
-        published: "2024-03-05",
+        published: "2024-03-04",
         site: "Field Notes",
         title: "Keep your notes in files",
       });
@@ -141,7 +141,9 @@ describe("a saved link's reading", () => {
     const web = serveWeb({
       [endpoint]: () =>
         Response.json({ author_name: "The Baker", provider_name: "YouTube", title: "Sourdough" }),
-      [url]: htmlPage(videoPage),
+      [url]: htmlPage(
+        videoPage.replace("<head>", '<head><meta name="author" content="Crumb Kitchen">'),
+      ),
     });
     await deliver(job);
     expect(web.asked.map((hop) => hop.url)).toContain(endpoint);

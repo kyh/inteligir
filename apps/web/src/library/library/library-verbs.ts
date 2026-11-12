@@ -19,10 +19,10 @@ import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 
-import { useCloud, useWire } from "../cloud/library-context";
+import { usePageLibrary } from "../cloud/library-context";
 import { uploadFile } from "../cloud/library-files";
-import type { V1Queries } from "../cloud/v1";
-import { runBulk } from "./bulk-actions";
+import type { V1Queries } from "@repo/client/library-cache";
+import { chunksOf, runBulk } from "./bulk-actions";
 import type { ListedItem } from "./listing";
 import { newId } from "./new-id";
 
@@ -183,14 +183,6 @@ const foldersAfter = (scopes: ScopesAnswer, ops: readonly FolderOp[]): ScopesAns
   return { ...scopes, folders };
 };
 
-const chunked = <T>(items: readonly T[]): T[][] => {
-  const chunks: T[][] = [];
-  for (let start = 0; start < items.length; start += BULK_ITEMS_MAX) {
-    chunks.push(items.slice(start, start + BULK_ITEMS_MAX));
-  }
-  return chunks;
-};
-
 export interface TagChange {
   readonly add: readonly string[];
   readonly remove: readonly string[];
@@ -212,8 +204,8 @@ export interface NoteMade {
 const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
 
 export const useLibraryVerbs = () => {
-  const { client, orpc } = useWire();
-  const cloud = useCloud();
+  const { cloud, wire } = usePageLibrary();
+  const { client, orpc } = wire;
   const queryClient = useQueryClient();
 
   const readAgain = async (): Promise<void> => {
@@ -388,7 +380,7 @@ export const useLibraryVerbs = () => {
       });
     },
     pin: (ids: readonly string[], pinned: boolean): void => {
-      for (const chunk of chunked(ids)) {
+      for (const chunk of chunksOf(ids)) {
         organize.mutate(
           { ids: chunk, pinned },
           {
@@ -415,14 +407,14 @@ export const useLibraryVerbs = () => {
     // answers how many went to Deleted
     remove: async (ids: readonly string[]): Promise<number> => {
       let deleted = 0;
-      for (const chunk of chunked(ids)) {
+      for (const chunk of chunksOf(ids)) {
         const answer = await remove.mutateAsync({ ids: chunk });
         deleted += answer.deleted.length;
       }
       return deleted;
     },
     restore: (ids: readonly string[]): void => {
-      for (const chunk of chunked(ids)) {
+      for (const chunk of chunksOf(ids)) {
         restore.mutate(
           { ids: chunk },
           {

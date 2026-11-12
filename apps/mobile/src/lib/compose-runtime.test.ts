@@ -8,13 +8,11 @@ import { dehydrate } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
-import { fakeClock } from "@repo/contract/test-support/fake-clock";
-import { fakeSockets } from "@repo/contract/test-support/fake-sockets";
-import type { FakeSockets } from "@repo/contract/test-support/fake-sockets";
+import { fakeSockets } from "@repo/client/test-support/fake-sockets";
+import type { FakeSockets } from "@repo/client/test-support/fake-sockets";
 import { paragraph } from "@repo/contract/test-support/library-items";
-import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { describe, expect, it } from "vitest";
-import { deferred } from "../test-support/async";
+import { deferred } from "@repo/contract/deferred";
 import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";
@@ -73,9 +71,7 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
   const runtime = composeRuntime({
     auth: options.keys.auth,
     build: { platform: "mobile", version: "1.0.0" },
-    clock: fakeClock(),
     cloudUrl: "https://cell.test",
-    dial: options.sockets?.dial ?? null,
     fetch: options.fetch ?? (async (request) => await network.transport.fetch(request)),
     folder: options.folder ?? memoryFolder(),
     newBlockId: idSource(),
@@ -84,6 +80,7 @@ const runtimeOver = (cell: FakeCell, options: PhoneOptions) => {
       await Promise.resolve(createHash("sha256").update(bytes).digest("hex")),
     shrinkCover: async () => await Promise.resolve(null),
     storage,
+    WebSocket: options.sockets?.WebSocket ?? null,
   });
   return { network, runtime, storage };
 };
@@ -416,137 +413,34 @@ describe("the phone's runtime", () => {
 
 // a phone whose socket is open, each query it may ask again held, and which of them it now asks
 const socketPhone = async () => {
-  const cell = createFakeCell();
   const sockets = fakeSockets();
-  const { runtime } = runtimeOver(cell, { keys: fakePhoneAuth(KEPT_SESSION), sockets });
+  const { runtime } = runtimeOver(createFakeCell(), { keys: fakePhoneAuth(KEPT_SESSION), sockets });
   await runtime.start();
   // the next socket the phone dials, opened
   const opened = async () => {
     const dialled = sockets.sockets.length;
     await expect.poll(() => sockets.sockets.length).toBe(dialled + 1);
     const live = sockets.sockets.at(-1);
-    if (live === undefined) {
-      throw new Error("the phone dialled no socket");
-    }
-    live.open();
+    live?.open();
     return live;
   };
   const socket = await opened();
-  // behind and back in front: the socket goes, and the next one comes up
-  const cameBack = async (): Promise<void> => {
-    runtime.suspend();
-    runtime.resume();
-    await opened();
-  };
   const { queries } = signedIn(runtime);
-  const { agent, items, listing } = queries.library;
-  const keys = {
-    other: items.get.queryKey({ input: { id: "0190a000-0000-7000-8000-0000000000ff" } }),
-    page: listing.page.queryKey({
-      input: { limit: 100, query: { deleted: false, sort: "saved" } },
-    }),
-    read: items.get.queryKey({ input: { id: NOTE } }),
-    scopes: listing.scopes.queryKey(),
-    threads: agent.list.queryKey({ input: { limit: 50 } }),
-    titles: listing.titles.queryKey(),
-  } satisfies Record<string, QueryKey>;
-  // each key as the cache files it, whatever the query reads
-  const held: readonly QueryKey[] = Object.values(keys);
-  for (const key of held) {
-    runtime.queryClient.setQueryData(key, "held");
-  }
-  const asked = () =>
-    Object.entries(keys)
-      .filter(([, key]) => runtime.queryClient.getQueryState(key)?.isInvalidated === true)
-      .map(([name]) => name)
-      .toSorted();
-  return { asked, cameBack, runtime, socket };
+  // a note's read, filed as the cache files it whatever the query reads
+  const read: QueryKey = queries.library.items.get.queryKey({ input: { id: NOTE } });
+  runtime.queryClient.setQueryData(read, "held");
+  const asked = (): boolean => runtime.queryClient.getQueryState(read)?.isInvalidated === true;
+  return { asked, opened, runtime, socket };
 };
 
-describe("what the account's socket asks again", () => {
-  it("asks again what a moved frame names, and nothing else", async () => {
-    const { asked, socket } = await socketPhone();
-    socket.message(
-      JSON.stringify({ folders: false, items: [{ id: NOTE, seq: 3 }], threads: [], type: "moved" }),
-    );
-    expect(asked()).toStrictEqual(["page", "read", "scopes", "titles"]);
-  });
-
-  it("asks the folders again for a folder's move, and the conversations for a thread's", async () => {
-    const { asked, socket } = await socketPhone();
-    socket.message(
-      JSON.stringify({
-        folders: true,
-        items: [],
-        threads: ["0190a000-0000-7000-8000-0000000000c1"],
-        type: "moved",
-      }),
-    );
-    expect(asked()).toStrictEqual(["scopes", "threads"]);
-  });
-
-  it("asks everything again when a frame or a socket coming up says anything may have moved", async () => {
-    const all = await socketPhone();
-    all.socket.message(
-      JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }),
-    );
-    expect(all.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
-
-    const back = await socketPhone();
-    back.runtime.suspend();
-    expect(back.asked()).toStrictEqual([]);
-    await back.cameBack();
-    expect(back.asked()).toStrictEqual(["other", "page", "read", "scopes", "threads", "titles"]);
-  });
-
-  it("tells a screen which items moved, and that any may have once a frame or a socket coming up says so", async () => {
-    const { cameBack, runtime, socket } = await socketPhone();
-    const heard: (string[] | null)[] = [];
-    const stop = signedIn(runtime).onItems((ids) => {
-      heard.push(ids === null ? null : [...ids]);
-    });
-    const other = "0190a000-0000-7000-8000-0000000000ff";
-    socket.message(
-      JSON.stringify({
-        folders: false,
-        items: [
-          { id: NOTE, seq: 3 },
-          { id: other, seq: 4 },
-        ],
-        threads: [],
-        type: "moved",
-      }),
-    );
-    socket.message(JSON.stringify({ folders: true, items: [], threads: [], type: "moved" }));
-    socket.message(JSON.stringify({ folders: false, items: "all", threads: [], type: "moved" }));
-    await cameBack();
-    expect(heard).toStrictEqual([[NOTE, other], null, null]);
-    stop();
-    await cameBack();
-    expect(heard).toHaveLength(3);
-  });
-
-  it("holds the reply being written, asking nothing, until a write moves its thread", async () => {
-    const { asked, runtime, socket } = await socketPhone();
-    const { previews } = signedIn(runtime);
-    const hear = (frame: LibrarySocketFrame): void => {
-      socket.message(JSON.stringify(frame));
-    };
-    const thread = "0190a000-0000-7000-8000-0000000000c1";
-    const other = "0190a000-0000-7000-8000-0000000000c2";
-
-    hear({ text: "Filing", threadId: thread, type: "preview" });
-    hear({ text: "Look", threadId: other, type: "preview" });
-    expect(asked()).toStrictEqual([]);
-    expect(previews.get(thread)).toBe("Filing");
-    hear({ folders: false, items: [], threads: [thread], type: "moved" });
-    expect(previews.get(thread)).toBeNull();
-    expect(previews.get(other)).toBe("Look");
-    hear({ folders: false, items: [], threads: "all", type: "moved" });
-    expect(previews.get(other)).toBeNull();
-    hear({ text: "Filed", threadId: thread, type: "preview" });
-    socket.drop();
-    expect(previews.get(thread)).toBeNull();
+describe("the account's socket on the phone", () => {
+  it("asks everything again once the app is back in front, since a write may have landed unsaid", async () => {
+    const { asked, opened, runtime } = await socketPhone();
+    runtime.suspend();
+    expect(asked()).toBe(false);
+    runtime.resume();
+    await opened();
+    expect(asked()).toBe(true);
   });
 
   it("lets the reply being written go when the app goes behind", async () => {
@@ -554,10 +448,10 @@ describe("what the account's socket asks again", () => {
     const { previews } = signedIn(runtime);
     const thread = "0190a000-0000-7000-8000-0000000000c1";
 
-    socket.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
+    socket?.message(JSON.stringify({ text: "Filing", threadId: thread, type: "preview" }));
     expect(previews.get(thread)).toBe("Filing");
     runtime.suspend();
-    expect(socket.closed).toBe(true);
+    expect(socket?.closed).toBe(true);
     expect(previews.get(thread)).toBeNull();
   });
 });

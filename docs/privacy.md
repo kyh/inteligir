@@ -150,10 +150,11 @@ as:
     route it counts, a count and a timestamp.
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
-    reads and writes of your library, and its attempts to delete the
-    account, are counted the same way under its session's id, never an
-    address, and a connected assistant's calls under the id of the access you
-    gave it.
+    attempts to delete the account are counted the same way under its
+    session's id, never an address. Its reads and writes of your library are
+    counted under its session's id too, and a connected assistant's calls
+    under the id of the access you gave it, by Cloudflare's own rate limiter
+    over a minute, with no row in our database.
   - **The app's version, on every request to our cloud.** The phone app and
     the browser extension say which version they are, and which of the two, on
     each request they send our cloud, so it can stop answering a version too old to work with
@@ -300,7 +301,8 @@ The apps also hold to these, plainly:
 - **The Mac app shows your library from our website.** It keeps the site's
   sign-in cookie and the page's settings in its own web storage on that Mac,
   and each file you opened in its web cache, as a browser does for your
-  library in a tab; signing out empties neither cache. The app keeps no log.
+  library in a tab; signing out asks the app, or the browser, to empty that
+  web cache, and the page's settings stay. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as
 Anthropic's Claude, which our cloud runs to operate the built-in agent you can

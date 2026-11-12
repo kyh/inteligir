@@ -6,7 +6,7 @@ import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./fixtures";
 
 // a day of more turns than a test sends
 test.use({
-  cloudOptions: { json: { AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 1000, dayTurns: 10 } } },
+  cloudOptions: { json: { AGENT_ALLOWANCE: { concurrentTurns: 2, dayTurns: 10 } } },
 });
 
 const UserMessageSchema = z.looseObject({

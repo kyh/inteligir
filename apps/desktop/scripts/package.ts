@@ -13,9 +13,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseEnv } from "node:util";
 import manifest from "../package.json" with { type: "json" };
 import { run } from "./run.ts";
-import { writeRustNotices } from "./rust-notices.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageRoot, "..", "..");
@@ -62,19 +62,12 @@ const notaryEnv = (): NotaryEnv | null => {
   if (text === null) {
     return null;
   }
-  const values = new Map<string, string>();
-  for (const line of text.split("\n")) {
-    const { name, value } =
-      /^(?<name>APPLE_[A-Z_]+)=(?<value>.+)$/u.exec(line.trim())?.groups ?? {};
-    if (name !== undefined && value !== undefined) {
-      values.set(name, value);
-    }
-  }
-  const issuer = values.get("APPLE_API_ISSUER");
-  const key = values.get("APPLE_API_KEY");
-  const keyPath = values.get("APPLE_API_KEY_PATH");
-  if (issuer === undefined || key === undefined || keyPath === undefined) {
-    const missing = NOTARY_VARIABLES.filter((name) => !values.has(name));
+  const values = parseEnv(text);
+  const issuer = values.APPLE_API_ISSUER ?? "";
+  const key = values.APPLE_API_KEY ?? "";
+  const keyPath = values.APPLE_API_KEY_PATH ?? "";
+  if (issuer === "" || key === "" || keyPath === "") {
+    const missing = NOTARY_VARIABLES.filter((name) => (values[name] ?? "") === "");
     throw new Error(`.release/notary.env has no ${missing.join(", ")} (docs/releasing.md)`);
   }
   return {
@@ -129,11 +122,23 @@ log(
 );
 log(updaterKey === null ? "no updater key: the app will not update itself" : "signing the update");
 
-const crateCount = await writeRustNotices(
-  path.join(packageRoot, "src-tauri"),
-  path.join(packageRoot, ".output", "notices", "rust-crates.txt"),
+// the crates the shell's binary is built from on the Mac and their licence texts, which ask to
+// travel with it (src-tauri/about.toml)
+const noticesDir = path.join(packageRoot, ".output", "notices");
+await mkdir(noticesDir, { recursive: true });
+run(
+  "cargo",
+  [
+    "about",
+    "generate",
+    "--locked",
+    "--fail",
+    "-o",
+    path.join(noticesDir, "rust-crates.txt"),
+    "about.hbs",
+  ],
+  { cwd: path.join(packageRoot, "src-tauri") },
 );
-log(`noted the licences of the ${crateCount} Rust crates the shell links`);
 
 // the fields of Tauri's config this pack sets over tauri.conf.json
 interface PackageConfig {

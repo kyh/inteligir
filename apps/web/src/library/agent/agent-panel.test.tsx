@@ -4,7 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { deferred } from "@repo/contract/test-support/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
@@ -571,36 +571,6 @@ describe("the agent panel's conversation", () => {
     });
   });
 
-  it("keeps its button down through leaving the conversation and coming back", async () => {
-    const said = vi.spyOn(toast, "error");
-    const { calls, library } = fakePageLibrary({
-      answer: ({ path }) =>
-        path === "library.history.list" ? { changeSets: [set("s1", 1)], cursor: null } : UNDONE,
-      events: oneFinishedTurn,
-      threads: [thread],
-    });
-    renderOnLibrary(<Moving to={null} />, library);
-    const whole = await screen.findByRole("button", { name: "Undo this conversation" });
-    setOnline(false);
-    fireEvent.click(whole);
-    const move = screen.getByRole("button", { name: "Move" });
-    fireEvent.click(move);
-    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
-    fireEvent.click(move);
-    const back = await screen.findByRole("button", { name: "Undo this conversation" });
-    expect(back).toHaveProperty("disabled", true);
-    fireEvent.click(back);
-    setOnline(true);
-    await waitFor(() => {
-      expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
-    });
-    await waitFor(() => {
-      expect(back).toHaveProperty("disabled", false);
-    });
-    expect(callsTo(calls, "library.history.undo")).toHaveLength(1);
-    expect(said).not.toHaveBeenCalled();
-  });
-
   describe("every Undo, while an undo waits", () => {
     it("stays down offline, so a second press has nothing to be refused", async () => {
       const refused = vi.spyOn(toast, "error");
@@ -666,32 +636,35 @@ describe("the agent panel's conversation", () => {
       expect(refused).not.toHaveBeenCalled();
     });
 
-    it("stays down through leaving the conversation and coming back", async () => {
-      const refused = vi.spyOn(toast, "error");
-      const cell = takesBackOnce([set("s1", 1)]);
-      const { library } = fakePageLibrary({
-        answer: cell.answer,
-        events: oneFinishedTurn,
-        threads: [thread],
-      });
-      renderOnLibrary(<Moving to={null} />, library);
-      const turn = await screen.findByRole("button", { name: "Undo this turn" });
-      setOnline(false);
-      fireEvent.click(turn);
-      const move = screen.getByRole("button", { name: "Move" });
-      fireEvent.click(move);
-      expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
-      fireEvent.click(move);
-      const back = await screen.findByRole("button", { name: "Undo this turn" });
-      await waitFor(() => {
-        expect(heldDown(back)).toBe(true);
-      });
-      fireEvent.click(back);
-      setOnline(true);
-      await gone();
-      expect(cell.landed).toStrictEqual([["s1"]]);
-      expect(refused).not.toHaveBeenCalled();
-    });
+    it.each(["Undo this turn", "Undo this conversation"])(
+      "keeps %s down through leaving the conversation and coming back",
+      async (name) => {
+        const refused = vi.spyOn(toast, "error");
+        const cell = takesBackOnce([set("s1", 1)]);
+        const { library } = fakePageLibrary({
+          answer: cell.answer,
+          events: oneFinishedTurn,
+          threads: [thread],
+        });
+        renderOnLibrary(<Moving to={null} />, library);
+        const pressed = await screen.findByRole("button", { name });
+        setOnline(false);
+        fireEvent.click(pressed);
+        const move = screen.getByRole("button", { name: "Move" });
+        fireEvent.click(move);
+        expect(screen.queryByRole("button", { name })).toBeNull();
+        fireEvent.click(move);
+        const back = await screen.findByRole("button", { name });
+        await waitFor(() => {
+          expect(heldDown(back)).toBe(true);
+        });
+        fireEvent.click(back);
+        setOnline(true);
+        await gone();
+        expect(cell.landed).toStrictEqual([["s1"]]);
+        expect(refused).not.toHaveBeenCalled();
+      },
+    );
 
     it("stays down behind a conversation press offline, which then lands whole", async () => {
       const refused = vi.spyOn(toast, "error");

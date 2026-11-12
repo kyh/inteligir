@@ -31,40 +31,6 @@ export type ItemKey = (typeof ITEM_KEYS)[number];
 
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
-export const FILE_KIND_EXTENSIONS = {
-  audio: [".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".opus", ".wav"],
-  image: [
-    ".apng",
-    ".avif",
-    ".bmp",
-    ".gif",
-    ".heic",
-    ".ico",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".svg",
-    ".webp",
-  ],
-  pdf: [".pdf"],
-  video: [".m4v", ".mov", ".mp4", ".webm"],
-} as const satisfies Record<Exclude<FileKind, "file">, readonly string[]>;
-
-const KIND_BY_EXTENSION = new Map<string, FileKind>([
-  ...FILE_KIND_EXTENSIONS.audio.map((ext) => [ext, "audio"] as const),
-  ...FILE_KIND_EXTENSIONS.image.map((ext) => [ext, "image"] as const),
-  ...FILE_KIND_EXTENSIONS.pdf.map((ext) => [ext, "pdf"] as const),
-  ...FILE_KIND_EXTENSIONS.video.map((ext) => [ext, "video"] as const),
-]);
-
-// null for a doc or a metadata path, neither of which is a file item; "file" for any other name
-export const fileKindOf = (path: string): FileKind | null => {
-  if (isDocPath(path) || isDotEntryPath(path)) {
-    return null;
-  }
-  return KIND_BY_EXTENSION.get(extnamePath(path).toLowerCase()) ?? "file";
-};
-
 // what kind of file a type uploaded as is; a type no viewer reads is a plain file
 export const fileKindOfMime = (mime: string): FileKind => {
   const type = mime.toLowerCase();
@@ -121,6 +87,19 @@ const TYPE_OF_EXTENSION = new Map(
 export const mediaTypeOfName = (name: string): string | null =>
   TYPE_OF_EXTENSION.get(extnamePath(name).slice(1).toLowerCase()) ?? null;
 
+// the extensions a file of a media type goes by, its usual one first
+export const extensionsOfType = (type: string): readonly string[] =>
+  MEDIA_EXTENSIONS.find(([known]) => known === type)?.slice(1) ?? [];
+
+// null for a doc or a metadata path, neither of which is a file item; "file" for any other name
+export const fileKindOf = (path: string): FileKind | null => {
+  if (isDocPath(path) || isDotEntryPath(path)) {
+    return null;
+  }
+  const type = mediaTypeOfName(path);
+  return type === null ? "file" : fileKindOfMime(type);
+};
+
 // the type a file the person hands over is kept as: the one it came with, else plain bytes (a
 // browser gives "" for a file whose type it does not know, which the library takes for none)
 export const keptFileType = (handed: string): string =>
@@ -138,9 +117,6 @@ const BYTES_FOLDER_PATH = new RegExp(
 );
 
 export const isBytesFolderPath = (path: string): boolean => BYTES_FOLDER_PATH.test(path);
-
-// where an export writes the library's filing rules
-export const LIBRARY_RULES_PATH = "AGENTS.md";
 
 // what a device says of a link it will not save, in the one sentence every device says it
 export const WEB_URL_RULE = "Only web links (http or https) can be saved.";

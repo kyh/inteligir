@@ -38,7 +38,7 @@ describe("a page link's chip", () => {
     expect(screen.getByRole("button", { name: "Quarterly plan" })).toBeDefined();
   });
 
-  it("previews the item's first lines after the hover delay and opens it by its id", async () => {
+  it("previews the item's card after the hover delay and opens it by its id", async () => {
     const id = "0190a000-0000-7000-8000-000000000002";
     const { calls } = installFakeEditorHost({
       itemBlocks: (itemId) =>

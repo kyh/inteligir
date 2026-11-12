@@ -23,7 +23,7 @@ import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 import { storeItemRow, storeLinks, storeSearchRow, storeTags } from "./library-queries";
 import type { ItemBody, LiveStoredItem } from "./library-queries";
-import { LibraryRowError, runPlan } from "./library-sql";
+import { LibraryRowError } from "./library-sql";
 
 // an item's text, all its blocks' together; a block's own is the vocabulary's
 export const ITEM_TEXT_MAX_BYTES = 8 * 1024 * 1024;
@@ -228,13 +228,10 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     canonicalJson(before.fields) !== canonicalJson(fields)
   ) {
     storeTags(storage.db, itemId, derived.tags);
-    runPlan(
-      storage,
-      storeSearchRow(itemId, {
-        ...derived.search,
-        body: landed.seed?.text ?? readBodyText(storage.db, itemId),
-      }),
-    );
+    storeSearchRow(storage, itemId, {
+      ...derived.search,
+      body: landed.seed?.text ?? readBodyText(storage.db, itemId),
+    });
   }
   if (before === null || !sameShas(priorShas, shas)) {
     storeItemBlobs(storage.db, itemId, shas, scope.now);

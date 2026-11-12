@@ -2,8 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "includeEntryExports": true,
   "treatConfigHintsAsErrors": true,
-  // the gallery demos @repo/ui, so its imports are no consumer of an export
-  "ignoreWorkspaces": ["tools/ui-gallery"],
   "workspaces": {
     "apps/desktop": { "entry": ["scripts/*.ts"] },
     // linked natively; knip's expo plugin counts it only while app.config.js turns `updates` on
@@ -13,18 +11,18 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts", "scripts/*.ts"],
+      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "packages/db": {
       // the local D1's config throws on load until `pnpm dev:web` has made that database
       "ignore": ["drizzle.config.local.ts"],
-      "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.{cell,note,thread}.ts"] }
+      "drizzle": { "config": ["drizzle.config.ts"] }
     },
     "packages/service": {
-      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],
+      "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts"],
       "ignore": ["src/types/highlight-js.d.ts"],
-      "ignoreDependencies": ["@repo/agent-skills", "cloudflare"]
+      "ignoreDependencies": ["cloudflare"]
     }
   }
 }

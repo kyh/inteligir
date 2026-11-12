@@ -97,15 +97,12 @@ const OwnedCombobox = ({
   const hasValueProp = valueProp !== undefined;
   const value = hasValueProp ? valueProp : valueState;
 
-  const setValue = React.useCallback(
-    (newValue: string) => {
-      setValueProp?.(newValue);
-      if (!hasValueProp) {
-        setValueState(newValue);
-      }
-    },
-    [setValueProp, hasValueProp],
-  );
+  const setValue = (newValue: string) => {
+    setValueProp?.(newValue);
+    if (!hasValueProp) {
+      setValueState(newValue);
+    }
+  };
 
   const valueRef = React.useRef(value);
   React.useLayoutEffect(() => {
@@ -130,13 +127,13 @@ const OwnedCombobox = ({
     [editor, element, trigger],
   );
 
-  const commit = React.useCallback(() => {
+  const commit = () => {
     if (closedRef.current) {
       return;
     }
     closedRef.current = true;
     commitComboboxInput(editor, element, true);
-  }, [editor, element]);
+  };
 
   React.useEffect(() => {
     inputRef.current?.focus();
@@ -161,27 +158,24 @@ const OwnedCombobox = ({
     input.ownerDocument.execCommand("insertText", false, absorbed);
   }, [raced, editor, element]);
 
-  const onInputValueChange = React.useCallback(
-    (nextValue: string) => {
-      if (closeOn !== undefined && nextValue.endsWith(closeOn.suffix)) {
-        const words = closeOn.words(nextValue.slice(0, -closeOn.suffix.length));
-        if (words !== "") {
-          commit();
-          closeOn.pick(words);
-          return;
-        }
+  const onInputValueChange = (nextValue: string) => {
+    if (closeOn !== undefined && nextValue.endsWith(closeOn.suffix)) {
+      const words = closeOn.words(nextValue.slice(0, -closeOn.suffix.length));
+      if (words !== "") {
+        commit();
+        closeOn.pick(words);
+        return;
       }
-      const input = inputRef.current;
-      if (input && document.activeElement === input) {
-        const fixed = reconcileInsertionCaret(valueRef.current, nextValue, input.selectionStart);
-        if (fixed !== null) {
-          input.setSelectionRange(fixed, fixed);
-        }
+    }
+    const input = inputRef.current;
+    if (input && document.activeElement === input) {
+      const fixed = reconcileInsertionCaret(valueRef.current, nextValue, input.selectionStart);
+      if (fixed !== null) {
+        input.setSelectionRange(fixed, fixed);
       }
-      setValue(nextValue);
-    },
-    [closeOn, commit, setValue],
-  );
+    }
+    setValue(nextValue);
+  };
 
   const selected = useSelected();
   const previousSelected = React.useRef(selected);
@@ -192,72 +186,64 @@ const OwnedCombobox = ({
     previousSelected.current = selected;
   }, [selected, cancel]);
 
-  const onKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (matchesHotkey("escape", event)) {
-        event.preventDefault();
-        cancel("escape");
-        return;
+  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (matchesHotkey("escape", event)) {
+      event.preventDefault();
+      cancel("escape");
+      return;
+    }
+    if (cursorState.atStart && matchesHotkey("backspace", event)) {
+      event.preventDefault();
+      cancel("backspace");
+      return;
+    }
+    if (cursorState.atStart && matchesHotkey("arrowleft", event)) {
+      event.preventDefault();
+      cancel("arrowLeft");
+      return;
+    }
+    if (cursorState.atEnd && matchesHotkey("arrowright", event)) {
+      event.preventDefault();
+      cancel("arrowRight");
+      return;
+    }
+    const { undos, redos } = undoStackSizes(editor);
+    const isUndo = Hotkeys.isUndo(event) && undos > 0;
+    const isRedo = Hotkeys.isRedo(event) && redos > 0;
+    if (isUndo || isRedo) {
+      event.preventDefault();
+      if (isUndo) {
+        editor.undo();
+      } else {
+        editor.redo();
       }
-      if (cursorState.atStart && matchesHotkey("backspace", event)) {
-        event.preventDefault();
-        cancel("backspace");
-        return;
-      }
-      if (cursorState.atStart && matchesHotkey("arrowleft", event)) {
-        event.preventDefault();
-        cancel("arrowLeft");
-        return;
-      }
-      if (cursorState.atEnd && matchesHotkey("arrowright", event)) {
-        event.preventDefault();
-        cancel("arrowRight");
-        return;
-      }
-      const { undos, redos } = undoStackSizes(editor);
-      const isUndo = Hotkeys.isUndo(event) && undos > 0;
-      const isRedo = Hotkeys.isRedo(event) && redos > 0;
-      if (isUndo || isRedo) {
-        event.preventDefault();
-        if (isUndo) {
-          editor.undo();
-        } else {
-          editor.redo();
-        }
-        editor.tf.focus();
-      }
-    },
-    [cancel, cursorState.atStart, cursorState.atEnd, editor],
-  );
-
-  const inputProps = React.useMemo(() => ({ onKeyDown }), [onKeyDown]);
+      editor.tf.focus();
+    }
+  };
 
   // items self-filter to null and register when visible, so open state and the Empty row share one count
   const [visibleCount, setVisibleCount] = React.useState(0);
-  const registerVisibleItem = React.useCallback(() => {
+  const registerVisibleItem = () => {
     setVisibleCount((count) => count + 1);
     return () => {
       setVisibleCount((count) => count - 1);
     };
-  }, []);
+  };
   const [hasEmpty, setHasEmpty] = React.useState(false);
 
   const open = visibleCount > 0 || hasEmpty;
 
-  const contextValue = React.useMemo<InlineComboboxContextValue>(
-    () => ({
-      commit,
-      filter,
-      inputProps,
-      inputRef,
-      registerVisibleItem,
-      setHasEmpty,
-      trigger,
-      value,
-      visibleCount,
-    }),
-    [commit, filter, inputProps, registerVisibleItem, trigger, value, visibleCount],
-  );
+  const contextValue: InlineComboboxContextValue = {
+    commit,
+    filter,
+    inputProps: { onKeyDown },
+    inputRef,
+    registerVisibleItem,
+    setHasEmpty,
+    trigger,
+    value,
+    visibleCount,
+  };
 
   // no onOpenChange: open is derived, and Base UI's escape/outside-click close requests route through cancel
   return (
@@ -368,10 +354,7 @@ const InlineComboboxItem = ({
 }) => {
   const { commit, filter, registerVisibleItem, value: search } = useInlineComboboxContext();
 
-  const visible = React.useMemo(
-    () => filter === false || filter({ group, keywords, label, value }, search),
-    [filter, group, keywords, value, label, search],
-  );
+  const visible = filter === false || filter({ group, keywords, label, value }, search);
 
   React.useEffect(() => {
     if (visible) {

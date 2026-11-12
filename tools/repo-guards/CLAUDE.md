@@ -11,11 +11,13 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
   conflict is no reason; the licences live in `tools/licenses`, and the .app
-  ships its crates' notices (`apps/desktop/scripts/rust-notices.ts`).
+  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
-  (owner decision), and every DOM suite compiles its sources the same way. Why:
-  the suites run what ships, and a `compiled-under-test` case fails without the
-  preset. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
+  (owner decision), every DOM suite compiles its sources the same way, and a
+  hand `useMemo` or `useCallback` stays only as an effect's dependency or where
+  the compiler would key a value wrongly. Why: the suites run what ships, a
+  `compiled-under-test` case fails without the preset, and the compiler
+  memoizes the rest. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
   `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.
@@ -44,8 +46,6 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A release script is TypeScript node runs as it stands**, checked under
   `nodenext`, `erasableSyntaxOnly` and `verbatimModuleSyntax`. Why: a bad
   import fails the typecheck, not the release. `apps/desktop/scripts/tsconfig.json`.
-- **`.github/scripts/worker-preview.mjs` stays JS.** Why: its first step runs
-  before the job sets up the repo's node.
 - **A test sits beside the module it tests, and shared test code in
   `test-support/`.** Why: those two names are all a config reads to tell a test
   from a source, as kyh/init does. `oxlint.config.ts`.

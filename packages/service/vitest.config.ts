@@ -21,7 +21,6 @@ const MODEL_SUITES = [
 
 // the suites that open the account's socket or a note's
 const SOCKET_SUITES = [
-  "src/account-delete.test.ts",
   "src/library/library-socket.test.ts",
   "src/note/note-live.test.ts",
   "src/session-devices.test.ts",
@@ -41,8 +40,8 @@ const workerd = cloudflareTest({
     // also makes ctx.exports.LibraryDO a SQLite namespace (test-support/env.d.ts)
     durableObjects: { LIBRARY_CELL: { className: "LibraryDO", useSQLite: true } },
     bindings: { TEST_SCHEMA },
-    // every object's migrations, which @repo/db's migrations.js imports as text; the plugin takes module
-    // rules from here or a Wrangler file alone, and parses a .sql as JavaScript otherwise
+    // every object's DDL, which the objects import as text; the plugin takes module rules from here
+    // or a Wrangler file alone, and parses a .sql as JavaScript otherwise
     modulesRules: [{ include: ["**/*.sql"], type: "Text" }],
   },
 });

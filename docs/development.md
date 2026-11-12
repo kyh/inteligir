@@ -1,13 +1,9 @@
 # Development guide
 
-How to run, verify, and change inteligir — the ONE home for the commands, the
-ports, where state lives and the gate; `README.md` and `AGENTS.md` link here
-rather than restating them. `AGENTS.md` is the coding agents' root: the
-premises, the quickstart and the rules, each workspace's `CLAUDE.md` its
-decisions; `apps/web/README.md` has the Worker's routes, doors and deploy,
-`packages/service/README.md` the cloud's code and its suites,
-`packages/db/README.md` the schemas, and `docs/releasing.md` the release:
-every step and check that is the owner's.
+How to run, verify and change inteligir: the one home for the commands, the
+ports, where state lives and the gates beyond `AGENTS.md`'s quickstart, which
+`README.md` and every workspace's README point here for. A workspace's README is
+its own map, and `docs/releasing.md` every step that is the owner's.
 
 ## Prerequisites
 
@@ -28,7 +24,6 @@ every step and check that is the owner's.
 
 ```bash
 pnpm dev                # The Mac app's window on the local Worker's library tab (pnpm dev:web)
-pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one); a physical phone
                         #   needs `expo start --tunnel`, since the note editor needs a secure
@@ -36,12 +31,10 @@ pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses 
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the site and
                         #   the library tab at /library off vite's dev server, and the scripted
                         #   Messages API on :5177 its built-in agent talks to
-pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
-pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
 pnpm typecheck          # Type check all
 pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
@@ -56,8 +49,7 @@ against the local Worker's files:
 ```bash
 pnpm --filter @repo/db push                     # the D1 schema into pnpm dev:web's local D1
 pnpm --filter @repo/db studio                   # browse it (mint an invite here)
-pnpm --filter @repo/db generate:cell --name <x> # the next cell migration, from src/cell/schema.ts
-pnpm --filter @repo/db generate:note --name <x> # the next note migration, from src/note/schema.ts
+pnpm --filter @repo/db ddl                      # each object's ddl.sql, from its src/<object>/schema.ts
 pnpm --filter @repo/db run --silent export      # the D1 schema's DDL, as the suites apply it
 ```
 
@@ -99,17 +91,10 @@ inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
 A raw, unsigned token is refused.
 
-The site's per-page share cards under `apps/web/public/og/` are rendered,
-never drawn by hand: `pnpm --filter @repo/web og:cards`
-(`apps/web/scripts/og-cards.ts`) renders a 1200x630 card per page in
-`apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
-Playwright's Chromium, and sits outside `pnpm verify` and the build.
-
-The built-in agent's system prompt, `packages/service/src/agent/agent-prompt.ts`,
-is written, never edited by hand: `pnpm --filter @repo/service agent-prompt`
-(`packages/service/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`,
-and `@repo/service`'s `test` script first fails a tree whose module differs
-from what it would write (`packages/service/README.md` § The built-in agent).
+The built-in agent's system prompt is `@repo/agent-skills`'s files, which
+`packages/service/src/agent/agent-prompt.ts` imports as text in the hub's
+order; a new skill is a row there beside its row in the hub
+(`packages/service/README.md` § The built-in agent).
 
 ## Browser extension
 
@@ -143,7 +128,6 @@ which is how the e2e points the dev build at the Worker it boots
 | What                                                                 | Where                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Site + cloud Worker (`pnpm dev:web`)                                 | 5174 (pinned — `strictPort`)                                                                                                                                                            |
-| UI gallery (`pnpm dev:gallery`)                                      | 5175 (pinned — `strictPort`)                                                                                                                                                            |
 | Scripted Messages API (`pnpm dev:web`)                               | 5177 (pinned — `.env`'s `ANTHROPIC_FAKE_URL` names it)                                                                                                                                  |
 | Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
@@ -151,9 +135,9 @@ which is how the e2e points the dev build at the Worker it boots
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
-| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables migrated from `packages/db/src/cell/migrations` as it wakes                                       |
-| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables migrated from `packages/db/src/note/migrations` as it wakes                                             |
-| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables migrated from `packages/db/src/thread/migrations` as it wakes                                  |
+| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables made from `packages/db/src/cell/ddl.sql` as it wakes                                              |
+| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables made from `packages/db/src/note/ddl.sql` as it wakes                                                    |
+| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables made from `packages/db/src/thread/ddl.sql` as it wakes                                         |
 | Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates
@@ -173,7 +157,7 @@ on past a failure to every task whose dependencies passed, so a red format
 cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
 tasks run at once (four by default), as it does for `pnpm test`.
 
-knip runs once, over every workspace but the gallery. On its own it is
+knip runs once, over every workspace. On its own it is
 `pnpm turbo run //#knip`: it reads the extension's program, which extends the
 `.wxt/tsconfig.json` its `generate` task writes, so a bare `pnpm knip` on a
 fresh checkout sees none of the extension's suites and calls the exports they
@@ -185,9 +169,10 @@ Worker's, the service's and the extension's `generate` tasks write.
 CI then runs what `verify` cannot: it installs Playwright's Chromium
 (`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
 and runs `pnpm e2e`, two Playwright workers on its four cores, so a green
-`verify` is not a green CI; run `pnpm e2e` too before claiming one. A second
-job runs on macOS, where the app ships: `pnpm test` again, since the shell's
-macOS code compiles and runs only there. Each step CI adds on top of
+`verify` is not a green CI; run `pnpm e2e` too before claiming one. CI's
+`verify` leaves the shell out: a second job runs on macOS, where the app ships,
+`pnpm test` again and the shell's typecheck and format, since its macOS code
+compiles and runs only there. Each step CI adds on top of
 `pnpm verify` carries the reason `verify` cannot run it as a comment beside it
 in `.github/workflows/ci.yml`.
 

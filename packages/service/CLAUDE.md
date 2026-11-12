@@ -12,10 +12,6 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   ends.** A lost phone goes from Settings › Account with no password, and Better
   Auth's own list routes would hand each session's token to the browser.
   `packages/service/src/auth/session-devices.ts`.
-- **A device signs out through Better Auth's own `/api/auth/sign-out`, and no
-  unreachable cloud holds that sign-out open.** The phone drops its copy first
-  and keeps the session if the copy will not go; a tab, holding nothing, ends
-  the session first. `apps/mobile/src/lib/compose-runtime.ts`.
 - **An account is deleted from any signed-in device, the password asked again,
   through Better Auth's `deleteUser`** (owner decision: whoever lost their Mac
   deletes from any Mac). Its `beforeDelete` is the one purge path, and a session
@@ -119,18 +115,19 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **Filing rules are the person's own words, and only the person writes them.**
   They reach the agent above anything a saved page says, so an import reads an
   `AGENTS.md` as a note. `packages/service/src/library/library-rules.ts`.
-- **A query on a table that outlives the block rows is drizzle's sync builder,
-  and the rest are plans.** A Durable Object caps a statement at 100 bound
-  parameters, and the suites run on its own SQLite, never a wasm build.
-  `packages/service/src/library/library-queries.ts`.
+- **A cell query is drizzle's sync builder over the table its schema declares,
+  and only the search and a JSON path are SQL text.** Raw SQL spells the schema
+  again and reads its rows back through zod; `listChunks` and `insertChunks`
+  hold a statement to a Durable Object's 100 bound parameters.
+  `packages/service/src/library/cell-db.ts`.
 - **An agent turn's undo in a note replays the turn's own Yjs updates, and flags
   what it takes with a block the turn added.** One merged update per set loses
   an edit made between two of the turn's. `packages/service/src/note/turn-log.ts`.
 - **A note object's duties to its cell are one deadline, each duty keeping its
-  own retry.** One shared retry let a landed duty clear or re-arm the other's.
+  own retry.** One shared retry lets a landed duty clear or re-arm the other's.
   `packages/service/src/note/note-duty.ts`.
 - **A note's standing is one value, and leaving full or Deleted reopens every
-  socket.** A boolean per standing left devices read-only after a compaction.
+  socket.** A boolean per standing leaves devices read-only after a compaction.
   `packages/service/src/note/note-standing.ts`.
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
@@ -200,10 +197,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **An approval waits on the person ten minutes in the thread's own rows, and a
   cancel denies before it stops.** A tool that waits in memory dies with an
   eviction. `packages/service/src/agent/thread-loop.ts`.
-- **Every turn is counted before it starts, every step capped, and every reply
-  booked once it lands** (owner decision: a daily allowance per account, the
-  gateway's spend limit behind it). Reserving each call would guess Claude's
-  bill. `packages/service/src/agent/agent-allowance.ts`.
+- **Every turn is counted before it starts and every step capped; the dollars
+  are the gateway's spend limit alone, which ends the turn it refuses** (owner
+  decision: a daily allowance per account, $5 a day per account behind it). A
+  ledger of our own prices every reply a second time.
+  `packages/service/src/agent/agent-allowance.ts`.
 - **A thread is the account's: its events are the cell's rows its object's
   outbox pushes** (owner decision: the phone asks the agent too). The Agents
   SDK's client socket is a second socket and auth beside the account's.
@@ -217,7 +215,7 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   thinking blocks, which every run expects to be none. `tools/e2e/src/fixtures.ts`.
 - **A long conversation is compacted by the API at 50,000 tokens, and a deploy's
   definition is taken up between turns.** A resumed turn writes its prompt to
-  the cache again, 60 cents of the day's dollar at 150,000.
+  the cache again, 60 cents at 150,000.
   `packages/service/src/agent/thread-request.ts`.
 - **Saving a link is the agent's one way out of the library, and the person sees
   the whole address before it goes.** A saved page the agent read can ask it to
@@ -226,10 +224,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   writes notes a saved page may steer, and a fetch on open is a request no person
   made. `tools/repo-guards/src/remote-media.test.ts`.
 - **A conversation's drive is one value, and a purge is a cut, never a stop.** A
-  flag per concern let a purged drive step again over tables being removed.
+  flag per concern lets a purged drive step again over tables being removed.
   `packages/service/src/agent/thread-drive.ts`.
 - **A tool call is one union, moved by one function.** Reading the columns at
-  each site lost the person's no on a stop.
+  each site loses the person's no on a stop.
   `packages/service/src/agent/tool-call.ts`.
 - **A thread's status is what its open turn and queued sends say, written in one
   place.** Six writers choosing a status let it contradict the rows.

@@ -6,7 +6,7 @@ import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { revertChangeSets, revertItemChange } from "./revert-change";
 import type { FillChange, ItemChange, ItemNow, ItemRevert } from "./revert-change";
-import { noteFields } from "@repo/contract/test-support/library-items";
+import { noteFixture } from "@repo/contract/test-support/library-items";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
 
 const AT = 1_800_000_000_000;
@@ -49,7 +49,7 @@ const EDITED: ItemRevert = { kind: "keep", reason: "edited-since" };
 
 describe(revertItemChange, () => {
   it("reverts fields one by one, tags as a set, and answers an overlap", () => {
-    const x = noteFields({ tags: ["keep"], title: "Old" });
+    const x = noteFixture({ tags: ["keep"], title: "Old" });
     const y = landed(x, [
       { base: "Old", field: "title", op: "set", value: "New" },
       { base: ["keep"], op: "tags", value: ["keep", "added"] },
@@ -67,7 +67,7 @@ describe(revertItemChange, () => {
   });
 
   it("keeps the item whole when what the set took out no longer fits", () => {
-    const x = noteFields({ tags: ["keep", "gone"] });
+    const x = noteFixture({ tags: ["keep", "gone"] });
     const y = landed(x, [{ base: ["keep", "gone"], op: "tags", value: ["keep"] }]);
     const refilled = Array.from(
       { length: ITEM_FIELD_CAPS.listEntries - 1 },
@@ -79,13 +79,13 @@ describe(revertItemChange, () => {
   });
 
   it("takes a tag's new spelling back", () => {
-    const x = noteFields({ tags: ["Foo"] });
+    const x = noteFixture({ tags: ["Foo"] });
     const y = landed(x, [{ base: ["Foo"], op: "tags", value: ["foo"] }]);
     expect(fieldsOf(revert(changeOf(x, y), nowOf(y))).tags).toStrictEqual(["Foo"]);
   });
 
   it("moves an item it made to Deleted unless a person touched it since, in its fields or its note", () => {
-    const made = noteFields({ fetchState: "pending", kind: "link" });
+    const made = noteFixture({ fetchState: "pending", kind: "link" });
     const change = changeOf(null, made);
     expect(fieldsOf(revert(change, nowOf(made))).deletedAt).toBe(AT);
     const retitled = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
@@ -95,7 +95,7 @@ describe(revertItemChange, () => {
   });
 
   describe("an item it made that a fill read since", () => {
-    const made = noteFields({ fetchState: "pending", kind: "link" });
+    const made = noteFixture({ fetchState: "pending", kind: "link" });
     const read: readonly FieldOp[] = [
       { base: "pending", field: "fetchState", op: "set", value: "filled" },
       { base: null, field: "originalName", op: "set", value: "page.pdf" },
@@ -138,7 +138,7 @@ describe(revertItemChange, () => {
   });
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {
-    const x = noteFields();
+    const x = noteFixture();
     const y = landed(x, [{ base: null, field: "deletedAt", op: "set", value: 5 }]);
     expect(fieldsOf(revert(changeOf(x, y), nowOf(y))).deletedAt).toBeNull();
     expect(revert(changeOf(x, y), null)).toStrictEqual({ kind: "keep", reason: "purged" });
@@ -171,7 +171,7 @@ describe("undoing a change set", () => {
   it("returns the item exactly as it was when nothing changed since (seeded)", () => {
     const rand = mulberry32(0x0d_0e_51);
     for (let trial = 0; trial < 400; trial += 1) {
-      const x = landed(noteFields(), randomOps(rand, noteFields()));
+      const x = landed(noteFixture(), randomOps(rand, noteFixture()));
       const y = landed(x, randomOps(rand, x));
       const verdict = revert(changeOf(x, y), nowOf(y));
       expect(verdict.kind === "unchanged" ? y : fieldsOf(verdict)).toStrictEqual(x);
@@ -180,7 +180,7 @@ describe("undoing a change set", () => {
 });
 
 describe(revertChangeSets, () => {
-  const x = noteFields({ title: "one" });
+  const x = noteFixture({ title: "one" });
 
   it("undoes a conversation newest first, so a set that changed what an older one wrote lands", () => {
     const older = retitle(x, "two");

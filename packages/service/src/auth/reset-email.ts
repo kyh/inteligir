@@ -1,7 +1,7 @@
 import { errorFields } from "../log";
 
-// Never throws: the reset-request response must stay neutral, so an absent transport (a preview or
-// a dev config, with no send_email binding or sender) warns and returns, and a rejected send
+// Never throws: the reset-request response must stay neutral, so an absent transport (a dev
+// config, with no send_email binding or sender) warns and returns, and a rejected send
 // (domain not onboarded, E_SENDER_NOT_VERIFIED) logs and returns.
 
 const FROM_NAME = "inteligir";

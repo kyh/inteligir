@@ -118,6 +118,9 @@ catalog:
   # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
   # what a note's object inherits
   partyserver: 0.5.10
+  # exact, the one y-partyserver resolves: the account's socket redials on it, so the tab, the phone
+  # and a note's provider share one copy
+  partysocket: 1.3.0
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0
@@ -129,7 +132,6 @@ catalog:
   platejs: ^53.5.2
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
-  # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
   react-native: ~0.86.3
@@ -239,10 +241,6 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
-  # one react-native and one expo in the tree, the phone's: @react-three/fiber (the site) names both
-  # as optional peers, which would otherwise resolve to the newest of each beside the phone's
-  react-native: "catalog:"
-  expo: "catalog:"
 
 # partyserver and y-partyserver peer @cloudflare/workers-types for their declarations, which the
 # runtime types `cf workers types` generates already supply; a required peer would be installed and

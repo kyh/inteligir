@@ -3,8 +3,8 @@ import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "@repo/ui/lib/theme";
 
 import { Button } from "@repo/ui/components/button";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
-import { LibraryLink } from "#components/library-link";
 import { siteConfig } from "#lib/site-config";
 
 const GithubIcon = ({ className }: { className?: string }) => (
@@ -44,9 +44,17 @@ const ThemeToggle = () => {
   );
 };
 
+// a plain anchor, so the library opens on a document of its own, under its own stylesheet and
+// headers; it sends a signed-out tab to sign in and back, so one link serves someone signed in and
+// someone not
 export const SiteHeader = () => (
   <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
-    <LibraryLink className="flex h-9 items-center rounded-full bg-accent px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent/80" />
+    <a
+      href={LIBRARY_PAGE_PATH}
+      className="flex h-9 items-center rounded-full bg-accent px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent/80"
+    >
+      Open your library
+    </a>
     <ThemeToggle />
     <a
       href={siteConfig.github}

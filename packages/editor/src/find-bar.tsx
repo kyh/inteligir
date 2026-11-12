@@ -44,7 +44,6 @@ const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
   label: "Replace all (from the replace field)",
 };
 
-// ⌘F itself is the shell's row: global-shortcuts.ts opens the bar from the window listener
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
   { action: "find-next", hotkey: "mod+g", label: "Next match" },
   { action: "find-previous", hotkey: "mod+shift+g", label: "Previous match" },

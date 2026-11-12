@@ -5,7 +5,7 @@
 // and nothing it needs later is held in memory: the account and the queue are storage's, the
 // session the browser's jar.
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
@@ -63,6 +63,11 @@ const withBadge = async (tabId: number, run: () => Promise<Outcome>): Promise<Ou
   return outcome;
 };
 
+// a store build saves to the site, so the site's own sign-in serves it; a dev build's connect page
+// names the local Worker it saves to
+const signInPath = (): string =>
+  flavorOfMode(import.meta.env.MODE) === "store" ? SIGN_IN_PATH : CONNECT_EXTENSION_PATH;
+
 // the cloud asked, and when it does not answer, what the browser holds
 const status = async (): Promise<Status> => {
   const origin = cloudOrigin(await readConnection());
@@ -75,7 +80,7 @@ const status = async (): Promise<Status> => {
             libraryUrl: `${signIn.session.origin}${LIBRARY_PAGE_PATH}`,
           }
         : null,
-    signInUrl: `${origin}${CONNECT_EXTENSION_PATH}`,
+    signInUrl: `${origin}${signInPath()}`,
   };
 };
 
@@ -106,7 +111,7 @@ const clicked = async (info: Browser.contextMenus.OnClickData, tab?: Browser.tab
   if (facts === null) {
     return;
   }
-  const action = menuAction(info);
+  const action = await menuAction(info);
   await withBadge(facts.id, async () => {
     switch (action.kind) {
       case "page": {

@@ -1,8 +1,6 @@
-// The library's folders: a tree of names, each guarded like a block by what its writer read (its
-// name, its parent), and no two live siblings under one name, since an agent files by the path of
-// names from the top. Deleting a folder deletes the folders under it; an item filed in a deleted
-// folder lists as unsorted. A folder is no item, so its writes join no change set; each is stamped
-// with the write's sequence number, as an item is.
+// The library's folders, a tree of names under the contract's rules (`cell-rules.ts`), stored
+// here: an item filed in a deleted folder lists as unsorted. A folder is no item, so its writes join
+// no change set; each is stamped with the write's sequence number, as an item is.
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
@@ -10,6 +8,8 @@ import type { z } from "zod";
 import { folders } from "@repo/db/cell/schema";
 import { FOLDER_NAME_MAX, folderPathNames } from "@repo/contract/library/library-wire";
 import type { folderOpSchema } from "@repo/contract/library/library-wire";
+import { folderOpLanding, folderOpRefusal } from "@repo/contract/library/cell-rules";
+import type { FolderReader, FolderTarget } from "@repo/contract/library/cell-rules";
 import { compareText, ordBetween } from "@repo/contract/library/order-key";
 import { titleKey } from "@repo/contract/library/derive-item";
 
@@ -29,9 +29,6 @@ export interface FolderRow {
   readonly deletedAt: number | null;
   readonly seq: number;
 }
-
-// where an item is filed: a folder by id, by its path of names from the top, or none
-export type FolderTarget = { readonly id: string } | { readonly path: string } | null;
 
 const readFolder = (db: CellDb, id: string): FolderRow | null =>
   db.select().from(folders).where(eq(folders.id, id)).get() ?? null;
@@ -66,12 +63,6 @@ const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRo
   return folder;
 };
 
-const conflictOf = (id: string, current: FolderRow | null): ConflictCurrent => ({
-  current,
-  id,
-  kind: "folder",
-});
-
 const childrenOf = (db: CellDb, parentId: string | null): FolderRow[] =>
   db
     .select()
@@ -84,154 +75,27 @@ const childrenOf = (db: CellDb, parentId: string | null): FolderRow[] =>
     )
     .all();
 
-// the live sibling another folder would share a name with
-const namesake = (
-  db: CellDb,
-  folder: { readonly id: string; readonly parentId: string | null; readonly name: string },
-): FolderRow | null =>
-  childrenOf(db, folder.parentId).find(
-    (sibling) => sibling.id !== folder.id && titleKey(sibling.name) === titleKey(folder.name),
-  ) ?? null;
-
-// whether `ancestor` is `folderId` or a folder above it
-const isAtOrAbove = (db: CellDb, ancestor: string, folderId: string | null): boolean => {
-  const seen = new Set<string>();
-  for (let at = folderId; at !== null && !seen.has(at); at = readFolder(db, at)?.parentId ?? null) {
-    if (at === ancestor) {
-      return true;
-    }
-    seen.add(at);
-  }
-  return false;
-};
-
-type Op<K extends FolderOp["op"]> = Extract<FolderOp, { op: K }>;
-
-const liveParentOrRefuse = (db: CellDb, parentId: string): FolderRow =>
-  live(readFolder(db, parentId)) ?? refuse({ kind: "not-found" });
-
-const createConflict = (db: CellDb, op: Op<"create">): ConflictCurrent | null => {
-  const held = readFolder(db, op.id);
-  if (held !== null) {
-    const same = held.deletedAt === null && held.name === op.name && held.parentId === op.parentId;
-    return same ? null : conflictOf(op.id, held);
-  }
-  if (op.parentId !== null) {
-    liveParentOrRefuse(db, op.parentId);
-  }
-  const clash = namesake(db, op);
-  return clash === null ? null : conflictOf(clash.id, clash);
-};
-
-const renameConflict = (db: CellDb, op: Op<"rename">): ConflictCurrent | null => {
-  const held = readFolder(db, op.id);
-  const current = live(held);
-  if (current === null || (current.name !== op.base && current.name !== op.name)) {
-    return conflictOf(op.id, held);
-  }
-  const clash = namesake(db, { ...current, name: op.name });
-  return clash === null ? null : conflictOf(clash.id, clash);
-};
-
-const moveConflict = (db: CellDb, op: Op<"move">): ConflictCurrent | null => {
-  const held = readFolder(db, op.id);
-  const current = live(held);
-  if (current === null || current.parentId !== op.baseParentId) {
-    return current?.parentId === op.parentId ? null : conflictOf(op.id, held);
-  }
-  if (op.parentId !== null) {
-    const parent = liveParentOrRefuse(db, op.parentId);
-    // a folder cannot go under itself: the tree the writer read did not hold it there
-    if (isAtOrAbove(db, op.id, op.parentId)) {
-      return conflictOf(parent.id, parent);
-    }
-  }
-  const clash = namesake(db, { ...current, parentId: op.parentId });
-  return clash === null ? null : conflictOf(clash.id, clash);
-};
-
-// what an op met instead of its base, or null when it may land (an op already true included)
-const opConflict = (db: CellDb, op: FolderOp): ConflictCurrent | null => {
-  switch (op.op) {
-    case "create": {
-      return createConflict(db, op);
-    }
-    case "rename": {
-      return renameConflict(db, op);
-    }
-    case "move": {
-      return moveConflict(db, op);
-    }
-    case "delete": {
-      return null;
-    }
-    // no default
-  }
-};
-
-// a folder and every live folder under it, deepest last
-const subtreeOf = (db: CellDb, root: FolderRow): FolderRow[] => {
-  const found: FolderRow[] = [root];
-  // an array's iterator reads the entries pushed while it runs, so each folder's children follow
-  for (const parent of found) {
-    found.push(...childrenOf(db, parent.id));
-  }
-  return found;
-};
-
-// the rows the op changed, none for an op already true
-const landOp = (scope: LandingScope, op: FolderOp): FolderRow[] => {
-  const { db } = scope.storage;
-  const held = readFolder(db, op.id);
-  switch (op.op) {
-    case "create": {
-      return held === null
-        ? [
-            storeFolder(scope, {
-              deletedAt: null,
-              id: op.id,
-              name: op.name,
-              parentId: op.parentId,
-              sort: op.sort,
-            }),
-          ]
-        : [];
-    }
-    case "rename": {
-      return held !== null && held.name !== op.name
-        ? [storeFolder(scope, { ...held, name: op.name })]
-        : [];
-    }
-    case "move": {
-      return held !== null && (held.parentId !== op.parentId || held.sort !== op.sort)
-        ? [storeFolder(scope, { ...held, parentId: op.parentId, sort: op.sort })]
-        : [];
-    }
-    case "delete": {
-      const current = live(held);
-      return current === null
-        ? []
-        : subtreeOf(db, current).map((folder) =>
-            storeFolder(scope, { ...folder, deletedAt: scope.now }),
-          );
-    }
-    // no default
-  }
-};
+const readerOf = (db: CellDb): FolderReader => ({
+  children: (parentId) => childrenOf(db, parentId),
+  folder: (id) => readFolder(db, id),
+});
 
 // every op in order, each against the tree the ones before it left; any conflict lands none. The
 // answer is each folder the write changed, as it left it
 export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): FolderRow[] => {
   const conflicts: ConflictCurrent[] = [];
   const landed = new Map<string, FolderRow>();
+  const reader = readerOf(scope.storage.db);
   for (const op of ops) {
-    const conflict = opConflict(scope.storage.db, op);
-    if (conflict === null) {
-      for (const row of landOp(scope, op)) {
-        landed.set(row.id, row);
+    const refusal = folderOpRefusal(reader, op);
+    if (refusal === null) {
+      for (const row of folderOpLanding(reader, op, scope.now)) {
+        landed.set(row.id, storeFolder(scope, row));
       }
+    } else if (refusal.kind === "not-found") {
+      refuse(refusal);
     } else {
-      conflicts.push(conflict);
+      conflicts.push({ current: refusal.current, id: refusal.id, kind: "folder" });
     }
   }
   if (conflicts.length > 0) {

@@ -8,13 +8,16 @@
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readLiveItem } from "./library-queries";
-import type { SqlStatements } from "./library-sql";
-import { z } from "zod";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
+import { changeSetItems, changeSets } from "@repo/db/cell/schema";
 import { SEAL_POLICIES } from "./cell-actor";
 import type { CellActor, ChangeSetActor, SealPolicy } from "./cell-actor";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
+import type { CellDb } from "./cell-db";
 import { storeFieldsPart } from "./cell-parts";
 import type { CellStorage } from "./cell-storage";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
@@ -67,12 +70,6 @@ const keysOf = (actor: CellActor): ActorKeys => {
   }
 };
 
-const openRowSchema = z.object({
-  id: z.string(),
-  opened_at: z.number(),
-  touched_at: z.number(),
-});
-
 const sealJobOf = (id: string): JobRequest<"seal"> => ({
   id: `seal:${id}`,
   kind: "seal",
@@ -89,101 +86,96 @@ const quietDeadline = (
     ? touchedAt + policy.quietMs
     : Math.min(touchedAt + policy.quietMs, openedAt + policy.capMs);
 
-const findOpen = (sql: SqlStatements, actor: ChangeSetActor, keys: ActorKeys) => {
-  const [row] = sql.all(
-    `SELECT id, opened_at, touched_at FROM change_sets
-     WHERE actor = ? AND sealed_at IS NULL AND actor_id IS ? AND client_id IS ? AND session_id IS ?
-       AND thread_id IS ? AND turn IS ?
-     ORDER BY opened_at DESC LIMIT 1`,
-    [actor, keys.actorId, keys.clientId, keys.sessionId, keys.threadId, keys.turn],
-  );
-  return row === undefined ? null : openRowSchema.parse(row);
-};
+// SQL's `IS`: a key the actor lacks matches only a set that lacks it too
+const keyIs = (column: AnySQLiteColumn, value: string | number | null): SQL =>
+  value === null ? isNull(column) : eq(column, value);
+
+const findOpen = (db: CellDb, actor: ChangeSetActor, keys: ActorKeys) =>
+  db
+    .select({ id: changeSets.id, openedAt: changeSets.openedAt, touchedAt: changeSets.touchedAt })
+    .from(changeSets)
+    .where(
+      and(
+        eq(changeSets.actor, actor),
+        isNull(changeSets.sealedAt),
+        keyIs(changeSets.actorId, keys.actorId),
+        keyIs(changeSets.clientId, keys.clientId),
+        keyIs(changeSets.sessionId, keys.sessionId),
+        keyIs(changeSets.threadId, keys.threadId),
+        keyIs(changeSets.turn, keys.turn),
+      ),
+    )
+    .orderBy(desc(changeSets.openedAt))
+    .limit(1)
+    .get() ?? null;
 
 const insertSet = (
-  sql: SqlStatements,
+  db: CellDb,
   set: { readonly id: string; readonly actor: ChangeSetActor; readonly label: string },
   keys: ActorKeys,
   now: number,
 ): void => {
-  sql.run(
-    `INSERT INTO change_sets (id, actor, actor_id, label, session_id, thread_id, turn, client_id,
-       opened_at, touched_at, sealed_at, undone_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
-    [
-      set.id,
-      set.actor,
-      keys.actorId,
-      set.label,
-      keys.sessionId,
-      keys.threadId,
-      keys.turn,
-      keys.clientId,
-      now,
-      now,
-    ],
-  );
+  db.insert(changeSets)
+    .values({ ...set, ...keys, openedAt: now, touchedAt: now })
+    .run();
 };
 
 // the item's fields as they are; null once it was purged
-const readFieldsNow = (storage: CellStorage, itemId: string): LibraryItemFields | null =>
-  readLiveItem(storage.db, itemId)?.fields ?? null;
+const readFieldsNow = (db: CellDb, itemId: string): LibraryItemFields | null =>
+  readLiveItem(db, itemId)?.fields ?? null;
+
+const entryIs = (setId: string, itemId: string): SQL | undefined =>
+  and(eq(changeSetItems.changeSetId, setId), eq(changeSetItems.itemId, itemId));
 
 // the set's after for the item: its fields as the set left them
 const writeAfter = (
-  sql: SqlStatements,
-  change: { readonly setId: string; readonly itemId: string; readonly fields: string },
+  db: CellDb,
+  change: { readonly setId: string; readonly itemId: string; readonly fields: string | null },
 ): void => {
-  const { fields, itemId, setId } = change;
-  sql.run("UPDATE change_set_items SET after_fields = ? WHERE change_set_id = ? AND item_id = ?", [
-    fields,
-    setId,
-    itemId,
-  ]);
+  db.update(changeSetItems)
+    .set({ afterFields: change.fields })
+    .where(entryIs(change.setId, change.itemId))
+    .run();
 };
-
-const sealRowSchema = z.object({ sealed_at: z.number().nullable() });
 
 // whether a change set is sealed, or null for one the library does not keep
 export const setSealed = (storage: CellStorage, setId: string): boolean | null => {
-  const [raw] = storage.all("SELECT sealed_at FROM change_sets WHERE id = ?", [setId]);
-  return raw === undefined ? null : sealRowSchema.parse(raw).sealed_at !== null;
+  const set = storage.db
+    .select({ sealedAt: changeSets.sealedAt })
+    .from(changeSets)
+    .where(eq(changeSets.id, setId))
+    .get();
+  return set === undefined ? null : set.sealedAt !== null;
 };
-
-const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z.string() });
 
 // writes the after of each item the set still holds open, and closes the set, unless it was
 // already sealed or never was. An item another set changed since already has its after, written at
 // that change
 export const sealChangeSet = (storage: CellStorage, setId: string, now: number): void => {
+  const { db } = storage;
   if (setSealed(storage, setId) !== false) {
-    dropJob(storage.db, sealJobOf(setId).id);
+    dropJob(db, sealJobOf(setId).id);
     return;
   }
-  const items = storage
-    .all("SELECT item_id, after_fields FROM change_set_items WHERE change_set_id = ?", [setId])
-    .map((row) => setItemSchema.parse(row));
-  for (const item of items) {
-    if (item.after_fields !== null) {
+  const entries = db
+    .select({ afterFields: changeSetItems.afterFields, itemId: changeSetItems.itemId })
+    .from(changeSetItems)
+    .where(eq(changeSetItems.changeSetId, setId))
+    .all();
+  for (const { afterFields, itemId } of entries) {
+    if (afterFields !== null) {
       continue;
     }
-    const current = readFieldsNow(storage, item.item_id);
+    const current = readFieldsNow(db, itemId);
     if (current === null) {
-      storage.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
-        setId,
-        item.item_id,
-      ]);
+      db.delete(changeSetItems).where(entryIs(setId, itemId)).run();
       continue;
     }
-    writeAfter(storage, {
-      fields: storeFieldsPart(storage, item.item_id, current),
-      itemId: item.item_id,
-      setId,
-    });
+    writeAfter(db, { fields: storeFieldsPart(db, itemId, current), itemId, setId });
   }
-  storage.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
-  dropJob(storage.db, sealJobOf(setId).id);
-  ensureJob(storage.db, PRUNE_JOB, now + PRUNE_EVERY_MS);
+  db.update(changeSets).set({ sealedAt: now }).where(eq(changeSets.id, setId)).run();
+  dropJob(db, sealJobOf(setId).id);
+  ensureJob(db, PRUNE_JOB, now + PRUNE_EVERY_MS);
 };
 
 // the actor's open set, which this write joins: a new one when it has none, when its own has gone
@@ -197,14 +189,18 @@ export const joinChangeSet = (
   const policy = SEAL_POLICIES[actor.kind];
   const keys = keysOf(actor);
   if (policy.kind !== "commit") {
-    const open = findOpen(storage, actor.kind, keys);
+    const open = findOpen(storage.db, actor.kind, keys);
     if (open !== null) {
       const overdue =
-        policy.kind === "quiet" && quietDeadline(policy, open.opened_at, open.touched_at) <= now;
+        policy.kind === "quiet" && quietDeadline(policy, open.openedAt, open.touchedAt) <= now;
       if (!overdue) {
-        storage.run("UPDATE change_sets SET touched_at = ? WHERE id = ?", [now, open.id]);
+        storage.db
+          .update(changeSets)
+          .set({ touchedAt: now })
+          .where(eq(changeSets.id, open.id))
+          .run();
         if (policy.kind === "quiet") {
-          scheduleJob(storage.db, sealJobOf(open.id), quietDeadline(policy, open.opened_at, now));
+          scheduleJob(storage.db, sealJobOf(open.id), quietDeadline(policy, open.openedAt, now));
         }
         return { actor: actor.kind, id: open.id, policy };
       }
@@ -212,7 +208,7 @@ export const joinChangeSet = (
     }
   }
   const id = newId();
-  insertSet(storage, { actor: actor.kind, id, label: actor.label }, keys, now);
+  insertSet(storage.db, { actor: actor.kind, id, label: actor.label }, keys, now);
   if (policy.kind === "quiet") {
     scheduleJob(storage.db, sealJobOf(id), quietDeadline(policy, now, now));
   }
@@ -221,61 +217,65 @@ export const joinChangeSet = (
 
 // an undo is a set of its own, by whoever asked for it, sealed with the write
 export const openUndoSet = (
-  sql: SqlStatements,
+  storage: CellStorage,
   requester: CellActor,
   now: number,
   newId: () => string,
 ): OpenSet => {
   const id = newId();
-  insertSet(sql, { actor: "undo", id, label: requester.label }, keysOf(requester), now);
+  insertSet(storage.db, { actor: "undo", id, label: requester.label }, keysOf(requester), now);
   return { actor: "undo", id, policy: SEAL_POLICIES.undo };
 };
-
-const itemRowSchema = z.object({ after_fields: z.string().nullable() });
-const otherSetSchema = z.object({ change_set_id: z.string() });
 
 // the set's first write to the item keeps the item as it was; and the other open set whose after
 // is the item as it is now writes that after down, since this write is about to change it
 export const touchItem = (
-  sql: SqlStatements,
+  storage: CellStorage,
   change: {
     readonly setId: string;
     readonly itemId: string;
     readonly before: LibraryItemFields | null;
   },
 ): void => {
+  const { db } = storage;
   const { before, itemId, setId } = change;
-  const [held] = sql.all(
-    "SELECT after_fields FROM change_set_items WHERE change_set_id = ? AND item_id = ?",
-    [setId, itemId],
-  );
-  const others = sql
-    .all(
-      `SELECT change_set_id FROM change_set_items
-       WHERE item_id = ? AND change_set_id != ? AND after_fields IS NULL`,
-      [itemId, setId],
+  const held = db
+    .select({ afterFields: changeSetItems.afterFields })
+    .from(changeSetItems)
+    .where(entryIs(setId, itemId))
+    .get();
+  const others = db
+    .select({ changeSetId: changeSetItems.changeSetId })
+    .from(changeSetItems)
+    .where(
+      and(
+        eq(changeSetItems.itemId, itemId),
+        ne(changeSetItems.changeSetId, setId),
+        isNull(changeSetItems.afterFields),
+      ),
     )
-    .map((row) => otherSetSchema.parse(row).change_set_id);
+    .all()
+    .map((row) => row.changeSetId);
   const fields =
     before !== null && (held === undefined || others.length > 0)
-      ? storeFieldsPart(sql, itemId, before)
+      ? storeFieldsPart(db, itemId, before)
       : null;
   if (fields !== null) {
     for (const other of others) {
-      writeAfter(sql, { fields, itemId, setId: other });
+      writeAfter(db, { fields, itemId, setId: other });
     }
   }
   if (held === undefined) {
-    sql.run(
-      `INSERT INTO change_set_items (change_set_id, item_id, created, before_fields, after_fields)
-       VALUES (?, ?, ?, ?, NULL)`,
-      [setId, itemId, before === null ? 1 : 0, fields],
-    );
-  } else if (itemRowSchema.parse(held).after_fields !== null) {
+    db.insert(changeSetItems)
+      .values({
+        beforeFields: fields,
+        changeSetId: setId,
+        created: before === null ? 1 : 0,
+        itemId,
+      })
+      .run();
+  } else if (held.afterFields !== null) {
     // written down when another set wrote; the item is this set's again
-    sql.run(
-      "UPDATE change_set_items SET after_fields = NULL WHERE change_set_id = ? AND item_id = ?",
-      [setId, itemId],
-    );
+    writeAfter(db, { fields: null, itemId, setId });
   }
 };

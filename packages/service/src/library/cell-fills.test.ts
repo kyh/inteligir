@@ -10,14 +10,8 @@ import { describe, expect, it } from "vitest";
 import type { FillJob } from "../fill/fill-job";
 import type { FillLanding } from "../fill/fill-landing";
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
-import {
-  cellOf,
-  clockAt,
-  engineIn,
-  inCell,
-  newAccountId,
-  paragraph,
-} from "../test-support/library-cell";
+import { paragraph } from "@repo/contract/test-support/library-items";
+import { cellOf, clockAt, engineIn, inCell, newAccountId } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";

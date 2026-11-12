@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { deferred } from "@repo/contract/test-support/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

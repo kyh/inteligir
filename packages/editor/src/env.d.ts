@@ -1,11 +1,2 @@
-// Ambient module declarations for the editor: css side-effect imports (katex) and ?url / ?raw
-// asset imports.
+// katex's sheet, a side-effect import
 declare module "*.css";
-declare module "*?url" {
-  const url: string;
-  export default url;
-}
-declare module "*?raw" {
-  const content: string;
-  export default content;
-}

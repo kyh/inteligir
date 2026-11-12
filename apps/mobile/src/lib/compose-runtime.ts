@@ -15,13 +15,13 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientProviderProps } from "@tanstack/react-query-persist-client";
-import { createSocketHint } from "@repo/contract/library/account-socket";
-import type { Clock, SocketDial, SocketHint } from "@repo/contract/library/account-socket";
+import type { WebSocketClass } from "@repo/client/account-socket";
+import { createLibrarySocket, retryUnlessRefused } from "@repo/client/library-cache";
+import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/library-cache";
 import { clientBuildValue } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
-import { sharedFailure, uploadBlob } from "@repo/contract/library/call-outcome";
+import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
-import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { V1Client } from "@repo/contract/v1";
 import type { PhoneAuth } from "../auth/phone-auth";
 import { createFileCache } from "../files/file-cache";
@@ -35,9 +35,7 @@ import type { LoginStore } from "../login/login-store";
 import { messageOf } from "./error-message";
 import { createExternalStore } from "./external-store";
 import type { ReadableStore } from "./external-store";
-import { downloadBlob, phoneTransport, v1ClientOver } from "./phone-transport";
-import { createThreadPreviews } from "./thread-previews";
-import type { ThreadPreviews } from "./thread-previews";
+import { downloadBlob, phoneTransport } from "./phone-transport";
 
 // what the cache keeps between launches, and how long a query it holds is used unasked
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -45,14 +43,6 @@ const FRESH_MS = 30_000;
 const CACHE_KEY = "library-cache";
 // a cache that changes in a burst (a page of covers, a socket's frames) is written once for it
 const CACHE_WRITE_MS = 1000;
-const QUERY_TRIES = 3;
-// what a socket that comes up says, since anything may have moved while none was open
-const EVERYTHING_MOVED = {
-  folders: true,
-  items: "all",
-  threads: "all",
-  type: "moved",
-} as const satisfies LibrarySocketFrame;
 
 export interface ComposeRuntimeArgs {
   readonly cloudUrl: string;
@@ -63,9 +53,8 @@ export interface ComposeRuntimeArgs {
   readonly folder: FileFolder;
   // the global fetch, which every `/v1` call rides
   readonly fetch: (request: Request) => Promise<Response>;
-  // null keeps the phone on its focus and reconnect refetches alone
-  readonly dial: SocketDial | null;
-  readonly clock: Clock;
+  // the platform's WebSocket; null keeps the phone on its focus and reconnect refetches alone
+  readonly WebSocket: WebSocketClass | null;
   // a fresh UUIDv7, which an item's id and an op id both are
   readonly newId: () => string;
   readonly newBlockId: () => string;
@@ -84,7 +73,7 @@ export interface PhoneLibrary {
   readonly previews: ThreadPreviews;
   // the items a write moved, as the socket says, or null when any may have: an open note's page
   // reads again what it shows of them
-  readonly onItems: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
+  readonly onItems: (listener: (moved: ItemsMoved) => void) => () => void;
   // a fresh op id for a write a screen makes
   readonly newId: () => string;
 }
@@ -110,7 +99,7 @@ export type LogoutOutcome =
 // leave under way, whose outcome a sign-out asked meanwhile waits for
 type Phase =
   | { readonly kind: "closed" }
-  | { readonly kind: "open"; readonly library: PhoneLibrary; readonly socket: SocketHint | null }
+  | { readonly kind: "open"; readonly library: PhoneLibrary; readonly socket: LibrarySocket }
   | { readonly kind: "leaving"; readonly done: Promise<LogoutOutcome> };
 
 const CLOSED: Phase = { kind: "closed" };
@@ -139,17 +128,11 @@ export interface AppRuntime {
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
-// a call the cloud did not answer, or answered busy, is asked again; a refusal never is
-const retryable = (failures: number, error: Error): boolean => {
-  const kind = sharedFailure(error)?.kind;
-  return failures < QUERY_TRIES && (kind === "unreachable" || kind === "busy");
-};
-
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const session = createExternalStore<PhoneSession>({ kind: "restoring" });
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { gcTime: CACHE_KEPT_MS, retry: retryable, staleTime: FRESH_MS },
+      queries: { gcTime: CACHE_KEPT_MS, retry: retryUnlessRefused, staleTime: FRESH_MS },
     },
   });
   const persister = createAsyncStoragePersister({
@@ -163,7 +146,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   // the phase's one writer: a library that stops being open lets its socket go
   const enter = (next: Phase): void => {
     if (phase.kind === "open" && (next.kind !== "open" || next.library !== phase.library)) {
-      phase.socket?.close();
+      phase.socket.close();
     }
     phase = next;
   };
@@ -248,38 +231,13 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   };
 
-  // a write moved these: the queries reading them ask again, those on a screen at once
-  const moved = (queries: PhoneLibrary["queries"], frame: LibrarySocketFrame): void => {
-    if (frame.type !== "moved") {
-      return;
-    }
-    const { agent, items, listing } = queries.library;
-    if (frame.items === "all") {
-      void queryClient.invalidateQueries({ queryKey: queries.library.key() });
-      return;
-    }
-    for (const { id } of frame.items) {
-      void queryClient.invalidateQueries({ queryKey: items.get.key({ input: { id } }) });
-    }
-    if (frame.items.length > 0) {
-      void queryClient.invalidateQueries({ queryKey: listing.page.key() });
-      void queryClient.invalidateQueries({ queryKey: listing.titles.key() });
-    }
-    if (frame.items.length > 0 || frame.folders) {
-      void queryClient.invalidateQueries({ queryKey: listing.scopes.key() });
-    }
-    if (frame.threads === "all" || frame.threads.length > 0) {
-      void queryClient.invalidateQueries({ queryKey: agent.key() });
-    }
-  };
-
   const open = async (source: "restored" | "signed-in"): Promise<void> => {
     if (source === "signed-in") {
       // another account's library, or the last sign-in's, goes before this one's is read
       await forgetAccount(null);
     }
     let library: PhoneLibrary | null = null;
-    const client = v1ClientOver(transport, (end) => {
+    const client = v1Client(transport, (end) => {
       if (library !== null) {
         sessionEnded(library, end);
       }
@@ -290,7 +248,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       files,
       newBlockId: args.newBlockId,
       newId: args.newId,
-      now: args.clock.now,
+      now: Date.now,
       sha256Hex: args.sha256Hex,
       upload: async (file) => {
         const sent = await uploadBlob(transport, file);
@@ -308,73 +266,32 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       storage: args.storage,
     });
     await shares.load();
-    const previews = createThreadPreviews();
-    const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
-    const itemsMoved = (ids: ReadonlySet<string> | null): void => {
-      for (const listener of itemListeners) {
-        listener(ids);
-      }
-    };
-    const heard = (frame: LibrarySocketFrame): void => {
-      if (frame.type === "preview") {
-        previews.hear({ text: frame.text, threadId: frame.threadId });
-        return;
-      }
-      moved(queries, frame);
-      if (frame.items === "all") {
-        itemsMoved(null);
-      } else if (frame.items.length > 0) {
-        itemsMoved(new Set(frame.items.map(({ id }) => id)));
-      }
-      for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
-        previews.hear({ text: null, threadId });
-      }
-    };
+    const socket = createLibrarySocket({
+      client,
+      origin: args.cloudUrl,
+      queries,
+      queryClient,
+      WebSocket: args.WebSocket ?? undefined,
+    });
     const made: PhoneLibrary = {
       client,
       files,
       newId: args.newId,
-      onItems: (listener) => {
-        itemListeners.add(listener);
-        return () => {
-          itemListeners.delete(listener);
-        };
-      },
-      previews,
+      onItems: socket.onItems,
+      previews: socket.previews,
       queries,
       saves,
       shares,
     };
     library = made;
-    const socket =
-      args.dial === null
-        ? null
-        : createSocketHint({
-            clock: args.clock,
-            dial: args.dial,
-            onFrame: heard,
-            // up: a write may have landed while no socket was open to say so; down: no frame can
-            // let a preview go any more, and a reply still being written sends its next one within
-            // a moment of the next up
-            onStatus: (status) => {
-              if (status === "up") {
-                heard(EVERYTHING_MOVED);
-              } else {
-                previews.hear({ text: null, threadId: null });
-              }
-            },
-            origin: args.cloudUrl,
-            ticket: async () => {
-              const { ticket } = await client.account.socketTicket();
-              return ticket;
-            },
-          });
     enter({ kind: "open", library: made, socket });
     session.set({ kind: "signed-in", library: made });
     if (reach === "away") {
-      socket?.offline();
+      socket.offline();
     }
-    socket?.connect();
+    if (args.WebSocket !== null) {
+      socket.connect();
+    }
     void shares.flush();
   };
 
@@ -443,7 +360,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       }
       reach = "reached";
       if (phase.kind === "open") {
-        phase.socket?.online();
+        phase.socket.online();
         void phase.library.shares.flush();
         void checkSession(phase.library);
       }
@@ -472,7 +389,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     suspend() {
       reach = "away";
       if (phase.kind === "open") {
-        phase.socket?.offline();
+        phase.socket.offline();
       }
     },
   };

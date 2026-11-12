@@ -7,8 +7,8 @@
 //   continued: a call stamped by an instance that died is cut, and its step re-sent byte for byte;
 // - every tool call of a reply is journaled before any runs, and each is run by the cell under an
 //   op id of its own, so one run again lands once;
-// - every call asks the same cap, so a step sent again is the same bytes, and what each reply was
-//   billed is pushed once it lands; a turn ends `budget` before a call past its twentieth reply;
+// - every call asks the same cap, so a step sent again is the same bytes; a turn ends `budget`
+//   before a call past its twentieth reply;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once;
 // - a turn is sent under the definition in force when it started: one a deploy changed is taken up
@@ -26,7 +26,7 @@ import type { APIError } from "@anthropic-ai/sdk";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
-import { TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/library/agent-events";
+import { agentEventSchema, TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/library/agent-events";
 import { sha256Hex } from "@repo/contract/bytes";
 import {
   modelCalls,
@@ -42,7 +42,7 @@ import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
 import { asksFirst } from "./agent-tools";
-import { callFailureFields, isApiError } from "./anthropic-client";
+import { callFailureFields, isApiError, isSpendLimitRefusal } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import type { ThreadDb } from "./thread-db";
 import { cutCall, cutOf } from "./thread-drive";
@@ -62,7 +62,6 @@ import type {
   ToolResultBlock,
   TranscriptMessage,
 } from "./thread-request";
-import { pushEntrySchema } from "./thread-wire";
 import { toolCallNext, toolCallOf } from "./tool-call";
 import type { ToolCall, ToolCallEvent } from "./tool-call";
 import { RULES_CLEARED } from "./turn-message";
@@ -70,7 +69,6 @@ import type {
   CellAnswer,
   DeliveryRequest,
   PreviewRequest,
-  PushEntry,
   PushRequest,
   ThreadInspection,
   ToolAnswer,
@@ -264,18 +262,16 @@ const append = (
 
 // what the turn did, queued for the cell in the transaction that did it, under the thread's own
 // sequence, which never goes back
-const enqueue = (db: ThreadDb, turn: number, entries: readonly PushEntry[]): void => {
-  if (entries.length === 0) {
+const enqueue = (db: ThreadDb, turn: number, events: readonly AgentEvent[]): void => {
+  if (events.length === 0) {
     return;
   }
   const seq = metaOf(db).pushSeq + 1;
   setMeta(db, { pushSeq: seq });
   db.insert(threadOutbox)
-    .values({ json: JSON.stringify({ entries, turn }), seq })
+    .values({ json: JSON.stringify({ events, turn }), seq })
     .run();
 };
-
-const eventEntry = (event: AgentEvent): PushEntry => ({ event, kind: "event" });
 
 // why a turn ended, and what more the reason leaves out
 interface TurnEnding {
@@ -293,12 +289,12 @@ const endTurn = (db: ThreadDb, turn: number, ending: TurnEnding): void => {
   if (ending.detail !== null) {
     ended.detail = ending.detail.slice(0, 200);
   }
-  enqueue(db, turn, [eventEntry(ended)]);
+  enqueue(db, turn, [ended]);
 };
 
 // ---- the outbox ----
 
-const outboxBodySchema = z.object({ entries: z.array(pushEntrySchema), turn: z.number() });
+const outboxBodySchema = z.object({ events: z.array(agentEventSchema), turn: z.number() });
 
 // every push the cell has not acknowledged, in order; one it could not take waits for the outbox
 // job, and a thread its cell no longer holds purges itself. A push for a turn the cell no longer
@@ -313,7 +309,7 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
     let answer: CellAnswer<null>;
     try {
       answer = await host.cell().agentPush({
-        entries: body.entries,
+        events: body.events,
         seq: row.seq,
         threadId: host.threadId,
         turn: body.turn,
@@ -492,36 +488,35 @@ const endingOf = (message: BetaMessage): TurnEnding => {
 
 // what the person's devices show of a reply, in its order: its words, each progress note a
 // thinking block shows ahead of the tool call it introduces, and each call
-const replyEvents = (blocks: readonly ReplyBlock[]): PushEntry[] =>
-  blocks.flatMap((block): PushEntry[] => {
+const replyEvents = (blocks: readonly ReplyBlock[]): AgentEvent[] =>
+  blocks.flatMap((block): AgentEvent[] => {
     if (block.type === "text" && block.text !== "") {
-      return [eventEntry({ text: block.text, type: "agent.message" })];
+      return [{ text: block.text, type: "agent.message" }];
     }
     if (block.type === "thinking" && block.thinking !== "") {
-      return [eventEntry({ text: block.thinking, type: "agent.progress" })];
+      return [{ text: block.thinking, type: "agent.progress" }];
     }
     if (block.type === "tool_use") {
       return [
-        eventEntry({
+        {
           input: z.json().parse(block.input),
           name: block.name,
           toolUseId: block.id,
           type: "agent.tool_use",
-        }),
+        },
       ];
     }
     return [];
   });
 
-const resultEvent = (toolUseId: string, content: string, isError: boolean): PushEntry =>
-  eventEntry({
-    isError,
-    summary: content.slice(0, TOOL_RESULT_SUMMARY_MAX),
-    toolUseId,
-    type: "agent.tool_result",
-  });
+const resultEvent = (toolUseId: string, content: string, isError: boolean): AgentEvent => ({
+  isError,
+  summary: content.slice(0, TOOL_RESULT_SUMMARY_MAX),
+  toolUseId,
+  type: "agent.tool_result",
+});
 
-// the reply landed whole, with what it was billed, in one transaction: its blocks as returned,
+// the reply landed whole in one transaction: its blocks as returned,
 // after the filing rules it was asked under, and the turn ended unless it asks for tools; a
 // compaction in it has the next turn send the filing rules again
 const landReply = (
@@ -529,7 +524,6 @@ const landReply = (
   turn: OpenTurn,
   call: {
     readonly callId: string;
-    readonly model: string;
     readonly rules: string | null;
     readonly message: BetaMessage;
   },
@@ -539,11 +533,8 @@ const landReply = (
   const blocks = replyBlocksOf(message.content);
   host.transaction(() => {
     db.update(modelCalls).set({ status: "done" }).where(eq(modelCalls.callId, call.callId)).run();
-    const entries: PushEntry[] = [
-      { kind: "usage", model: call.model, usage: z.json().parse(message.usage) },
-    ];
+    const events: AgentEvent[] = [];
     if (blocks === null) {
-      enqueue(db, turn.turn, entries);
       endTurn(db, turn.turn, {
         detail: "a reply this build cannot replay",
         reason: "failed",
@@ -554,7 +545,6 @@ const landReply = (
       // a reply declined after it began is discarded, what it wrote before the decline with it,
       // and the turn ends with the decline's category
       // (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback)
-      enqueue(db, turn.turn, entries);
       endTurn(db, turn.turn, endingOf(message));
       return;
     }
@@ -575,11 +565,11 @@ const landReply = (
       if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
         markRulesOwed(db);
       }
-      entries.push(...replyEvents(blocks));
+      events.push(...replyEvents(blocks));
     }
     const uses = blocks.flatMap((block) => (block.type === "tool_use" ? [block] : []));
     if (message.stop_reason === "tool_use" && uses.length > 0) {
-      enqueue(db, turn.turn, entries);
+      enqueue(db, turn.turn, events);
       return;
     }
     if (uses.length > 0) {
@@ -595,9 +585,9 @@ const landReply = (
         role: "user",
         turn: turn.turn,
       });
-      entries.push(...uses.map((use) => resultEvent(use.id, CUT_OFF, true)));
+      events.push(...uses.map((use) => resultEvent(use.id, CUT_OFF, true)));
     }
-    enqueue(db, turn.turn, entries);
+    enqueue(db, turn.turn, events);
     endTurn(db, turn.turn, endingOf(message));
   });
 };
@@ -610,8 +600,8 @@ const retryAfterMs = (error: APIError): number => {
 const isRetryable = (status: number | undefined): boolean =>
   status === undefined || status === 408 || status === 409 || status === 429 || status >= 500;
 
-// a call that did not land: stopped by the person, refused by the API (the turn ends), or Claude
-// unreachable or silent (sent again, three times, then the turn ends). A call the API answered
+// a call that did not land: stopped by the person, refused by the API or the gateway's spend limit
+// (the turn ends), or Claude unreachable or silent (sent again, three times, then the turn ends). A call the API answered
 // with an error cost nothing; one cut short may have, which no usage reports and the gateway's
 // per-account limit bounds
 const failedCall = async (
@@ -649,6 +639,10 @@ const failedCall = async (
     turn: turn.turn,
     ...callFailureFields(error),
   });
+  if (isSpendLimitRefusal(error)) {
+    settle("failed", "allowance");
+    return "continue";
+  }
   if (!isRetryable(status)) {
     settle("failed", "failed");
     return "continue";
@@ -780,7 +774,7 @@ const sendCall = async (
     });
   }
   logDroppedThinking(host.threadId, message);
-  landReply(host, turn, { callId, message, model: definition.model, rules });
+  landReply(host, turn, { callId, message, rules });
   return "continue";
 };
 
@@ -883,13 +877,13 @@ const toolRound = async (
       if (asks) {
         asked.push(use.id);
         enqueue(db, turn.turn, [
-          eventEntry({
+          {
             input: z.json().parse(use.input),
             name: use.name,
             toolUseId: use.id,
             type: "approval.asked",
             until,
-          }),
+          },
         ]);
       }
     }
@@ -992,12 +986,12 @@ export const decideCall = async (
       .where(and(eq(threadTurns.turn, row.turn), eq(threadTurns.status, "awaiting_approval")))
       .run();
     enqueue(db, row.turn, [
-      eventEntry({
+      {
         by: answer.by,
         result: answer.approved ? "allow" : "deny",
         toolUseId: answer.toolUseId,
         type: "approval.answered",
-      }),
+      },
     ]);
     return true;
   });
@@ -1033,7 +1027,7 @@ const settleCancel = async (
     if (last?.role === "assistant" && last.turn === turn.turn) {
       const uses = last.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
       const rows = new Map(toolRowsOf(db, last.seq).map((row) => [row.toolUseId, row]));
-      const entries: PushEntry[] = [];
+      const events: AgentEvent[] = [];
       const results: ToolResultBlock[] = [];
       for (const use of uses) {
         const row = rows.get(use.id);
@@ -1041,19 +1035,17 @@ const settleCancel = async (
         const call: ToolCall = row === undefined ? { kind: "asked" } : toolCallOf(row);
         if (call.kind === "awaiting") {
           waited.push(use.id);
-          entries.push(
-            eventEntry({
-              by: "cancel",
-              result: "deny",
-              toolUseId: use.id,
-              type: "approval.answered",
-            }),
-          );
+          events.push({
+            by: "cancel",
+            result: "deny",
+            toolUseId: use.id,
+            type: "approval.answered",
+          });
         }
         const next = toolCallNext(call, STOP);
         if (next?.kind === "answered") {
           keepAnswer(db, use.id, next.answer);
-          entries.push(resultEvent(use.id, next.answer.content, next.answer.isError));
+          events.push(resultEvent(use.id, next.answer.content, next.answer.isError));
         }
         const settled = next ?? call;
         if (settled.kind === "answered") {
@@ -1061,7 +1053,7 @@ const settleCancel = async (
         }
       }
       append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
-      enqueue(db, turn.turn, entries);
+      enqueue(db, turn.turn, events);
     }
     endTurn(db, turn.turn, { detail: null, reason: "cancelled" });
   });

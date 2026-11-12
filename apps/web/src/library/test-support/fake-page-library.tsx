@@ -6,6 +6,8 @@
 
 import { createORPCClient, DynamicLink } from "@orpc/client";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { createThreadPreviews } from "@repo/client/library-cache";
+import type { ItemsMoved, ThreadPreviews } from "@repo/client/library-cache";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import type { V1Client } from "@repo/contract/v1";
@@ -18,7 +20,6 @@ import { z } from "zod";
 import { createLeaveGuard } from "../cloud/leave-guard";
 import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
-import type { ItemsMoved, ThreadPreview } from "../cloud/use-library-socket";
 import { createPageQueryClient } from "../cloud/v1";
 
 export type ThreadRow = z.infer<typeof threadRowSchema>;
@@ -65,7 +66,7 @@ export interface FakeLibrary {
   readonly calls: CellCall[];
   // what the account's socket says moved, and of the reply being written
   readonly moved: (moved: ItemsMoved) => void;
-  readonly preview: (preview: ThreadPreview) => void;
+  readonly preview: ThreadPreviews["hear"];
 }
 
 export const fakePageLibrary = ({
@@ -107,12 +108,11 @@ export const fakePageLibrary = ({
     }),
   );
   const items = listeners<ItemsMoved>();
-  const previews = listeners<ThreadPreview>();
+  const previews = createThreadPreviews();
   return {
     calls,
     library: {
       account: { email: "person@example.com", name: "" },
-      auth: { signOut: unread },
       cloud: { fetch: unread, onSessionEnd: unread, origin: "https://library.test" },
       leave: createLeaveGuard(new EventTarget()),
       left: unread,
@@ -121,13 +121,13 @@ export const fakePageLibrary = ({
         connect: nothingToClose,
         offline: nothingToClose,
         onItems: items.add,
-        onPreview: previews.add,
         online: nothingToClose,
+        previews,
       },
       wire: { client, orpc: createTanstackQueryUtils(client) },
     },
     moved: items.tell,
-    preview: previews.tell,
+    preview: previews.hear,
   };
 };
 

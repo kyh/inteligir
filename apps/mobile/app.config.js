@@ -2,8 +2,8 @@
 // plain JS: expo's config loader needs the compiler JS API that TypeScript 7 dropped
 const { version } = require("./package.json");
 
-// `eas init` mints both (README § Shipping). null until they are committed, and until then a build
-// has no EAS project to belong to and no update to take.
+// `eas init` mints both (docs/releasing.md § Once per product: the phone's TestFlight). null until
+// they are committed, and until then a build has no EAS project to belong to and no update to take.
 /** @type {{ owner: string, projectId: string } | null} */
 const easProject = null;
 

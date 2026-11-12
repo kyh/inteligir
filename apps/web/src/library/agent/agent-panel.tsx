@@ -5,8 +5,8 @@
 // connection. A message carries the screen it was sent from (the open item, or the grid's scope and
 // selection).
 
-import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import {
   answerWords,
   approvalWords,
@@ -21,8 +21,8 @@ import {
   statusWords,
   toolWords,
   workWords,
-} from "@repo/agent-panel/thread-entries";
-import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
+} from "@repo/client/thread-entries";
+import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/client/thread-entries";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
@@ -34,17 +34,18 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, PlusIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { PlusIcon } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
-import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
-import { retryUnlessRefused } from "../cloud/v1";
+import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
+import { retryUnlessRefused } from "@repo/client/library-cache";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import type { ComposerEvent, ComposerState } from "./agent-composer";
 import { quotePassage } from "./quote-passage";
-import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { chunksOf } from "../library/bulk-actions";
+import { conversationUndo, turnUndo } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
@@ -183,23 +184,9 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
   );
 };
 
-const useLivePreview = (threadId: string | null): string | null => {
-  const socket = useSocket();
-  const [preview, setPreview] = useState<{ threadId: string; text: string } | null>(null);
-  useEffect(
-    () =>
-      socket.onPreview((heard) => {
-        if (heard.text !== null) {
-          if (heard.threadId === threadId) {
-            setPreview({ text: heard.text, threadId: heard.threadId });
-          }
-        } else if (heard.threadId === null || heard.threadId === threadId) {
-          setPreview(null);
-        }
-      }),
-    [socket, threadId],
-  );
-  return preview?.threadId === threadId ? preview.text : null;
+const useLivePreview = (threadId: string): string | null => {
+  const { previews } = usePageLibrary().socket;
+  return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
 };
 
 const onRefused = (cause: unknown): void => {
@@ -218,7 +205,7 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { client, orpc } = useWire();
+  const { client, orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
   const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
@@ -250,7 +237,7 @@ const Conversation = ({
       const lostText: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
-      for (const batch of undoBatches(ids)) {
+      for (const batch of chunksOf(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);
@@ -390,7 +377,7 @@ const Composer = ({
   dispatch: (event: ComposerEvent) => void;
   viewContext: () => AgentViewContext | undefined;
 }) => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const [text, setText] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const tidying = composer.kind === "tidying";
@@ -465,20 +452,7 @@ export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: Agent
   return (
     <div className="flex h-full min-h-0 flex-col" data-agent-panel>
       <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-        {threadId === null ? (
-          <span className="px-1 text-body font-medium">Conversations</span>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="All conversations"
-            onClick={() => {
-              onThread(null);
-            }}
-          >
-            <ArrowLeftIcon />
-          </Button>
-        )}
+        {threadId === null && <span className="px-1 text-body font-medium">Conversations</span>}
         <Button
           variant="ghost"
           size="icon-compact"

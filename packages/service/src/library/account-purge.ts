@@ -18,11 +18,11 @@ import { createDb } from "@repo/db/d1/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { accountBlobPrefix } from "./cell-blobs";
 import { noteStub } from "../note/note-stub";
-import { cellDbOf, migrateCell } from "./cell-db";
+import { CELL_SCHEMA, cellDbOf } from "./cell-db";
+import { applyObjectSchema } from "../object-schema";
 import { notesHeld } from "./cell-notes";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
-import { cellStorageOf } from "./cell-storage";
 
 export interface PurgeScope {
   readonly ctx: DurableObjectState;
@@ -42,7 +42,7 @@ const R2_PAGE = 1000;
 
 // an empty schema and the time it was deleted, which every later call to the cell meets
 const markDeleted = async (ctx: DurableObjectState, env: Env): Promise<void> => {
-  await migrateCell(ctx.storage);
+  await applyObjectSchema(ctx.storage, CELL_SCHEMA);
   openCellLibrary(ctx, env).tombstone();
 };
 
@@ -58,7 +58,7 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     // read past the tombstone, which refuses the engine's reads, from the cell's own rows
     name: "agent",
     run: async ({ accountId, ctx }) => {
-      await purgeThreadObjects(cellStorageOf(ctx.storage), ctx.exports, accountId);
+      await purgeThreadObjects(cellDbOf(ctx.storage), ctx.exports, accountId);
     },
   },
   {

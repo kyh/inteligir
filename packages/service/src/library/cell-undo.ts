@@ -10,9 +10,13 @@
 // of its own is made.
 
 import { compareText } from "@repo/contract/library/order-key";
-import { z } from "zod";
+import { and, eq, inArray } from "drizzle-orm";
+
+import { changeSetItems, changeSets } from "@repo/db/cell/schema";
 
 import type { TurnUndone } from "../note/note-wire";
+import type { CellDb } from "./cell-db";
+import { listChunks } from "./cell-db";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
@@ -23,8 +27,6 @@ import type { CellRefusal } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
 import { sealChangeSet } from "./change-sets";
 import { readLiveItem } from "./library-queries";
-import { chunkStatement } from "./library-sql";
-import type { SqlStatements } from "./library-sql";
 import { revertChangeSets } from "./revert-change";
 import type { FillChange, ItemChange, ItemNow } from "./revert-change";
 
@@ -38,89 +40,75 @@ export interface UndoAnswer {
   readonly lostText: readonly string[];
 }
 
-const setRowSchema = z.object({
-  actor: z.string(),
-  id: z.string(),
-  opened_at: z.number(),
-  sealed_at: z.number().nullable(),
-  undone_by: z.string().nullable(),
-});
-
-type SetRow = z.infer<typeof setRowSchema>;
-
-const setItemSchema = z.object({
-  after_fields: z.string().nullable(),
-  before_fields: z.string().nullable(),
-  item_id: z.string(),
-});
-
-const loadSets = (sql: SqlStatements, ids: readonly string[]): SetRow[] => {
-  const rows: SetRow[] = [];
-  for (const statement of chunkStatement({
-    each: "?",
-    head: "SELECT id, actor, opened_at, sealed_at, undone_by FROM change_sets WHERE id IN (",
-    rows: [...new Set(ids)].map((id) => [id]),
-    separator: ", ",
-    tail: ")",
-  })) {
-    rows.push(...sql.all(statement.sql, statement.params).map((row) => setRowSchema.parse(row)));
-  }
-  return rows;
+const SET_COLUMNS = {
+  actor: changeSets.actor,
+  id: changeSets.id,
+  openedAt: changeSets.openedAt,
+  sealedAt: changeSets.sealedAt,
+  undoneBy: changeSets.undoneBy,
 };
 
+const loadSets = (db: CellDb, ids: readonly string[]) =>
+  listChunks([...new Set(ids)]).flatMap((chunk) =>
+    db.select(SET_COLUMNS).from(changeSets).where(inArray(changeSets.id, chunk)).all(),
+  );
+
 // the sets asked for, newest first; refuses an id no set has, and a set already undone
-const undoableSets = (sql: SqlStatements, ids: readonly string[]): SetRow[] => {
-  const sets = loadSets(sql, ids);
+const undoableSets = (db: CellDb, ids: readonly string[]) => {
+  const sets = loadSets(db, ids);
   if (sets.length !== new Set(ids).size) {
     refuse({ kind: "not-found" });
   }
   for (const set of sets) {
-    if (set.undone_by !== null) {
-      refuse({ changeSetId: set.id, kind: "already-undone", undoneBy: set.undone_by });
+    if (set.undoneBy !== null) {
+      refuse({ changeSetId: set.id, kind: "already-undone", undoneBy: set.undoneBy });
     }
   }
-  return sets.toSorted((a, b) => b.opened_at - a.opened_at || compareText(b.id, a.id));
+  return sets.toSorted((a, b) => b.openedAt - a.openedAt || compareText(b.id, a.id));
 };
 
-const fillRowSchema = z.object({ after_fields: z.string(), before_fields: z.string() });
+// what each fill did to the item, which a made item's undo keeps
+const fillsOf = (db: CellDb, itemId: string): FillChange[] =>
+  db
+    .select({ afterFields: changeSetItems.afterFields, beforeFields: changeSetItems.beforeFields })
+    .from(changeSetItems)
+    .innerJoin(changeSets, eq(changeSets.id, changeSetItems.changeSetId))
+    .where(and(eq(changeSetItems.itemId, itemId), eq(changeSets.actor, "fill")))
+    .all()
+    .flatMap(({ afterFields, beforeFields }) =>
+      afterFields === null || beforeFields === null
+        ? []
+        : [
+            {
+              after: readFieldsPart(db, itemId, afterFields),
+              before: readFieldsPart(db, itemId, beforeFields),
+            },
+          ],
+    );
 
-const fillsOf = (sql: SqlStatements, itemId: string): FillChange[] =>
-  sql
-    .all(
-      `SELECT items.before_fields, items.after_fields
-       FROM change_set_items items JOIN change_sets sets ON sets.id = items.change_set_id
-       WHERE items.item_id = ? AND sets.actor = 'fill'
-         AND items.before_fields IS NOT NULL AND items.after_fields IS NOT NULL`,
-      [itemId],
-    )
-    .map((raw) => {
-      const row = fillRowSchema.parse(raw);
-      return {
-        after: readFieldsPart(sql, itemId, row.after_fields),
-        before: readFieldsPart(sql, itemId, row.before_fields),
-      };
-    });
+const setItems = (db: CellDb, setId: string) =>
+  db
+    .select({
+      afterFields: changeSetItems.afterFields,
+      beforeFields: changeSetItems.beforeFields,
+      itemId: changeSetItems.itemId,
+    })
+    .from(changeSetItems)
+    .where(eq(changeSetItems.changeSetId, setId))
+    .all();
 
-const setItems = (sql: SqlStatements, setId: string) =>
-  sql
-    .all(
-      "SELECT item_id, before_fields, after_fields FROM change_set_items WHERE change_set_id = ?",
-      [setId],
-    )
-    .map((raw) => setItemSchema.parse(raw));
-
-const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> => {
+const changesOf = (db: CellDb, setId: string): Map<string, ItemChange> => {
   const changes = new Map<string, ItemChange>();
-  for (const row of setItems(sql, setId)) {
-    if (row.after_fields === null) {
+  for (const { afterFields, beforeFields, itemId } of setItems(db, setId)) {
+    if (afterFields === null) {
       continue;
     }
-    const after = readFieldsPart(sql, row.item_id, row.after_fields);
+    const after = readFieldsPart(db, itemId, afterFields);
     changes.set(
-      row.item_id,
-      row.before_fields === null
-        ? { after, before: null, fills: fillsOf(sql, row.item_id) }
-        : { after, before: readFieldsPart(sql, row.item_id, row.before_fields) },
+      itemId,
+      beforeFields === null
+        ? { after, before: null, fills: fillsOf(db, itemId) }
+        : { after, before: readFieldsPart(db, itemId, beforeFields) },
     );
   }
   return changes;
@@ -135,12 +123,12 @@ export interface NoteToUndo {
 // What an undo asks of notes before its write, newest set first: each item an agent's set touched
 // whose body is its note's. A person's sets are field writes alone, so they ask nothing.
 export const planUndo = (storage: CellStorage, changeSetIds: readonly string[]): NoteToUndo[] =>
-  undoableSets(storage, changeSetIds)
+  undoableSets(storage.db, changeSetIds)
     .filter((set) => set.actor === "agent")
     .flatMap((set) =>
-      setItems(storage, set.id).flatMap((row) => {
-        const item = readLiveItem(storage.db, row.item_id);
-        return item !== null && bodyInNote(item) ? [{ itemId: row.item_id, setId: set.id }] : [];
+      setItems(storage.db, set.id).flatMap(({ itemId }) => {
+        const item = readLiveItem(storage.db, itemId);
+        return item !== null && bodyInNote(item) ? [{ itemId, setId: set.id }] : [];
       }),
     );
 
@@ -165,7 +153,11 @@ export const mergeTurnUndos = (
 const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
   const undoSet = scope.set();
   for (const set of settled) {
-    scope.storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
+    scope.storage.db
+      .update(changeSets)
+      .set({ undoneBy: undoSet.id })
+      .where(eq(changeSets.id, set.id))
+      .run();
   }
   return undoSet.id;
 };
@@ -176,14 +168,14 @@ export const undoChangeSets = (
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {
   const { now, storage } = scope;
-  const sets = undoableSets(storage, changeSetIds);
+  const sets = undoableSets(storage.db, changeSetIds);
   // a set still open closes first, so what it did is fixed
   for (const set of sets) {
-    if (set.sealed_at === null) {
+    if (set.sealedAt === null) {
       sealChangeSet(storage, set.id, now);
     }
   }
-  const ordered = sets.map((set) => ({ id: set.id, items: changesOf(storage, set.id) }));
+  const ordered = sets.map((set) => ({ id: set.id, items: changesOf(storage.db, set.id) }));
   const items = new Map<string, ItemNow | null>();
   for (const set of ordered) {
     for (const itemId of set.items.keys()) {

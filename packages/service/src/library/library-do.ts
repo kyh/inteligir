@@ -62,7 +62,7 @@ import { runImports } from "./cell-imports";
 import { holdListing } from "./cell-listing";
 import { EVERYTHING_MOVED } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
-import { migrateCell } from "./cell-db";
+import { CELL_SCHEMA } from "./cell-db";
 import {
   acceptSocket,
   CELL_SOCKET_PATH,
@@ -100,7 +100,7 @@ export class LibraryDO extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(SOCKET_KEEPALIVE_PING, SOCKET_KEEPALIVE_PONG),
     );
-    openWithSchema(ctx, "library-cell", migrateCell);
+    openWithSchema(ctx, CELL_SCHEMA);
   }
 
   get #accountId(): string {

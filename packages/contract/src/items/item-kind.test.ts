@@ -2,12 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   COVERS_DIR,
-  FILE_KIND_EXTENSIONS,
   fileKindOf,
   isItemKind,
   ITEM_KINDS,
   keptFileType,
-  LIBRARY_RULES_PATH,
   mediaTypeOfName,
   UNKNOWN_FILE_TYPE,
   URL_ITEM_KINDS,
@@ -46,11 +44,6 @@ describe("item kinds", () => {
     expect(UNKNOWN_FILE_TYPE).toBe("application/octet-stream");
   });
 
-  it("names a type for every extension that makes a picture, PDF, video or sound", () => {
-    const kinded = Object.values(FILE_KIND_EXTENSIONS).flat();
-    expect(kinded.filter((ext) => mediaTypeOfName(`a${ext}`) === null)).toStrictEqual([]);
-  });
-
   it("reads a type from every extension it goes by", () => {
     expect(["a.ogg", "b.OGA", "c.opus"].map(mediaTypeOfName)).toStrictEqual([
       "audio/ogg",
@@ -60,13 +53,8 @@ describe("item kinds", () => {
     expect(mediaTypeOfName("no-extension")).toBeNull();
   });
 
-  it("lists each extension under one kind", () => {
-    const all = Object.values(FILE_KIND_EXTENSIONS).flat();
-    expect(new Set(all).size).toBe(all.length);
-  });
-
   it("spells the library's own places", () => {
-    expect([COVERS_DIR, LIBRARY_RULES_PATH]).toStrictEqual(["assets/covers", "AGENTS.md"]);
+    expect(COVERS_DIR).toBe("assets/covers");
   });
 });
 

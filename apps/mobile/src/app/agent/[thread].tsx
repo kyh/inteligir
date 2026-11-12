@@ -1,5 +1,5 @@
 // One conversation with the built-in agent, drawn natively over the same logic the library's page
-// draws its panel with (`@repo/agent-panel`): the thread's stored events as the phone last read
+// draws its panel with (`@repo/client`): the thread's stored events as the phone last read
 // them, so it reads offline, the reply being written from the socket, the approval waiting with Approve and
 // Cancel, each turn's ending in the person's words, and the composer, whose message carries the
 // item it was asked from. A send, an answer and a stop go to the cell, so each waits for a
@@ -13,8 +13,8 @@ import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } fr
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { composerPlaceholder, sendInput, viewContextOf } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, sendInput, viewContextOf } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import {
   answerWords,
   approvalWords,
@@ -28,8 +28,8 @@ import {
   statusWords,
   toolWords,
   workWords,
-} from "@repo/agent-panel/thread-entries";
-import type { ThreadBlock, WaitingApproval } from "@repo/agent-panel/thread-entries";
+} from "@repo/client/thread-entries";
+import type { ThreadBlock, WaitingApproval } from "@repo/client/thread-entries";
 import {
   useLibrary,
   usePreview,

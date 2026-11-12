@@ -19,7 +19,10 @@ import {
 import { LibraryRowError } from "./library-sql";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+
+import { appliedOps, changeSetItems, snapshotParts } from "@repo/db/cell/schema";
 
 import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanding } from "../fill/fill-landing";
@@ -153,7 +156,6 @@ const undoSchema = z.object({
 });
 const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
-const answerRowSchema = z.object({ answer: z.string() });
 // the last sequence number a write took, 0 before the first
 export const libraryHead = (db: CellDb): number => readCount(db, "head");
 
@@ -187,10 +189,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // what the op answered when it landed, or null while it has not
   const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {
-    const [prior] = storage.all("SELECT answer FROM applied_ops WHERE op_id = ?", [opId]);
-    return prior === undefined
-      ? null
-      : answer.parse(jsonTextSchema.parse(answerRowSchema.parse(prior).answer));
+    const prior = db
+      .select({ answer: appliedOps.answer })
+      .from(appliedOps)
+      .where(eq(appliedOps.opId, opId))
+      .get();
+    return prior === undefined ? null : answer.parse(jsonTextSchema.parse(prior.answer));
   };
 
   // one write: refused once the account is being deleted, answered from its op's record when it
@@ -231,11 +235,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           sealChangeSet(storage, joined.id, now);
         }
         if (request.opId !== undefined) {
-          storage.run("INSERT INTO applied_ops (op_id, answer, at) VALUES (?, ?, ?)", [
-            request.opId,
-            JSON.stringify(value),
-            now,
-          ]);
+          db.insert(appliedOps)
+            .values({ answer: JSON.stringify(value), at: now, opId: request.opId })
+            .run();
           ensureJob(db, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
         return { moved: moved.frame(), ok: true, value };
@@ -289,9 +291,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           seq,
           updatedAt: scope.now,
         });
-        for (const table of ["snapshot_parts", "change_set_items"] as const) {
-          storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
-        }
+        db.delete(snapshotParts).where(eq(snapshotParts.itemId, id)).run();
+        db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
         dropItemBlobs(storage, id, scope.now);
         forgetNoteSockets(db, id);
         if (bodyInNote(item)) {
@@ -459,7 +460,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "prune": {
-        const more = pruneChangeSets(storage, now);
+        const more = pruneChangeSets(storage.db, now);
         scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
         break;
       }

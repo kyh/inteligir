@@ -22,8 +22,10 @@ import { useState } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
 import { useLibraryQueries } from "../cloud/library-context";
-import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
-import type { GlobalShortcutAction } from "../global-shortcuts";
+import { hotkeyFor } from "../shortcuts";
+import type { ShortcutIn } from "../shortcuts";
+
+type WindowAction = ShortcutIn<"window">["action"];
 
 export interface PaletteActions {
   // a search's hit, opened on the words it was found by
@@ -40,14 +42,14 @@ export interface PaletteActions {
 // draws the chord the window answers it by
 interface PaletteRow extends CommandRow {
   readonly hit?: { readonly itemId: string; readonly snippet: string } | undefined;
-  readonly chord?: GlobalShortcutAction | undefined;
+  readonly chord?: WindowAction | undefined;
 }
 
 // the chord a command answers to, as the window's table spells it
-const Chord = ({ action }: { action: GlobalShortcutAction }) => {
-  const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
-  return row === undefined ? null : (
-    <CommandShortcut caps={hotkeyCaps(globalShortcutHotkey(row), platformShortcutModifier())} />
+const Chord = ({ action }: { action: WindowAction }) => {
+  const hotkey = hotkeyFor(action);
+  return hotkey === null ? null : (
+    <CommandShortcut caps={hotkeyCaps(hotkey, platformShortcutModifier())} />
   );
 };
 
@@ -94,7 +96,7 @@ export const CommandPalette = ({
     value: string,
     label: string,
     act: () => void,
-    chord?: GlobalShortcutAction,
+    chord?: WindowAction,
   ): PaletteRow => ({ chord, label, onSelect: run(act), value });
   const groups: CommandRowGroup<PaletteRow>[] = [
     ...(typed === "" || hits.length === 0

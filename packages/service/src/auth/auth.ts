@@ -1,5 +1,6 @@
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins/bearer";
 // relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
@@ -15,7 +16,7 @@ import { sendResetEmail } from "./reset-email";
 import { capSessions } from "./session-devices";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
-// it is derived from the request origin, so localhost, preview and prod need none.
+// it is derived from the request origin, so localhost and prod need none.
 
 // The HTTP router's alone: auth.api still calls each. Every device calls sign-in, get-session and
 // sign-out, the site the reset pair too, and the invite gate forwards sign-up; a route no client
@@ -106,6 +107,18 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },
+    },
+    hooks: {
+      // a tab keeps each file it opened in the browser's cache, a year under its sha
+      // (../library/blob-routes.ts), so a sign-out that went through empties the site's cache too;
+      // a refused one empties nothing, since another site can send it
+      after: createAuthMiddleware(async (endpoint) => {
+        if (endpoint.path === "/sign-out" && !isAPIError(endpoint.context.returned)) {
+          endpoint.setHeader("clear-site-data", '"cache"');
+        }
+        // a hook's type is async, and nothing here waits
+        await Promise.resolve();
+      }),
     },
     plugins: [
       // the extension reads the browser's own session cookie and sends it as a bearer; its value

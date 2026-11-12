@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { Fragment, createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   LiHTMLAttributes,
@@ -12,8 +12,6 @@ import type {
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
-import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
-import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
@@ -52,8 +50,8 @@ const MenuItemContext = createContext<MenuItemContextValue | null>(null);
 
 const MENU_ITEM = '[data-sidebar="menu-item"]';
 
-// the rail's own panel, or its peek card while collapsed: a popup anchored anywhere in it
-const RAIL = '[data-sidebar="sidebar"], [data-sidebar="peek"]';
+// the rail's own panel: a popup anchored anywhere in it
+const RAIL = '[data-sidebar="sidebar"]';
 
 // A row's box spans the whole <li>, so it is clamped to the button's; 32px is the tallest row,
 // for a row whose button is not its direct child.
@@ -92,34 +90,28 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   const [activeRowEl, setActiveRowEl] = useState<HTMLElement | null>(null);
   const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
 
-  const onRows = useCallback(
-    (rows: readonly HTMLElement[]) => {
-      setItems(rows);
-      setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
-    },
-    [setItems],
-  );
+  const onRows = (rows: readonly HTMLElement[]) => {
+    setItems(rows);
+    setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
+  };
   const {
     rows: orderedRows,
     registerRow,
     requestSync,
   } = useRowOrder(containerRef, MENU_ITEM, onRows);
 
-  const setRowActive = useCallback(
-    (row: HTMLElement, active: boolean) => {
-      const activeRows = activeRowsRef.current;
-      if (activeRows.has(row) === active) {
-        return;
-      }
-      if (active) {
-        activeRows.add(row);
-      } else {
-        activeRows.delete(row);
-      }
-      requestSync();
-    },
-    [requestSync],
-  );
+  const setRowActive = (row: HTMLElement, active: boolean) => {
+    const activeRows = activeRowsRef.current;
+    if (activeRows.has(row) === active) {
+      return;
+    }
+    if (active) {
+      activeRows.add(row);
+    } else {
+      activeRows.delete(row);
+    }
+    requestSync();
+  };
 
   const overlayRect = (row: HTMLElement | null): ItemRect | null => {
     const idx = row === null ? -1 : orderedRows.indexOf(row);
@@ -214,16 +206,13 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
 
   const hoveredRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
   const firstRowEl = orderedRows[0] ?? null;
-  const highlightValue = useMemo<MenuHighlight>(
-    () => ({ active: activeRowEl, first: firstRowEl, hovered: hoveredRowEl }),
-    [activeRowEl, firstRowEl, hoveredRowEl],
-  );
-  const highlight = useHighlightStore(highlightValue);
+  const highlight = useHighlightStore<MenuHighlight>({
+    active: activeRowEl,
+    first: firstRowEl,
+    hovered: hoveredRowEl,
+  });
 
-  const value = useMemo<MenuScopeValue>(
-    () => ({ highlight, registerRow, setRowActive }),
-    [highlight, registerRow, setRowActive],
-  );
+  const value: MenuScopeValue = { highlight, registerRow, setRowActive };
 
   const overlays = isMeasured ? (
     <ProximityOverlays
@@ -251,14 +240,11 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   };
 };
 
-interface SidebarMenuProps extends LiHTMLAttributes<HTMLUListElement> {
-  size?: SizeVariant;
-}
+type SidebarMenuProps = LiHTMLAttributes<HTMLUListElement>;
 
 // One scope per list: a single traveling hover, active and focus overlay over every row.
 const SidebarMenu = ({
   className,
-  size,
   children,
   ref,
   ...props
@@ -266,7 +252,7 @@ const SidebarMenu = ({
   const containerRef = useRef<HTMLUListElement>(null);
   const { value, containerProps, overlays } = useMenuScope(containerRef);
 
-  const content = (
+  return (
     <MenuScopeContext value={value}>
       <ul
         ref={composeRefs(containerRef, ref)}
@@ -280,8 +266,6 @@ const SidebarMenu = ({
       </ul>
     </MenuScopeContext>
   );
-
-  return size ? <SizeProvider size={size}>{content}</SizeProvider> : content;
 };
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
@@ -300,24 +284,18 @@ const useMenuRow = (): MenuItemContextValue => {
     return registerRow(rowEl);
   }, [registerRow, rowEl]);
 
-  const setActive = useCallback(
-    (active: boolean) => {
-      if (rowEl && setRowActive) {
-        setRowActive(rowEl, active);
-      }
-    },
-    [setRowActive, rowEl],
-  );
+  const setActive = (active: boolean) => {
+    if (rowEl && setRowActive) {
+      setRowActive(rowEl, active);
+    }
+  };
 
   const isHovered = useHighlighted(
     scope?.highlight ?? null,
     (highlight) => rowEl !== null && highlight.hovered === rowEl,
   );
 
-  return useMemo(
-    () => ({ isHovered, rowEl, setActive, setRow: setRowEl }),
-    [rowEl, isHovered, setActive],
-  );
+  return { isHovered, rowEl, setActive, setRow: setRowEl };
 };
 
 const SidebarMenuItem = ({
@@ -418,7 +396,6 @@ const SidebarMenuButton = ({
 }: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
   const scope = useContext(MenuScopeContext);
   const item = useContext(MenuItemContext);
-  const sizeClasses = useSize();
 
   const setActive = item?.setActive;
   useIsoLayoutEffect(() => {
@@ -427,7 +404,6 @@ const SidebarMenuButton = ({
   }, [isActive, setActive]);
 
   const lit = isActive || (item?.isHovered ?? false);
-  const heightClass = sizeClasses.variant === "compact" ? "h-7" : "h-8";
 
   // roving tabindex: the active row is the list's tab stop, else its first row
   const row = item?.rowEl ?? null;
@@ -445,8 +421,7 @@ const SidebarMenuButton = ({
       aria-current={isActive ? "page" : undefined}
       tabIndex={isActive || isFirstStop ? 0 : -1}
       className={cn(
-        "peer/menu-button relative z-10 flex w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
-        heightClass,
+        "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
         radius.item,
         className,
       )}
@@ -454,7 +429,7 @@ const SidebarMenuButton = ({
     >
       {Icon ? (
         <Icon
-          size={sizeClasses.icon}
+          size={14}
           strokeWidth={lit ? 2 : 1.5}
           className={cn(
             "shrink-0 transition-[color,stroke-width] duration-80",
@@ -462,12 +437,7 @@ const SidebarMenuButton = ({
           )}
         />
       ) : null}
-      <MenuRowLabel
-        content={children}
-        lit={lit}
-        emphasized={isActive}
-        textClass={sizeClasses.text}
-      />
+      <MenuRowLabel content={children} lit={lit} emphasized={isActive} textClass="text-body" />
     </button>
   );
 };

@@ -5,8 +5,8 @@ The shared component vocabulary, its type roles and its motion.
 ## Components
 
 - **Every component has a surface that draws it** (owner decision). A component or export nothing
-  draws is deleted, not held for a coming surface, since git keeps it; knip finds one, and the
-  gallery counts as no consumer. `knip.json`.
+  draws is deleted, not held for a coming surface, since git keeps it; knip finds one.
+  `knip.json`.
 - **`@repo/ui` reaches no oRPC module, as the editor does not.** The phone's DOM bundle loads both,
   so lint refuses `@orpc/*` and the oRPC-reaching `@repo/contract` modules here too.
   `oxlint.config.ts`.
@@ -17,10 +17,10 @@ The shared component vocabulary, its type roles and its motion.
   A div owns no dismissal, flipping, layering or focus and drifts on scroll; the selection toolbar
   is the one exception, and Base UI's `render` prop is the polymorphism channel, with no Slot.
   `packages/ui/src/components/popover.tsx`.
-- **The chrome has five type roles, and they are Fluid's ladder.** caption 11, body 12, subtitle 13,
-  title 15, display 24, as `text-<role>` utilities, since a role says what a line is and a
-  convention drifts; the note is not chrome, its prose in em off the appearance dials.
-  `packages/ui/src/lib/size-context.tsx`.
+- **The chrome has one size, Fluid's compact step, and five type roles on it.** caption 11, body
+  12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
+  is, and a size every root sets alike is a branch in each component; the note is not chrome, its
+  prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
   unconfigured `cn`. `packages/ui/src/lib/cn.ts`.

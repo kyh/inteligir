@@ -1,6 +1,5 @@
-// a product surface speaks the person's words: the whole of it is the library and what is in it are
-// items, and no surface names the engine (git, commit, remote, repo, terminal, CLI, PATH, MCP;
-// AGENTS.md § Rules that matter).
+// a product surface speaks the person's words (AGENTS.md § Rules that matter), and WORDS below is
+// what it never says.
 // detection is textual and a lower bound: it reads the quoted literals
 // that hold a space, with a template's `${…}` set aside and its own literals read too, every line
 // of a template that runs over several, which is how the site's pages are written, a .tsx file's
@@ -14,10 +13,9 @@ import { readTextFile, REPO_ROOT, sourceOf, workspaceFiles, workspaces } from ".
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
 // site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
-// refusals and notices it hands a surface to show. tools/ui-gallery is not one:
-// it is never deployed, so no person reads its sample words
+// refusals and notices it hands a surface to show
 const SURFACES = [
-  "@repo/agent-panel",
+  "@repo/client",
   "@repo/contract",
   "@repo/editor",
   "@repo/extension",
@@ -33,12 +31,7 @@ const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 const LEGAL_PAGES = ["docs/privacy.md", "docs/terms.md"] as const;
 
 // a file that may say a word, and why: a row that no longer matches anything is stale
-const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>([
-  [
-    "packages/service/src/agent/agent-prompt.ts",
-    "the built-in agent's instructions keep their words (AGENTS.md § Rules that matter)",
-  ],
-]);
+const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>();
 
 interface Word {
   name: string;

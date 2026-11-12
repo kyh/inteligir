@@ -17,13 +17,22 @@ import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 import { linksTo, linksToUrl, readItem } from "./library-queries";
 import { jsonTextSchema } from "./sql-value";
-import { and, asc, countDistinct, eq, inArray, isNotNull, isNull } from "drizzle-orm";
-import { z } from "zod";
+import {
+  and,
+  asc,
+  countDistinct,
+  desc,
+  eq,
+  getColumns,
+  inArray,
+  isNotNull,
+  isNull,
+} from "drizzle-orm";
+import type { z } from "zod";
 
-import { items, itemTags, links } from "@repo/db/cell/schema";
+import { changeSetItems, changeSets, items, itemTags, links } from "@repo/db/cell/schema";
 import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -206,8 +215,6 @@ const linkedItems = (db: CellDb, ids: ReadonlySet<string>) => {
     .slice(0, READ_LINKS_MAX);
 };
 
-const countRowSchema = z.object({ count: z.number() });
-
 // the page the read asks for, halved until it fits; one block alone is its own page however long
 const pageWithin = (view: ReturnType<typeof itemView>, from: number, count: number): ViewPage => {
   let page = viewPage(view, from, count);
@@ -307,37 +314,34 @@ export const outlineOf = (db: CellDb, listing: LibraryIndex<ListingRow>) => {
 // the items one set's entry names, at most a page of them
 const SET_ITEMS_SHOWN = 50;
 
-const setRowSchema = z.object({
-  actor: z.enum(CHANGE_SET_ACTORS),
-  id: z.string(),
-  label: z.string(),
-  opened_at: z.number(),
-  sealed_at: z.number().nullable(),
-  thread_id: z.string().nullable(),
-  turn: z.number().int().positive().nullable(),
-  undone_by: z.string().nullable(),
-});
-const setItemSchema = z.object({
-  after_fields: z.string().nullable(),
-  before_fields: z.string().nullable(),
-  created: z.number(),
-  item_id: z.string(),
-});
+const SET_ITEM_COLUMNS = {
+  afterFields: changeSetItems.afterFields,
+  beforeFields: changeSetItems.beforeFields,
+  created: changeSetItems.created,
+  itemId: changeSetItems.itemId,
+};
 
-const setItemOf = (storage: CellStorage, raw: z.infer<typeof setItemSchema>) => {
-  const now = readItem(storage.db, raw.item_id);
+interface SetItemRow {
+  readonly afterFields: string | null;
+  readonly beforeFields: string | null;
+  readonly created: number;
+  readonly itemId: string;
+}
+
+const setItemOf = (db: CellDb, entry: SetItemRow) => {
+  const now = readItem(db, entry.itemId);
   const before =
-    raw.before_fields === null ? null : readFieldsPart(storage, raw.item_id, raw.before_fields);
+    entry.beforeFields === null ? null : readFieldsPart(db, entry.itemId, entry.beforeFields);
   // a set still open has written no after: the item is as it left it
   let after: LibraryItemFields | null = now?.kind === "live" ? now.fields : null;
-  if (raw.after_fields !== null) {
-    after = readFieldsPart(storage, raw.item_id, raw.after_fields);
+  if (entry.afterFields !== null) {
+    after = readFieldsPart(db, entry.itemId, entry.afterFields);
   }
   return {
-    created: raw.created === 1,
+    created: entry.created === 1,
     deleted:
       after !== null && after.deletedAt !== null && (before === null || before.deletedAt === null),
-    id: raw.item_id,
+    id: entry.itemId,
     title: now?.kind === "live" ? now.card.title : (after?.title ?? before?.title ?? ""),
   };
 };
@@ -349,42 +353,41 @@ interface ChangeSetsInput {
   readonly limit: number;
 }
 
-export const listChangeSets = (storage: CellStorage, input: ChangeSetsInput) => {
+export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
   const offset = offsetOf(input.cursor);
-  const threadId = input.threadId ?? null;
-  const sets = storage
-    .all(
-      `SELECT id, actor, label, opened_at, sealed_at, thread_id, turn, undone_by FROM change_sets
-       WHERE ? IS NULL OR thread_id = ?
-       ORDER BY opened_at DESC, id DESC LIMIT ? OFFSET ?`,
-      [threadId, threadId, input.limit + 1, offset],
-    )
-    .map((row) => setRowSchema.parse(row));
+  const sets = db
+    .select({
+      ...getColumns(changeSets),
+      itemCount: db.$count(changeSetItems, eq(changeSetItems.changeSetId, changeSets.id)),
+    })
+    .from(changeSets)
+    .where(input.threadId === undefined ? undefined : eq(changeSets.threadId, input.threadId))
+    .orderBy(desc(changeSets.openedAt), desc(changeSets.id))
+    .limit(input.limit + 1)
+    .offset(offset)
+    .all();
   const shown = sets.slice(0, input.limit);
   return {
     changeSets: shown.map((set): ChangeSet => {
-      const [counted] = storage.all(
-        "SELECT count(*) AS count FROM change_set_items WHERE change_set_id = ?",
-        [set.id],
-      );
-      const setItems = storage
-        .all(
-          `SELECT item_id, created, before_fields, after_fields FROM change_set_items
-           WHERE change_set_id = ? ORDER BY item_id LIMIT ?`,
-          [set.id, SET_ITEMS_SHOWN],
-        )
-        .map((row) => setItemOf(storage, setItemSchema.parse(row)));
+      const setItems = db
+        .select(SET_ITEM_COLUMNS)
+        .from(changeSetItems)
+        .where(eq(changeSetItems.changeSetId, set.id))
+        .orderBy(asc(changeSetItems.itemId))
+        .limit(SET_ITEMS_SHOWN)
+        .all()
+        .map((entry) => setItemOf(db, entry));
       return {
         actor: set.actor,
-        closedAt: set.sealed_at === null ? null : isoOf(set.sealed_at),
+        closedAt: set.sealedAt === null ? null : isoOf(set.sealedAt),
         id: set.id,
-        itemCount: countRowSchema.parse(counted).count,
+        itemCount: set.itemCount,
         items: setItems,
         label: set.label,
-        openedAt: isoOf(set.opened_at),
-        threadId: set.thread_id,
+        openedAt: isoOf(set.openedAt),
+        threadId: set.threadId,
         turn: set.turn,
-        undoneBy: set.undone_by,
+        undoneBy: set.undoneBy,
       };
     }),
     cursor: sets.length > input.limit ? String(offset + input.limit) : null,

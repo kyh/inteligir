@@ -1,7 +1,7 @@
 // CLAUDE.md § The grid's selection is a store, a click selects and a double-click opens. The
 // listing as cards: the pages the cell answered so far, only the cards in view drawn, and the next
 // page asked for as the view nears the end of what is read. The grid
-// owns the gestures (the selection, the focus, the keys of LIBRARY_SHORTCUTS' grid rows and the
+// owns the gestures (the selection, the focus, the keys of the shortcut table's grid rows and the
 // menu); what a verb does is the caller's.
 
 import { CardGrid } from "@repo/ui/components/card-grid";
@@ -16,26 +16,27 @@ import { useNow } from "../relative-time";
 import { ItemCard } from "./item-card";
 import { ItemMenu } from "./item-menu";
 import type { ItemMenuState, LibraryGridActions } from "./item-menu";
-import { libraryShortcutFor } from "./library-keys";
-import type { LibraryAction } from "./library-keys";
+import { shortcutFor } from "../shortcuts";
+import type { ShortcutIn } from "../shortcuts";
 import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
 import { QuickLook } from "./quick-look";
 import type { ListedItem } from "./listing";
 
 const MIN_CELL_WIDTH = 200;
 
-const MOVES: Partial<Record<LibraryAction, { delta: MoveDelta; extend: boolean }>> = {
-  "extend-down": { delta: "down", extend: true },
-  "extend-left": { delta: "left", extend: true },
-  "extend-right": { delta: "right", extend: true },
-  "extend-up": { delta: "up", extend: true },
-  "move-down": { delta: "down", extend: false },
-  "move-first": { delta: "first", extend: false },
-  "move-last": { delta: "last", extend: false },
-  "move-left": { delta: "left", extend: false },
-  "move-right": { delta: "right", extend: false },
-  "move-up": { delta: "up", extend: false },
-};
+const MOVES: Partial<Record<ShortcutIn<"grid">["action"], { delta: MoveDelta; extend: boolean }>> =
+  {
+    "extend-down": { delta: "down", extend: true },
+    "extend-left": { delta: "left", extend: true },
+    "extend-right": { delta: "right", extend: true },
+    "extend-up": { delta: "up", extend: true },
+    "move-down": { delta: "down", extend: false },
+    "move-first": { delta: "first", extend: false },
+    "move-last": { delta: "last", extend: false },
+    "move-left": { delta: "left", extend: false },
+    "move-right": { delta: "right", extend: false },
+    "move-up": { delta: "up", extend: false },
+  };
 
 // how many rows short of the end of what is read the next page is asked for
 const NEAR_END_ROWS = 60;
@@ -93,7 +94,7 @@ export const LibraryGrid = ({ rows, selection, actions, onNearEnd }: LibraryGrid
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    const shortcut = libraryShortcutFor(event, "grid", modifier);
+    const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
     if (shortcut === null) {
       return;
     }

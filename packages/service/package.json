@@ -18,10 +18,9 @@
     "./note/note-do": "./src/note/note-do.ts"
   },
   "scripts": {
-    "agent-prompt": "node scripts/agent-prompt.ts",
     "generate": "cf workers types",
-    "test": "node scripts/agent-prompt.ts --check && vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
