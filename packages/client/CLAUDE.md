@@ -10,7 +10,7 @@ What the library tab and the phone share above the contract. It names no platfor
   a hand-rolled redial machine is ours forever. `packages/client/src/account-socket.ts`.
 - **One module says what a frame reads again, for the tab and the phone alike.** An item's read goes
   again only when the copy held is older than the frame's sequence, and a thread's by its key, since
-  a copy per device drifted. `packages/client/src/library-cache.ts`.
+  a copy per device drifts. `packages/client/src/library-cache.ts`.
 
 ## The agent's panel
 
@@ -22,4 +22,4 @@ What the library tab and the phone share above the contract. It names no platfor
   hostile page may have prompted. `packages/client/src/thread-entries.ts`.
 - **A conversation is read once, in order, and each approval and call has one state.**
   `conversationOf` is every device's one way in, since a set of answered calls over the whole thread
-  hid an ask its answer arrived before. `packages/client/src/thread-entries.ts`.
+  hides an ask its answer arrives before. `packages/client/src/thread-entries.ts`.

@@ -28,7 +28,7 @@ clock, random bytes and fresh ids are injected.
   organize rules.** A fake per client, or rules spelled twice, drift from what
   the cell refuses. `packages/contract/src/library/cell-rules.ts`.
 - **An item's reading is one value, which every writer moves and every surface
-  reads alike.** Three fields set by hand badged a failure over a read.
+  reads alike.** Three fields set by hand can badge a failure over a read.
   `packages/contract/src/library/item-reading.ts`.
 
 ## Items and files

@@ -43,7 +43,7 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   426, and a keeper reading the session on a timer end it one way, to the site's sign-in, since an
   idle tab makes no call. `apps/web/src/library/cloud/v1.ts`.
 - **A tab's session is one value.** Live, ended with why, or left, moved by `tabAfter`: the first
-  end wins, since two hand-rolled leaves went twice. `apps/web/src/library/library-tab.ts`.
+  end wins, since two hand-rolled leaves go twice. `apps/web/src/library/library-tab.ts`.
 
 ## Surfaces
 
@@ -65,7 +65,7 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   `apps/web/src/library/panel/panel.tsx`.
 - **The open item rides the URL, and Settings covers a workspace that stays mounted.** `?item=<id>`
   is a history entry, so Back and Forward work, and Settings is a layer over the inert workspace,
-  since a sibling route unmounted the item. `apps/web/src/library/library-search.ts`.
+  since a sibling route unmounts the item. `apps/web/src/library/library-search.ts`.
 - **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
   row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
   the device's and not the account's. `apps/web/src/library/prefs.ts`.
@@ -115,7 +115,7 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   mirrors what it pushes and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
 - **The agent's composer is one state the workspace keeps.** Moved by `composerAfter` under one
-  `useReducer`, since a `useState` per concern let a Tidy sit beside an open conversation.
+  `useReducer`, since a `useState` per concern lets a Tidy sit beside an open conversation.
   `apps/web/src/library/agent/agent-composer.ts`.
 
 ## Suites

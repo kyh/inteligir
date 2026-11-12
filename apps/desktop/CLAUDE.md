@@ -9,7 +9,7 @@ carries, and updates.
   does, so the app holds no entitlement, usage description, model or socket, and the window denies
   every permission request. `apps/desktop/src-tauri/src/window.rs`.
 - **The window is the library tab the site serves** (owner decision). A release loads
-  `https://inteligir.com/library` and bundles only the shell, since offline copies were most of the
+  `https://inteligir.com/library` and bundles only the shell, since offline copies would be most of the
   code; `INTELIGIR_CLOUD_ORIGIN` may name only a loopback origin, so no variable points a release at
   any site. `apps/desktop/src-tauri/tauri.conf.json`.
 - **A debug build is an app of its own.** `pnpm dev` loads `http://localhost:5174/library` as

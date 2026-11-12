@@ -60,7 +60,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   `packages/editor/src/mark-shortcuts.ts`.
 - **An extract is one undo step, and its note is an item of its own.** The host makes the note of
   the very blocks first, then the removal and the link land as their own undo step, since
-  create-or-reuse by title lost the blocks. `packages/editor/src/extract-note.ts`.
+  create-or-reuse by title loses the blocks. `packages/editor/src/extract-note.ts`.
 - **A formula recompute is not an edit, and a bound ref's item is found by id.** A pass reads only
   the items its pills name, and its display lands outside the note's undo (`withoutSaving`), so one
   undo reaches the person's own edit. `packages/editor/src/formulas/formula-recompute.ts`.
@@ -97,7 +97,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
 - **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
-  bytes held until a pause were lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
+  bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
 - **A fold is the device's view state, and holds none of the library's words.** It sits in local
   storage under a hash of the heading, dropped on leaving the account, since a fold in the cell
   makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
@@ -138,8 +138,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   by content and keep their ids, since re-reading a whole item turns every block's id over.
   `packages/editor/src/codec/item-edit.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
-  the codec read them into the item's fields through `readItemFacts`, the filename the title, and
-  `title:` is written only when the stem cannot carry it.
+  the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
   the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and
