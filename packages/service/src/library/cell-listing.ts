@@ -26,7 +26,7 @@ import {
   searchLibrary,
 } from "./library-queries";
 import type { LiteralMatch, LiveStoredItem, SearchSide } from "./library-queries";
-import { LibraryRowError, runPlan } from "./library-sql";
+import { LibraryRowError } from "./library-sql";
 import { asc, gt, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
@@ -160,7 +160,7 @@ export const searchHits = (
   side: SearchSide,
 ): Map<string, string> => {
   const hits = new Map<string, string>();
-  for (const hit of runPlan(storage, searchLibrary(query, SEARCH_CANDIDATES, side))) {
+  for (const hit of searchLibrary(storage, query, SEARCH_CANDIDATES, side)) {
     hits.set(hit.itemId, hit.snippet);
   }
   if (side === "deleted" || !isPrintableAscii(query)) {
@@ -168,10 +168,7 @@ export const searchHits = (
   }
   let after: string | null = null;
   while (hits.size < SEARCH_CANDIDATES) {
-    const page: LiteralMatch[] = runPlan(
-      storage,
-      literalMatches(query, { after, limit: LITERAL_PAGE }),
-    );
+    const page: LiteralMatch[] = literalMatches(storage, query, { after, limit: LITERAL_PAGE });
     for (const match of page) {
       const excerpt = hits.has(match.itemId) ? null : lineExcerpt(match.text, query);
       if (excerpt !== null && hits.size < SEARCH_CANDIDATES) {

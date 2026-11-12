@@ -120,8 +120,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   They reach the agent above anything a saved page says, so an import reads an
   `AGENTS.md` as a note. `packages/service/src/library/library-rules.ts`.
 - **A query on a table that outlives the block rows is drizzle's sync builder,
-  and the rest are plans.** A Durable Object caps a statement at 100 bound
-  parameters, and the suites run on its own SQLite, never a wasm build.
+  and the rest are raw statements over the cell's port.** A Durable Object caps
+  a statement at 100 bound parameters, and the suites run on its own SQLite,
+  never a wasm build.
   `packages/service/src/library/library-queries.ts`.
 - **An agent turn's undo in a note replays the turn's own Yjs updates, and flags
   what it takes with a block the turn added.** One merged update per set loses

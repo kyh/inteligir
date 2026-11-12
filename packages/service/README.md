@@ -20,7 +20,7 @@ import (the root `oxlint.config.ts`), and the library model's modules
 (`src/library/`'s SQL and undo, `src/knowledge/`, `src/items/`, `src/imports/`,
 `src/text/`, `src/note/turn-log.ts`) take no `crypto` or `URL` global either:
 the clock, random bytes and fresh ids come in as ports. The cell's SQL is the
-Durable Object's own, drizzle over `@repo/db`'s cell schema with raw plans
+Durable Object's own, drizzle over `@repo/db`'s cell schema with raw statements
 beside it, so every suite that reaches it runs in workerd.
 
 ## Layout
@@ -70,10 +70,10 @@ src/
                        # The library's SQL and undo:
     cell-db.ts         # drizzle over the cell, its DDL applied on wake,
                        # inserts cut under the bound-parameter cap
-    library-sql.ts     # the raw port, plans as generators, statement chunking
+    library-sql.ts     # the raw port, statement chunking
     sql-value.ts       # a SQL value and row as zod
     library-queries.ts # an item's rows: drizzle for its row and derived rows,
-                       # plans for its seed and the search index
+                       # raw statements for its text and the search index
     revert-change.ts   # a change set's fields taken back three ways, the
                        # set's after as the base, newest set first
   note/                # each item's note: NoteDO (note-do.ts), a y-partyserver

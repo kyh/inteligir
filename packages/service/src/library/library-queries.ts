@@ -1,7 +1,7 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
 // its derived rows and `meta` through drizzle's builders, and its body's text and the search index
-// as raw plans (`./library-sql`). A write binds every value and cuts every many-row statement under a
-// Durable Object's limits (`insertChunks`, `chunkStatement`); a user's text is matched with
+// as raw statements over the cell's port (`./cell-storage`). A write binds every value and cuts
+// every many-row statement under a Durable Object's limits (`insertChunks`); a user's text is matched with
 // instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
 // only over an older one, so a write stamped with a sequence the row has passed lands nothing.
 
@@ -26,8 +26,8 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { ListingRow } from "@repo/contract/library/library-index";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { all, LibraryRowError, run } from "./library-sql";
-import type { SqlPlan, SqlRow } from "./library-sql";
+import { LibraryRowError } from "./library-sql";
+import type { SqlRow } from "./library-sql";
 
 import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -435,13 +435,14 @@ const INSERT_SEARCH_ROW = `INSERT INTO search_fts (rowid, title, headings, meta,
   heading_stems, meta_stems, body_stems)
 SELECT rid, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ?`;
 
-export const storeSearchRow = function* storeSearchRow(
+export const storeSearchRow = (
+  storage: CellStorage,
   itemId: string,
   text: ItemSearchText,
-): SqlPlan<void> {
+): void => {
   const row = searchRowOf(text);
-  yield run(DELETE_SEARCH_ROW, [itemId]);
-  yield run(INSERT_SEARCH_ROW, [
+  storage.run(DELETE_SEARCH_ROW, [itemId]);
+  storage.run(INSERT_SEARCH_ROW, [
     row.title,
     row.headings,
     row.meta,
@@ -491,16 +492,17 @@ export interface LibrarySearchHit {
 }
 
 // the search policy's plans in turn, every term required first, until one finds anything
-export const searchLibrary = function* searchLibrary(
+export const searchLibrary = (
+  storage: CellStorage,
   query: string,
   limit: number,
   side: SearchSide = "live",
-): SqlPlan<LibrarySearchHit[]> {
+): LibrarySearchHit[] => {
   if (limit <= 0) {
     return [];
   }
   for (const plan of planSearchQuery(query)) {
-    const rows = yield all(SEARCH_SQL, [renderFtsMatch(plan), side === "deleted" ? 1 : 0, limit]);
+    const rows = storage.all(SEARCH_SQL, [renderFtsMatch(plan), side === "deleted" ? 1 : 0, limit]);
     if (rows.length > 0) {
       return rows.map((raw) => {
         const row = parseRow(raw, searchRowSchema, "a search hit");
@@ -532,13 +534,14 @@ const partTextSchema = z.object({ text: z.string() });
 // lower() folds ascii alone), in id order after `after` and at most `limit` of them, each with its
 // first such line: a body's text is cut into parts at line ends, so a line lives in one part, and
 // only the first part that holds the needle is read, whatever the library holds
-export const literalMatches = function* literalMatches(
+export const literalMatches = (
+  storage: CellStorage,
   needle: string,
   page: { readonly after: string | null; readonly limit: number },
-): SqlPlan<LiteralMatch[]> {
+): LiteralMatch[] => {
   const folded = needle.toLowerCase();
   const ids: string[] = [];
-  for (const raw of yield all(
+  for (const raw of storage.all(
     `SELECT DISTINCT t.item_id FROM body_texts t JOIN items i ON i.id = t.item_id
      WHERE t.item_id > ? AND i.deleted_at IS NULL AND i.purged = 0 AND instr(lower(t.text), ?) > 0
      ORDER BY t.item_id LIMIT ?`,
@@ -548,7 +551,7 @@ export const literalMatches = function* literalMatches(
   }
   const matches: LiteralMatch[] = [];
   for (const itemId of ids) {
-    const [raw] = yield all(
+    const [raw] = storage.all(
       `SELECT text FROM body_texts WHERE item_id = ? AND instr(lower(text), ?) > 0
        ORDER BY part LIMIT 1`,
       [itemId, folded],

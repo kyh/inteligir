@@ -1,23 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { utf8ByteLength } from "@repo/contract/library/canonical-json";
-import {
-  all,
-  chunkStatement,
-  run,
-  runPlan,
-  SQL_MAX_PARAMS,
-  SQL_MAX_STATEMENT_BYTES,
-} from "./library-sql";
-import type { RepeatedStatement, SqlPlan, SqlValue } from "./library-sql";
+import { chunkStatement, SQL_MAX_PARAMS, SQL_MAX_STATEMENT_BYTES } from "./library-sql";
+import type { RepeatedStatement, SqlValue } from "./library-sql";
 import { mulberry32 } from "@repo/contract/test-support/seeded-random";
-
-import { cellOf, inCell } from "../test-support/library-cell";
-import { cellStorageOf } from "./cell-storage";
-import type { CellStorage } from "./cell-storage";
-
-const inStorage = async <T>(work: (storage: CellStorage) => T): Promise<T> =>
-  await inCell(cellOf(), (state) => work(cellStorageOf(state.storage)));
 
 const placeholders = (width: number): string =>
   `(${Array.from({ length: width }, () => "?").join(", ")})`;
@@ -76,49 +62,5 @@ describe(chunkStatement, () => {
     expect(() =>
       chunkStatement({ each: "(?, ?)", head: "X ", rows: [[1]], separator: ", " }),
     ).toThrow(/binds 1/u);
-  });
-});
-
-const counting = function* counting(): SqlPlan<number> {
-  yield run("CREATE TABLE n (v INTEGER) STRICT");
-  yield run("INSERT INTO n (v) VALUES (?), (?)", [1, 2]);
-  const [row] = yield all("SELECT sum(v) AS total FROM n");
-  return Number(row?.total ?? 0);
-};
-
-const failing = function* failing(): SqlPlan<string> {
-  yield run("CREATE TABLE f (v INTEGER NOT NULL) STRICT");
-  try {
-    yield run("INSERT INTO f (v) VALUES (?)", [null]);
-  } catch {
-    return "refused";
-  }
-  return "landed";
-};
-
-const broken = function* broken(): SqlPlan<void> {
-  yield run("INSERT INTO n (v) VALUES (?)", [10]);
-  throw new Error("stop");
-};
-
-describe(runPlan, () => {
-  it("drives a plan over the port, handing each statement its rows", async () => {
-    await expect(inStorage((storage) => runPlan(storage, counting()))).resolves.toBe(3);
-  });
-
-  it("throws an engine's refusal into the plan at its yield", async () => {
-    await expect(inStorage((storage) => runPlan(storage, failing()))).resolves.toBe("refused");
-  });
-
-  it("lands nothing of a transaction that throws", async () => {
-    await inStorage((storage) => {
-      runPlan(storage, counting());
-      expect(() => {
-        storage.transaction(() => {
-          runPlan(storage, broken());
-        });
-      }).toThrow("stop");
-      expect(storage.all("SELECT count(*) AS rows FROM n", [])).toStrictEqual([{ rows: 2 }]);
-    });
   });
 });
