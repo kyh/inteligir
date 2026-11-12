@@ -44,7 +44,8 @@ import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import type { ComposerEvent, ComposerState } from "./agent-composer";
 import { quotePassage } from "./quote-passage";
-import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { chunksOf } from "../library/bulk-actions";
+import { conversationUndo, turnUndo } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
@@ -250,7 +251,7 @@ const Conversation = ({
       const lostText: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
-      for (const batch of undoBatches(ids)) {
+      for (const batch of chunksOf(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 
-import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { chunksOf } from "../library/bulk-actions";
+import { changeSetsOf, conversationUndo, turnUndo } from "./thread-undo";
 
 const THREAD = "0199a4c2-0000-7000-8000-00000000000a";
 
@@ -57,7 +58,7 @@ describe("a conversation longer than one page of change sets", () => {
     expect(listed.map((one) => one.id)).toStrictEqual(sets.map((one) => one.id));
     expect(turnUndo(listed, 1)).toStrictEqual(["s1"]);
     const whole = conversationUndo(listed) ?? [];
-    const batches = undoBatches(whole);
+    const batches = chunksOf(whole);
     expect(batches.map((batch) => batch.length)).toStrictEqual([BULK_ITEMS_MAX, 20]);
     expect(batches.flat()).toStrictEqual(whole);
     expect(batches[0]?.[0]).toBe(`s${String(BULK_ITEMS_MAX + 20)}`);
