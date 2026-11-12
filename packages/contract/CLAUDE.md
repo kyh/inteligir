@@ -42,6 +42,3 @@ clock, random bytes and fresh ids are injected.
 - **No reader decides what a doc is on its own.** A private `.md` rule leaves
   out every `.txt` note and disagrees on a name's case.
   `packages/contract/src/knowledge/doc-file.ts`.
-- **An import takes off a sole top folder only when it holds `assets/`.** An
-  Obsidian vault's top folder is one the person named.
-  `packages/editor/src/codec/import-plan.ts`.

@@ -58,9 +58,6 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   three tables and the tab's one, its rows scoped by listener, own every chord, and every label and
   key glyph derives from their rows, since a literal drifts from what the key does.
   `packages/editor/src/mark-shortcuts.ts`.
-- **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
-  a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
-  merges. `apps/web/src/library/library/library-verbs.ts`.
 - **An extract is one undo step, and its note is an item of its own.** The host makes the note of
   the very blocks first, then the removal and the link land as their own undo step, since
   create-or-reuse by title lost the blocks. `packages/editor/src/extract-note.ts`.
@@ -131,6 +128,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **An md url has one reading, and only an import resolves one by path.** Past the import an item is
   reached by id and a file by sha, and only an http(s) url reaches the browser, since no item has a
   path to resolve against. `packages/editor/src/codec/import-plan.ts`.
+- **An import takes off a sole top folder only when it holds `assets/`.** An
+  Obsidian vault's top folder is one the person named.
+  `packages/editor/src/codec/import-plan.ts`.
 - **A `[[…]]` names what the resolver answers to.** Obsidian's links are read only where markdown
   comes in from outside, and `.md` is the one extension a link leaves off, so a `.txt` note links
   as `[[todo.txt]]`. `packages/editor/src/knowledge/link-resolve.test.ts`.

@@ -27,9 +27,6 @@ carries, and updates.
 - **An update waits for a click to download and another to restart** (owner decision). Rust drives
   Tauri's updater behind three commands and one event, its session one phase moved by one pure step,
   so an ask that does not fit the phase is a no-op. `apps/desktop/src-tauri/src/updater.rs`.
-- **Spell check is the tab's attribute, and a print is always light.** WKWebView has no
-  session-wide spell-check switch, so it is a pref on the document root, and a print steps the dark
-  theme aside between the print events. `apps/web/src/library/spellcheck.ts`.
 - **The release notes are the changelog, written for the person using the app.** A release's body is
   `CHANGELOG.md`'s top section, refused unless titled for the version, since a list of commit
   subjects says only that something changed. `apps/desktop/scripts/release-notes.ts`.

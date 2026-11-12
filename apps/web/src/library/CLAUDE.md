@@ -69,6 +69,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
   row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
   the device's and not the account's. `apps/web/src/library/prefs.ts`.
+- **Spell check is the tab's attribute, and a print is always light.** WKWebView has no
+  session-wide spell-check switch, so it is a pref on the document root, and a print steps the dark
+  theme aside between the print events. `apps/web/src/library/spellcheck.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is
   `user-select: none` and what a person would copy opts in, since selectable by default makes every
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.
@@ -88,6 +91,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **An item's Info is its fields, and a write shows before it lands.** Info reads `items.row`, which
   wakes no note, and each write shows in the listings at once and rolls back on a refusal, since a
   pin must not lag the press by a round trip. `apps/web/src/library/panel/info-tab.tsx`.
+- **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
+  a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
+  merges. `apps/web/src/library/library/library-verbs.ts`.
 - **Undo is one queue of the agent's change sets.** A set goes back once the open note stored what
   was typed, so typing since stays, and every undo waits in press order; there is no version
   history, since ⌘Z and Deleted take back the person's own.

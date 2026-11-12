@@ -12,10 +12,6 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   ends.** A lost phone goes from Settings › Account with no password, and Better
   Auth's own list routes would hand each session's token to the browser.
   `packages/service/src/auth/session-devices.ts`.
-- **A device signs out through Better Auth's own `/api/auth/sign-out`, and no
-  unreachable cloud holds that sign-out open.** The phone drops its copy first
-  and keeps the session if the copy will not go; a tab, holding nothing, ends
-  the session first. `apps/mobile/src/lib/compose-runtime.ts`.
 - **An account is deleted from any signed-in device, the password asked again,
   through Better Auth's `deleteUser`** (owner decision: whoever lost their Mac
   deletes from any Mac). Its `beforeDelete` is the one purge path, and a session
