@@ -3,16 +3,11 @@ import type { ComponentProps } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-const Card = ({
-  className,
-  size = "default",
-  ...props
-}: ComponentProps<"div"> & { size?: "default" | "sm" }) => (
+const Card = ({ className, ...props }: ComponentProps<"div">) => (
   <div
     data-slot="card"
-    data-size={size}
     className={cn(
-      "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card py-(--card-spacing) text-body text-card-foreground shadow-sm ring-1 ring-foreground/5 [--card-spacing:--spacing(5)] data-[size=sm]:[--card-spacing:--spacing(4)] dark:ring-foreground/10",
+      "flex flex-col gap-(--card-spacing) overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card py-(--card-spacing) text-body text-card-foreground shadow-sm ring-1 ring-foreground/5 [--card-spacing:--spacing(4)] dark:ring-foreground/10",
       className,
     )}
     {...props}
@@ -33,10 +28,7 @@ const CardHeader = ({ className, ...props }: ComponentProps<"div">) => (
 const CardTitle = ({ className, ...props }: ComponentProps<"div">) => (
   <div
     data-slot="card-title"
-    className={cn(
-      "text-title font-medium text-foreground group-data-[size=sm]/card:text-subtitle",
-      className,
-    )}
+    className={cn("text-subtitle font-medium text-foreground", className)}
     {...props}
   />
 );

@@ -15,7 +15,6 @@ import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 
 import { installPageHost } from "./page-host";
@@ -59,27 +58,25 @@ const NotePage = (props: NotePageProps) => {
   }, [focus, itemId]);
   return (
     <ThemeProvider theme="system" setTheme={keepSystemTheme}>
-      <SizeProvider size="compact">
-        <MotionPolicy>
-          <TooltipProvider>
-            <EditorProfileProvider profile="touch">
-              <main
-                data-editor-scroller=""
-                className="isolate h-dvh overflow-y-auto bg-background pt-[env(safe-area-inset-top)] text-foreground antialiased"
-              >
-                <ItemEditor
-                  itemId={itemId}
-                  onNote={(note) => {
-                    host.noteIs(note);
-                  }}
-                />
-              </main>
-            </EditorProfileProvider>
-            <ConfirmDialogHost />
-            <Toaster position="top-center" />
-          </TooltipProvider>
-        </MotionPolicy>
-      </SizeProvider>
+      <MotionPolicy>
+        <TooltipProvider>
+          <EditorProfileProvider profile="touch">
+            <main
+              data-editor-scroller=""
+              className="isolate h-dvh overflow-y-auto bg-background pt-[env(safe-area-inset-top)] text-foreground antialiased"
+            >
+              <ItemEditor
+                itemId={itemId}
+                onNote={(note) => {
+                  host.noteIs(note);
+                }}
+              />
+            </main>
+          </EditorProfileProvider>
+          <ConfirmDialogHost />
+          <Toaster position="top-center" />
+        </TooltipProvider>
+      </MotionPolicy>
     </ThemeProvider>
   );
 };

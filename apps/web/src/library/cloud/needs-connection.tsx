@@ -79,7 +79,7 @@ export const CellAnswer = <T,>({
       );
     }
     case "loading": {
-      return <LoadingState className="px-3 py-2" label="Asking your library" variant="dots" />;
+      return <LoadingState className="px-3 py-2" label="Asking your library" />;
     }
     // no default
   }

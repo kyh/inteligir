@@ -8,7 +8,6 @@ import { cva } from "class-variance-authority";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { radius } from "@repo/ui/lib/radius";
-import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { childList, isTextChild } from "@repo/ui/lib/text-children";
 import { cn } from "@repo/ui/lib/cn";
 
@@ -24,16 +23,13 @@ const buttonStructure = cva(
     compoundVariants: [
       { className: "pl-[6px]", iconLeft: true, size: "compact" },
       { className: "pl-[10px]", iconLeft: true, size: "default" },
-      { className: "pr-[6px]", iconRight: true, size: "compact" },
-      { className: "pr-[10px]", iconRight: true, size: "default" },
     ],
     defaultVariants: {
-      size: "default",
+      size: "compact",
       variant: "primary",
     },
     variants: {
       iconLeft: { true: "" },
-      iconRight: { true: "" },
       size: {
         compact: "h-7 gap-1 px-3 text-body [&_svg:not([class*='size-'])]:size-3.5",
         default: "h-9 gap-1.5 px-4 text-subtitle",
@@ -98,7 +94,7 @@ const buttonVariants = (props?: {
   className?: string;
 }): string => {
   const variant = props?.variant ?? "primary";
-  const size = props?.size ?? "default";
+  const size = props?.size ?? "compact";
   return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
 };
 
@@ -107,9 +103,7 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
   style?: CSSProperties;
   variant?: ButtonVariant;
   size?: ButtonSize;
-  loading?: boolean;
   leadingIcon?: IconComponent;
-  trailingIcon?: IconComponent;
   active?: boolean;
 }
 
@@ -150,9 +144,6 @@ interface ButtonLabelProps {
   iconSize: number;
   isIconOnly: boolean;
   leadingIcon: IconComponent | undefined;
-  loading: boolean;
-  spinnerSizeClass: string;
-  trailingIcon: IconComponent | undefined;
 }
 
 const ButtonLabel = ({
@@ -160,37 +151,7 @@ const ButtonLabel = ({
   iconSize,
   isIconOnly,
   leadingIcon: LeadingIcon,
-  loading,
-  spinnerSizeClass,
-  trailingIcon: TrailingIcon,
 }: ButtonLabelProps) => {
-  if (loading) {
-    return (
-      <>
-        <span className="flex items-center justify-center gap-[inherit] opacity-0">
-          {LeadingIcon && !isIconOnly && <LeadingIcon size={iconSize} strokeWidth={2} />}
-          {children}
-          {TrailingIcon && !isIconOnly && <TrailingIcon size={iconSize} strokeWidth={2} />}
-        </span>
-        <span className="absolute inset-0 flex items-center justify-center">
-          <svg className={spinnerSizeClass} viewBox="0 0 24 24" fill="none">
-            <path
-              d="M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z"
-              stroke="currentColor"
-              strokeWidth="1.125"
-              strokeLinecap="round"
-              pathLength="100"
-              style={{
-                animation: "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
-                strokeDasharray: "15 85",
-              }}
-            />
-          </svg>
-        </span>
-      </>
-    );
-  }
-
   if (isIconOnly) {
     return (
       <span className="inline-flex items-center gap-[inherit] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
@@ -209,13 +170,6 @@ const ButtonLabel = ({
         />
       )}
       {labelChildren(children)}
-      {TrailingIcon && (
-        <TrailingIcon
-          size={iconSize}
-          strokeWidth={1.5}
-          className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
-        />
-      )}
     </>
   );
 };
@@ -224,9 +178,7 @@ const Button = ({
   className,
   variant,
   size,
-  loading = false,
   leadingIcon: LeadingIcon,
-  trailingIcon: TrailingIcon,
   active = false,
   disabled,
   children,
@@ -236,14 +188,11 @@ const Button = ({
   ref,
   ...props
 }: ButtonProps & RefAttributes<HTMLButtonElement>) => {
-  const contextSize = useSizeVariant();
-  const resolvedSize: ButtonSize = size ?? (contextSize === "compact" ? "compact" : "default");
+  const resolvedSize: ButtonSize = size ?? "compact";
   const resolvedVariant = variant ?? "primary";
   const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
   const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";
   const iconSize = isCompact ? 14 : 16;
-  // size-* spelling on purpose: the base [&_svg:not([class*='size-'])] guard must skip the spinner.
-  const spinnerSizeClass = isCompact ? "size-7" : "size-9";
   const bgClass = active ? activeBgVariants[resolvedVariant] : bgVariants[resolvedVariant];
 
   const internals = (
@@ -256,14 +205,7 @@ const Button = ({
         )}
       />
       <span className="relative inline-flex items-center justify-center gap-[inherit]">
-        <ButtonLabel
-          iconSize={iconSize}
-          isIconOnly={isIconOnly}
-          leadingIcon={LeadingIcon}
-          loading={loading}
-          spinnerSizeClass={spinnerSizeClass}
-          trailingIcon={TrailingIcon}
-        >
+        <ButtonLabel iconSize={iconSize} isIconOnly={isIconOnly} leadingIcon={LeadingIcon}>
           {children}
         </ButtonLabel>
       </span>
@@ -273,7 +215,6 @@ const Button = ({
   const rootClassName = cn(
     buttonStructure({
       iconLeft: !isIconOnly && !!LeadingIcon,
-      iconRight: !isIconOnly && !!TrailingIcon,
       size: resolvedSize,
       variant: resolvedVariant,
     }),
@@ -288,7 +229,7 @@ const Button = ({
     <ButtonPrimitive
       ref={ref}
       className={rootClassName}
-      disabled={disabled ?? loading}
+      disabled={disabled}
       style={style}
       aria-label={ariaLabel ?? iconLabel}
       title={isIconOnly ? undefined : title}

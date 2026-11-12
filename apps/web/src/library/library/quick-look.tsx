@@ -34,7 +34,7 @@ const Look = ({ row }: { row: ListedItem }) => {
         <img alt="" src={fileUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
       )}
       <div className="flex items-center gap-2">
-        <Badge variant="outline">{KIND_LABELS[row.fields.kind]}</Badge>
+        <Badge>{KIND_LABELS[row.fields.kind]}</Badge>
         <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
       </div>
       {notice === null ? null : <p className="m-0 text-body text-muted-foreground">{notice}</p>}

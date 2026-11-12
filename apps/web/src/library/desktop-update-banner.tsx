@@ -31,7 +31,7 @@ const UpdateCard = ({
   children: ReactNode;
 }) => (
   // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Card renders a div; `output` is a form's result, not a notice
-  <Card size="sm" role="status" className="fixed right-4 bottom-4 z-50 w-full max-w-sm">
+  <Card role="status" className="fixed right-4 bottom-4 z-50 w-full max-w-sm">
     <CardHeader>
       <div className="flex items-center gap-2">
         {icon}

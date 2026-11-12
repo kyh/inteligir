@@ -13,7 +13,6 @@ import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { radius } from "@repo/ui/lib/radius";
-import { useSize } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/cn";
 
@@ -101,49 +100,41 @@ const DialogContent = ({
   style,
   ref,
   ...props
-}: DialogContentProps & RefAttributes<HTMLDivElement>) => {
-  const compact = useSize().variant === "compact";
-
-  return (
-    <PopupPresence>
-      <DialogPrimitive.Portal keepMounted>
-        <DialogPrimitive.Backdrop render={renderDialogBackdrop} />
-        <DialogPrimitive.Popup
-          ref={ref}
-          initialFocus={initialFocus}
-          render={(popupProps) => (
-            <DialogCard
-              {...props}
-              popupProps={popupProps}
-              data-slot="dialog-content"
-              className={cn(
-                "w-[calc(100%-2rem)]",
-                compact ? "max-w-[360px]" : "max-w-[400px]",
-                className,
-              )}
-              style={style}
-            >
-              {children}
-              {showCloseButton && (
-                <DialogPrimitive.Close
-                  render={
-                    // named by its text, not an aria-label: the Button would draw that as a
-                    // tooltip, which opens as the dialog's first focus lands here and takes the
-                    // first Escape for itself
-                    <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
-                      <XIcon />
-                      <span className="sr-only">Close</span>
-                    </Button>
-                  }
-                />
-              )}
-            </DialogCard>
-          )}
-        />
-      </DialogPrimitive.Portal>
-    </PopupPresence>
-  );
-};
+}: DialogContentProps & RefAttributes<HTMLDivElement>) => (
+  <PopupPresence>
+    <DialogPrimitive.Portal keepMounted>
+      <DialogPrimitive.Backdrop render={renderDialogBackdrop} />
+      <DialogPrimitive.Popup
+        ref={ref}
+        initialFocus={initialFocus}
+        render={(popupProps) => (
+          <DialogCard
+            {...props}
+            popupProps={popupProps}
+            data-slot="dialog-content"
+            className={cn("w-[calc(100%-2rem)] max-w-[360px]", className)}
+            style={style}
+          >
+            {children}
+            {showCloseButton && (
+              <DialogPrimitive.Close
+                render={
+                  // named by its text, not an aria-label: the Button would draw that as a
+                  // tooltip, which opens as the dialog's first focus lands here and takes the
+                  // first Escape for itself
+                  <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
+                    <XIcon />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                }
+              />
+            )}
+          </DialogCard>
+        )}
+      />
+    </DialogPrimitive.Portal>
+  </PopupPresence>
+);
 
 const DialogHeader = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <div className={cn("mb-4 flex flex-col gap-1.5", className)} {...props} />

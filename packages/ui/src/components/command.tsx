@@ -17,7 +17,6 @@ import type { ComponentProps, ReactNode, RefObject } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { cn } from "@repo/ui/lib/cn";
 import { radius } from "@repo/ui/lib/radius";
-import { useSize } from "@repo/ui/lib/size-context";
 
 // a row the palette lists
 export interface CommandRow {
@@ -121,28 +120,25 @@ type CommandInputProps = Omit<
   "className" | "value" | "onChange"
 > & { className?: string };
 
-const CommandInput = ({ className, ...props }: CommandInputProps) => {
-  const sizeClasses = useSize();
-  return (
-    <Autocomplete.InputGroup
-      data-slot="command-input"
-      className="group/command-input flex h-10 shrink-0 items-center gap-2 px-3"
-    >
-      <SearchIcon
-        aria-hidden
-        size={sizeClasses.icon}
-        strokeWidth={1.5}
-        className="shrink-0 text-muted-foreground transition-[color,stroke-width] duration-80 group-focus-within/command-input:stroke-2 group-focus-within/command-input:text-foreground"
-      />
-      <Autocomplete.Input
-        autoCorrect="off"
-        spellCheck={false}
-        className={cn(FIELD_CLASSES, className)}
-        {...props}
-      />
-    </Autocomplete.InputGroup>
-  );
-};
+const CommandInput = ({ className, ...props }: CommandInputProps) => (
+  <Autocomplete.InputGroup
+    data-slot="command-input"
+    className="group/command-input flex h-10 shrink-0 items-center gap-2 px-3"
+  >
+    <SearchIcon
+      aria-hidden
+      size={14}
+      strokeWidth={1.5}
+      className="shrink-0 text-muted-foreground transition-[color,stroke-width] duration-80 group-focus-within/command-input:stroke-2 group-focus-within/command-input:text-foreground"
+    />
+    <Autocomplete.Input
+      autoCorrect="off"
+      spellCheck={false}
+      className={cn(FIELD_CLASSES, className)}
+      {...props}
+    />
+  </Autocomplete.InputGroup>
+);
 
 const CommandList = ({ className, children }: { className?: string; children: ReactNode }) => (
   <Autocomplete.List
@@ -182,36 +178,29 @@ interface CommandItemProps extends Omit<
   className?: string;
 }
 
-const CommandItem = ({ row, className, children, ...props }: CommandItemProps) => {
-  const sizeClasses = useSize();
-  // the control height is fixed so a trimmed label cannot shrink the row, and shrink-0 because the
-  // list is a flex column
-  return (
-    <Autocomplete.Item
-      value={row}
-      // Base UI runs it for a click and for Enter on the lit row
-      onClick={() => {
-        row.onSelect();
-      }}
-      data-slot="command-item"
-      className={cn(
-        "relative flex shrink-0 cursor-pointer items-center outline-none select-none",
-        sizeClasses.control,
-        sizeClasses.gap,
-        sizeClasses.itemPx,
-        sizeClasses.text,
-        radius.item,
-        "text-muted-foreground transition-colors duration-80 data-[highlighted]:bg-hover data-[highlighted]:text-foreground",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </Autocomplete.Item>
-  );
-};
+// the control height is fixed so a trimmed label cannot shrink the row, and shrink-0 because the
+// list is a flex column
+const CommandItem = ({ row, className, children, ...props }: CommandItemProps) => (
+  <Autocomplete.Item
+    value={row}
+    // Base UI runs it for a click and for Enter on the lit row
+    onClick={() => {
+      row.onSelect();
+    }}
+    data-slot="command-item"
+    className={cn(
+      "relative flex h-7 shrink-0 cursor-pointer items-center gap-1 px-1.5 text-body outline-none select-none",
+      radius.item,
+      "text-muted-foreground transition-colors duration-80 data-[highlighted]:bg-hover data-[highlighted]:text-foreground",
+      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </Autocomplete.Item>
+);
 
 // one box per key; a chord can repeat a cap, so the position is part of the key
 const Caps = ({ caps }: { caps: readonly string[] }) => (

@@ -14,8 +14,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { radius } from "@repo/ui/lib/radius";
-import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
-import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ArrowUpIcon } from "lucide-react";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
@@ -24,7 +22,6 @@ import { Button } from "@repo/ui/components/button";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
-  size?: SizeVariant;
   value: string;
   onValueChange: (value: string) => void;
   onSend?: (value: string) => void;
@@ -51,26 +48,8 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
 const sendable = (trimmed: string, disabled: boolean, sendsEmpty: boolean | undefined): boolean =>
   !disabled && (sendsEmpty === true || trimmed.length > 0);
 
-interface StepClasses {
-  icon: string;
-  iconSize: number;
-  textarea: string;
-  toolbar: string;
-}
-
-const compactSteps: StepClasses = {
-  icon: "!h-[15px] !w-[15px]",
-  iconSize: 15,
-  textarea: "text-subtitle leading-[18px] px-1.5 py-1.5",
-  toolbar: "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-caption",
-};
-
-const comfortableSteps: StepClasses = {
-  icon: "!h-[19px] !w-[19px]",
-  iconSize: 19,
-  textarea: "text-subtitle leading-5 px-2 py-2",
-  toolbar: "gap-2",
-};
+// `w-7` is how an icon-compact Button spells its width, so the toolbar can shrink it to a 6
+const TOOLBAR = "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-caption";
 
 // inline, not a tailwind shadow-* utility, which mangles multi-layer arbitrary values;
 // precedence focus > hover, else the className's shadow-surface-2 supplies the ring.
@@ -97,7 +76,6 @@ const edgeShadowFor = ({
 };
 
 const InputMessage = ({
-  size,
   value,
   onValueChange,
   onSend,
@@ -118,9 +96,6 @@ const InputMessage = ({
   ref,
   ...props
 }: InputMessageProps & RefAttributes<HTMLDivElement>) => {
-  const compactStep = useSize(size).variant === "compact";
-  const step = compactStep ? compactSteps : comfortableSteps;
-
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [focusVisible, setFocusVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -220,7 +195,7 @@ const InputMessage = ({
     textareaRef.current?.focus();
   };
 
-  const composer = (
+  return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- click-to-focus affordance for the textarea inside, which keeps the keyboard path
     <div
       ref={ref}
@@ -277,12 +252,12 @@ const InputMessage = ({
           className={cn(
             "w-full resize-none bg-transparent outline-none",
             "text-foreground placeholder:text-muted-foreground",
-            step.textarea,
+            "text-subtitle leading-[18px] px-1.5 py-1.5",
           )}
           style={{ fontVariationSettings: fontWeights.normal }}
           {...restTextareaProps}
         />
-        <div className={cn("flex items-center justify-between", step.toolbar)}>
+        <div className={cn("flex items-center justify-between", TOOLBAR)}>
           <div className="flex items-center gap-1.5 min-w-0">{leftSlot}</div>
           <div className="flex items-center gap-1.5 shrink-0">
             {rightSlot}
@@ -294,15 +269,13 @@ const InputMessage = ({
               disabled={!canSend}
               aria-label={sendLabel}
             >
-              <ArrowUpIcon size={step.iconSize} className={cn("block", step.icon)} />
+              <ArrowUpIcon size={15} className="block !h-[15px] !w-[15px]" />
             </Button>
           </div>
         </div>
       </SurfaceProvider>
     </div>
   );
-
-  return size ? <SizeProvider size={size}>{composer}</SizeProvider> : composer;
 };
 
 export { InputMessage };
