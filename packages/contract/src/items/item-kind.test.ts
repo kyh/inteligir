@@ -6,7 +6,6 @@ import {
   isItemKind,
   ITEM_KINDS,
   keptFileType,
-  LIBRARY_RULES_PATH,
   mediaTypeOfName,
   UNKNOWN_FILE_TYPE,
   URL_ITEM_KINDS,
@@ -55,7 +54,7 @@ describe("item kinds", () => {
   });
 
   it("spells the library's own places", () => {
-    expect([COVERS_DIR, LIBRARY_RULES_PATH]).toStrictEqual(["assets/covers", "AGENTS.md"]);
+    expect(COVERS_DIR).toBe("assets/covers");
   });
 });
 

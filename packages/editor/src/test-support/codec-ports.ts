@@ -6,9 +6,9 @@ import { fileKindOf } from "@repo/contract/items/item-kind";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
-import type { ExportPorts, FoundFile, HeldFile, ImportPorts } from "../codec/item-markdown";
+import type { FoundFile, ImportPorts } from "../codec/item-markdown";
 import type { LinkedItem } from "../codec/read-blocks";
-import type { WrittenFile } from "../codec/write-blocks";
+import type { WritePorts, WrittenFile } from "../codec/write-blocks";
 
 // 2026-05-28T21:46:40Z, a whole second
 export const CODEC_NOW = 1_780_004_800_000;
@@ -29,7 +29,7 @@ const fakeSha = (path: string): string => {
 
 export interface PretendLibrary {
   readonly importPorts: () => ImportPorts;
-  readonly exportPorts: () => ExportPorts;
+  readonly writePorts: () => WritePorts;
   readonly titles: ReadonlyMap<string, string>;
 }
 
@@ -62,8 +62,7 @@ export const pretendLibrary = (): PretendLibrary => {
     return title === undefined ? null : { itemId: key, title };
   };
   return {
-    exportPorts: () => ({
-      held: (file: HeldFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
+    writePorts: () => ({
       path: (file: WrittenFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
       target: (itemId: string) => titles.get(itemId) ?? null,
     }),

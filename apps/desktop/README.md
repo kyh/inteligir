@@ -91,10 +91,10 @@ refuses an import node could not load.
 
 `scripts/package.ts` runs on a Mac:
 
-1. `scripts/rust-notices.ts` writes `.output/notices/rust-crates.txt`: every
-   crate the shell's binary links on the Mac, read from cargo's own resolve,
-   with its version, licence and source, and each licence text the crates ship,
-   once, since their licences ask that the notices travel with the binary.
+1. `cargo about` writes `.output/notices/rust-crates.txt` from
+   `src-tauri/about.toml` and `about.hbs`: every crate the shell's binary is
+   built from on the Mac, with its version, licence and source, and each licence
+   text once, since their licences ask that the notices travel with the binary.
 2. `tauri build` with a config of the script's own that names the notices as
    the bundle's resources, the signing and, with the updater's key, the feed:
    they live there and never in `src-tauri/tauri.conf.json`, because

@@ -6,9 +6,9 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { useTitleOf } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { notePreviewHead } from "@repo/editor/note-preview";
 
 import { shownTitle } from "@repo/contract/items/item-name";
+import { cardPreview } from "@repo/contract/library/derive-item";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
@@ -16,16 +16,6 @@ const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
 const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
-
-const PreviewBody = ({ text }: { text: string | null }) => {
-  if (text === null) {
-    return <span className="text-muted-foreground">…</span>;
-  }
-  if (text === "") {
-    return <span className="text-muted-foreground">Empty note</span>;
-  }
-  return text;
-};
 
 // shows the item a chip names
 const openItem = (itemId: string): void => {
@@ -55,7 +45,7 @@ export const MentionChip = ({ itemId, title }: { itemId: string; title: string }
         setPreviewOpen(false);
         return;
       }
-      setPreviewText(notePreviewHead(blocks.map((block) => ({ ...block }))));
+      setPreviewText(cardPreview(blocks));
     } catch {
       if (previewFor.current === target) {
         setPreviewOpen(false);
@@ -121,7 +111,7 @@ export const MentionChip = ({ itemId, title }: { itemId: string; title: string }
           {label}
         </button>
         <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
-          <PreviewBody text={previewText} />
+          {previewText ?? <span className="text-muted-foreground">…</span>}
         </div>
       </HoverCardContent>
     </HoverCard>

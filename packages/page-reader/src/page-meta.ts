@@ -1,15 +1,15 @@
-// what a page says about itself, read from its head before anything rewrites the document: the
-// Open Graph and Twitter tags, schema.org's JSON-LD and the plain meta tags, each in a fixed order
-// of precedence, then the extractor's own reading as the last resort. Every value is the page's
-// claim and so hostile: text is collapsed to one line and clipped, a date is kept as written, and
-// a url is kept only when it resolves to http or https.
+// what a page says about itself: its facts as the extractor reads them, and what it never reads,
+// read from the head before anything rewrites the document: the cover candidates (Open Graph,
+// Twitter and schema.org's JSON-LD, in that order), the oEmbed link and the language. Every value is
+// the page's claim and so hostile: text is collapsed to one line and clipped, a date is kept as
+// written, and a url is kept only when it resolves to http or https.
 
 import { z } from "zod";
 
 import type { PageFacts } from "./page-facts";
 import { resolveWebUrl } from "./web-url";
 
-// the extractor's reading, the fallback for each key
+// the extractor's reading
 export interface ExtractedMeta {
   title: string;
   site: string;
@@ -85,12 +85,8 @@ const metaContent = (document: Document, selectors: readonly string[]): string |
 
 const property = (name: string): string[] => [`meta[property="${name}"]`, `meta[name="${name}"]`];
 
-// schema.org's loose shapes: a string, an object with a name or url, or a list of either, each
-// read into the object form
-const named = z.union([
-  z.string().transform((name) => ({ name })),
-  z.looseObject({ name: z.string().optional() }),
-]);
+// schema.org's loose image: a url, an object with one, or a list of either, each read into the
+// object form
 const imageRef = z.union([
   z.string().transform((url) => ({ url })),
   z.looseObject({ url: z.string().optional() }),
@@ -99,13 +95,7 @@ const oneOrMany = <T extends z.ZodType>(schema: T) =>
   z.union([schema.transform((one) => [one]), z.array(schema)]);
 const jsonLdNode = z.looseObject({
   "@type": z.union([z.string().transform((type) => [type]), z.array(z.string())]).optional(),
-  author: oneOrMany(named).optional(),
-  datePublished: z.string().optional(),
-  description: z.string().optional(),
-  headline: z.string().optional(),
   image: oneOrMany(imageRef).optional(),
-  name: z.string().optional(),
-  publisher: named.optional(),
 });
 type JsonLdNode = z.infer<typeof jsonLdNode>;
 
@@ -167,52 +157,12 @@ const jsonLdNodes = (document: Document): JsonLdNode[] =>
     return text.length > JSON_LD_MAX_CHARS ? [] : flattenJsonLd(parseJson(text));
   });
 
-const firstOf = <T>(
-  nodes: readonly JsonLdNode[],
-  read: (node: JsonLdNode) => T | null,
-): T | null => {
-  for (const node of nodes) {
-    const value = read(node);
-    if (value !== null) {
-      return value;
-    }
-  }
-  return null;
-};
-
-const ldAuthors = (node: JsonLdNode): string | null => {
-  const names = (node.author ?? [])
-    .map((author) => author.name ?? "")
-    .filter((name) => name.trim() !== "");
-  return names.length === 0 ? null : names.join(", ");
-};
-
 const ldImages = (node: JsonLdNode): string[] =>
   (node.image ?? []).flatMap((entry) => (entry.url === undefined ? [] : [entry.url]));
 
-// "@handle" is not a byline, and a profile url is not a name
-const bylineOf = (raw: string | null): string | null =>
-  raw === null || /^https?:\/\//iu.test(raw.trim()) ? null : raw.replace(/^@/u, "");
-
-const firstText = (...values: (string | null | undefined)[]): string | null => {
-  for (const value of values) {
-    if (value !== null && value !== undefined && value.trim() !== "") {
-      return value;
-    }
-  }
-  return null;
-};
-
-// what the head says, read before anything strips it: each key's chain of the page's own claims,
-// with the extractor's reading still to come at its end
+// what the head says that the extractor never reads, read before anything strips it
 export interface HeadReading {
   base: string;
-  title: string | null;
-  htmlTitle: string | null;
-  site: string | null;
-  author: string | null;
-  published: string | null;
-  description: string | null;
   images: (string | null)[];
   oembed: string | null;
   lang: string | null;
@@ -222,29 +172,15 @@ export const readHead = (document: Document, pageUrl: string): HeadReading => {
   const base =
     resolveWebUrl(document.querySelector("base[href]")?.getAttribute("href") ?? "", pageUrl) ??
     pageUrl;
-  const ld = jsonLdNodes(document);
   return {
-    author: firstText(
-      firstOf(ld, ldAuthors),
-      metaContent(document, ['meta[name="author"]', 'meta[name="byl"]']),
-      bylineOf(metaContent(document, property("article:author"))),
-      bylineOf(metaContent(document, ['meta[name="twitter:creator"]'])),
-    ),
     base,
-    description: firstText(
-      metaContent(document, property("og:description")),
-      metaContent(document, property("twitter:description")),
-      metaContent(document, ['meta[name="description"]']),
-      firstOf(ld, (node) => node.description ?? null),
-    ),
-    htmlTitle: document.querySelector("title")?.textContent ?? null,
     images: [
       metaContent(document, property("og:image:secure_url")),
       metaContent(document, property("og:image")),
       metaContent(document, property("og:image:url")),
       metaContent(document, property("twitter:image")),
       metaContent(document, property("twitter:image:src")),
-      ...ld.flatMap(ldImages),
+      ...jsonLdNodes(document).flatMap(ldImages),
     ],
     lang: document.documentElement.getAttribute("lang"),
     oembed: resolveWebUrl(
@@ -253,32 +189,10 @@ export const readHead = (document: Document, pageUrl: string): HeadReading => {
         ?.getAttribute("href") ?? "",
       base,
     ),
-    published: firstText(
-      metaContent(document, property("article:published_time")),
-      firstOf(ld, (node) => node.datePublished ?? null),
-      metaContent(document, [
-        'meta[name="date"]',
-        'meta[name="pubdate"]',
-        'meta[name="dc.date"]',
-        'meta[name="DC.date"]',
-        'meta[itemprop="datePublished"]',
-      ]),
-      document.querySelector("time[datetime]")?.getAttribute("datetime"),
-    ),
-    site: firstText(
-      metaContent(document, property("og:site_name")),
-      firstOf(ld, (node) => node.publisher?.name ?? null),
-      metaContent(document, ['meta[name="application-name"]']),
-    ),
-    title: firstText(
-      metaContent(document, property("og:title")),
-      metaContent(document, property("twitter:title")),
-      firstOf(ld, (node) => node.headline ?? null),
-    ),
   };
 };
 
-// the head's claims first, then the extractor's reading, each cleaned and clipped
+// the extractor's reading and the head's, each cleaned and clipped
 export const pageFactsOf = (head: HeadReading, extracted: ExtractedMeta): PageFacts => {
   // the extractor falls back to the domain, which the card already shows as the host
   const extractedSite = extracted.site === extracted.domain ? null : extracted.site;
@@ -286,13 +200,13 @@ export const pageFactsOf = (head: HeadReading, extracted: ExtractedMeta): PageFa
     .map((raw) => resolveWebUrl(raw ?? "", head.base))
     .filter((url): url is string => url !== null);
   return {
-    author: oneLine(firstText(head.author, extracted.author), AUTHOR_MAX),
-    description: oneLine(firstText(head.description, extracted.description), DESCRIPTION_MAX),
+    author: oneLine(extracted.author, AUTHOR_MAX),
+    description: oneLine(extracted.description, DESCRIPTION_MAX),
     images: [...new Set(images)].slice(0, IMAGES_MAX),
     lang: oneLine(head.lang, 35),
     oembed: head.oembed,
-    published: publishedOf(firstText(head.published, extracted.published)),
-    site: oneLine(firstText(head.site, extractedSite), SITE_MAX),
-    title: oneLine(firstText(head.title, extracted.title, head.htmlTitle), TITLE_MAX),
+    published: publishedOf(extracted.published),
+    site: oneLine(extractedSite, SITE_MAX),
+    title: oneLine(extracted.title, TITLE_MAX),
   };
 };

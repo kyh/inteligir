@@ -118,8 +118,5 @@ const BYTES_FOLDER_PATH = new RegExp(
 
 export const isBytesFolderPath = (path: string): boolean => BYTES_FOLDER_PATH.test(path);
 
-// where an export writes the library's filing rules
-export const LIBRARY_RULES_PATH = "AGENTS.md";
-
 // what a device says of a link it will not save, in the one sentence every device says it
 export const WEB_URL_RULE = "Only web links (http or https) can be saved.";

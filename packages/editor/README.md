@@ -40,8 +40,8 @@ src/
                        # the header fence and typed properties in
                        # `frontmatter.ts`, and `serializeNote`, the one way the
                        # codec writes markdown
-  codec/               # an item as markdown, headless: import and export of
-                       # one file, a folder's or zip's import plan, and the
+  codec/               # an item as markdown, headless: the import of one
+                       # file, a folder's or zip's import plan, and the
                        # agent's view of an item and its edits
   kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
                        # compositions over it, the headless mirror the
@@ -98,9 +98,9 @@ src/
   it — trailing spaces, indentation, line endings. oxfmt ignores the directory;
   editors must too.
 - **Every node type is a Base + React pair.** `base-kit.ts` composes the Base
-  halves for the headless serializer; `kit-parity.test.ts` fails when the two
-  compositions disagree, so a node that renders but does not serialize is
-  impossible, and `touch-kit.test.ts` holds the touch kit to the same.
+  halves for the headless serializer; `kit-parity.test.ts` fails when it and
+  either profile's kit disagree, so a node that renders but does not serialize
+  is impossible.
 - **Every file reads, or is refused with a reason.** `readMarkdown`
   (`markdown/md-read.ts`) answers the blocks, or `too-deep` for a nesting
   deeper than the conversion or the writer holds, a list past

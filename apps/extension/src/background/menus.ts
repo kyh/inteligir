@@ -1,7 +1,6 @@
 // the right-click Save: one item per thing a person can point at, and what a click on each saves.
 // A page is read from the tab; a link or a web picture is saved by the address the click names, which the cloud reads, and a picture a page drew from its own bytes by those bytes.
 
-import { bytesFromBase64 } from "@repo/contract/bytes";
 import { isWebUrl } from "@repo/contract/items/item-url";
 
 export type MenuContext = "page" | "link" | "image";
@@ -26,53 +25,21 @@ export type MenuAction =
   | { kind: "picture"; bytes: Uint8Array<ArrayBuffer> }
   | { kind: "unsupported" };
 
-const DATA_URL = /^data:(?<params>[^,]*),(?<data>.*)$/su;
-const ESCAPE_OR_TEXT = /%(?<hex>[0-9a-f]{2})|(?<text>[^%]+)|%/giu;
-
-const bytesOfBase64 = (base64: string): Uint8Array<ArrayBuffer> | null => {
+// the bytes a data: url holds, read by the browser's own fetch as it reads the picture; what they
+// are is for the save to sniff
+export const bytesOfDataUrl = async (url: string): Promise<Uint8Array<ArrayBuffer> | null> => {
+  if (URL.parse(url)?.protocol !== "data:") {
+    return null;
+  }
   try {
-    return bytesFromBase64(base64);
+    const response = await fetch(url);
+    return await response.bytes();
   } catch {
     return null;
   }
 };
 
-// a data: url's percent-encoded body as the bytes it names: an escape is one byte whatever it
-// spells (a PNG's %89 included), the rest its UTF-8; a stray % is no such body
-const bytesOfPercentEncoded = (data: string): Uint8Array<ArrayBuffer> | null => {
-  const encoder = new TextEncoder();
-  const bytes: number[] = [];
-  for (const match of data.matchAll(ESCAPE_OR_TEXT)) {
-    const { hex, text } = match.groups ?? {};
-    if (hex !== undefined) {
-      bytes.push(Number.parseInt(hex, 16));
-    } else if (text === undefined) {
-      return null;
-    } else {
-      // a byte at a time: a spread passes each as an argument, past the stack's limit for a large
-      // run of plain text
-      for (const byte of encoder.encode(text)) {
-        bytes.push(byte);
-      }
-    }
-  }
-  return Uint8Array.from(bytes);
-};
-
-// the bytes a data: url holds, read as the browser reads the picture: percent-decoded first, a
-// base64 body included; what they are is for the save to sniff
-export const bytesOfDataUrl = (url: string): Uint8Array<ArrayBuffer> | null => {
-  const match = DATA_URL.exec(url);
-  if (match?.groups === undefined) {
-    return null;
-  }
-  const { data = "", params = "" } = match.groups;
-  const isBase64 = params.split(";").some((param) => param.trim().toLowerCase() === "base64");
-  const body = bytesOfPercentEncoded(data);
-  return isBase64 && body !== null ? bytesOfBase64(new TextDecoder().decode(body)) : body;
-};
-
-export const menuAction = (click: MenuClick): MenuAction => {
+export const menuAction = async (click: MenuClick): Promise<MenuAction> => {
   switch (click.menuItemId) {
     case "save-page": {
       return { kind: "page" };
@@ -86,7 +53,7 @@ export const menuAction = (click: MenuClick): MenuAction => {
       if (click.srcUrl !== undefined && isWebUrl(click.srcUrl)) {
         return { kind: "address", url: click.srcUrl };
       }
-      const bytes = click.srcUrl === undefined ? null : bytesOfDataUrl(click.srcUrl);
+      const bytes = click.srcUrl === undefined ? null : await bytesOfDataUrl(click.srcUrl);
       return bytes === null ? { kind: "unsupported" } : { kind: "picture", bytes };
     }
     default: {

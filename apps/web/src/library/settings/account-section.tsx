@@ -293,8 +293,8 @@ const DeleteAccount = () => {
         <DialogContent>
           <DialogTitle>Delete your account?</DialogTitle>
           <DialogDescription>
-            Your library, its files, its history and your conversations with the agent are deleted
-            from our cloud for good. Type your password to go on.
+            Your library, its files and your conversations with the agent are deleted from our cloud
+            for good. Type your password to go on.
           </DialogDescription>
           <form
             className="flex flex-col gap-2"

@@ -10,6 +10,7 @@
     ".tanstack",
     "routeTree.gen.ts",
     "packages/editor/src/test-support/fixtures",
-    "__snapshots__"
+    "__snapshots__",
+    "apps/desktop/src-tauri/about.hbs"
   ]
 }

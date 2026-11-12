@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import Markdown from "react-markdown";
 import type { ExtraProps } from "react-markdown";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
 import { SiteHeader } from "#components/site-header";
-import { rehypeHeadingIds } from "#lib/heading-ids";
 import { siteConfig } from "#lib/site-config";
 
 // a policy's table holds sentences, headers included, so it scrolls in a box of its own at a width
@@ -28,7 +28,7 @@ export const MarkdownPage = ({ markdown }: { markdown: string }) => (
         <Markdown
           components={{ table: WideTable }}
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeHeadingIds]}
+          rehypePlugins={[rehypeSlug]}
         >
           {markdown}
         </Markdown>

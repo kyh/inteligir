@@ -23,8 +23,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   caller refuses either, so no platform reads what another refuses.
   `packages/editor/src/markdown/md-read.ts`.
 - **The markdown runs headless, and the codec sits beside the library.** `@repo/editor/codec/*`
-  and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does
-  and `import(export(item))` means the item, ids aside. `packages/editor/src/headless-kits.test.ts`.
+  and the headless kits reach no React or `@repo/ui`, so the codec runs wherever the library does,
+  and a body read back from what it wrote is that body, ids aside.
+  `packages/editor/src/headless-kits.test.ts`.
 - **The editor ships its behaviour CSS, and the appearance dials are one declaration.** Every hook
   is spelled once, since a missing sheet fails no other test; the tokens are declared in
   `apps/web/src/library/styles/globals.css`, and the phone's editor sets `--editor-size` 16px or

@@ -50,6 +50,8 @@ passed; § 7's checks need the published release.
   `notary.env` holds Tauri's own names, `APPLE_API_ISSUER`, `APPLE_API_KEY`
   (the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s file name), and a pack
   refuses one missing any.
+- **cargo-about**: `cargo install cargo-about --locked --features cli`, which
+  `pnpm package:desktop` runs for the Rust crates' licence notices.
 - **GitHub**: `gh auth status` has push rights on the repo.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials
@@ -363,8 +365,8 @@ Only once every check in § 5 has passed, and the three close together.
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404.
 
-2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
-   6: What to Test, Beta App Review, then the invites.
+2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 and
+   5: What to Test, Beta App Review, then the invites.
 3. **The extension.** Upload
    `apps/extension/.output/inteligir-extension-<version>.zip` to the store
    item, and keep the listing true to what it does: the description, the

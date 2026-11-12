@@ -152,19 +152,6 @@ export const yamlStringEntries = (yamlText: string, key: string): string[] => {
   return entries;
 };
 
-// a spelling yaml reads as something else (`true`, `2026`, `#x`) would change the value's type
-const plainReadsAsItself = (value: string): boolean => {
-  try {
-    return parseYaml(value) === value;
-  } catch {
-    return false;
-  }
-};
-
-// a block value (`key: value`), plain when it reads back as itself and double-quoted otherwise
-export const yamlScalarText = (value: string): string =>
-  plainReadsAsItself(value) ? value : JSON.stringify(value);
-
 export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {
   if (rawValue.trim() === "") {
     return { key, type: "text", value: "" };
