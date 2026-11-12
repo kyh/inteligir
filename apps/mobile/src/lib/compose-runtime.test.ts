@@ -12,7 +12,7 @@ import { fakeSockets } from "@repo/client/test-support/fake-sockets";
 import type { FakeSockets } from "@repo/client/test-support/fake-sockets";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
-import { deferred } from "../test-support/async";
+import { deferred } from "@repo/contract/deferred";
 import { fakePhoneAuth, KEPT_SESSION } from "../test-support/fake-phone-auth";
 import type { FakePhoneAuth } from "../test-support/fake-phone-auth";
 import { memoryFolder } from "../test-support/memory-folder";

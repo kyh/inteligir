@@ -2,7 +2,7 @@
 // range and by revalidation, under the policy its kind is served with, and out of every other
 // account's reach.
 
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 
 const sha256Hex = async (bytes: Uint8Array): Promise<string> =>
-  hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 
 const fileOf = async (text: string) => {
   const bytes = new TextEncoder().encode(text);

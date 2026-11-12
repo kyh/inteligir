@@ -2,13 +2,13 @@
 // calls it, so every input and output meets the contract's own schemas and every refusal arrives
 // as the error its row declares.
 
-import { ordsBetween } from "@repo/contract/library/order-key";
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createRouterClient } from "@orpc/server";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   agentCellIn,
   cellOf,
@@ -17,9 +17,7 @@ import {
   engineIn,
   inCell,
   landedValue,
-  noteFields,
   notesIn,
-  paragraph,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
@@ -192,7 +190,7 @@ describe("the library's procedures", () => {
       const { item: failed } = landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: [],
-          fields: noteFields({
+          fields: noteFixture({
             fetchError: "The site refused the read.",
             fetchState: "failed",
             kind: "link",
@@ -239,7 +237,7 @@ describe("the library's procedures", () => {
       const { item: failed } = landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: [],
-          fields: noteFields({
+          fields: noteFixture({
             fetchError: "The site refused the read.",
             fetchState: "failed",
             kind: "link",
@@ -507,13 +505,12 @@ describe("the library's procedures", () => {
   it("writes folders guarded by name and parent", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      const [first, second] = ordsBetween(null, null, 2);
       const a = newId();
       const b = newId();
       await library.folders.write({
         ops: [
-          { id: a, name: "Recipes", op: "create", parentId: null, sort: first ?? "a0" },
-          { id: b, name: "Travel", op: "create", parentId: null, sort: second ?? "a1" },
+          { id: a, name: "Recipes", op: "create", parentId: null, sort: "a0" },
+          { id: b, name: "Travel", op: "create", parentId: null, sort: "a1" },
         ],
       });
       // a sibling already holds the name

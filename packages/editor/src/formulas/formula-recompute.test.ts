@@ -1,4 +1,4 @@
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, TElement } from "platejs";

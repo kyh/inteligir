@@ -18,7 +18,7 @@ import { defaultDatabaseDirectory } from "expo-sqlite";
 import { SQLiteStorage } from "expo-sqlite/kv-store";
 import { z } from "zod";
 import type { SignUpRequest } from "@repo/contract/account/account-schema";
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { PHONE_ORIGIN } from "@repo/contract/origin";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { keychainStorage } from "../auth/keychain-storage";
@@ -41,7 +41,7 @@ const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 const newBlockId = (): string => Crypto.randomUUID();
 
 const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
-  hexFromBytes(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
+  bytesToHex(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
 
 // the store's folder is taken out of the device backup with its first write; expo-sqlite types its
 // default folder as any

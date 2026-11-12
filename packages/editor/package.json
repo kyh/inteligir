@@ -18,7 +18,6 @@
     "./codec/library-links": "./src/codec/library-links.ts",
     "./combobox-input": "./src/combobox-input.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
-    "./deferred": "./src/deferred.ts",
     "./dialect-node-keys": "./src/dialect-node-keys.ts",
     "./editor-chrome": "./src/editor-chrome.tsx",
     "./editor-profile": "./src/editor-profile.tsx",

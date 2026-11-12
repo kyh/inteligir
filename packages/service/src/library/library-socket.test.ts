@@ -35,13 +35,12 @@ import {
 } from "../test-support/connector-session";
 import { ended, runAlarmsUntil, startImport } from "../test-support/library-files";
 import { issueToken } from "../test-support/password-reset";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   cellOf,
   createItem,
   inCell,
   landedValue,
-  noteFields,
-  paragraph,
   person,
   placed,
 } from "../test-support/library-cell";
@@ -132,7 +131,7 @@ const writeInCell = async (accountId: string): Promise<{ id: string; seq: number
     const id = crypto.randomUUID();
     const result = createItem(library, person(), {
       blocks: placed([paragraph("a", "a new note")]),
-      fields: noteFields(),
+      fields: noteFixture(),
       id,
     });
     await settleCommit(state, env, library, result);

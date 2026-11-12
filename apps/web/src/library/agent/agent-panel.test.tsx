@@ -4,7 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { deferred } from "@repo/contract/test-support/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";

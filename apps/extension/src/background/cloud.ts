@@ -4,7 +4,7 @@
 // client. Every call has a deadline under the 30 s a service worker waits on a fetch, so a cloud
 // that never answers leaves a save queued rather than a popup waiting.
 
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import {
   sharedFailure,
@@ -94,7 +94,7 @@ export const sendFile = async (
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
 ): Promise<Sent<string>> => {
-  const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
   const outcome = await uploadBlob(cloud.transport, { bytes, mime, sha });
   switch (outcome.kind) {
     case "stored": {

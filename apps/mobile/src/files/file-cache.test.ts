@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { deferred, nextTask } from "../test-support/async";
+import { deferred } from "@repo/contract/deferred";
+import { nextTask } from "../test-support/async";
 import { memoryFolder } from "../test-support/memory-folder";
 import { createFileCache, thumbFormatOf, THUMB_OVER_BYTES } from "./file-cache";
 import type { FileCachePorts, HeldFile } from "./file-cache";

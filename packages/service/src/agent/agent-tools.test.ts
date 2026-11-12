@@ -15,15 +15,14 @@ import { FILL_ACTOR } from "../library/cell-fills";
 import { openCellLibrary } from "../library/cell-library";
 import { principalFromHeader } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   agentCellIn,
   cellOf,
   createItem,
   inCell,
   landedValue,
-  noteFields,
   notesIn,
-  paragraph,
   person,
   placed,
 } from "../test-support/library-cell";
@@ -96,7 +95,7 @@ describe("the built-in agent's tools", () => {
           landedValue(
             createItem(library, FILL_ACTOR, {
               blocks: placed([paragraph("a", words(80, `body${String(index)}x`))]),
-              fields: noteFields({
+              fields: noteFixture({
                 description: words(60, "about"),
                 tags: ["travel", `tag-${String(index % 7)}`],
                 title: `Paris ${words(45, "title")} ${String(index)}`,
@@ -113,7 +112,7 @@ describe("the built-in agent's tools", () => {
                 paragraph(`p${String(index)}`, words(60, `line${String(index)}x`)),
               ),
             ),
-            fields: noteFields({ title: "The long one" }),
+            fields: noteFixture({ title: "The long one" }),
             id: longId,
           }),
         );

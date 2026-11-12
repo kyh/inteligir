@@ -9,7 +9,8 @@ import { paragraph } from "@repo/contract/test-support/library-items";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import type { LeavingNote } from "@repo/editor/item/note-holds";
 import { describe, expect, it, vi } from "vitest";
-import { deferred, nextTask } from "../../test-support/async";
+import { deferred } from "@repo/contract/deferred";
+import { nextTask } from "../../test-support/async";
 import { installPageHost } from "./page-host";
 import type { NoteState, PageProps, Settled } from "./page-host";
 

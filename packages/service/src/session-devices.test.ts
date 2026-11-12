@@ -2,7 +2,7 @@
 // routes it signs in and out on, the devices it lists and ends, the cap a new sign-in keeps the
 // account under, and its deletion with the password asked again.
 
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/library/library-socket";
@@ -122,7 +122,7 @@ describe("a session's doors to /v1", () => {
     const { cookie } = await signUpUser(email);
     const phoneCookie = await signInPhone(email);
     const bytes = new TextEncoder().encode("kept or not");
-    const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+    const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
     const url = `${ORIGIN}${V1_BLOBS_PATH}/${sha}`;
     const put = await drained(
       exports.default.fetch(url, {

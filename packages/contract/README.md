@@ -73,9 +73,10 @@ src/
   library-page.ts      # where the site serves the library tab
   connector.ts         # the connector's path, which an assistant is pointed at
   bytes.ts             # the byte primitives, on globals every target has
+  deferred.ts          # `Promise.withResolvers`, which the editor's WebKit lacks
   extension/           # the extension's key, id, origin and store link, and the connect page's messages
-  test-support/        # the fake cell, sockets, clock and deferred every client's suites drive, the seeded
-                       #   generator every property replays, and library items to build a suite from
+  test-support/        # the fake cell every client's suites drive, the seeded generator every property
+                       #   replays, and library items to build a suite from
 ```
 
 ## Who consumes it

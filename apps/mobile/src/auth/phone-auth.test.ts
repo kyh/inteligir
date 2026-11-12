@@ -6,7 +6,7 @@ import { createAuthClient } from "better-auth/client";
 import type { BetterAuthClientPlugin } from "better-auth/client";
 import type { JsonValue } from "@repo/contract/library/canonical-json";
 import { describe, expect, it } from "vitest";
-import { deferred } from "../test-support/async";
+import { deferred } from "@repo/contract/deferred";
 import { phoneAuthOver } from "./phone-auth";
 
 const CLOUD = "https://cloud.test";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deferred } from "@repo/contract/test-support/deferred";
+import { deferred } from "@repo/contract/deferred";
 
 import { socketUrl } from "@repo/contract/library/library-socket";
 

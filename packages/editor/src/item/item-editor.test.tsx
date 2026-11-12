@@ -16,7 +16,7 @@ import type * as Y from "yjs";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { openFindBar } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
