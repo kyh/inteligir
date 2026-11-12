@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useRef, useState, useEffect, useMemo, createContext, useContext } from "react";
+import { useRef, useState, useEffect, createContext, useContext } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { CheckIcon } from "lucide-react";
@@ -137,7 +137,7 @@ const DropdownMenuContent = ({
 
   const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
   const highlight = useHighlightStore(activeRowEl);
-  const itemsCtx = useMemo(() => ({ highlight, registerRow }), [registerRow, highlight]);
+  const itemsCtx = { highlight, registerRow };
 
   // the Popup itself is the animated surface, never a wrapper: Base UI keeps a closing menu
   // mounted only while the Popup element's own animations run

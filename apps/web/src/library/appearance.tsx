@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, createContext, useContext } from "react";
+import { useLayoutEffect, createContext, useContext } from "react";
 import { appearanceTokens } from "./appearance-options";
 import type { Appearance } from "./appearance-options";
 import { PREFS, usePref } from "./prefs";
@@ -28,12 +28,7 @@ export const AppearanceProvider = ({ children }: { children: React.ReactNode }) 
     applyAppearance(appearance, document.documentElement);
   }, [appearance]);
 
-  const value = useMemo<AppearanceContextValue>(
-    () => ({ appearance, setAppearance }),
-    [appearance, setAppearance],
-  );
-
-  return <AppearanceContext value={value}>{children}</AppearanceContext>;
+  return <AppearanceContext value={{ appearance, setAppearance }}>{children}</AppearanceContext>;
 };
 
 export const useAppearance = (): AppearanceContextValue => {

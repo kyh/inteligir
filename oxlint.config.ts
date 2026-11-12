@@ -324,6 +324,8 @@ export default defineConfig({
       "error",
       { considerDefaultExhaustiveForUnions: true },
     ],
+    // the React Compiler memoizes a context's value, as it does every value it compiles
+    "react/jsx-no-constructed-context-values": "off",
     // a string spread here means its code points
     "typescript/no-misused-spread": ["error", { allow: [{ from: "lib", name: "string" }] }],
     "require-await": "off",
