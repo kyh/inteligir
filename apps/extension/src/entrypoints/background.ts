@@ -106,7 +106,7 @@ const clicked = async (info: Browser.contextMenus.OnClickData, tab?: Browser.tab
   if (facts === null) {
     return;
   }
-  const action = menuAction(info);
+  const action = await menuAction(info);
   await withBadge(facts.id, async () => {
     switch (action.kind) {
       case "page": {
