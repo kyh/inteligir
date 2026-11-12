@@ -14,7 +14,7 @@ export interface SqlStatement {
   readonly params: readonly SqlValue[];
 }
 
-export interface SqlStatements {
+interface SqlStatements {
   readonly run: (sql: string, params: readonly SqlValue[]) => void;
   readonly all: (sql: string, params: readonly SqlValue[]) => readonly SqlRow[];
 }
