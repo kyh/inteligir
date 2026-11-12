@@ -34,7 +34,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 ### Changed
 
 - **The Mac app offers each update in a notice that stays**: Download, then Restart once it's ready; it stacks with other notices and VoiceOver reads each step.
-- **The privacy policy describes your library in your account**, what each device sends, and how to ask for a copy, a correction or a deletion.
+- **The privacy policy reads plainly, each practice stated once**: your library in your account, what each device sends, and how to ask for a copy, a correction or a deletion.
 - **Undo takes back what the agent changed, for seven days**, keeping every edit made since; typing inside a paragraph the agent added goes with it, and Undo names each note it happened in.
 - **The sidebar chooses what the library shows**: All items, Unsorted, folders, tags and Deleted.
 - **The panel's tabs are Info and Agent.**

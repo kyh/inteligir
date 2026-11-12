@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of November 8, 2026.
+Effective as of November 12, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
