@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 // controlled on purpose: each surface owns its own persistence (a localStorage key, an SSR
 // no-flash script)
@@ -53,9 +53,7 @@ export const ThemeProvider = ({
     document.documentElement.classList.toggle("dark", resolved === "dark");
   }, [resolved]);
 
-  const value = useMemo(() => ({ resolved, setTheme, theme }), [theme, setTheme, resolved]);
-
-  return <ThemeContext value={value}>{children}</ThemeContext>;
+  return <ThemeContext value={{ resolved, setTheme, theme }}>{children}</ThemeContext>;
 };
 
 export const useTheme = (): ThemeContextValue => {

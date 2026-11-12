@@ -13,9 +13,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   conflict is no reason; the licences live in `tools/licenses`, and the .app
   ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
-  (owner decision), and every DOM suite compiles its sources the same way. Why:
-  the suites run what ships, and a `compiled-under-test` case fails without the
-  preset. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
+  (owner decision), every DOM suite compiles its sources the same way, and a
+  hand `useMemo` or `useCallback` stays only as an effect's dependency or where
+  the compiler would key a value wrongly. Why: the suites run what ships, a
+  `compiled-under-test` case fails without the preset, and the compiler
+  memoizes the rest. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
   `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.

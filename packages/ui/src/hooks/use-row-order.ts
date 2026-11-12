@@ -3,7 +3,7 @@
 // Registering only marks the set dirty, so the rows one commit mounts or unmounts are read once,
 // in the layout phase of the commit after, before anything paints.
 
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import type { RefObject } from "react";
 import { flushSync } from "react-dom";
 
@@ -62,17 +62,14 @@ export const useRowOrder = (
     setVersion((current) => current + 1);
   }, []);
 
-  const registerRow = useCallback(
-    (element: HTMLElement) => {
-      registeredRef.current.add(element);
+  const registerRow = (element: HTMLElement) => {
+    registeredRef.current.add(element);
+    requestSync();
+    return () => {
+      registeredRef.current.delete(element);
       requestSync();
-      return () => {
-        registeredRef.current.delete(element);
-        requestSync();
-      };
-    },
-    [requestSync],
-  );
+    };
+  };
 
   useIsoLayoutEffect(() => {
     const container = containerRef.current;
@@ -130,18 +127,15 @@ export interface HighlightStore<T> {
 export const useHighlightStore = <T>(value: T): HighlightStore<T> => {
   const valueRef = useRef(value);
   const listenersRef = useRef(new Set<() => void>());
-  const store = useMemo<HighlightStore<T>>(
-    () => ({
-      get: () => valueRef.current,
-      subscribe: (listener) => {
-        listenersRef.current.add(listener);
-        return () => {
-          listenersRef.current.delete(listener);
-        };
-      },
-    }),
-    [],
-  );
+  const store: HighlightStore<T> = {
+    get: () => valueRef.current,
+    subscribe: (listener) => {
+      listenersRef.current.add(listener);
+      return () => {
+        listenersRef.current.delete(listener);
+      };
+    },
+  };
   useIsoLayoutEffect(() => {
     valueRef.current = value;
     for (const listener of listenersRef.current) {

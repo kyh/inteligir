@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import {
   flip,
@@ -237,11 +237,8 @@ export const SelectionToolbar = () => {
   // platejs types useEditorSelection's return as `any`
   const rawSelection: unknown = useEditorSelection();
   const selection = RangeApi.isRange(rawSelection) ? rawSelection : null;
-  const typeLabel = useMemo(() => {
-    const at = selection ?? savedSel ?? undefined;
-    const entry = effectiveBlockEntry(editor, at);
-    return entry ? turnIntoOptionFor(entry[0]).label : "Text";
-  }, [selection, savedSel, editor]);
+  const entry = effectiveBlockEntry(editor, selection ?? savedSel ?? undefined);
+  const typeLabel = entry ? turnIntoOptionFor(entry[0]).label : "Text";
 
   if (hidden && !frozen) {
     return null;
