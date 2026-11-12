@@ -298,6 +298,18 @@ const HEADING_TYPES = new Set<string>(["h1", "h2", "h3", "h4", "h5", "h6"]);
 // three bytes a unit; the index row clips them again with the rest
 const HEADINGS_MAX = 64 * 1024;
 
+export const cardPreview = (blocks: readonly LibraryBlock[]): string => {
+  for (const block of blocks) {
+    if (block.type === "p" && block.listStyleType === undefined) {
+      const preview = clipSnippet(nodeText(block).trim(), PREVIEW_MAX);
+      if (preview !== "") {
+        return preview;
+      }
+    }
+  }
+  return "";
+};
+
 export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
   const links: DerivedLink[] = [];
   const inlineTags: DerivedTag[] = [];
@@ -305,7 +317,6 @@ export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
   const headings: string[] = [];
   const texts: string[] = [];
   const files = new Set<string>();
-  let preview = "";
   let words = 0;
   let article = false;
   for (const { block, section } of blocks) {
@@ -324,9 +335,6 @@ export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
     const level = OUTLINE_LEVELS.get(block.type);
     if (level !== undefined && outline.length < OUTLINE_MAX) {
       outline.push({ blockId: block.id, level, text: clipSnippet(text, SHOWN_LINE_MAX) });
-    }
-    if (preview === "" && block.type === "p" && block.listStyleType === undefined) {
-      preview = clipSnippet(text.trim(), PREVIEW_MAX);
     }
     visitElements([block], (node) => {
       switch (node.type) {
@@ -355,7 +363,7 @@ export const deriveBody = (blocks: readonly BodyBlock[]): DerivedBody => {
       headings: clipSnippet(headings.join("\n"), HEADINGS_MAX),
       lead: leadOf(headings, texts),
       outline,
-      preview,
+      preview: cardPreview(blocks.map(({ block }) => block)),
       tags: unique(inlineTags, (tag) => tag.tag.toLowerCase()).map((tag) => tag.tag),
       words,
     },

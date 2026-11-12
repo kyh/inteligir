@@ -132,7 +132,6 @@
     "./nodes/table-node": "./src/nodes/table-node.tsx",
     "./nodes/tag-chip-node": "./src/nodes/tag-chip-node.tsx",
     "./nodes/toggle-node": "./src/nodes/toggle-node.tsx",
-    "./note-preview": "./src/note-preview.ts",
     "./open-item": "./src/open-item.tsx",
     "./properties/properties-panel": "./src/properties/properties-panel.tsx",
     "./properties/property-fields": "./src/properties/property-fields.tsx",
