@@ -103,7 +103,7 @@ src/
                        # its client through AI
                        # Gateway (anthropic-client.ts); and the cell's side: the
                        # tools it runs (agent-tools.ts), the allowance and the
-                       # prices it books (agent-allowance.ts), the switch
+                       # turns it books (agent-allowance.ts), the switch
                        # (agent-switch.ts), and each turn let in, handed over,
                        # landed and sealed (agent-turns.ts, turn-rows.ts)
   fill/                # the fill queue's consumer (fill-consumer.ts): a saved
