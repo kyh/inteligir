@@ -73,7 +73,7 @@ src/
     library-sql.ts     # the raw port and its row error
     sql-value.ts       # a SQL value and row as zod
     library-queries.ts # an item's rows: drizzle for its row and derived rows,
-                       # raw statements for its text and the search index
+                       # raw statements for the search index and its scan
     revert-change.ts   # a change set's fields taken back three ways, the
                        # set's after as the base, newest set first
   note/                # each item's note: NoteDO (note-do.ts), a y-partyserver

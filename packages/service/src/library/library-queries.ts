@@ -1,15 +1,24 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
-// its derived rows and `meta` through drizzle's builders, and its body's text and the search index
-// as raw statements over the cell's port (`./cell-storage`). A write binds every value and cuts
-// every many-row statement under a Durable Object's limits (`insertChunks`); a user's text is matched with
-// instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
-// only over an older one, so a write stamped with a sequence the row has passed lands nothing.
+// its derived rows and `meta` through drizzle's builders, and the search index and the literal scan
+// of a body's text as raw statements over the cell's port (`./cell-storage`). A write binds every
+// value and cuts every many-row statement under a Durable Object's limits (`insertChunks`); a
+// user's text is matched with instr(), since a Durable Object refuses a pattern-match operand past
+// 50 bytes. A row is applied only over an older one, so a write stamped with a sequence the row has
+// passed lands nothing.
 
 import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
-import { BODY_HOMES, items, itemTags, links, meta } from "@repo/db/cell/schema";
+import {
+  BODY_HOMES,
+  bodyTexts,
+  items,
+  itemTags,
+  links,
+  meta,
+  seedBlocks,
+} from "@repo/db/cell/schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
@@ -170,9 +179,8 @@ export const storeTombstone = (storage: CellStorage, write: TombstoneWrite): boo
     return false;
   }
   storage.run(DELETE_SEARCH_ROW, [write.id]);
-  for (const table of ["seed_blocks", "body_texts"] as const) {
-    storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [write.id]);
-  }
+  db.delete(seedBlocks).where(eq(seedBlocks.itemId, write.id)).run();
+  db.delete(bodyTexts).where(eq(bodyTexts.itemId, write.id)).run();
   db.delete(links).where(eq(links.sourceId, write.id)).run();
   db.delete(itemTags).where(eq(itemTags.itemId, write.id)).run();
   return true;

@@ -239,14 +239,14 @@ export const libraryRouter = os.router({
     events: os.agent.events.handler(({ context, input }) =>
       answer(
         context.library.read((storage) =>
-          threadEvents(storage, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
+          threadEvents(storage.db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),
     list: os.agent.list.handler(({ context, input }) =>
       answer(
         context.library.read((storage) =>
-          listThreads(storage, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
+          listThreads(storage.db, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),
@@ -297,7 +297,7 @@ export const libraryRouter = os.router({
     list: os.history.list.handler(({ context, input }) =>
       answer(
         context.library.read((storage) =>
-          listChangeSets(storage, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
+          listChangeSets(storage.db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),

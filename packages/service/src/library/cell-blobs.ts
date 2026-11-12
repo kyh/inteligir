@@ -10,7 +10,6 @@
 // name it.
 
 import { and, eq, exists, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
@@ -36,8 +35,6 @@ export const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): stri
 export const itemFilesOf = (fields: LibraryItemFields, bodyFiles: readonly string[]): string[] => [
   ...new Set([...fieldFilesOf(fields), ...bodyFiles]),
 ];
-
-const shaRowSchema = z.object({ sha256: z.string() });
 
 const heldShas = (db: CellDb, shas: readonly string[]): Set<string> => {
   const held = new Set<string>();
@@ -112,21 +109,20 @@ export const awaitNameAgain = (db: CellDb, sha: string, at: number): void => {
 // parts and block versions of the item no change set names any more: the alarm's next run asks
 // about what they named
 export const dropSetFiles = (
-  storage: CellStorage,
+  db: CellDb,
   itemId: string,
   hashes: readonly string[],
   now: number,
 ): void => {
-  const shas = hashes.flatMap((hash) =>
-    storage
-      .all("DELETE FROM change_set_blobs WHERE item_id = ? AND hash = ? RETURNING sha256", [
-        itemId,
-        hash,
-      ])
-      .map((row) => shaRowSchema.parse(row).sha256),
+  const shas = listChunks(hashes, 1).flatMap((chunk) =>
+    db
+      .delete(changeSetBlobs)
+      .where(and(eq(changeSetBlobs.itemId, itemId), inArray(changeSetBlobs.hash, chunk)))
+      .returning({ sha256: changeSetBlobs.sha256 })
+      .all(),
   );
-  for (const sha of new Set(shas)) {
-    awaitNameAgain(storage.db, sha, now);
+  for (const sha of new Set(shas.map((row) => row.sha256))) {
+    awaitNameAgain(db, sha, now);
   }
 };
 
@@ -183,9 +179,12 @@ export const storeItemBlobs = (
 export const dropItemBlobs = (storage: CellStorage, itemId: string, now: number): void => {
   const { db } = storage;
   const shas = deleteItemBlobs(db, itemId);
-  const kept = storage
-    .all("DELETE FROM change_set_blobs WHERE item_id = ? RETURNING sha256", [itemId])
-    .map((row) => shaRowSchema.parse(row).sha256);
+  const kept = db
+    .delete(changeSetBlobs)
+    .where(eq(changeSetBlobs.itemId, itemId))
+    .returning({ sha256: changeSetBlobs.sha256 })
+    .all()
+    .map((row) => row.sha256);
   recountRefs(db, shas);
   for (const sha of new Set([...shas, ...kept])) {
     awaitNameAgain(db, sha, now);
