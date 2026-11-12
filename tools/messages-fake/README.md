@@ -49,7 +49,6 @@ the turn naming the tools it called. Nothing else steers it.
 | Line                        | Step                                                                  |
 | --------------------------- | --------------------------------------------------------------------- |
 | `call <tool> <json object>` | a reply that thinks, then calls that tool with that input             |
-| `spend <cents>`             | a reply whose output costs that many cents, cut at `max_tokens`       |
 | `long <chars>`              | a reply of that much text, streamed slowly                            |
 | `refuse <category>`         | a refusal no fallback takes up                                        |
 | `fallback`                  | a refusal the request's `fallbacks` take up, answered by the fallback |
@@ -64,8 +63,7 @@ all a request sent from the block on tells the fake of them; its sampling is
 an entry of its own in `usage.iterations`.
 
 So `call create_note {"title":"Paris","markdown":"Paris"}` asks the thread to
-run that tool through the account's cell, and `spend 30` costs a turn thirty
-cents of the day's allowance.
+run that tool through the account's cell.
 
 ## Running it
 

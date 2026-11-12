@@ -3,8 +3,6 @@
 // line is the person's words, which steer nothing.
 //
 //   call <tool> <json object>   a reply that thinks, then calls that tool with that input
-//   spend <cents>               a reply whose output costs that many cents at the request model's
-//                               list price, cut at max_tokens when that is less
 //   long <chars>                a reply of that much text, streamed slowly
 //   refuse <category>           a refusal no fallback takes up
 //   fallback                    a refusal the request's `fallbacks` take up
@@ -37,7 +35,6 @@ const inputSchema = z.record(z.string(), z.json());
 
 type FakeStep =
   | { readonly kind: "call"; readonly tool: string; readonly input: z.infer<typeof inputSchema> }
-  | { readonly kind: "spend"; readonly cents: number }
   | { readonly kind: "long"; readonly chars: number }
   | { readonly kind: "refuse"; readonly category: RefusalCategory }
   | { readonly kind: "fallback" };
@@ -59,7 +56,6 @@ export interface FakeScript {
 }
 
 const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
-const SPEND = /^spend\s+(?<cents>[1-9]\d{0,5})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const REFUSE = /^refuse\s+(?<category>[a-z_]+)$/u;
 const STALL = /^stall(?:\s+(?<at>thinking))?$/u;
@@ -83,10 +79,6 @@ const stepOf = (line: string): FakeStep | null => {
   if (call?.tool !== undefined && call.input !== undefined) {
     const input = parsedInput(call.input);
     return input === null ? null : { input, kind: "call", tool: call.tool };
-  }
-  const cents = SPEND.exec(line)?.groups?.cents;
-  if (cents !== undefined) {
-    return { cents: Number(cents), kind: "spend" };
   }
   const chars = LONG.exec(line)?.groups?.chars;
   if (chars !== undefined) {

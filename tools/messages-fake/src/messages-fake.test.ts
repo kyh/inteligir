@@ -190,17 +190,6 @@ describe("the scripted Messages API", () => {
     );
   });
 
-  it("spends the cents a step names at the model's output price, cut at max_tokens", async () => {
-    const fake = messagesFake();
-    const whole = await send(fake, bodyOf([person("spend 2")]));
-    // $10 a million output tokens: a cent is 1,000 tokens
-    expect(whole.usage.output_tokens).toBe(2000);
-    expect(whole.stop_reason).toBe("end_turn");
-    const cut = await send(fake, bodyOf([person("spend 2")], { max_tokens: 300 }));
-    expect(cut.usage.output_tokens).toBe(300);
-    expect(cut.stop_reason).toBe("max_tokens");
-  });
-
   it("refuses with its category, and a fallback takes up a refusal the request names fallbacks for", async () => {
     const fake = messagesFake();
     const refused = await send(fake, bodyOf([person("refuse cyber")]));
