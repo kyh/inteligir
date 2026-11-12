@@ -15,7 +15,7 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
   one shape lets search, the agent and every surface take any item.
 - **Online-first.** Devices cache what they read (TanStack Query); only a save
   from the extension or the share sheet waits offline, and editing, the agent
-  and import say they need a connection. Why: offline copies were most of the code.
+  and import say they need a connection. Why: offline copies would be most of the code.
 - **A note's body is live**: every device and the agent edit one Yjs 13.x
   document, one `y-partyserver` Durable Object per note, with no presence and
   no version history. Why: a live document removes merge logic.
@@ -25,9 +25,11 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
 - **One oRPC contract, and a tool is a procedure tagged `mcp.tool`**, which the
   apps, the connector and the agent call alike. Why: the agent does what the
   app does, and nothing it cannot.
-- **Markdown is stock and lossy**, as Notion's: Plate's plugin plus one
-  `remark-directive` rule per custom block carries imports and the agent's
-  reads and edits. Why: byte-exact round trips cost more than they paid.
+- **Markdown is stock: a read keeps every letter, and a write keeps what the
+  blocks mean.** Plate's plugin plus one `remark-directive` rule per custom
+  block carries imports and the agent's reads and edits, and Plate's stock is
+  corrected where an agent's edit would lose words. Why: byte-exact round trips
+  cost more than they pay.
 - **Saving calls no model.** The extension reads its page; any other save lands
   unread for the Worker's fill, and the agent files and tags only when asked.
   Why: a save is instant and free.
@@ -58,8 +60,8 @@ packages/contract      * the client-safe /v1 contract and the library model ever
 packages/service       * the cloud's code: auth, /v1, connector, fills, each cell, note and conversation
 packages/db            * drizzle's schemas for D1 and each object's SQLite, with each object's DDL
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
-packages/page-reader   * a saved page read into an item, over its host's DOM
-packages/client        * what the tab and the phone share above the contract: the agent panel, socket, labels
+packages/page-reader   * a saved page read into an item, over linkedom on every host
+packages/client        * what the tab and the phone share above the contract: the socket, labels, the agent's threads
 packages/agent-skills    the dialect spec the agent's instructions are built from
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * four fitness tests over the repo
@@ -129,9 +131,9 @@ CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
 - **A change a user can notice updates `CHANGELOG.md`'s `## Unreleased`** in
   the same task, saying what to do about a behaviour that changed or went away.
 - **Product surfaces speak the user's words**: never git, commit, remote, repo,
-  terminal, CLI, PATH or MCP; the whole is the library, what is in it items, an
-  MCP server a connector. The built-in agent's instructions keep their words
-  (`tools/repo-guards/src/product-words.test.ts`).
+  terminal, CLI, PATH, MCP or vault; the whole is the library, what is in it
+  items, an MCP server a connector. The built-in agent's instructions keep their
+  words (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions, no escape comment**: parse
   or narrow. Kebab-case filenames. Illegal states unrepresentable.
 - **`@repo/contract` is client-safe and platform-neutral**: no node, react,
@@ -147,8 +149,8 @@ CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
 - **`/v1` breaks only behind the client build floor** (`packages/service/CLAUDE.md`).
 - **The UI is `@repo/ui`'s, under the React Compiler** (`packages/ui/CLAUDE.md`,
   `tools/repo-guards/CLAUDE.md`).
-- **A value has one spelling**: a key binding, a preference, a library scope
-  (`apps/web/src/library/CLAUDE.md`).
+- **A value has one spelling**: a key binding (`packages/editor/CLAUDE.md`), a
+  preference and a library scope (`apps/web/src/library/CLAUDE.md`).
 - **The library model is the contract's** (`packages/contract/CLAUDE.md`).
 
 ## Decisions
