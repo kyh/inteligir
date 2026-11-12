@@ -1,5 +1,5 @@
-// The cell's SQLite through drizzle, over the tables `@repo/db/cell/schema` declares, its schema
-// brought to this build's as it wakes (`../object-schema`).
+// The cell's SQLite through drizzle, over the tables `@repo/db/cell/schema` declares, its DDL
+// applied as it wakes (`../object-schema`).
 
 import { defineRelations, getColumns, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -7,9 +7,9 @@ import { drizzle } from "drizzle-orm/durable-sqlite";
 import type { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 
-import journal from "@repo/db/cell/migrations";
+import ddl from "@repo/db/cell/ddl.sql";
 import * as cellSchema from "@repo/db/cell/schema";
-import { migrateObjectSchema } from "../object-schema";
+import type { ObjectSchema } from "../object-schema";
 import { SQL_MAX_PARAMS } from "./library-sql";
 
 // drizzle 1.0 registers a table only through `relations`, which also holds every table drizzle-kit
@@ -21,10 +21,7 @@ export type CellDb = DrizzleSqliteDODatabase<typeof relations>;
 // holds only the storage, so a wipe leaves it whole
 export const cellDbOf = (storage: DurableObjectStorage): CellDb => drizzle(storage, { relations });
 
-// a throw leaves the cell as it was (`migrateObjectSchema`)
-export const migrateCell = async (storage: DurableObjectStorage): Promise<void> => {
-  await migrateObjectSchema(storage, { db: cellDbOf(storage), journal, what: "cell" });
-};
+export const CELL_SCHEMA: ObjectSchema = { ddl, what: "cell" };
 
 // the row an upsert offered, for its SET, which sqlite-core spells by hand
 export const excluded = (column: SQLiteColumn): SQL => sql`excluded.${sql.identifier(column.name)}`;

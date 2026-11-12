@@ -1,6 +1,6 @@
 // A note's SQLite, one per note's Durable Object: its live body as Yjs updates, what it owes the
-// account's cell, and the built-in agent's turn log. drizzle-kit generates the note's migrations from
-// this file (drizzle.config.note.ts), which the note runs as it wakes, as the cell does. No row
+// account's cell, and the built-in agent's turn log. drizzle-kit exports its DDL (ddl.sql), which
+// the note applies as it wakes, as the cell does. No row
 // passes a Durable Object's 2 MB: the compacted state is cut into parts of 1 MiB, an update is held
 // to 1 MiB before it lands, and a turn log row is a part of its update.
 

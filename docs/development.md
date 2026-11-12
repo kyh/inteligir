@@ -56,8 +56,7 @@ against the local Worker's files:
 ```bash
 pnpm --filter @repo/db push                     # the D1 schema into pnpm dev:web's local D1
 pnpm --filter @repo/db studio                   # browse it (mint an invite here)
-pnpm --filter @repo/db generate:cell --name <x> # the next cell migration, from src/cell/schema.ts
-pnpm --filter @repo/db generate:note --name <x> # the next note migration, from src/note/schema.ts
+pnpm --filter @repo/db ddl                      # each object's ddl.sql, from its src/<object>/schema.ts
 pnpm --filter @repo/db run --silent export      # the D1 schema's DDL, as the suites apply it
 ```
 
@@ -151,9 +150,9 @@ which is how the e2e points the dev build at the Worker it boots
 | The iPhone's kept reads, the shares it waits on, its files           | expo-sqlite's key-value store, out of the iCloud backup; files in the purgeable `Paths.cache`; Better Auth's session cookie in the Keychain, this device only (`apps/mobile/CLAUDE.md`) |
 | Accounts, sessions (every device's sign-in), invites, revoked grants | D1 (local file under `apps/web/.wrangler`)                                                                                                                                              |
 | The library's files                                                  | R2, `BLOBS` (same `.wrangler` dir)                                                                                                                                                      |
-| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables migrated from `packages/db/src/cell/migrations` as it wakes                                       |
-| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables migrated from `packages/db/src/note/migrations` as it wakes                                             |
-| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables migrated from `packages/db/src/thread/migrations` as it wakes                                  |
+| Library cells, their sockets and conversations                       | Durable Objects (same `.wrangler` dir): items, filing rules, jobs, each cell's tables made from `packages/db/src/cell/ddl.sql` as it wakes                                              |
+| Each item's note: its live document and the agent's turn log         | Durable Objects (same `.wrangler` dir), one per note opened: each note's tables made from `packages/db/src/note/ddl.sql` as it wakes                                                    |
+| Each conversation with the built-in agent: its transcript and steps  | Durable Objects (same `.wrangler` dir), one per conversation: each conversation's tables made from `packages/db/src/thread/ddl.sql` as it wakes                                         |
 | Connected assistants' clients, grants and tokens                     | KV, `OAUTH_KV` (same `.wrangler` dir)                                                                                                                                                   |
 
 ## Quality gates

@@ -80,7 +80,7 @@ const countSchema = z.object({ count: z.number() });
 export const threadHolds = async (accountId: string, threadId: string): Promise<boolean> =>
   await runInDurableObject(threadOf(accountId, threadId), (_thread: AgentThreadDO, state) => {
     const [tables] = state.storage.sql
-      .exec("SELECT count(*) AS count FROM sqlite_master WHERE name = '__drizzle_migrations'")
+      .exec("SELECT count(*) AS count FROM sqlite_master WHERE name = 'transcript'")
       .toArray();
     return countSchema.parse(tables).count > 0;
   });

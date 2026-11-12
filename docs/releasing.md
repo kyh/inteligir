@@ -302,7 +302,7 @@ The unpacked store build, against production, with no dev build loaded.
 
 - **The production deploy**: `/library` with no policy error, a `?item=` deep
   link, its assets and a 404; the account socket's 101 and ping/pong; a new cell
-  schema migrates; and the output says which deleted class may leave the
+  schema starts the cell over; and the output says which deleted class may leave the
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
   prompt with unsent typing, popups fading, ⌘P, VoiceOver, a Docs or Word list

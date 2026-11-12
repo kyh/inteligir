@@ -1,10 +1,8 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // drizzle-kit loads the configs under node
+    // drizzle-kit loads the configs under node, and node runs the scripts
     "types": ["node"]
   },
-  "include": ["src", "*.ts"],
-  // drizzle-kit's output imports its SQL as text, which the Worker's programs type
-  "exclude": ["node_modules", "src/cell/migrations", "src/note/migrations", "src/thread/migrations"]
+  "include": ["src", "scripts", "*.ts"]
 }

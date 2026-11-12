@@ -19,7 +19,7 @@
     "packages/db": {
       // the local D1's config throws on load until `pnpm dev:web` has made that database
       "ignore": ["drizzle.config.local.ts"],
-      "drizzle": { "config": ["drizzle.config.ts", "drizzle.config.{cell,note,thread}.ts"] }
+      "drizzle": { "config": ["drizzle.config.ts"] }
     },
     "packages/service": {
       "entry": ["cloudflare.config.ts", "src/**/*.test-d.ts", "scripts/*.ts"],

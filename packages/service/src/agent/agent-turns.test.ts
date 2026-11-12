@@ -16,6 +16,7 @@ import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { openCellLibrary } from "../library/cell-library";
 import { cellStorageOf } from "../library/cell-storage";
 import { ACCOUNT_PURGE_STEPS } from "../library/account-purge";
+import { SCHEMA_HASH_KEY } from "../object-schema";
 import {
   agentAccount,
   asLaptop,
@@ -106,16 +107,13 @@ const endingsOf = async (account: AgentAccount, threadId: string) => {
   );
 };
 
-// the object's instance gone, a migration applied that this build lacks, and nothing left to wake
-// it: what a deploy that regenerates the thread's baseline leaves, which the next instance's
-// constructor wipes
+// the object's instance gone, another build's DDL its schema, and nothing left to wake it: what a
+// deploy that changes the thread's schema leaves, which the next instance's constructor wipes
 const startsOver = async (account: AgentAccount, threadId: string): Promise<void> => {
   const thread = threadOf(account.accountId, threadId);
   // committed before the reset, which drops what its own call wrote
   await runInDurableObject(thread, async (_thread: AgentThreadDO, state) => {
-    state.storage.sql.exec(
-      "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES ('', 0, 'later')",
-    );
+    state.storage.kv.put(SCHEMA_HASH_KEY, "later");
     await state.storage.deleteAlarm();
   });
   await expect(
@@ -564,7 +562,7 @@ describe("the switch and deletion", () => {
       await settled(account, sent.threadId);
       expect(warned).toHaveBeenCalledWith({
         event: "thread-schema-reset",
-        found: expect.objectContaining({ kind: "drizzle" }),
+        found: expect.objectContaining({ hash: "later" }),
       });
       warned.mockRestore();
       // its sequence went on past the last push the cell landed, which the delivery said

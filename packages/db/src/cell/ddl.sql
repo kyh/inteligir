@@ -1,22 +1,25 @@
+-- Written by packages/db/scripts/object-ddl.ts from src/cell/schema.ts: edit the schema,
+-- then run `pnpm --filter @repo/db ddl`.
+
 CREATE TABLE `agent_pushes` (
 	`thread_id` text PRIMARY KEY,
 	`seq` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `agent_queue` (
 	`id` text PRIMARY KEY,
 	`thread_id` text NOT NULL,
 	`message` text NOT NULL,
 	`queued_at` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `agent_switch` (
 	`slot` integer PRIMARY KEY,
 	`enabled` integer NOT NULL,
 	CONSTRAINT "agent_switch_slot" CHECK("slot" = 1),
 	CONSTRAINT "agent_switch_enabled" CHECK("enabled" IN (0, 1))
 );
---> statement-breakpoint
+
 CREATE TABLE `agent_turns` (
 	`thread_id` text PRIMARY KEY,
 	`turn` integer NOT NULL,
@@ -28,46 +31,46 @@ CREATE TABLE `agent_turns` (
 	CONSTRAINT "agent_turns_waiting" CHECK("waiting" >= 0),
 	CONSTRAINT "agent_turns_cancel" CHECK("cancel" IN (0, 1))
 );
---> statement-breakpoint
+
 CREATE TABLE `agent_usage` (
 	`day` text PRIMARY KEY,
 	`turns` integer NOT NULL,
 	`cost_ucents` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `applied_ops` (
 	`op_id` text PRIMARY KEY,
 	`answer` text NOT NULL,
 	`at` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `blob_uploads` (
 	`sha256` text PRIMARY KEY,
 	`bytes` integer NOT NULL,
 	`mime` text NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `blobs` (
 	`sha256` text PRIMARY KEY,
 	`bytes` integer NOT NULL,
 	`mime` text NOT NULL,
 	`refs` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `body_texts` (
 	`item_id` text NOT NULL,
 	`part` integer NOT NULL,
 	`text` text NOT NULL,
 	CONSTRAINT `body_texts_pk` PRIMARY KEY(`item_id`, `part`)
 );
---> statement-breakpoint
+
 CREATE TABLE `change_set_blobs` (
 	`item_id` text NOT NULL,
 	`hash` text NOT NULL,
 	`sha256` text NOT NULL,
 	CONSTRAINT `change_set_blobs_pk` PRIMARY KEY(`item_id`, `hash`, `sha256`)
 );
---> statement-breakpoint
+
 CREATE TABLE `change_set_items` (
 	`change_set_id` text NOT NULL,
 	`item_id` text NOT NULL,
@@ -78,7 +81,7 @@ CREATE TABLE `change_set_items` (
 	CONSTRAINT "change_set_items_created" CHECK("created" IN (0, 1)),
 	CONSTRAINT "change_set_items_made" CHECK(("created" = 1) = ("before_fields" IS NULL))
 );
---> statement-breakpoint
+
 CREATE TABLE `change_sets` (
 	`id` text PRIMARY KEY,
 	`actor` text NOT NULL,
@@ -94,7 +97,7 @@ CREATE TABLE `change_sets` (
 	`undone_by` text,
 	CONSTRAINT "change_sets_actor" CHECK("actor" IN ('person', 'agent', 'assistant', 'import', 'fill', 'undo'))
 );
---> statement-breakpoint
+
 CREATE TABLE `folders` (
 	`id` text PRIMARY KEY,
 	`parent_id` text,
@@ -103,7 +106,7 @@ CREATE TABLE `folders` (
 	`deleted_at` integer,
 	`seq` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `import_jobs` (
 	`id` text PRIMARY KEY,
 	`source` text NOT NULL,
@@ -124,7 +127,7 @@ CREATE TABLE `import_jobs` (
 	CONSTRAINT "import_jobs_state" CHECK("state" IN ('running', 'done', 'failed', 'cancelled')),
 	CONSTRAINT "import_jobs_phase" CHECK("phase" IN ('reading', 'landing', 'files'))
 );
---> statement-breakpoint
+
 CREATE TABLE `import_rows` (
 	`job_id` text NOT NULL,
 	`kind` text NOT NULL,
@@ -132,13 +135,13 @@ CREATE TABLE `import_rows` (
 	`json` text NOT NULL,
 	CONSTRAINT `import_rows_pk` PRIMARY KEY(`job_id`, `kind`, `idx`)
 );
---> statement-breakpoint
+
 CREATE TABLE `item_blobs` (
 	`item_id` text NOT NULL,
 	`sha256` text NOT NULL,
 	CONSTRAINT `item_blobs_pk` PRIMARY KEY(`item_id`, `sha256`)
 );
---> statement-breakpoint
+
 CREATE TABLE `item_tags` (
 	`item_id` text NOT NULL,
 	`tag` text NOT NULL,
@@ -146,7 +149,7 @@ CREATE TABLE `item_tags` (
 	CONSTRAINT `item_tags_pk` PRIMARY KEY(`item_id`, `tag`, `origin`),
 	CONSTRAINT "item_tags_origin" CHECK("origin" IN ('field', 'inline'))
 );
---> statement-breakpoint
+
 CREATE TABLE `items` (
 	`rid` integer PRIMARY KEY,
 	`id` text NOT NULL,
@@ -190,7 +193,7 @@ CREATE TABLE `items` (
         AND "body_home" IS NOT NULL AND "body_digest" IS NOT NULL
         AND "body_version" IS NOT NULL AND "body_bytes" IS NOT NULL))
 );
---> statement-breakpoint
+
 CREATE TABLE `jobs` (
 	`id` text PRIMARY KEY,
 	`kind` text NOT NULL,
@@ -198,24 +201,24 @@ CREATE TABLE `jobs` (
 	`attempts` integer NOT NULL,
 	`next_at` integer
 );
---> statement-breakpoint
+
 CREATE TABLE `links` (
 	`source_id` text NOT NULL,
 	`target_id` text,
 	`target_key` text
 );
---> statement-breakpoint
+
 CREATE TABLE `meta` (
 	`k` text PRIMARY KEY,
 	`v` 
 );
---> statement-breakpoint
+
 CREATE TABLE `note_sockets` (
 	`session_id` text NOT NULL,
 	`item_id` text NOT NULL,
 	CONSTRAINT `note_sockets_pk` PRIMARY KEY(`session_id`, `item_id`)
 );
---> statement-breakpoint
+
 CREATE TABLE `seed_blocks` (
 	`item_id` text NOT NULL,
 	`pos` integer NOT NULL,
@@ -225,14 +228,14 @@ CREATE TABLE `seed_blocks` (
 	CONSTRAINT `seed_blocks_pk` PRIMARY KEY(`item_id`, `pos`),
 	CONSTRAINT "seed_blocks_section" CHECK("section" IN ('note', 'article'))
 );
---> statement-breakpoint
+
 CREATE TABLE `snapshot_parts` (
 	`item_id` text NOT NULL,
 	`hash` text NOT NULL,
 	`json` text NOT NULL,
 	CONSTRAINT `snapshot_parts_pk` PRIMARY KEY(`item_id`, `hash`)
 );
---> statement-breakpoint
+
 CREATE TABLE `thread_events` (
 	`event_id` text PRIMARY KEY,
 	`thread_id` text NOT NULL,
@@ -241,7 +244,7 @@ CREATE TABLE `thread_events` (
 	`json` text NOT NULL,
 	`at` integer NOT NULL
 );
---> statement-breakpoint
+
 CREATE TABLE `threads` (
 	`id` text PRIMARY KEY,
 	`title` text NOT NULL,
@@ -249,18 +252,24 @@ CREATE TABLE `threads` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL
 );
---> statement-breakpoint
-CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);--> statement-breakpoint
-CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);--> statement-breakpoint
-CREATE INDEX `change_set_blobs_sha` ON `change_set_blobs` (`sha256`);--> statement-breakpoint
-CREATE INDEX `change_set_items_item` ON `change_set_items` (`item_id`);--> statement-breakpoint
-CREATE INDEX `change_sets_open` ON `change_sets` (`actor`,`sealed_at`);--> statement-breakpoint
-CREATE INDEX `item_tags_tag` ON `item_tags` (`tag`);--> statement-breakpoint
-CREATE UNIQUE INDEX `items_id` ON `items` (`id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `one_url` ON `items` (`url_key`) WHERE "items"."deleted_at" IS NULL AND "items"."url_key" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX `items_seq` ON `items` (`seq`);--> statement-breakpoint
-CREATE INDEX `jobs_next` ON `jobs` (`next_at`);--> statement-breakpoint
-CREATE INDEX `links_source` ON `links` (`source_id`);--> statement-breakpoint
-CREATE INDEX `links_target` ON `links` (`target_id`);--> statement-breakpoint
-CREATE INDEX `links_key` ON `links` (`target_key`);--> statement-breakpoint
+
+CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);
+CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);
+CREATE INDEX `change_set_blobs_sha` ON `change_set_blobs` (`sha256`);
+CREATE INDEX `change_set_items_item` ON `change_set_items` (`item_id`);
+CREATE INDEX `change_sets_open` ON `change_sets` (`actor`,`sealed_at`);
+CREATE INDEX `item_tags_tag` ON `item_tags` (`tag`);
+CREATE UNIQUE INDEX `items_id` ON `items` (`id`);
+CREATE UNIQUE INDEX `one_url` ON `items` (`url_key`) WHERE "items"."deleted_at" IS NULL AND "items"."url_key" IS NOT NULL;
+CREATE INDEX `items_seq` ON `items` (`seq`);
+CREATE INDEX `jobs_next` ON `jobs` (`next_at`);
+CREATE INDEX `links_source` ON `links` (`source_id`);
+CREATE INDEX `links_target` ON `links` (`target_id`);
+CREATE INDEX `links_key` ON `links` (`target_key`);
 CREATE INDEX `thread_events_thread` ON `thread_events` (`thread_id`,`idx`);
+
+CREATE VIRTUAL TABLE `search_fts` USING fts5(
+  title, headings, meta, body,
+  title_stems, heading_stems, meta_stems, body_stems,
+  tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
+);

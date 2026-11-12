@@ -1,11 +1,10 @@
 // A conversation's SQLite, one per conversation's Durable Object: the transcript as Claude returned
 // it, the definitions its turns are sent under, the turns its cell delivered, each step's model
-// calls and tool calls, and the outbox to its cell. drizzle-kit generates the conversation's
-// migrations from this file (drizzle.config.thread.ts), which it runs in its constructor, as a note
-// does. The transcript is append-only by its one insert site, never a trigger, which a generated
-// table rebuild would drop, and each row holds one message's content as the text that was sent, so
-// a replay is byte for byte what went before: a replayed thinking block is checked against
-// everything before it.
+// calls and tool calls, and the outbox to its cell. drizzle-kit exports its DDL (ddl.sql), which
+// the conversation applies in its constructor. The transcript is append-only by its one insert
+// site, never a trigger, which the exported DDL cannot spell, and each row holds one message's
+// content as the text that was sent, so a replay is byte for byte what went before: a replayed
+// thinking block is checked against everything before it.
 
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";

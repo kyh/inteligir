@@ -42,7 +42,7 @@ import { articleChanges } from "./article-body";
 import { deadline, dutyColumns, dutyOf, stepDuty } from "./note-duty";
 import type { Duty, DutyEvent } from "./note-duty";
 import { openWithSchema } from "../object-schema";
-import { migrateNote, noteDbOf } from "./note-db";
+import { NOTE_SCHEMA, noteDbOf } from "./note-db";
 import type { NoteDb } from "./note-db";
 import { frameBytes, frameKind } from "./note-frames";
 import { refusedBy, standingAfter, standingColumns, standingOf } from "./note-standing";
@@ -141,7 +141,9 @@ export class NoteDO extends YServer<Env> {
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(NOTE_SOCKET.ping, NOTE_SOCKET.pong),
     );
-    openWithSchema(ctx, "note", migrateNote);
+    // not in y-partyserver's `onLoad`, which runs only once a socket or a call starts the server,
+    // so a plain call would meet no tables
+    openWithSchema(ctx, NOTE_SCHEMA);
   }
 
   get #db(): NoteDb {

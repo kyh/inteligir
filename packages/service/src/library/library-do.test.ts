@@ -25,6 +25,7 @@ import {
   refusalOf,
 } from "../test-support/library-cell";
 import { threadHolds, threadOf } from "../test-support/agent-turns";
+import { SCHEMA_HASH_KEY } from "../object-schema";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
@@ -200,7 +201,7 @@ describe("the library cell", () => {
     expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
   });
 
-  it("wakes started over empty when it applied a migration this build lacks", async () => {
+  it("wakes started over empty when another build's DDL made it", async () => {
     const stub = cellOf();
     await inCell(stub, (state) => {
       landedValue(
@@ -210,16 +211,14 @@ describe("the library cell", () => {
           id: crypto.randomUUID(),
         }),
       );
-      state.storage.sql.exec(
-        "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES ('', 0, 'later')",
-      );
+      state.storage.kv.put(SCHEMA_HASH_KEY, "later");
     });
     await evictDurableObject(stub);
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
     expect(warned).toHaveBeenCalledWith({
       event: "cell-schema-reset",
-      found: expect.objectContaining({ kind: "drizzle" }),
+      found: expect.objectContaining({ hash: "later" }),
     });
     warned.mockRestore();
   });
