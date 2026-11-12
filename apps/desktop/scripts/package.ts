@@ -16,7 +16,6 @@ import path from "node:path";
 import { parseEnv } from "node:util";
 import manifest from "../package.json" with { type: "json" };
 import { run } from "./run.ts";
-import { writeRustNotices } from "./rust-notices.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageRoot, "..", "..");
@@ -123,11 +122,23 @@ log(
 );
 log(updaterKey === null ? "no updater key: the app will not update itself" : "signing the update");
 
-const crateCount = await writeRustNotices(
-  path.join(packageRoot, "src-tauri"),
-  path.join(packageRoot, ".output", "notices", "rust-crates.txt"),
+// the crates the shell's binary is built from on the Mac and their licence texts, which ask to
+// travel with it (src-tauri/about.toml)
+const noticesDir = path.join(packageRoot, ".output", "notices");
+await mkdir(noticesDir, { recursive: true });
+run(
+  "cargo",
+  [
+    "about",
+    "generate",
+    "--locked",
+    "--fail",
+    "-o",
+    path.join(noticesDir, "rust-crates.txt"),
+    "about.hbs",
+  ],
+  { cwd: path.join(packageRoot, "src-tauri") },
 );
-log(`noted the licences of the ${crateCount} Rust crates the shell links`);
 
 // the fields of Tauri's config this pack sets over tauri.conf.json
 interface PackageConfig {

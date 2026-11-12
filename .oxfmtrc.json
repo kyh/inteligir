@@ -12,6 +12,7 @@
     "packages/editor/src/test-support/fixtures",
     "packages/db/src/cell/migrations",
     "packages/service/src/agent/agent-prompt.ts",
-    "__snapshots__"
+    "__snapshots__",
+    "apps/desktop/src-tauri/about.hbs"
   ]
 }

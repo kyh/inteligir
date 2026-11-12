@@ -11,7 +11,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
   conflict is no reason; the licences live in `tools/licenses`, and the .app
-  ships its crates' notices (`apps/desktop/scripts/rust-notices.ts`).
+  ships its crates' notices (`apps/desktop/src-tauri/about.toml`).
 - **The React Compiler is on for every bundle, through react.dev's Vite path**
   (owner decision), and every DOM suite compiles its sources the same way. Why:
   the suites run what ships, and a `compiled-under-test` case fails without the

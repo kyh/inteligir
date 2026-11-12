@@ -50,6 +50,8 @@ passed; § 7's checks need the published release.
   `notary.env` holds Tauri's own names, `APPLE_API_ISSUER`, `APPLE_API_KEY`
   (the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s file name), and a pack
   refuses one missing any.
+- **cargo-about**: `cargo install cargo-about --locked --features cli`, which
+  `pnpm package:desktop` runs for the Rust crates' licence notices.
 - **GitHub**: `gh auth status` has push rights on the repo.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials

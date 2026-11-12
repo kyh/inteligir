@@ -18,7 +18,6 @@
     "@kyh/tsconfig": "catalog:",
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "zod": "catalog:"
+    "typescript": "catalog:"
   }
 }
