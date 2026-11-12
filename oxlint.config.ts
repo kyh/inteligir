@@ -130,6 +130,31 @@ export default defineConfig({
       rules: { "anti-slop/no-module-mocking": "off" },
     },
     {
+      // an icon-only button shows the product's Tooltip, never the OS's; @repo/ui's Button drops
+      // the native title itself
+      files: ["packages/editor/**"],
+      rules: {
+        "react/forbid-dom-props": [
+          "error",
+          {
+            forbid: [
+              {
+                disallowedFor: ["button"],
+                message: "wrap an icon-only button in @repo/ui's <Tooltip> with an aria-label",
+                propName: "title",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // the two per-block handles keep the native title: one Tooltip root per block in a long
+      // note is a cost nobody measured
+      files: ["packages/editor/src/block-draggable.tsx"],
+      rules: { "react/forbid-dom-props": "off" },
+    },
+    {
       // a stub is `async` to match its port, and vitest types its asymmetric matchers `any`
       files: tests,
       rules: {
