@@ -98,12 +98,6 @@ inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
 A raw, unsigned token is refused.
 
-The site's per-page share cards under `apps/web/public/og/` are rendered,
-never drawn by hand: `pnpm --filter @repo/web og:cards`
-(`apps/web/scripts/og-cards.ts`) renders a 1200x630 card per page in
-`apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
-Playwright's Chromium, and sits outside `pnpm verify` and the build.
-
 The built-in agent's system prompt, `packages/service/src/agent/agent-prompt.ts`,
 is written, never edited by hand: `pnpm --filter @repo/service agent-prompt`
 (`packages/service/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`,

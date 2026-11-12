@@ -16,9 +16,8 @@
     "build": "cf build",
     "dev": "pnpm with-env cf dev",
     "generate": "cf workers types",
-    "og:cards": "node scripts/og-cards.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker",
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
@@ -59,7 +58,6 @@
     "babel-plugin-react-compiler": "catalog:",
     "cf": "catalog:",
     "jsdom": "catalog:",
-    "playwright-core": "1.63.0",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

@@ -11,7 +11,7 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts", "scripts/*.ts"],
+      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "packages/db": {

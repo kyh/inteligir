@@ -56,7 +56,7 @@ src/
 
 Two programs check `src/`: `tsconfig.json` the pages and their suites (ES2023
 and the DOM, the Mac app's WebKit 16.6 ceiling), and `src/worker/tsconfig.json`
-the Worker; `scripts/tsconfig.json` checks the scripts.
+the Worker.
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
 declare `BufferSource`/`BodyInit` globally with different bounds, so one
