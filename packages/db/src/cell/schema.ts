@@ -364,12 +364,10 @@ export const agentQueue = sqliteTable(
   (t) => [index("agent_queue_order").on(t.queuedAt, t.id)],
 );
 
-// what the built-in agent spent on each UTC day: its turns, and their calls' list cost in
-// micro-cents
+// the turns the built-in agent began on each UTC day
 export const agentUsage = sqliteTable("agent_usage", {
   day: text().primaryKey(),
   turns: integer().notNull(),
-  costUcents: integer("cost_ucents").notNull(),
 });
 
 export const importJobs = sqliteTable(

@@ -28,17 +28,16 @@ beside it, so every suite that reaches it runs in workerd.
 ```
 compatibility.ts       # workerd's date and flags, for both configs
 fill-queues.ts         # the fills' queues, for both configs and the suites
-agent-limits.ts        # the built-in agent's daily allowance and list prices
+agent-limits.ts        # the built-in agent's daily allowance
 messages-service.ts    # the suites' outbound service: the scripted Messages API
 cloudflare.config.ts   # the suites' Worker, never deployed; the Env's source
-scripts/agent-prompt.ts  # writes src/agent/agent-prompt.ts from @repo/agent-skills
 src/
   doors.ts             # each door apps/web's Start routes hand a request to
   doors-api.ts         # the doors' types, naming only Request and Response
   door-routes.ts       # the path each door answers, as its Start route spells it
   client-floor.ts      # the build floor every install's request is held to
   plain-http.ts        # the answers outside the one wire, in HTTP's statuses
-  rate-limit.ts        # the D1 fixed window every throttled route spends
+  rate-limit.ts        # the D1 windows and the minute every signed call spends
   log.ts               # an error logged whole, its causes included
   object-schema.ts     # a Durable Object's DDL, applied as it wakes
   auth/                # Better Auth factory, invite gate, reset email, the
@@ -95,8 +94,8 @@ src/
                        # library-tools.ts) and the account's grants
                        # (assistant-grants.ts)
   agent/               # the built-in agent: its one definition
-                       # (library-agent.ts) and its generated prompt
-                       # (agent-prompt.ts), each conversation's object,
+                       # (library-agent.ts) and its prompt, read from
+                       # @repo/agent-skills (agent-prompt.ts), each conversation's object,
                        # AgentThreadDO (agent-thread.ts), with its tables
                        # (thread-db.ts), its loop (thread-loop.ts), its drive
                        # (thread-drive.ts), each tool call's state
@@ -104,7 +103,7 @@ src/
                        # its client through AI
                        # Gateway (anthropic-client.ts); and the cell's side: the
                        # tools it runs (agent-tools.ts), the allowance and the
-                       # prices it books (agent-allowance.ts), the switch
+                       # turns it books (agent-allowance.ts), the switch
                        # (agent-switch.ts), and each turn let in, handed over,
                        # landed and sealed (agent-turns.ts, turn-rows.ts)
   fill/                # the fill queue's consumer (fill-consumer.ts): a saved
@@ -282,14 +281,17 @@ end them, and the account's deletion revokes every one.
   which one host holds whole. `/api/auth/get-session` spends no window: a
   session read is no password oracle, and every route guard and hover preload
   makes one. A read that fails is unknown to the route guards, never signed
-  out (`apps/web/src/lib/auth-client.ts`). `/v1/rpc` and `/v1/blobs` spend the
-  same table keyed on the HOLDER, the session, never the address: a stolen
-  session moves between addresses, and the session is what Settings › Account
-  ends. The connector spends it keyed on the assistant's grant. Each family is
-  its own, so a drained budget never takes another down. An ended session's
-  rows and a grant's wait for the prune. Better Auth prunes the shared table on
-  its own writes, every row past its 60s window with it, so every Worker window
-  is declared in `RATE_WINDOWS` and a guard holds each to 60s or less.
+  out (`apps/web/src/lib/auth-client.ts`). An account deletion's password check
+  spends the same table keyed on the HOLDER, the session, never the address: a
+  stolen session moves between addresses, and the session is what Settings ›
+  Account ends. Better Auth prunes the shared table on its own writes, every row
+  past its 60s window with it, so every Worker window is declared in
+  `RATE_WINDOWS` and a guard holds each to 60s or less. `/v1/rpc`, `/v1/blobs`
+  and the connector spend a Workers Rate Limiting binding each instead
+  (`RPC_LIMIT`, `BLOBS_LIMIT`, `CONNECTOR_LIMIT`), keyed on the session or the
+  assistant's grant: a ceiling against a loop may be approximate and per
+  location, and no signed call writes D1. Each family is its own, so a drained
+  budget never takes another down.
 - **No CORS.** Every page that calls `/v1` is served by this Worker from this
   origin, the Mac app's window among them, and the browser extension's worker
   calls the site under its host permission, which needs none. CORS added
@@ -325,34 +327,32 @@ SDK: Lifecycle's durable job queue and its one alarm drive the loop, wake a
 conversation whose instance died, and deny an approval nobody answered in ten
 minutes. Its definition is code, the same bytes for every account: the model
 and effort (`src/agent/library-agent.ts`), the system prompt
-(`src/agent/agent-prompt.ts`, which `pnpm --filter @repo/service agent-prompt`
-writes from `@repo/agent-skills`; edit the skills and run it, never the
-module) and the tools (`agent-tools.ts`). A thread freezes them at its first
+(`src/agent/agent-prompt.ts`, `@repo/agent-skills`'s files read as text at
+build time, in the hub's order) and the tools (`agent-tools.ts`). A thread freezes them at its first
 turn and replays them byte for byte; a deploy that changes them is taken up at
 the start of the thread's next turn, never mid-turn, its requests from then on
 carrying no thinking from before that turn.
 
 A person's send (`library.agent.send`) is admitted in one transaction of the
 account's cell: refused `SERVICE_UNAVAILABLE` while the agent is off or the
-Worker has no Claude to call, `AGENT_BUDGET` once the day's turns or list cost
+Worker has no Claude to call, `AGENT_BUDGET` once the day's turns
 (`AGENT_ALLOWANCE`) are spent, queued behind its thread's open turn or while
 the account runs two, and otherwise opened and handed to its thread's object,
 again every 30 seconds until it lands. The object streams each model call
 with previews to the account's sockets, every call asking the same
-`max_tokens`, and lands only the whole reply, as returned, beside its usage; a
+`max_tokens`, and lands only the whole reply, as returned; a
 call an instance died reading is sent again whole, and a turn ends `budget`
 before a call past its twentieth reply. A conversation past 50,000 input
 tokens, the least the API compacts at, is compacted by the API inside the
 request that reaches them, its summary landing with the reply, and every
 request after carries the conversation from that summary on; at the API's
 default of 150,000, a turn after a pause would write its whole prompt to the
-cache again for 60 cents of a day's dollar. Every tool call runs in the cell
+cache again for 60 cents. Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id
 derived from the call's, so one run again lands once; a deletion waits for the
 person. What the turn did reaches the cell as pushes, each once by its
 sequence, stored as the thread's events, a short progress note before each
-tool call among them, and each reply's usage, booked at list price
-(`AGENT_PRICES`) on the day its turn started; the push that ends a turn seals
+tool call among them; the push that ends a turn seals
 its one change set, gives back a turn Claude could not be reached for, never
 one the person stopped, and lets the links it saved be read.
 
@@ -362,8 +362,9 @@ Anthropic workspace key with provider credentials required and Authenticated
 Gateway on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
 and every request asks the gateway to keep no prompt or reply and names the
 conversation's account in `cf-aig-metadata`, which the gateway's per-account
-spend limit splits by, bounding what no usage books: a stream cut before it
-ended, and a day's last reply past its cost. A Worker with
+spend limit splits by: the agent's one dollar cap, whose 429, carrying no
+Anthropic `request-id`, ends the turn as the day's allowance, where Anthropic's
+own 429 is sent again. A Worker with
 no gateway refuses every send. `vite dev` names no production gateway: the
 root `.env` names the scripted Messages API or a gateway of the developer's
 own (`.env.example`).
@@ -402,9 +403,8 @@ other address.
 
 ```bash
 pnpm --filter @repo/service generate      # the Env and runtime types, from cloudflare.config.ts
-pnpm --filter @repo/service typecheck     # this program, and scripts/ under node
+pnpm --filter @repo/service typecheck     # this program
 pnpm --filter @repo/service test          # the three projects above
-pnpm --filter @repo/service agent-prompt  # rewrite the agent's prompt from @repo/agent-skills
 ```
 
 The program and the type claims read the `Env` `generate` writes, which no

@@ -10,7 +10,6 @@
     ".tanstack",
     "routeTree.gen.ts",
     "packages/editor/src/test-support/fixtures",
-    "packages/service/src/agent/agent-prompt.ts",
     "__snapshots__"
   ]
 }

@@ -11,9 +11,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "@repo/db/d1/client";
-import { rateLimit, session } from "@repo/db/d1/schema";
+import { session } from "@repo/db/d1/schema";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
-import { holderRateKey } from "../rate-limit";
 import {
   buildHeaders,
   drained,
@@ -23,6 +22,7 @@ import {
   sessionHeaders,
   sessionIdOf,
   sessionTokenOf,
+  spendMinute,
   signInPhone,
   signOutPhone,
   signUpUser,
@@ -351,14 +351,7 @@ describe("every refusal's status", () => {
 
     it("refuses a session past its minute's calls, on the library and the account alike", async () => {
       const { phone, phoneCookie } = await signedUp("rpc-limited@example.test");
-      await createDb(env.DB)
-        .insert(rateLimit)
-        .values({
-          count: 1200,
-          id: crypto.randomUUID(),
-          key: holderRateKey("rpc", await sessionIdOf(phoneCookie)),
-          lastRequest: Date.now(),
-        });
+      await spendMinute(env.RPC_LIMIT, await sessionIdOf(phoneCookie));
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
         async () => await phone.library.items.list({}),

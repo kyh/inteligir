@@ -41,7 +41,7 @@ const statusesAfter = async (
     await inCell(account.cell, async (state) => {
       const cell = agentCellIn(state, openCellLibrary(state, env));
       await landPush(cell, {
-        entries: [{ event, kind: "event" }],
+        events: [event],
         seq: index + 1,
         threadId,
         turn: 1,

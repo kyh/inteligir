@@ -34,8 +34,7 @@ CREATE TABLE `agent_turns` (
 
 CREATE TABLE `agent_usage` (
 	`day` text PRIMARY KEY,
-	`turns` integer NOT NULL,
-	`cost_ucents` integer NOT NULL
+	`turns` integer NOT NULL
 );
 
 CREATE TABLE `applied_ops` (

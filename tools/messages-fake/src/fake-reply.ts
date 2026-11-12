@@ -39,12 +39,6 @@ export const FAKE_MODEL = "claude-sonnet-5-5";
 // what a refusal of the request model falls back to, as `fallbacks: "default"` names it
 const FALLBACK_MODEL = "claude-sonnet-5";
 
-// list output prices, dollars per million tokens, which a `spend` costs its tokens out at
-const OUTPUT_PRICES = new Map([
-  [FAKE_MODEL, 10],
-  [FALLBACK_MODEL, 10],
-]);
-
 // a declined hop's own output before its refusal
 const DECLINED_OUTPUT_TOKENS = 8;
 
@@ -184,16 +178,6 @@ const stepReply = (
           call,
         ],
         stop: "tool_use",
-      };
-    }
-    case "spend": {
-      const price = OUTPUT_PRICES.get(request.model) ?? 0;
-      const wanted = price === 0 ? 0 : Math.round((step.cents * 10_000) / price);
-      const tokens = Math.min(wanted, request.max_tokens);
-      return {
-        ...base,
-        blocks: [text(textOfLength(tokens * 4))],
-        stop: tokens < wanted ? "max_tokens" : "end_turn",
       };
     }
     case "long": {

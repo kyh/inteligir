@@ -3,8 +3,6 @@
 // line is the person's words, which steer nothing.
 //
 //   call <tool> <json object>   a reply that thinks, then calls that tool with that input
-//   spend <cents>               a reply whose output costs that many cents at the request model's
-//                               list price, cut at max_tokens when that is less
 //   long <chars>                a reply of that much text, streamed slowly
 //   refuse <category>           a refusal no fallback takes up
 //   fallback                    a refusal the request's `fallbacks` take up
@@ -12,8 +10,10 @@
 //                               to the middle of its last block (of its last thinking block with
 //                               `thinking`) and holds until the client goes; asked again, it
 //                               answers whole
-//   fail <status> <times>       each body is answered that status that many times before it is
-//                               answered at all
+//   fail <status> <times> [gateway]
+//                               each body is answered that status that many times before it is
+//                               answered at all; by the gateway, before Anthropic is asked, with
+//                               `gateway`
 //   compact                     the next step's reply opens with a compaction block, as the API's
 //                               threshold compaction would, when the request asks for compaction
 //
@@ -37,7 +37,6 @@ const inputSchema = z.record(z.string(), z.json());
 
 type FakeStep =
   | { readonly kind: "call"; readonly tool: string; readonly input: z.infer<typeof inputSchema> }
-  | { readonly kind: "spend"; readonly cents: number }
   | { readonly kind: "long"; readonly chars: number }
   | { readonly kind: "refuse"; readonly category: RefusalCategory }
   | { readonly kind: "fallback" };
@@ -55,15 +54,18 @@ export interface FakeScript {
   readonly steps: readonly ScriptedStep[];
   // the reply after every step: no step of its own, its stall and whether it compacts
   readonly closing: ScriptedStep;
-  readonly fail: { readonly status: number; readonly times: number } | null;
+  readonly fail: {
+    readonly status: number;
+    readonly times: number;
+    readonly gateway: boolean;
+  } | null;
 }
 
 const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
-const SPEND = /^spend\s+(?<cents>[1-9]\d{0,5})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const REFUSE = /^refuse\s+(?<category>[a-z_]+)$/u;
 const STALL = /^stall(?:\s+(?<at>thinking))?$/u;
-const FAIL = /^fail\s+(?<status>[45]\d\d)\s+(?<times>[1-9]\d{0,2})$/u;
+const FAIL = /^fail\s+(?<status>[45]\d\d)\s+(?<times>[1-9]\d{0,2})(?<gateway>\s+gateway)?$/u;
 const COMPACT = "compact";
 
 const parsedInput = (text: string) => {
@@ -83,10 +85,6 @@ const stepOf = (line: string): FakeStep | null => {
   if (call?.tool !== undefined && call.input !== undefined) {
     const input = parsedInput(call.input);
     return input === null ? null : { input, kind: "call", tool: call.tool };
-  }
-  const cents = SPEND.exec(line)?.groups?.cents;
-  if (cents !== undefined) {
-    return { cents: Number(cents), kind: "spend" };
   }
   const chars = LONG.exec(line)?.groups?.chars;
   if (chars !== undefined) {
@@ -118,7 +116,11 @@ export const scriptOf = (text: string): FakeScript => {
     }
     const failed = FAIL.exec(line)?.groups;
     if (failed?.status !== undefined && failed.times !== undefined) {
-      fail = { status: Number(failed.status), times: Number(failed.times) };
+      fail = {
+        gateway: failed.gateway !== undefined,
+        status: Number(failed.status),
+        times: Number(failed.times),
+      };
       continue;
     }
     const step = stepOf(line);

@@ -1,8 +1,8 @@
 // What a conversation's object (`./agent-thread`) and its account's cell (`../library/library-do`)
 // say to each other, each way by Durable Object RPC, parsed at the side that receives it. The
 // thread has the cell run every tool call (`agentTool`), shows the reply as it is written
-// (`agentPreview`), and pushes what the turn did (`agentPush`): its events and each reply's usage,
-// which the cell books on the turn's day. Each push goes by the thread's own sequence, so one sent
+// (`agentPreview`), and pushes what the turn did (`agentPush`): its events. Each push goes by the
+// thread's own sequence, so one sent
 // again lands once, and every delivery says the last push the cell landed, so an object that
 // started over on empty tables goes on past it. The cell refuses a thread it does not hold, which
 // purges itself, and a turn that is not open, whose call lands nothing.
@@ -34,21 +34,8 @@ export interface ToolAnswer {
   readonly isError: boolean;
 }
 
-// what one reply was billed, as the API reported it, priced by the cell at the model the call went
-// to where an iteration names none
-const usageEntrySchema = z.strictObject({
-  kind: z.literal("usage"),
-  model: z.string().min(1).max(128),
-  usage: z.json(),
-});
-
-const eventEntrySchema = z.strictObject({ event: agentEventSchema, kind: z.literal("event") });
-
-export const pushEntrySchema = z.union([eventEntrySchema, usageEntrySchema]);
-export type PushEntry = z.infer<typeof pushEntrySchema>;
-
 export const pushRequestSchema = z.strictObject({
-  entries: z.array(pushEntrySchema).max(1000),
+  events: z.array(agentEventSchema).max(1000),
   seq: z.number().int().positive(),
   threadId: idSchema,
   turn: turnSchema,

@@ -46,16 +46,15 @@ the turn's steps, one model call each, the step found by counting the replies
 since that message (`src/fake-script.ts`). With no step left, the reply ends
 the turn naming the tools it called. Nothing else steers it.
 
-| Line                        | Step                                                                  |
-| --------------------------- | --------------------------------------------------------------------- |
-| `call <tool> <json object>` | a reply that thinks, then calls that tool with that input             |
-| `spend <cents>`             | a reply whose output costs that many cents, cut at `max_tokens`       |
-| `long <chars>`              | a reply of that much text, streamed slowly                            |
-| `refuse <category>`         | a refusal no fallback takes up                                        |
-| `fallback`                  | a refusal the request's `fallbacks` take up, answered by the fallback |
-| `stall [thinking]`          | the next reply holds mid-stream the first time, until the client goes |
-| `fail <status> <times>`     | each request body is answered that status that many times first       |
-| `compact`                   | the next reply opens with a compaction block, when the request asks   |
+| Line                              | Step                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `call <tool> <json object>`       | a reply that thinks, then calls that tool with that input                              |
+| `long <chars>`                    | a reply of that much text, streamed slowly                                             |
+| `refuse <category>`               | a refusal no fallback takes up                                                         |
+| `fallback`                        | a refusal the request's `fallbacks` take up, answered by the fallback                  |
+| `stall [thinking]`                | the next reply holds mid-stream the first time, until the client goes                  |
+| `fail <status> <times> [gateway]` | each body is answered that status that many times first, by the gateway with `gateway` |
+| `compact`                         | the next reply opens with a compaction block, when the request asks                    |
 
 `stall` and `compact` take no step of their own: each marks the step after
 it, or the closing reply. A compaction's summary keeps, in its opaque
@@ -64,8 +63,8 @@ all a request sent from the block on tells the fake of them; its sampling is
 an entry of its own in `usage.iterations`.
 
 So `call create_note {"title":"Paris","markdown":"Paris"}` asks the thread to
-run that tool through the account's cell, and `spend 30` costs a turn thirty
-cents of the day's allowance.
+run that tool through the account's cell, and `fail 429 1 gateway` answers as
+the gateway's spend limit, spent.
 
 ## Running it
 

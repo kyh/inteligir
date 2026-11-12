@@ -34,9 +34,8 @@ import type { AgentAccount } from "../test-support/agent-turns";
 import { blockTypesOf, expectSharedPrefixes, unmarkedOf } from "../test-support/request-bodies";
 import { cellOf } from "../test-support/library-cell";
 import { inSteppedThread } from "../test-support/thread-host";
-import { pricesOf, priceUsage, usageReportSchema } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
-import { AGENT_MAX_STEPS, AGENT_MODEL } from "./library-agent";
+import { AGENT_MAX_STEPS } from "./library-agent";
 import { cutSilentCalls, decideCall, requestCancel } from "./thread-loop";
 import type { ThreadHost } from "./thread-loop";
 import {
@@ -103,7 +102,7 @@ const restsAt = async (run: () => Promise<readonly string[]>): Promise<string | 
 // a day of more turns than the deployed two, for a case that runs more
 const ROOMY: Env = {
   ...env,
-  AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10 },
+  AGENT_ALLOWANCE: { concurrentTurns: 2, dayTurns: 10 },
 };
 
 const send = async (account: AgentAccount, text: string, threadId?: string, sendEnv = env) =>
@@ -335,7 +334,7 @@ describe("a conversation's object", () => {
   );
 
   it(
-    "goes on past a compaction on the server, replaying from it, its summarizing booked with the reply",
+    "goes on past a compaction on the server, replaying from it",
     // eight model calls in two turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
@@ -346,8 +345,6 @@ describe("a conversation's object", () => {
         (_, index) => `call search_library {"query":"trip ${String(index)}"}`,
       );
       const threadId = crypto.randomUUID();
-      // every reply's usage as the thread pushed it to the cell
-      const usages: z.infer<typeof usageReportSchema>[] = [];
       await inSteppedThread(
         account,
         threadId,
@@ -358,20 +355,6 @@ describe("a conversation's object", () => {
           // the next turn answers, sending the filing rules again: the compaction summarized them
           await deliver(script("And now?"));
           await expect(restsAt(run)).resolves.toBe("idle");
-        },
-        {
-          cell: (real) => ({
-            agentPreview: real.agentPreview,
-            agentPush: async (request) => {
-              for (const entry of request.entries) {
-                if (entry.kind === "usage") {
-                  usages.push(usageReportSchema.parse(entry.usage));
-                }
-              }
-              return await real.agentPush(request);
-            },
-            agentTool: real.agentTool,
-          }),
         },
       );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
@@ -401,28 +384,6 @@ describe("a conversation's object", () => {
       ]);
       // every call after the compaction asked from it on, byte for byte as kept
       await expectRepliesAskedAsKept(account, threadId);
-      // the compacting reply's summary pass priced beside its answer, and every reply booked
-      expect(usages).toHaveLength(8);
-      const [, compacting] = usages;
-      expect(compacting?.iterations?.map((entry) => entry.type)).toStrictEqual([
-        "compaction",
-        "message",
-      ]);
-      const table = pricesOf(env);
-      const priced = priceUsage(compacting ?? {}, AGENT_MODEL.id, table);
-      const answering = priceUsage(
-        {
-          ...compacting,
-          iterations: compacting?.iterations?.filter((entry) => entry.type !== "compaction"),
-        },
-        AGENT_MODEL.id,
-        table,
-      );
-      expect(priced).toBeGreaterThan(answering);
-      const [booked] = await cellRows(account, "SELECT cost_ucents FROM agent_usage");
-      expect(booked?.cost_ucents).toBe(
-        usages.reduce((sum, usage) => sum + priceUsage(usage, AGENT_MODEL.id, table), 0),
-      );
     },
   );
 
@@ -840,28 +801,22 @@ describe("a conversation's object", () => {
     ]);
   });
 
-  it(
-    "goes on with the fallback model's answer, each model's part booked at its own prices",
-    { timeout: TURN_MS },
-    async () => {
-      const account = agentAccount();
-      const sent = await send(account, script("fallback"));
-      await settled(account, sent.threadId);
-      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
-      const messages = await eventsOf(account, sent.threadId, "agent.message");
-      expect(messages.map(({ event }) => event)).toStrictEqual([
-        { text: "Answered by the fallback model.", type: "agent.message" },
-      ]);
-      const [usage] = await cellRows(account, "SELECT cost_ucents FROM agent_usage");
-      expect(usage?.cost_ucents).toBeGreaterThan(0);
-      await send(account, script("Thanks."), sent.threadId);
-      await settled(account, sent.threadId);
-      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
-        { reason: "done" },
-        { reason: "done" },
-      ]);
-    },
-  );
+  it("goes on with the fallback model's answer", { timeout: TURN_MS }, async () => {
+    const account = agentAccount();
+    const sent = await send(account, script("fallback"));
+    await settled(account, sent.threadId);
+    await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+    const messages = await eventsOf(account, sent.threadId, "agent.message");
+    expect(messages.map(({ event }) => event)).toStrictEqual([
+      { text: "Answered by the fallback model.", type: "agent.message" },
+    ]);
+    await send(account, script("Thanks."), sent.threadId);
+    await settled(account, sent.threadId);
+    await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
+      { reason: "done" },
+      { reason: "done" },
+    ]);
+  });
 });
 
 describe("a conversation's loop, stepped", () => {
@@ -902,8 +857,36 @@ describe("a conversation's loop, stepped", () => {
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { detail: "status 529", reason: "unavailable" },
       ]);
-      const [usage] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 0 });
+      const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
+      expect(usage).toStrictEqual({ turns: 0 });
+    },
+  );
+
+  it(
+    "ends a turn the gateway's spend limit refuses at once, where Anthropic's own 429 is sent again",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await inSteppedThread(
+        account,
+        threadId,
+        script("fail 429 9 gateway"),
+        async ({ asked, run }) => {
+          await expect(restsAt(run)).resolves.toBe("idle");
+          expect(asked.drives).toHaveLength(0);
+        },
+      );
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { detail: "status 429", reason: "allowance" },
+      ]);
+      const limited = crypto.randomUUID();
+      await inSteppedThread(account, limited, script("fail 429 1"), async ({ asked, run }) => {
+        await expect(restsAt(run)).resolves.toBe("later");
+        await expect(restsAt(run)).resolves.toBe("idle");
+        expect(asked.drives).toHaveLength(1);
+      });
+      await expect(endingsOf(account, limited)).resolves.toStrictEqual([{ reason: "done" }]);
     },
   );
 
@@ -937,8 +920,8 @@ describe("a conversation's loop, stepped", () => {
       expect(roles).toStrictEqual([{ role: "user" }]);
       const after = await fakeStats();
       expect(after.requests).toBe(before.requests);
-      const [usage] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 1 });
+      const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
+      expect(usage).toStrictEqual({ turns: 1 });
     },
   );
 

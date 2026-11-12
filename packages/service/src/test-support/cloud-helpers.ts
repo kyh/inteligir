@@ -118,6 +118,14 @@ export const sessionIdOf = async (cookie: string): Promise<string> => {
   return session.id;
 };
 
+// a binding's minute for `key`, spent whole
+export const spendMinute = async (limiter: RateLimit, key: string): Promise<void> => {
+  let left = true;
+  while (left) {
+    ({ success: left } = await limiter.limit({ key }));
+  }
+};
+
 // a `/v1/rpc` link as an app holds one, its headers fixed, and the status each answer came under
 // with the cookies it set
 export const v1Link = (headers: Record<string, string>) => {

@@ -15,7 +15,8 @@
   "include": [
     ".",
     "../../.cloudflare/types/index.d.ts",
-    "../../../../packages/service/src/types/sql-modules.d.ts"
+    "../../../../packages/service/src/types/sql-modules.d.ts",
+    "../../../../packages/service/src/types/raw-imports.d.ts"
   ],
   "exclude": ["node_modules"]
 }

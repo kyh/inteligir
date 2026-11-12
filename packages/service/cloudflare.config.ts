@@ -1,5 +1,5 @@
 import { bindings, defineConfig, defineWorker, exports } from "cf/config";
-import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
+import { AGENT_ALLOWANCE } from "./agent-limits.ts";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
 import { MESSAGES_FAKE_ORIGIN } from "./messages-service.ts";
@@ -41,15 +41,18 @@ export default defineConfig(({ mode }) => ({
       // every test shares one ip; a suite that tests a window turns it on around those tests
       // (auth-rate-limit.test.ts and invite-signup.test.ts among them)
       RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("true"),
+      // not the deployed ceilings: a suite spends one whole to meet its refusal
+      RPC_LIMIT: bindings.rateLimit({ namespace: "1001", simple: { limit: 10, period: 60 } }),
+      BLOBS_LIMIT: bindings.rateLimit({ namespace: "1002", simple: { limit: 10, period: 60 } }),
+      CONNECTOR_LIMIT: bindings.rateLimit({ namespace: "1003", simple: { limit: 10, period: 60 } }),
       FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
       // no gateway: every suite's agent reaches the scripted Messages API, which the outbound
       // service answers at this address (messages-service.ts)
       AI_GATEWAY_TOKEN: bindings.text<string>(""),
       AGENT_GATEWAY_URL: bindings.text<string>(""),
       ANTHROPIC_FAKE_URL: mode === "test" ? bindings.text<string>(MESSAGES_FAKE_ORIGIN) : undefined,
-      // the deployed allowance and prices; a suite that spends otherwise hands its cell its own
+      // the deployed allowance; a suite that runs more hands its cell its own
       AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
-      AGENT_PRICES: bindings.json(AGENT_PRICES),
       DB: bindings.d1({ name: "test" }),
       BLOBS: bindings.r2({ name: "test" }),
       // the producer alone, as no trigger consumes it: a suite hands the consumer its batch itself

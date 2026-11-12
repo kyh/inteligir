@@ -34,10 +34,9 @@ import {
 import type { AgentAccount } from "../test-support/agent-turns";
 import { agentCellIn, inCell } from "../test-support/library-cell";
 import { openTurnInCell } from "../test-support/thread-host";
-import { dayOf, nextDayAt, UCENTS_PER_CENT } from "./agent-allowance";
+import { nextDayAt } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
 import { landPush, runAgentJobs, showPreview } from "./agent-turns";
-import { AGENT_MODEL } from "./library-agent";
 import type { PushRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
@@ -77,21 +76,11 @@ const askedApproval = async (account: AgentAccount, threadId: string) =>
     { interval: 50, timeout: 10_000 },
   );
 
-// what today's ledger already booked, as if earlier turns had spent it
-const spentToday = async (account: AgentAccount, cents: number): Promise<void> => {
-  await cellRows(
-    account,
-    "INSERT INTO agent_usage (day, turns, cost_ucents) VALUES (?, 0, ?)",
-    dayOf(Date.now()),
-    cents * UCENTS_PER_CENT,
-  );
-};
-
-const usageSchema = z.object({ cost_ucents: z.number(), turns: z.number() });
+const usageSchema = z.object({ turns: z.number() });
 
 const usageToday = async (account: AgentAccount) => {
-  const [row] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-  return row === undefined ? { cost_ucents: 0, turns: 0 } : usageSchema.parse(row);
+  const [row] = await cellRows(account, "SELECT turns FROM agent_usage");
+  return row === undefined ? { turns: 0 } : usageSchema.parse(row);
 };
 
 const endedSchema = z.object({ json: z.string() });
@@ -155,15 +144,6 @@ describe("a send to the built-in agent", () => {
     },
   );
 
-  it("is refused once the day's list cost is spent", async () => {
-    const account = agentAccount();
-    await spentToday(account, 100);
-    const refused = await refusalOf(send(account, script("Anything?")));
-    expect(refused).toMatchObject({ code: "AGENT_BUDGET" });
-    const threads = await cellRows(account, "SELECT id FROM threads");
-    expect(threads).toStrictEqual([]);
-  });
-
   it("is refused, counted against nothing, while the agent is off or this deployment has no Claude", async () => {
     const account = agentAccount();
     await asLaptop(account, async (client) => {
@@ -183,7 +163,7 @@ describe("a send to the built-in agent", () => {
       { env: unconfigured },
     );
     expect(refused).toMatchObject({ code: "SERVICE_UNAVAILABLE" });
-    await expect(usageToday(account)).resolves.toStrictEqual({ cost_ucents: 0, turns: 0 });
+    await expect(usageToday(account)).resolves.toStrictEqual({ turns: 0 });
     await expect(cellRows(account, "SELECT id FROM threads")).resolves.toStrictEqual([]);
   });
 
@@ -191,7 +171,7 @@ describe("a send to the built-in agent", () => {
     const account = agentAccount();
     const roomy: Env = {
       ...env,
-      AGENT_ALLOWANCE: { concurrentTurns: 2, dayCents: 100, dayTurns: 10 },
+      AGENT_ALLOWANCE: { concurrentTurns: 2, dayTurns: 10 },
     };
     // two turns open, as two sends left them, their objects not yet handed them
     const [busy, other] = [crypto.randomUUID(), crypto.randomUUID()];
@@ -270,7 +250,7 @@ describe("what a conversation's object asks of its cell", () => {
     await inCell(account.cell, async (state) => {
       const cell = agentCellIn(state, openCellLibrary(state, env), { frames });
       const push: PushRequest = {
-        entries: [{ event: { text: "Said once.", type: "agent.message" }, kind: "event" }],
+        events: [{ text: "Said once.", type: "agent.message" }],
         seq: 1,
         threadId,
         turn: 1,
@@ -291,52 +271,12 @@ describe("what a conversation's object asks of its cell", () => {
     expect(frames).toStrictEqual([{ text: "Said on", threadId, type: "preview" }]);
   });
 
-  it("books a reply's usage at list price on the day its turn started", async () => {
-    const account = agentAccount();
-    const threadId = crypto.randomUUID();
-    await openTurnInCell(account, threadId, "Priced.");
-    // the turn began yesterday, and its reply lands today
-    const yesterday = Date.now() - 24 * 60 * 60_000;
-    await cellRows(
-      account,
-      "UPDATE agent_turns SET started_at = ? WHERE thread_id = ?",
-      yesterday,
-      threadId,
-    );
-    await inCell(account.cell, async (state) => {
-      const cell = agentCellIn(state, openCellLibrary(state, env));
-      await expect(
-        landPush(cell, {
-          entries: [
-            {
-              kind: "usage",
-              model: AGENT_MODEL.id,
-              usage: { input_tokens: 1000, output_tokens: 2000 },
-            },
-          ],
-          seq: 1,
-          threadId,
-          turn: 1,
-        }),
-      ).resolves.toStrictEqual({ ok: true, value: null });
-    });
-    // claude-sonnet-5-5's input and output at 200 and 1,000 micro-cents a token
-    const days = await cellRows(
-      account,
-      "SELECT day, turns, cost_ucents FROM agent_usage ORDER BY day",
-    );
-    expect(days).toStrictEqual([
-      { cost_ucents: 1000 * 200 + 2000 * 1000, day: dayOf(yesterday), turns: 0 },
-      { cost_ucents: 0, day: dayOf(Date.now()), turns: 1 },
-    ]);
-  });
-
   it("does not give back a turn the person stopped, and gives back one Claude could not be reached for", async () => {
     const account = agentAccount();
     const [stopped, unreachable] = [crypto.randomUUID(), crypto.randomUUID()];
     await openTurnInCell(account, stopped, "Stopped.");
     await openTurnInCell(account, unreachable, "Unreachable.");
-    await expect(usageToday(account)).resolves.toStrictEqual({ cost_ucents: 0, turns: 2 });
+    await expect(usageToday(account)).resolves.toStrictEqual({ turns: 2 });
     await inCell(account.cell, async (state) => {
       const cell = agentCellIn(state, openCellLibrary(state, env));
       for (const [threadId, reason] of [
@@ -344,7 +284,7 @@ describe("what a conversation's object asks of its cell", () => {
         [unreachable, "unavailable"],
       ] as const) {
         await landPush(cell, {
-          entries: [{ event: { reason, turn: 1, type: "turn.ended" }, kind: "event" }],
+          events: [{ reason, turn: 1, type: "turn.ended" }],
           seq: 1,
           threadId,
           turn: 1,
@@ -353,7 +293,7 @@ describe("what a conversation's object asks of its cell", () => {
     });
     // both turns sealed; only the unreachable one was given back
     await expect(cellRows(account, "SELECT thread_id FROM agent_turns")).resolves.toStrictEqual([]);
-    await expect(usageToday(account)).resolves.toStrictEqual({ cost_ucents: 0, turns: 1 });
+    await expect(usageToday(account)).resolves.toStrictEqual({ turns: 1 });
   });
 });
 
