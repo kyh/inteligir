@@ -31,6 +31,6 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **The connect page tells the extension where the site is, and hands it
   nothing.** The extension rides the browser's own sign-in, so no credential
   crosses the page. `apps/web/src/routes/_site/connect/extension.tsx`.
-- **A PR preview is a Worker Preview driven by Actions, on preview-only
-  bindings.** Workers Builds can't wait for CI, and PR code must never write
-  production D1. `.github/workflows/preview.yml`.
+- **A PR gets no deploy, and the config refuses a Preview.** Its bindings are
+  production's, and a preview copy of the cloud is upkeep nobody uses yet.
+  `apps/web/cloudflare.config.ts`.

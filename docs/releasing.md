@@ -197,21 +197,15 @@ again at step 1.
 
 ### The cloud's resources
 
-In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names;
-production and the previews share nothing.
+In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
 
 - **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET` and
-  `AI_GATEWAY_TOKEN` as secrets, the OAuth KV namespace is the target's, and a
-  preview binds only preview resources (`apps/web/README.md` § Previews).
-- **The fill queues** on production: `inteligir-fill` consumed with
-  `inteligir-fill-failed` as its dead-letter queue, and a link a connected
-  assistant saves is read.
-- **Imports on a preview**: a Raindrop CSV and an Obsidian zip land, a 3 MB
-  note in either is counted unreadable while the rest lands, and a
-  `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
-- **A PR preview's lifecycle**: closing a PR with a preview deletes it, closing
-  one without takes Cloudflare's 10025 as nothing to do, and a stranger's
-  `<!-- worker-previews -->` comment is ignored.
+  `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV namespace is its own.
+- **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
+  as its dead-letter queue, and a link a connected assistant saves is read.
+- **Imports**: a Raindrop CSV and an Obsidian zip land, a 3 MB note in either
+  is counted unreadable while the rest lands, and a `PUT /v1/blobs/<sha>` of
+  bytes hashing to another sha answers 400.
 
 ### The Mac app
 
@@ -312,7 +306,7 @@ The unpacked store build, against production, with no dev build loaded.
 
 ### The connector
 
-On a preview's `/connector` and on production's, signed in to an account there.
+On production's `/connector`, signed in to an account there.
 
 - **claude.ai**: add the custom connector, consent, read, edit, Disconnect; a
   sign-up from the consent page returns to it.
@@ -323,13 +317,13 @@ On a preview's `/connector` and on production's, signed in to an account there.
 
 ### The built-in agent
 
-Each target has its own AI Gateway and Anthropic workspace. An account has two
+Production has its own AI Gateway and Anthropic workspace. An account has two
 turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
 
-- **Gateways**: each target's holds its own key, with Authenticated Gateway on,
-  no payload logs and a per-account spend limit; each Anthropic workspace is
-  separate and capped; the Deploy run names production's gateway.
-- **A real turn on a preview**, open in a tab and the Mac at once: events
+- **The gateway**: it holds its own key, with Authenticated Gateway on, no
+  payload logs and a per-account spend limit; its Anthropic workspace is
+  separate and capped; the Deploy run names it.
+- **A real turn**, open in a tab and the Mac at once: events
   stream, one change set, Undo keeps your typing, the allowance counts, and
   cache reads show.
 - **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
@@ -418,7 +412,7 @@ Only once every check in § 5 has passed, and the three close together.
 
 - **The phone, JavaScript alone**: an EAS Update, never a new build
   (`apps/mobile/README.md` § Hotfixes has the mechanics). Branch from the tag
-  of the build TestFlight serves, apply the fix, and run `pnpm hotfix:mobile`
+  of the build TestFlight serves, apply the fix, and run `pnpm --filter @repo/mobile hotfix`
   there. An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`

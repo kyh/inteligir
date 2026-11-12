@@ -263,8 +263,8 @@ app and the extension carry.
 every `.env*` out of the upload.
 
 ```bash
-pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
-pnpm hotfix:mobile       # eas update to the production channel: a JS-only fix
+pnpm testflight:mobile             # eas build --platform ios --profile production --auto-submit
+pnpm --filter @repo/mobile hotfix  # eas update to the production channel: a JS-only fix
 ```
 
 ### One-time setup (owner)
@@ -359,7 +359,7 @@ published, 4 to 6 once the Mac app and the extension are out.
 ### Hotfixes
 
 A fix that touches only JavaScript ships as an EAS Update, never a new build:
-`pnpm hotfix:mobile` bundles on this machine and publishes to the `production`
+`pnpm --filter @repo/mobile hotfix` bundles on this machine and publishes to the `production`
 channel the store builds listen on. An update reaches only builds whose native
 code fingerprints the same (`runtimeVersion: { policy: "fingerprint" }`), so a
 change to a native module, a config plugin or the SDK needs

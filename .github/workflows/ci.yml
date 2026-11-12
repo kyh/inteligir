@@ -42,24 +42,11 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
-      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit)
-      - name: Desktop system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev
-
-      # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
-      - name: Desktop Rust toolchain
-        working-directory: apps/desktop
-        run: rustup toolchain install
-
-      - name: Desktop Rust cache
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      # the static gate a developer runs, so a local green predicts this step; turbo continues past a
-      # failure, so one run reports every red task. Every step after it is what verify cannot do
+      # the static gate a developer runs, less the shell's, which the macOS job checks, so a local
+      # green predicts this step; turbo continues past a failure, so one run reports every red task.
+      # Every step after it is what verify cannot do
       - name: Verify
-        run: pnpm verify
+        run: pnpm verify --filter='!@repo/desktop'
 
       # the full Chromium, which loads an extension, at the lockfile's Playwright's version
       - name: E2E browser
@@ -72,8 +59,8 @@ jobs:
         run: pnpm e2e
 
   # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
-  # compiles and runs only here; typecheck, lint, knip, format and build read no platform, so the
-  # check job alone runs them
+  # compiles and runs only here, so its clippy, fmt and tests are this job's alone; the rest of
+  # typecheck, lint, knip, format and build read no platform, so the check job runs them
   test-macos:
     runs-on: macos-latest
     # a backstop: the suites carry no deadline of their own, and a cold build of the shell is
@@ -96,8 +83,10 @@ jobs:
           install: false
 
       - name: Install
+        id: install
         run: pnpm install --frozen-lockfile
 
+      # the toolchain apps/desktop/rust-toolchain.toml pins, with its clippy and rustfmt
       - name: Desktop Rust toolchain
         working-directory: apps/desktop
         run: rustup toolchain install
@@ -109,3 +98,8 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # the shell's clippy and the release scripts' tsc, and its cargo fmt check
+      - name: Desktop typecheck and format
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm turbo run typecheck format --filter=@repo/desktop

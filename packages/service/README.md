@@ -180,8 +180,7 @@ read by the Worker's own queue consumer: the cell writes the reading's ask as a
 the write commits, the alarm sending again what no send took; the consumer
 reads the page and hands it back in one `landFill` call. A message the queue's
 three retries could not handle reaches `inteligir-fill-failed`, whose consumer
-says the failure in the item. A preview binds `inteligir-fill-preview`, which
-nothing consumes, so its links stay unread.
+says the failure in the item.
 
 `/v1/rpc` is oRPC's RPC protocol: POST only, every refusal a declared code at
 the status `V1_ERROR_STATUS_MAP` gives it, the floor, the session and the
@@ -223,7 +222,7 @@ end them, and the account's deletion revokes every one.
 
 - `src/auth/auth.ts::createAuth(env, ctx, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
-  `baseURL` is the request origin, so localhost/preview/prod all work with no
+  `baseURL` is the request origin, so localhost and prod both work with no
   config). Two plugins: `bearer({ requireSignature: true })`, so the
   extension's bearer is the browser's signed cookie value and a session row's
   token alone opens nothing, and `expo()`, which reads the phone's
@@ -358,16 +357,15 @@ tool call among them, and each reply's usage, booked at list price
 its one change set, gives back a turn Claude could not be reached for, never
 one the person stopped, and lets the links it saved be read.
 
-Claude is reached through the target's AI Gateway, on its provider-native
-Anthropic route (`AGENT_GATEWAY_URL`): `inteligir` for production,
-`inteligir-preview` for every Preview, each holding its target's own Anthropic
-workspace key with provider credentials required and Authenticated Gateway
-on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
+Claude is reached through production's AI Gateway, `inteligir`, on its
+provider-native Anthropic route (`AGENT_GATEWAY_URL`), which holds its own
+Anthropic workspace key with provider credentials required and Authenticated
+Gateway on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
 and every request asks the gateway to keep no prompt or reply and names the
 conversation's account in `cf-aig-metadata`, which the gateway's per-account
 spend limit splits by, bounding what no usage books: a stream cut before it
 ended, and a day's last reply past its cost. A Worker with
-no gateway refuses every send. `vite dev` names no target's gateway: the
+no gateway refuses every send. `vite dev` names no production gateway: the
 root `.env` names the scripted Messages API or a gateway of the developer's
 own (`.env.example`).
 

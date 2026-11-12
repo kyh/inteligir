@@ -44,8 +44,6 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A release script is TypeScript node runs as it stands**, checked under
   `nodenext`, `erasableSyntaxOnly` and `verbatimModuleSyntax`. Why: a bad
   import fails the typecheck, not the release. `apps/desktop/scripts/tsconfig.json`.
-- **`.github/scripts/worker-preview.mjs` stays JS.** Why: its first step runs
-  before the job sets up the repo's node.
 - **A test sits beside the module it tests, and shared test code in
   `test-support/`.** Why: those two names are all a config reads to tell a test
   from a source, as kyh/init does. `oxlint.config.ts`.
