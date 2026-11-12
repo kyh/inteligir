@@ -7,8 +7,8 @@ import { WORKER_CONDITIONS } from "./worker-conditions.ts";
 
 export default defineConfig({
   // WXT's own test setup for every suite: its fake `browser`, its globals and wxt.config.ts's
-  // aliases
-  plugins: [WxtVitest()],
+  // aliases. Rooted here, since knip loads this file from the repo's root
+  plugins: [WxtVitest({ root: import.meta.dirname })],
   test: {
     maxWorkers: 2,
     projects: [
