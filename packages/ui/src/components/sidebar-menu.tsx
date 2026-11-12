@@ -12,8 +12,6 @@ import type {
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
-import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
-import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
@@ -52,8 +50,8 @@ const MenuItemContext = createContext<MenuItemContextValue | null>(null);
 
 const MENU_ITEM = '[data-sidebar="menu-item"]';
 
-// the rail's own panel, or its peek card while collapsed: a popup anchored anywhere in it
-const RAIL = '[data-sidebar="sidebar"], [data-sidebar="peek"]';
+// the rail's own panel: a popup anchored anywhere in it
+const RAIL = '[data-sidebar="sidebar"]';
 
 // A row's box spans the whole <li>, so it is clamped to the button's; 32px is the tallest row,
 // for a row whose button is not its direct child.
@@ -251,14 +249,11 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   };
 };
 
-interface SidebarMenuProps extends LiHTMLAttributes<HTMLUListElement> {
-  size?: SizeVariant;
-}
+type SidebarMenuProps = LiHTMLAttributes<HTMLUListElement>;
 
 // One scope per list: a single traveling hover, active and focus overlay over every row.
 const SidebarMenu = ({
   className,
-  size,
   children,
   ref,
   ...props
@@ -266,7 +261,7 @@ const SidebarMenu = ({
   const containerRef = useRef<HTMLUListElement>(null);
   const { value, containerProps, overlays } = useMenuScope(containerRef);
 
-  const content = (
+  return (
     <MenuScopeContext value={value}>
       <ul
         ref={composeRefs(containerRef, ref)}
@@ -280,8 +275,6 @@ const SidebarMenu = ({
       </ul>
     </MenuScopeContext>
   );
-
-  return size ? <SizeProvider size={size}>{content}</SizeProvider> : content;
 };
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
@@ -418,7 +411,6 @@ const SidebarMenuButton = ({
 }: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
   const scope = useContext(MenuScopeContext);
   const item = useContext(MenuItemContext);
-  const sizeClasses = useSize();
 
   const setActive = item?.setActive;
   useIsoLayoutEffect(() => {
@@ -427,7 +419,6 @@ const SidebarMenuButton = ({
   }, [isActive, setActive]);
 
   const lit = isActive || (item?.isHovered ?? false);
-  const heightClass = sizeClasses.variant === "compact" ? "h-7" : "h-8";
 
   // roving tabindex: the active row is the list's tab stop, else its first row
   const row = item?.rowEl ?? null;
@@ -445,8 +436,7 @@ const SidebarMenuButton = ({
       aria-current={isActive ? "page" : undefined}
       tabIndex={isActive || isFirstStop ? 0 : -1}
       className={cn(
-        "peer/menu-button relative z-10 flex w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
-        heightClass,
+        "peer/menu-button relative z-10 flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
         radius.item,
         className,
       )}
@@ -454,7 +444,7 @@ const SidebarMenuButton = ({
     >
       {Icon ? (
         <Icon
-          size={sizeClasses.icon}
+          size={14}
           strokeWidth={lit ? 2 : 1.5}
           className={cn(
             "shrink-0 transition-[color,stroke-width] duration-80",
@@ -462,12 +452,7 @@ const SidebarMenuButton = ({
           )}
         />
       ) : null}
-      <MenuRowLabel
-        content={children}
-        lit={lit}
-        emphasized={isActive}
-        textClass={sizeClasses.text}
-      />
+      <MenuRowLabel content={children} lit={lit} emphasized={isActive} textClass="text-body" />
     </button>
   );
 };

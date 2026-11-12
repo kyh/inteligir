@@ -1,121 +1,101 @@
-// The Mac app's update, said in a card the library's layout keeps at the bottom right while there
-// is something to do about it: nothing downloads or restarts without the person's click. It reads
-// the store Settings' Updates row reads, so the two say one thing; a tab has no updater and shows
-// none. Not a popup: it has no anchor and no dismissal of its own, and leaves when the update does.
+// The Mac app's update, said in a toast that stays while there is something to do about it:
+// nothing downloads or restarts without the person's click. It reads the store Settings' Updates
+// row reads, so the two say one thing; a tab has no updater and shows none. One of the toasts, so it
+// stacks with them rather than over them, and the toaster's live region announces each step.
 
-import { Button } from "@repo/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@repo/ui/components/card";
 import { Progress } from "@repo/ui/components/progress";
-import { DownloadIcon, Loader2Icon, RotateCwIcon, TriangleAlertIcon } from "lucide-react";
+import { toast } from "@repo/ui/components/sonner";
+import { DownloadIcon, RotateCwIcon } from "lucide-react";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 
 import { moveUpdate, useDesktopUpdates } from "./desktop-updates";
 import type { UpdateMove } from "./desktop-updates";
+import type { DesktopUpdateState } from "./shell/desktop-bridge";
 
-const UpdateCard = ({
+const ID = "desktop-update";
+
+// Held until the update moves on, and never swiped away. An update by id keeps what the toast held,
+// so each step names its icon and its button, none included; a click keeps the toast, since the
+// step it starts replaces it.
+const step = ({
   icon,
-  title,
-  description,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  children: ReactNode;
-}) => (
-  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Card renders a div; `output` is a form's result, not a notice
-  <Card size="sm" role="status" className="fixed right-4 bottom-4 z-50 w-full max-w-sm">
-    <CardHeader>
-      <div className="flex items-center gap-2">
-        {icon}
-        <CardTitle>{title}</CardTitle>
-      </div>
-      <CardDescription>{description}</CardDescription>
-    </CardHeader>
-    {children}
-  </Card>
-);
-
-const UpdateAction = ({
   move,
-  label,
-  variant = "primary",
 }: {
-  move: UpdateMove;
-  label: string;
-  variant?: "primary" | "tertiary";
-}) => (
-  <CardFooter className="justify-end">
-    <Button
-      size="compact"
-      variant={variant}
-      onClick={() => {
-        void moveUpdate(move);
-      }}
-    >
-      {label}
-    </Button>
-  </CardFooter>
-);
+  readonly icon?: ReactNode;
+  readonly move?: { readonly label: string; readonly move: UpdateMove };
+}) => ({
+  action:
+    move === undefined
+      ? undefined
+      : {
+          label: move.label,
+          onClick: (event: { preventDefault: () => void }) => {
+            event.preventDefault();
+            void moveUpdate(move.move);
+          },
+        },
+  dismissible: false,
+  duration: Number.POSITIVE_INFINITY,
+  icon,
+  id: ID,
+});
+
+const say = (state: DesktopUpdateState | null): void => {
+  switch (state?.status) {
+    case "available": {
+      toast("Update available", {
+        ...step({
+          icon: <DownloadIcon className="size-4" />,
+          move: { label: "Download", move: "download" },
+        }),
+        description: `Inteligir ${state.version} is ready to download.`,
+      });
+      return;
+    }
+    case "downloading": {
+      toast.loading("Downloading the update", {
+        ...step({}),
+        description: (
+          <>
+            {`${String(state.downloadPercent)}% complete`}
+            <Progress
+              className="mt-2"
+              value={state.downloadPercent}
+              aria-label="Download progress"
+            />
+          </>
+        ),
+      });
+      return;
+    }
+    case "downloaded": {
+      toast("Update ready", {
+        ...step({
+          icon: <RotateCwIcon className="size-4" />,
+          move: { label: "Restart", move: "install" },
+        }),
+        description: `Restart to finish installing Inteligir ${state.version}.`,
+      });
+      return;
+    }
+    case "error": {
+      toast.error("The update didn't go through", {
+        ...step({ move: { label: "Try again", move: "check" } }),
+        description: state.message,
+      });
+      return;
+    }
+    default: {
+      toast.dismiss(ID);
+    }
+  }
+};
 
 export const DesktopUpdateBanner = () => {
   const state = useDesktopUpdates();
-  switch (state?.status) {
-    case "available": {
-      return (
-        <UpdateCard
-          icon={<DownloadIcon className="size-4 text-muted-foreground" />}
-          title="Update available"
-          description={`Inteligir ${state.version} is ready to download.`}
-        >
-          <UpdateAction move="download" label="Download" />
-        </UpdateCard>
-      );
-    }
-    case "downloading": {
-      return (
-        <UpdateCard
-          icon={<Loader2Icon className="size-4 animate-spin text-muted-foreground" />}
-          title="Downloading the update"
-          description={`${String(state.downloadPercent)}% complete`}
-        >
-          <CardContent>
-            <Progress value={state.downloadPercent} aria-label="Download progress" />
-          </CardContent>
-        </UpdateCard>
-      );
-    }
-    case "downloaded": {
-      return (
-        <UpdateCard
-          icon={<RotateCwIcon className="size-4 text-muted-foreground" />}
-          title="Update ready"
-          description={`Restart to finish installing Inteligir ${state.version}.`}
-        >
-          <UpdateAction move="install" label="Restart" />
-        </UpdateCard>
-      );
-    }
-    case "error": {
-      return (
-        <UpdateCard
-          icon={<TriangleAlertIcon className="size-4 text-destructive" />}
-          title="The update didn't go through"
-          description={state.message}
-        >
-          <UpdateAction move="check" label="Try again" variant="tertiary" />
-        </UpdateCard>
-      );
-    }
-    default: {
-      return null;
-    }
-  }
+  useEffect(() => {
+    say(state);
+  }, [state]);
+  return null;
 };

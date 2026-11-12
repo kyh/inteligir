@@ -10,7 +10,6 @@ import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { SizeProvider } from "@repo/ui/lib/size-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { getRouteApi, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
@@ -69,19 +68,17 @@ const OpenLibrary = ({ library, queryClient, session }: Opened) => {
     <QueryClientProvider client={queryClient}>
       <PageLibraryProvider library={library}>
         <ThemeProvider>
-          <SizeProvider size="compact">
-            <AppearanceProvider>
-              <MotionPolicy>
-                <TooltipProvider>
-                  <WorkspaceLayout />
-                  <ConfirmDialogHost />
-                  <Toaster position="bottom-right" />
-                  <PausedWrites />
-                  <DesktopUpdateBanner />
-                </TooltipProvider>
-              </MotionPolicy>
-            </AppearanceProvider>
-          </SizeProvider>
+          <AppearanceProvider>
+            <MotionPolicy>
+              <TooltipProvider>
+                <WorkspaceLayout />
+                <ConfirmDialogHost />
+                <Toaster position="bottom-right" />
+                <PausedWrites />
+                <DesktopUpdateBanner />
+              </TooltipProvider>
+            </MotionPolicy>
+          </AppearanceProvider>
         </ThemeProvider>
       </PageLibraryProvider>
     </QueryClientProvider>

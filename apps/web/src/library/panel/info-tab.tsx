@@ -16,7 +16,7 @@ import { Switch } from "@repo/ui/components/switch";
 import { useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { useLibraryQueries, useWire } from "../cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { formatCount, isUrlItem } from "../library/item-labels";
 import { useLibraryVerbs } from "../library/library-verbs";
@@ -75,7 +75,7 @@ const useItemFields = (itemId: string): ItemFields => {
 export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActions }) => {
   const queries = useLibraryQueries();
   const verbs = useLibraryVerbs();
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
   const itemFields = useItemFields(itemId);
   const folders = useQuery(queries.scopes()).data?.folders ?? [];

@@ -15,7 +15,7 @@ import { LibraryLayout, seedScopes } from "../library-layout";
 import { librarySearchSchema } from "../library-search";
 import type { TabOpening } from "../library-tab";
 import { RenderCrash } from "../render-crash";
-import { seedSettings, SettingsRoute } from "../settings/settings-route";
+import { seedSettings, SettingsPage } from "../settings/settings-page";
 
 export const createLibraryRouter = (entry: string, open: () => Promise<TabOpening>) => {
   const root = createRootRoute();
@@ -30,7 +30,7 @@ export const createLibraryRouter = (entry: string, open: () => Promise<TabOpenin
   });
   const index = createRoute({ getParentRoute: () => library, path: "/" });
   const settings = createRoute({
-    component: SettingsRoute,
+    component: SettingsPage,
     errorComponent: RenderCrash,
     getParentRoute: () => library,
     loader: seedSettings,

@@ -1,6 +1,4 @@
-// each indexable page's metadata, in one table the route heads, the JSON-LD, the sitemap and the
-// OG card renderer (scripts/og-cards.ts) all read. No imports: node runs that script by
-// stripping types, so this file must resolve with no bundler aliases.
+// each indexable page's metadata, in one table the route heads, the JSON-LD and the sitemap all read
 
 type PageKind = "home" | "about" | "contact" | "legal";
 
@@ -10,7 +8,7 @@ export interface PageMeta {
   // the page's own name, without the site's; the <title> appends it
   title: string;
   description: string;
-  // under public/; 1200x630 cards rendered by `pnpm og:cards`, but the home page's 1920x1080 og.jpg
+  // under public/; 1200x630 cards, but the home page's 1920x1080 og.jpg
   image: { path: string; width: number; height: number; alt: string };
 }
 

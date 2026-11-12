@@ -29,17 +29,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { useStore } from "zustand";
 
-import {
-  useCloud,
-  useLeaveGuard,
-  useLibraryQueries,
-  useSocket,
-  useWire,
-} from "./cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
 import { cellStanding } from "./cloud/needs-connection";
 import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
-import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
+import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
 import { leaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
@@ -83,9 +77,7 @@ interface TagSubject {
 }
 
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
-  const wire = useWire();
-  const cloud = useCloud();
-  const socket = useSocket();
+  const { cloud, socket, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
@@ -184,7 +176,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   // CLAUDE.md § The tab asks before it loses the open item's edit: an edit reaches the note as it is
   // typed, so the tab holds one only while it was typed with no connection to carry it
-  const leave = useLeaveGuard();
+  const { leave } = usePageLibrary();
   useEffect(
     () =>
       note === null ? undefined : leave.hold({ holding: note.unsent, onMove: note.subscribe }),
@@ -242,7 +234,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     void navigate({ search: true, to: "/library/settings" });
   };
 
-  useGlobalShortcuts({ enabled: !covered, modifier }, (action) => {
+  useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
         revealPanel("agent");

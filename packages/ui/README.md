@@ -13,8 +13,6 @@ attribution header on each file.
 - `apps/mobile/src/editor/page` — the phone's DOM component, its note's editor
 - `apps/web` — the site and the auth pages
 - `apps/extension` — the extension's popup and welcome page
-- `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which knip does not
-  count as a consumer
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import
 path exports such as `@repo/ui/components/button` and
@@ -70,5 +68,5 @@ document-class effect races the first.
 `pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
 the sources through the React Compiler as the shipped page does, which
 `components/compiled-under-test.test.tsx` pins. Type safety is
-`pnpm --filter @repo/ui typecheck`; an export nothing outside the gallery
+`pnpm --filter @repo/ui typecheck`; an export nothing
 imports is knip's to find (`knip.json`, `packages/ui/CLAUDE.md`).

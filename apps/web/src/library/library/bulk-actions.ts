@@ -4,10 +4,20 @@
 // got. Each chunk answers how many of it landed, and only those are counted in the closing
 // sentence, so a run where none landed says that, a failure among them, rather than a count of 0.
 
+import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
 
 import { formatCount } from "./item-labels";
+
+// `items` in order, `size` at a time: as many as one cell call takes
+export const chunksOf = <T>(items: readonly T[], size = BULK_ITEMS_MAX): T[][] => {
+  const chunks: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    chunks.push(items.slice(start, start + size));
+  }
+  return chunks;
+};
 
 export interface BulkRun<T> {
   readonly items: readonly T[];
@@ -59,12 +69,11 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
     });
   };
   progress();
-  for (let start = 0; start < total; start += size) {
+  for (const chunk of chunksOf(job.items, size)) {
     if (stop) {
       toast.info(`Stopped after ${formatCount(landed)} of ${formatCount(total)}.`, outcome(4000));
       return;
     }
-    const chunk = job.items.slice(start, start + size);
     try {
       landed += Math.min(chunk.length, Math.max(0, await job.run(chunk)));
     } catch (error) {

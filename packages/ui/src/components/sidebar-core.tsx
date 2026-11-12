@@ -17,7 +17,7 @@ import type {
   RefAttributes,
   RefObject,
 } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import type { HTMLMotionProps } from "motion/react";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
@@ -25,7 +25,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
-import { useSize } from "@repo/ui/lib/size-context";
 import { useRaisedSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -56,9 +55,6 @@ interface SidebarContextValue {
   setWidth: (width: string) => void;
   onWidthCommitted?: ((px: number) => void) | undefined;
   shortcut: string | null;
-  peek: boolean;
-  isPeeking: boolean;
-  setIsPeeking: React.Dispatch<React.SetStateAction<boolean>>;
   isResizing: boolean;
   setIsResizing: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -106,8 +102,6 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   // once per resize, when the drag ends or collapses the sidebar, never per frame
   onWidthCommitted?: (px: number) => void;
   actionsRef?: RefObject<SidebarActions | null>;
-  // collapsed, a strip at the edge that a click opens as a card over the page
-  peek?: boolean;
   width?: string;
 }
 
@@ -118,7 +112,6 @@ const SidebarProvider = ({
   shortcut = null,
   onWidthCommitted,
   actionsRef,
-  peek = false,
   width: widthProp = SIDEBAR_WIDTH,
   className,
   style,
@@ -166,21 +159,13 @@ const SidebarProvider = ({
     }
   }, [actionsRef, toggleSidebar]);
 
-  const [isPeeking, setIsPeeking] = useState(false);
-  if (isPeeking && (open || !peek)) {
-    setIsPeeking(false);
-  }
-
   const value = useMemo<SidebarContextValue>(
     () => ({
       isMobile,
-      isPeeking,
       isResizing,
       onWidthCommitted,
       open,
       openMobile,
-      peek,
-      setIsPeeking,
       setIsResizing,
       setOpen,
       setOpenMobile,
@@ -199,8 +184,6 @@ const SidebarProvider = ({
       width,
       onWidthCommitted,
       shortcut,
-      peek,
-      isPeeking,
       isResizing,
     ],
   );
@@ -374,70 +357,6 @@ const SidebarRail = ({
   );
 };
 
-interface SidebarPeekProps {
-  children: ReactNode;
-  floatingLevel: SurfaceLevel;
-  isPeeking: boolean;
-  setIsPeeking: React.Dispatch<React.SetStateAction<boolean>>;
-  side: SidebarSide;
-  width: string;
-}
-
-const SidebarPeek = ({
-  children,
-  floatingLevel,
-  isPeeking,
-  setIsPeeking,
-  side,
-  width,
-}: SidebarPeekProps) => (
-  <>
-    <button
-      type="button"
-      aria-label="Peek sidebar"
-      aria-expanded={isPeeking}
-      className={cn(
-        "group/peek-strip absolute inset-y-0 z-40 w-3 cursor-pointer outline-none",
-        side === "left" ? "left-0" : "right-0",
-      )}
-      onClick={() => {
-        setIsPeeking(true);
-      }}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute inset-y-0 w-px bg-border opacity-0 transition-opacity duration-80 group-hover/peek-strip:opacity-100 group-focus-visible/peek-strip:opacity-100",
-          side === "left" ? "left-0" : "right-0",
-        )}
-      />
-    </button>
-    <AnimatePresence>
-      {isPeeking && (
-        <motion.div
-          data-sidebar="peek"
-          className={cn(
-            "absolute inset-y-2 z-50 flex flex-col overflow-hidden",
-            side === "left" ? "left-2" : "right-2",
-            radius.container,
-            surfaceClasses(floatingLevel, 3),
-          )}
-          style={{ width: `calc(${width} - 1rem)` }}
-          initial={{ x: side === "left" ? "-108%" : "108%" }}
-          animate={{ x: 0 }}
-          exit={{
-            transition: spring.moderate.exit,
-            x: side === "left" ? "-108%" : "108%",
-          }}
-          transition={spring.moderate}
-        >
-          <SurfaceProvider value={floatingLevel}>{children}</SurfaceProvider>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </>
-);
-
 interface SidebarPanelProps {
   children: ReactNode;
   floatingLevel: SurfaceLevel;
@@ -526,41 +445,13 @@ const SidebarShell = ({
   ref,
   ...props
 }: SidebarShellProps & RefAttributes<HTMLDivElement>) => {
-  const { open, width, isResizing, peek, isPeeking, setIsPeeking } = useSidebar();
-  const shellRef = useRef<HTMLDivElement | null>(null);
-
-  const peekEnabled = peek && !open;
-  useEffect(() => {
-    if (!(peekEnabled && isPeeking)) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsPeeking(false);
-      }
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && shellRef.current?.contains(event.target) === true) {
-        return;
-      }
-      setIsPeeking(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [peekEnabled, isPeeking, setIsPeeking]);
+  const { open, width, isResizing } = useSidebar();
   const floatingLevel = useRaisedSurface(1);
   const openTransition = open ? spring.moderate : spring.moderate.exit;
   const widthTransition = isResizing ? { duration: 0 } : openTransition;
   const shellClasses = cn(
     // no bare `group`: it would fire every descendant's group-hover on rail hover
-    "peer shrink-0 sticky top-0 h-svh",
-    // while peek is armed the 0-width shell must not clip the edge strip or the overlay card, and
-    // must rise above the inset (a later sibling)
-    peekEnabled ? "z-40" : "overflow-hidden",
+    "peer shrink-0 sticky top-0 h-svh overflow-hidden",
     // flex order decides the side, so Sidebar can stay before SidebarInset in the DOM
     side === "right" && "order-last",
     MOBILE.hidden,
@@ -569,7 +460,7 @@ const SidebarShell = ({
 
   return (
     <motion.div
-      ref={composeRefs(shellRef, ref)}
+      ref={ref}
       data-slot="sidebar"
       data-state={open ? "expanded" : "collapsed"}
       data-collapsible={open ? "" : "offcanvas"}
@@ -581,28 +472,16 @@ const SidebarShell = ({
       transition={widthTransition}
       {...props}
     >
-      {peekEnabled ? (
-        <SidebarPeek
-          floatingLevel={floatingLevel}
-          isPeeking={isPeeking}
-          setIsPeeking={setIsPeeking}
-          side={side}
-          width={width}
-        >
-          {children}
-        </SidebarPeek>
-      ) : (
-        <SidebarPanel
-          floatingLevel={floatingLevel}
-          open={open}
-          side={side}
-          variant={variant}
-          width={width}
-          widthTransition={widthTransition}
-        >
-          {children}
-        </SidebarPanel>
-      )}
+      <SidebarPanel
+        floatingLevel={floatingLevel}
+        open={open}
+        side={side}
+        variant={variant}
+        width={width}
+        widthTransition={widthTransition}
+      >
+        {children}
+      </SidebarPanel>
     </motion.div>
   );
 };
@@ -677,7 +556,6 @@ const SidebarGroupLabel = ({
   ref,
   ...props
 }: SidebarGroupLabelProps & RefAttributes<HTMLElement>) => {
-  const size = useSize();
   const { text, rest } = splitLeadingText(children);
   const labelContent = text ? (
     <>
@@ -687,7 +565,6 @@ const SidebarGroupLabel = ({
   ) : (
     children
   );
-  const textClass = size.variant === "compact" ? "text-caption" : "text-body";
   if (onClick !== undefined) {
     return (
       <button
@@ -700,7 +577,7 @@ const SidebarGroupLabel = ({
           "transition-colors duration-80 hover:text-muted-foreground focus-visible:text-muted-foreground",
           "focus-visible:ring-1 focus-visible:ring-focus-ring",
           radius.item,
-          textClass,
+          "text-caption",
           className,
         )}
         {...props}
@@ -715,7 +592,7 @@ const SidebarGroupLabel = ({
       data-sidebar="group-label"
       className={cn(
         "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
-        textClass,
+        "text-caption",
         className,
       )}
       {...props}

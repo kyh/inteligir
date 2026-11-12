@@ -11,8 +11,7 @@ import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-import { isTextEntryTarget } from "../../global-shortcuts";
-import { libraryShortcutFor } from "../library-keys";
+import { isTextEntryTarget, shortcutFor } from "../../shortcuts";
 import { isEmptyPayload, payloadFrom } from "./capture-payload";
 import type { CapturePayload } from "./capture-payload";
 
@@ -42,20 +41,8 @@ const PASTE_WAIT_MS = 250;
 const inEditor = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest("[data-slate-editor]") !== null;
 
-// the window's row of the library's table (`../library-keys`), the one its labels are spelled from
 const isSaveChord = (event: KeyboardEvent, modifier: ShortcutModifier): boolean =>
-  libraryShortcutFor(
-    {
-      altKey: event.altKey,
-      ctrlKey: event.ctrlKey,
-      key: event.key,
-      metaKey: event.metaKey,
-      nativeEvent: event,
-      shiftKey: event.shiftKey,
-    },
-    "window",
-    modifier,
-  )?.action === "save-clipboard";
+  shortcutFor(event, "paste", modifier)?.action === "save-clipboard";
 
 export const useWindowCapture = ({
   enabled,

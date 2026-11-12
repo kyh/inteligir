@@ -139,7 +139,8 @@ const readObject = async (
   headers.set("last-modified", object.uploaded.toUTCString());
   // an app keeps what it reads where a sign-out empties it; a copy in the HTTP cache under it,
   // stored beside the session that read it, is one nothing empties. The site's own page keeps
-  // nothing of its own, so the browser's cache is where its files are kept
+  // nothing of its own, so the browser's cache is where its files are kept, until its sign-out
+  // empties it (../auth/auth.ts)
   if (reader.actor.door !== "page") {
     headers.set("cache-control", "no-store");
   }

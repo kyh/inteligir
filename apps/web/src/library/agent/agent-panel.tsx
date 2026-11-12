@@ -34,17 +34,18 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
-import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
+import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { retryUnlessRefused } from "@repo/client/library-cache";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import type { ComposerEvent, ComposerState } from "./agent-composer";
 import { quotePassage } from "./quote-passage";
-import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { chunksOf } from "../library/bulk-actions";
+import { conversationUndo, turnUndo } from "./thread-undo";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 import { announceUndo } from "./undo-answer";
 
@@ -184,7 +185,7 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
 };
 
 const useLivePreview = (threadId: string): string | null => {
-  const { previews } = useSocket();
+  const { previews } = usePageLibrary().socket;
   return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
 };
 
@@ -204,7 +205,7 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { client, orpc } = useWire();
+  const { client, orpc } = usePageLibrary().wire;
   const queryClient = useQueryClient();
   const queries = useLibraryQueries();
   const rows = useQuery(queries.threadEvents(threadId)).data?.events ?? [];
@@ -236,7 +237,7 @@ const Conversation = ({
       const lostText: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
-      for (const batch of undoBatches(ids)) {
+      for (const batch of chunksOf(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);
@@ -376,7 +377,7 @@ const Composer = ({
   dispatch: (event: ComposerEvent) => void;
   viewContext: () => AgentViewContext | undefined;
 }) => {
-  const { orpc } = useWire();
+  const { orpc } = usePageLibrary().wire;
   const [text, setText] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const tidying = composer.kind === "tidying";
@@ -451,20 +452,7 @@ export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: Agent
   return (
     <div className="flex h-full min-h-0 flex-col" data-agent-panel>
       <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-        {threadId === null ? (
-          <span className="px-1 text-body font-medium">Conversations</span>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="All conversations"
-            onClick={() => {
-              onThread(null);
-            }}
-          >
-            <ArrowLeftIcon />
-          </Button>
-        )}
+        {threadId === null && <span className="px-1 text-body font-medium">Conversations</span>}
         <Button
           variant="ghost"
           size="icon-compact"

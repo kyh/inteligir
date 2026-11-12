@@ -4,7 +4,6 @@
 // newest first, in one undo of its own, or in as few as the cell takes when the conversation made
 // more sets than one undo names.
 
-import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import type { changeSetSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
@@ -40,13 +39,4 @@ export const turnUndo = (sets: readonly ChangeSet[], turn: number): string[] | n
 export const conversationUndo = (sets: readonly ChangeSet[]): string[] | null => {
   const ids = sets.filter((set) => set.threadId !== null && undoable(set)).map((set) => set.id);
   return ids.length === 0 ? null : ids;
-};
-
-// the undos that take `ids` back, newest first, each naming as many sets as one undo takes
-export const undoBatches = (ids: readonly string[]): string[][] => {
-  const batches: string[][] = [];
-  for (let start = 0; start < ids.length; start += BULK_ITEMS_MAX) {
-    batches.push(ids.slice(start, start + BULK_ITEMS_MAX));
-  }
-  return batches;
 };

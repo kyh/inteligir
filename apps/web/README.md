@@ -40,7 +40,7 @@ src/
     connect/authorize.ts, connector.ts
   library/           The library tab: its code, styles and decisions
                      (library/CLAUDE.md), suites under jsdom
-  components/        The site's own components (auth card, header, theme, orb)
+  components/        The site's own components (auth card, header, theme)
   lib/               Better Auth client and the tab's session read, session
                      guard, document policy, site config (the Download
                      button's fixed dmg link among it), page markdown
@@ -56,7 +56,7 @@ src/
 
 Two programs check `src/`: `tsconfig.json` the pages and their suites (ES2023
 and the DOM, the Mac app's WebKit 16.6 ceiling), and `src/worker/tsconfig.json`
-the Worker; `scripts/tsconfig.json` checks the scripts.
+the Worker.
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
 declare `BufferSource`/`BodyInit` globally with different bounds, so one

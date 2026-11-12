@@ -13,7 +13,7 @@ export const OpenFailedPage = ({ reload }: { reload: () => void }) => (
         <h1 className="m-0 text-display font-semibold">{HEADING}</h1>
         <p className="m-0 text-body text-muted-foreground">{OPEN_FAILED}</p>
       </div>
-      <Button type="button" className="self-start" onClick={reload}>
+      <Button type="button" size="default" className="self-start" onClick={reload}>
         Try again
       </Button>
     </div>

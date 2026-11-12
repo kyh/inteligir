@@ -98,8 +98,8 @@ describe("the rail's resize", () => {
 // testing-library's role queries do not read `inert`, so the attribute is what is asserted
 const inertAncestor = (element: HTMLElement): Element | null => element.closest("[inert]");
 
-const panel = (open: boolean, peek = false) => (
-  <SidebarProvider open={open} peek={peek}>
+const panel = (open: boolean) => (
+  <SidebarProvider open={open}>
     <Sidebar side="right" label="Panel">
       <button type="button">Row action</button>
     </Sidebar>
@@ -113,12 +113,6 @@ describe("the collapsed panel", () => {
 
     view.rerender(panel(true));
     expect(inertAncestor(screen.getByText("Row action"))).toBeNull();
-  });
-
-  it("leaves the peek strip reachable, since it is the way back in", () => {
-    render(panel(false, true));
-    expect(screen.queryByText("Row action")).toBeNull();
-    expect(inertAncestor(screen.getByRole("button", { name: "Peek sidebar" }))).toBeNull();
   });
 });
 

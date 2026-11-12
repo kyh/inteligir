@@ -5,7 +5,6 @@
 
 import { createContext, useContext } from "react";
 
-import type { PageAuth } from "./auth-client";
 import type { LeaveGuard } from "./leave-guard";
 import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
@@ -23,8 +22,6 @@ export interface PageLibrary {
   readonly wire: CloudWire;
   // `/v1` for the bytes the wire does not carry: a file a note names, an import's file
   readonly cloud: FileCloud;
-  // Better Auth's own client, whose sign-out ends this device's session
-  readonly auth: PageAuth;
   readonly socket: LibrarySocket;
   // what asks before the page leaves while the open item holds an edit not yet written
   readonly leave: LeaveGuard;
@@ -34,7 +31,7 @@ export interface PageLibrary {
 
 const PageLibraryContext = createContext<PageLibrary | null>(null);
 
-const usePageLibrary = (): PageLibrary => {
+export const usePageLibrary = (): PageLibrary => {
   const library = useContext(PageLibraryContext);
   if (library === null) {
     throw new Error("usePageLibrary must be used inside PageLibraryProvider");
@@ -42,21 +39,7 @@ const usePageLibrary = (): PageLibrary => {
   return library;
 };
 
-export const useWire = (): CloudWire => usePageLibrary().wire;
-
-export const useLibraryQueries = (): LibraryQueries => libraryQueries(useWire());
-
-export const useAccount = (): SignedIn => usePageLibrary().account;
-
-export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
-
-export const useCloud = (): FileCloud => usePageLibrary().cloud;
-
-export const usePageAuth = (): PageAuth => usePageLibrary().auth;
-
-export const useSocket = (): LibrarySocket => usePageLibrary().socket;
-
-export const useLeft = (): PageLibrary["left"] => usePageLibrary().left;
+export const useLibraryQueries = (): LibraryQueries => libraryQueries(usePageLibrary().wire);
 
 export const PageLibraryProvider = ({
   library,

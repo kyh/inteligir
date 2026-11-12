@@ -92,6 +92,7 @@ describe("Better Auth's routes for every device", () => {
     expect(refused.status).toBe(403);
     const keptOut = await authPost("/sign-out", { cookie, origin: other });
     expect(keptOut.status).toBe(403);
+    expect(keptOut.headers.get("clear-site-data")).toBeNull();
     const accountId = await userIdOf(cookie);
     await expect(liveSessionsOf(accountId)).resolves.toHaveLength(1);
 

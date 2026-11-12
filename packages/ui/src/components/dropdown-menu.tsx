@@ -17,8 +17,6 @@ import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
 import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
 import { radius } from "@repo/ui/lib/radius";
-import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
-import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { Elevated } from "@repo/ui/lib/elevated";
 
 interface DropdownItemsContextValue {
@@ -47,7 +45,6 @@ interface DropdownMenuProps {
   // default non-modal: Base UI's modal scroll-lock/inert steals the editor selection every menu
   // opens over, and detaches the Positioner from its anchor.
   modal?: boolean;
-  size?: SizeVariant | undefined;
 }
 
 const DropdownMenu = ({
@@ -57,13 +54,12 @@ const DropdownMenu = ({
   onOpenChange,
   disabled = false,
   modal = false,
-  size,
 }: DropdownMenuProps) => {
   // the Root is always controlled, by the caller's open or else this one, since the popup's
   // presence reads the open it is handed (`@repo/ui/lib/popup-presence`)
   const [ownOpen, setOwnOpen] = useState(defaultOpen);
   const open = openProp ?? ownOpen;
-  const root = (
+  return (
     <Menu.Root
       open={open}
       onOpenChange={(next) => {
@@ -76,8 +72,6 @@ const DropdownMenu = ({
       <PopupOpen open={open}>{children}</PopupOpen>
     </Menu.Root>
   );
-
-  return size ? <SizeProvider size={size}>{root}</SizeProvider> : root;
 };
 
 const DropdownMenuTrigger = Menu.Trigger;
@@ -224,20 +218,13 @@ const DropdownMenuLabel = ({
   className,
   ref,
   ...props
-}: ComponentProps<"div"> & RefAttributes<HTMLDivElement>) => {
-  const compact = useSize().variant === "compact";
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "px-2 py-1.5 shrink-0 text-muted-foreground",
-        compact ? "text-caption" : "text-body",
-        className,
-      )}
-      {...props}
-    />
-  );
-};
+}: ComponentProps<"div"> & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    className={cn("px-2 py-1.5 shrink-0 text-caption text-muted-foreground", className)}
+    {...props}
+  />
+);
 
 const DropdownMenuSeparator = ({
   className,
@@ -261,7 +248,6 @@ const useMenuRow = (variant: MenuRowVariant, disabled: boolean) => {
   // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const { registerRow, highlight } = useDropdownItems();
-  const sizeClasses = useSize();
 
   useIsoLayoutEffect(() => {
     if (rowEl === null) {
@@ -273,8 +259,7 @@ const useMenuRow = (variant: MenuRowVariant, disabled: boolean) => {
   const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
   const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
   const className = cn(
-    `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
-    sizeClasses.text,
+    `relative z-10 flex h-7 shrink-0 items-center gap-1 ${radius.item} px-1.5 text-body cursor-pointer outline-none select-none`,
     "transition-colors duration-80",
     variant === "destructive" ? "text-destructive" : activeTone,
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

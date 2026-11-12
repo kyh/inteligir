@@ -14,7 +14,7 @@ import { readingNotice } from "../item/item-stages";
 import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf } from "./item-labels";
-import { libraryShortcutFor } from "./library-keys";
+import { shortcutFor } from "../shortcuts";
 import type { ListedItem } from "./listing";
 
 export interface QuickLookProps {
@@ -35,7 +35,7 @@ const Look = ({ row }: { row: ListedItem }) => {
         <img alt="" src={fileUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
       )}
       <div className="flex items-center gap-2">
-        <Badge variant="outline">{KIND_LABELS[row.fields.kind]}</Badge>
+        <Badge>{KIND_LABELS[row.fields.kind]}</Badge>
         <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
       </div>
       {notice === null ? null : <p className="m-0 text-body text-muted-foreground">{notice}</p>}
@@ -61,7 +61,7 @@ export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
     if (row === null) {
       return;
     }
-    const shortcut = libraryShortcutFor(event, "grid", modifier);
+    const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
     switch (shortcut?.action) {
       case "quick-look": {
         event.preventDefault();

@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createPageAuth } from "../cloud/auth-client";
 import type { PageLibrary } from "../cloud/library-context";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall } from "../test-support/fake-page-library";
@@ -11,7 +10,20 @@ import { AccountSection } from "./account-section";
 
 afterEach(cleanup);
 
-const ORIGIN = "https://library.test";
+// Better Auth's calls, answered with the suite's `status` and recorded as their method and path.
+// Its client binds `fetch` as it is made, so the stub is in place before any import.
+const betterAuth = vi.hoisted(() => {
+  const asked: string[] = [];
+  const held = { asked, status: 200 };
+  vi.stubGlobal("fetch", async (input: Request | string | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    held.asked.push(`${request.method} ${new URL(request.url).pathname}`);
+    return await Promise.resolve(
+      Response.json({ success: held.status === 200 }, { status: held.status }),
+    );
+  });
+  return held;
+});
 
 const device = (id: string, name: string, current: boolean) => ({
   createdAt: 1,
@@ -37,22 +49,15 @@ const answer = ({ path }: CellCall) => {
   }
 };
 
-// the page's own Better Auth, its calls answered by the suite with `status`, each one recorded, and
-// where the page went once it left
+// Better Auth answering with `status`, and where the page went once it left
 const signingOut = (status: number) => {
-  const asked: Request[] = [];
+  betterAuth.status = status;
+  betterAuth.asked.length = 0;
   const leaves: string[] = [];
-  const auth = createPageAuth({
-    fetch: async (request) => {
-      asked.push(request);
-      return await Promise.resolve(Response.json({ success: status === 200 }, { status }));
-    },
-    origin: ORIGIN,
-  });
   const left: PageLibrary["left"] = (reason) => {
     leaves.push(reason);
   };
-  return { asked, auth, leaves, left };
+  return { asked: betterAuth.asked, leaves, left };
 };
 
 describe("Settings › Account's devices", () => {
@@ -81,21 +86,19 @@ describe("Settings › Account's devices", () => {
 describe("Settings › Account's Sign out", () => {
   it("ends this session at Better Auth, then leaves for the sign-in", async () => {
     const { library } = fakePageLibrary({ answer });
-    const { asked, auth, leaves, left } = signingOut(200);
-    renderOnLibrary(<AccountSection />, { ...library, auth, left });
+    const { asked, leaves, left } = signingOut(200);
+    renderOnLibrary(<AccountSection />, { ...library, left });
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     await waitFor(() => {
       expect(leaves).toStrictEqual(["signed-out"]);
     });
-    expect(asked.map((request) => `${request.method} ${request.url}`)).toStrictEqual([
-      `POST ${ORIGIN}/api/auth/sign-out`,
-    ]);
+    expect(asked).toStrictEqual(["POST /api/auth/sign-out"]);
   });
 
   it("stays on the page when Better Auth refuses it", async () => {
     const { library } = fakePageLibrary({ answer });
-    const { asked, auth, leaves, left } = signingOut(500);
-    renderOnLibrary(<AccountSection />, { ...library, auth, left });
+    const { asked, leaves, left } = signingOut(500);
+    renderOnLibrary(<AccountSection />, { ...library, left });
     const signOut = await screen.findByRole("button", { name: "Sign out" });
     fireEvent.click(signOut);
     await waitFor(() => {

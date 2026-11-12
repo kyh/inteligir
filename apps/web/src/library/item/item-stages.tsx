@@ -10,14 +10,14 @@ import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
-import { useCloud } from "../cloud/library-context";
+import { usePageLibrary } from "../cloud/library-context";
 import { fileUrl, readFile } from "../cloud/library-files";
 import { saveBlob } from "@repo/ui/lib/save-blob";
 
 // The file's bytes read where the page draws them, then saved under its own name
 // (`@repo/ui/lib/save-blob`).
 const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
-  const cloud = useCloud();
+  const { cloud } = usePageLibrary();
   const save = useMutation({
     mutationFn: async () => {
       saveBlob(await readFile(cloud, sha), name);

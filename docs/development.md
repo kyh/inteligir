@@ -35,7 +35,6 @@ pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses 
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the site and
                         #   the library tab at /library off vite's dev server, and the scripted
                         #   Messages API on :5177 its built-in agent talks to
-pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
@@ -96,12 +95,6 @@ inteligir://'` and the `x-inteligir-build` header, or as the extension does,
 the jar's signed `better-auth.session_token` value as `Authorization: Bearer`.
 A raw, unsigned token is refused.
 
-The site's per-page share cards under `apps/web/public/og/` are rendered,
-never drawn by hand: `pnpm --filter @repo/web og:cards`
-(`apps/web/scripts/og-cards.ts`) renders a 1200x630 card per page in
-`apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
-Playwright's Chromium, and sits outside `pnpm verify` and the build.
-
 The built-in agent's system prompt is `@repo/agent-skills`'s files, which
 `packages/service/src/agent/agent-prompt.ts` imports as text in the hub's
 order; a new skill is a row there beside its row in the hub
@@ -139,7 +132,6 @@ which is how the e2e points the dev build at the Worker it boots
 | What                                                                 | Where                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Site + cloud Worker (`pnpm dev:web`)                                 | 5174 (pinned — `strictPort`)                                                                                                                                                            |
-| UI gallery (`pnpm dev:gallery`)                                      | 5175 (pinned — `strictPort`)                                                                                                                                                            |
 | Scripted Messages API (`pnpm dev:web`)                               | 5177 (pinned — `.env`'s `ANTHROPIC_FAKE_URL` names it)                                                                                                                                  |
 | Extension dev server (`pnpm dev:extension`)                          | 3000, or the first free port to 3010 (WXT's own probe)                                                                                                                                  |
 | The Mac app's WebKit store (the site's cookie, the tab's prefs)      | `~/Library/WebKit/com.inteligir.desktop/` and `~/Library/HTTPStorages/com.inteligir.desktop/`; a debug shell's under `com.inteligir.desktop.dev`                                        |
@@ -169,7 +161,7 @@ on past a failure to every task whose dependencies passed, so a red format
 cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
 tasks run at once (four by default), as it does for `pnpm test`.
 
-knip runs once, over every workspace but the gallery. On its own it is
+knip runs once, over every workspace. On its own it is
 `pnpm turbo run //#knip`: it reads the extension's program, which extends the
 `.wxt/tsconfig.json` its `generate` task writes, so a bare `pnpm knip` on a
 fresh checkout sees none of the extension's suites and calls the exports they

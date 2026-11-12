@@ -6,8 +6,6 @@ import type { HTMLAttributes, RefAttributes } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { animate, motion, useMotionValue } from "motion/react";
 
-import { useSize } from "@repo/ui/lib/size-context";
-import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/cn";
@@ -17,26 +15,15 @@ interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   onCheckedChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
-  size?: SizeVariant;
 }
 
-const METRICS = {
-  compact: {
-    pillExtend: 2,
-    pressExtend: 3,
-    pressShrink: 3,
-    thumbSize: 12,
-    trackHeight: 16,
-    trackWidth: 28,
-  },
-  default: {
-    pillExtend: 2,
-    pressExtend: 4,
-    pressShrink: 4,
-    thumbSize: 16,
-    trackHeight: 20,
-    trackWidth: 34,
-  },
+const m = {
+  pillExtend: 2,
+  pressExtend: 3,
+  pressShrink: 3,
+  thumbSize: 12,
+  trackHeight: 16,
+  trackWidth: 28,
 } as const;
 
 const THUMB_OFFSET = 2;
@@ -47,7 +34,6 @@ const Switch = ({
   onCheckedChange,
   label,
   disabled = false,
-  size,
   className,
   "aria-label": ariaLabel,
   ref,
@@ -57,8 +43,6 @@ const Switch = ({
   const hasMounted = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const sizeClasses = useSize(size);
-  const m = METRICS[sizeClasses.variant];
   const thumbTravel = m.trackWidth - m.thumbSize - THUMB_OFFSET * 2;
 
   const dragging = useRef(false);
@@ -189,10 +173,7 @@ const Switch = ({
     <div
       ref={ref}
       className={cn(
-        "relative z-10 flex items-center cursor-pointer select-none touch-none",
-        sizeClasses.gap,
-        sizeClasses.px,
-        sizeClasses.variant === "compact" ? "py-1" : "py-2",
+        "relative z-10 flex items-center gap-1 px-2.5 py-1 cursor-pointer select-none touch-none",
         disabled && "opacity-50 pointer-events-none",
         className,
       )}
@@ -268,7 +249,7 @@ const Switch = ({
           id={labelId}
           className={cn(
             "[text-box:trim-both_cap_alphabetic] transition-[color] duration-80",
-            sizeClasses.text,
+            "text-body",
             checked ? "text-foreground" : "text-muted-foreground",
           )}
         >

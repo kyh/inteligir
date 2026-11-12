@@ -14,7 +14,6 @@
     "./lib/elevated": "./src/lib/elevated.tsx",
     "./lib/motion-policy": "./src/lib/motion-policy.tsx",
     "./lib/popup-presence": "./src/lib/popup-presence.tsx",
-    "./lib/size-context": "./src/lib/size-context.tsx",
     "./lib/surface-context": "./src/lib/surface-context.tsx",
     "./lib/theme": "./src/lib/theme.tsx"
   },
