@@ -300,7 +300,8 @@ The apps also hold to these, plainly:
 - **The Mac app shows your library from our website.** It keeps the site's
   sign-in cookie and the page's settings in its own web storage on that Mac,
   and each file you opened in its web cache, as a browser does for your
-  library in a tab; signing out empties neither cache. The app keeps no log.
+  library in a tab; signing out asks the app, or the browser, to empty that
+  web cache, and the page's settings stay. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as
 Anthropic's Claude, which our cloud runs to operate the built-in agent you can

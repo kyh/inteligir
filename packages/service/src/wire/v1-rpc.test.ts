@@ -365,7 +365,7 @@ describe("the account's rows", () => {
     });
   });
 
-  it("ends a browser tab's own session and its cookie when it signs out", async () => {
+  it("ends a browser tab's own session, its cookie and its cached files when it signs out", async () => {
     const { cookie, phone } = await signedUp("rpc-tab-sign-out@example.test");
     const signedOut = await drained(
       exports.default.fetch(`${ORIGIN}/api/auth/sign-out`, {
@@ -376,6 +376,7 @@ describe("the account's rows", () => {
     );
     expect(signedOut.status).toBe(200);
     expect(signedOut.headers.getSetCookie().join("\n")).toMatch(/session_token=;/u);
+    expect(signedOut.headers.get("clear-site-data")).toBe('"cache"');
     const tab = v1Link(sessionHeaders(cookie));
     await expect(tab.refusalOf(tab.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
