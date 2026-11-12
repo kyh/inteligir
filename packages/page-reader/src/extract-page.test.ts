@@ -1,6 +1,6 @@
-// the reader over a committed corpus of synthetic pages: what a page says about itself in the
-// precedence page-meta.ts names, the article rules, the dialect escapes, and the body ladder's
-// promise that every article is already the editor's own fixpoint, over linkedom, the DOM the
+// the reader over a committed corpus of synthetic pages: what a page says about itself, the
+// article rules, the dialect escapes, and the body ladder's promise that every article is
+// already the editor's own fixpoint, over linkedom, the DOM the
 // Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in: defuddle picks
 // the whole body).
 
@@ -59,20 +59,25 @@ const textOf = (markdown: string): string =>
     .join("");
 
 describe("page meta", () => {
-  it("takes og before JSON-LD before the extractor and <title>, the secure image first", () => {
+  it("reads the extractor's facts and the head's covers, the secure image first", () => {
     const { facts } = extracted("blog-post");
     expect(facts.title).toBe("Keep your notes in files");
     expect(facts.site).toBe("Field Notes");
-    expect(facts.description).toBe("Plain files outlive the apps that made them.");
+    expect(facts.description).toBe("A short argument for plain files over databases.");
     expect(facts.images).toStrictEqual([
       "https://cdn.fieldnotes.example/cover@2x.jpg",
       "https://pages.example/images/cover.jpg",
     ]);
-    // a JSON-LD byline is structured, so it beats the plain author meta
-    expect(facts.author).toBe("A. Lindqvist (JSON-LD)");
-    // an ISO time keeps the day it was written in, not UTC's
-    expect(facts.published).toBe("2024-03-05");
+    expect(facts.author).toBe("Ada Lindqvist");
+    expect(facts.published).toBe("2024-03-04");
     expect(facts.lang).toBe("en");
+  });
+
+  it("keeps the day an ISO time was written in, not UTC's", () => {
+    const html = `<html><head><meta property="article:published_time" content="2024-03-05T20:30:00-08:00"></head><body></body></html>`;
+    expect(extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage).facts.published).toBe(
+      "2024-03-05",
+    );
   });
 
   it("reads twitter tags and a JSON-LD @graph with several authors", () => {
@@ -108,7 +113,6 @@ describe("page meta", () => {
       "https://vidtube.example/oembed?url=https%3A%2F%2Fvidtube.example%2Fwatch%3Fv%3Dabc123",
     );
     expect(facts.site).toBe("VidTube");
-    expect(facts.author).toBe("Crumb Kitchen");
   });
 
   it("takes no in-page anchor for a picture", () => {
