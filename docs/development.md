@@ -185,9 +185,10 @@ Worker's, the service's and the extension's `generate` tasks write.
 CI then runs what `verify` cannot: it installs Playwright's Chromium
 (`pnpm --filter @repo/e2e exec playwright install --with-deps --no-shell chromium`)
 and runs `pnpm e2e`, two Playwright workers on its four cores, so a green
-`verify` is not a green CI; run `pnpm e2e` too before claiming one. A second
-job runs on macOS, where the app ships: `pnpm test` again, since the shell's
-macOS code compiles and runs only there. Each step CI adds on top of
+`verify` is not a green CI; run `pnpm e2e` too before claiming one. CI's
+`verify` leaves the shell out: a second job runs on macOS, where the app ships,
+`pnpm test` again and the shell's typecheck and format, since its macOS code
+compiles and runs only there. Each step CI adds on top of
 `pnpm verify` carries the reason `verify` cannot run it as a comment beside it
 in `.github/workflows/ci.yml`.
 
