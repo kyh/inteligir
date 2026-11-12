@@ -5,8 +5,11 @@ import { rateLimit } from "@repo/db/d1/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, `/v1`'s holders on the session that signed
-// in, and an assistant on its grant; the kill switch is read here, not per caller.
+// Unauthenticated callers are keyed on their address, and a deletion's password check on the
+// session that signed in. Every signed call spends a Workers Rate Limiting binding instead, keyed on
+// its session or its assistant's grant: its count is approximate and kept per location
+// (developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/), which a loop's ceiling may
+// be and a guess's may not, and no call writes D1. The kill switch is read here, not per caller.
 
 export interface RateWindow {
   readonly max: number;
@@ -46,21 +49,9 @@ const allowInWindow = async (
   return settled === undefined || settled.count <= window.max;
 };
 
-// what `holderIdOf` keys; the table has no foreign key, so a session's or a grant's window waits for
-// Better Auth's prune: a session also ends by lapsing, which nothing announces, and a revoked
-// grant's token may answer for a minute more and write its row again
-const HOLDER_RATE_KEY_PREFIXES = {
-  accountDelete: "account-delete:",
-  blobs: "blobs:",
-  rpc: "rpc:",
-} as const;
-
-type HolderRateFamily = keyof typeof HOLDER_RATE_KEY_PREFIXES;
-
-export const holderRateKey = (family: HolderRateFamily, holderId: string): string =>
-  `${HOLDER_RATE_KEY_PREFIXES[family]}${holderId}`;
-
-export const grantRateKey = (grantId: string): string => `connector:${grantId}`;
+// what `holderIdOf` keys; the table has no foreign key, so a session's window waits for Better
+// Auth's prune: a session also ends by lapsing, which nothing announces
+export const holderRateKey = (holderId: string): string => `account-delete:${holderId}`;
 
 // the unauthenticated routes of the Worker's own, keyed on the caller's address: nothing else about
 // the caller is known yet, an invite code with no throttle is guessed at volume, and a registration
@@ -84,7 +75,7 @@ export const CALLER_ADDRESS = { ipAddressHeaders: [CALLER_IP_HEADER] };
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
   `${CALLER_RATE_KEY_PREFIXES[family]}${getIP(request, { advanced: { ipAddress: CALLER_ADDRESS } }) ?? "unknown"}`;
 
-// every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
+// every D1 window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
 export const RATE_WINDOWS = {
   // a password check behind a session, so a stolen one guesses here rather than at the sign-in's
   // per-address window; a person mistypes a few times, never dozens
@@ -94,17 +85,7 @@ export const RATE_WINDOWS = {
   clientRegistration: { max: 10, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
-  // a library's files, read and written: a grid of covers and a video read range by range are the
-  // legitimate bursts
-  blobs: { max: 3000, windowMs: 60_000 },
-  // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
-  // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
-  connector: { max: 300, windowMs: 60_000 },
-  // every signed call on /v1/rpc, keyed on the session: a screen reads its
-  // pages again on each socket frame, and a phone back online lands its waiting saves a write a
-  // call, which a few hundred calls cover, so a ceiling past that is a loop
-  rpc: { max: 1200, windowMs: 60_000 },
-} as const satisfies Record<CallerRateFamily | HolderRateFamily | "connector", RateWindow>;
+} as const satisfies Record<CallerRateFamily | "accountDelete", RateWindow>;
 
 export const spendCallerBudget = async (
   env: Env,
@@ -114,13 +95,18 @@ export const spendCallerBudget = async (
 ): Promise<boolean> =>
   await allowInWindow(env, db, callerRateKey(family, request), RATE_WINDOWS[family]);
 
-export const spendHolderBudget = async (
-  env: Env,
-  db: Db,
-  family: HolderRateFamily,
-  holderId: string,
-): Promise<boolean> =>
-  await allowInWindow(env, db, holderRateKey(family, holderId), RATE_WINDOWS[family]);
+export const spendDeleteBudget = async (env: Env, db: Db, holderId: string): Promise<boolean> =>
+  await allowInWindow(env, db, holderRateKey(holderId), RATE_WINDOWS.accountDelete);
 
-export const spendGrantBudget = async (env: Env, db: Db, grantId: string): Promise<boolean> =>
-  await allowInWindow(env, db, grantRateKey(grantId), RATE_WINDOWS.connector);
+// a signed call's minute, under the binding apps/web/cloudflare.config.ts sizes for its family
+export const spendCallBudget = async (
+  env: Env,
+  limiter: RateLimit,
+  holderId: string,
+): Promise<boolean> => {
+  if (env.RATE_LIMIT_DISABLED === "true") {
+    return true;
+  }
+  const { success } = await limiter.limit({ key: holderId });
+  return success;
+};

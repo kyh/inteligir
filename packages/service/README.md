@@ -37,7 +37,7 @@ src/
   door-routes.ts       # the path each door answers, as its Start route spells it
   client-floor.ts      # the build floor every install's request is held to
   plain-http.ts        # the answers outside the one wire, in HTTP's statuses
-  rate-limit.ts        # the D1 fixed window every throttled route spends
+  rate-limit.ts        # the D1 windows and the minute every signed call spends
   log.ts               # an error logged whole, its causes included
   object-schema.ts     # a Durable Object's drizzle migrations, run as it wakes
   auth/                # Better Auth factory, invite gate, reset email, the
@@ -283,14 +283,17 @@ end them, and the account's deletion revokes every one.
   which one host holds whole. `/api/auth/get-session` spends no window: a
   session read is no password oracle, and every route guard and hover preload
   makes one. A read that fails is unknown to the route guards, never signed
-  out (`apps/web/src/lib/auth-client.ts`). `/v1/rpc` and `/v1/blobs` spend the
-  same table keyed on the HOLDER, the session, never the address: a stolen
-  session moves between addresses, and the session is what Settings › Account
-  ends. The connector spends it keyed on the assistant's grant. Each family is
-  its own, so a drained budget never takes another down. An ended session's
-  rows and a grant's wait for the prune. Better Auth prunes the shared table on
-  its own writes, every row past its 60s window with it, so every Worker window
-  is declared in `RATE_WINDOWS` and a guard holds each to 60s or less.
+  out (`apps/web/src/lib/auth-client.ts`). An account deletion's password check
+  spends the same table keyed on the HOLDER, the session, never the address: a
+  stolen session moves between addresses, and the session is what Settings ›
+  Account ends. Better Auth prunes the shared table on its own writes, every row
+  past its 60s window with it, so every Worker window is declared in
+  `RATE_WINDOWS` and a guard holds each to 60s or less. `/v1/rpc`, `/v1/blobs`
+  and the connector spend a Workers Rate Limiting binding each instead
+  (`RPC_LIMIT`, `BLOBS_LIMIT`, `CONNECTOR_LIMIT`), keyed on the session or the
+  assistant's grant: a ceiling against a loop may be approximate and per
+  location, and no signed call writes D1. Each family is its own, so a drained
+  budget never takes another down.
 - **No CORS.** Every page that calls `/v1` is served by this Worker from this
   origin, the Mac app's window among them, and the browser extension's worker
   calls the site under its host permission, which needs none. CORS added

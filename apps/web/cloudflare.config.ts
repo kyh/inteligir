@@ -70,6 +70,14 @@ const shared = {
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
   // suites, the e2e fixture, a local script's root .env
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
+  // every signed call's minute, a ceiling past what a person makes, so a loop meets it
+  // (packages/service/src/rate-limit.ts): each signed call on /v1/rpc, keyed on the session, where
+  // a screen reads its pages again on each socket frame and a phone back online lands its saves a
+  // call each; a library's files, where a grid of covers and a video read range by range burst;
+  // and each call a connected assistant makes, keyed on its grant, a turn's few dozen
+  RPC_LIMIT: bindings.rateLimit({ namespace: "1001", simple: { limit: 1200, period: 60 } }),
+  BLOBS_LIMIT: bindings.rateLimit({ namespace: "1002", simple: { limit: 3000, period: 60 } }),
+  CONNECTOR_LIMIT: bindings.rateLimit({ namespace: "1003", simple: { limit: 300, period: 60 } }),
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
   // dev server cannot load a module this file also loads (@repo/service/fill-queues)
   FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),

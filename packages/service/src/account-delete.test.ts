@@ -203,7 +203,7 @@ describe("the deletion's per-holder budget", () => {
     const phone = await signInPhone(email);
     const userId = await userIdOf(cookie);
     const spent = { count: 1_000_000, lastRequest: Date.now() };
-    const key = holderRateKey("accountDelete", await sessionIdOf(phone));
+    const key = holderRateKey(await sessionIdOf(phone));
     await createDb(env.DB)
       .insert(rateLimit)
       .values({ id: crypto.randomUUID(), key, ...spent })

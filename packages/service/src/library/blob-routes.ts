@@ -13,10 +13,9 @@ import { SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
 import { isBelowFloor } from "../client-floor";
-import { createDb } from "@repo/db/d1/client";
 import { errorFields } from "../log";
 import { declaredLength, plainText } from "../plain-http";
-import { spendHolderBudget } from "../rate-limit";
+import { spendCallBudget } from "../rate-limit";
 import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
@@ -276,7 +275,7 @@ export const handleBlobRoute = async (
   if (principal === null) {
     return plainText(401, "You're signed out. Sign in again.");
   }
-  if (!(await spendHolderBudget(env, createDb(env.DB), "blobs", holderIdOf(principal)))) {
+  if (!(await spendCallBudget(env, env.BLOBS_LIMIT, holderIdOf(principal)))) {
     return plainText(429, "Too many requests. Try again in a minute.");
   }
   return request.method === "PUT"
