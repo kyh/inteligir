@@ -1,22 +1,18 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import Markdown from "react-markdown";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { describe, expect, it } from "vitest";
 
 // the docs the legal pages render, read as those routes read them
 import privacy from "../../../../docs/privacy.md?raw";
 import terms from "../../../../docs/terms.md?raw";
-import { headingSlug, rehypeHeadingIds } from "./heading-ids";
 
 // the pipeline MarkdownPage runs, without the page chrome that needs a router
 const render = (markdown: string): string =>
   renderToString(
-    createElement(
-      Markdown,
-      { rehypePlugins: [rehypeHeadingIds], remarkPlugins: [remarkGfm] },
-      markdown,
-    ),
+    createElement(Markdown, { rehypePlugins: [rehypeSlug], remarkPlugins: [remarkGfm] }, markdown),
   );
 
 const ANCHOR_LINK = /\]\(#(?<anchor>[^)\s]+)\)/gu;
@@ -36,7 +32,7 @@ describe("heading ids", () => {
     ["5. Third-Party Services & Other Users", "5-third-party-services--other-users"],
     ["11. Dispute Resolution", "11-dispute-resolution"],
   ])("anchors %s as GitHub does", (heading, slug) => {
-    expect(headingSlug(heading)).toBe(slug);
+    expect(idsIn(render(`## ${heading}\n`))).toStrictEqual([slug]);
   });
 
   it("numbers a repeated heading as GitHub does, afresh for each document", () => {

@@ -39,6 +39,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-markdown": "^10.1.0",
+    "rehype-slug": "^6.0.0",
     "remark-gfm": "catalog:",
     "three": "^0.186.1",
     "zod": "catalog:",
