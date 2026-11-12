@@ -412,7 +412,7 @@ Only once every check in § 5 has passed, and the three close together.
 
 - **The phone, JavaScript alone**: an EAS Update, never a new build
   (`apps/mobile/README.md` § Hotfixes has the mechanics). Branch from the tag
-  of the build TestFlight serves, apply the fix, and run `pnpm hotfix:mobile`
+  of the build TestFlight serves, apply the fix, and run `pnpm --filter @repo/mobile hotfix`
   there. An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`

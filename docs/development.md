@@ -28,7 +28,6 @@ every step and check that is the owner's.
 
 ```bash
 pnpm dev                # The Mac app's window on the local Worker's library tab (pnpm dev:web)
-pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one); a physical phone
                         #   needs `expo start --tunnel`, since the note editor needs a secure
@@ -41,7 +40,6 @@ pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloadi
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
-pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
 pnpm typecheck          # Type check all
 pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
