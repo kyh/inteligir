@@ -7,10 +7,10 @@ what it may reach, and how it builds.
 
 - **The extension rides the browser's own sign-in to the site, and the site's connect page names the
   site.** The worker sends the site's signed session cookie as `/v1`'s bearer, and the connect page
-  hands it only the site's origin, since a credential of its own outlived the browser's sign-out.
+  hands it only the site's origin, since a credential of its own outlives the browser's sign-out.
   `apps/extension/src/background/sign-in.ts`.
 - **The extension has no sign-out of its own: the site's signs it out.** The popup and the welcome
-  page say who is signed in and link the site, since a Disconnect left the browser signed in on the
+  page say who is signed in and link the site, since a Disconnect of its own leaves the browser signed in on the
   site. `apps/extension/src/entrypoints/welcome/app.tsx`.
 - **The extension reads the page itself, over the DOM the person sees, and saves it read.** The
   capture clones the rendered DOM without form values, and a page it cannot script or read is saved
@@ -24,7 +24,7 @@ what it may reach, and how it builds.
   `apps/extension/src/background/save-queue.ts`.
 - **A save's try settles it one way, the first and every resend alike, and one pass sends the queue
   at a time.** `settle` reads the contract's `sharedFailure` as the tab and the phone do, since a
-  pass per trigger sent each save twice. `apps/extension/src/background/cloud.ts`.
+  pass per trigger sends each save twice. `apps/extension/src/background/cloud.ts`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
   nothing.** `storage.local` is open to trusted contexts alone, so the capture script reads neither,
   and every listener registers in `main()`'s first turn.

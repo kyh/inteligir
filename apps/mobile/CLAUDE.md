@@ -49,6 +49,10 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   device only, while unlocked.** Every call sends it under `expo-origin` with `credentials: "omit"`,
   since a credential of the phone's own is a second kind of sign-in for no gain.
   `apps/mobile/src/auth/keychain-storage.ts`.
+- **A device signs out through Better Auth's own `/api/auth/sign-out`, and no
+  unreachable cloud holds that sign-out open.** The phone drops its copy first
+  and keeps the session if the copy will not go; a tab, holding nothing, ends
+  the session first. `apps/mobile/src/lib/compose-runtime.ts`.
 - **A phone save is one create where the library's scope saves.** A link waits for the cloud's
   fill and a thought is a note named by its first line, and a save, a new note or a delete needs a
   connection and says so, since only a share waits. `apps/mobile/src/items/phone-saves.ts`.
@@ -62,8 +66,8 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 - **A shared text's link is read whole, to its last character.** Every spelling of the link comes
   out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an
   accented letter and saves the wrong page. `apps/mobile/src/items/link-in-text.ts`.
-- **The phone asks the account's built-in agent, online only, through the panel every device
-  draws.** A send and an approval need a connection, since a turn runs in the cloud, and Undo of a
+- **The phone asks the account's built-in agent, online only, drawing natively what
+  `@repo/client` says of a conversation.** A send and an approval need a connection, since a turn runs in the cloud, and Undo of a
   turn is the Mac's or a tab's. `apps/mobile/src/app/agent/[thread].tsx`.
 
 ## The look

@@ -12,10 +12,6 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   ends.** A lost phone goes from Settings › Account with no password, and Better
   Auth's own list routes would hand each session's token to the browser.
   `packages/service/src/auth/session-devices.ts`.
-- **A device signs out through Better Auth's own `/api/auth/sign-out`, and no
-  unreachable cloud holds that sign-out open.** The phone drops its copy first
-  and keeps the session if the copy will not go; a tab, holding nothing, ends
-  the session first. `apps/mobile/src/lib/compose-runtime.ts`.
 - **An account is deleted from any signed-in device, the password asked again,
   through Better Auth's `deleteUser`** (owner decision: whoever lost their Mac
   deletes from any Mac). Its `beforeDelete` is the one purge path, and a session
@@ -128,10 +124,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   what it takes with a block the turn added.** One merged update per set loses
   an edit made between two of the turn's. `packages/service/src/note/turn-log.ts`.
 - **A note object's duties to its cell are one deadline, each duty keeping its
-  own retry.** One shared retry let a landed duty clear or re-arm the other's.
+  own retry.** One shared retry lets a landed duty clear or re-arm the other's.
   `packages/service/src/note/note-duty.ts`.
 - **A note's standing is one value, and leaving full or Deleted reopens every
-  socket.** A boolean per standing left devices read-only after a compaction.
+  socket.** A boolean per standing leaves devices read-only after a compaction.
   `packages/service/src/note/note-standing.ts`.
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
@@ -228,10 +224,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   writes notes a saved page may steer, and a fetch on open is a request no person
   made. `tools/repo-guards/src/remote-media.test.ts`.
 - **A conversation's drive is one value, and a purge is a cut, never a stop.** A
-  flag per concern let a purged drive step again over tables being removed.
+  flag per concern lets a purged drive step again over tables being removed.
   `packages/service/src/agent/thread-drive.ts`.
 - **A tool call is one union, moved by one function.** Reading the columns at
-  each site lost the person's no on a stop.
+  each site loses the person's no on a stop.
   `packages/service/src/agent/tool-call.ts`.
 - **A thread's status is what its open turn and queued sends say, written in one
   place.** Six writers choosing a status let it contradict the rows.

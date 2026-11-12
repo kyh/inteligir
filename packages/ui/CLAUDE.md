@@ -19,7 +19,7 @@ The shared component vocabulary, its type roles and its motion.
   `packages/ui/src/components/popover.tsx`.
 - **The chrome has one size, Fluid's compact step, and five type roles on it.** caption 11, body
   12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
-  is, and a size every root set alike was a branch in each component; the note is not chrome, its
+  is, and a size every root sets alike is a branch in each component; the note is not chrome, its
   prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,

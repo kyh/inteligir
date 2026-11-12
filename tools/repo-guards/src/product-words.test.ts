@@ -1,6 +1,5 @@
-// a product surface speaks the person's words: the whole of it is the library and what is in it are
-// items, and no surface names the engine (git, commit, remote, repo, terminal, CLI, PATH, MCP;
-// AGENTS.md § Rules that matter).
+// a product surface speaks the person's words (AGENTS.md § Rules that matter), and WORDS below is
+// what it never says.
 // detection is textual and a lower bound: it reads the quoted literals
 // that hold a space, with a template's `${…}` set aside and its own literals read too, every line
 // of a template that runs over several, which is how the site's pages are written, a .tsx file's
