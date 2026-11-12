@@ -28,6 +28,7 @@
     "./library/agent-events": "./src/library/agent-events.ts",
     "./library/call-outcome": "./src/library/call-outcome.ts",
     "./library/canonical-json": "./src/library/canonical-json.ts",
+    "./library/cell-rules": "./src/library/cell-rules.ts",
     "./library/content-hash": "./src/library/content-hash.ts",
     "./library/derive-item": "./src/library/derive-item.ts",
     "./library/field-ops": "./src/library/field-ops.ts",
