@@ -371,8 +371,8 @@ Only once every check in § 5 has passed, and the three close together.
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404.
 
-2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
-   6: What to Test, Beta App Review, then the invites.
+2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 and
+   5: What to Test, Beta App Review, then the invites.
 3. **The extension.** Upload
    `apps/extension/.output/inteligir-extension-<version>.zip` to the store
    item, and keep the listing true to what it does: the description, the
