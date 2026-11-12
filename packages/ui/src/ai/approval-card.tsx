@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
 import { CheckIcon } from "lucide-react";
 
@@ -69,37 +69,31 @@ const ApprovalCard = ({
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState<ApprovalCardStatus>("open");
 
-  const register = useCallback((questionId: string) => {
+  const register = (questionId: string) => {
     setOrder((current) => (current.includes(questionId) ? current : [...current, questionId]));
-  }, []);
-  const answer = useCallback((questionId: string, optionIds: string[]) => {
+  };
+  const answer = (questionId: string, optionIds: string[]) => {
     setPicked((current) => ({ ...current, [questionId]: optionIds }));
-  }, []);
-  const submit = useCallback(
-    (pending: ApprovalAnswer) => {
-      // the pick arrives in the handler that made it, before state holds it
-      const nextPicked = { ...picked, [pending.questionId]: pending.optionIds };
-      const answers = order.map((questionId): ApprovalAnswer => ({
-        optionIds: nextPicked[questionId] ?? [],
-        questionId,
-      }));
-      setStatus("sending");
-      void (async () => {
-        try {
-          await onSubmit(answers);
-          setStatus("sent");
-        } catch {
-          setStatus("open");
-        }
-      })();
-    },
-    [order, picked, onSubmit],
-  );
+  };
+  const submit = (pending: ApprovalAnswer) => {
+    // the pick arrives in the handler that made it, before state holds it
+    const nextPicked = { ...picked, [pending.questionId]: pending.optionIds };
+    const answers = order.map((questionId): ApprovalAnswer => ({
+      optionIds: nextPicked[questionId] ?? [],
+      questionId,
+    }));
+    setStatus("sending");
+    void (async () => {
+      try {
+        await onSubmit(answers);
+        setStatus("sent");
+      } catch {
+        setStatus("open");
+      }
+    })();
+  };
   const sending = status === "sending";
-  const value = useMemo<ApprovalCardContextValue>(
-    () => ({ answer, picked, register, sending, submit }),
-    [register, answer, picked, submit, sending],
-  );
+  const value: ApprovalCardContextValue = { answer, picked, register, sending, submit };
 
   if (status === "sent") {
     return (
@@ -160,16 +154,13 @@ const ApprovalQuestion = ({
 
   const selected = picked[questionId] ?? noSelection;
 
-  const pick = useCallback(
-    (optionId: string): void => {
-      const next = [optionId];
-      answer(questionId, next);
-      submit({ optionIds: next, questionId });
-    },
-    [answer, questionId, submit],
-  );
+  const pick = (optionId: string): void => {
+    const next = [optionId];
+    answer(questionId, next);
+    submit({ optionIds: next, questionId });
+  };
 
-  const context = useMemo(() => ({ pick, selected }), [pick, selected]);
+  const context = { pick, selected };
 
   return (
     <ApprovalQuestionContext value={context}>

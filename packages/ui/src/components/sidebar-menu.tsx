@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { Fragment, createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   LiHTMLAttributes,
@@ -90,34 +90,28 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   const [activeRowEl, setActiveRowEl] = useState<HTMLElement | null>(null);
   const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
 
-  const onRows = useCallback(
-    (rows: readonly HTMLElement[]) => {
-      setItems(rows);
-      setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
-    },
-    [setItems],
-  );
+  const onRows = (rows: readonly HTMLElement[]) => {
+    setItems(rows);
+    setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
+  };
   const {
     rows: orderedRows,
     registerRow,
     requestSync,
   } = useRowOrder(containerRef, MENU_ITEM, onRows);
 
-  const setRowActive = useCallback(
-    (row: HTMLElement, active: boolean) => {
-      const activeRows = activeRowsRef.current;
-      if (activeRows.has(row) === active) {
-        return;
-      }
-      if (active) {
-        activeRows.add(row);
-      } else {
-        activeRows.delete(row);
-      }
-      requestSync();
-    },
-    [requestSync],
-  );
+  const setRowActive = (row: HTMLElement, active: boolean) => {
+    const activeRows = activeRowsRef.current;
+    if (activeRows.has(row) === active) {
+      return;
+    }
+    if (active) {
+      activeRows.add(row);
+    } else {
+      activeRows.delete(row);
+    }
+    requestSync();
+  };
 
   const overlayRect = (row: HTMLElement | null): ItemRect | null => {
     const idx = row === null ? -1 : orderedRows.indexOf(row);
@@ -212,16 +206,13 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
 
   const hoveredRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
   const firstRowEl = orderedRows[0] ?? null;
-  const highlightValue = useMemo<MenuHighlight>(
-    () => ({ active: activeRowEl, first: firstRowEl, hovered: hoveredRowEl }),
-    [activeRowEl, firstRowEl, hoveredRowEl],
-  );
-  const highlight = useHighlightStore(highlightValue);
+  const highlight = useHighlightStore<MenuHighlight>({
+    active: activeRowEl,
+    first: firstRowEl,
+    hovered: hoveredRowEl,
+  });
 
-  const value = useMemo<MenuScopeValue>(
-    () => ({ highlight, registerRow, setRowActive }),
-    [highlight, registerRow, setRowActive],
-  );
+  const value: MenuScopeValue = { highlight, registerRow, setRowActive };
 
   const overlays = isMeasured ? (
     <ProximityOverlays
@@ -293,24 +284,18 @@ const useMenuRow = (): MenuItemContextValue => {
     return registerRow(rowEl);
   }, [registerRow, rowEl]);
 
-  const setActive = useCallback(
-    (active: boolean) => {
-      if (rowEl && setRowActive) {
-        setRowActive(rowEl, active);
-      }
-    },
-    [setRowActive, rowEl],
-  );
+  const setActive = (active: boolean) => {
+    if (rowEl && setRowActive) {
+      setRowActive(rowEl, active);
+    }
+  };
 
   const isHovered = useHighlighted(
     scope?.highlight ?? null,
     (highlight) => rowEl !== null && highlight.hovered === rowEl,
   );
 
-  return useMemo(
-    () => ({ isHovered, rowEl, setActive, setRow: setRowEl }),
-    [rowEl, isHovered, setActive],
-  );
+  return { isHovered, rowEl, setActive, setRow: setRowEl };
 };
 
 const SidebarMenuItem = ({

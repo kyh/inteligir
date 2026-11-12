@@ -1,5 +1,5 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
 import { sameElements } from "@repo/ui/hooks/use-row-order";
 
@@ -163,7 +163,7 @@ export const useProximityHover = <T extends HTMLElement>(
   const rafIdRef = useRef<number | null>(null);
   const remeasureRafIdRef = useRef<number | null>(null);
 
-  const runMeasurement = useCallback(() => {
+  const runMeasurement = () => {
     const container = containerRef.current;
     if (!container) {
       return false;
@@ -186,41 +186,38 @@ export const useProximityHover = <T extends HTMLElement>(
       setItemRects(rects);
     }
     return true;
-  }, [containerRef, measure]);
+  };
 
-  const measureItems = useCallback(() => {
+  const measureItems = () => {
     runMeasurement();
-  }, [runMeasurement]);
+  };
 
   // the only place readiness is reported, so isMeasured cannot turn true while another pass is queued
-  const scheduleMeasurement = useCallback(
-    (attempts: number): void => {
-      // the retry recurses into this inner function, not the binding useCallback is still
-      // building; the compiler hoists a declaration but not a function expression's own name
-      const attempt = (attemptsLeft: number): void => {
-        if (remeasureRafIdRef.current !== null) {
-          cancelAnimationFrame(remeasureRafIdRef.current);
+  const scheduleMeasurement = (attempts: number): void => {
+    // the retry recurses into this inner function, not its own binding: the compiler hoists a
+    // declaration but not a function expression's own name
+    const attempt = (attemptsLeft: number): void => {
+      if (remeasureRafIdRef.current !== null) {
+        cancelAnimationFrame(remeasureRafIdRef.current);
+      }
+      remeasureRafIdRef.current = requestAnimationFrame(() => {
+        remeasureRafIdRef.current = null;
+        if (runMeasurement()) {
+          setIsMeasured(true);
+        } else if (attemptsLeft > 1) {
+          attempt(attemptsLeft - 1);
         }
-        remeasureRafIdRef.current = requestAnimationFrame(() => {
-          remeasureRafIdRef.current = null;
-          if (runMeasurement()) {
-            setIsMeasured(true);
-          } else if (attemptsLeft > 1) {
-            attempt(attemptsLeft - 1);
-          }
-        });
-      };
-      attempt(attempts);
-    },
-    [runMeasurement],
-  );
+      });
+    };
+    attempt(attempts);
+  };
 
-  const remeasure = useCallback(() => {
+  const remeasure = () => {
     // readiness drops first: an overlay positioned from the stale rects would be corrected after
     // mounting, which animates as a slide
     setIsMeasured(false);
     scheduleMeasurement(measurementAttempts);
-  }, [scheduleMeasurement]);
+  };
 
   // One observer over the items and their container. Readiness is not dropped on a resize: the
   // item set is unchanged, and hiding the overlays on every reflow would flicker them. The items
@@ -228,53 +225,50 @@ export const useProximityHover = <T extends HTMLElement>(
   // under it while the container may keep its size.
   const roRef = useRef<ResizeObserver | null>(null);
   const observedContainerRef = useRef<HTMLElement | null>(null);
-  const getRo = useCallback(() => {
+  const getRo = () => {
     if (roRef.current === null && globalThis.ResizeObserver !== undefined) {
       roRef.current = new ResizeObserver(() => {
         scheduleMeasurement(measurementAttempts);
       });
     }
     return roRef.current;
-  }, [scheduleMeasurement]);
+  };
 
-  const setItems = useCallback(
-    (elements: readonly HTMLElement[]) => {
-      const previous = itemsRef.current;
-      if (sameElements(previous, elements)) {
-        return;
-      }
-      itemsRef.current = elements;
-      const ro = getRo();
-      if (ro !== null) {
-        const next = new Set(elements);
-        for (const element of previous) {
-          if (!next.has(element)) {
-            ro.unobserve(element);
-          }
-        }
-        const had = new Set(previous);
-        for (const element of elements) {
-          if (!had.has(element)) {
-            ro.observe(element);
-          }
-        }
-        // read with the items rather than once at mount: a popup's node mounts in a portal after
-        // the hook's owner, and an empty list has nothing to measure
-        const container = elements.length === 0 ? null : containerRef.current;
-        if (container !== observedContainerRef.current) {
-          if (observedContainerRef.current !== null) {
-            ro.unobserve(observedContainerRef.current);
-          }
-          if (container !== null) {
-            ro.observe(container);
-          }
-          observedContainerRef.current = container;
+  const setItems = (elements: readonly HTMLElement[]) => {
+    const previous = itemsRef.current;
+    if (sameElements(previous, elements)) {
+      return;
+    }
+    itemsRef.current = elements;
+    const ro = getRo();
+    if (ro !== null) {
+      const next = new Set(elements);
+      for (const element of previous) {
+        if (!next.has(element)) {
+          ro.unobserve(element);
         }
       }
-      remeasure();
-    },
-    [containerRef, getRo, remeasure],
-  );
+      const had = new Set(previous);
+      for (const element of elements) {
+        if (!had.has(element)) {
+          ro.observe(element);
+        }
+      }
+      // read with the items rather than once at mount: a popup's node mounts in a portal after
+      // the hook's owner, and an empty list has nothing to measure
+      const container = elements.length === 0 ? null : containerRef.current;
+      if (container !== observedContainerRef.current) {
+        if (observedContainerRef.current !== null) {
+          ro.unobserve(observedContainerRef.current);
+        }
+        if (container !== null) {
+          ro.observe(container);
+        }
+        observedContainerRef.current = container;
+      }
+    }
+    remeasure();
+  };
 
   const handleMouseMove = (e: MouseEvent) => {
     const mouseX = e.clientX;

@@ -1,15 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
@@ -159,34 +151,21 @@ const SidebarProvider = ({
     }
   }, [actionsRef, toggleSidebar]);
 
-  const value = useMemo<SidebarContextValue>(
-    () => ({
-      isMobile,
-      isResizing,
-      onWidthCommitted,
-      open,
-      openMobile,
-      setIsResizing,
-      setOpen,
-      setOpenMobile,
-      setWidth,
-      shortcut,
-      state: open ? "expanded" : "collapsed",
-      toggleSidebar,
-      width,
-    }),
-    [
-      open,
-      setOpen,
-      openMobile,
-      isMobile,
-      toggleSidebar,
-      width,
-      onWidthCommitted,
-      shortcut,
-      isResizing,
-    ],
-  );
+  const value: SidebarContextValue = {
+    isMobile,
+    isResizing,
+    onWidthCommitted,
+    open,
+    openMobile,
+    setIsResizing,
+    setOpen,
+    setOpenMobile,
+    setWidth,
+    shortcut,
+    state: open ? "expanded" : "collapsed",
+    toggleSidebar,
+    width,
+  };
 
   return (
     <SidebarContext value={value}>
