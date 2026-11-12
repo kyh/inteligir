@@ -12,8 +12,10 @@
 //                               to the middle of its last block (of its last thinking block with
 //                               `thinking`) and holds until the client goes; asked again, it
 //                               answers whole
-//   fail <status> <times>       each body is answered that status that many times before it is
-//                               answered at all
+//   fail <status> <times> [gateway]
+//                               each body is answered that status that many times before it is
+//                               answered at all; by the gateway, before Anthropic is asked, with
+//                               `gateway`
 //   compact                     the next step's reply opens with a compaction block, as the API's
 //                               threshold compaction would, when the request asks for compaction
 //
@@ -55,7 +57,11 @@ export interface FakeScript {
   readonly steps: readonly ScriptedStep[];
   // the reply after every step: no step of its own, its stall and whether it compacts
   readonly closing: ScriptedStep;
-  readonly fail: { readonly status: number; readonly times: number } | null;
+  readonly fail: {
+    readonly status: number;
+    readonly times: number;
+    readonly gateway: boolean;
+  } | null;
 }
 
 const CALL = /^call\s+(?<tool>[a-z][a-z0-9_]*)\s+(?<input>\{.*\})$/u;
@@ -63,7 +69,7 @@ const SPEND = /^spend\s+(?<cents>[1-9]\d{0,5})$/u;
 const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const REFUSE = /^refuse\s+(?<category>[a-z_]+)$/u;
 const STALL = /^stall(?:\s+(?<at>thinking))?$/u;
-const FAIL = /^fail\s+(?<status>[45]\d\d)\s+(?<times>[1-9]\d{0,2})$/u;
+const FAIL = /^fail\s+(?<status>[45]\d\d)\s+(?<times>[1-9]\d{0,2})(?<gateway>\s+gateway)?$/u;
 const COMPACT = "compact";
 
 const parsedInput = (text: string) => {
@@ -118,7 +124,11 @@ export const scriptOf = (text: string): FakeScript => {
     }
     const failed = FAIL.exec(line)?.groups;
     if (failed?.status !== undefined && failed.times !== undefined) {
-      fail = { status: Number(failed.status), times: Number(failed.times) };
+      fail = {
+        gateway: failed.gateway !== undefined,
+        status: Number(failed.status),
+        times: Number(failed.times),
+      };
       continue;
     }
     const step = stepOf(line);

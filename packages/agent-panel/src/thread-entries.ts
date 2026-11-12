@@ -178,6 +178,7 @@ export const approvalWords = (
 };
 
 const ENDINGS = {
+  allowance: "The agent has used today’s allowance.",
   budget: "Stopped: the agent did as much as one turn may. Ask it to go on.",
   cancelled: "Stopped.",
   done: "",

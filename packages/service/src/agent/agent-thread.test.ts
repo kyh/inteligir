@@ -908,6 +908,34 @@ describe("a conversation's loop, stepped", () => {
   );
 
   it(
+    "ends a turn the gateway's spend limit refuses at once, where Anthropic's own 429 is sent again",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await inSteppedThread(
+        account,
+        threadId,
+        script("fail 429 9 gateway"),
+        async ({ asked, run }) => {
+          await expect(restsAt(run)).resolves.toBe("idle");
+          expect(asked.drives).toHaveLength(0);
+        },
+      );
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { detail: "status 429", reason: "allowance" },
+      ]);
+      const limited = crypto.randomUUID();
+      await inSteppedThread(account, limited, script("fail 429 1"), async ({ asked, run }) => {
+        await expect(restsAt(run)).resolves.toBe("later");
+        await expect(restsAt(run)).resolves.toBe("idle");
+        expect(asked.drives).toHaveLength(1);
+      });
+      await expect(endingsOf(account, limited)).resolves.toStrictEqual([{ reason: "done" }]);
+    },
+  );
+
+  it(
     "sends nothing for a turn stopped before its request goes, and still counts the turn",
     { timeout: TURN_MS },
     async () => {

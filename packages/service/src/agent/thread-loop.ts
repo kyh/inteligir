@@ -42,7 +42,7 @@ import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
 import { asksFirst } from "./agent-tools";
-import { callFailureFields, isApiError } from "./anthropic-client";
+import { callFailureFields, isApiError, isSpendLimitRefusal } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import type { ThreadDb } from "./thread-db";
 import { cutCall, cutOf } from "./thread-drive";
@@ -610,8 +610,8 @@ const retryAfterMs = (error: APIError): number => {
 const isRetryable = (status: number | undefined): boolean =>
   status === undefined || status === 408 || status === 409 || status === 429 || status >= 500;
 
-// a call that did not land: stopped by the person, refused by the API (the turn ends), or Claude
-// unreachable or silent (sent again, three times, then the turn ends). A call the API answered
+// a call that did not land: stopped by the person, refused by the API or the gateway's spend limit
+// (the turn ends), or Claude unreachable or silent (sent again, three times, then the turn ends). A call the API answered
 // with an error cost nothing; one cut short may have, which no usage reports and the gateway's
 // per-account limit bounds
 const failedCall = async (
@@ -649,6 +649,10 @@ const failedCall = async (
     turn: turn.turn,
     ...callFailureFields(error),
   });
+  if (isSpendLimitRefusal(error)) {
+    settle("failed", "allowance");
+    return "continue";
+  }
   if (!isRetryable(status)) {
     settle("failed", "failed");
     return "continue";

@@ -199,6 +199,10 @@ export const messagesFake = (): MessagesFake => {
     const times = failed.get(hash) ?? 0;
     if (fail !== null && times < fail.times) {
       failed.set(hash, times + 1);
+      if (fail.gateway) {
+        // the gateway's own refusal reaches no Anthropic server, so it carries no request id
+        return new Response(null, { status: fail.status });
+      }
       return failure(
         fail.status,
         `The fake answered ${String(fail.status)}, as its script asked.`,

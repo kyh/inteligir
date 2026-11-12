@@ -22,6 +22,13 @@ import { errorFields } from "../log";
 // `instanceof` alone types them `any`
 export const isApiError = (cause: unknown): cause is APIError => cause instanceof APIError;
 
+// the gateway's own 429, its spend limit for the account spent: it answers before Anthropic is
+// asked (developers.cloudflare.com/ai-gateway/features/spend-limits/), so it carries none of the
+// `request-id` every response of Anthropic's does (platform.claude.com/docs/en/api/errors), and
+// sending it again before the gateway's window turns only meets it again
+export const isSpendLimitRefusal = (cause: unknown): boolean =>
+  isApiError(cause) && cause.status === 429 && (cause.requestID ?? null) === null;
+
 // the SDK's own ceiling on the wait for a reply's headers, written out; the thread's watchdog cuts
 // a reply silent for three minutes first, headers or not (`./thread-loop`)
 const CALL_TIMEOUT_MS = 10 * 60_000;
