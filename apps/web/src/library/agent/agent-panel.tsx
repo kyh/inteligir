@@ -34,7 +34,7 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
@@ -466,20 +466,7 @@ export const AgentPanel = ({ composer, dispatch, viewContext, flushOpen }: Agent
   return (
     <div className="flex h-full min-h-0 flex-col" data-agent-panel>
       <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-        {threadId === null ? (
-          <span className="px-1 text-body font-medium">Conversations</span>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="All conversations"
-            onClick={() => {
-              onThread(null);
-            }}
-          >
-            <ArrowLeftIcon />
-          </Button>
-        )}
+        {threadId === null && <span className="px-1 text-body font-medium">Conversations</span>}
         <Button
           variant="ghost"
           size="icon-compact"
