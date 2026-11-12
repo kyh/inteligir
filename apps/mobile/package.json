@@ -15,7 +15,6 @@
   "dependencies": {
     "@better-auth/expo": "catalog:",
     "@expo/metro-runtime": "catalog:",
-    "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@repo/client": "workspace:*",
     "@repo/contract": "workspace:*",

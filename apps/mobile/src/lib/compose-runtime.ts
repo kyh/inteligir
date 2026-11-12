@@ -20,7 +20,7 @@ import { createLibrarySocket, retryUnlessRefused } from "@repo/client/library-ca
 import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/library-cache";
 import { clientBuildValue } from "@repo/contract/client-build";
 import type { ClientBuild } from "@repo/contract/client-build";
-import { uploadBlob } from "@repo/contract/library/call-outcome";
+import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import type { V1Client } from "@repo/contract/v1";
 import type { PhoneAuth } from "../auth/phone-auth";
@@ -35,7 +35,7 @@ import type { LoginStore } from "../login/login-store";
 import { messageOf } from "./error-message";
 import { createExternalStore } from "./external-store";
 import type { ReadableStore } from "./external-store";
-import { downloadBlob, phoneTransport, v1ClientOver } from "./phone-transport";
+import { downloadBlob, phoneTransport } from "./phone-transport";
 
 // what the cache keeps between launches, and how long a query it holds is used unasked
 const CACHE_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -237,7 +237,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       await forgetAccount(null);
     }
     let library: PhoneLibrary | null = null;
-    const client = v1ClientOver(transport, (end) => {
+    const client = v1Client(transport, (end) => {
       if (library !== null) {
         sessionEnded(library, end);
       }
