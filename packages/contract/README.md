@@ -50,8 +50,8 @@ src/
                        #   the password's bounds, its devices, each a signed-in session, its deletion and
                        #   the sign-up form
   library/             # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
-                       #   the agent's events, a file's route, the socket's frames, the socket client
-                       #   every app dials (account-socket.ts) and what a failed call means (call-outcome.ts);
+                       #   the agent's events, a file's route, the socket's frames and address (library-socket.ts)
+                       #   and what a failed call means (call-outcome.ts);
                        #   and the model: the persisted node set (library-nodes.ts), an item's capped fields
                        #   (library-item.ts), what each make's fields are (item-makes.ts), the field ops
                        #   each naming its base, a list's merge and sameness (field-ops.ts), the order

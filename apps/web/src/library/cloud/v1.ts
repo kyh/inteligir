@@ -4,16 +4,16 @@
 // library goes through these utils, as TanStack queries and mutations the page's one QueryClient
 // holds.
 
-import { createORPCClient, isDefinedError, onError } from "@orpc/client";
+import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { retryUnlessRefused } from "@repo/client/library-cache";
+import type { V1Queries } from "@repo/client/library-cache";
 import { sharedFailure } from "@repo/contract/library/call-outcome";
 import type { SessionEnd, V1Transport } from "@repo/contract/library/call-outcome";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import type { V1Client } from "@repo/contract/v1";
 import { QueryClient } from "@tanstack/react-query";
-
-export type V1Queries = ReturnType<typeof createTanstackQueryUtils<V1Client>>;
 
 export interface CloudWire {
   readonly client: V1Client;
@@ -49,15 +49,9 @@ export const createCloudWire = (
   return { client, orpc: createTanstackQueryUtils(client) };
 };
 
-// a refusal the procedure declared answers the same however often it is asked, so only a call that
-// met no answer goes again
-const QUERY_RETRIES = 3;
-export const retryUnlessRefused = (failures: number, cause: unknown): boolean =>
-  !isDefinedError(cause) && failures < QUERY_RETRIES;
-
 // The defaults every query starts from. A cell call is `online`, so with no connection it pauses
 // rather than failing, and the screen says it needs one (`needs-connection.tsx`). The account's
-// socket says what moved (`use-library-socket.ts`), so a window coming back into focus refetches
+// socket says what moved (`@repo/client/library-cache`), so a window coming back into focus refetches
 // nothing.
 export const createPageQueryClient = (): QueryClient =>
   new QueryClient({

@@ -1,4 +1,3 @@
-import type { Clock } from "@repo/contract/library/account-socket";
 import { createAuthClient } from "better-auth/client";
 
 // no baseURL: the same Worker serves the app and /api/auth/*, so the relative default is right on every host
@@ -53,7 +52,7 @@ export const signInHref = (here: Pick<Location, "pathname" | "search">): string 
 // slides a session). Well inside the day a session waits before it slides.
 export const SESSION_READ_MS = 3_600_000;
 
-export const keepSession = (clock: Clock, read: () => Promise<void>): void => {
+export const keepSession = (read: () => Promise<void>): void => {
   const readOnce = async (): Promise<void> => {
     try {
       await read();
@@ -61,8 +60,7 @@ export const keepSession = (clock: Clock, read: () => Promise<void>): void => {
       // the next read makes up for this one, and a session that ended meets the next `/v1` call
     }
   };
-  clock.after(SESSION_READ_MS, () => {
-    keepSession(clock, read);
+  setInterval(() => {
     void readOnce();
-  });
+  }, SESSION_READ_MS);
 };

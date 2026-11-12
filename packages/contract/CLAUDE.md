@@ -29,9 +29,6 @@ clock, random bytes and fresh ids are injected.
 - **An item's reading is one value, which every writer moves and every surface
   reads alike.** Three fields set by hand badged a failure over a read.
   `packages/contract/src/library/item-reading.ts`.
-- **The account socket's hint is one value moved by one step.** Flags and a
-  generation counter left a refused ticket ticketing for good.
-  `packages/contract/src/library/account-socket.ts`.
 
 ## Items and files
 

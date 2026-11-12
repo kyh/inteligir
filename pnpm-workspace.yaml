@@ -118,6 +118,9 @@ catalog:
   # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
   # what a note's object inherits
   partyserver: 0.5.10
+  # exact, the one y-partyserver resolves: the account's socket redials on it, so the tab, the phone
+  # and a note's provider share one copy
+  partysocket: 1.3.0
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0

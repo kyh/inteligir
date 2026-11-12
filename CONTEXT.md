@@ -122,7 +122,7 @@ threads, a list past `MOVED_IDS_MAX` saying "all"
 (`packages/service/src/library/cell-moved.ts`, the frame in
 `@repo/contract/library/library-socket`). A device asks again for what
 it shows of those, and for everything each time its socket opens
-(`@repo/contract/library/account-socket`). A hint, never the state: a
+(`@repo/client/library-cache`). A hint, never the state: a
 frame carries no row, so one missed loses nothing.
 
 **share outbox** — the iPhone's shares from other apps still to land, each kept

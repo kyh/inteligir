@@ -21,7 +21,7 @@ import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query"
 
 import { useCloud, useWire } from "../cloud/library-context";
 import { uploadFile } from "../cloud/library-files";
-import type { V1Queries } from "../cloud/v1";
+import type { V1Queries } from "@repo/client/library-cache";
 import { runBulk } from "./bulk-actions";
 import type { ListedItem } from "./listing";
 import { newId } from "./new-id";

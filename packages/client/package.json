@@ -5,7 +5,10 @@
   "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, and how each device keeps what it shows of the library.",
   "type": "module",
   "exports": {
+    "./account-socket": "./src/account-socket.ts",
     "./agent-send": "./src/agent-send.ts",
+    "./library-cache": "./src/library-cache.ts",
+    "./test-support/fake-sockets": "./src/test-support/fake-sockets.ts",
     "./thread-entries": "./src/thread-entries.ts"
   },
   "scripts": {
@@ -13,7 +16,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",
+    "@tanstack/query-core": "^5.105.0",
+    "partysocket": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

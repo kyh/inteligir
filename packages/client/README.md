@@ -6,6 +6,12 @@ platform and no UI: each device draws it in its own way (the tab with
 
 ## Layout
 
+- `src/account-socket.ts` — the account's socket on partysocket: its ticket per
+  try, the cell's keepalive, a silent socket dropped, its frames read, and the
+  host's online/offline gate.
+- `src/library-cache.ts` — what each frame reads again of a device's TanStack
+  queries, which items moved, the reply the agent is writing, and the one
+  retry rule for a read.
 - `src/thread-entries.ts` — a thread's stored events folded once by
   `conversationOf` into what a conversation draws, the approvals still waiting,
   what a card says, and the person's words for a tool, an ending, an answer, a

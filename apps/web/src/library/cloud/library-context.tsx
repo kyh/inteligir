@@ -12,7 +12,7 @@ import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
 import type { SignedIn } from "#lib/auth-client";
 import { useLibrarySocket } from "./use-library-socket";
-import type { LibrarySocket } from "./use-library-socket";
+import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "./v1";
 
 // why this device leaves its account: a sign-out, or the account deleted
