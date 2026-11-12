@@ -7,7 +7,7 @@ a photo and the agent need a connection and say so; only a share from another
 app waits on the phone, in its outbox, until the library can be reached. It
 edits a note live in the editor every device draws, `@repo/editor` in an Expo
 DOM component, and draws the built-in agent's conversations from
-`@repo/agent-panel`.
+`@repo/client`.
 
 Expo + expo-router; the runtime the screens use is composed platform-free
 (`src/lib/compose-runtime.ts`), so its suites run it under node.
@@ -135,9 +135,9 @@ the phone is back; the Library says how many saves are waiting
 ## The agent
 
 The agent is the account's: the phone lists the same conversations as the
-Mac and draws a thread's events and approvals from `@repo/agent-panel`,
+Mac and draws a thread's events and approvals from `@repo/client`,
 natively (`src/app/agent/`), and the reply being written as the account's
-socket carries it (`src/lib/thread-previews.ts`). Asking about an item sends
+socket carries it (`@repo/client/library-cache`). Asking about an item sends
 it as the view's context. A send and an approval need a connection and say so
 rather than queue, since a turn runs in the cloud.
 

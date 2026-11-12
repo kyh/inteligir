@@ -1,41 +1,10 @@
-// What a card and Info say about an item, spelled once: the kind's word, a size, the meta line.
+// What a card and Info say about an item, spelled once: a size, the meta line.
 
-import type { ItemKind } from "@repo/contract/items/item-kind";
+import { KIND_LABELS } from "@repo/client/library-labels";
 import { URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { urlHost } from "@repo/contract/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
 import type { ListedItem } from "./listing";
-
-export const KIND_LABELS = {
-  audio: "Audio",
-  file: "File",
-  image: "Image",
-  link: "Link",
-  note: "Note",
-  pdf: "PDF",
-  video: "Video",
-} satisfies Record<ItemKind, string>;
-
-// the chips' words, plural, in the order the chips draw
-export const KIND_CHIP_LABELS = {
-  audio: "Audio",
-  file: "Files",
-  image: "Images",
-  link: "Links",
-  note: "Notes",
-  pdf: "PDFs",
-  video: "Videos",
-} satisfies Record<ItemKind, string>;
-
-export const CHIP_ORDER: readonly ItemKind[] = [
-  "link",
-  "video",
-  "audio",
-  "image",
-  "pdf",
-  "file",
-  "note",
-];
 
 const COUNT_FORMAT = new Intl.NumberFormat("en-US");
 

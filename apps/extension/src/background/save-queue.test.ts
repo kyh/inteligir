@@ -1,4 +1,4 @@
-import { deferred } from "@repo/contract/test-support/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { beforeEach, describe, expect, it } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";

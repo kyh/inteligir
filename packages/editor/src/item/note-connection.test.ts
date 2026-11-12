@@ -4,7 +4,7 @@ import * as Y from "yjs";
 
 import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
 
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
 import {
   DOWN_GRACE_MS,

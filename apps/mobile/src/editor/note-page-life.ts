@@ -6,7 +6,6 @@
 // (`lifeAfter`) moves it on the page's report, the screen's depth, the connection coming back, a
 // leave and an answer.
 
-import type { Clock } from "@repo/contract/library/account-socket";
 import type { NoteState, Settled } from "./page/page-host";
 
 export const SETTLE_ANSWER_MS = 5000;
@@ -145,27 +144,21 @@ const lifeAfter = (page: NotePage, event: LifeEvent): LifeStep => {
   }
 };
 
-export const notePageLife = ({
-  clock,
-  deep,
-}: {
-  readonly clock: Pick<Clock, "after">;
-  readonly deep: boolean;
-}): NotePageLifeStore => {
+export const notePageLife = ({ deep }: { readonly deep: boolean }): NotePageLifeStore => {
   let page: NotePage = { asked: 0, deep, life: { kind: deep ? "released" : "reading" } };
   const listeners = new Set<() => void>();
   // the leave an ask is for, made or confirmed once the page answers
   let leaving: { readonly go: () => void; readonly confirm: (discard: () => void) => void } | null =
     null;
-  let cancelTimer: (() => void) | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const run = (effect: LifeEffect, again: (event: LifeEvent) => void): void => {
     switch (effect) {
       case "ask": {
         const ask = page.asked;
-        cancelTimer = clock.after(SETTLE_ANSWER_MS, () => {
+        timer = setTimeout(() => {
           again({ ask, holds: false, kind: "answered" });
-        });
+        }, SETTLE_ANSWER_MS);
         break;
       }
       case "leave": {
@@ -188,8 +181,7 @@ export const notePageLife = ({
   const step = (event: LifeEvent): void => {
     const { effect, page: next } = lifeAfter(page, event);
     if (page.life.kind === "asking" && next.life.kind !== "asking") {
-      cancelTimer?.();
-      cancelTimer = null;
+      clearTimeout(timer);
     }
     const moved = next !== page;
     page = next;

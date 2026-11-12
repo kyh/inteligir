@@ -30,7 +30,7 @@ import {
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import type { SqlStatement } from "./library-sql";
-import { noteFields, paragraph } from "@repo/contract/test-support/library-items";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 
 import { cellOf, inCell } from "../test-support/library-cell";
 import { readSeedBlocks, storeBodyText, storeSeed } from "./cell-body";
@@ -75,7 +75,7 @@ interface Laid {
 
 const itemOf = (
   blocks: readonly LibraryBlock[],
-  fields: LibraryItemFields = noteFields(),
+  fields: LibraryItemFields = noteFixture(),
 ): Laid => ({
   blocks: blocks.map((block) => ({ block, section: "note" })),
   fields,
@@ -140,7 +140,7 @@ describe("items", () => {
     await inLibrary(({ storage }) => {
       const state = itemOf(
         [paragraph("a", "first"), paragraph("b", "second")],
-        noteFields({ aliases: ["Alt"], properties: { rating: 4 }, tags: ["work"] }),
+        noteFixture({ aliases: ["Alt"], properties: { rating: 4 }, tags: ["work"] }),
       );
       const derived = put(storage, "item-1", state);
       expect(readItem(storage.db, "item-1")).toStrictEqual({
@@ -166,12 +166,12 @@ describe("items", () => {
     await inLibrary(({ storage }) => {
       const newer = itemOf(
         [linkTo("target", "Target"), paragraph("a", "newer words")],
-        noteFields({ tags: ["fresh"], title: "Newer" }),
+        noteFixture({ tags: ["fresh"], title: "Newer" }),
       );
       put(storage, "item-1", newer, 5);
       const older = itemOf(
         [paragraph("a", "older words")],
-        noteFields({ tags: ["stale"], title: "Older" }),
+        noteFixture({ tags: ["stale"], title: "Older" }),
       );
       expect(offer(storage, "item-1", older, 3)).toBeNull();
       expect(offer(storage, "item-1", older, 5)).toBeNull();
@@ -200,9 +200,9 @@ describe("items", () => {
 
   it("reads every item that is not purged, by id", async () => {
     await inLibrary(({ storage }) => {
-      put(storage, "b", itemOf([], noteFields({ title: "B" })));
-      put(storage, "a", itemOf([], noteFields({ title: "A" })));
-      put(storage, "c", itemOf([], noteFields({ title: "C" })));
+      put(storage, "b", itemOf([], noteFixture({ title: "B" })));
+      put(storage, "a", itemOf([], noteFixture({ title: "A" })));
+      put(storage, "c", itemOf([], noteFixture({ title: "C" })));
       storeTombstone(storage, { deletedAt: 7, id: "c", seq: 9, updatedAt: 8 });
       expect(readListingRows(storage.db).map((row) => row.id)).toStrictEqual(["a", "b"]);
     });
@@ -210,7 +210,7 @@ describe("items", () => {
 
   it("holds one live item per address", async () => {
     await inLibrary(({ storage }) => {
-      const link = noteFields({ kind: "link", url: "https://example.com/a" });
+      const link = noteFixture({ kind: "link", url: "https://example.com/a" });
       put(storage, "first", itemOf([], link));
       expect(() =>
         put(storage, "second", itemOf([], { ...link, url: "https://www.example.com/a" })),
@@ -229,7 +229,7 @@ describe("items", () => {
       put(
         storage,
         "gone",
-        itemOf([paragraph("a", "findable words")], noteFields({ tags: ["work"] })),
+        itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] })),
       );
       storeTombstone(storage, { deletedAt: 7, id: "gone", seq: 2, updatedAt: 8 });
       expect(readItem(storage.db, "gone")).toStrictEqual({
@@ -247,7 +247,7 @@ describe("items", () => {
 
   it("lays no tombstone over a newer row, which keeps everything it holds", async () => {
     await inLibrary(({ storage }) => {
-      const state = itemOf([paragraph("a", "findable words")], noteFields({ tags: ["work"] }));
+      const state = itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] }));
       put(storage, "kept", state, 5);
       expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(
         false,
@@ -359,17 +359,17 @@ describe("search", () => {
       put(
         storage,
         "titled",
-        itemOf([paragraph("a", "nothing here")], noteFields({ title: "Gardening" })),
+        itemOf([paragraph("a", "nothing here")], noteFixture({ title: "Gardening" })),
       );
       put(
         storage,
         "body",
-        itemOf([paragraph("a", "notes on gardening tools")], noteFields({ title: "Misc" })),
+        itemOf([paragraph("a", "notes on gardening tools")], noteFixture({ title: "Misc" })),
       );
       put(
         storage,
         "gone",
-        itemOf([paragraph("a", "gardening")], noteFields({ deletedAt: 1, title: "Old" })),
+        itemOf([paragraph("a", "gardening")], noteFixture({ deletedAt: 1, title: "Old" })),
       );
       expect(searchLibrary(storage, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
         "titled",
@@ -414,11 +414,11 @@ describe(literalMatches, () => {
         "one",
         itemOf(
           [paragraph("z", "The Quick fox"), paragraph("b", "jumps"), paragraph("a", "quick again")],
-          noteFields({ title: "One" }),
+          noteFixture({ title: "One" }),
         ),
       );
-      put(storage, "two", itemOf([paragraph("a", "slow")], noteFields({ title: "Two" })));
-      put(storage, "gone", itemOf([paragraph("a", "quick")], noteFields({ deletedAt: 1 })));
+      put(storage, "two", itemOf([paragraph("a", "slow")], noteFixture({ title: "Two" })));
+      put(storage, "gone", itemOf([paragraph("a", "quick")], noteFixture({ deletedAt: 1 })));
       expect(literalMatches(storage, "QUICK", { after: null, limit: 10 })).toStrictEqual([
         { itemId: "one", text: "The Quick fox" },
       ]);
@@ -453,7 +453,7 @@ describe("links", () => {
       put(
         storage,
         "target",
-        itemOf([], noteFields({ kind: "link", title: "Target", url: "https://example.com/t" })),
+        itemOf([], noteFixture({ kind: "link", title: "Target", url: "https://example.com/t" })),
       );
       put(
         storage,

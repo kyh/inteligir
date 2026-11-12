@@ -1,4 +1,4 @@
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import { KEYS } from "platejs";

@@ -1,11 +1,17 @@
-import { fakeClock } from "@repo/contract/test-support/fake-clock";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { notePageLife, SETTLE_ANSWER_MS } from "./note-page-life";
 
-// a page's life on a hand-run clock, with each leave made and each time the person was asked
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// a page's life, with each leave made and each time the person was asked
 const lifeOver = (deep = false) => {
-  const clock = fakeClock();
-  const life = notePageLife({ clock, deep });
+  const life = notePageLife({ deep });
   const heard = { asked: 0, left: 0 };
   let discard: (() => void) | null = null;
   const back = (): void => {
@@ -21,7 +27,6 @@ const lifeOver = (deep = false) => {
   };
   return {
     back,
-    clock,
     discard: () => {
       if (discard === null) {
         throw new Error("nobody was asked to leave without the edits");
@@ -52,7 +57,7 @@ describe("a note page's life", () => {
     editing.life.answer({ ask: 1, holds: true });
     expect(editing.heard).toStrictEqual({ asked: 0, left: 1 });
     expect(editing.kind()).toBe("leaving");
-    expect(editing.clock.pending()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("asks once and leaves once however many times Back is pressed", () => {
@@ -68,7 +73,7 @@ describe("a note page's life", () => {
   });
 
   it("asks the person when the note does not hold, or the page does not answer in time, and the page again on the next Back", () => {
-    const { back, clock, heard, kind, life, settle } = lifeOver();
+    const { back, heard, kind, life, settle } = lifeOver();
     life.report("editing");
     back();
     life.answer({ ask: 1, holds: false });
@@ -77,9 +82,9 @@ describe("a note page's life", () => {
 
     back();
     expect(settle()).toBe(2);
-    clock.advance(SETTLE_ANSWER_MS - 1);
+    vi.advanceTimersByTime(SETTLE_ANSWER_MS - 1);
     expect(heard.asked).toBe(1);
-    clock.advance(1);
+    vi.advanceTimersByTime(1);
     expect(heard).toStrictEqual({ asked: 2, left: 0 });
 
     back();
@@ -97,13 +102,13 @@ describe("a note page's life", () => {
   });
 
   it("acts on no answer with no ask outstanding, nor on one to an earlier ask", () => {
-    const { back, clock, heard, kind, life } = lifeOver();
+    const { back, heard, kind, life } = lifeOver();
     life.report("editing");
     life.answer({ ask: 1, holds: true });
     expect(kind()).toBe("editing");
 
     back();
-    clock.advance(SETTLE_ANSWER_MS);
+    vi.advanceTimersByTime(SETTLE_ANSWER_MS);
     back();
     life.answer({ ask: 1, holds: true });
     expect(kind()).toBe("asking");
@@ -134,10 +139,10 @@ describe("a note page's life", () => {
   });
 
   it("asks a deep page again once the connection is back after its note did not hold", () => {
-    const { clock, kind, life, settle } = lifeOver();
+    const { kind, life, settle } = lifeOver();
     life.report("editing");
     life.place(true);
-    clock.advance(SETTLE_ANSWER_MS);
+    vi.advanceTimersByTime(SETTLE_ANSWER_MS);
     expect(kind()).toBe("editing");
     life.reconnected();
     expect(settle()).toBe(2);

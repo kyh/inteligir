@@ -1,6 +1,7 @@
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
 
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   blocksOf,
   cellOf,
@@ -9,8 +10,6 @@ import {
   engineIn,
   inCell,
   landedValue,
-  noteFields,
-  paragraph,
   person,
   placed,
   refusalOf,
@@ -72,7 +71,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       const made = landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       expect(made.item.seq).toBe(1);
 
@@ -107,7 +106,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       retitle(library, person("laptop"), itemId, TITLE, "From the laptop");
       landedValue(
@@ -129,13 +128,13 @@ describe("a write to the library cell", () => {
       const opId = crypto.randomUUID();
       const first = createItem(library, person(), {
         blocks: placed([A]),
-        fields: noteFields(),
+        fields: noteFixture(),
         id: itemId,
         opId,
       });
       const again = createItem(library, person(), {
         blocks: placed([A]),
-        fields: noteFields(),
+        fields: noteFixture(),
         id: itemId,
         opId,
       });
@@ -166,7 +165,7 @@ describe("a write to the library cell", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed(blocks),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: itemId,
         }),
       );
@@ -183,7 +182,7 @@ describe("a write to the library cell", () => {
       expect(17 * line.length).toBeGreaterThan(ITEM_TEXT_MAX_BYTES);
       const refused = createItem(library, FILL_ACTOR, {
         blocks: placed(blocks),
-        fields: noteFields(),
+        fields: noteFixture(),
         id: newItemId(),
       });
       expect(refusalOf(refused)).toStrictEqual({ kind: "too-large" });
@@ -196,7 +195,7 @@ describe("a write to the library cell", () => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const bytesCap = state.storage.sql.databaseSize + 1024;
       const library = engineIn(state, clockAt(), bytesCap);
@@ -216,7 +215,7 @@ describe("a write to the library cell", () => {
       );
       const refusedNew = createItem(library, FILL_ACTOR, {
         blocks: placed([]),
-        fields: noteFields({ properties: { notes: long } }),
+        fields: noteFixture({ properties: { notes: long } }),
         id: newItemId(),
       });
       expect(refusalOf(refusedNew)).toStrictEqual({
@@ -226,7 +225,7 @@ describe("a write to the library cell", () => {
       });
       const refusedSeed = createItem(library, FILL_ACTOR, {
         blocks: placed([paragraph("big", "y".repeat(8 * 1024))]),
-        fields: noteFields(),
+        fields: noteFixture(),
         id: newItemId(),
       });
       expect(refusalOf(refusedSeed)).toMatchObject({ kind: "quota" });
@@ -241,7 +240,7 @@ describe("a write to the library cell", () => {
       landedValue(
         createItem(roomy, FILL_ACTOR, {
           blocks: placed([A]),
-          fields: noteFields({ title }),
+          fields: noteFixture({ title }),
           id: itemId,
         }),
       );
@@ -265,7 +264,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const sha = "a".repeat(64);
       const cover = { base: null, field: "coverSha", op: "set", value: sha } satisfies FieldOp;
@@ -379,7 +378,7 @@ describe("change sets and undo", () => {
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       clock.now = start + 10_000;
       retitle(library, person(), itemId, TITLE, "Typed on");
@@ -408,7 +407,7 @@ describe("change sets and undo", () => {
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       let title = TITLE;
       for (const at of [10_000, 20_000, 30_000, 40_000, 50_000]) {
@@ -440,7 +439,7 @@ describe("change sets and undo", () => {
       const undone = newItemId();
       for (const id of [kept, undone]) {
         landedValue(
-          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
+          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id }),
         );
       }
       for (const itemId of [kept, undone]) {
@@ -475,7 +474,7 @@ describe("change sets and undo", () => {
         landedValue(
           createItem(library, FILL_ACTOR, {
             blocks: placed([A]),
-            fields: noteFields(),
+            fields: noteFixture(),
             id: itemId,
           }),
         );
@@ -510,7 +509,7 @@ describe("change sets and undo", () => {
         const [held, back] = [newItemId(), newItemId()];
         for (const id of [held, back]) {
           landedValue(
-            createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
+            createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id }),
           );
         }
         retitle(library, person("laptop"), held, TITLE, "An edit");
@@ -542,7 +541,7 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed([]),
-          fields: noteFields({ url }),
+          fields: noteFixture({ url }),
           id: gone,
         }),
       );
@@ -556,7 +555,7 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, FILL_ACTOR, {
           blocks: placed([]),
-          fields: noteFields({ url }),
+          fields: noteFixture({ url }),
           id: holder,
         }),
       );
@@ -585,7 +584,7 @@ describe("change sets and undo", () => {
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       // the person's set stays open while a reading's write seals as it lands, then the person
       // takes the item back within the same set
@@ -628,7 +627,7 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       landedValue(
-        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
       landedValue(undoFields(library, person(), [z.string().parse(set?.id)]));
@@ -645,7 +644,7 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       landedValue(
-        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       landedValue(
         library.write(FILL_ACTOR, {

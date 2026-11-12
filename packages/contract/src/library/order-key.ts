@@ -2,7 +2,7 @@
 // heads), so placing something between two neighbours names a key between theirs and renumbers
 // nothing: a folder's sort among its siblings and a block's place in its item.
 
-import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing";
+import { generateKeyBetween } from "fractional-indexing";
 import { z } from "zod";
 
 // a key grows by about one character per halving of the gap it lands in; past this a writer is
@@ -50,10 +50,6 @@ export const ordSchema = z.string().refine(isOrdKey, { error: "is not an order k
 // a key after `before` and ahead of `after` (null: the start or the end)
 export const ordBetween = (before: string | null, after: string | null): string =>
   generateKeyBetween(before, after);
-
-// `count` keys spread evenly between two neighbours, shorter than minting them one by one
-export const ordsBetween = (before: string | null, after: string | null, count: number): string[] =>
-  generateNKeysBetween(before, after, count);
 
 // code-unit order, the order fractional keys are minted in and SQLite's BINARY collation reads
 export const compareText = (a: string, b: string): number => {

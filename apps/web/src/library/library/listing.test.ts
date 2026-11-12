@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./listing";
+import { listingQuery, listingView, saveTagsOf, scopeTitle } from "./listing";
 
 const READING = {
   id: "0199a4c2-0000-7000-8000-0000000000f1",
@@ -10,24 +10,6 @@ const READING = {
 };
 
 describe("the grid's listing query", () => {
-  it("lists the library, Unsorted, a folder with what is under it, a tag, or Deleted", () => {
-    const base = { kind: null, sort: "saved" as const };
-    expect(listingQuery({ ...base, scope: { kind: "all" } })).toMatchObject({ deleted: false });
-    expect(listingQuery({ ...base, scope: { kind: "unsorted" } })).toMatchObject({
-      folderId: null,
-    });
-    expect(
-      listingQuery({ ...base, scope: { folderId: READING.id, kind: "folder" } }),
-    ).toMatchObject({
-      folderId: READING.id,
-      subfolders: true,
-    });
-    expect(listingQuery({ ...base, scope: { kind: "tag", tag: "papers" } })).toMatchObject({
-      tag: "papers",
-    });
-    expect(listingQuery({ ...base, scope: { kind: "deleted" } })).toMatchObject({ deleted: true });
-  });
-
   it("narrows to the chip's kind only when one is pressed", () => {
     expect(listingQuery({ kind: "pdf", scope: { kind: "all" }, sort: "title" })).toMatchObject({
       kinds: ["pdf"],
@@ -60,11 +42,9 @@ describe("the pages a grid read", () => {
 });
 
 describe("a scope", () => {
-  it("titles the header, and says where a save from it lands", () => {
+  it("titles the header, and tags a save from it", () => {
     expect(scopeTitle({ folderId: READING.id, kind: "folder" }, [READING])).toBe("Reading");
     expect(scopeTitle({ kind: "tag", tag: "papers" }, [])).toBe("#papers");
-    expect(saveFolderOf({ folderId: READING.id, kind: "folder" })).toBe(READING.id);
-    expect(saveFolderOf({ kind: "unsorted" })).toBeNull();
     expect(saveTagsOf({ kind: "tag", tag: "papers" })).toStrictEqual(["papers"]);
   });
 });

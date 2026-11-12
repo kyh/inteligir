@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { noteFields } from "@repo/contract/test-support/library-items";
+import { noteFixture } from "@repo/contract/test-support/library-items";
 
 import { itemProperties } from "./item-properties";
 
@@ -22,7 +22,7 @@ const heldItem = (fields: LibraryItemFields | null) => {
 describe("an item's properties as the panel's rows", () => {
   it("reads each property as the row its value types", () => {
     const { source } = heldItem(
-      noteFields({
+      noteFixture({
         properties: { due: "2026-11-09", done: false, owner: "Ana", meta: { a: 1 }, tags: ["x"] },
       }),
     );
@@ -36,7 +36,7 @@ describe("an item's properties as the panel's rows", () => {
   });
 
   it("writes one property op over the value the item holds", () => {
-    const { source, written } = heldItem(noteFields({ properties: { owner: "Ana" } }));
+    const { source, written } = heldItem(noteFixture({ properties: { owner: "Ana" } }));
     source.commit({ kind: "set", prop: { key: "owner", type: "text", value: "Bo" } });
     source.commit({ kind: "add", prop: { key: "done", type: "checkbox", value: true } });
     source.commit({ key: "owner", kind: "remove" });
@@ -48,7 +48,7 @@ describe("an item's properties as the panel's rows", () => {
   });
 
   it("writes nothing for an edit that no longer applies, or before the fields come", () => {
-    const { source, written } = heldItem(noteFields({ properties: { owner: "Ana" } }));
+    const { source, written } = heldItem(noteFixture({ properties: { owner: "Ana" } }));
     source.commit({ kind: "add", prop: { key: "owner", type: "text", value: "Bo" } });
     source.commit({ key: "gone", kind: "remove" });
     source.commit({ kind: "set", prop: { key: "meta", raw: "{}", type: "unsupported" } });

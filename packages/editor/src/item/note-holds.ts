@@ -1,6 +1,6 @@
 // Whether the open note holds every edit made here, which a host asks before it lets the note go.
 
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 
 import type { OpenNote } from "./item-editor";
 import type { NoteStatus } from "./note-connection";

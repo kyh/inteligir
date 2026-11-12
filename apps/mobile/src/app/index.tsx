@@ -28,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CHIP_ORDER, KIND_CHIP_LABELS, saveFolderOf } from "@repo/client/library-labels";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { refusalText } from "@repo/contract/refusal-text";
@@ -42,21 +43,10 @@ import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { ListedItem } from "@/library/library-card";
-import { listingPage, saveFolderOf, scopeTitle } from "@/library/library-query";
+import { listingPage, scopeTitle } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 import { online } from "@/ui/needs-connection";
-
-// the chips over the list, in the order a person scans them
-const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
-  { kind: "link", label: "Links" },
-  { kind: "video", label: "Videos" },
-  { kind: "audio", label: "Audio" },
-  { kind: "image", label: "Images" },
-  { kind: "pdf", label: "PDFs" },
-  { kind: "file", label: "Files" },
-  { kind: "note", label: "Notes" },
-];
 
 // the search waits for a pause in the typing before it asks the cloud
 const SEARCH_PAUSE_MS = 300;
@@ -150,7 +140,7 @@ const KindChips = ({
     showsHorizontalScrollIndicator={false}
     contentContainerClassName="gap-2 py-2"
   >
-    {KIND_CHIPS.map(({ kind, label }) => {
+    {CHIP_ORDER.map((kind) => {
       const on = kinds.has(kind);
       return (
         <Pressable
@@ -163,7 +153,7 @@ const KindChips = ({
           }}
         >
           <Text className={`text-14 ${on ? "text-primary-foreground" : "text-foreground"}`}>
-            {label}
+            {KIND_CHIP_LABELS[kind]}
           </Text>
         </Pressable>
       );

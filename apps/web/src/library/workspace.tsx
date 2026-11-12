@@ -5,8 +5,9 @@
 // grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
 // open it.
 
-import { viewContextOf } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { viewContextOf } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
+import { saveFolderOf } from "@repo/client/library-labels";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
@@ -52,7 +53,7 @@ import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
 import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { listingQuery, listingView, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
+import { listingQuery, listingView, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";

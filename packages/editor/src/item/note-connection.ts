@@ -11,7 +11,7 @@ import * as Y from "yjs";
 
 import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
 
-import { deferred } from "@repo/editor/deferred";
+import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
 
 // why a note takes no edit though its socket is up: it is past its size, or in Deleted

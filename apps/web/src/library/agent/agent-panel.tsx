@@ -5,8 +5,8 @@
 // connection. A message carries the screen it was sent from (the open item, or the grid's scope and
 // selection).
 
-import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import {
   answerWords,
   approvalWords,
@@ -21,8 +21,8 @@ import {
   statusWords,
   toolWords,
   workWords,
-} from "@repo/agent-panel/thread-entries";
-import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
+} from "@repo/client/thread-entries";
+import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/client/thread-entries";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
@@ -35,11 +35,11 @@ import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { everyChangeSet, UNDO_SCOPE, useUndoWaits } from "../cloud/change-set-pages";
 import { useLibraryQueries, useSocket, useWire } from "../cloud/library-context";
-import { retryUnlessRefused } from "../cloud/v1";
+import { retryUnlessRefused } from "@repo/client/library-cache";
 import { refusalText } from "@repo/contract/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import type { ComposerEvent, ComposerState } from "./agent-composer";
@@ -183,23 +183,9 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
   );
 };
 
-const useLivePreview = (threadId: string | null): string | null => {
-  const socket = useSocket();
-  const [preview, setPreview] = useState<{ threadId: string; text: string } | null>(null);
-  useEffect(
-    () =>
-      socket.onPreview((heard) => {
-        if (heard.text !== null) {
-          if (heard.threadId === threadId) {
-            setPreview({ text: heard.text, threadId: heard.threadId });
-          }
-        } else if (heard.threadId === null || heard.threadId === threadId) {
-          setPreview(null);
-        }
-      }),
-    [socket, threadId],
-  );
-  return preview?.threadId === threadId ? preview.text : null;
+const useLivePreview = (threadId: string): string | null => {
+  const { previews } = useSocket();
+  return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
 };
 
 const onRefused = (cause: unknown): void => {

@@ -59,7 +59,7 @@ packages/service       * the cloud's code: auth, /v1, connector, fills, each cel
 packages/db            * drizzle's schemas for D1 and each object's SQLite, with each object's DDL
 packages/editor        * the Plate editor on a note's live document, and the markdown dialect
 packages/page-reader   * a saved page read into an item, over its host's DOM
-packages/agent-panel   * the built-in agent's panel every device draws
+packages/client        * what the tab and the phone share above the contract: the agent panel, socket, labels
 packages/agent-skills    the dialect spec the agent's instructions are built from
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * four fitness tests over the repo

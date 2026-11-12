@@ -8,7 +8,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { agentViewContextSchema, liveItemRowSchema, newIdSchema } from "./library/library-wire";
+import { liveItemRowSchema } from "./library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
 import { V1_CUSTOM_ERROR_STATUS, V1_ERROR_STATUS_MAP } from "./v1-errors";
@@ -349,11 +349,6 @@ describe("the library's wire", () => {
     expect(parsed).toStrictEqual(row);
   });
 
-  it("holds an item a device creates to a uuid v7, so an offline id sorts by when it was made", () => {
-    expect(newIdSchema.validate(UUID_V7)).toBe(true);
-    expect(newIdSchema.validate(UUID_V4)).toBe(false);
-  });
-
   it("refuses a title for many items and a write that changes nothing", () => {
     const organize = v1Contract.library.items.organize["~orpc"].inputSchemas;
     const [schema] = schemasOf(organize);
@@ -361,18 +356,5 @@ describe("the library's wire", () => {
     expect(schema?.validate({ ids: [UUID_V7, UUID_V4], title: "Both" })).toBe(false);
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
     expect(write?.validate({ itemId: UUID_V7, ops: [] })).toBe(false);
-  });
-
-  it("names a library scope's folder by id", () => {
-    const library = {
-      itemIds: [UUID_V7],
-      scope: { folderId: UUID_V7, kind: "folder" },
-      selected: 3,
-      surface: "library",
-    };
-    expect(agentViewContextSchema.validate(library)).toBe(true);
-    expect(
-      agentViewContextSchema.validate({ ...library, scope: { kind: "folder", path: "Reading" } }),
-    ).toBe(false);
   });
 });

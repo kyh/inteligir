@@ -5,7 +5,7 @@
 import { Stack } from "expo-router";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { EMPTY_WORDS, statusWords } from "@repo/agent-panel/thread-entries";
+import { EMPTY_WORDS, statusWords } from "@repo/client/thread-entries";
 import { useThreads } from "@/lib/library-hooks";
 import { openAgent } from "@/lib/routes";
 import { screenStyle, useTheme } from "@/lib/theme";

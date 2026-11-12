@@ -1,7 +1,7 @@
 // A file the cloud kept from a page (its cover, or the picture or PDF a link answered with), put in
 // the library as a device's upload is (`../library/keep-bytes`), named by its SHA-256.
 
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 
 import { keepBytes, stubPort } from "../library/keep-bytes";
 import type { LibraryDO } from "../library/library-do";
@@ -15,7 +15,7 @@ export const storeFile = async (
   accountId: string,
   file: { readonly bytes: Uint8Array; readonly mime: string },
 ): Promise<string | null> => {
-  const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", file.bytes)));
+  const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", file.bytes)));
   const kept = await keepBytes(bucket, stubPort(cell), {
     accountId,
     body: async () => await Promise.resolve(file.bytes),

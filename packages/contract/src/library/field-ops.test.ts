@@ -4,7 +4,7 @@ import { applyFieldOps, fieldOpSchema, mergeListField, SCALAR_FIELDS } from "./f
 import type { FieldOp } from "./field-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
-import { noteFields } from "../test-support/library-items";
+import { noteFixture } from "../test-support/library-items";
 
 describe(mergeListField, () => {
   it("merges two writers' tags as a set, case folded, so both land", () => {
@@ -44,7 +44,7 @@ const applied = (fields: LibraryItemFields, ops: readonly FieldOp[]): LibraryIte
 
 describe("field patches", () => {
   it("lands a field over its base, reads its own value as done, and conflicts otherwise", () => {
-    const renamed = applied(noteFields(), [
+    const renamed = applied(noteFixture(), [
       { base: "A note", field: "title", op: "set", value: "B" },
     ]);
     expect(renamed.title).toBe("B");
@@ -60,21 +60,21 @@ describe("field patches", () => {
   });
 
   it("merges two writers' tags as a set, so both land", () => {
-    const tagged = applied(noteFields({ tags: ["later"] }), [
+    const tagged = applied(noteFixture({ tags: ["later"] }), [
       { base: [], op: "tags", value: ["mine"] },
     ]);
     expect(tagged.tags).toStrictEqual(["later", "mine"]);
   });
 
   it("lands a writer's new spelling of a tag as a change", () => {
-    const respelled = applyFieldOps(noteFields({ tags: ["Foo"] }), [
+    const respelled = applyFieldOps(noteFixture({ tags: ["Foo"] }), [
       { base: ["Foo"], op: "tags", value: ["foo"] },
     ]);
     expect(respelled).toMatchObject({ changed: true, kind: "applied" });
   });
 
   it("patches one property by its key, absent standing for no property", () => {
-    const rated = applied(noteFields({ properties: { rating: 3 } }), [
+    const rated = applied(noteFixture({ properties: { rating: 3 } }), [
       { base: 3, key: "rating", op: "property", value: 4 },
     ]);
     expect(rated.properties).toStrictEqual({ rating: 4 });
@@ -100,7 +100,7 @@ describe("the item's caps over a landed batch", () => {
       { length: ITEM_FIELD_CAPS.listEntries },
       (_, index) => `t${String(index)}`,
     );
-    const fields = noteFields({ tags: full });
+    const fields = noteFixture({ tags: full });
     expect(applyFieldOps(fields, [{ base: [], op: "tags", value: ["one-more"] }])).toStrictEqual({
       fields: ["tags"],
       kind: "invalid",
@@ -111,14 +111,16 @@ describe("the item's caps over a landed batch", () => {
   });
 
   it("lands no batch whose lists or properties pass their bytes, though each op is in bounds", () => {
-    const aliased = noteFields({ aliases: Array.from({ length: 10 }, (_, index) => alias(index)) });
+    const aliased = noteFixture({
+      aliases: Array.from({ length: 10 }, (_, index) => alias(index)),
+    });
     const more = Array.from({ length: 60 }, (_, index) => alias(100 + index));
     expect(fieldOpSchema.validate({ base: [], op: "aliases", value: more })).toBe(true);
     expect(applyFieldOps(aliased, [{ base: [], op: "aliases", value: more }])).toStrictEqual({
       fields: ["aliases"],
       kind: "invalid",
     });
-    const noted = noteFields({ properties: { notes: "x".repeat(200 * 1024) } });
+    const noted = noteFixture({ properties: { notes: "x".repeat(200 * 1024) } });
     expect(
       applyFieldOps(noted, [
         { base: "A note", field: "title", op: "set", value: "Renamed" },
@@ -130,7 +132,7 @@ describe("the item's caps over a landed batch", () => {
 
 describe("the op grammar", () => {
   it("has a set op for every field that is not a list", () => {
-    const fields = noteFields();
+    const fields = noteFixture();
     expect(SCALAR_FIELDS).toHaveLength(Object.keys(fields).length - 3);
     for (const field of SCALAR_FIELDS) {
       const value = fields[field];

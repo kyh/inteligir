@@ -2,6 +2,7 @@
 // and its outline, as the cell lists them. The arrows step through the grid's order, Space or
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
+import { KIND_LABELS } from "@repo/client/library-labels";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { readingOf } from "@repo/contract/library/item-reading";
 import { Badge } from "@repo/ui/components/badge";
@@ -12,7 +13,7 @@ import type { KeyboardEvent } from "react";
 import { readingNotice } from "../item/item-stages";
 import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
-import { cardMeta, coverOf, KIND_LABELS } from "./item-labels";
+import { cardMeta, coverOf } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
 import type { ListedItem } from "./listing";
 

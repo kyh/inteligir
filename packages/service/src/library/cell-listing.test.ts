@@ -2,7 +2,6 @@
 // it: an item whole, a listing's pages, the rail's counts and every title.
 
 import { isOrpcError } from "@repo/contract/v1/errors";
-import { ordsBetween } from "@repo/contract/library/order-key";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";
@@ -184,7 +183,7 @@ describe("what the apps read of the library", () => {
   it("counts the rail: folders in rail order, each tag once under its spelling", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = cellIn(state);
-      const [early = "a0", late = "a1"] = ordsBetween(null, null, 2);
+      const [early, late] = ["a0", "a1"];
       const projects = newId();
       const garden = newId();
       const archive = newId();
@@ -280,7 +279,7 @@ describe("what the apps read of the library", () => {
   it("answers a folder write with each folder it changed, as the write left it", async () => {
     await inCell(cellOf(), async (state) => {
       const { library } = cellIn(state);
-      const [first = "a0"] = ordsBetween(null, null, 1);
+      const first = "a0";
       const top = newId();
       const under = newId();
       const created = await library.folders.write({

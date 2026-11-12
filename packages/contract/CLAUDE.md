@@ -24,14 +24,12 @@ clock, random bytes and fresh ids are injected.
 - **The listing is in memory over what it filters and orders by, and pinned
   leads it.** One assembly answers for the cell and the fake cell alike, and a
   host hands a batch's rows whole. `packages/contract/src/library/library-index.ts`.
-- **One fake cell answers every client's suites.** A fake per client is a second
-  copy of the cell's rules. `packages/contract/src/test-support/fake-cell.ts`.
+- **One fake cell answers every client's suites, over the cell's own folder and
+  organize rules.** A fake per client, or rules spelled twice, drift from what
+  the cell refuses. `packages/contract/src/library/cell-rules.ts`.
 - **An item's reading is one value, which every writer moves and every surface
   reads alike.** Three fields set by hand badged a failure over a read.
   `packages/contract/src/library/item-reading.ts`.
-- **The account socket's hint is one value moved by one step.** Flags and a
-  generation counter left a refused ticket ticketing for good.
-  `packages/contract/src/library/account-socket.ts`.
 
 ## Items and files
 

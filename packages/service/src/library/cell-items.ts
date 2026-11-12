@@ -6,7 +6,8 @@
 
 import { importItem } from "@repo/editor/codec/item-markdown";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import { organizeOps } from "@repo/contract/library/cell-rules";
+import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
 import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
 import { readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
@@ -15,7 +16,6 @@ import { readItem, readLiveItem } from "./library-queries";
 import { readBlobRow } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
-import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landItem } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
@@ -115,17 +115,6 @@ export const createFile = (scope: LandingScope, input: CreateFileInput): LiveIte
   });
 };
 
-export interface OrganizeInput {
-  readonly ids: readonly string[];
-  readonly addTags?: readonly string[] | undefined;
-  readonly removeTags?: readonly string[] | undefined;
-  readonly folder?: FolderTarget | undefined;
-  readonly pinned?: boolean | undefined;
-  readonly title?: string | undefined;
-}
-
-const tagKey = (tag: string): string => tag.toLowerCase();
-
 // tags, folder, pin and title for each item, in the one set the write joins; an id that names
 // no live item refuses the whole change
 export const organizeItems = (
@@ -134,34 +123,12 @@ export const organizeItems = (
   input: OrganizeInput,
 ): LiveItemRow[] => {
   const folderId = folderOfTarget(scope, input.folder, ids.item);
-  const removed = new Set((input.removeTags ?? []).map(tagKey));
   return [...new Set(input.ids)].map((itemId) => {
     const item = readLiveItem(scope.storage.db, itemId);
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
-    const { fields } = item;
-    const ops: FieldOp[] = [];
-    if (input.addTags !== undefined || input.removeTags !== undefined) {
-      const kept = fields.tags.filter((tag) => !removed.has(tagKey(tag)));
-      const held = new Set(kept.map(tagKey));
-      const added = (input.addTags ?? []).filter((tag) => !held.has(tagKey(tag)));
-      ops.push({ base: fields.tags, op: "tags", value: [...kept, ...new Set(added)] });
-    }
-    if (folderId !== undefined && folderId !== fields.folderId) {
-      ops.push({ base: fields.folderId, field: "folderId", op: "set", value: folderId });
-    }
-    if (input.pinned !== undefined && input.pinned !== (fields.pinnedAt !== null)) {
-      ops.push({
-        base: fields.pinnedAt,
-        field: "pinnedAt",
-        op: "set",
-        value: input.pinned ? scope.now : null,
-      });
-    }
-    if (input.title !== undefined && input.title !== fields.title) {
-      ops.push({ base: fields.title, field: "title", op: "set", value: input.title });
-    }
+    const ops = organizeOps(item.fields, input, folderId, scope.now);
     return landWrite(scope, { itemId, ops });
   });
 };

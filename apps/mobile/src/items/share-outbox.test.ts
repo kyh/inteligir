@@ -1,11 +1,11 @@
-import { uploadBlob } from "@repo/contract/library/call-outcome";
+import { uploadBlob, v1Client } from "@repo/contract/library/call-outcome";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "@repo/contract/test-support/fake-cell";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { describe, expect, it } from "vitest";
-import { v1ClientOver } from "../lib/phone-transport";
+
 import { memoryKv } from "../test-support/memory-kv";
 import type { MemoryKv } from "../test-support/memory-kv";
 import { createPhoneSaves } from "./phone-saves";
@@ -26,7 +26,7 @@ const phoneOver = (device: FakeDevice, storage: MemoryKv = memoryKv()) => {
   const ended: SessionEnd[] = [];
   let landings = 0;
   const saves = createPhoneSaves({
-    client: v1ClientOver(device.transport, (end) => {
+    client: v1Client(device.transport, (end) => {
       ended.push(end);
     }),
     files: {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { deferred, nextTask } from "../test-support/async";
+import { deferred } from "@repo/contract/deferred";
+import { nextTask } from "../test-support/async";
 import { createShareQueue } from "./share-queue";
 
 // a settle the test ends when it chooses, as one that takes its time

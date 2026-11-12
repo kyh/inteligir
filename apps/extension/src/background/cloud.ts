@@ -4,14 +4,16 @@
 // client. Every call has a deadline under the 30 s a service worker waits on a fetch, so a cloud
 // that never answers leaves a save queued rather than a popup waiting.
 
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import { hexFromBytes } from "@repo/contract/bytes";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
-import { sharedFailure, UNREACHABLE, uploadBlob } from "@repo/contract/library/call-outcome";
+import {
+  sharedFailure,
+  UNREACHABLE,
+  uploadBlob,
+  v1Client,
+} from "@repo/contract/library/call-outcome";
 import type { CallFailure, V1Transport } from "@repo/contract/library/call-outcome";
 import { isOrpcError } from "@repo/contract/v1/errors";
-import { V1_RPC_PATH } from "@repo/contract/v1";
 import type { V1Client } from "@repo/contract/v1";
 
 import type { Session } from "./sign-in";
@@ -55,13 +57,7 @@ export const cloudOf = (session: Session, version: string): Cloud => {
     },
     origin: session.origin,
   };
-  const { items } = createORPCClient<V1Client>(
-    new RPCLink({
-      fetch: async (url, init) => await transport.fetch(new Request(url, init)),
-      origin: transport.origin,
-      url: V1_RPC_PATH,
-    }),
-  ).library;
+  const { items } = v1Client(transport).library;
   return {
     createFile: async (input) => await items.createFile(input),
     save: async (input) => await items.save(input),
@@ -98,7 +94,7 @@ export const sendFile = async (
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
 ): Promise<Sent<string>> => {
-  const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
   const outcome = await uploadBlob(cloud.transport, { bytes, mime, sha });
   switch (outcome.kind) {
     case "stored": {

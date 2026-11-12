@@ -1,6 +1,7 @@
+import { createORPCErrorFromJson } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 
-import { UNREACHABLE, uploadBlob } from "./call-outcome";
+import { sessionEndOf, UNREACHABLE, uploadBlob } from "./call-outcome";
 import type { UploadOutcome, V1Transport } from "./call-outcome";
 
 const FILE = { bytes: new Uint8Array([1, 2, 3]), mime: "image/png", sha: "a".repeat(64) };
@@ -56,5 +57,18 @@ describe(uploadBlob, () => {
         kind: "failed",
       });
     }
+  });
+});
+
+const defined = (code: string) =>
+  createORPCErrorFromJson({ code, data: undefined, defined: true, message: code });
+
+describe(sessionEndOf, () => {
+  it("ends the sign-in on a signed-out, deleted or outdated one, and on nothing else", () => {
+    expect(sessionEndOf(defined("UNAUTHORIZED"))).toBe("signed-out");
+    expect(sessionEndOf(defined("GONE"))).toBe("gone");
+    expect(sessionEndOf(defined("CLIENT_OUTDATED"))).toBe("outdated");
+    expect(sessionEndOf(defined("INVALID_CREDENTIALS"))).toBeNull();
+    expect(sessionEndOf(new Error("offline"))).toBeNull();
   });
 });

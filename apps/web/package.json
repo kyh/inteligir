@@ -25,7 +25,7 @@
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@react-three/fiber": "^9.8.2",
-    "@repo/agent-panel": "workspace:*",
+    "@repo/client": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/service": "workspace:*",

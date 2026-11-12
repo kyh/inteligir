@@ -7,6 +7,7 @@
 // takes a page's article in its note, which the caller sends there before the write
 // (`replaceArticle`), so the write lands only the fields.
 
+import type { FolderTarget } from "@repo/contract/library/cell-rules";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { applyFieldOps } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
@@ -23,7 +24,6 @@ import { withArticle } from "../note/article-body";
 import { readSeedBlocks } from "./cell-body";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
-import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landItem, urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";

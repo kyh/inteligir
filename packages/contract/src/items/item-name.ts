@@ -2,7 +2,10 @@
 // address goes by until its page is read. A title becomes a legal file name here, once, for every
 // writer, repaired rather than refused, so each name is one every disk takes and a link can name.
 
+import { utf8ByteLength } from "../library/canonical-json";
 import { safeDecode } from "../text/safe-decode";
+import { extensionsOfType } from "./item-kind";
+import type { SniffedMedia } from "./sniff-media";
 import { urlHost, urlLastSegment } from "./item-url";
 
 const NAME_MAX_CHARS = 120;
@@ -44,25 +47,13 @@ const repairChars = (text: string): string => {
   return out;
 };
 
-// not TextEncoder: hermes (react native) only recently grew it
-const utf8Length = (ch: string): number => {
-  const cp = ch.codePointAt(0) ?? 0;
-  if (cp <= 0x7f) {
-    return 1;
-  }
-  if (cp <= 0x7_ff) {
-    return 2;
-  }
-  return cp <= 0xff_ff ? 3 : 4;
-};
-
 // the longest prefix within both budgets, cut back to its last space when one is in it
 const cutAtWord = (name: string, maxChars: number, maxBytes: number): string => {
   const chars = [...name];
   let bytes = 0;
   let fits = 0;
   while (fits < chars.length && fits < maxChars) {
-    bytes += utf8Length(chars[fits] ?? "");
+    bytes += utf8ByteLength(chars[fits] ?? "");
     if (bytes > maxBytes) {
       break;
     }
@@ -130,27 +121,13 @@ export const itemNameFromUrl = (url: string): string => {
   return named ?? itemNameFromTitle(host) ?? UNTITLED;
 };
 
-// the files a link may answer with in place of a page, by the type its bytes sniff as
-const ORIGINAL_EXTENSIONS = {
-  "application/pdf": "pdf",
-  "image/avif": "avif",
-  "image/gif": "gif",
-  "image/heic": "heic",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/svg+xml": "svg",
-  "image/webp": "webp",
-} as const;
-
-export type OriginalMediaType = keyof typeof ORIGINAL_EXTENSIONS;
-
 // a file found at a link keeps its own name when the address names one with the right extension
-export const originalFileName = (url: string, mediaType: OriginalMediaType): string => {
-  const extension = ORIGINAL_EXTENSIONS[mediaType];
+export const originalFileName = (url: string, mediaType: SniffedMedia["mediaType"]): string => {
+  const extensions = extensionsOfType(mediaType);
   const segment = urlLastSegment(url);
   const dot = segment.lastIndexOf(".");
-  const stem = dot > 0 ? segment.slice(0, dot) : segment;
+  const stem = itemNameFromTitle(dot > 0 ? segment.slice(0, dot) : segment) ?? "File";
   const given = dot > 0 ? segment.slice(dot + 1).toLowerCase() : "";
-  const sameKind = given === extension || (extension === "jpg" && given === "jpeg");
-  return `${itemNameFromTitle(stem) ?? "File"}.${sameKind ? given : extension}`;
+  const extension = extensions.includes(given) ? given : extensions[0];
+  return extension === undefined ? stem : `${stem}.${extension}`;
 };

@@ -9,6 +9,7 @@ import { inviteCode } from "@repo/db/d1/schema";
 import { connectorAuth } from "../connector/connector-auth";
 import { signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import { connectAssistant } from "../test-support/connector-session";
+import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   blocksOf,
   cellOf,
@@ -18,8 +19,6 @@ import {
   inCell,
   landedValue,
   newAccountId,
-  noteFields,
-  paragraph,
   person,
   placed,
   refusalOf,
@@ -72,7 +71,7 @@ describe("the library cell", () => {
       landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "mine")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );
@@ -156,7 +155,7 @@ describe("the library cell", () => {
       landedValue(
         createItem(library, person(), {
           blocks: placed([paragraph("a", "typed a while ago")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );
@@ -180,7 +179,7 @@ describe("the library cell", () => {
       const library = openCellLibrary(state, env);
       const result = createItem(library, person(), {
         blocks: placed([paragraph("a", "before the eviction")]),
-        fields: noteFields(),
+        fields: noteFixture(),
         id: itemId,
       });
       await settleCommit(state, env, library, result);
@@ -207,7 +206,7 @@ describe("the library cell", () => {
       landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "a later build's")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );
@@ -342,7 +341,7 @@ describe("deleting the account from its cell", () => {
       landedValue(
         createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "gone with the account")]),
-          fields: noteFields(),
+          fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );

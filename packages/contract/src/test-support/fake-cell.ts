@@ -33,11 +33,13 @@ import {
 } from "../v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
+import { folderOpLanding, folderOpRefusal, organizeOps } from "../library/cell-rules";
+import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyFieldOps } from "../library/field-ops";
 import { readingOps } from "../library/item-reading";
 import type { FieldConflict, FieldOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
-import { deriveBody, deriveItem, titleKey } from "../library/derive-item";
+import { deriveBody, deriveItem } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
 import { fileSha } from "../library/file-sha";
 import {
@@ -69,18 +71,6 @@ type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
 type HeldItem = LiveRow & { readonly blocks: BodyBlock[] };
-
-// where a write files an item: a folder by its id or its path, none, or where it stands
-type FolderTarget = { readonly id: string } | { readonly path: string } | null | undefined;
-
-interface OrganizeInput {
-  readonly ids: readonly string[];
-  readonly addTags?: readonly string[] | undefined;
-  readonly removeTags?: readonly string[] | undefined;
-  readonly folder?: FolderTarget;
-  readonly pinned?: boolean | undefined;
-  readonly title?: string | undefined;
-}
 
 interface CellItem {
   readonly fields: LibraryItemFields;
@@ -145,8 +135,6 @@ const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
 const shasIn = (json: string): Set<string> =>
   new Set([...json.matchAll(SHA_KEY_RE)].flatMap((match) => match.groups?.sha ?? []));
 
-const tagKey = (tag: string): string => tag.toLowerCase();
-
 // an item as an organize answers it, concisely
 const summaryOf = ({ card, fields, id }: LiveRow) => ({
   folderId: fields.folderId,
@@ -158,28 +146,6 @@ const summaryOf = ({ card, fields, id }: LiveRow) => ({
   title: card.title,
   url: fields.url,
 });
-
-// a folder as one op leaves it, at the sequence its write lands under
-const folderAfter = (op: FolderOp, folder: FolderRow | null, seq: number): FolderRow | null => {
-  if (op.op === "create") {
-    return { deletedAt: null, id: op.id, name: op.name, parentId: op.parentId, seq, sort: op.sort };
-  }
-  if (folder === null) {
-    return null;
-  }
-  switch (op.op) {
-    case "rename": {
-      return { ...folder, name: op.name, seq };
-    }
-    case "move": {
-      return { ...folder, parentId: op.parentId, seq, sort: op.sort };
-    }
-    case "delete": {
-      return { ...folder, deletedAt: NOW, seq };
-    }
-    // no default
-  }
-};
 
 const throwConflicts = (current: readonly ConflictCurrent[]): void => {
   const [first, ...rest] = current;
@@ -389,7 +355,7 @@ export const createFakeCell = (): FakeCell => {
   const answerHeld = (id: string) => ({ created: false, item: liveRow(id, holding(id)) });
 
   // the folder a write files into, a live one the library holds; the fake files by id alone
-  const folderIdOf = (target: FolderTarget): string | null | undefined => {
+  const folderIdOf = (target: FolderTarget | undefined): string | null | undefined => {
     if (target === undefined || target === null) {
       return target;
     }
@@ -411,89 +377,43 @@ export const createFakeCell = (): FakeCell => {
     if (ids.some((id) => !items.has(id))) {
       throw new NotFoundError();
     }
-    const removed = new Set((input.removeTags ?? []).map(tagKey));
-    return ids.map((itemId) => {
-      const { fields } = holding(itemId);
-      const ops: FieldOp[] = [];
-      if (input.addTags !== undefined || input.removeTags !== undefined) {
-        const kept = fields.tags.filter((tag) => !removed.has(tagKey(tag)));
-        const keys = new Set(kept.map(tagKey));
-        const added = (input.addTags ?? []).filter((tag) => !keys.has(tagKey(tag)));
-        ops.push({ base: fields.tags, op: "tags", value: [...kept, ...new Set(added)] });
-      }
-      if (folderId !== undefined && folderId !== fields.folderId) {
-        ops.push({ base: fields.folderId, field: "folderId", op: "set", value: folderId });
-      }
-      if (input.pinned !== undefined && input.pinned !== (fields.pinnedAt !== null)) {
-        const pinnedAt = input.pinned ? NOW : null;
-        ops.push({ base: fields.pinnedAt, field: "pinnedAt", op: "set", value: pinnedAt });
-      }
-      if (input.title !== undefined && input.title !== fields.title) {
-        ops.push({ base: fields.title, field: "title", op: "set", value: input.title });
-      }
-      return write({ itemId, ops }).item;
-    });
-  };
-
-  // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
-  const namesakeOf = (op: FolderOp, folder: FolderRow | null): FolderRow | null => {
-    const parentId = op.op === "create" || op.op === "move" ? op.parentId : folder?.parentId;
-    const name = op.op === "create" || op.op === "rename" ? op.name : folder?.name;
-    if (op.op === "delete" || name === undefined) {
-      return null;
-    }
-    return (
-      [...folders.values()].find(
-        (sibling) =>
-          sibling.id !== op.id &&
-          sibling.deletedAt === null &&
-          sibling.parentId === parentId &&
-          titleKey(sibling.name) === titleKey(name),
-      ) ?? null
+    return ids.map(
+      (itemId) =>
+        write({ itemId, ops: organizeOps(holding(itemId).fields, input, folderId, NOW) }).item,
     );
   };
 
-  const storeFolder = (row: FolderRow, landed: Map<string, FolderRow>): void => {
-    folders.set(row.id, row);
-    landed.set(row.id, row);
-  };
-
-  const deleteUnder = (parentId: string, landed: Map<string, FolderRow>): void => {
-    for (const folder of folders.values()) {
-      if (folder.parentId === parentId && folder.deletedAt === null) {
-        storeFolder({ ...folder, deletedAt: NOW, seq: head }, landed);
-        deleteUnder(folder.id, landed);
-      }
-    }
-  };
-
+  // every op against the tree the ones before it left, as the cell lands them, and none if any
+  // refuses
   const folderWrite = (ops: readonly FolderOp[]) => {
+    const draft = new Map(folders);
+    const reader: FolderReader = {
+      children: (parentId) =>
+        [...draft.values()].filter(
+          (folder) => folder.parentId === parentId && folder.deletedAt === null,
+        ),
+      folder: (id) => draft.get(id) ?? null,
+    };
     const conflicts: ConflictCurrent[] = [];
+    const landed = new Map<string, FolderRow>();
     for (const op of ops) {
-      const folder = folders.get(op.id) ?? null;
-      const moved =
-        (op.op === "create" && folder !== null) ||
-        (op.op !== "create" && folder === null) ||
-        (op.op === "rename" && folder?.name !== op.base) ||
-        (op.op === "move" && folder?.parentId !== op.baseParentId);
-      const namesake = namesakeOf(op, folder);
-      if (moved) {
-        conflicts.push({ current: folder, id: op.id, kind: "folder" });
-      } else if (namesake !== null) {
-        conflicts.push({ current: namesake, id: namesake.id, kind: "folder" });
+      const refusal = folderOpRefusal(reader, op);
+      if (refusal === null) {
+        for (const row of folderOpLanding(reader, op, NOW)) {
+          const folder = { ...row, seq: head + 1 };
+          draft.set(folder.id, folder);
+          landed.set(folder.id, folder);
+        }
+      } else if (refusal.kind === "not-found") {
+        throw new NotFoundError();
+      } else {
+        conflicts.push({ current: refusal.current, id: refusal.id, kind: "folder" });
       }
     }
     throwConflicts(conflicts);
     head += 1;
-    const landed = new Map<string, FolderRow>();
-    for (const op of ops) {
-      const next = folderAfter(op, folders.get(op.id) ?? null, head);
-      if (next !== null) {
-        storeFolder(next, landed);
-      }
-      if (op.op === "delete") {
-        deleteUnder(op.id, landed);
-      }
+    for (const folder of landed.values()) {
+      folders.set(folder.id, folder);
     }
     return { folders: [...landed.values()], seq: head };
   };

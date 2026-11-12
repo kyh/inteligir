@@ -5,13 +5,14 @@
 // nothing to choose before it. Where the tab's session stands after that is one value, moved by
 // one step (`tabAfter`) whichever way the page meets its end.
 
-import type { Clock } from "@repo/contract/library/account-socket";
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { SIGN_IN_PATH } from "@repo/contract/library-page";
+import { createLibrarySocket } from "@repo/client/library-cache";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
-import { activeSession, keepSession, SIGN_IN_PATH, signInHref } from "#lib/auth-client";
+import { activeSession, keepSession, signInHref } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
 
 import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";
@@ -20,8 +21,6 @@ import { createLeaveGuard } from "./cloud/leave-guard";
 import type { LeaveGuard } from "./cloud/leave-guard";
 import type { LeaveReason, PageLibrary } from "./cloud/library-context";
 import type { FileCloud } from "./cloud/library-files";
-import { pageClock } from "./cloud/page-clock";
-import { createLibrarySocket } from "./cloud/use-library-socket";
 import { createCloudWire, createPageQueryClient } from "./cloud/v1";
 import type { CloudWire } from "./cloud/v1";
 import { installLightPrints } from "./light-prints";
@@ -96,7 +95,6 @@ const tabAfter = (
 };
 
 interface TabSessionArgs {
-  readonly clock: Clock;
   // Better Auth's own read, which a keeper makes on a timer so an idle page finds out too
   readonly read: () => Promise<SessionState>;
   readonly guard: Pick<LeaveGuard, "drop">;
@@ -104,7 +102,7 @@ interface TabSessionArgs {
   readonly location: Pick<Location, "assign" | "pathname" | "search">;
 }
 
-export const createTabSession = ({ clock, read, guard, forget, location }: TabSessionArgs) => {
+export const createTabSession = ({ read, guard, forget, location }: TabSessionArgs) => {
   let session: TabSession = { kind: "live" };
   const listeners = new Set<() => void>();
   const end = (cause: TabEnd): void => {
@@ -134,7 +132,7 @@ export const createTabSession = ({ clock, read, guard, forget, location }: TabSe
       heard();
     }
   };
-  keepSession(clock, async () => {
+  keepSession(async () => {
     const { kind } = await read();
     if (kind === "signed-out") {
       end({ kind: "ended", why: "signed-out" });
@@ -181,7 +179,6 @@ const open = async (): Promise<TabOpening> => {
   claimAccountStorage(user.id);
   const leave = createLeaveGuard(window);
   const tab = createTabSession({
-    clock: pageClock,
     forget: forgetAccountStorage,
     guard: leave,
     location: window.location,
@@ -198,11 +195,10 @@ const open = async (): Promise<TabOpening> => {
   const wire = createCloudWire(cloud, sessionEnded);
   const queryClient = createPageQueryClient();
   const socket = createLibrarySocket({
-    clock: pageClock,
-    dial: (url) => new WebSocket(url),
+    client: wire.client,
     origin,
+    queries: wire.orpc,
     queryClient,
-    wire,
   });
   const library: PageLibrary = {
     account: { email: user.email, name: user.name },

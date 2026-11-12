@@ -3,6 +3,7 @@
 // folder, a folder and what is under it, a tag and its children, or what was deleted. The cell
 // answers it a page at a time, and the grid draws the pages read so far.
 
+import { scopeQuery } from "@repo/client/library-labels";
 import type { listedItemSchema, listingQuerySchema } from "@repo/contract/library/library-wire";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { ItemKind } from "@repo/contract/items/item-kind";
@@ -21,33 +22,8 @@ export interface LibraryFilter {
   readonly sort: LibrarySort;
 }
 
-const scopeQuery = (scope: LibraryScope): Partial<ListingQuery> => {
-  switch (scope.kind) {
-    case "all": {
-      return {};
-    }
-    case "unsorted": {
-      return { folderId: null };
-    }
-    case "folder": {
-      return { folderId: scope.folderId, subfolders: true };
-    }
-    case "tag": {
-      return { tag: scope.tag };
-    }
-    case "deleted": {
-      return {};
-    }
-    // no default
-  }
-};
-
 export const listingQuery = (filter: LibraryFilter): ListingQuery => {
-  const query: ListingQuery = {
-    ...scopeQuery(filter.scope),
-    deleted: filter.scope.kind === "deleted",
-    sort: filter.sort,
-  };
+  const query: ListingQuery = { ...scopeQuery(filter.scope), sort: filter.sort };
   return filter.kind === null ? query : { ...query, kinds: [filter.kind] };
 };
 
@@ -104,10 +80,6 @@ export const scopeTitle = (
     // no default
   }
 };
-
-// the folder a save from this scope lands in: the shown folder's, else none (Unsorted)
-export const saveFolderOf = (scope: LibraryScope): string | null =>
-  scope.kind === "folder" ? scope.folderId : null;
 
 // a tag a save from this scope carries: the shown tag's
 export const saveTagsOf = (scope: LibraryScope): string[] =>

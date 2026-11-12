@@ -34,7 +34,7 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   `apps/web/vite.config.ts`.
 - **The account's socket says what moved, and the tab reads that again.** A frame names what moved
   and never carries it, since a dropped frame must not be a lost write.
-  `apps/web/src/library/cloud/use-library-socket.ts`.
+  `packages/client/src/library-cache.ts`.
 - **The tab asks before it loses the open item's edit.** Only typing no connection carried
   (`OpenNote.unsent`) arms the browser's ask, since an armed listener bars the back-forward cache,
   and leaving an item waits for the note to say it stored every edit.

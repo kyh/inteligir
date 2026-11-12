@@ -4,7 +4,7 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { ItemsMoved } from "../cloud/use-library-socket";
+import type { ItemsMoved } from "@repo/client/library-cache";
 import { installPageEditorHost } from "./page-editor-host";
 
 const PLANS = "0199a4c2-0000-7000-8000-0000000000c1";
@@ -99,7 +99,7 @@ describe("the page's editor host", () => {
       heard.push(ids);
     });
 
-    moved(new Map([[PLANS, 4]]));
+    moved(new Set([PLANS]));
     moved(null);
 
     expect(heard).toStrictEqual([new Set([PLANS]), null]);

@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "./library-item";
-import { noteFields } from "../test-support/library-items";
+import { noteFixture } from "../test-support/library-items";
 
 describe("an item's fields", () => {
   it("hold a note, a saved link and a file", () => {
-    expect(libraryItemFieldsSchema.validate(noteFields())).toBe(true);
+    expect(libraryItemFieldsSchema.validate(noteFixture())).toBe(true);
     expect(
       libraryItemFieldsSchema.validate(
-        noteFields({ fetchState: "pending", kind: "link", url: "https://example.com/a" }),
+        noteFixture({ fetchState: "pending", kind: "link", url: "https://example.com/a" }),
       ),
     ).toBe(true);
     expect(
       libraryItemFieldsSchema.validate(
-        noteFields({ kind: "file", originalName: "board.canvas", originalSha: "a".repeat(64) }),
+        noteFixture({ kind: "file", originalName: "board.canvas", originalSha: "a".repeat(64) }),
       ),
     ).toBe(true);
   });
@@ -37,6 +37,6 @@ describe("an item's fields", () => {
     ["an original's name that is a folder's own", { originalName: ".." }],
     ["a field no column holds", { colour: "red" }],
   ])("refuse %s", (_, overrides) => {
-    expect(libraryItemFieldsSchema.validate({ ...noteFields(), ...overrides })).toBe(false);
+    expect(libraryItemFieldsSchema.validate({ ...noteFixture(), ...overrides })).toBe(false);
   });
 });

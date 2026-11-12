@@ -16,7 +16,7 @@ import { onlineManager } from "@tanstack/react-query";
 
 import { readFile, uploadFile } from "../cloud/library-files";
 import type { FileCloud } from "../cloud/library-files";
-import type { LibrarySocket } from "../cloud/use-library-socket";
+import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "../cloud/v1";
 
 // what a link, Ask the agent, a tag and a note the editor makes do on the page
@@ -71,10 +71,7 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
         return ticket;
       },
     },
-    onItemsChanged: (listener) =>
-      ports.socket.onItems((moved) => {
-        listener(moved === null ? null : new Set(moved.keys()));
-      }),
+    onItemsChanged: ports.socket.onItems,
     openItem: (itemId) => {
       actions?.openItem(itemId);
     },

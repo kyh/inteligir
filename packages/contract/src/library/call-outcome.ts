@@ -1,8 +1,13 @@
-// What a `/v1` call that did not land met, in a client's terms: a refusal of the sign-in itself
-// (the credential, the account, this build), a budget to wait out, or no answer at all, beside
-// each procedure's own refusals, which its caller reads. A file's upload answers in statuses, the
-// same refusals by number.
+// `/v1` as every client calls it, and what a call that did not land met, in a client's terms: a
+// refusal of the sign-in itself (the credential, the account, this build), a budget to wait out, or
+// no answer at all, beside each procedure's own refusals, which its caller reads. A file's upload
+// answers in statuses, the same refusals by number.
 
+import { createORPCClient, onError } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+
+import { V1_RPC_PATH } from "../v1-contract";
+import type { V1Client } from "../v1-contract";
 import { isOrpcError, PayloadTooLargeError, QuotaError } from "../v1-errors";
 import { V1_BLOBS_PATH } from "./library-blobs";
 
@@ -48,6 +53,34 @@ export const sharedFailure = (error: Error): CallFailure | null => {
     ? { kind: "malformed", message: CHANGE_REFUSED }
     : { kind: "unreachable", message: UNREACHABLE };
 };
+
+// how a call's failure ended the sign-in, if it did
+export const sessionEndOf = (cause: unknown): SessionEnd | null => {
+  const failure = cause instanceof Error ? sharedFailure(cause) : null;
+  return failure?.kind === "session" ? failure.end : null;
+};
+
+// the cell's calls over the transport; the link hears every call's failure once, before its
+// caller does, so a sign-in the cloud ended is answered whichever call met it
+export const v1Client = (
+  transport: V1Transport,
+  onSessionEnd?: (end: SessionEnd) => void,
+): V1Client =>
+  createORPCClient<V1Client>(
+    new RPCLink({
+      fetch: async (url, init) => await transport.fetch(new Request(url, init)),
+      interceptors: [
+        onError((cause: unknown) => {
+          const end = sessionEndOf(cause);
+          if (end !== null) {
+            onSessionEnd?.(end);
+          }
+        }),
+      ],
+      origin: transport.origin,
+      url: V1_RPC_PATH,
+    }),
+  );
 
 // a file refused, by the code `/v1/rpc` answers its status with, and in the person's words
 interface UploadRefusal {

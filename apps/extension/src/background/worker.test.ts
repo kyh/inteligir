@@ -80,6 +80,7 @@ beforeEach(async () => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const PAGE = { id: browser.runtime.id, url: browser.runtime.getURL("/welcome.html") };
@@ -136,6 +137,17 @@ describe("the worker", () => {
       signInUrl: `${SESSION.origin}/connect/extension`,
     });
     expect(asked).toStrictEqual([]);
+  });
+
+  it("sends a store build to the site's own sign-in", async () => {
+    vi.stubEnv("MODE", "store");
+    jarHolds(null);
+    cloudAnswers();
+    worker.main();
+    await expect(ask({ type: "status" })).resolves.toStrictEqual({
+      account: null,
+      signInUrl: `${SESSION.origin}/app/sign-in`,
+    });
   });
 
   it("has no sign-out of its own: the site's signs it out, and what waits stays", async () => {
