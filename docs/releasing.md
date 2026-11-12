@@ -398,10 +398,10 @@ Only once every check in § 5 has passed, and the three close together.
   another feed and its people download this one, so that release skips this,
   and the next starts from that build. On a Mac running the previous release,
   open the app, or choose Check for Updates… in the app menu. Passing: the
-  corner card offers `<version>`, Download fills its bar, Settings › About
-  says `Inteligir <version> installs when it restarts.`, and Restart to update
-  relaunches the app; About Inteligir names `<version>`, with the library as
-  it was. Again from the previous build, type in a note and choose Restart to
+  update's toast offers `<version>` (VoiceOver reads it), Download fills its
+  bar, Settings › About says `Inteligir <version> installs when it restarts.`,
+  and Restart to update relaunches the app; About Inteligir names `<version>`,
+  with the library as it was. Again from the previous build, type in a note and choose Restart to
   update at once. Passing: the words just typed are still in the note.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev

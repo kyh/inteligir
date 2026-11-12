@@ -34,19 +34,26 @@ const underShell = (answers: ReadonlyMap<string, DesktopUpdateState>): string[] 
 };
 
 const shown = async (): Promise<void> => {
-  const [{ DesktopUpdateBanner }, { UpdatesRow }] = await Promise.all([
-    import("./desktop-update-banner"),
-    import("./settings/updates-row"),
-  ]);
+  const [{ DesktopUpdateBanner }, { UpdatesRow }, { Toaster }, { ThemeProvider }] =
+    await Promise.all([
+      import("./desktop-update-banner"),
+      import("./settings/updates-row"),
+      import("@repo/ui/components/sonner"),
+      import("#components/theme-provider"),
+    ]);
   render(
-    <>
+    <ThemeProvider>
+      <Toaster />
       <DesktopUpdateBanner />
       <UpdatesRow />
-    </>,
+    </ThemeProvider>,
   );
 };
 
-const banner = async (): Promise<HTMLElement> => await screen.findByRole("status");
+// the toaster's live region, which announces what lands in it
+const notices = (): HTMLElement => screen.getByRole("region", { name: /^Notifications/u });
+
+const banner = async (): Promise<HTMLElement> => await within(notices()).findByRole("listitem");
 
 // the shell's push; the page's listener registers a tick after it subscribes, so a case retries it
 const pushed = async (state: DesktopUpdateState): Promise<void> => {
@@ -138,7 +145,7 @@ describe("the Mac app's update", () => {
     await banner();
     await vi.waitFor(async () => {
       await pushed({ status: "not-available" });
-      expect(screen.queryByRole("status")).toBeNull();
+      expect(within(notices()).queryByRole("listitem")).toBeNull();
     });
     expect(screen.getByText("Inteligir is up to date.")).toBeDefined();
   });
@@ -146,6 +153,6 @@ describe("the Mac app's update", () => {
   it("is not there in a browser tab, and Settings says where updates come from", async () => {
     await shown();
     expect(screen.getByText("Updates come with the Mac app.")).toBeDefined();
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(within(notices()).queryByRole("listitem")).toBeNull();
   });
 });
