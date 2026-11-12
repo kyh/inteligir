@@ -13,7 +13,7 @@ import { readingNotice } from "../item/item-stages";
 import { useNow } from "../relative-time";
 import { fileUrl } from "../cloud/library-files";
 import { cardMeta, coverOf, KIND_LABELS } from "./item-labels";
-import { libraryShortcutFor } from "./library-keys";
+import { shortcutFor } from "../shortcuts";
 import type { ListedItem } from "./listing";
 
 export interface QuickLookProps {
@@ -60,7 +60,7 @@ export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
     if (row === null) {
       return;
     }
-    const shortcut = libraryShortcutFor(event, "grid", modifier);
+    const shortcut = shortcutFor(event.nativeEvent, "grid", modifier);
     switch (shortcut?.action) {
       case "quick-look": {
         event.preventDefault();

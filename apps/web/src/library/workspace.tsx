@@ -38,7 +38,7 @@ import {
 import { cellStanding } from "./cloud/needs-connection";
 import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
-import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
+import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
 import { leaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
@@ -241,7 +241,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     void navigate({ search: true, to: "/library/settings" });
   };
 
-  useGlobalShortcuts({ enabled: !covered, modifier }, (action) => {
+  useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
         revealPanel("agent");

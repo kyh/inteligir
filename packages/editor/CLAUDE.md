@@ -53,9 +53,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   twin.** Each row writes its own fixpoint and no other row's bytes, a touch button is a row of a
   table the desktop reads, and an empty inline equation writes no bytes (owner decision).
   `packages/editor/src/slash-items.tsx`.
-- **A binding is spelled from the table its listener reads, never as a literal.** Five tables own
-  every chord, every label and key glyph derives from their rows, and a chord two tables share is
-  refused, since both would run. `packages/editor/src/mark-shortcuts.ts`.
+- **A binding is spelled from the table its listener reads, never as a literal.** The editor's
+  three tables and the tab's one, its rows scoped by listener, own every chord, and every label and
+  key glyph derives from their rows, since a literal drifts from what the key does.
+  `packages/editor/src/mark-shortcuts.ts`.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
   merges. `apps/web/src/library/library/library-verbs.ts`.
