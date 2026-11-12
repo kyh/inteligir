@@ -98,9 +98,9 @@ src/
   it — trailing spaces, indentation, line endings. oxfmt ignores the directory;
   editors must too.
 - **Every node type is a Base + React pair.** `base-kit.ts` composes the Base
-  halves for the headless serializer; `kit-parity.test.ts` fails when the two
-  compositions disagree, so a node that renders but does not serialize is
-  impossible, and `touch-kit.test.ts` holds the touch kit to the same.
+  halves for the headless serializer; `kit-parity.test.ts` fails when it and
+  either profile's kit disagree, so a node that renders but does not serialize
+  is impossible.
 - **Every file reads, or is refused with a reason.** `readMarkdown`
   (`markdown/md-read.ts`) answers the blocks, or `too-deep` for a nesting
   deeper than the conversion or the writer holds, a list past

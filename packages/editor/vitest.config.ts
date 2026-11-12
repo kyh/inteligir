@@ -4,10 +4,6 @@ import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 
-// @platejs/math imports katex's css at module top; inlining routes it through vite so the css
-// import is stubbed.
-const inlineDeps = [/@platejs\/math/u];
-
 const TYPING_BUDGET = "src/typing-budget.test.tsx";
 
 const DOM_CLEANUP = "src/test-support/dom-cleanup.ts";
@@ -51,7 +47,6 @@ export default defineConfig({
   resolve: { alias: { "@repo/editor": path.resolve(import.meta.dirname, "src") } },
   test: {
     maxWorkers: 2,
-    server: { deps: { inline: inlineDeps } },
     projects: [
       {
         // no compiler: it would be inert, since it skips the ssr transform a node project runs
