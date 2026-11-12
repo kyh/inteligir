@@ -8,7 +8,6 @@
     "dev": "turbo run dev -F @repo/desktop",
     "dev:desktop": "turbo run dev -F @repo/desktop",
     "dev:extension": "turbo watch dev -F @repo/extension...",
-    "dev:gallery": "pnpm --filter @repo/ui-gallery dev",
     "dev:mobile": "turbo run dev -F @repo/mobile",
     "dev:web": "turbo watch dev -F @repo/web...",
     "e2e": "turbo run e2e",

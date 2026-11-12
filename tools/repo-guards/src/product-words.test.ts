@@ -14,8 +14,7 @@ import { readTextFile, REPO_ROOT, sourceOf, workspaceFiles, workspaces } from ".
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
 // site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
-// refusals and notices it hands a surface to show. tools/ui-gallery is not one:
-// it is never deployed, so no person reads its sample words
+// refusals and notices it hands a surface to show
 const SURFACES = [
   "@repo/agent-panel",
   "@repo/contract",

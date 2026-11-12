@@ -5,8 +5,8 @@ The shared component vocabulary, its type roles and its motion.
 ## Components
 
 - **Every component has a surface that draws it** (owner decision). A component or export nothing
-  draws is deleted, not held for a coming surface, since git keeps it; knip finds one, and the
-  gallery counts as no consumer. `knip.json`.
+  draws is deleted, not held for a coming surface, since git keeps it; knip finds one.
+  `knip.json`.
 - **`@repo/ui` reaches no oRPC module, as the editor does not.** The phone's DOM bundle loads both,
   so lint refuses `@orpc/*` and the oRPC-reaching `@repo/contract` modules here too.
   `oxlint.config.ts`.

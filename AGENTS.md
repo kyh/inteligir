@@ -63,7 +63,6 @@ packages/agent-skills    the dialect spec the agent's instructions are built fro
 packages/ui            * the shared components on Base UI
 tools/repo-guards      * four fitness tests over the repo
 tools/e2e                the Playwright flows `pnpm e2e` runs
-tools/ui-gallery         the @repo/ui gallery `pnpm dev:gallery` serves
 tools/messages-fake      a scripted Claude the local Worker, the e2e and the suites run the agent on
 ```
 
