@@ -12,6 +12,8 @@ platform and no UI: each device draws it in its own way (the tab with
 - `src/library-cache.ts` — what each frame reads again of a device's TanStack
   queries, which items moved, the reply the agent is writing, and the one
   retry rule for a read.
+- `src/library-labels.ts` — a kind's word, the kind chips in order, what a
+  scope asks the listing and where a save from it lands.
 - `src/thread-entries.ts` — a thread's stored events folded once by
   `conversationOf` into what a conversation draws, the approvals still waiting,
   what a card says, and the person's words for a tool, an ending, an answer, a

@@ -8,6 +8,7 @@
     "./account-socket": "./src/account-socket.ts",
     "./agent-send": "./src/agent-send.ts",
     "./library-cache": "./src/library-cache.ts",
+    "./library-labels": "./src/library-labels.ts",
     "./test-support/fake-sockets": "./src/test-support/fake-sockets.ts",
     "./thread-entries": "./src/thread-entries.ts"
   },

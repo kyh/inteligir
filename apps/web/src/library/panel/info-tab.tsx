@@ -7,6 +7,7 @@
 import { itemProperties } from "@repo/editor/item/item-properties";
 import type { ItemFields } from "@repo/editor/item/item-properties";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
+import { KIND_LABELS } from "@repo/client/library-labels";
 import { readingOf } from "@repo/contract/library/item-reading";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
@@ -17,7 +18,7 @@ import { z } from "zod";
 
 import { useLibraryQueries, useWire } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
-import { formatCount, KIND_LABELS, isUrlItem } from "../library/item-labels";
+import { formatCount, isUrlItem } from "../library/item-labels";
 import { useLibraryVerbs } from "../library/library-verbs";
 
 export interface InfoActions {
