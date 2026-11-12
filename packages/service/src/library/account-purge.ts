@@ -22,7 +22,6 @@ import { cellDbOf, migrateCell } from "./cell-db";
 import { notesHeld } from "./cell-notes";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
-import { cellStorageOf } from "./cell-storage";
 
 export interface PurgeScope {
   readonly ctx: DurableObjectState;
@@ -58,7 +57,7 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     // read past the tombstone, which refuses the engine's reads, from the cell's own rows
     name: "agent",
     run: async ({ accountId, ctx }) => {
-      await purgeThreadObjects(cellStorageOf(ctx.storage), ctx.exports, accountId);
+      await purgeThreadObjects(cellDbOf(ctx.storage), ctx.exports, accountId);
     },
   },
   {

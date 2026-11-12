@@ -4,8 +4,11 @@
 // refused once the day's turns are spent. What the turns cost is held by the gateway's spend limit
 // for each account alone (`./anthropic-client`), whose refusal ends the turn (`./thread-loop`).
 
-import type { SqlStatements } from "../library/library-sql";
+import { count, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+
+import { agentQueue, agentUsage } from "@repo/db/cell/schema";
+import type { CellDb } from "../library/cell-db";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,22 +32,26 @@ export const nextDayAt = (now: number): number => now - (now % DAY_MS) + DAY_MS;
 
 // ---- the ledger ----
 
-const countSchema = z.object({ count: z.number() });
-
 // how many more turns today allows, the waiting sends counted as taken
-export const turnsLeft = (sql: SqlStatements, allowance: Allowance, now: number): number => {
-  const [spent] = sql.all("SELECT turns AS count FROM agent_usage WHERE day = ?", [dayOf(now)]);
-  const [queued] = sql.all("SELECT count(*) AS count FROM agent_queue", []);
-  const taken = spent === undefined ? 0 : countSchema.parse(spent).count;
-  return Math.max(0, allowance.dayTurns - taken - countSchema.parse(queued).count);
+export const turnsLeft = (db: CellDb, allowance: Allowance, now: number): number => {
+  const spent =
+    db
+      .select({ turns: agentUsage.turns })
+      .from(agentUsage)
+      .where(eq(agentUsage.day, dayOf(now)))
+      .get()?.turns ?? 0;
+  const queued = db.select({ count: count() }).from(agentQueue).get()?.count ?? 0;
+  return Math.max(0, allowance.dayTurns - spent - queued);
 };
 
 // a turn begun is booked on its day, so the allowance counts it from its start, and one Claude could
 // not be reached for is given back on the day it was booked
-export const bookTurn = (sql: SqlStatements, day: string, turns: 1 | -1): void => {
-  sql.run(
-    `INSERT INTO agent_usage (day, turns) VALUES (?, max(0, ?))
-     ON CONFLICT (day) DO UPDATE SET turns = max(0, turns + ?)`,
-    [day, turns, turns],
-  );
+export const bookTurn = (db: CellDb, day: string, turns: 1 | -1): void => {
+  db.insert(agentUsage)
+    .values({ day, turns: Math.max(0, turns) })
+    .onConflictDoUpdate({
+      set: { turns: sql`max(0, ${agentUsage.turns} + ${turns})` },
+      target: agentUsage.day,
+    })
+    .run();
 };
