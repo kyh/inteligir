@@ -8,21 +8,16 @@
 // item's and keeps no other. A block that is not YAML at all is no field's, and the import keeps
 // it as the note's first code block.
 
-import { parseDocument, stringify } from "yaml";
+import { parseDocument } from "yaml";
 import { z } from "zod";
 
 import { isItemKind, URL_ITEM_KINDS } from "@repo/contract/items/item-kind";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { readItemFacts } from "@repo/editor/items/item-frontmatter";
-import { formatItemTime } from "@repo/editor/items/item-time";
 import { frontmatterAliases, frontmatterTags } from "@repo/editor/knowledge/link-extract";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
-import {
-  noteIdOfProperties,
-  parseProperties,
-  yamlScalarText,
-} from "@repo/editor/markdown/frontmatter";
+import { noteIdOfProperties, parseProperties } from "@repo/editor/markdown/frontmatter";
 import type { ParsedProperties, TypedProperty } from "@repo/editor/markdown/frontmatter";
 
 // the fields a file says: all but where the item sits, which files it holds and whether it is
@@ -255,67 +250,4 @@ export const readFrontmatter = (
     id: noteIdOfProperties(parsed),
     invalidYaml: null,
   };
-};
-
-const keyLine = (key: string, value: string): string => `${key}: ${yamlScalarText(value)}`;
-
-// a property's key and value as YAML spells any JSON
-const valueLines = (key: string, value: PropertyValue): string =>
-  stringify({ [key]: value }).replace(/\n$/u, "");
-
-const listLines = (key: string, values: readonly string[]): string[] =>
-  values.length === 0 ? [] : [`${key}:`, ...values.map((value) => `  - ${yamlScalarText(value)}`)];
-
-// an instant as a file's frontmatter spells one, its milliseconds kept only when it has any
-const instant = (ms: number): string =>
-  ms % 1000 === 0 ? formatItemTime(ms) : new Date(ms).toISOString();
-
-// the frontmatter's YAML for an item's fields, its id first, then the keys in one fixed order;
-// `title` is written only when the file's name cannot carry it. Each key is written once: a
-// property under a key a field wrote is that field's, but for what `tags` or `aliases` could not
-// read, which joins their one list
-export const writeFrontmatter = (fields: FileFields, id: string, title: string | null): string => {
-  const lines = [keyLine("id", id)];
-  const written = new Set(["id"]);
-  const properties = new Map(Object.entries(fields.properties));
-  const text = (key: string, value: string | null): void => {
-    if (value !== null) {
-      lines.push(keyLine(key, value));
-      written.add(key);
-    }
-  };
-  const list = (key: "aliases" | "tags", entries: readonly string[]): void => {
-    const rest = properties.get(key);
-    if (rest === undefined) {
-      lines.push(...listLines(key, entries));
-    } else {
-      const joined =
-        entries.length === 0 ? rest : [...entries, ...(Array.isArray(rest) ? rest : [rest])];
-      lines.push(valueLines(key, joined));
-    }
-    written.add(key);
-  };
-  text("title", title);
-  text("kind", fields.kind === "note" ? null : fields.kind);
-  text("url", fields.url);
-  text("site", fields.site);
-  text("author", fields.author);
-  text("published", fields.published);
-  text("saved", instant(fields.savedAt));
-  text("fetched", fields.fetchedAt === null ? null : instant(fields.fetchedAt));
-  text("fetch-error", fields.fetchError);
-  text("description", fields.description);
-  text("lang", fields.lang);
-  list("tags", fields.tags);
-  list("aliases", fields.aliases);
-  if (fields.pinnedAt !== null) {
-    lines.push("pinned: true");
-    written.add("pinned");
-  }
-  for (const [key, value] of properties) {
-    if (!written.has(key)) {
-      lines.push(valueLines(key, value));
-    }
-  }
-  return lines.join("\n");
 };

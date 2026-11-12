@@ -1,7 +1,7 @@
-// One item as one markdown file, both ways. Its fields are the frontmatter
-// (`item-fields.ts`), its body the dialect, the page a fill read inside `:::article` after the
-// person's note. The files an item holds whole sit where an export puts them: a saved link's cover the body's first embed under `assets/covers/`, a file item's
-// original its first embed of its kind.
+// One markdown file as one item. Its fields are the frontmatter (`item-fields.ts`), its body the
+// dialect, the page a fill read inside `:::article` after the person's note. The files an item
+// holds whole sit where a vault puts them: a saved link's cover the body's first embed under
+// `assets/covers/`, a file item's original its first embed of its kind.
 
 import type { TElement } from "platejs";
 
@@ -17,20 +17,16 @@ import {
   headlessEditor,
   parseMarkdown,
   parseMarkdownSections,
-  serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
 import { lfOnly } from "@repo/editor/markdown/md-read";
-import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";
+import { yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
 
-import { readFrontmatter, writeFrontmatter } from "./item-fields";
+import { readFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
-import { leaf } from "./slate-leaves";
-import { writeBlocks } from "./write-blocks";
-import type { WritePorts } from "./write-blocks";
 
 // a file an import found, and where in the folder it sits
 export interface FoundFile extends LibraryFile {
@@ -84,7 +80,7 @@ interface HeldFiles {
   original: { readonly sha: string; readonly name: string } | null;
 }
 
-// the body's structural files taken out of it: what an export puts there, read back
+// the body's structural files taken out of it: what a vault puts there, read back
 const takeHeldFiles = (
   sections: { first: TElement[]; all: TElement[][] },
   kind: ItemKind,
@@ -181,67 +177,4 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   const drafts = readBlocks(converted.value, PAGE_PORTS);
   const named = nameDrafts(drafts, newBlockId);
   return { blocks: named.blocks };
-};
-
-export interface ExportItem {
-  readonly id: string;
-  readonly fields: LibraryItemFields;
-  // in reading order
-  readonly blocks: readonly BodyBlock[];
-}
-
-// a file the item holds whole, by its role: an original by the name it was saved under too, null
-// where none came with it
-export type HeldFile =
-  | { readonly role: "cover"; readonly sha: string }
-  | { readonly role: "original"; readonly sha: string; readonly name: string | null };
-
-export interface ExportPorts extends WritePorts {
-  // where a file the item holds whole is written
-  readonly held: (file: HeldFile) => string;
-}
-
-export interface ExportedItem {
-  readonly text: string;
-}
-
-const heldImage = (url: string): TElement => ({
-  caption: [leaf("", {})],
-  children: [leaf("", {})],
-  type: "img",
-  url,
-});
-
-// one item as one markdown file; `title` is written into the frontmatter when the file's name
-// cannot carry it. No surface writes one: the codec's suites hold every import to this, its inverse
-export const exportItem = (
-  item: ExportItem,
-  ports: ExportPorts,
-  title: string | null,
-): ExportedItem => {
-  const of = (section: LibrarySection): LibraryBlock[] =>
-    item.blocks.filter((body) => body.section === section).map((body) => body.block);
-  const note = writeBlocks(of("note"), ports);
-  const article = writeBlocks(of("article"), ports);
-  const { fields } = item;
-  const head: TElement[] = [];
-  const ownCover = fields.coverSha !== null && fields.coverSha !== fields.originalSha;
-  if (fields.coverSha !== null && (ownCover || fields.kind !== "image")) {
-    head.push(heldImage(ports.held({ role: "cover", sha: fields.coverSha })));
-  }
-  if (fields.originalSha !== null) {
-    head.push(
-      heldImage(
-        ports.held({ name: fields.originalName, role: "original", sha: fields.originalSha }),
-      ),
-    );
-  }
-  const body: TElement[] =
-    article.length > 0
-      ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
-      : [...head, ...note];
-  const markdown = body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
-  const yaml = writeFrontmatter(fields, item.id, title);
-  const separator = markdown === "" ? "" : "\n";
-  return { text: `---\n${yaml}\n---\n${separator}${markdown}` };
 };

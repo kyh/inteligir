@@ -5,10 +5,14 @@ import { describe, expect, it } from "vitest";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
 
+import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { ARTICLE_SECTION_KEY } from "@repo/editor/markdown/md-rules";
+
 import { generateDoc } from "../test-support/markdown-doc-generator";
-import { CODEC_NOW, pretendLibrary, withoutId } from "../test-support/codec-ports";
-import { exportItem, importItem } from "./item-markdown";
+import { pretendLibrary, withoutId } from "../test-support/codec-ports";
+import { importItem } from "./item-markdown";
 import type { ImportedItem } from "./item-markdown";
+import { writeBlocks } from "./write-blocks";
 
 const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/", import.meta.url));
 
@@ -32,21 +36,23 @@ const imported = (text: string, name = "Fixture"): ImportedItem => {
   return read.item;
 };
 
-const exported = (item: ImportedItem): { text: string } =>
-  exportItem(
-    {
-      blocks: item.blocks,
-      fields: { ...item.fields, deletedAt: null, folderId: null },
-      id: "0195f3a0-5c1e-7000-8000-000000000001",
-    },
-    library.exportPorts(),
-    // the file is named for the item, as an export names it, so its title rides in no key
-    null,
-  );
+// an item's body as the codec writes it, the page inside `:::article` after the note
+const bodyOf = (item: ImportedItem): string => {
+  const of = (section: LibrarySection) =>
+    writeBlocks(
+      item.blocks.filter((body) => body.section === section).map((body) => body.block),
+      library.writePorts(),
+    );
+  const article = of("article");
+  const body =
+    article.length > 0
+      ? [...of("note"), { children: article, type: ARTICLE_SECTION_KEY }]
+      : of("note");
+  return body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
+};
 
-// the export's file, read back under the name an export gives it
-const reimported = (item: ImportedItem): ImportedItem =>
-  imported(exported(item).text, item.fields.title);
+// the written body read back under the item's title
+const reimported = (item: ImportedItem): ImportedItem => imported(bodyOf(item), item.fields.title);
 
 // what an item is, ids aside
 const content = (item: ImportedItem) => ({
@@ -54,11 +60,6 @@ const content = (item: ImportedItem) => ({
   fields: item.fields,
   leftOut: item.leftOut,
 });
-
-const FRONTMATTER_RE = /^---\n(?<yaml>[\s\S]*?)\n---\n(?:\n|$)/u;
-
-// a file's body, its frontmatter aside: what the person wrote below it
-const bodyOf = (text: string): string => text.replace(FRONTMATTER_RE, "");
 
 // an item as the editor stores it, each block what a person typed, whatever its text spells
 const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => ({
@@ -73,8 +74,7 @@ const typedLine = (text: string, id = "typed"): LibraryBlock => ({
   type: "p",
 });
 
-const typedBody = (text: string): string =>
-  bodyOf(exported(typedItem("note", [typedLine(text)])).text);
+const typedBody = (text: string): string => bodyOf(typedItem("note", [typedLine(text)]));
 
 const types = (item: ImportedItem): string[] => item.blocks.map(({ block }) => block.type);
 
@@ -84,20 +84,23 @@ const stored = (item: ImportedItem): string => JSON.stringify(item.blocks);
 // writer moves outside the mark
 const SETTLES_ON_FIRST_WRITE = new Set(["corpus/wiki-in-bold.md"]);
 
-describe("import(export(v)) is v, ids aside", () => {
+describe("a body read from what the codec wrote is the body, ids aside", () => {
   it.each(fixtures())("$name", (fixture) => {
     const first = imported(fixture.text);
     expect(first.leftOut).toBe(0);
     const settled = SETTLES_ON_FIRST_WRITE.has(fixture.name) ? reimported(first) : first;
-    expect(content(reimported(settled))).toStrictEqual(content(settled));
-    expect(exported(reimported(first)).text).toBe(exported(first).text);
+    expect(content(reimported(settled)).blocks).toStrictEqual(content(settled).blocks);
+    expect(bodyOf(reimported(first))).toBe(bodyOf(first));
   });
 
   it("settles only the files in its list on their first write", () => {
     const settling = fixtures()
       .filter((fixture) => {
         const first = imported(fixture.text);
-        return JSON.stringify(content(reimported(first))) !== JSON.stringify(content(first));
+        return (
+          JSON.stringify(content(reimported(first)).blocks) !==
+          JSON.stringify(content(first).blocks)
+        );
       })
       .map((fixture) => fixture.name);
     expect(new Set(settling)).toStrictEqual(SETTLES_ON_FIRST_WRITE);
@@ -278,7 +281,7 @@ describe("a block a list item opens with", () => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(blocks);
-    expect(bodyOf(exported(item).text)).toContain(WEB_IMAGE);
+    expect(bodyOf(item)).toContain(WEB_IMAGE);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -332,14 +335,14 @@ describe("a block a list item opens with", () => {
 
   it("nests a list an item opens with under that item's empty line, its to-dos kept", () => {
     const item = imported("- - [ ] a\n  - [x] b\n- c\n");
-    expect(bodyOf(exported(item).text)).toBe("-\n  - [ ] a\n  - [x] b\n- c\n");
+    expect(bodyOf(item)).toBe("-\n  - [ ] a\n  - [x] b\n- c\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it("keeps a heading an item opens with as the item's words", () => {
     const item = imported("- # kept\n");
     expect(types(item)).toStrictEqual(["p"]);
-    expect(bodyOf(exported(item).text)).toBe("- kept\n");
+    expect(bodyOf(item)).toBe("- kept\n");
   });
 
   it("stands a heading or a quote a person made a list item outside the list", () => {
@@ -403,7 +406,7 @@ describe("a reference and its definition", () => {
     const item = imported(BOTH);
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(["p"]);
-    expect(bodyOf(exported(item).text)).toBe(
+    expect(bodyOf(item)).toBe(
       `Read the ${WRITTEN} before [the meeting](https://example.com/meet) on Friday.\n`,
     );
     expect(content(reimported(item))).toStrictEqual(content(item));
@@ -430,8 +433,8 @@ describe("a reference and its definition", () => {
   ])("reads %s", (_name, text) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
-    expect(bodyOf(exported(item).text)).toContain(WRITTEN);
-    expect(bodyOf(exported(item).text)).not.toContain("]: ");
+    expect(bodyOf(item)).toContain(WRITTEN);
+    expect(bodyOf(item)).not.toContain("]: ");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -453,9 +456,7 @@ describe("a reference and its definition", () => {
     const item = imported(
       '[a](https://example.com "Kept") and [b][l]\n\n[l]: https://example.com/l "Link title"\n',
     );
-    expect(bodyOf(exported(item).text)).toBe(
-      "[a](https://example.com) and [b](https://example.com/l)\n",
-    );
+    expect(bodyOf(item)).toBe("[a](https://example.com) and [b](https://example.com/l)\n");
   });
 
   it("keeps the words of a reference to no address, the source of an image of one, and its line", () => {
@@ -473,7 +474,7 @@ describe("a reference and its definition", () => {
       "Note.\n\n[p]: https://example.com/p\n\n:::article\n[page words][p]\n:::\n",
     );
     expect(stored(item)).toContain('"url":"https://example.com/p"');
-    expect(bodyOf(exported(item).text)).not.toContain("]: ");
+    expect(bodyOf(item)).not.toContain("]: ");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -493,7 +494,7 @@ describe("a reference and its definition", () => {
     expect(stored(item)).toContain(
       '{"text":"[orphan]: "},{"children":[{"text":"https://example.com"}]',
     );
-    expect(bodyOf(exported(item).text)).toContain(String.raw`\[orphan]: <https://example.com>`);
+    expect(bodyOf(item)).toContain(String.raw`\[orphan]: <https://example.com>`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -505,9 +506,7 @@ describe("a reference and its definition", () => {
 
   it("uses the first definition of a label and reads the next as its text", () => {
     const item = imported("[a][b]\n\n[b]: https://example.com/one\n[b]: https://example.com/two\n");
-    expect(bodyOf(exported(item).text)).toBe(
-      "[a](https://example.com/one)\n\n\\[b]: <https://example.com/two>\n",
-    );
+    expect(bodyOf(item)).toBe("[a](https://example.com/one)\n\n\\[b]: <https://example.com/two>\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -525,13 +524,13 @@ describe("an equation's fence line", () => {
     const item = imported("$$ E = mc^2\n+ x\n$$\n");
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(["equation"]);
-    expect(bodyOf(exported(item).text)).toBe("$$\nE = mc^2\n+ x\n$$\n");
+    expect(bodyOf(item)).toBe("$$\nE = mc^2\n+ x\n$$\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it("is the whole expression of a fence with nothing under it", () => {
     const item = imported("$$ E = mc^2\n$$\n");
-    expect(bodyOf(exported(item).text)).toBe("$$\nE = mc^2\n$$\n");
+    expect(bodyOf(item)).toBe("$$\nE = mc^2\n$$\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 });
@@ -541,7 +540,7 @@ describe("a footnote", () => {
     const item = imported("A claim[^a] here.\n\n[^a]: the source\n");
     expect(item.leftOut).toBe(0);
     expect(types(item)).toStrictEqual(["p", "p"]);
-    expect(bodyOf(exported(item).text)).toBe("A claim\\[^a] here.\n\n\\[^a]: the source\n");
+    expect(bodyOf(item)).toBe("A claim\\[^a] here.\n\n\\[^a]: the source\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -555,7 +554,7 @@ describe("a footnote", () => {
   ])("keeps the words around one in %s", (_name, text) => {
     const item = imported(text);
     expect(item.leftOut).toBe(0);
-    const body = bodyOf(exported(item).text);
+    const body = bodyOf(item);
     expect(body).toContain(String.raw`one\[^1]`);
     expect(body).toContain(String.raw`\[^1]: note`);
     expect(content(reimported(item))).toStrictEqual(content(item));
@@ -569,7 +568,7 @@ describe("a footnote", () => {
 
   it("keeps text a person typed that spells a call as that text", () => {
     const item = typedItem("note", [typedLine("A typed [^a] here.")]);
-    expect(bodyOf(exported(item).text).trimEnd()).toBe(String.raw`A typed \[^a] here.`);
+    expect(bodyOf(item).trimEnd()).toBe(String.raw`A typed \[^a] here.`);
     expect(content(reimported(item)).blocks).toStrictEqual(content(item).blocks);
   });
 });
@@ -668,7 +667,7 @@ describe("one file as its item", () => {
     });
   });
 
-  it("keeps what a field's key holds that the field cannot read, and writes the key once", () => {
+  it("keeps what a field's key holds that the field cannot read", () => {
     const item = imported(
       [
         "---",
@@ -696,14 +695,6 @@ describe("one file as its item", () => {
       },
       tags: ["work"],
     });
-    const written = exported(item).text;
-    expect(written.match(/^tags:/gmu)).toHaveLength(1);
-    expect(written).toContain("tags:\n  - work\n  - reading list\n  - 2026\n");
-    expect(content(reimported(item))).toStrictEqual(content(item));
-    // a field the person set later wins its key over a property of the same name
-    const pinned = exported({ ...item, fields: { ...item.fields, pinnedAt: CODEC_NOW } }).text;
-    expect(pinned.match(/^pinned:/gmu)).toStrictEqual(["pinned:"]);
-    expect(pinned).toContain("pinned: true");
   });
 
   it("keeps a block that is not YAML as the note's first code block", () => {
@@ -758,7 +749,7 @@ describe("one file as its item", () => {
     const item = imported(`| a | b |\n| - | - |\n| ${cell} | word |\n`);
     expect(item.leftOut).toBe(0);
     expect(stored(item)).toContain('"type":"mention","value":"Other"');
-    expect(exported(item).text).toContain("| [Other](mention:");
+    expect(bodyOf(item)).toContain("| [Other](mention:");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -769,7 +760,7 @@ describe("one file as its item", () => {
   ])("reads %s in a cell by the table's spelling, and writes it so", (cell, written) => {
     const item = imported(`| a | b |\n| - | - |\n| ${cell} | word |\n`);
     expect(item.leftOut).toBe(0);
-    expect(exported(item).text).toContain(`| ${written} |`);
+    expect(bodyOf(item)).toContain(`| ${written} |`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -788,7 +779,7 @@ describe("one file as its item", () => {
     expect(item.leftOut).toBe(0);
     const again = reimported(item);
     expect(content(again)).toStrictEqual(content(item));
-    expect(exported(reimported(again)).text).toBe(exported(item).text);
+    expect(bodyOf(reimported(again))).toBe(bodyOf(item));
   });
 
   const IMAGE = "![i](https://a.b/c.png)";
@@ -805,14 +796,14 @@ describe("one file as its item", () => {
         ([, text]) => text,
       ),
     ).toStrictEqual(["a", ...lines]);
-    expect(exported(item).text).toContain(`| ${written} |`);
+    expect(bodyOf(item)).toContain(`| ${written} |`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it("keeps a blank line a person left between an image and a caption", () => {
     const cell = `${IMAGE}<br/> <br/>y`;
     const item = imported(`| a |\n| - |\n| ${cell} |\n`);
-    expect(exported(item).text).toContain(`| ${cell} |`);
+    expect(bodyOf(item)).toContain(`| ${cell} |`);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
@@ -860,10 +851,10 @@ describe("one file as its item", () => {
         type: "table",
       },
     ]);
-    expect(exported(item).text).toContain(String.raw`| ${"`"}a\\\|b${"`"} | word |`);
+    expect(bodyOf(item)).toContain(String.raw`| ${"`"}a\\\|b${"`"} | word |`);
     const again = reimported(item);
     expect(stored(again).match(/"type":"t[dh]"/gu)).toHaveLength(2);
-    expect(exported(again).text).toBe(exported(reimported(again)).text);
+    expect(bodyOf(again)).toBe(bodyOf(reimported(again)));
   });
 
   it("writes TeX's own double bar in a cell so it stays one", () => {
@@ -897,7 +888,7 @@ describe("one file as its item", () => {
         type: "table",
       },
     ]);
-    expect(exported(item).text).toContain(String.raw`$$\Vert x\Vert $$`);
+    expect(bodyOf(item)).toContain(String.raw`$$\Vert x\Vert $$`);
     expect(stored(reimported(item))).toContain(String.raw`\\Vert x\\Vert `);
   });
 

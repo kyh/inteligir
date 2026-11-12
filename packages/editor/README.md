@@ -40,8 +40,8 @@ src/
                        # the header fence and typed properties in
                        # `frontmatter.ts`, and `serializeNote`, the one way the
                        # codec writes markdown
-  codec/               # an item as markdown, headless: import and export of
-                       # one file, a folder's or zip's import plan, and the
+  codec/               # an item as markdown, headless: the import of one
+                       # file, a folder's or zip's import plan, and the
                        # agent's view of an item and its edits
   kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
                        # compositions over it, the headless mirror the
