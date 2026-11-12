@@ -9,7 +9,7 @@ const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx", "**/*.spec
 // regexes, not groups: a group matches gitignore-style, so "react" would also refuse "@platejs/react"
 const NODE = "^node:";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
-const PANEL_IMPORTS =
+const CLIENT_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
 type ImportPattern =
@@ -157,11 +157,7 @@ export default defineConfig({
       NODE_OR_REACT,
       "@repo/page-reader reads over its host's DOM",
     ),
-    platformPurity(
-      "packages/agent-panel",
-      PANEL_IMPORTS,
-      "@repo/agent-panel names no platform and no UI",
-    ),
+    platformPurity("packages/client", CLIENT_IMPORTS, "@repo/client names no platform and no UI"),
     platformPurity("apps/extension", NODE, "@repo/extension runs in the browser"),
     platformPurity("packages/ui", NODE, "@repo/ui is browser-only", NO_ORPC_IN_PAGE),
     {

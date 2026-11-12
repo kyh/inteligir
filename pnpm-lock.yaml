@@ -559,9 +559,9 @@ importers:
       '@orpc/tanstack-query':
         specifier: 'catalog:'
         version: 2.0.0-beta.45(@tanstack/query-core@5.105.0)
-      '@repo/agent-panel':
+      '@repo/client':
         specifier: workspace:*
-        version: link:../../packages/agent-panel
+        version: link:../../packages/client
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
@@ -707,9 +707,9 @@ importers:
       '@react-three/fiber':
         specifier: ^9.8.2
         version: 9.8.2(@types/react@19.2.17)(expo-asset@57.0.18(expo@57.0.27)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(supports-color@10.2.2)(typescript@7.0.2))(expo-file-system@57.0.7(expo@57.0.27)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2)))(expo@57.0.27)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(three@0.186.1)
-      '@repo/agent-panel':
+      '@repo/client':
         specifier: workspace:*
-        version: link:../../packages/agent-panel
+        version: link:../../packages/client
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
@@ -832,7 +832,9 @@ importers:
         specifier: 'catalog:'
         version: 4.153.0(@types/node@24.19.2)
 
-  packages/agent-panel:
+  packages/agent-skills: {}
+
+  packages/client:
     dependencies:
       '@repo/contract':
         specifier: workspace:*
@@ -853,8 +855,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/agent-skills: {}
 
   packages/contract:
     dependencies:

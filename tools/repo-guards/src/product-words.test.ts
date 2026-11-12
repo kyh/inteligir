@@ -17,7 +17,7 @@ import { readTextFile, REPO_ROOT, sourceOf, workspaceFiles, workspaces } from ".
 // refusals and notices it hands a surface to show. tools/ui-gallery is not one:
 // it is never deployed, so no person reads its sample words
 const SURFACES = [
-  "@repo/agent-panel",
+  "@repo/client",
   "@repo/contract",
   "@repo/editor",
   "@repo/extension",

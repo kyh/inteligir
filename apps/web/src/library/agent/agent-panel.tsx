@@ -5,8 +5,8 @@
 // connection. A message carries the screen it was sent from (the open item, or the grid's scope and
 // selection).
 
-import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, sendInput } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import {
   answerWords,
   approvalWords,
@@ -21,8 +21,8 @@ import {
   statusWords,
   toolWords,
   workWords,
-} from "@repo/agent-panel/thread-entries";
-import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
+} from "@repo/client/thread-entries";
+import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/client/thread-entries";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";

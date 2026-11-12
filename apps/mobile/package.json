@@ -17,7 +17,7 @@
     "@expo/metro-runtime": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@repo/agent-panel": "workspace:*",
+    "@repo/client": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/ui": "workspace:*",

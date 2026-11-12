@@ -5,8 +5,8 @@
 // grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
 // open it.
 
-import { viewContextOf } from "@repo/agent-panel/agent-send";
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { viewContextOf } from "@repo/client/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";

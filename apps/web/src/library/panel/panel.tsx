@@ -2,7 +2,7 @@
 // panel's tabs: Info about one item (the open one, else the one card selected), and the built-in
 // agent's conversations about the whole library.
 
-import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import type { AgentViewContext } from "@repo/client/agent-send";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { z } from "zod";
 
