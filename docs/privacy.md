@@ -49,17 +49,10 @@ Your library, the notes you write and the links, pages and files you save, is
 your account's, kept by our cloud: the part of the Service we run on
 Cloudflare, at inteligir.com. An account is required. Each device you sign in
 on reads your library from our cloud and sends what you change there, and our
-cloud tells each of your devices when another has changed it. The iPhone keeps
-what it last read, so that still shows with no connection, and the browser
-extension and the iPhone each keep a page you save offline until it reaches
-our cloud. This Privacy Policy states exactly what that
-means: what each device sends and where, what it keeps, how long our cloud
-keeps it, and how it is deleted.
-
-Your conversations with the built-in agent are your account's too: our cloud
-keeps each one with your library, so every device you sign in on shows it. What
-the agent reads to answer you goes to Anthropic, which runs the model for us
-(see [How we share your personal
+cloud tells your other devices when one has changed it. Your conversations with
+the built-in agent are kept with your library, so every device you sign in on
+shows them; what the agent reads to answer you goes to Anthropic, which runs the
+model for us (see [How we share your personal
 information](#how-we-share-your-personal-information)).
 
 **Information you provide to us.** Personal information you may provide to us
@@ -70,25 +63,19 @@ through the Service or otherwise includes:
 - **Profile data**, such as the email address and password you set to establish
   an account on the Service, the invite code you redeemed, and the devices you
   sign in. Specifically:
-  - **Account data** — your name, email, a hash of your password and your
-    sessions (each with the IP address and user agent it signed in from), kept
-    in Cloudflare D1 (Better Auth, the sign-in software our cloud runs), and the
-    invite code you redeemed with your email beside it. You create the account
-    in the app, or on our website: your name, email, password and invite code
-    cross the wire over HTTPS once, and, from the phone, the same request signs
-    that phone in. A password reset emails you a link through Cloudflare's own
-    email sending, and the link's token waits in D1 (see
-    [Retention](#retention)).
-  - **Sessions** — one per device you sign in, the browser, the Mac app and
-    the iPhone alike: Better Auth's row, holding a random token our cloud
-    keeps to recognize that device, the IP address and user agent it signed
-    in from (the user agent is how Settings › Account names the device, such
-    as Chrome on Mac or iPhone), and when it was created, last used and
-    expires. A sign-in lasts 60 days from its last use; an account keeps at
-    most 20, a sign-in past that ending the one used longest ago; a password
-    reset ends them all. The password crosses the wire once, when the device
-    signs in or creates the account, and is held nowhere on the device. The
-    browser extension adds no session of its own: it rides its browser's.
+  - **Account data**: your name, your email, a hash of your password and the
+    invite code you redeemed with your email beside it, kept by Better Auth,
+    the sign-in software our cloud runs. Your password is sent over HTTPS only
+    when you create the account (in the app or on our website; from the phone,
+    that also signs the phone in) or sign a device in, and no device keeps it.
+    A password reset emails you a link through Cloudflare's email sending.
+  - **Sessions**: one per device you sign in, browser, Mac app and iPhone alike,
+    holding a random token our cloud keeps to recognize that device, the IP
+    address and user agent it signed in from (by which Settings › Account names
+    it, such as Chrome on Mac) and when it was created, last used and expires. A
+    sign-in lasts 60 days from its last use; an account keeps at most 20, a
+    further sign-in ending the one used longest ago; a password reset ends them
+    all. The browser extension uses its browser's session.
 - **Communications data** based on our exchanges with you, including when you
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
@@ -99,28 +86,22 @@ through the Service or otherwise includes:
   when, where and by whom a piece of content was collected and how that content
   has been formatted or edited. Metadata also includes information that users
   can add or can have added to their content, such as keywords, geographical or
-  location information, and other similar data. Once you sign in, our cloud
-  receives:
-  - **Your library, in your account.** Every change a device of yours makes — to
-    items, files, folders and tags — goes to your account's library in our
-    cloud. What you type in a note goes there as you type it, to that note's own
-    store in your library, which sends it on to every device that has the note
-    open, as it does the built-in agent's edits; it carries no presence, so no
-    one learns who else has a note open or where their cursor is. On the
-    iPhone, a note's connection opens from the app's editor view, on a
-    one-minute pass the app asked for. Your library
-    keeps what each change to an item's fields, a folder or a tag replaced, and
-    what the built-in agent, an assistant, an import or a reading of a page
-    changed, for seven days, so Undo can take it back, each change named for the
-    device or the assistant that made it and the built-in agent's for the
-    conversation that made them; what you type in a note is not kept for Undo.
-    Your library is reachable only with a sign-in to your own account, and holds
-    about 1 GB, each note's text and what Undo keeps included. A full one still
-    opens and downloads everywhere, and you can still edit what it holds, but it
-    takes no new items or files, and the device that tried says so. A note holds
-    about 8 MB, and a full one takes no more typing and says so. A file over 100
-    MB is never kept. It is encrypted at rest by Cloudflare, but we can read it
-    — there is no end-to-end encryption.
+  location information, and other similar data. Specifically:
+  - Every change a device of yours makes to items, files, folders and tags goes
+    to your library in our cloud. What you type in a note goes there as you type
+    it and on to every device that has the note open, as do the built-in agent's
+    edits. Nobody learns who else has a note open or where their cursor is.
+  - For seven days, so Undo can take it back, your library keeps what each
+    change to an item's fields, a folder or a tag replaced, and what the
+    built-in agent, an assistant, an import or a reading of a page changed, each
+    change named for the device, assistant or conversation that made it. What
+    you type in a note is not kept for Undo.
+  - Your library is reachable only with a sign-in to your own account and holds
+    about 1 GB, each note's text and what Undo keeps included. A full library
+    still opens, downloads and lets you edit what it holds, but takes no new
+    items or files, and says so. A note holds about 8 MB; a full one takes no
+    more typing, and says so. A file over 100 MB is never kept. We can read
+    your library (see [Security](#security)).
 - **Other data** not specifically listed here, which we will use as described in
   this Privacy Policy or as otherwise disclosed at the time of collection.
 
@@ -140,185 +121,161 @@ as:
 
 - **Device data**, such as your IP address and your browser's user agent.
   Specifically:
-  - **Every device's session** keeps the IP address and user agent it signed
-    in from (see Sessions, above).
-  - **Your IP address, for throttling — the one row NOT tied to your account.**
-    Creating an account, redeeming an invite, an assistant registering itself
-    to connect, and every Better Auth route but the session read, signing in
-    among them, count attempts per caller address in D1's `rate_limit` table: a row
-    holds the address, an IPv6 address cut to its first 64 bits, beside the
-    route it counts, a count and a timestamp.
-    Before sign-in the address is all our cloud knows about a caller, and a
-    login with no throttle is a password oracle. Once signed in, a device's
-    attempts to delete the account are counted the same way under its
-    session's id, never an address. Its reads and writes of your library are
-    counted under its session's id too, and a connected assistant's calls
-    under the id of the access you gave it, by Cloudflare's own rate limiter
-    over a minute, with no row in our database.
-  - **The app's version, on every request to our cloud.** The phone app and
-    the browser extension say which version they are, and which of the two, on
-    each request they send our cloud, so it can stop answering a version too old to work with
-    it rather than answer it wrongly. Our cloud reads it to decide whether to
-    answer, and keeps no record of it.
-  - **The update check — to GitHub.** The packaged desktop app asks GitHub's
-    release feed whether a newer version exists each time its window opens your
-    library, and when you choose Check for Updates…; it downloads a newer one
-    from GitHub only when you choose Download, and installs it when you choose
-    Restart. GitHub sees your IP address, nothing about your library or your
-    account.
-  - **The phone's update check — to Expo.** Each time the phone app starts it
-    asks Expo's update service whether a newer version of its app code exists,
-    downloads one in the background and runs it from the next start. Expo sees
-    your IP address, the app's build and a random id the app keeps for that
-    install, nothing about your library or your account.
+  - **Each session** keeps the IP address and user agent it signed in from (see
+    Sessions, above).
+  - **Your IP address, to stop password guessing: the one record not tied to
+    your account.** Before you sign in, your address is all our cloud knows of
+    you, so it counts attempts per address (an IPv6 address shortened to its
+    first 64 bits) to create an account, redeem an invite, sign in or use any
+    other sign-in page but the session check, and for an assistant to register
+    itself to connect. Each count holds the address, what it counts, a number
+    and a time. Once you are signed in, attempts to delete the account are
+    counted the same way under the session, never an address; your devices'
+    reads and writes of your library are counted per session, and an
+    assistant's calls per the access you gave it, by Cloudflare's own rate
+    limiter over a minute, with no record in our database.
+  - **The app's version.** The phone app and the browser extension name
+    themselves and their version on each request, so our cloud can refuse a
+    version too old to work with it rather than answer it wrongly. Our cloud
+    keeps no record of it.
+  - **The Mac app's update check, to GitHub.** The Mac app asks GitHub's release
+    feed whether a newer version exists each time its window opens your library
+    and when you choose Check for Updates…; it downloads one only when you
+    choose Download, and installs it when you choose Restart. GitHub sees your
+    IP address, nothing about your library or your account.
+  - **The phone's update check, to Expo.** Each time the phone app starts, it
+    asks Expo's update service for newer app code, downloads it in the
+    background and runs it from the next start. Expo sees your IP address, the
+    app's build and a random id the app keeps for that install, nothing about
+    your library or your account.
 - **Online activity data**, limited to **a log of each request, kept by
-  Cloudflare.** Cloudflare, which runs our cloud, logs each request our cloud
-  answers, the pages of our website included — the address asked for, less
-  anything after a `?` in it, the answer's status and the time — and keeps that
-  log for up to seven days, for us to diagnose failures with; about one request
-  in a hundred is traced in more detail. An address never holds a file's name
-  or anything you wrote: the apps' calls carry those in the request's body, a
-  file's address holds a fingerprint of its contents, which identifies that
-  exact file. Our cloud's own error lines give
-  that address, or the name of what failed, with the opening of the error's
-  message, which can quote what it was given.
+  Cloudflare.** Cloudflare logs each request our cloud answers, the pages of our
+  website included (the address asked for, less anything after a `?` in it, the
+  answer's status and the time), and keeps it for up to seven days, for us to
+  diagnose failures with; about one request in a hundred is traced in more
+  detail. An address never holds a file's name or anything you wrote, which the
+  apps send in a request's body; a file's address holds a fingerprint of its
+  contents, which identifies that exact file. Our cloud's error lines give that
+  address or the name of what failed, with the opening of the error's message,
+  which can quote what it was given.
 
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
 
-**Data about others.** Content you sync, such as your library, may hold
-personal information about other people,
-and our cloud holds what you sync. Please do not share someone else's personal
-information with us through the Service unless you have their permission to do
-so.
+**Data about others.** Your library may hold personal information about other
+people, and our cloud holds your library. Please do not share someone else's
+personal information with us through the Service unless you have their
+permission to do so.
 
 ## Tracking & Other Technologies
 
 **Cookies and other technologies.** Some of our automatic data collection is
 facilitated by cookies and other technologies. The Service uses only these:
 
-- **Essential.** Our website sets a first-party cookie, Better Auth's session
-  cookie, when you sign in or create an account there, so that its account pages
-  know it is you. It keeps you signed in for 60 days, renewed each day you use
-  it. When an assistant you are
-  connecting sends you to our consent page, the page sets one more, for at most
-  ten minutes and cleared once you answer, that ties your answer to the browser
-  you were asked in. Your library in a browser tab, at inteligir.com/library,
-  is signed in by that same session cookie. The Mac app's window is signed in
-  by that same session cookie, kept in the app's own web storage on your Mac.
-  The iPhone app keeps a session cookie of its own in the iPhone's Keychain,
-  for that iPhone alone and only while it is unlocked, and sends it only to
-  our cloud, with each request. The browser extension keeps no cookie of its
-  own: with the `cookies` permission for inteligir.com alone, it reads your
-  browser's inteligir.com session cookie and sends it with each save.
+- **Essential.** Our website sets one first-party cookie, Better Auth's session
+  cookie, when you sign in or create an account there. It keeps you signed in
+  for 60 days, renewed each day you use it, and signs in your library in a
+  browser tab and the Mac app's window, which keeps it in the app's own web
+  storage on your Mac. When an assistant you are connecting sends you to our
+  consent page, the page sets one more, for at most ten minutes and cleared once
+  you answer, to tie your answer to the browser you were asked in. The iPhone
+  app keeps a session cookie of its own in the iPhone's Keychain, for that
+  iPhone alone and only while it is unlocked, and sends it only to our cloud.
+  The browser extension keeps no cookie of its own: with the `cookies`
+  permission for inteligir.com alone, it reads your browser's inteligir.com
+  session cookie and sends it with each save.
 - **Functionality / performance.** Our website keeps your choice of light or
-  dark theme in your browser's web storage (local storage), first-party, and
-  never sends it to us; your library in a browser tab keeps its settings and
-  layout there too, and the apps keep theirs on your device. The tab and the Mac
-  app keep your account's id beside them, so that what one account was viewing
-  never opens for the next.
+  dark theme in your browser's local storage and never sends it to us; your
+  library in a browser tab keeps its settings and layout there too, and the
+  apps keep theirs on your device. The tab and the Mac app keep your account's
+  id beside them, so what one account was viewing never opens for the next.
 - **Analytics, advertising and social media.** We do not use analytics,
   advertising or social media cookies, or any similar technology, on our website
   or in the apps.
 
-The apps also hold to these, plainly:
+The apps also hold to these:
 
-- **Telemetry.** The apps and the extension send none, about your library or
-  anything else.
-- **Anything an item points at on the web.** Opening an item loads nothing from
-  the web, on the Mac, the phone or in a browser tab: an image or embed at a
-  web address is not fetched, so nobody learns you opened it. A link opens in your browser only
+- **No telemetry.** The apps and the extension send none.
+- **Nothing an item points at on the web loads when you open it**, on the Mac,
+  the phone or in a browser tab: an image or embed at a web address is not
+  fetched, so nobody learns you opened it. A link opens in your browser only
   when you follow it.
-- **Saving a link — from our cloud, to that site.** A link that reaches your
-  library without its page (one you pasted or saved on the Mac, in a browser
-  tab or on the phone, one an assistant you connected saved, one the built-in
-  agent saved once you allowed it, seeing the whole address, one imported, one
-  refreshed, one the browser extension sent as its address) is fetched once by
-  our cloud, from Cloudflare's network, to fill in
-  its title, site, description, cover image and readable text. It also fetches
-  the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and
-  SoundCloud it asks that site's own oEmbed address (with X's `dnt=true`), for
-  any other page the oEmbed address the page itself names, and the picture
-  that answer names; for a YouTube video it may also fetch the video's still
-  picture from YouTube; for a link imported from Raindrop, the cover picture
-  Raindrop recorded for it. The request carries no cookies, sign-in or
-  referrer, and names inteligir in a Safari-compatible user agent and English
-  as its language; the site sees Cloudflare's address, never yours. Our cloud
-  reads only web addresses on their own ports, and never one whose name or
-  written-out address points into a private network, or into space no site
-  holds, whether you saved it or a page redirected there. The page's text and
-  its pictures land in your library; the page itself is not kept.
+- **Saving a link: from our cloud, to that site.** A link that reaches your
+  library without its page (pasted or saved on the Mac, in a browser tab or on
+  the phone, saved by an assistant you connected or by the built-in agent once
+  you allowed it, seeing the whole address, imported, refreshed, or sent by the
+  browser extension as an address) is fetched once by our cloud, from
+  Cloudflare's network, for its title, site, description, readable text and the
+  cover image it names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud
+  our cloud asks that site's own oEmbed address (with X's `dnt=true`), for any
+  other page the oEmbed address the page names, and fetches the picture that
+  answer names; for a YouTube video it may fetch the video's still picture from
+  YouTube; for a link imported from Raindrop, the cover Raindrop recorded. Each
+  request carries no cookies, sign-in or referrer, names inteligir in a
+  Safari-compatible user agent with English as its language, and shows the site
+  Cloudflare's address, never yours. Our cloud fetches only web addresses on
+  their standard ports, and never one that points into a private network or
+  into space no site holds, whether you saved it or a page redirected there.
+  The page's text and pictures land in your library; the page itself is not
+  kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
-  Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
-  the right-click menu. It reads the page as it is shown (its address, its
-  title and its HTML without its scripts) in your browser, and sends what it
-  read, the page's text, the facts it gives about itself and its cover picture,
-  to your Inteligir library in our cloud, signed in as the account you are
-  signed in to on inteligir.com in that browser: it reads that sign-in's
-  cookie from your browser, for inteligir.com alone, and sends it with each
-  save, and signing out there, or signing that browser out from Settings ›
-  Account, signs the extension out too. It keeps only the account's email and
-  the site's address in its storage. It fetches the cover picture the page names, from your browser and
-  without your cookies, and nothing else. Nothing you typed into the page goes
-  with it: form fields, the choices a page filled in for you and every box you
-  type into, such as an email you are writing, are emptied first. Some saves
-  send only an address, which our cloud then fetches and reads as it does any
-  link your library holds unread (above): a link or a picture you save
-  from the right-click menu, and a page the extension cannot read in your
-  browser (the Web Store, a PDF, a page too large to read there or to send, or
-  one it found no text in), which goes with its title. A page with no web
-  address, such as the browser's own pages, is
-  never saved: the extension says it can't save it and sends nothing. A picture
-  a page drew itself, which has no address, is uploaded to your library as a
-  file of its own. A save made while you are offline waits in the browser's
-  storage for the extension as the page's address and title, and is sent, for our cloud to read, once you are back online;
-  one made while you are signed out waits there too, as its address and
-  title, until you sign in again as the same account, and one for an account
-  that was deleted is dropped.
+  Edge and Vivaldi reads the page you are on only when you click Save or choose
+  Save from the right-click menu. It reads the page as shown (its address, title
+  and HTML without its scripts) and sends its text, the facts the page gives
+  about itself and its cover picture, which it fetches from your browser without
+  your cookies, to your library, signed in as the account you are signed in to
+  on inteligir.com in that browser. Signing out there, or signing that browser
+  out from Settings › Account, signs the extension out too. It keeps only the
+  account's email and the site's address in its storage. Nothing you typed into
+  the page goes with it: form fields, choices the page filled in for you and
+  every box you type into, such as an email you are writing, are emptied first.
+  A link or picture saved from the right-click menu, and a page the extension
+  cannot read (the Web Store, a PDF, a page too large to read or send, or one
+  with no text), go as an address, the page with its title, for our cloud to
+  read as above. A page with no web address, such as the browser's own pages,
+  is never saved: the extension says so and sends nothing. A picture a page drew
+  itself is uploaded as a file of its own. A save made offline or signed out
+  waits in the extension's browser storage as the page's address and title, and
+  is sent, for our cloud to read, once you are online and signed in as that
+  account; one for an account that was deleted is dropped.
 - **Sharing from your iPhone.** Sharing a page or a link to Inteligir saves its
-  address, with the title the sharing app gave it and the words you shared
-  beside it, into your library, like anything else you save from the phone; the
-  phone fetches nothing from the site. Our cloud then fetches and reads the page
-  as it does any link your library holds unread (above), so a page only your own
-  network reaches is not read. A link inside text you share is saved the same
-  way, the words around it its note, and other text is saved as you shared it.
-- **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
-  notes such as an Obsidian folder) is uploaded to your library, read there and
-  deleted once the import ends. Each imported link is then filled in as above.
+  address, with the title the sharing app gave it and the words you shared,
+  into your library; the phone fetches nothing from the site, and our cloud then
+  reads the page as above, so a page only your own network reaches is not read.
+  A link inside shared text is saved the same way, the words around it its note;
+  other text is saved as you shared it.
+- **Importing.** The file you import (a Raindrop CSV, or a zip of notes such as
+  an Obsidian folder) is uploaded to your library, read there and deleted once
+  the import ends. Each imported link is then read as above.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
-  microphone. Dictation is your operating system's own — on a Mac, press fn
-  twice; on the phone, the keyboard's microphone key — which types into the app
+  microphone. Dictation is your operating system's own (on a Mac, press fn
+  twice; on the phone, the keyboard's microphone key) and types into the app
   like a keyboard; where that audio goes is Apple's to say, under its own
   settings and terms.
-- **Where a phone photo was taken.** The phone opens the camera only when you
-  take a photo to add to your library, and from your photo library it receives
-  only the photo you pick. It keeps a copy at most 2048 pixels on its long
-  side, saved again as a JPEG, or a PNG if it was one, without its location or
-  any other camera details and named for when you added it; only that copy
-  reaches your library. A picture you paste into a note's text is not saved
-  again: it reaches your library as the file you pasted, with whatever details
-  it carries.
-- **The Mac app shows your library from our website.** It keeps the site's
-  sign-in cookie and the page's settings in its own web storage on that Mac,
-  and each file you opened in its web cache, as a browser does for your
-  library in a tab; signing out asks the app, or the browser, to empty that
-  web cache, and the page's settings stay. The app keeps no log.
+- **A phone photo.** The phone opens the camera only when you take a photo to
+  add to your library, and receives from your photo library only the photo you
+  pick. Only a copy reaches your library: at most 2048 pixels on its long side,
+  saved again as a JPEG, or a PNG if it was one, named for when you added it,
+  without its location or any other camera details. A picture you paste into a
+  note's text is not saved again: it reaches your library as the file you
+  pasted, with whatever details it carries.
+- **The Mac app shows your library from our website**, keeping each file you
+  opened in its web cache as a browser does; signing out empties that cache, in
+  the app or the browser, and the page's settings stay. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as
 Anthropic's Claude, which our cloud runs to operate the built-in agent you can
 ask to read, file, draft and edit your library through the Service, and the
 assistant you connect yourself, such as Claude or ChatGPT. Specifically:
 
-- **What the built-in agent reads — to Anthropic, on our account.** The
-  built-in agent runs in our cloud, on our account with Anthropic, not yours:
-  no device of yours talks to Anthropic, and you sign nothing in. What you ask
-  it, the items you were looking at or selected, and what it reads of your
-  library to answer go to Anthropic through Cloudflare's AI Gateway, as
-  described in [How we share your personal
-  information](#how-we-share-your-personal-information).
-- **What an assistant you connect reads — to that assistant's provider.** An
-  assistant you connect on our consent page reads and changes your library
-  through our cloud, and what it reads goes to its provider under the
+- **The built-in agent runs in our cloud, on our account with Anthropic, not
+  yours**: no device of yours talks to Anthropic, and you sign nothing in. What
+  you ask it, the items you were looking at or selected, and what it reads of
+  your library to answer go to Anthropic through Cloudflare's AI Gateway (see
+  [How we share your personal
+  information](#how-we-share-your-personal-information)).
+- **An assistant you connect** on our consent page reads and changes your
+  library through our cloud, and what it reads goes to its provider under the
   provider's own terms with you, as part of your conversation there.
 
 For information concerning your choices with respect to the use of tracking
@@ -391,78 +348,65 @@ we may either delete it, anonymize it, or isolate it from further processing.
 
 Specifically, in our cloud:
 
-- Your library keeps each change, with what it replaced, for seven days after it
-  is finished, so Undo can take it back, and deletes it within about a day after
-  that. An item stays until it is deleted for good or the account is deleted.
-  Deleting an item moves it to Deleted; emptying Deleted, or Delete forever,
-  removes the item's text and what Undo kept of it at once, its note's own store
-  emptied with it, and each of its files once no other item and nothing Undo can
-  still bring back names it.
-- For each turn of the built-in agent that edited a note, that note's store
-  keeps a copy of the whole note as it stood at the turn's first edit there,
-  and every change through the turn's last, so Undo this turn can take the
-  turn back; it is deleted within about a day after the turn's seven days.
-- A session's row is deleted when that device signs out, when another device
-  signs it out from Settings › Account, when a password reset or the 20-session
-  cap ends it, and once it has lapsed, 60 days after its last use, the next
-  time it is presented; the rest go with the account. Its throttling rows wait
-  for the prune below.
-- A row for each assistant you disconnected (its grant's id and your account)
-  persists until account deletion, so an assistant renewing its access at that
-  moment stays out.
-- Throttling rows keyed on an address, a session or an assistant's
-  access, not an account, cannot be found by account deletion, and neither a
-  session ending nor an assistant's removal deletes its own. Better Auth deletes
-  every row whose timestamp is over a minute old whenever one of its own limits
-  opens a fresh window, so a row outlives its minute only until the next such
-  request from anyone; nothing sweeps the table on a timer.
-- A password-reset link's row (its token and your account's id) is deleted when
-  the link is used. One never used stops working after an hour and is swept the
-  next time anyone opens a reset link; account deletion does not look for it,
-  and once the account is gone it opens nothing.
-- An assistant you connected keeps its grant until you Disconnect it in
-  Settings › Account › Connected assistants, which ends its access at once, or
-  until 30 days after it last renewed its access, which it does while it keeps
-  using it: removing the connector in the assistant stops its requests, and the
-  grant then lapses at those 30 days, unless it keeps renewing. Deleting the
-  account revokes every assistant's grant, which our cloud stops answering
-  everywhere within about a minute. What an assistant
-  registered (its name and addresses, never yours) is deleted 90 days after it
-  last used it, and deleting the account leaves a registration to those 90
-  days, since none is filed under an account.
-- A conversation with the built-in agent, the record of it in its own storage
-  and its messages in your library alike, is kept until you delete it
-  or your account, and deleting it deletes both.
-- Cloudflare's request log keeps each entry for up to seven days.
+- **Items** stay until deleted for good or the account is deleted. Deleting an
+  item moves it to Deleted; emptying Deleted, or Delete forever, removes its
+  text and what Undo kept of it at once, and each of its files once no other
+  item, and nothing Undo can still bring back, names it.
+- **What Undo keeps** of a change stays seven days after the change is finished
+  and is deleted within about a day after that. For each turn of the built-in
+  agent that edited a note, the note's own store keeps the note as it stood at
+  the turn's first edit there and every change through its last, so Undo this
+  turn can take it back, for the same time.
+- **A conversation with the built-in agent**, its own record and its messages in
+  your library alike, is kept until you delete it or the account, which deletes
+  both.
+- **A session** is deleted when that device signs out, when another device signs
+  it out from Settings › Account, when a password reset or the 20-session limit
+  ends it, and, once it has lapsed 60 days after its last use, the next time it
+  is presented; the rest go with the account.
+- **Throttling counts** are keyed on an address, a session or an assistant's
+  access, never an account, so deleting the account, ending a session or
+  removing an assistant does not find them. A count over a minute old is deleted
+  the next time a request to our sign-in service, from anyone, starts a fresh
+  count; nothing clears them on a timer.
+- **A password-reset link** is deleted when used. An unused one stops working
+  after an hour and is deleted the next time anyone opens a reset link; deleting
+  the account does not look for it, and once the account is gone it opens
+  nothing.
+- **An assistant you connected** keeps its access until you Disconnect it in
+  Settings › Account › Connected assistants, which ends it at once, or until 30
+  days after it last renewed it, which it does while it keeps using it: removing
+  the connector in the assistant stops its requests, and its access lapses at
+  those 30 days. Deleting the account ends every assistant's access within about
+  a minute. A record of each assistant you disconnected (its access's id and
+  your account) stays until the account is deleted, so one renewing its access
+  at that moment stays out. What an assistant registered (its name and
+  addresses, never yours) is filed under no account, so deleting the account
+  leaves it until it is deleted 90 days after the assistant last used it.
+- **Cloudflare's request log** keeps each entry for up to seven days.
 
-**Your phone.** Signed in, the phone keeps what it last read of your library,
-so that still shows with no connection:
+**Your phone.** Signed in, the phone keeps what it last read of your library, so
+that still shows with no connection: the items, lists, folders and
+conversations it showed, a small picture for each card, and a picture, PDF or
+other file once you open it. A page or text you share to Inteligir waits on the
+phone until your library takes it; one the library refuses stays on the phone
+and says so. Nothing else waits: a save typed into the app, a photo, a deletion
+or typing in a note needs a connection, and says so.
 
-- **What it last read**: the items, lists, folders and conversations it
-  showed, a small picture for each card, and a picture, PDF or other file once
-  you open it.
-- **Pages you share while offline.** A page or text you share to Inteligir
-  waits on the phone until your library takes it; one the library refuses
-  stays on the phone and says so. Nothing else waits: a save typed into the
-  app, a photo, a deletion or typing in a note needs a connection, and says
-  so.
+It all lives in the app's own storage, out of the phone's iCloud backup: a phone
+restored from a backup reads your library again, and a share it had not sent is
+gone. The files you opened sit in the app's cache, which iOS may clear and never
+backs up. The phone's sign-in is kept in the iPhone's Keychain for that iPhone
+alone, so a backup restored onto another phone does not carry it, and the new
+phone signs in again as a device of its own.
 
-It all lives in the app's own storage on the phone. What it last read and the
-shares waiting sit where the app keeps them out of the phone's iCloud backup:
-a phone restored from a backup reads your library again, and a share it had
-not sent is gone. The files you opened sit in the app's cache, which iOS may
-clear and never backs up. The phone's sign-in is kept in the iPhone's Keychain
-for that iPhone alone: a backup restored onto another phone does not carry it,
-so the new phone signs in again and becomes a device of its own.
-
-- **Signing out** on the phone erases all of it — what it kept, the files and
-  any shares waiting, which it asks about first — and tells our cloud to end
-  the phone's session. A phone that signs out offline forgets its sign-in all
-  the same; sign it out from Settings › Account on the Mac or at
-  inteligir.com/library to end that session too.
-- **Signing the phone out** from another device, or **deleting the account**,
-  erases the same the next time the phone opens or reaches our cloud and is
-  refused, without asking. Until then it keeps what it holds.
+- **Signing out** on the phone erases all of it, asking first about any shares
+  waiting, and tells our cloud to end the phone's session. A phone that signs
+  out offline forgets its sign-in all the same; sign it out from Settings ›
+  Account on the Mac or at inteligir.com/library to end that session too.
+- **Signing the phone out from another device**, or **deleting the account**,
+  erases the same, without asking, the next time the phone opens or reaches our
+  cloud and is refused. Until then it keeps what it holds.
 
 ## How we share your personal information
 
@@ -474,37 +418,36 @@ the time of collection).
 us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
-- **Cloudflare** runs our cloud and our website. Its D1 database holds your
-  account, sessions, the invite you redeemed, an unused password-reset link,
-  a row for each assistant you disconnected and the throttling rows;
-  its KV storage holds each assistant you connected: what it registered (its
-  name and the addresses it gave), its grant, filed under your account with
-  its name and what you let it do, and its tokens, kept only as hashes;
-  your own Durable Objects hold your library, your devices' live connections
-  and each conversation with the built-in agent; its R2 storage holds your
-  files, under your account's own prefix; its Queues hold each
-  link your library asked our cloud to read, as your account's id, the item's,
-  its address and the address of any cover the save knew of, until our cloud
-  has read it or recorded that it could not; its AI Gateway passes each request
-  the built-in agent makes to Anthropic, and is asked to keep only its metadata
-  (the model, how many tokens, its status, how long it took and your account's
-  id, by which it holds each account to a daily limit of what the agent may
-  spend), never what it carries; its email sending delivers your
-  password-reset emails; and it keeps the request log described above.
-- **Anthropic** answers the built-in agent's questions for us, on our account,
-  not yours. What you ask it, what you were looking at, and everything it
-  reads of your library to answer you (items, their text, folders and tags) go
-  to Anthropic as each request it makes, through
-  Cloudflare's AI Gateway, under Anthropic's terms with us. When a
-  conversation grows long, Anthropic's API also writes a summary of its
-  earlier part inside the request that reaches that length, and hands it back
-  with the answer; our cloud keeps it with the rest of the conversation and
-  sends it in place of what it summarizes. Anthropic's API keeps none of those
-  requests, summaries or answers once it has answered, past the parts it
-  caches for at most an hour to answer the next request of the same
-  conversation sooner. The conversation itself is kept by our cloud
-  alone: deleting it deletes it, and deleting the account deletes every
-  conversation before your library goes, with nothing to delete at
+- **Cloudflare** runs our cloud and our website:
+  - its D1 database holds your account, sessions, the invite you redeemed, an
+    unused password-reset link, the record of each assistant you disconnected
+    and the throttling counts;
+  - its KV storage holds each assistant you connected: what it registered (its
+    name and the addresses it gave), its access, filed under your account with
+    its name and what you let it do, and its tokens, kept only as hashes;
+  - Durable Objects of your own hold your library, your devices' live
+    connections and each conversation with the built-in agent;
+  - its R2 storage holds your files, under your account's own prefix;
+  - its Queues hold each link waiting for our cloud to read it (your account's
+    id, the item's, its address and the address of any cover the save knew of)
+    until it is read or recorded as unreadable;
+  - its AI Gateway passes each request the built-in agent makes to Anthropic,
+    asked to keep only its metadata (the model, how many tokens, its status,
+    how long it took and your account's id, by which it holds each account to a
+    daily limit of what the agent may spend), never what it carries;
+  - its email sending delivers your password-reset emails, and it keeps the
+    request log described above.
+- **Anthropic** answers the built-in agent for us, on our account, not yours.
+  What you ask it, what you were looking at, and everything it reads of your
+  library to answer you (items, their text, folders and tags) go to Anthropic
+  in each request it makes, through Cloudflare's AI Gateway, under Anthropic's
+  terms with us. When a conversation grows long, Anthropic's API also writes a
+  summary of its earlier part and hands it back with the answer; our cloud keeps
+  it with the conversation and sends it in place of what it summarizes.
+  Anthropic's API keeps none of those requests, summaries or answers once it has
+  answered, past the parts it caches for at most an hour to answer the next
+  request of the same conversation sooner. The conversation itself is kept by
+  our cloud alone, so deleting it or the account leaves nothing to delete at
   Anthropic.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
@@ -513,21 +456,18 @@ and email delivery). Specifically:
 - **The email services** that receive and forward the email you send us.
 
 **Third parties designated by you.** We may share your personal information with
-third parties where you have instructed us or provided your consent to do so.
-It travels from our cloud:
+third parties where you have instructed us or provided your consent to do so,
+from our cloud:
 
-- **Your library, to an assistant you connect.** When you allow Claude,
-  ChatGPT or another assistant on our consent page, our cloud answers its
-  requests from your library: what it searches for and reads (items,
-  their text, folders and tags) goes to that assistant's provider
-  under the provider's own terms, as part of your conversation there. What it
-  writes lands in your library as a change named for it, which you can ask it
-  to change back, and one you allowed only to read can change nothing. The page
-  names the assistant as it named itself and where its access is sent.
-  Disconnecting it in Settings › Account › Connected assistants ends its access
-  at once. Removing the connector in your assistant stops its requests, and its
-  access lapses 30 days after it last renewed it; deleting the account ends
-  every assistant's access within about a minute.
+- **Your library, to an assistant you connect.** When you allow Claude, ChatGPT
+  or another assistant on our consent page, which names the assistant as it
+  named itself and where its access is sent, our cloud answers its requests from
+  your library: what it searches for and reads (items, their text, folders and
+  tags) goes to that assistant's provider under the provider's own terms, as
+  part of your conversation there. What it writes lands in your library as a
+  change named for it, which you can ask it to change back, and one you allowed
+  only to read can change nothing. [Retention](#retention) says how its access
+  ends.
 
 **Professional advisors.** Professional advisors, such as lawyers, auditors,
 bankers and insurers, in the course of the professional services that they
@@ -557,23 +497,22 @@ information about their rights below.
 **Access or update your information.** If you have registered for an account
 with us through the Service, you may review and update certain account
 information by logging into the account. Settings › Account, in the Mac app or
-in your library at inteligir.com/library, shows the account it is signed in to,
+in your library at inteligir.com/library, shows the account it is signed in to
 and every device signed in to it, named from the browser or app it signed in
-with, with when each was last used. The sign-in
-page can email you a link to set a new password. To change anything else, such
-as your name or email address, contact us.
+with, with when each was last used. The sign-in page can email you a link to set
+a new password. To change anything else, such as your name or email address,
+contact us.
 
 **Privacy settings.** Signing a device out of your account (Settings › Account)
 ends its access, and on the phone deletes what it kept of your library.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If
-you block our website's session cookie in your browser, you cannot sign in to
-its account pages or your library there, and the browser extension, which
-rides that cookie, is signed out with it; the Mac app and the iPhone app keep
-their own. If you clear our website's web storage, it forgets
-your theme and follows your device's, and your library in a browser tab forgets
-its settings and layout.
+you block our website's session cookie, you cannot sign in to its account pages
+or your library there, and the browser extension, which uses that cookie, is
+signed out with it; the Mac app and the iPhone app keep their own. If you clear
+our website's web storage, it forgets your theme and follows your device's, and
+your library in a browser tab forgets its settings and layout.
 
 **Do Not Track.** Some Internet browsers may be configured to send "Do Not
 Track" signals to the online services that you visit. We currently do not
@@ -588,45 +527,30 @@ Service needs an account: your library is your account's.
 **Delete your content or close your account.** You can choose to delete certain
 content through your account: deleting an item moves it to Deleted, and emptying
 Deleted or Delete forever removes it, with what Undo kept of it (see
-[Retention](#retention)). Deleting a conversation with
-the built-in agent deletes it from our cloud and every device, one still
-running stopped first. To delete everything our cloud holds for you, delete your
-account: Settings › Account › Delete account…, on any Mac or browser tab signed
-in to it. It asks for your password again, and our cloud checks the
-password before it deletes anything, so this Mac's sign-in alone cannot end the
-account. If you lost your Mac, sign in on any other and delete from there. The
-Mac you delete from is signed out; every other device is refused at its next
-request. You can also ask us to close your account by writing to kai@kyh.io from
-the account's email address.
+[Retention](#retention)). Deleting a conversation with the built-in agent
+deletes it from our cloud and every device, stopping it first if it is still
+running.
 
-Deleting the account deletes the account's data, in this order, before the
-account row itself goes:
+To delete everything our cloud holds for you, delete your account: Settings ›
+Account › Delete account…, on any Mac or browser tab signed in to it. It asks
+for your password again, and our cloud checks it before it deletes anything, so
+a device's sign-in alone cannot end the account; if you lost your Mac, sign in
+on any other and delete from there. The device you delete from is signed out,
+and every other device is refused at its next request. You can also ask us to
+close your account by writing to kai@kyh.io from the account's email address.
 
-1. **Your library's store in our cloud is closed**, and your devices' live
-   connections to it with it: from this moment it refuses every request, so
-   nothing that arrives during the deletion can write to it.
-2. **Your conversations with the built-in agent are deleted**, one still
-   running stopped first, while the store still names them: our cloud keeps
-   their ids nowhere else.
-3. **Everything in that store is deleted**: every item, its text and what Undo
-   keeps, each note's own store emptied first. What stays is a marker saying
-   when it was deleted and nothing else, so a request already on its way still
-   finds it closed.
-4. **The files your library names** (images, PDFs and the like) are deleted
-   from our storage.
-5. **Every assistant's access is revoked**, its tokens with it.
-6. **Your email is dropped from the invite you redeemed** (the code stays
-   burned). This is late on purpose: until then your device can still ask
-   again if a step failed.
-   Then Better Auth deletes your sessions, your password hash and the account row,
-   and the rows for assistants you disconnected go with it.
-   All six steps run BEFORE that, so a step that fails aborts the deletion and
-   leaves the account able to ask again; every step is idempotent, so asking again
-   resumes. Each of your devices erases its copy the next time our cloud refuses it
-   (see [Retention](#retention)). The throttling rows keyed on an address, a
-   session or an assistant's access, and an unused reset link's row, are
-   not found by it (see [Retention](#retention)), and Cloudflare's request log
-   lapses on its own.
+Deleting the account first closes your library, so nothing that arrives
+meanwhile can write to it. It then deletes your conversations with the built-in
+agent, stopping any still running, everything in your library (every item, its
+text and what Undo keeps) and your files, revokes every assistant's access with
+its tokens, and removes your email from the invite you redeemed, which stays
+used. Last, it deletes your sessions, your password hash, your account and the
+records of assistants you disconnected. If any step fails, the account stays
+and you can delete it again, which picks up where it stopped. What remains is a
+marker saying when your library was deleted, and nothing else, so a request
+already on its way finds it closed. Each of your devices erases its copy the
+next time our cloud refuses it. The throttling counts, an unused reset link and
+Cloudflare's request log lapse as [Retention](#retention) says.
 
 ## Other sites and services
 
@@ -648,42 +572,40 @@ your personal information.
 
 Your library and your conversations with the built-in agent live in Durable
 Objects of your own. The rest of what our cloud keeps for your account is filed
-under your account in storage every account shares: rows in Cloudflare D1 that
-name your account, your files under your account's own prefix in
-R2, and each assistant's grant and tokens under your account in KV. A few things
-are not filed that way: the throttling rows, an unused reset link's row, what an
-assistant registered, a link waiting in the Queue for our cloud to read it,
-which has your account's id beside it, and Cloudflare's own logs of each request
-and of each call the built-in agent makes. Your password is kept only as a
-hash; each device's session is a random token our cloud keeps as it is, to
-recognize that device; and the apps talk to our cloud over HTTPS.
+under your account in storage every account shares: database rows that name
+your account, your files under your account's own prefix, and each assistant's
+access and tokens under your account. A few things are not filed that way: the
+throttling counts, an unused reset link, what an assistant registered, a link
+waiting for our cloud to read it (with your account's id beside it), and
+Cloudflare's own logs of each request and of each call the built-in agent makes.
+Your password is kept only as a hash; each session is a random token our cloud
+keeps as it is, to recognize that device; and the apps talk to our cloud over
+HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** Your library is stored unencrypted to
-  us (Cloudflare encrypts its storage at rest, but there is no end-to-end
-  encryption). Don't keep in it what you wouldn't store in a hosted notes app.
+- **We can read what our cloud holds.** Cloudflare encrypts its storage at
+  rest, but there is no end-to-end encryption. Don't keep in your library what
+  you wouldn't store in a hosted notes app.
 - **A lost phone holds what it last read of your library**, behind its
-  passcode. Sign it out from Settings › Account on the Mac or at
-  inteligir.com/library: it erases what it kept the next time it goes online,
-  but a phone that never does keeps it.
-- **Deleting an item does not delete it at once**: it waits in Deleted, and
-  what Undo keeps of its changes stays seven days, as [Retention](#retention)
-  says, unless you delete the item for good or delete the account first.
+  passcode. Signing it out from Settings › Account erases that the next time it
+  goes online; a phone that never does keeps it.
+- **Deleting an item does not delete it at once**: it waits in Deleted, and what
+  Undo keeps of its changes stays seven days, unless you delete it for good or
+  delete the account first.
 - **An image or file you paste, drop or save is kept as the file it was**, on
-  every device and in the browser alike, with any location or camera details it
-  carries, a picture pasted into a note's text on the phone included; only a
-  photo the phone's photo button adds is saved again without them.
-- **A device signed out from Settings › Account stops at its next request**,
-  and its live connection is closed as part of it — but signing it out cannot
-  reach a response already in flight.
-- **Signing out on a device ends its session the same way, but only if our
-  cloud hears the sign-out.** Settings › Account in a browser tab or on the Mac
-  waits for a connection; the phone goes on without one. A session no sign-out
-  reached stays listed, and works for whoever holds it, until another device
-  signs it out from Settings › Account, the 20-session cap retires it or it
-  lapses 60 days after its last use. The browser extension has no sign-out of
-  its own: signing out of inteligir.com in that browser signs it out.
+  every device, with any location or camera details it carries; only a photo the
+  phone's photo button adds is saved again without them.
+- **A device signed out from Settings › Account stops at its next request**, and
+  its live connection is closed, but signing it out cannot reach a response
+  already on its way.
+- **Signing out on a device ends its session only if our cloud hears it.** A
+  browser tab or the Mac waits for a connection to sign out; the phone goes on
+  without one. A session no sign-out reached stays listed, and works for
+  whoever holds it, until another device signs it out from Settings › Account,
+  the 20-session limit retires it or it lapses 60 days after its last use. The
+  browser extension has no sign-out of its own: signing out of inteligir.com in
+  that browser signs it out.
 
 ## International data transfer
 
@@ -1067,28 +989,31 @@ personal information is transferred by contacting us at kai@kyh.io.
 
 ## Every address the app talks to
 
-Your account's cloud is one origin, `https://inteligir.com`, and every call the
-Mac, the phone, the browser extension and the library's browser tab make to it
-is one of these routes, as is every call the account pages make, but every
-device's sign-in, session, sign-out and password-reset calls, which go to
-Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
+Every call the Mac app, the phone, the browser extension, your library in a
+browser tab and our website's account pages make goes to one origin,
+`https://inteligir.com`, over HTTPS, and is one of these:
 
-| Route          | What it carries                                                                                                                                                                                                                                                                                                 | What authenticates it                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, folders, tags, the changes Undo takes back and your messages to the agent) and your account (your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your device's signed-in session (the browser's, the Mac app's, the iPhone's, or the browser's that the extension rides), within a budget of its own. |
-| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                           | Your device's signed-in session, within a budget of its own.                                                                                         |
-| `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website or the iPhone.                                                                                                                                                                                                           | The invite code; attempts are throttled per caller address.                                                                                          |
-| `/v1/socket`   | A live connection to your own signed-in devices that says your library or a conversation with the built-in agent changed and how far it has come, and carries the agent's reply as it is written.                                                                                                               | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                     |
-| `/v1/notes`    | A live connection to one note while it is open, carrying each change to its text as you or the agent make it, to and from every device that has it open.                                                                                                                                                        | The same one-minute pass as `/v1/socket`, its sign-in checked again; a note in Deleted opens read-only.                                              |
+- **Signing in and out, sessions and password resets**, which Better Auth
+  answers, and **creating an account**, which an invite code admits.
+- **Reading and changing your library and your account** (your devices, your
+  connected assistants, deleting the account), each one request, its contents
+  in its body and never its address, made with your device's session.
+- **Your files**, each sent once and read back by a fingerprint of its
+  contents, never its name; a file whose contents do not match its fingerprint
+  is not kept.
+- **Two live connections**, each opened on a one-minute pass your signed-in
+  device asks for, its sign-in checked again: one says your library or a
+  conversation with the built-in agent changed and how far it has come, and
+  carries the agent's reply as it is written; the other carries each change to
+  an open note's text to and from every device that has it open, and opens a
+  note in Deleted read-only.
 
-Everything else the app reaches is someone else's:
-
-- **GitHub's release feed**, for the desktop's update check described above.
-- **Expo's update service**, for the phone's update check described above.
-- **The sites you save**: from our cloud, for a link your library holds unread,
-  with the cover files they name, the cover a Raindrop import recorded, and
-  the oEmbed addresses above; and from the browser the extension runs in, for
-  the cover picture of a page it saves.
+The apps call nothing else there. Everything else the app reaches is someone
+else's: **GitHub's release feed** and **Expo's update service**, for the update
+checks described above, and **the sites you save**, from our cloud for a link
+your library holds unread (with the covers they name, the cover a Raindrop
+import recorded, and the oEmbed addresses above) and from the browser the
+extension runs in for the cover picture of a page it saves.
 
 ---
 
