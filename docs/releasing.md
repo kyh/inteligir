@@ -245,8 +245,8 @@ The unpacked store build, against production, with no dev build loaded.
 - **The store build** loads in Chrome, Arc, Brave and Edge with the id
   `EXTENSION_ID` (`packages/contract/src/extension/extension-identity.ts`), and
   the Web Store listing and the site's Save link open it.
-- **Sign in** through the welcome tab and `/connect/extension`; the browser
-  shows in Settings › Account.
+- **Sign in** through the welcome tab, which opens the site's sign-in; the
+  browser shows in Settings › Account.
 - **Save**: the toolbar saves, a second save says already saved, right-click
   saves a link and an image, the badge shows ! and ✓, and a home-network page
   the cloud can't reach saves as the extension read it.

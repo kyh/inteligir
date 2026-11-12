@@ -6,12 +6,13 @@
 // one step (`tabAfter`) whichever way the page meets its end.
 
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createLibrarySocket } from "@repo/client/library-cache";
 import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
-import { activeSession, keepSession, SIGN_IN_PATH, signInHref } from "#lib/auth-client";
+import { activeSession, keepSession, signInHref } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
 
 import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";

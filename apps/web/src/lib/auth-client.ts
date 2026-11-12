@@ -1,3 +1,4 @@
+import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createAuthClient } from "better-auth/client";
 
 // no baseURL: the same Worker serves the app and /api/auth/*, so the relative default is right on every host
@@ -39,8 +40,6 @@ export const activeSession = async (): Promise<SessionState> => {
   const { email, id, name } = data.user;
   return { kind: "signed-in", user: { email, id, name } };
 };
-
-export const SIGN_IN_PATH = "/app/sign-in";
 
 // the sign-in, which loads `here` again once it signs the browser in
 export const signInHref = (here: Pick<Location, "pathname" | "search">): string =>

@@ -44,7 +44,8 @@ export type WaitsFor = Extract<Outcome, { kind: "queued" }>["waitsFor"];
 const statusSchema = z.object({
   // the account this browser is signed in as and the library's address, or none
   account: z.object({ email: z.string(), libraryUrl: z.string() }).nullable(),
-  // the site's page that signs this browser in and comes back to tell the extension
+  // the site's page that signs this browser in: its sign-in, or in a dev build the connect page,
+  // which comes back to tell the extension
   signInUrl: z.string(),
 });
 export type Status = z.infer<typeof statusSchema>;
