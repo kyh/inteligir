@@ -43,4 +43,5 @@ what it may reach, and how it builds.
   on a DOM the worker lacks. `apps/extension/wxt.config.ts`.
 - **`browser.*` at Chrome 148, and a production zip that checks itself** (owner decision). From
   Chrome 148 every API is under `browser`, so `@types/chrome` would be a second spelling of each,
-  and the zip's hook refuses any manifest but production's. `apps/extension/package.json`.
+  and the build's hooks refuse a zip of any manifest but production's.
+  `apps/extension/package.json`.

@@ -30,7 +30,7 @@ export const connectPagePattern = (flavor: ExtensionFlavor): string =>
 
 // the cloud whose sign-in the extension rides, as a host pattern: the production site, or the dev
 // build's local Worker at any port
-export const cloudHostPattern = (flavor: ExtensionFlavor): string =>
+const cloudHostPattern = (flavor: ExtensionFlavor): string =>
   flavor === "dev" ? "http://localhost/*" : `${PRODUCTION_CLOUD_ORIGIN}/*`;
 
 const ICON_SIZES = [16, 32, 48, 128] as const;
