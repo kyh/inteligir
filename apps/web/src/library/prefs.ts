@@ -3,7 +3,7 @@
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { libraryScopeSchema } from "@repo/contract/library-scope";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
@@ -113,13 +113,9 @@ export const usePref = <Value>(
   row: PagePref<Value, Value>,
 ): readonly [Value, (next: Value) => void] => {
   const [value, setValue] = useState(() => readPref(row));
-  // as stable as useState's own setter: callers hold it in memos that an effect reads
-  const choose = useCallback(
-    (next: Value): void => {
-      writePref(row, next);
-      setValue(next);
-    },
-    [row],
-  );
+  const choose = (next: Value): void => {
+    writePref(row, next);
+    setValue(next);
+  };
   return [value, choose];
 };
