@@ -87,5 +87,5 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   `apps/mobile/eas.json`.
 - **The phone's version is the product's, and its share extension a signed target of its own.** A
   JS-only fix is an EAS Update to builds of the same fingerprint and a native change a new build
-  (owner decision); the App Group and its one extension are held to what App Store Connect judges.
-  `apps/mobile/src/app-config.test.ts`.
+  (owner decision); its bundle id, encryption answer and required reasons are held to what App Store
+  Connect judges. `apps/mobile/src/app-config.test.ts`.
