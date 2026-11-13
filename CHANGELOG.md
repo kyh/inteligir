@@ -99,6 +99,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 ### Fixed
 
+- **inteligir.com's pages hold still as they load**: the text no longer jumps when the font arrives.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
 - **Typing `md` in the `[[` picker matches titles alone.**

@@ -1,4 +1,5 @@
 import { createRootRoute, HeadContent, Outlet, ScriptOnce, Scripts } from "@tanstack/react-router";
+import bodyFontLatin from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
 import { PREFS } from "#library/prefs";
@@ -37,6 +38,15 @@ export const Route = createRootRoute({
       { rel: "icon", type: "image/svg+xml", href: "/favicon/favicon.svg" },
       { rel: "shortcut icon", href: "/favicon/favicon.ico" },
       { rel: "apple-touch-icon", sizes: "180x180", href: "/favicon/apple-touch-icon.png" },
+      // fetched beside the stylesheet, so Latin text usually has Inter for the first paint, which
+      // its `font-display: optional` (@repo/ui's inter.css) requires to use it on this page at all
+      {
+        rel: "preload",
+        href: bodyFontLatin,
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
     ],
   }),
   // shellComponent wraps every layout's errorComponent and notFoundComponent too, so a 404 renders

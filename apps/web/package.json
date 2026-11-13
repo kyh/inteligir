@@ -21,6 +21,7 @@
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@react-three/fiber": "^9.8.2",

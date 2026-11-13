@@ -21,6 +21,10 @@ The shared component vocabulary, its type roles and its motion.
   12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
   is, and a size every root sets alike is a branch in each component; the note is not chrome, its
   prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
+- **The body face never swaps under the reader.** Inter's faces are Fontsource's with
+  `font-display: optional` over an Arial fallback sized to Inter's metrics, and the site preloads
+  the Latin file, because a swap reflows every line a few seconds into a slow first load.
+  `packages/ui/src/styles/inter.css`.
 - **`cn` is configured once, because the merge engine has to be told the roles are sizes.** An
   untold `cn("text-body", "text-muted-foreground")` drops the size, and so does a second,
   unconfigured `cn`. `packages/ui/src/lib/cn.ts`.
