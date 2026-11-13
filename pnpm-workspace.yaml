@@ -132,6 +132,7 @@ catalog:
   platejs: ^53.5.2
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
+  # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
   react-native: ~0.86.3
@@ -241,6 +242,10 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
+  # one react-native and one expo in the tree, the phone's: @react-three/fiber (the site) names both
+  # as optional peers, which would otherwise resolve to the newest of each beside the phone's
+  react-native: "catalog:"
+  expo: "catalog:"
 
 # partyserver and y-partyserver peer @cloudflare/workers-types for their declarations, which the
 # runtime types `cf workers types` generates already supply; a required peer would be installed and

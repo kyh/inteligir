@@ -69,7 +69,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Text you paste that opens with a `---` block comes in as a code block.**
 - **The Mac window has the standard title bar.**
 - **inteligir.com follows your computer's light or dark mode** until you choose, and its theme switch and Settings › Editor › Theme are one choice.
-- **inteligir.com's home page draws no 3D orb**, and its headings' links are GitHub's.
+- **inteligir.com's headings' links are GitHub's.**
 
 ### Removed
 
