@@ -17,7 +17,7 @@ const HeroOrb = lazy(async () => {
   return { default: module.HeroOrb };
 });
 
-// themed tokens, not literal hex: dark is the default theme, so a hardcoded near-black pill vanishes into it
+// themed tokens, not literal hex: the site follows the system's dark mode, where a hardcoded near-black pill vanishes
 const CTA_PILL =
   "inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium shadow-lg";
 

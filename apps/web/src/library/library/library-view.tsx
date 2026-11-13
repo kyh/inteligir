@@ -181,21 +181,19 @@ const SortMenu = ({
   </DropdownMenu>
 );
 
-export const LibraryView = ({
+type LibraryBodyProps = Pick<
+  LibraryViewProps,
+  "scope" | "listing" | "kind" | "onKindChange" | "selection" | "actions"
+>;
+
+const LibraryBody = ({
   scope,
-  title,
   listing,
   kind,
   onKindChange,
-  sort,
-  onSortChange,
   selection,
   actions,
-  add,
-  onEmptyDeleted,
-  onTidy,
-}: LibraryViewProps) => {
-  const empty = emptyWords(scope);
+}: LibraryBodyProps) => {
   const { standing, more } = listing;
   switch (standing.kind) {
     case "needs-connection": {
@@ -228,13 +226,45 @@ export const LibraryView = ({
     // no default
   }
   const page = standing.data;
+  const empty = emptyWords(scope);
+  return (
+    <>
+      <KindChips counts={page.kindCounts} kind={kind} onKindChange={onKindChange} />
+      {page.total === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
+          <p className="m-0 text-subtitle font-medium">{empty.title}</p>
+          <p className="m-0 text-body text-muted-foreground">{empty.body}</p>
+        </div>
+      ) : (
+        <LibraryGrid rows={page.items} selection={selection} actions={actions} onNearEnd={more} />
+      )}
+    </>
+  );
+};
+
+// the bar stands from the first frame, so the answer fills in under it and nothing above the cards moves
+export const LibraryView = ({
+  scope,
+  title,
+  listing,
+  kind,
+  onKindChange,
+  sort,
+  onSortChange,
+  selection,
+  actions,
+  add,
+  onEmptyDeleted,
+  onTidy,
+}: LibraryViewProps) => {
+  const total = listing.standing.kind === "answered" ? listing.standing.data.total : null;
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
       <TopBar className="px-4">
         <h1 className="m-0 truncate text-title font-medium">{title}</h1>
-        <span className="text-body text-muted-foreground tabular-nums">
-          {formatCount(page.total)}
-        </span>
+        {total === null ? null : (
+          <span className="text-body text-muted-foreground tabular-nums">{formatCount(total)}</span>
+        )}
         <div className="ml-auto flex items-center gap-1.5">
           {onTidy === null || scope.kind === "deleted" ? null : (
             <Button size="compact" variant="ghost" onClick={onTidy}>
@@ -246,7 +276,7 @@ export const LibraryView = ({
             <Button
               size="compact"
               variant="destructive"
-              disabled={page.total === 0}
+              disabled={total === null || total === 0}
               onClick={onEmptyDeleted}
             >
               Empty Deleted…
@@ -256,15 +286,14 @@ export const LibraryView = ({
           )}
         </div>
       </TopBar>
-      <KindChips counts={page.kindCounts} kind={kind} onKindChange={onKindChange} />
-      {page.total === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
-          <p className="m-0 text-subtitle font-medium">{empty.title}</p>
-          <p className="m-0 text-body text-muted-foreground">{empty.body}</p>
-        </div>
-      ) : (
-        <LibraryGrid rows={page.items} selection={selection} actions={actions} onNearEnd={more} />
-      )}
+      <LibraryBody
+        scope={scope}
+        listing={listing}
+        kind={kind}
+        onKindChange={onKindChange}
+        selection={selection}
+        actions={actions}
+      />
     </div>
   );
 };

@@ -6,6 +6,8 @@ import { Label } from "@repo/ui/components/label";
 
 import { siteConfig } from "#lib/site-config";
 
+// top-anchored, not centred: an error line or an outcome arriving after a round trip would move a
+// centred card's title and fields by half its height; svh, since dvh moves with a phone's address bar
 export const AuthShell = ({
   title,
   subtitle,
@@ -17,7 +19,7 @@ export const AuthShell = ({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) => (
-  <main className="flex min-h-dvh w-full items-center justify-center px-6 py-16">
+  <main className="flex min-h-dvh w-full items-start justify-center px-6 pt-[18svh] pb-16">
     <div className="w-full max-w-sm">
       <Link to="/" className="mb-8 block text-center text-sm font-medium tracking-tight">
         {siteConfig.name}

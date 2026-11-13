@@ -160,7 +160,7 @@ const MediaCardSkeleton = ({
     {...props}
   >
     <div className="aspect-[16/10] w-full shrink-0 animate-pulse bg-muted" />
-    <div className="flex flex-col gap-1.5 px-2.5 py-2.5">
+    <div className="flex flex-col gap-1.5 px-2.5 py-2.5" style={{ height: MEDIA_CARD_BODY_PX }}>
       <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
       <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted" />
     </div>
