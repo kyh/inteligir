@@ -1,7 +1,7 @@
 // CLAUDE.md § There is one search surface, and it is ⌘P. One field over the library and the page's
 // commands: what is typed is searched by the cell's full-text index (titles, notes and saved
 // articles), ranked as the cell ranks it for every device; a hit opens its item with the find
-// bar on the words, and a typed web address offers to save it. The commands are the page's verbs
+// bar on the words, and a typed web address leads with saving it. The commands are the page's verbs
 // that need no item: a new note, a link, the agent and Tidy my library, Settings.
 
 import { shownTitle } from "@repo/contract/items/item-name";
@@ -99,22 +99,8 @@ export const CommandPalette = ({
     chord?: WindowAction,
   ): PaletteRow => ({ chord, label, onSelect: run(act), value });
   const groups: CommandRowGroup<PaletteRow>[] = [
-    ...(typed === "" || hits.length === 0
-      ? []
-      : [
-          {
-            heading: "Items",
-            items: hits.map((hit): PaletteRow => ({
-              action: "Open",
-              hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
-              label: shownTitle(hit.card.title),
-              onSelect: run(() => {
-                actions.openHit(hit.id, typed);
-              }),
-              value: `hit:${hit.id}`,
-            })),
-          },
-        ]),
+    // the first row is the lit one Enter runs, and a pasted address is there to be saved, so Save
+    // leads the hits its words also found
     ...(isWebUrl(typed)
       ? [
           {
@@ -132,6 +118,22 @@ export const CommandPalette = ({
           },
         ]
       : []),
+    ...(typed === "" || hits.length === 0
+      ? []
+      : [
+          {
+            heading: "Items",
+            items: hits.map((hit): PaletteRow => ({
+              action: "Open",
+              hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
+              label: shownTitle(hit.card.title),
+              onSelect: run(() => {
+                actions.openHit(hit.id, typed);
+              }),
+              value: `hit:${hit.id}`,
+            })),
+          },
+        ]),
     {
       heading: "Commands",
       items: [

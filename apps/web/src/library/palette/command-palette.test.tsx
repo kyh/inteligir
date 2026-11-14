@@ -51,6 +51,7 @@ const drawPalette = () => {
   const hits = new Map([
     ["#todo", [cell.listed(cell.seed.item())]],
     ["spring", [{ ...cell.listed(plans), snippet: "a trip in spring" }]],
+    ["https://example.com/spring", [{ ...cell.listed(plans), snippet: "example.com/spring" }]],
   ]);
   const { calls, library } = fakePageLibrary({
     answer: (call) =>
@@ -153,6 +154,18 @@ describe("the palette", () => {
     fireEvent.change(field(), { target: { value: "https://example.com/a" } });
     fireEvent.click(await screen.findByRole("option", { name: "Save this link" }));
     expect(actions.saveLink).toHaveBeenCalledWith("https://example.com/a");
+  });
+
+  it("lights Save over the hits for a pasted web address, so Enter saves it", async () => {
+    const { actions } = drawPalette();
+    fireEvent.change(field(), { target: { value: "https://example.com/spring" } });
+    await screen.findByRole("option", { name: /Plans/u });
+    await waitFor(() => {
+      expect(lit()).toBe("Save this link");
+    });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(actions.saveLink).toHaveBeenCalledWith("https://example.com/spring");
+    expect(actions.openHit).not.toHaveBeenCalled();
   });
 
   it("closes on Escape", async () => {
