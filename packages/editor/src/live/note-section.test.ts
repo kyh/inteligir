@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 import { YHistoryEditor } from "@slate-yjs/core";
 import * as Y from "yjs";
@@ -18,6 +19,9 @@ const p = (id: string, text: string): LibraryBlock =>
 
 const sectionsOf = (doc: Y.Doc): [string, LibrarySection][] =>
   readBlocks(doc).map(({ block, section }) => [block.id, section]);
+
+const linesOf = (doc: Y.Doc): [string, LibrarySection][] =>
+  readBlocks(doc).map(({ block, section }) => [NodeApi.string(block), section]);
 
 // a person's device on a note whose page a fill read, beside the note's own editor
 const clipped = () => {
@@ -42,6 +46,50 @@ describe("a block's section as the editor makes blocks", () => {
     const [, page, split] = sectionsOf(deviceDoc);
     expect(page).toStrictEqual(["page", "article"]);
     expect(split?.[1]).toBe("note");
+  });
+
+  it("keeps the article's words in the article when Enter opens a line before them", () => {
+    const { device, deviceDoc, net, object } = clipped();
+    device.tf.select({ offset: 0, path: [1, 0] });
+    device.tf.insertBreak();
+    device.tf.insertText("my line", { at: { offset: 0, path: [1, 0] } });
+    settle(net, [device, object]);
+    expect(linesOf(deviceDoc)).toStrictEqual([
+      ["my words", "note"],
+      ["my line", "note"],
+      ["the page", "article"],
+    ]);
+  });
+
+  it("files the line Enter opens inside or after an article block as the person's", () => {
+    const { device, deviceDoc, net, object } = clipped();
+    device.tf.select({ offset: 8, path: [1, 0] });
+    device.tf.insertBreak();
+    device.tf.select({ offset: 3, path: [1, 0] });
+    device.tf.insertBreak();
+    settle(net, [device, object]);
+    expect(linesOf(deviceDoc)).toStrictEqual([
+      ["my words", "note"],
+      ["the", "article"],
+      [" page", "note"],
+      ["", "note"],
+    ]);
+  });
+
+  it("files what is typed after Enter on an emptied article line as the person's", () => {
+    const { device, deviceDoc, net, object } = clipped();
+    device.tf.delete({
+      at: { anchor: { offset: 0, path: [1, 0] }, focus: { offset: 8, path: [1, 0] } },
+    });
+    device.tf.select({ offset: 0, path: [1, 0] });
+    device.tf.insertBreak();
+    device.tf.insertText("typed");
+    settle(net, [device, object]);
+    expect(linesOf(deviceDoc)).toStrictEqual([
+      ["my words", "note"],
+      ["", "article"],
+      ["typed", "note"],
+    ]);
   });
 
   it("files a block inserted anywhere as the person's, one copied out of the article too", () => {

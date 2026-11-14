@@ -101,6 +101,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 
 - **inteligir.com's pages hold still as they load**: the text no longer jumps when the font arrives, the library's title bar stands before its items do, and a sign-in error no longer moves the form.
 - **Password changed says what happened**: every device and browser that was signed in is signed out.
+- **Enter at the start of a saved page's paragraph keeps your new line yours**: Read the page again no longer deletes it or repeats the paragraph.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
 - **Typing `md` in the `[[` picker matches titles alone.**
