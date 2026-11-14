@@ -1,8 +1,10 @@
 // The policy every document the site renders carries, the library's among them: its own scripts,
 // each inline one by this request's nonce, and no wasm; calls and the socket to this origin alone;
-// nothing remote drawn in an item, so a saved page cannot beacon on open; no frame, no worker. A
-// response that already names a policy keeps it (a file served under its own sandbox, the consent
-// page), and one that is no document carries none.
+// nothing remote drawn in an item, so a saved page cannot beacon on open; no frame but the library's
+// own files, no worker. A response that already names a policy keeps it (a file served under its
+// own sandbox, the consent page), and one that is no document carries none.
+
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 
 const NONCE_BYTES = 16;
 
@@ -32,7 +34,9 @@ export const pagePolicy = (url: URL, nonce: string): string =>
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    // Chromium draws a PDF item's viewer in a frame and checks it here as well as at object-src, so
+    // the library's own files on this origin are framed, and nothing else
+    `frame-src ${url.origin}${V1_BLOBS_PATH}/`,
     "worker-src 'none'",
   ].join("; ");
 

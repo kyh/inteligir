@@ -4,6 +4,9 @@ import { mintNonce, pagePolicy, withPagePolicy } from "./document-policy";
 
 const SITE = new URL("https://inteligir.com/library");
 
+const directiveOf = (policy: string, name: string): string | undefined =>
+  policy.split("; ").find((directive) => directive.startsWith(`${name} `));
+
 const html = (headers: Record<string, string> = {}) =>
   new Response("<!doctype html><p>hi</p>", {
     headers: { "content-type": "text/html; charset=utf-8", ...headers },
@@ -12,9 +15,17 @@ const html = (headers: Record<string, string> = {}) =>
 describe("the page's policy", () => {
   it("names this request's nonce for inline scripts, and no other inline script", () => {
     const policy = pagePolicy(SITE, "abc");
-    const scripts = policy.split("; ").find((directive) => directive.startsWith("script-src"));
-    expect(scripts).toBe("script-src 'self' 'nonce-abc'");
+    expect(directiveOf(policy, "script-src")).toBe("script-src 'self' 'nonce-abc'");
     expect(policy).toContain("frame-ancestors 'none'");
+  });
+
+  it("frames the library's own files on this origin, and nothing else", () => {
+    expect(directiveOf(pagePolicy(SITE, "n"), "frame-src")).toBe(
+      "frame-src https://inteligir.com/v1/blobs/",
+    );
+    expect(
+      directiveOf(pagePolicy(new URL("http://localhost:5174/library"), "n"), "frame-src"),
+    ).toBe("frame-src http://localhost:5174/v1/blobs/");
   });
 
   it("calls this origin, its socket and the Mac app's command channel alone", () => {

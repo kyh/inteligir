@@ -1,10 +1,14 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { EDITOR, newId, openLibrary, test, upload } from "./fixtures";
 
 const PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
+);
+const PDF = new TextEncoder().encode(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
 );
 // TEST-NET-1, which the fill refuses before any fetch
 const PASTED = "http://192.0.2.10/pasted";
@@ -163,4 +167,25 @@ test("the grid opens, narrows, previews, tags, deletes, files and follows the ce
         expect.objectContaining({ kind: "pdf", title: expect.stringContaining("Lecture") }),
       ]),
     );
+});
+
+// Chromium frames the PDF viewer, so a page policy that refuses the frame is a console error the
+// watch fails on, and the frame never appears
+test("a PDF item draws in the browser's own viewer", async ({ account, cloud, library, page }) => {
+  const sha = await upload(cloud, account, PDF, "application/pdf");
+  const lecture = await library.items.createFile({
+    folderId: null,
+    id: newId(),
+    name: "Lecture.pdf",
+    savedAt: Date.now(),
+    sha,
+    tags: [],
+  });
+
+  await openLibrary(page, cloud);
+  await cardOf(page, "Lecture").dblclick();
+  await expect(page).toHaveURL(itemParam(lecture.item.id));
+  await expect
+    .poll(() => page.frames().map((frame) => frame.url()))
+    .toContain(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`);
 });

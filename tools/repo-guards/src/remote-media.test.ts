@@ -12,8 +12,13 @@ const POLICIES = [
   "apps/web/src/lib/document-policy.ts",
 ];
 
-const DIRECTIVES = /(?<name>default|font|frame|img|media)-src"?:?\s*"?(?<sources>[^;",]*)/gu;
+const DIRECTIVES = /(?<name>default|font|frame|img|media)-src"?:?\s*"?(?<sources>[^;"`,]*)/gu;
 const LOCAL_SOURCES = new Set(["'none'", "'self'", "blob:", "data:"]);
+// the site's policy is built for the origin it answers from, and a path after it names no other host
+const OWN_ORIGIN_PATH = /^\$\{url\.origin\}(?:\/|\$\{\w+_PATH\})/u;
+
+const isLocal = (source: string): boolean =>
+  LOCAL_SOURCES.has(source) || OWN_ORIGIN_PATH.test(source);
 
 describe("what a device draws in an item", () => {
   it.each(POLICIES)("comes from nowhere on the web under %s", (file) => {
@@ -25,7 +30,7 @@ describe("what a device draws in an item", () => {
     );
     expect(named.length, `${file} names no drawing source this guard can read`).toBeGreaterThan(0);
     expect(
-      named.filter(({ source }) => !LOCAL_SOURCES.has(source)),
+      named.filter(({ source }) => !isLocal(source)),
       `${file} lets a device fetch what an item names from the web`,
     ).toStrictEqual([]);
   });
