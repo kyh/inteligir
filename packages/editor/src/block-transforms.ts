@@ -37,7 +37,8 @@ const TURN_INTO_ROWS = {
     listStyleType: "disc",
     type: KEYS.p,
   },
-  callout: { id: "callout", label: "Callout", marker: "[!NOTE] ", type: KEYS.blockquote },
+  // a line of its own, as the reader models one: the badge hides only a whole marker line
+  callout: { id: "callout", label: "Callout", marker: "[!NOTE]\n", type: KEYS.blockquote },
   "code-block": { id: "code-block", label: "Code block", type: KEYS.codeBlock },
   "heading-1": { id: "heading-1", label: "Heading 1", type: KEYS.h1 },
   "heading-2": { id: "heading-2", label: "Heading 2", type: KEYS.h2 },
@@ -148,6 +149,27 @@ const stripAlertMarker = (editor: PlateEditor, at: Path): void => {
   });
 };
 
+// Plate's quote holds blocks, so a block joins one as a wrapped paragraph, the shape the reader
+// makes. Retyped instead, its bare text is rebuilt by the quote's normalizer, and the caret falls
+// out of the replaced text into the block above.
+const quoteAt = (editor: PlateEditor, at: Path, marker: string | undefined): void => {
+  const element = elementAt(editor, at);
+  if (element === null) {
+    return;
+  }
+  if (element.type !== editor.getType(KEYS.blockquote)) {
+    editor.tf.setNodes({ type: editor.getType(KEYS.p) }, { at });
+    editor.tf.wrapNodes({ children: [], type: editor.getType(KEYS.blockquote) }, { at });
+  }
+  const start = editor.api.start(at);
+  if (marker === undefined || start === undefined) {
+    return;
+  }
+  if (leadingAlertMarker(NodeApi.string(element)) === null) {
+    editor.tf.insertText(marker, { at: start });
+  }
+};
+
 const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void => {
   if (opt.type === KEYS.toggle) {
     wrapBlockInToggle(editor, at);
@@ -182,15 +204,11 @@ const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void =
     return;
   }
   editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
-  editor.tf.setNodes({ type: opt.type }, { at });
-  if (opt.marker !== undefined) {
-    const element = elementAt(editor, at);
-    const hasMarker = element !== null && leadingAlertMarker(NodeApi.string(element)) !== null;
-    const start = editor.api.start(at);
-    if (!hasMarker && start !== undefined) {
-      editor.tf.insertText(opt.marker, { at: start });
-    }
+  if (opt.type === KEYS.blockquote) {
+    quoteAt(editor, at, opt.marker);
+    return;
   }
+  editor.tf.setNodes({ type: opt.type }, { at });
 };
 
 export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void => {

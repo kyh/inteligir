@@ -103,6 +103,7 @@ What changed in Inteligir (the Mac app, the iPhone app, the browser extension an
 - **Password changed says what happened**: every device and browser that was signed in is signed out.
 - **Enter at the start of a saved page's paragraph keeps your new line yours**: Read the page again no longer deletes it or repeats the paragraph.
 - **PDFs preview in Chrome, Arc, Brave and Edge**, where they showed an empty box and a Download button.
+- **A callout from the / menu takes what you type**, under its Note label, instead of the line above, and shows no raw `[!NOTE]`.
 - **Underlined text stays underlined**, though an agent's edit to its paragraph writes it plain.
 - **Tabs work inside toggles, columns, callouts, quotes and lists**, and end or start with any block.
 - **Typing `md` in the `[[` picker matches titles alone.**

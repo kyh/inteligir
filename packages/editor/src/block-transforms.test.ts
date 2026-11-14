@@ -11,9 +11,10 @@ import {
   turnIntoOptionFor,
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
+import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { rewrite } from "@repo/editor/test-support/markdown-meaning";
+import { meaningOf, readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
 
 const makeEditor = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -58,10 +59,10 @@ describe("turnIntoAt round-trips", () => {
     expect(out(editor)).toBe("summary\n\nbody\n");
   });
 
-  it("paragraph → callout inserts the [!NOTE] marker; → paragraph strips it", () => {
+  it("paragraph → callout inserts the [!NOTE] marker line; → paragraph strips it", () => {
     const editor = makeEditor("hello\n");
     turnIntoAt(editor, [0], opt("callout"));
-    expect(out(editor)).toBe("> [!NOTE] hello\n");
+    expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
     turnIntoAt(editor, [0], opt("text"));
     expect(out(editor)).toBe("hello\n");
   });
@@ -71,9 +72,21 @@ describe("turnIntoAt round-trips", () => {
     turnIntoAt(editor, [0], opt("quote"));
     expect(out(editor)).toBe("> hello\n");
     turnIntoAt(editor, [0], opt("callout"));
-    expect(out(editor)).toBe("> [!NOTE] hello\n");
+    expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
     turnIntoAt(editor, [0], opt("callout"));
-    expect(out(editor)).toBe("> [!NOTE] hello\n");
+    expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
+  });
+
+  it.each<[TurnIntoId, string]>([
+    ["quote", "## Heading\n\n> item typed\n"],
+    ["callout", "## Heading\n\n> [!NOTE]\n> item typed\n"],
+  ])("a block turned into a %s is the quote the reader makes, the caret still in it", (id, md) => {
+    const editor = makeEditor("## Heading\n\n- item\n");
+    editor.tf.select(editor.api.end([1]));
+    turnIntoSelection(editor, opt(id));
+    editor.tf.insertText(" typed");
+    expect(meaningOf(editor.children)).toBe(meaningOf(readValue(md)));
+    expect(out(editor)).toBe(md);
   });
 
   it("paragraph → code block → paragraph (multi-line)", () => {
