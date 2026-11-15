@@ -33,6 +33,5 @@ pnpm --filter @repo/db run --silent export   # the D1 schema's DDL, as the suite
 
 `test` fails while a committed `ddl.sql` differs from what its schema writes.
 A schema change is tested by `@repo/service`'s workerd suites, which apply the
-D1 DDL and open every object through its own, and
-`tools/repo-guards/src/d1-unique-index.test.ts` refuses a `.unique()` in the
-D1 schema.
+D1 DDL and open every object through its own, and lint refuses a `.unique()`
+in the D1 schema (`oxlint.config.ts`).

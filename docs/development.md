@@ -179,9 +179,9 @@ in `.github/workflows/ci.yml`.
 ## Tests
 
 Every workspace answers `pnpm --filter <name> test`; each suite's own file
-header says what it pins, and `tools/repo-guards` holds the three rules that
-span workspaces and no tool checks: product words, D1 uniques and remote
-media. The cloud's suites are
+header says what it pins, and `tools/repo-guards` holds the two rules that
+span workspaces and no tool checks: product words and remote media. The
+cloud's suites are
 `@repo/service`'s, inside workerd on its own never-deployed Worker, with the
 model's pure suites under node (`packages/service/README.md` § Testing);
 `@repo/web`'s are the site's under node and the library tab's under jsdom. A
