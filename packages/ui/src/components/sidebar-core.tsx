@@ -303,7 +303,7 @@ const SidebarRail = ({
       side={side === "left" ? "right" : "left"}
       sideOffset={8}
       followCursor="y"
-      forceOpen={dragging ? false : undefined}
+      disabled={dragging}
       content={
         <span className="flex flex-col items-start gap-1 py-0.5">
           <span>

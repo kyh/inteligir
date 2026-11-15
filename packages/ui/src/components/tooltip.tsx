@@ -16,21 +16,10 @@ import { spring } from "@repo/ui/lib/springs";
 const DEFAULT_DELAY = 200;
 const SKIP_DELAY_TIMEOUT = 300;
 
-// a per-instance Provider would defeat cross-tooltip skip-delay grouping, so a Tooltip wraps
-// itself only when no app-level TooltipProvider is above it
-const TooltipGroupContext = React.createContext(false);
-
-interface TooltipProviderProps {
-  children: React.ReactNode;
-  delay?: number;
-}
-
-const TooltipProvider = ({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) => (
-  <TooltipGroupContext value={true}>
-    <TooltipPrimitive.Provider delay={delay} timeout={SKIP_DELAY_TIMEOUT}>
-      {children}
-    </TooltipPrimitive.Provider>
-  </TooltipGroupContext>
+// groups the tooltips under it, so one opens at once after its neighbour; each trigger carries
+// its own delay, so a tooltip with no provider above it waits the same
+const TooltipProvider = ({ children }: { children: React.ReactNode }) => (
+  <TooltipPrimitive.Provider timeout={SKIP_DELAY_TIMEOUT}>{children}</TooltipPrimitive.Provider>
 );
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
@@ -42,9 +31,8 @@ interface TooltipProps {
   sideOffset?: number;
   delay?: number;
   className?: string;
-  forceOpen?: boolean;
+  disabled?: boolean;
   followCursor?: "x" | "y";
-  onOpenChange?: (open: boolean) => void;
 }
 
 const slideOffsets: Record<TooltipSide, { x: number } | { y: number }> = {
@@ -59,15 +47,12 @@ const Tooltip = ({
   children,
   side = "top",
   sideOffset = 8,
-  delay,
+  delay = DEFAULT_DELAY,
   className,
-  forceOpen,
-  onOpenChange: onOpenChangeProp,
+  disabled = false,
   followCursor,
 }: TooltipProps) => {
-  const [internalOpen, setInternalOpen] = React.useState(false);
-  const open = forceOpen ?? internalOpen;
-  const hasAmbientProvider = React.useContext(TooltipGroupContext);
+  const [open, setOpen] = React.useState(false);
 
   const slideOffset = slideOffsets[side];
 
@@ -85,20 +70,14 @@ const Tooltip = ({
     );
   };
 
-  const tooltip = (
-    <TooltipPrimitive.Root
-      open={open}
-      onOpenChange={(v) => {
-        setInternalOpen(v);
-        onOpenChangeProp?.(v);
-      }}
-    >
+  return (
+    <TooltipPrimitive.Root open={open} onOpenChange={setOpen} disabled={disabled}>
       <TooltipPrimitive.Trigger
         render={children}
         delay={delay}
         onPointerMove={followCursor ? handleFollowMove : undefined}
       />
-      <PopupOpen open={open}>
+      <PopupOpen open={open && !disabled}>
         <PopupPresence>
           <TooltipPrimitive.Portal keepMounted>
             <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
@@ -145,14 +124,6 @@ const Tooltip = ({
         </PopupPresence>
       </PopupOpen>
     </TooltipPrimitive.Root>
-  );
-
-  if (hasAmbientProvider) {
-    return tooltip;
-  }
-
-  return (
-    <TooltipPrimitive.Provider delay={delay ?? DEFAULT_DELAY}>{tooltip}</TooltipPrimitive.Provider>
   );
 };
 
