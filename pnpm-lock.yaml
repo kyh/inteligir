@@ -371,6 +371,9 @@ catalogs:
     slate:
       specifier: 0.146.0
       version: 0.146.0
+    srvx:
+      specifier: ^1.0.8
+      version: 1.0.8
     tailwindcss:
       specifier: ^4.3.3
       version: 4.3.3
@@ -1413,6 +1416,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      srvx:
+        specifier: 'catalog:'
+        version: 1.0.8
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

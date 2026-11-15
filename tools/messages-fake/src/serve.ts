@@ -1,15 +1,11 @@
 // The scripted Messages API on a port of its own, for a Worker whose client reaches it through
-// `ANTHROPIC_FAKE_URL`: node's HTTP server in front of the fake's fetch handler, every response
-// streamed as it is written, so a reply's events reach the client as they happen and a stalled
-// one lets go when the client goes.
+// `ANTHROPIC_FAKE_URL`: srvx's node server in front of the fake's fetch handler, which sends a
+// reply's events as they are written and aborts a stalled reply's request when its client goes.
 
-import { once } from "node:events";
-import { createServer } from "node:http";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { z } from "zod";
+import { serve } from "srvx";
 
 import { messagesFake } from "./messages-fake.ts";
-import type { FakeStats, MessagesFake } from "./messages-fake.ts";
+import type { FakeStats } from "./messages-fake.ts";
 
 export interface ServedFake {
   // what the Worker's client takes as its base URL
@@ -19,85 +15,44 @@ export interface ServedFake {
   readonly close: () => Promise<void>;
 }
 
-const HOST = "127.0.0.1";
-
-const addressSchema = z.object({ port: z.number().int().nonnegative() });
-
-const requestOf = async (incoming: IncomingMessage, origin: string): Promise<Request> => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of incoming) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-  }
-  const headers = new Headers();
-  for (let index = 0; index + 1 < incoming.rawHeaders.length; index += 2) {
-    headers.append(incoming.rawHeaders[index] ?? "", incoming.rawHeaders[index + 1] ?? "");
-  }
-  const method = incoming.method ?? "GET";
-  return new Request(new URL(incoming.url ?? "/", origin), {
-    body: method === "GET" || method === "HEAD" ? null : Buffer.concat(chunks),
-    headers,
-    method,
-  });
-};
-
-// one request answered, a failure of the fake's own logged and answered 500
-const answer = async (
-  fake: MessagesFake,
-  origin: string,
-  incoming: IncomingMessage,
-  outgoing: ServerResponse,
-): Promise<void> => {
-  try {
-    const response = await fake.fetch(await requestOf(incoming, origin));
-    outgoing.writeHead(response.status, Object.fromEntries(response.headers));
-    // node holds the head until the first write, and a stalled reply may send nothing for long
-    outgoing.flushHeaders();
-    if (response.body === null) {
-      outgoing.end();
-      return;
-    }
-    const reader = response.body.getReader();
-    outgoing.on("close", () => {
-      void reader.cancel();
-    });
-    for (let read = await reader.read(); !read.done; read = await reader.read()) {
-      outgoing.write(read.value);
-    }
-  } catch (error) {
-    // a client that went away, as a cut or a stopped call does, is answered by no one and is no
-    // failure of the fake's
-    if (incoming.destroyed || outgoing.destroyed) {
-      return;
-    }
-    console.error({
-      event: "messages-fake-failed",
-      message: error instanceof Error ? error.message : "the request failed",
-    });
-    if (!outgoing.headersSent) {
-      outgoing.writeHead(500);
-    }
-  }
-  outgoing.end();
-};
-
-export const serveMessagesFake = async (requestedPort: number): Promise<ServedFake> => {
+export const serveMessagesFake = async (port: number): Promise<ServedFake> => {
   const fake = messagesFake();
-  let origin = "";
-  const server = createServer((incoming, outgoing) => {
-    void answer(fake, origin, incoming, outgoing);
+  const server = serve({
+    // `silent` drops srvx's own line for a request that threw, so the fake's is logged here
+    error: (error) => {
+      console.error({
+        event: "messages-fake-failed",
+        message: error instanceof Error ? error.message : "the request failed",
+      });
+      return new Response(null, { status: 500 });
+    },
+    // srvx's request is not one `new Request` copies, so the fake is handed its parts
+    fetch: async (request) =>
+      await fake.fetch(request.url, {
+        body:
+          request.method === "GET" || request.method === "HEAD"
+            ? null
+            : await request.arrayBuffer(),
+        headers: request.headers,
+        method: request.method,
+        signal: request.signal,
+      }),
+    // srvx's SIGINT and SIGTERM handlers would land in whatever process serves it, a Playwright
+    // worker among them
+    gracefulShutdown: false,
+    hostname: "127.0.0.1",
+    port,
+    silent: true,
   });
-  server.listen(requestedPort, HOST);
-  await once(server, "listening");
-  const { port } = addressSchema.parse(server.address());
-  origin = `http://${HOST}:${String(port)}`;
+  const { url } = await server.ready();
+  if (url === undefined) {
+    throw new Error("The scripted Messages API is listening at no address.");
+  }
   return {
     close: async () => {
-      const closed = once(server, "close");
-      server.closeAllConnections();
-      server.close();
-      await closed;
+      await server.close(true);
     },
-    origin,
+    origin: new URL(url).origin,
     stats: fake.stats,
   };
 };
