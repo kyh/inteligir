@@ -19,7 +19,7 @@ import { sniffMedia } from "@repo/contract/items/sniff-media";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { QuotaError } from "@repo/contract/v1/errors";
 import { readHtml } from "@repo/page-reader/read-html";
-import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
+import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 
 import type { CapturedPage } from "../capture/captured-page";
 import type { Outcome, OutcomeReason, WaitsFor } from "../messages";

@@ -1,30 +1,23 @@
-// a page's facts and its article, the one reading every host that fills a link runs: the host
-// hands the DOM it parses with (linkedom in the Worker's fill and the extension's worker), the head
-// is read before defuddle strips it, defuddle finds
-// the readable content (with no network: `useAsync` off and a fetch that refuses), and the article
-// is written down the body ladder, rich to plain, the first rung whose fixpoint keeps at least 97%
-// of its letters winning. The fixpoint is the editor's own, so its blocks export as those same
-// bytes.
+// a page's facts and its article, the one reading every host that fills a link runs, over
+// linkedom (`./linkedom-page`): the head is read before defuddle strips it, defuddle finds the
+// readable content (with no network: `useAsync` off and a fetch that refuses), and the article is
+// written down the body ladder, rich to plain, the first rung whose fixpoint keeps at least 97% of
+// its letters winning. The fixpoint is the editor's own, so its blocks export as those same bytes.
 
 import Defuddle from "defuddle";
 
-import { articleBlocks } from "@repo/editor/codec/item-markdown";
-import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
 import { escapeText, htmlToMarkdown } from "./html-to-markdown";
+import { parsePage } from "./linkedom-page";
 import type { ExtractedPage, PageArgs, Rung } from "./page-facts";
-import type { ExtractedPageBlocks } from "./page-reading";
 import { pageFactsOf, readHead } from "./page-meta";
 import type { ExtractedMeta } from "./page-meta";
 import { resolveWebUrl } from "./web-url";
 
 export const KEPT_MIN = 0.97;
 const RUNGS: readonly Rung[] = ["rich", "plain", "text"];
-
-// html as a document with an <html>, a <head> and a <body>, whatever it was handed; the host's
-export type ParsePage = (html: string) => Document;
 
 const refuseFetch: typeof fetch = async () =>
   await Promise.reject(new Error("the page reader reaches no network"));
@@ -146,7 +139,7 @@ const withinBudget = <T extends Element>(root: T): T => {
   return root;
 };
 
-const contentRoot = (parsePage: ParsePage, contentHtml: string, pageUrl: string): HTMLElement => {
+const contentRoot = (contentHtml: string, pageUrl: string): HTMLElement => {
   const document = parsePage(
     `<!doctype html><html><head></head><body>${contentHtml}</body></html>`,
   );
@@ -207,7 +200,7 @@ const readableContent = (document: Document, url: string): Readable => {
   }
 };
 
-export const extractPage = (args: PageArgs, parsePage: ParsePage): ExtractedPage => {
+export const extractPage = (args: PageArgs): ExtractedPage => {
   const document = parsePage(args.html);
   // the head first: defuddle strips the scripts JSON-LD rides in
   const head = readHead(document, args.url);
@@ -219,26 +212,11 @@ export const extractPage = (args: PageArgs, parsePage: ParsePage): ExtractedPage
       : null) ??
     (result.content === null
       ? ladder(withinBudget(document.body))
-      : ladder(contentRoot(parsePage, result.content, args.url)));
+      : ladder(contentRoot(result.content, args.url)));
   return {
     article: article?.markdown ?? "",
     facts: merged,
     kept: article?.kept ?? 0,
     rung: article?.rung ?? null,
   };
-};
-
-const NO_ARTICLE: ArticleBlocks = { blocks: [] };
-
-// the same reading, its article as the library's blocks: the fixpoint the ladder wrote, read by the
-// editor's codec as a page (no dialect link or Obsidian spelling reads in it), its ids the host's
-export const extractPageBlocks = (
-  args: PageArgs,
-  parsePage: ParsePage,
-  newBlockId: () => string,
-): ExtractedPageBlocks => {
-  const page = extractPage(args, parsePage);
-  const article =
-    page.article === "" ? NO_ARTICLE : (articleBlocks(page.article, newBlockId) ?? NO_ARTICLE);
-  return { article, facts: page.facts, rung: page.rung };
 };

@@ -8,8 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
-import { extractPageBlocks } from "./extract-page";
-import { parsePage } from "./linkedom-page";
+import { readHtml } from "./read-html";
 import { longPage } from "./test-support/long-page";
 
 const MiB = 1024 * 1024;
@@ -23,9 +22,8 @@ describe("a page at every limit", () => {
     const page = longPage(article, FILL_LIMITS.htmlBytes - article);
     expect(page.html.length).toBeGreaterThanOrEqual(FILL_LIMITS.htmlBytes);
     let n = 0;
-    const read = extractPageBlocks(
+    const read = readHtml(
       { html: page.html, prefer: "article", url: "https://pages.example/long" },
-      parsePage,
       () => `b${String((n += 1))}`,
     );
     expect(read.article.blocks.length).toBeGreaterThan(500);

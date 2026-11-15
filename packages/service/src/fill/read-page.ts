@@ -11,7 +11,7 @@
 // which every request waits on.
 
 import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
-import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
+import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 import type { ReadHtml } from "@repo/page-reader/read-html";
 import { originalFileName } from "@repo/contract/items/item-name";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
@@ -199,6 +199,10 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
   }
   const oembed = await askOEmbed(ports, job.url, landed, read.facts.oembed);
   const article = articleOf(readHtml, read, oembed, job.url);
+  if (article.refused > 0) {
+    // the ladder kept these words, and the item goes without them
+    console.warn({ event: "fill-blocks-refused", refused: article.refused });
+  }
   const coverSha = await keepCover(ports, coverCandidates(job, landed, read.facts.images, oembed));
   return {
     kind: "landing",

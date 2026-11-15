@@ -4,8 +4,7 @@
 // implementation is held to this type by this package's program, which has the DOM. The bundler
 // reads the `default` condition, the implementation itself.
 
-import type { PageArgs } from "./page-facts";
-import type { ExtractedPageBlocks } from "./page-reading";
+import type { ExtractedPageBlocks, PageArgs } from "./page-facts";
 
 // a page's html read into its facts and its article as the library's blocks, named by the host's ids
 export type ReadHtml = (args: PageArgs, newBlockId: () => string) => ExtractedPageBlocks;
