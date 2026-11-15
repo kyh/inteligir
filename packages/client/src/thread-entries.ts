@@ -245,7 +245,7 @@ export const sendRefusalWords = (cause: unknown, nowMs: number): string => {
 
 // one call the agent made, as a run of work shows it: running until its result lands, which says
 // whether it failed, and in its first characters why
-export type ToolUse = { readonly toolUseId: string; readonly name: string } & (
+type ToolUse = { readonly toolUseId: string; readonly name: string } & (
   | { readonly kind: "running" }
   | { readonly kind: "done" }
   | { readonly kind: "failed"; readonly message: string }

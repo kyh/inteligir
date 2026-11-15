@@ -22,17 +22,12 @@ import {
   toolWords,
   workWords,
 } from "@repo/client/thread-entries";
-import type {
-  ThreadBlock,
-  ThreadEntry,
-  ToolUse,
-  WaitingApproval,
-} from "@repo/client/thread-entries";
+import type { ThreadBlock, ThreadEntry, WaitingApproval } from "@repo/client/thread-entries";
 import { shownTitle } from "@repo/contract/items/item-name";
 import { ApprovalCard } from "@repo/ui/ai/approval-card";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
-import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
+import { ToolChip, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
@@ -119,17 +114,6 @@ const EntryRow = ({
   }
 };
 
-const ToolRow = ({ use }: { use: ToolUse }) => (
-  <ToolChip
-    icon={readsOnly(use.name) ? "read" : "write"}
-    label={toolWords(use.name)}
-    chip={use.kind === "running" ? "…" : ""}
-    failed={use.kind === "failed"}
-  >
-    {use.kind === "failed" ? <ToolChipDetail>{use.message}</ToolChipDetail> : null}
-  </ToolChip>
-);
-
 // the agent's work between two messages: its notes, then the calls it made
 const WorkBlock = ({
   block,
@@ -150,7 +134,12 @@ const WorkBlock = ({
     {block.uses.length === 0 ? null : (
       <ToolChipList summary={plural(block.uses.length, "library call")}>
         {block.uses.map((use) => (
-          <ToolRow key={use.toolUseId} use={use} />
+          <ToolChip
+            key={use.toolUseId}
+            icon={readsOnly(use.name) ? "read" : "write"}
+            label={toolWords(use.name)}
+            use={use}
+          />
         ))}
       </ToolChipList>
     )}

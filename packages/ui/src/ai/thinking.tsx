@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useLayoutEffect, useState } from "react";
+import { useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
 import { ChevronDownIcon } from "lucide-react";
 
@@ -24,21 +24,6 @@ const Thinking = ({
   ...props
 }: ThinkingProps & RefAttributes<HTMLDivElement>) => {
   const [expanded, setExpanded] = useState(false);
-  const [traceEl, setTraceEl] = useState<HTMLDivElement | null>(null);
-  const [ruleHeight, setRuleHeight] = useState(0);
-  // observed rather than measured per render: the trace reflows (wrapping, fonts) with no render of this component
-  useLayoutEffect(() => {
-    if (traceEl === null) {
-      return;
-    }
-    const ro = new ResizeObserver(() => {
-      setRuleHeight(traceEl.offsetHeight);
-    });
-    ro.observe(traceEl);
-    return () => {
-      ro.disconnect();
-    };
-  }, [traceEl]);
 
   return (
     <div
@@ -85,13 +70,8 @@ const Thinking = ({
 
       <Collapse open={expanded}>
         <div className="relative mt-1 ml-[5px] pl-4">
-          <span
-            aria-hidden
-            className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
-            style={{ height: ruleHeight === 0 ? 0 : ruleHeight - 2, top: -8 }}
-          />
+          <span aria-hidden className="absolute -top-2 bottom-2.5 left-[3px] w-px bg-line" />
           <div
-            ref={setTraceEl}
             data-slot="thinking-trace"
             className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
           >
