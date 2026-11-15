@@ -1,31 +1,12 @@
 // Seeded markdown over the dialect's constructs, not as the writer spells them, so a suite reads
 // and writes the modelled nodes in shapes no fixture holds.
 
+import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
 import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
-
-// oxlint-disable no-bitwise -- mulberry32 is defined in terms of 32-bit word math; the seeded sequence is the point
-const mulberry32 = (seed: number): (() => number) => {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d_2b_79_f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
-};
-// oxlint-enable no-bitwise
 
 type Rng = () => number;
 
 const int = (rng: Rng, n: number): number => Math.floor(rng() * n);
-const pick = <T>(rng: Rng, xs: readonly T[]): T => {
-  const item = xs[int(rng, xs.length)];
-  if (item === undefined) {
-    throw new Error("pick from empty array");
-  }
-  return item;
-};
 const chance = (rng: Rng, p: number): boolean => rng() < p;
 
 const WORDS = [
