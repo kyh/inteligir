@@ -2,9 +2,9 @@
 // draws its panel with (`@repo/client`): the thread's stored events as the phone last read
 // them, so it reads offline, the reply being written from the socket, the approval waiting with Approve and
 // Cancel, each turn's ending in the person's words, and the composer, whose message carries the
-// item it was asked from. A send, an answer and a stop go to the cell, so each waits for a
-// connection and says so; the day's allowance and an agent switched off are said as the page says
-// them.
+// item it was asked from. A send, an answer and a stop go to the cell, so each needs a connection
+// and says so rather than wait for one; the day's allowance and an agent switched off are said as
+// the page says them.
 
 import { useMutation } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -12,7 +12,6 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
 import {
@@ -39,6 +38,7 @@ import {
 } from "@/lib/library-hooks";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
+import { online } from "@/ui/needs-connection";
 import { TextButton } from "@/ui/text-button";
 
 // the screen a message leaves from: the item it was asked about, else the whole library
@@ -170,7 +170,9 @@ const Conversation = ({ threadId }: { threadId: string }) => {
           key={approval.eventId}
           approval={approval}
           onAnswer={(result) => {
-            respond.mutate({ eventId: approval.eventId, result, threadId });
+            if (online()) {
+              respond.mutate({ eventId: approval.eventId, result, threadId });
+            }
           }}
         />
       ))}
@@ -181,12 +183,11 @@ const Conversation = ({ threadId }: { threadId: string }) => {
             fontSize={14}
             label="Stop"
             onPress={() => {
-              cancel.mutate({ threadId });
+              if (online()) {
+                cancel.mutate({ threadId });
+              }
             }}
           />
-        ) : null}
-        {respond.isPaused || cancel.isPaused ? (
-          <Text className="text-13 text-muted-foreground">{NEEDS_CONNECTION}</Text>
         ) : null}
         {failure === null ? null : (
           <Text className="text-13 text-destructive">{callRefusalWords(failure)}</Text>
@@ -217,17 +218,16 @@ const Composer = ({
   );
   const submit = (): void => {
     const input = sendInput({ text, threadId, viewContext: contextOf(fromItem) });
-    if (input !== null && !send.isPending) {
+    if (input !== null && !send.isPending && online()) {
       send.mutate(input);
     }
   };
   // the last send's refusal in the person's words, the allowance's naming when it fills again
   // from when that send went
   const refused = send.error === null ? null : sendRefusalWords(send.error, send.submittedAt);
-  const said = send.isPaused ? NEEDS_CONNECTION : refused;
   return (
     <View className="gap-1 border-t border-border px-4 pt-2 pb-3">
-      {said === null ? null : <Text className="text-13 text-muted-foreground">{said}</Text>}
+      {refused === null ? null : <Text className="text-13 text-muted-foreground">{refused}</Text>}
       <View className="flex-row items-end gap-3">
         <TextInput
           accessibilityLabel="Message the agent"

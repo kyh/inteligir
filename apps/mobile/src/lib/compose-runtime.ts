@@ -132,6 +132,8 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const session = createExternalStore<PhoneSession>({ kind: "restoring" });
   const queryClient = new QueryClient({
     defaultOptions: {
+      // a write made offline fails at once: nothing waits for a connection but a share
+      mutations: { networkMode: "always" },
       queries: { gcTime: CACHE_KEPT_MS, retry: retryUnlessRefused, staleTime: FRESH_MS },
     },
   });

@@ -34,9 +34,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   library made and closed together, so a revocation any call hears ends it for all, once, and the
   route guard alone decides which screens exist. `apps/mobile/src/lib/app-runtime.ts`.
 - **The phone reads through TanStack Query, its cache kept between launches, and holds its socket
-  only in the foreground.** What was last read shows offline and a write is never kept, since the
-  cloud keeps the truth, and iOS suspends a background app's socket anyway.
-  `apps/mobile/src/lib/compose-runtime.ts`.
+  only in the foreground.** What was last read shows offline and a write made there is refused at
+  once (`networkMode: "always"`), never kept or paused, since the cloud keeps the truth, and iOS
+  suspends a background app's socket anyway. `apps/mobile/src/lib/compose-runtime.ts`.
 - **The phone's key-value store is out of the device backup, and its files are in the cache**
   (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,
   and a sign-in, sign-out or revocation clears the cache, shares and files.
@@ -67,8 +67,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an
   accented letter and saves the wrong page. `apps/mobile/src/items/link-in-text.ts`.
 - **The phone asks the account's built-in agent, online only, drawing natively what
-  `@repo/client` says of a conversation.** A send and an approval need a connection, since a turn runs in the cloud, and Undo of a
-  turn is the Mac's or a tab's. `apps/mobile/src/app/agent/[thread].tsx`.
+  `@repo/client` says of a conversation.** A send, an approval and a Stop are refused offline as
+  every phone write is, since a turn runs in the cloud, and Undo of a turn is the Mac's or a tab's.
+  `apps/mobile/src/app/agent/[thread].tsx`.
 
 ## The look
 

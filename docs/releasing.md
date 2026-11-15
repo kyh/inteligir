@@ -314,7 +314,7 @@ The unpacked store build, against production, with no dev build loaded.
   a 48-megapixel JPEG and a hostile `og:image` cover each draw or refuse with no
   crash.
 - **The agent on the phone**: approvals, Stop beside a question, thinking shown,
-  and an offline send refused.
+  and an offline send, approval and Stop each refused with Needs a connection.
 - **Sign-out**: with a share waiting, a revoke in the foreground and the
   background, and mid-upload; the app's Library/Caches holds nothing after.
 
