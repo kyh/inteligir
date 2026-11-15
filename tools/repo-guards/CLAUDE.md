@@ -18,6 +18,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the compiler would key a value wrongly. Why: the suites run what ships, a
   `compiled-under-test` case fails without the preset, and the compiler
   memoizes the rest. `apps/web/vite.config.ts`, `apps/mobile/app.config.js`.
+- **A hook or component defined inside a function fails the build**, the
+  site's, the extension's and the phone's alike. Why: the compiler outlines its
+  closures to module scope, past the enclosing function's locals, and says so
+  only under `validateNoDynamicallyCreatedComponentsOrHooks`.
+  `apps/web/vite.config.ts`.
 - **A tooling pin carries its reason beside it**: `vite` is a pnpm override,
   `@types/node` tracks `engines.node`, the Rust toolchain rides a `--locked`
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.

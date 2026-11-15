@@ -67,7 +67,7 @@ const filesUnder = (dir: string): string[] => {
   return found.toSorted();
 };
 
-export const isTestFile = (relativePath: string): boolean =>
+const isTestFile = (relativePath: string): boolean =>
   /(?:^|\/)test-support\//u.test(relativePath) || /\.test\.[cm]?tsx?$/u.test(relativePath);
 
 interface WorkspaceFiles {
@@ -79,8 +79,6 @@ export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
   const all = filesUnder(path.join(workspace.dir, "src"));
   return { shipped: all.filter((file) => !isTestFile(file)), test: all.filter(isTestFile) };
 };
-
-export const workspaceSourceFiles = (workspace: Workspace): string[] => filesUnder(workspace.dir);
 
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/u;
 

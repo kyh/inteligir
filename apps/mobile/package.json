@@ -60,6 +60,7 @@
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "babel-preset-expo": "catalog:",
     "eas-cli": "catalog:",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
