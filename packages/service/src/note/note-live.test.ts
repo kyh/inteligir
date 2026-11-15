@@ -672,7 +672,7 @@ describe("a note's first load", () => {
     await expect(cell.readSeed(itemId)).resolves.toStrictEqual({ kind: "claimed" });
   });
 
-  it("confirms without reading the seed again after an abort between its persist and the confirm", async () => {
+  it("projects without reading the seed again after an abort between its persist and its first projection", async () => {
     const { accountId, itemId } = await signedIn("seed-persist@example.test");
     const cell = cellOf(accountId);
     const seed = await cell.readSeed(itemId);
@@ -687,7 +687,7 @@ describe("a note's first load", () => {
       db.insert(noteUpdates)
         .values({ bytes: Y.encodeStateAsUpdate(doc) })
         .run();
-      db.insert(noteMeta).values({ dirtyAt: Date.now(), id: 1, seedPending: 1, version: 1 }).run();
+      db.insert(noteMeta).values({ dirtyAt: Date.now(), id: 1, version: 1 }).run();
     });
     await expect(serverText(accountId, itemId)).resolves.toStrictEqual(["Above the fox.", X_TEXT]);
     await expect(cell.readSeed(itemId)).resolves.toStrictEqual({ kind: "claimed" });

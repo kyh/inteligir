@@ -1,5 +1,6 @@
 // What the cell keeps of an item's body. Until its note first opens, the body is the cell's own:
-// its blocks in reading order as seed rows, which the note's first load reads and its confirm drops.
+// its blocks in reading order as seed rows, which the note's first load reads and its first
+// projection drops.
 // Either way the cell holds the body's text, cut into parts at line ends, which search's literal tier
 // matches and the index's body column is read from.
 

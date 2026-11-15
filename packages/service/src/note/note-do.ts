@@ -3,10 +3,10 @@
 // event that took it, so the output gate holds the broadcast until the row commits, and folded into
 // a snapshot on the debounced save, which then pushes the body's projection to the account's cell,
 // ordered by the count of updates stored. Its first load seeds it from the body the cell kept,
-// persisting the seed before the cell drops its copy. The agent edits it through a headless editor
-// bound to the document under its turn's origin, and each edit is logged so the turn can be undone
-// from bytes alone. One alarm backs every deadline: a projection the cell did not take, one the
-// debounce never reached, a confirm the cell did not answer, and the turn log's prune.
+// which the cell drops once the note's first projection lands. The agent edits it through a
+// headless editor bound to the document under its turn's origin, and each edit is logged so the
+// turn can be undone from bytes alone. One alarm backs every deadline: a projection the cell did
+// not take, one the debounce never reached, and the turn log's prune.
 
 import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
 import { deriveBody } from "@repo/contract/library/derive-item";
@@ -176,15 +176,11 @@ export class NoteDO extends YServer<Env> {
     this.#db.update(noteMeta).set(values).where(eq(noteMeta.id, META_ID)).run();
   }
 
-  // what the note owes the cell after `event`, written with `also`; the alarm is the caller's
-  #owe(event: DutyEvent, also: SQLiteUpdateSetSource<typeof noteMeta> = {}): Duty {
+  // what the note owes the cell after `event`, written with `also`, and the alarm set for it
+  #step(event: DutyEvent, also: SQLiteUpdateSetSource<typeof noteMeta> = {}): void {
     const duty = stepDuty(dutyOf(this.#meta()), event);
     this.#setMeta({ ...dutyColumns(duty), ...also });
-    return duty;
-  }
-
-  #step(event: DutyEvent, also: SQLiteUpdateSetSource<typeof noteMeta> = {}): void {
-    this.#rearm(this.#owe(event, also));
+    this.#rearm(duty);
   }
 
   // every update the document takes, stored in the event that took it
@@ -232,9 +228,9 @@ export class NoteDO extends YServer<Env> {
     }
     if (parts.length === 0 && updates.length === 0 && this.#standing.kind !== "gone") {
       await this.#seed();
-    } else if (dutyOf(meta).seed.kind !== "none") {
-      await this.#confirmSeed();
     }
+    // a seed just stored, or a version an earlier run never pushed, goes to the cell at once
+    await this.#project();
     this.#rearm(dutyOf(this.#meta()));
     // after the last await, so a run that throws registers nothing and the stored state is not
     // stored again, and before y-partyserver's own listeners, so a frame's row is written ahead of
@@ -243,10 +239,10 @@ export class NoteDO extends YServer<Env> {
     noteRoot(this.document).observe(this.#onRootChange);
   }
 
-  // The body the cell kept, persisted before the cell is told it may drop it, so an abort in
-  // between loses nothing; seeded into a document of its own first, so a load that runs again
-  // never seeds over a body this one already holds. An empty note gets one paragraph here, so two
-  // devices opening it never both write one.
+  // The body the cell kept, stored as the note's first update, which the cell keeps until that
+  // version's projection lands, so an abort in between loses nothing; seeded into a document of
+  // its own first, so a load that runs again never seeds over a body this one already holds. An
+  // empty note gets one paragraph here, so two devices opening it never both write one.
   async #seed(): Promise<void> {
     const seed = await this.#cell().readSeed(this.#note.itemId);
     if (seed.kind === "missing" || seed.kind === "claimed") {
@@ -256,28 +252,8 @@ export class NoteDO extends YServer<Env> {
     const fresh = new Y.Doc();
     seedDoc(fresh, seed.kind === "seed" ? noteBlocksSchema.parse(seed.blocks) : []);
     const state = Y.encodeStateAsUpdate(fresh);
-    const duty = this.ctx.storage.transactionSync(() => {
-      this.#db.insert(noteUpdates).values({ bytes: state }).run();
-      return this.#owe(
-        { at: Date.now(), kind: "seeded" },
-        { version: sql`${noteMeta.version} + 1` },
-      );
-    });
-    this.#rearm(duty);
-    this.#bytes += state.length;
+    this.#append(state, false);
     Y.applyUpdate(this.document, state, LOAD);
-    await this.#confirmSeed();
-  }
-
-  // a confirm the cell did not answer is asked again by the alarm
-  async #confirmSeed(): Promise<void> {
-    try {
-      await this.#cell().confirmSeed(this.#note.itemId);
-      this.#step({ kind: "seedConfirmed" });
-    } catch (error) {
-      console.warn({ event: "note-confirm-failed", ...errorFields(error) });
-      this.#step({ at: Date.now(), kind: "seedFailed" });
-    }
   }
 
   // the stored rows folded into one snapshot, so a load reads one update and the cap weighs the
@@ -309,9 +285,6 @@ export class NoteDO extends YServer<Env> {
     this.#alarmAt = null;
     if (this.#standing.kind === "gone") {
       return;
-    }
-    if (dutyOf(this.#meta()).seed.kind !== "none") {
-      await this.#confirmSeed();
     }
     await this.#project();
     this.#db

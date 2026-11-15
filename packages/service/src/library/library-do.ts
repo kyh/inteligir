@@ -219,10 +219,6 @@ export class LibraryDO extends DurableObject<Env> {
     return this.#cell.library.seedFor(itemId);
   }
 
-  confirmSeed(itemId: string): void {
-    this.#cell.library.seedTaken(itemId);
-  }
-
   // a note's save; `gone` once the account's deletion began, so the note stops pushing
   projectNote(itemId: string, projection: NoteProjection): ProjectAnswer {
     const result = this.#cell.library.projectNote(itemId, projection);

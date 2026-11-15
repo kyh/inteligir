@@ -79,7 +79,7 @@ cell**: typing never passes through it.
 
 **seed** — the body the **library cell** keeps for an item until its **note
 object** first opens, written by a save, a fill, an import or a new note, and
-dropped once the note says it stored it
+dropped once the note's first **projection** lands
 (`packages/service/src/library/cell-body.ts`). Not a cache: once the note
 holds the body, the cell never takes it back.
 

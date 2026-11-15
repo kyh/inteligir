@@ -141,9 +141,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **An agent turn's undo in a note replays the turn's own Yjs updates, and flags
   what it takes with a block the turn added.** One merged update per set loses
   an edit made between two of the turn's. `packages/service/src/note/turn-log.ts`.
-- **A note object's duties to its cell are one deadline, each duty keeping its
-  own retry.** One shared retry lets a landed duty clear or re-arm the other's.
-  `packages/service/src/note/note-duty.ts`.
+- **A note owes its cell one thing, the versions of its body the cell has yet
+  to land, and the first to land hands the seed over.** A confirm of the seed's
+  own is a second duty, retry and column that says nothing the first projection
+  does not. `packages/service/src/note/note-duty.ts`.
 - **A note's standing is one value, and leaving full or Deleted reopens every
   socket.** A boolean per standing leaves devices read-only after a compaction.
   `packages/service/src/note/note-standing.ts`.

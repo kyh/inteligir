@@ -1,11 +1,11 @@
 // The cell's side of each item's note (`../note/note-do`), every call inside one of the cell's
 // transactions and none of them awaiting the note. A note's first load reads the body the cell
-// kept (`seed` to `opening`) and confirms it once its own storage holds it (`opening` to `note`),
-// so the seed outlives any abort in between; a body that went to its note never comes back to the
-// cell. Each save pushes the body's projection, which lands the card, the index row, the literal
-// text, the links, the files and the note's bytes, only over an older version, and joins no change
-// set: typing is no change Undo takes back. The sockets hear of it only when what a listing shows
-// moved.
+// kept (`seed` to `opening`), and the first projection it pushes says its own storage holds it
+// (`opening` to `note`), so the seed outlives any abort in between; a body that went to its note
+// never comes back to the cell. Each save pushes the body's projection, which lands the card, the
+// index row, the literal text, the links, the files and the note's bytes, only over an older
+// version, and joins no change set: typing is no change Undo takes back. The sockets hear of it
+// only when what a listing shows moved.
 
 import { and, eq } from "drizzle-orm";
 
@@ -46,9 +46,9 @@ export const forgetNoteSockets = (db: CellDb, itemId: string): void => {
   db.delete(noteSockets).where(eq(noteSockets.itemId, itemId)).run();
 };
 
-// A note's first load: the seed is kept until the confirm, so a load that runs again after an
-// abort reads it again; a note asking once its body went to a note lost that body, and never
-// seeds over it.
+// A note's first load: the seed is kept until the note's first projection lands, so a load that
+// runs again after an abort reads it again; a note asking once its body went to a note lost that
+// body, and never seeds over it.
 export const readSeed = (db: CellDb, itemId: string): SeedAnswer => {
   const row = db
     .select({ home: items.bodyHome })
@@ -66,18 +66,6 @@ export const readSeed = (db: CellDb, itemId: string): SeedAnswer => {
   }
   const blocks = readSeedBlocks(db, itemId);
   return blocks.length === 0 ? { kind: "empty" } : { blocks, kind: "seed" };
-};
-
-export const confirmSeed = (db: CellDb, itemId: string): void => {
-  const landed = db
-    .update(items)
-    .set({ bodyHome: "note" })
-    .where(and(eq(items.id, itemId), eq(items.bodyHome, "opening")))
-    .returning({ id: items.id })
-    .all();
-  if (landed.length > 0) {
-    dropSeed(db, itemId);
-  }
 };
 
 // read through the card's schema, so a card built here and one read from its row compare alike
@@ -98,8 +86,9 @@ const linksMoved = (db: CellDb, itemId: string, next: readonly DerivedLink[]): b
   return canonicalJson(held) !== canonicalJson(wanted);
 };
 
-// The body a note pushed, over the one the cell holds when it is newer. Files the library does not
-// hold are left out of the item's files, as an embed of bytes never uploaded names nothing.
+// The body a note pushed, over the one the cell holds when it is newer; the first to land is the
+// note's word that it holds the body, so the seed goes with it. Files the library does not hold
+// are left out of the item's files, as an embed of bytes never uploaded names nothing.
 export const landProjection = (
   scope: LandingScope,
   itemId: string,
@@ -127,6 +116,7 @@ export const landProjection = (
     .set({
       bodyBytes: projection.bytes,
       bodyDigest: JSON.stringify(projection.digest),
+      bodyHome: "note",
       bodyVersion: projection.version,
       card: JSON.stringify(derived.card),
       seq,
@@ -134,6 +124,9 @@ export const landProjection = (
     })
     .where(eq(items.id, itemId))
     .run();
+  if (item.body.home === "opening") {
+    dropSeed(db, itemId);
+  }
   storeBodyText(db, itemId, projection.text);
   storeSearchRow(scope.db, itemId, { ...derived.search, body: projection.text });
   if (linksChanged) {

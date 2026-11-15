@@ -69,7 +69,6 @@ import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
 import type { MovedCollector } from "./cell-moved";
 import {
-  confirmSeed,
   forgetNoteSockets,
   landProjection,
   openNote,
@@ -502,12 +501,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const seedFor = (itemId: string): SeedAnswer =>
     commit(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
 
-  const seedTaken = (itemId: string): void => {
-    commit(() => {
-      confirmSeed(db, itemId);
-    });
-  };
-
   // a note's save, joining no change set: typing is no change Undo takes back
   const projectNote = (itemId: string, projection: NoteProjection): CellResult<ProjectAnswer> =>
     transact({ answer: projectAnswerSchema, openSet: noSet, opId: undefined }, (scope) =>
@@ -570,7 +563,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     reserve,
     runDueJobs,
     seedFor,
-    seedTaken,
     sessionNotes,
     settle,
     tombstone,

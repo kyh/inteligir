@@ -12,7 +12,6 @@ CREATE TABLE `note_meta` (
 	`projected` integer DEFAULT 0 NOT NULL,
 	`dirty_at` integer,
 	`retry_at` integer,
-	`seed_pending` integer DEFAULT 0 NOT NULL,
 	`full` integer DEFAULT 0 NOT NULL,
 	`deleted` integer DEFAULT 0 NOT NULL,
 	`purged` integer DEFAULT 0 NOT NULL,

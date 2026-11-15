@@ -25,8 +25,8 @@ const bytes = customType<{ data: Uint8Array; driverData: ArrayBuffer }>({
 export const TURN_LOG_KINDS = ["pre", "turn"] as const;
 
 // the note's one row: `version` counts the updates it persisted, and `projected` the last version
-// its cell landed; a seed persisted before the cell confirmed it, a note past its cap, one in
-// Deleted, one purged, and whether anyone but the agent wrote here since it was seeded
+// its cell landed; a note past its cap, one in Deleted, one purged, and whether anyone but the
+// agent wrote here since it was seeded
 export const noteMeta = sqliteTable(
   "note_meta",
   {
@@ -35,10 +35,8 @@ export const noteMeta = sqliteTable(
     projected: integer().notNull().default(0),
     // when the version passed what the cell holds, which the backstop counts from
     dirtyAt: integer("dirty_at"),
-    // when a projection the cell did not take, or a seed's confirm it did not answer, is tried
-    // again: the earlier of the two
+    // when a projection the cell did not take is tried again
     retryAt: integer("retry_at"),
-    seedPending: integer("seed_pending").notNull().default(0),
     full: integer().notNull().default(0),
     deleted: integer().notNull().default(0),
     purged: integer().notNull().default(0),
