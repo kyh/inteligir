@@ -24,3 +24,6 @@ What the library tab and the phone share above the contract. It names no platfor
 - **A conversation is read once, in order, and each approval and call has one state.**
   `conversationOf` is every device's one way in, since a set of answered calls over the whole thread
   hides an ask its answer arrives before. `packages/client/src/thread-entries.ts`.
+- **A thread's read is spelled once, beside the socket that reads it again.** Its events are one
+  query that asks only for what came after the last one held, since a paged copy downloads the
+  whole conversation on every frame of a turn. `packages/client/src/thread-queries.ts`.

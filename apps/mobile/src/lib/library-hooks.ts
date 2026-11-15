@@ -5,9 +5,10 @@
 // one write two screens make. The signed-in library comes down through one context the root
 // provides, so no screen holds a runtime of its own.
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, use, useEffect, useSyncExternalStore } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, use, useSyncExternalStore } from "react";
 import { Alert } from "react-native";
+import { threadQueries } from "@repo/client/thread-queries";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
 import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
@@ -74,46 +75,16 @@ export const useMoveToDeleted = (): ((itemId: string) => Promise<boolean>) => {
   };
 };
 
-const THREADS_PAGE = 50;
-
-// newest first, as the cell lists them, and the next page asked for at the list's end
+// every conversation of the account, newest first as the cell lists them
 export const useThreads = () => {
-  const { queries } = useLibrary();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(
-    queries.library.agent.list.infiniteOptions({
-      getNextPageParam: (page) => page.cursor ?? undefined,
-      initialPageParam: undefined,
-      input: (cursor: string | undefined) => ({ cursor, limit: THREADS_PAGE }),
-    }),
-  );
-  return {
-    more: () => {
-      if (hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
-    },
-    threads: data?.pages.flatMap((page) => page.threads),
-  };
+  const { client, queries } = useLibrary();
+  return useQuery(threadQueries({ client, orpc: queries }).threads()).data?.threads;
 };
 
-const EVENTS_PAGE = 500;
-
-// a thread's stored events, every page of them, in order
+// a thread's stored events, in order
 export const useThreadEvents = (threadId: string) => {
-  const { queries } = useLibrary();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(
-    queries.library.agent.events.infiniteOptions({
-      getNextPageParam: (page) => (page.more ? page.events.at(-1)?.idx : undefined),
-      initialPageParam: undefined,
-      input: (after: number | undefined) => ({ after, limit: EVENTS_PAGE, threadId }),
-    }),
-  );
-  useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
-  return data?.pages.flatMap((page) => page.events);
+  const { client, queries } = useLibrary();
+  return useQuery(threadQueries({ client, orpc: queries }).threadEvents(threadId)).data?.events;
 };
 
 // the title every live item goes by, by id, as an approval names what it would change

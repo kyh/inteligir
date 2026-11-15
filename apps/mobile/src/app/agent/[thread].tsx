@@ -148,7 +148,7 @@ const Approval = ({
 const Conversation = ({ threadId }: { threadId: string }) => {
   const { queries } = useLibrary();
   const rows = useThreadEvents(threadId) ?? [];
-  const thread = useThreads().threads?.find((row) => row.id === threadId);
+  const thread = useThreads()?.find((row) => row.id === threadId);
   const { blocks, waiting } = conversationOf(rows);
   const preview = usePreview(threadId);
   const respond = useMutation(queries.library.agent.respond.mutationOptions());
@@ -258,8 +258,7 @@ const ConversationScreen = () => {
   const asked = firstParam(params.thread);
   const threadId = asked === null || asked === NEW_THREAD ? null : asked;
   const fromItem = firstParam(params.item);
-  const title =
-    useThreads().threads?.find((row) => row.id === threadId)?.title ?? "New conversation";
+  const title = useThreads()?.find((row) => row.id === threadId)?.title ?? "New conversation";
   return (
     <SafeAreaView style={screenStyle(theme)} edges={["left", "right"]}>
       <Stack.Screen options={{ title }} />
