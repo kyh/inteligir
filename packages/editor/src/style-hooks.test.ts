@@ -29,8 +29,15 @@ interface Rule {
 
 const RULE = /(?<selector>[^{}]+)\{(?<body>[^{}]*)\}/gu;
 
+// the dark palette is the screen's, so a print is light: the one at-rule the sheet holds, whose
+// rules read as top-level ones
+const SCREEN_ONLY = /@media not print\s*\{(?<rules>(?:[^{}]+\{[^{}]*\})*)\s*\}/gu;
+
 const readStylesheet = () => {
-  const css = fs.readFileSync(STYLES, "utf-8").replaceAll(/\/\*[\s\S]*?\*\//gu, "");
+  const css = fs
+    .readFileSync(STYLES, "utf-8")
+    .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+    .replaceAll(SCREEN_ONLY, "$<rules>");
   const rules = [...css.matchAll(RULE)].map((match) => ({
     body: match.groups?.body ?? "",
     selector: (match.groups?.selector ?? "").trim(),
@@ -143,7 +150,7 @@ describe("editor style hooks", () => {
     expect(
       readStylesheet().unparsed,
       `packages/editor/src/styles.css has content outside top-level rules.\n` +
-        `  rule: the sheet stays FLAT — no nesting, no at-rules — because this guard reads it with a flat-rule parser, and a rule the parser cannot see is a rule the lockstep does not hold\n`,
+        `  rule: the sheet stays FLAT — no nesting, and no at-rule but the dark palette's @media not print — because this guard reads it with a flat-rule parser, and a rule the parser cannot see is a rule the lockstep does not hold\n`,
     ).toBe("");
   });
 

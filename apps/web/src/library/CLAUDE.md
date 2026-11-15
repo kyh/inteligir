@@ -69,9 +69,8 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
   row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
   the device's and not the account's. `apps/web/src/library/prefs.ts`.
-- **Spell check is the tab's attribute, and a print is always light.** WKWebView has no
-  session-wide spell-check switch, so it is a pref on the document root, and a print steps the dark
-  theme aside between the print events. `apps/web/src/library/spellcheck.ts`.
+- **Spell check is the tab's attribute.** WKWebView has no session-wide spell-check switch, so it
+  is a pref on the document root. `apps/web/src/library/spellcheck.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is
   `user-select: none` and what a person would copy opts in, since selectable by default makes every
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.

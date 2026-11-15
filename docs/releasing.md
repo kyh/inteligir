@@ -339,7 +339,8 @@ The unpacked store build, against production, with no dev build loaded.
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
   prompt with unsent typing, popups fading, ⌘P, VoiceOver, a Docs or Word list
-  paste, and a tab left open keeping its sign-in.
+  paste, a dark window's note printing light, and a tab left open keeping its
+  sign-in.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
   Page not read opens its popover on a tap, and the header fits a phone.
 

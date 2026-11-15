@@ -116,6 +116,21 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
+test("a print is light under the dark theme, which stays on the screen", async ({
+  cloud,
+  page,
+}) => {
+  const background = async () =>
+    await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.goto(`${cloud.origin}/privacy`);
+  const light = await background();
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect.poll(background).not.toBe(light);
+  await page.emulateMedia({ media: "print" });
+  await expect.poll(background).toBe(light);
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+});
+
 test("every document carries its own nonce policy, and the home page loads none of the library", async ({
   cloud,
   request,
