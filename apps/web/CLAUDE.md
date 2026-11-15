@@ -39,6 +39,9 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **A sign-in or sign-up lands in the library unless something asked it back,
   and the site links the library.** Only a document load opens the account just
   signed in to. `apps/web/src/lib/next-path.ts`.
+- **An account form's submit is one value, and done is never idle again.** A
+  sign-in that went through is still loading the next document, and a form
+  live meanwhile posts twice. `apps/web/src/components/auth-shell.tsx`.
 - **The connect page tells the extension where the site is, and hands it
   nothing.** The extension rides the browser's own sign-in, so no credential
   crosses the page. `apps/web/src/routes/_site/connect/extension.tsx`.

@@ -1,4 +1,4 @@
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Link, useHydrated } from "@tanstack/react-router";
 
 import { Input } from "@repo/ui/components/input";
@@ -56,41 +56,51 @@ export const CONNECTION_FAILED = "Couldn't reach inteligir — check your connec
 // a submit answers the message to show, or null once it has gone where it was going
 type AuthSubmit = (form: FormData) => Promise<string | null>;
 
-// a throw is a request that never reached the Worker; escaping the transition, it would land on
-// the route's error boundary and take the typed form with it
+// Where a form's submit stands. `done` is never `idle` again: a sign-in that went through is
+// still loading the next document, and a form live meanwhile posts what the first press did.
+type SubmitState =
+  | { readonly kind: "idle" | "pending" | "done" }
+  | { readonly kind: "refused"; readonly message: string };
+
+// a throw is a request that never reached the Worker; unsettled, it would leave the form pending
+// and its button dead
 export const settleAuthSubmit = async (
   submit: AuthSubmit,
   form: FormData,
-): Promise<string | null> => {
+): Promise<SubmitState> => {
   try {
-    return await submit(form);
+    const message = await submit(form);
+    return message === null ? { kind: "done" } : { kind: "refused", message };
   } catch {
-    return CONNECTION_FAILED;
+    return { kind: "refused", message: CONNECTION_FAILED };
   }
 };
+
+// what a form draws of its submit: `busy` holds the button and its label
+export const submitView = (state: SubmitState) => ({
+  busy: state.kind === "pending" || state.kind === "done",
+  done: state.kind === "done",
+  error: state.kind === "refused" ? state.message : null,
+});
 
 // onSubmit, not <form action>: an action resets an uncontrolled form, and a refused submit
 // must keep what was typed
 export const useAuthSubmit = (submit: AuthSubmit) => {
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<SubmitState>({ kind: "idle" });
   // a submit before hydration is the browser's own: a GET that reloads the page with the password
   // in its address
   const hydrated = useHydrated();
 
+  const settle = async (form: FormData): Promise<void> => {
+    setState({ kind: "pending" });
+    setState(await settleAuthSubmit(submit, form));
+  };
   const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setError(null);
-    startTransition(async () => {
-      const message = await settleAuthSubmit(submit, form);
-      startTransition(() => {
-        setError(message);
-      });
-    });
+    void settle(new FormData(event.currentTarget));
   };
 
-  return { error, onSubmit, pending, ready: hydrated };
+  return { ...submitView(state), onSubmit, ready: hydrated };
 };
 
 export const AuthError = ({ message }: { message: string | null }) => {

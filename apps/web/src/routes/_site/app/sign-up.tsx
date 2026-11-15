@@ -24,7 +24,7 @@ const refusalMessage = async (response: Response): Promise<string> => {
 const SignUpPage = () => {
   const router = useRouter();
   const { next } = Route.useSearch();
-  const { error, onSubmit, pending, ready } = useAuthSubmit(async (form) => {
+  const { busy, error, onSubmit, ready } = useAuthSubmit(async (form) => {
     const request: SignUpRequest = {
       email: fieldValue(form, "email"),
       inviteCode: fieldValue(form, "inviteCode"),
@@ -40,7 +40,8 @@ const SignUpPage = () => {
     if (!response.ok) {
       return await refusalMessage(response);
     }
-    await router.navigate({ href: signedInLanding(next), reloadDocument: true });
+    // in place of this form, which Back must not return to with its submit done
+    await router.navigate({ href: signedInLanding(next), reloadDocument: true, replace: true });
     return null;
   });
 
@@ -87,8 +88,8 @@ const SignUpPage = () => {
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={pending || !ready}>
-          {pending ? "Creating account…" : "Create account"}
+        <Button type="submit" disabled={busy || !ready}>
+          {busy ? "Creating account…" : "Create account"}
         </Button>
       </form>
     </AuthShell>
