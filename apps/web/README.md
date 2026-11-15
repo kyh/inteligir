@@ -10,8 +10,8 @@ are this app's [`CLAUDE.md`](CLAUDE.md), and the library tab's
 
 ```
 src/
-  routes/        Start's file routes: the site's pages (_site/), the library tab (library/), and one
-                 server route per door, each handing its request to the service
+  routes/        Start's file routes: the site's pages (_site/), the library tab (library/), and the
+                 six mounts, each a server route handing its request to the service
   library/       the library tab: its code, styles and decisions, its suites under jsdom
   components/    the site's own components
   lib/           the site's auth client, session guard, document policy, config and page markdown
@@ -53,12 +53,14 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                               |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                         |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                   |
-| `/api/*`, `/v1/*` (else)    | —               | A plain `not found` 404, never the site's page                                                                        |
+| Else under a mount          | —               | A plain `not found` 404, never the site's page                                                                        |
 
-Every path but the site's own pages is a server route declaring `ANY` that
-hands the raw request to its door, `context.doors`, built per request in
-`src/worker/server.ts`. What each door does is `packages/service/README.md`
-§ The doors and § Auth.
+Every path but the site's own pages falls under one of six mounts (`api/$`,
+`v1/$`, `oauth/$`, `.well-known/$`, `connector`, `connect/authorize`), each a
+server route declaring `ANY` that hands the raw request to the service,
+`context.service`, built per request in `src/worker/server.ts`. The service
+names the door a path reaches (`packages/service/src/door-routes.ts`), and what
+each door does is `packages/service/README.md` § The doors and § Auth.
 
 ## Invites
 

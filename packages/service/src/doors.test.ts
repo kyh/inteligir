@@ -1,11 +1,11 @@
-// The doors as Start's routes hand them a request: each answers every method itself, only the paths
-// its row of the table names, and a throw in its own protocol, logged.
+// The service as Start's mounts hand it a request: each door answers every method itself, a path the
+// table does not name is no door's, and a throw is answered in the door's own protocol, logged.
 
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DoorName } from "./doors-api";
-import { doorsFor } from "./doors";
+import type { DoorName } from "./door-routes";
+import { serviceFor } from "./doors";
 import { buildHeaders, drained, ORIGIN } from "./test-support/cloud-helpers";
 import { workerFetch } from "./test-support/connector-session";
 
@@ -42,25 +42,26 @@ const WRONG_METHODS = {
   consent: { method: "PUT", path: "/connect/authorize", status: 405 },
 } as const satisfies Record<DoorName, WrongMethod>;
 
-// what Start's routes hand a door beyond its row: a splat's bare prefix, a trailing slash, another
-// case
-const BEYOND_ITS_ROW = [
-  ["auth", "/api/auth"],
-  ["rpc", "/v1/rpc"],
-  ["blobs", "/v1/blobs"],
-  ["socket", "/v1/socket/"],
-  ["note", "/v1/notes"],
-  ["connector", "/connector/"],
-  ["consent", "/Connect/Authorize"],
-] as const satisfies readonly (readonly [DoorName, string])[];
+// what a mount hands over that the table does not name: a path under its prefix, a splat's bare
+// prefix, a trailing slash, another case
+const NO_DOORS = [
+  "/v1/nope",
+  "/api/nope",
+  "/oauth/nope",
+  "/.well-known/nope",
+  "/api/auth",
+  "/v1/rpc",
+  "/v1/blobs",
+  "/v1/notes",
+  "/api/sign-up/",
+  "/v1/socket/",
+  "/connector/",
+  "/Connect/Authorize",
+];
 
-const answered = async (
-  door: DoorName,
-  request: Request,
-  bindings: Env = env,
-): Promise<Response> => {
+const answered = async (request: Request, bindings: Env): Promise<Response> => {
   const ctx = createExecutionContext();
-  const response = await doorsFor(bindings, ctx)[door](request);
+  const response = await serviceFor(bindings, ctx)(request);
   await waitOnExecutionContext(ctx);
   return response;
 };
@@ -79,23 +80,11 @@ describe("the doors", () => {
     },
   );
 
-  it.each(["/v1/nope", "/api/nope", "/v1/rpc", "/api/sign-up/"])(
-    "answers %s, under a door's prefix but no door's, a plain 404",
-    async (path) => {
-      const response = await workerFetch(`${ORIGIN}${path}`, { method: "POST" });
-      expect(response.status).toBe(404);
-      await expect(response.text()).resolves.toBe("not found");
-    },
-  );
-
-  it.each(BEYOND_ITS_ROW)(
-    "the %s door refuses %s, which its row does not name",
-    async (door, path) => {
-      const response = await answered(door, new Request(`${ORIGIN}${path}`, { method: "POST" }));
-      expect(response.status).toBe(404);
-      await expect(response.text()).resolves.toBe("not found");
-    },
-  );
+  it.each(NO_DOORS)("answers %s, which no row of the table names, a plain 404", async (path) => {
+    const response = await workerFetch(`${ORIGIN}${path}`, { method: "POST" });
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toBe("not found");
+  });
 
   it("answers a throw in the wire's own protocol, and every other door's as an internal error, logged", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -108,14 +97,13 @@ describe("the doors", () => {
       method: "POST",
     });
 
-    const rpc = await answered("rpc", call, broken);
+    const rpc = await answered(call, broken);
     expect(rpc.status).toBe(500);
     await expect(rpc.json()).resolves.toMatchObject({
       json: { code: "INTERNAL_SERVER_ERROR", defined: false },
     });
 
     const blobs = await answered(
-      "blobs",
       new Request(`${ORIGIN}/v1/blobs/${SHA}`, { headers: buildHeaders() }),
       broken,
     );

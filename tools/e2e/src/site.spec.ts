@@ -3,15 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
-import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
-import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
   socketUrl,
-  V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { V1_RPC_PATH } from "@repo/contract/v1";
@@ -20,7 +17,6 @@ import { test } from "./fixtures";
 import type { Cloud } from "./fixtures";
 
 const REPO = path.resolve(import.meta.dirname, "../../..");
-const SHA = "a".repeat(64);
 const DEVICES = `${V1_RPC_PATH}/account/devices/list`;
 const statusOf = async (answer: Promise<APIResponse>): Promise<number> => {
   const response = await answer;
@@ -146,7 +142,7 @@ test("every document carries its own nonce policy, and the home page loads none 
   expect(await statusOf(request.get(`${cloud.origin}/no-route-answers-this`))).toBe(404);
 });
 
-test("each door answers in its own protocol through Start's routes", async ({
+test("each mount hands its request to the service, which answers in its door's protocol", async ({
   account,
   cloud,
   request,
@@ -158,22 +154,14 @@ test("each door answers in its own protocol through Start's routes", async ({
   expect(await devices({}), "an account call naming no build").toBe(426);
   expect(await devices(build), "an account call with no session").toBe(401);
 
-  // a route that declared its methods would hand a wrong one to the site's page, a 200 of HTML
+  // a path under each mount: one that declared its methods would hand a wrong one to the site's
+  // page, a 200 of HTML
   for (const { headers = {}, method, route, status } of [
     { method: "PUT", route: "/api/auth/get-session", status: 404 },
-    { method: "GET", route: AUTH_API_PATHS.signUp, status: 404 },
     { headers: build, method: "GET", route: DEVICES, status: 404 },
-    { headers: build, method: "DELETE", route: `${V1_BLOBS_PATH}/${SHA}`, status: 405 },
-    { method: "POST", route: V1_SOCKET_PATH, status: 400 },
-    { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
-    {
-      method: "POST",
-      route: `/.well-known/oauth-protected-resource${CONNECTOR_PATH}`,
-      status: 405,
-    },
-    { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
     { method: "GET", route: "/oauth/token", status: 405 },
-    { method: "GET", route: "/oauth/register", status: 405 },
+    { method: "POST", route: "/.well-known/oauth-authorization-server", status: 405 },
+    { method: "DELETE", route: CONNECTOR_PATH, status: 401 },
     { method: "PUT", route: "/connect/authorize", status: 405 },
   ]) {
     const response = await request.fetch(`${cloud.origin}${route}`, { headers, method });
@@ -185,6 +173,8 @@ test("each door answers in its own protocol through Start's routes", async ({
   for (const [method, route] of [
     ["GET", "/v1/nope"],
     ["POST", "/api/nope"],
+    ["GET", "/oauth/nope"],
+    ["GET", "/.well-known/nope"],
   ] as const) {
     const response = await request.fetch(`${cloud.origin}${route}`, { method });
     expect([response.status(), await response.text()], `${method} ${route}`).toEqual([

@@ -1,14 +1,12 @@
-// Every path a door answers, spelled as the Start file route that hands it to its door spells its
-// id, `$` a splat (apps/web/src/routes, one route file to each row). The suites' Worker dispatches
-// by this table too (`./test-support/test-worker.ts`), and each door refuses a path the table does
-// not give it. An installed build and an assistant's grant name these paths, so none moves.
+// Every path the service answers and the door that answers it, `$` a splat: the one table the
+// service dispatches by (`./doors.ts`), deployed and in the suites alike. An installed build and an
+// assistant's grant name these paths, so none moves.
 
 import { AUTH_API_PATHS } from "@repo/contract/account/account-schema";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import { V1_NOTES_PATH, V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
 import { V1_RPC_PATH } from "@repo/contract/v1";
-import type { DoorName } from "./doors-api";
 
 const SPLAT = "$";
 
@@ -28,7 +26,9 @@ export const DOOR_ROUTES = {
   oauthRegister: "/oauth/register",
   // the person's own page, which signs them in and asks
   consent: "/connect/authorize",
-} as const satisfies Record<DoorName, string>;
+} as const;
+
+export type DoorName = keyof typeof DOOR_ROUTES;
 
 const isDoorName = (key: string): key is DoorName => Object.hasOwn(DOOR_ROUTES, key);
 

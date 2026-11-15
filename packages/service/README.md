@@ -39,9 +39,10 @@ src/            the doors, their routes and the build floor, the rate limits, th
 
 ## Seams
 
-- `doorsFor(env, ctx)` (`src/doors.ts`): a request's doors, each a
-  fetch-shaped function of the request alone, which `apps/web`'s routes reach
-  through Start's request context and the suites' Worker by `DOOR_ROUTES`.
+- `serviceFor(env, ctx)` (`src/doors.ts`): a fetch-shaped function of the
+  request alone, which picks the door by `DOOR_ROUTES`; `apps/web`'s mounts
+  reach it through Start's request context, and it is the suites' Worker's
+  fetch.
 - `SqlPort` (`src/library/library-sql.ts`): one statement per call, which the
   cell binds to `ctx.storage.sql` and the search runs over.
 - The clock, random bytes and fresh ids come into the model's modules as ports.

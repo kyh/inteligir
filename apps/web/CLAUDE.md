@@ -11,10 +11,12 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
   reads `@repo/contract` and never the reverse, since no client may bundle
   drizzle, and a route reaches the service through Start's request context.
   `apps/web/src/request-context.ts`.
-- **Every path is Start's, and a door's server route hands its request to the
-  service through Start's request context.** Only the entry holds the
-  ExecutionContext the connector's OAuth provider writes `ctx.props` on, so the
-  doors are built per request. `tools/e2e/src/site.spec.ts`.
+- **Every path is Start's, and a mount's server route hands each request
+  under it to the service through Start's request context.** The service's own
+  table names the door, so a route per door spells every path twice; only the
+  entry holds the ExecutionContext the connector's OAuth provider writes
+  `ctx.props` on, so the service is built per request.
+  `tools/e2e/src/site.spec.ts`.
 - **Each program's `Env` is what `cf workers types` generates from its own
   config, and the entry's holds the service to what deploys.** A hand-written
   `Env` drifts from what deploys, so a binding the service reads is declared in
