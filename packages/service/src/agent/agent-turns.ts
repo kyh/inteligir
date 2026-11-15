@@ -26,7 +26,6 @@ import type { DueJob, JobRequest } from "../library/cell-jobs";
 import { releaseHeldFills } from "../library/cell-fills";
 import type { LandingScope } from "../library/cell-landing";
 import type { CellDb } from "../library/cell-db";
-import type { CellStorage } from "../library/cell-storage";
 import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
 import { deleteThread } from "../library/cell-threads";
@@ -139,28 +138,28 @@ const openTurn = (
   scope: LandingScope,
   send: { readonly threadId: string; readonly message: TurnMessage },
 ): void => {
-  const { storage, now } = scope;
-  const turn = nextTurnNumber(storage.db, send.threadId);
-  insertTurn(storage.db, { at: now, message: send.message, threadId: send.threadId, turn });
-  bookTurn(storage.db, dayOf(now), 1);
+  const { db, now } = scope;
+  const turn = nextTurnNumber(db, send.threadId);
+  insertTurn(db, { at: now, message: send.message, threadId: send.threadId, turn });
+  bookTurn(db, dayOf(now), 1);
   const event: AgentEvent = { text: send.message.text, type: "user.message" };
   if (send.message.viewContext !== null) {
     event.viewContext = send.message.viewContext;
   }
   storeEvent(scope, send.threadId, turnEventId(send.threadId, turn), event);
   restatus(scope, send.threadId);
-  scheduleJob(storage.db, deliverJob(send.threadId), now);
-  scheduleJob(storage.db, watchJob(send.threadId), now + WATCH_EVERY_MS);
+  scheduleJob(db, deliverJob(send.threadId), now);
+  scheduleJob(db, watchJob(send.threadId), now + WATCH_EVERY_MS);
 };
 
 // the sends let in now, as many as the account may run at once: `first`'s before any other, then
 // the longest waiting
 const openWaiting = (scope: LandingScope, allowance: Allowance, first: string | null): void => {
-  if (!agentIsOn(scope.storage.db)) {
+  if (!agentIsOn(scope.db)) {
     return;
   }
-  while (openTurnCount(scope.storage.db) < allowance.concurrentTurns) {
-    const next = dequeueNext(scope.storage.db, first);
+  while (openTurnCount(scope.db) < allowance.concurrentTurns) {
+    const next = dequeueNext(scope.db, first);
     if (next === null) {
       return;
     }
@@ -170,11 +169,11 @@ const openWaiting = (scope: LandingScope, allowance: Allowance, first: string | 
 
 // the change set a turn's writes opened, sealed: one undoable set a turn
 const sealTurnSet = (
-  storage: CellStorage,
+  db: CellDb,
   turn: Pick<OpenTurn, "threadId" | "turn">,
   now: number,
 ): string[] => {
-  const sets = storage.db
+  const sets = db
     .select({ id: changeSets.id, sealedAt: changeSets.sealedAt })
     .from(changeSets)
     .where(
@@ -187,7 +186,7 @@ const sealTurnSet = (
     .all();
   for (const set of sets) {
     if (set.sealedAt === null) {
-      sealChangeSet(storage, set.id, now);
+      sealChangeSet(db, set.id, now);
     }
   }
   return sets.map(({ id }) => id);
@@ -197,15 +196,15 @@ const sealTurnSet = (
 // reached, the links it saved let go to be read, and its row gone. A turn the person stopped still
 // counts, so a send stopped at once is no free call
 const closeTurn = (scope: LandingScope, turn: OpenTurn, reason: TurnEndReason): void => {
-  const { storage, now } = scope;
-  const sets = sealTurnSet(storage, turn, now);
+  const { db, now } = scope;
+  const sets = sealTurnSet(db, turn, now);
   if (reason === "unavailable") {
-    bookTurn(storage.db, dayOf(turn.startedAt), -1);
+    bookTurn(db, dayOf(turn.startedAt), -1);
   }
-  releaseHeldFills(storage.db, sets, now);
-  dropTurn(storage.db, turn.threadId);
-  dropJob(storage.db, deliverJob(turn.threadId).id);
-  dropJob(storage.db, watchJob(turn.threadId).id);
+  releaseHeldFills(db, sets, now);
+  dropTurn(db, turn.threadId);
+  dropJob(db, deliverJob(turn.threadId).id);
+  dropJob(db, watchJob(turn.threadId).id);
 };
 
 // ---- handing a turn to its thread ----
@@ -223,18 +222,18 @@ const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): P
 // the open turn handed to its thread's object with the last push landed of it, and stopped there
 // when the person stopped it; the job stays for the alarm until both landed
 const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
-  const read = cell.library.read((storage) => {
-    const turn = openTurnOf(storage.db, threadId);
+  const read = cell.library.read((db) => {
+    const turn = openTurnOf(db, threadId);
     return turn === null
       ? null
-      : { pushedThrough: lastPush(storage.db, threadId), rules: filingRules(storage.db), turn };
+      : { pushedThrough: lastPush(db, threadId), rules: filingRules(db), turn };
   });
   if (!read.ok) {
     return;
   }
   if (read.value === null) {
     await landRows(cell, (scope) => {
-      dropJob(scope.storage.db, deliverJob(threadId).id);
+      dropJob(scope.db, deliverJob(threadId).id);
     });
     return;
   }
@@ -255,14 +254,14 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
   } catch (error) {
     console.warn({ event: "agent-deliver-failed", threadId, ...errorFields(error) });
     await landRows(cell, (scope) => {
-      deferJob(scope.storage.db, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
+      deferJob(scope.db, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
     });
     return;
   }
   await landRows(cell, (scope) => {
     // a stop asked for meanwhile is delivered by the job it asked for
-    if (openTurnOf(scope.storage.db, threadId)?.cancel !== true || turn.cancel) {
-      dropJob(scope.storage.db, deliverJob(threadId).id);
+    if (openTurnOf(scope.db, threadId)?.cancel !== true || turn.cancel) {
+      dropJob(scope.db, deliverJob(threadId).id);
     }
   });
 };
@@ -295,22 +294,22 @@ export const sendToAgent = async (
   const landed = cell.library.landApart(
     { answer: threadAnswerSchema, opId: input.opId },
     (scope): ThreadAnswer => {
-      const { storage } = scope;
-      if (!agentIsOn(storage.db)) {
+      const { db } = scope;
+      if (!agentIsOn(db)) {
         refuse({ kind: "agent-unavailable" });
       }
-      if (turnsLeft(storage.db, allowance, scope.now) === 0) {
+      if (turnsLeft(db, allowance, scope.now) === 0) {
         refuse({ kind: "agent-budget", resetsAt: nextDayAt(scope.now) });
       }
       const threadId = input.threadId ?? cell.library.ids.thread();
       if (input.threadId === undefined) {
         createThread(scope, threadId, input.text);
       } else {
-        knownThread(storage.db, threadId);
+        knownThread(db, threadId);
       }
-      const ownOpen = openTurnOf(storage.db, threadId) !== null;
-      if (ownOpen || openTurnCount(storage.db) >= allowance.concurrentTurns) {
-        enqueue(storage.db, {
+      const ownOpen = openTurnOf(db, threadId) !== null;
+      if (ownOpen || openTurnCount(db) >= allowance.concurrentTurns) {
+        enqueue(db, {
           id: cell.library.ids.queuedSend(),
           message,
           queuedAt: scope.now,
@@ -370,7 +369,7 @@ export const respondToAgent = async (
   if (prior !== null) {
     return prior;
   }
-  const read = cell.library.read(({ db }) => askedCall(db, input.threadId, input.eventId));
+  const read = cell.library.read((db) => askedCall(db, input.threadId, input.eventId));
   if (!read.ok) {
     return read;
   }
@@ -388,7 +387,7 @@ export const respondToAgent = async (
     return UNAVAILABLE;
   }
   return cell.library.landApart({ answer: threadAnswerSchema, opId: input.opId }, (scope) =>
-    statusOf(scope.storage.db, input.threadId),
+    statusOf(scope.db, input.threadId),
   );
 };
 
@@ -406,16 +405,16 @@ export const cancelTurn = async (
   const landed = cell.library.landApart(
     { answer: threadAnswerSchema, opId: input.opId },
     (scope) => {
-      const { storage } = scope;
-      knownThread(storage.db, input.threadId);
-      dropQueuedFor(storage.db, input.threadId);
-      if (openTurnOf(storage.db, input.threadId) === null) {
+      const { db } = scope;
+      knownThread(db, input.threadId);
+      dropQueuedFor(db, input.threadId);
+      if (openTurnOf(db, input.threadId) === null) {
         restatus(scope, input.threadId);
       } else {
-        markCancel(storage.db, input.threadId);
-        scheduleJob(storage.db, deliverJob(input.threadId), scope.now);
+        markCancel(db, input.threadId);
+        scheduleJob(db, deliverJob(input.threadId), scope.now);
       }
-      return statusOf(storage.db, input.threadId);
+      return statusOf(db, input.threadId);
     },
   );
   if (landed.ok) {
@@ -426,14 +425,14 @@ export const cancelTurn = async (
 
 // every open turn stopped and every waiting send let go, as turning the agent off does
 export const stopEveryTurn = (scope: LandingScope): void => {
-  const { storage } = scope;
-  for (const threadId of everyThreadId(storage.db)) {
-    dropQueuedFor(storage.db, threadId);
-    if (openTurnOf(storage.db, threadId) === null) {
+  const { db } = scope;
+  for (const threadId of everyThreadId(db)) {
+    dropQueuedFor(db, threadId);
+    if (openTurnOf(db, threadId) === null) {
       restatus(scope, threadId);
     } else {
-      markCancel(storage.db, threadId);
-      scheduleJob(storage.db, deliverJob(threadId), scope.now);
+      markCancel(db, threadId);
+      scheduleJob(db, deliverJob(threadId), scope.now);
     }
   }
 };
@@ -452,7 +451,7 @@ export const deleteAgentThread = async (
   if (prior !== null) {
     return prior;
   }
-  const read = cell.library.read(({ db }) => knownThread(db, input.threadId));
+  const read = cell.library.read((db) => knownThread(db, input.threadId));
   if (!read.ok) {
     return read;
   }
@@ -464,14 +463,14 @@ export const deleteAgentThread = async (
   }
   const allowance = allowanceOf(cell.env);
   return cell.library.landApart({ answer: deletedSchema, opId: input.opId }, (scope) => {
-    const { storage } = scope;
-    knownThread(storage.db, input.threadId);
-    const open = openTurnOf(storage.db, input.threadId);
+    const { db } = scope;
+    knownThread(db, input.threadId);
+    const open = openTurnOf(db, input.threadId);
     if (open !== null) {
       closeTurn(scope, open, "cancelled");
     }
-    dropQueuedFor(storage.db, input.threadId);
-    forgetPushes(storage.db, input.threadId);
+    dropQueuedFor(db, input.threadId);
+    forgetPushes(db, input.threadId);
     deleteThread(scope, input.threadId);
     openWaiting(scope, allowance, null);
     return { deleted: true as const };
@@ -483,7 +482,7 @@ export const deleteAgentThread = async (
 export const agentStatus = (cell: AgentCell) => {
   const allowance = allowanceOf(cell.env);
   const now = cell.now();
-  return cell.library.read(({ db }) => ({
+  return cell.library.read((db) => ({
     enabled: agentIsOn(db),
     resetsAt: nextDayAt(now),
     turnsLeft: turnsLeft(db, allowance, now),
@@ -495,7 +494,7 @@ export const agentStatus = (cell: AgentCell) => {
 export const turnActorOf =
   (library: LibraryEngine, named: { readonly threadId: string; readonly turn: number }) =>
   (): CellActor => {
-    const open = library.read(({ db }) => openTurnOf(db, named.threadId));
+    const open = library.read((db) => openTurnOf(db, named.threadId));
     if (!open.ok || open.value?.turn !== named.turn) {
       throw new ORPCError("FORBIDDEN", { message: "This turn has ended." });
     }
@@ -537,11 +536,11 @@ export const runTurnTool = async (
   const checked = cell.library.landApart(
     { answer: z.enum(["open", "unknown-thread", "turn-closed"]), opId: undefined },
     (scope) => {
-      const named = turnNamed(scope.storage.db, call);
+      const named = turnNamed(scope.db, call);
       if (named.kind !== "open") {
         return named.kind;
       }
-      heardFrom(scope.storage.db, call.threadId, scope.now);
+      heardFrom(scope.db, call.threadId, scope.now);
       return "open" as const;
     },
   );
@@ -573,24 +572,24 @@ export const landPush = async (
   const landed = cell.library.landApart(
     { answer: pushOutcomeSchema, opId: undefined },
     (scope): z.infer<typeof pushOutcomeSchema> => {
-      const { storage } = scope;
-      if (storedStatus(storage.db, push.threadId) === null) {
+      const { db } = scope;
+      if (storedStatus(db, push.threadId) === null) {
         return { kind: "unknown-thread" };
       }
-      if (push.seq <= lastPush(storage.db, push.threadId)) {
+      if (push.seq <= lastPush(db, push.threadId)) {
         return { kind: "landed" };
       }
-      recordPush(storage.db, push.threadId, push.seq);
-      const named = turnNamed(storage.db, push);
+      recordPush(db, push.threadId, push.seq);
+      const named = turnNamed(db, push);
       if (named.kind !== "open") {
         return { kind: "turn-closed" };
       }
-      heardFrom(storage.db, push.threadId, scope.now);
+      heardFrom(db, push.threadId, scope.now);
       let ended: TurnEndReason | null = null;
       for (const [index, event] of push.events.entries()) {
         storeEvent(scope, push.threadId, pushedEventId(push.threadId, push.seq, index), event);
         if (event.type === "approval.asked" || event.type === "approval.answered") {
-          moveWaiting(storage.db, push.threadId, event.type === "approval.asked" ? 1 : -1);
+          moveWaiting(db, push.threadId, event.type === "approval.asked" ? 1 : -1);
           restatus(scope, push.threadId);
         }
         if (event.type === "turn.ended") {
@@ -621,7 +620,7 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
     return { ok: true, value: null };
   }
   const preview = parsed.data;
-  const read = cell.library.read(({ db }) => turnNamed(db, preview));
+  const read = cell.library.read((db) => turnNamed(db, preview));
   if (!read.ok) {
     return gone();
   }
@@ -638,7 +637,7 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
 // object, which wakes any work an instance left, and an object that holds no open turn and nothing
 // unsent, one that started over on another version of its tables, is handed the turn again
 const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
-  const read = cell.library.read(({ db }) => openTurnOf(db, threadId));
+  const read = cell.library.read((db) => openTurnOf(db, threadId));
   const turn = read.ok ? read.value : null;
   if (turn !== null && cell.now() - turn.heardAt >= WATCH_EVERY_MS) {
     let inspection: ThreadInspection | null = null;
@@ -652,10 +651,10 @@ const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
     }
   }
   await landRows(cell, (scope) => {
-    if (openTurnOf(scope.storage.db, threadId) === null) {
-      dropJob(scope.storage.db, watchJob(threadId).id);
+    if (openTurnOf(scope.db, threadId) === null) {
+      dropJob(scope.db, watchJob(threadId).id);
     } else {
-      scheduleJob(scope.storage.db, watchJob(threadId), scope.now + WATCH_EVERY_MS);
+      scheduleJob(scope.db, watchJob(threadId), scope.now + WATCH_EVERY_MS);
     }
   });
 };
@@ -672,7 +671,7 @@ const runAgentJob = async (
 
 // the agent's jobs due, each leaving its own row as it should be; one that throws is put off
 export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
-  const due = cell.library.read((storage) => dueJobs(storage.db, cell.now(), AGENT_JOBS));
+  const due = cell.library.read((db) => dueJobs(db, cell.now(), AGENT_JOBS));
   if (!due.ok) {
     return;
   }
@@ -682,7 +681,7 @@ export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
     } catch (error) {
       console.error({ event: "agent-job-failed", kind: job.kind, ...errorFields(error) });
       await landRows(cell, (scope) => {
-        retryJob(scope.storage.db, job, scope.now);
+        retryJob(scope.db, job, scope.now);
       });
     }
   }

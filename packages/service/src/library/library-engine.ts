@@ -77,7 +77,6 @@ import {
 } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
-import type { CellStorage } from "./cell-storage";
 import { undoChangeSets } from "./cell-undo";
 import { landWrite } from "./cell-writes";
 import type { ItemWrite } from "./cell-writes";
@@ -86,7 +85,7 @@ import type { OpenSet } from "./change-sets";
 import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
-  readonly storage: CellStorage;
+  readonly db: CellDb;
   readonly now: () => number;
   // every id the cell mints: items, blocks, change sets
   readonly ids: CellIds;
@@ -181,9 +180,10 @@ const noSet = (): OpenSet => {
 };
 
 export const openLibraryEngine = (deps: LibraryEngineDeps) => {
-  const { bytesCap, ids, storage } = deps;
-  const { db } = storage;
+  const { bytesCap, db, ids } = deps;
   const listing = deps.listing ?? holdListing();
+
+  const transaction = <T>(work: () => T): T => db.$client.transactionSync(work);
 
   const deletedAt = (): number | null => readInstant(db, "deleted_at");
 
@@ -204,7 +204,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => {
     try {
-      return storage.transaction((): CellResult<z.output<S>> => {
+      return transaction((): CellResult<z.output<S>> => {
         if (deletedAt() !== null) {
           refuse({ kind: "gone" });
         }
@@ -227,12 +227,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             taken.set ??= request.openSet(now);
             return taken.set;
           },
-          storage,
+          db,
         };
         const value = request.answer.parse(work(scope));
         const joined = taken.set;
         if (joined?.policy.kind === "commit") {
-          sealChangeSet(storage, joined.id, now);
+          sealChangeSet(db, joined.id, now);
         }
         if (request.opId !== undefined) {
           db.insert(appliedOps)
@@ -251,7 +251,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   const joining = (actor: CellActor) => (now: number) =>
-    joinChangeSet(storage, actor, now, ids.changeSet);
+    joinChangeSet(db, actor, now, ids.changeSet);
 
   // a write by `actor`, joining its change set
   const land = <S extends z.ZodType>(
@@ -285,7 +285,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           continue;
         }
         const seq = scope.seq();
-        storeTombstone(storage, {
+        storeTombstone(db, {
           deletedAt: item.fields.deletedAt,
           id,
           seq,
@@ -293,7 +293,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         });
         db.delete(snapshotParts).where(eq(snapshotParts.itemId, id)).run();
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
-        dropItemBlobs(storage, id, scope.now);
+        dropItemBlobs(db, id, scope.now);
         forgetNoteSockets(db, id);
         if (bodyInNote(item)) {
           scheduleJob(
@@ -312,7 +312,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     transact(
       {
         answer: undoSchema,
-        openSet: (now) => openUndoSet(storage, requester, now, () => undone.undoSetId),
+        openSet: (now) => openUndoSet(db, requester, now, () => undone.undoSetId),
         opId: input.opId,
       },
       (scope) => undoChangeSets(scope, input.changeSetIds, undone.notes),
@@ -320,8 +320,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // an import closes its own set
   const closeChangeSet = (changeSetId: string): void => {
-    storage.transaction(() => {
-      sealChangeSet(storage, changeSetId, deps.now());
+    transaction(() => {
+      sealChangeSet(db, changeSetId, deps.now());
     });
   };
 
@@ -329,7 +329,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
     transact(
       { answer: z.object({ held: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => reserveUpload(storage, bytesCap, request, scope.now),
+      (scope) => reserveUpload(db, bytesCap, request, scope.now),
     );
 
   // the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
@@ -342,11 +342,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
       (scope) => ({
-        settled: settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now),
+        settled: settleUpload(db, bytesCap, { removalsSeen, sha, stored }, scope.now),
       }),
     );
     if (!result.ok && result.refusal.kind === "quota") {
-      storage.transaction(() => {
+      transaction(() => {
         refuseUpload(db, sha, deps.now());
       });
     }
@@ -356,7 +356,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the strays whose removal is due, each begun unless a file row or an upload's room holds its
   // sha again
   const beginStrayRemovals = (): StrayRemoval[] =>
-    storage.transaction(() =>
+    transaction(() =>
       dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
         const { sha } = job.payload;
         return beginRemoval(db, sha) ? [{ job, sha }] : [];
@@ -366,7 +366,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the removals R2 took, or the ones it failed, which wait their turn again
   const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
     const now = deps.now();
-    storage.transaction(() => {
+    transaction(() => {
       for (const removal of removals) {
         if (removed) {
           endRemoval(db, removal.sha);
@@ -378,11 +378,10 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   // the readings committed writes asked for, each put off a minute until the queue takes it
-  const claimDueFills = (): ClaimedFill[] =>
-    storage.transaction(() => claimFills(storage, deps.now()));
+  const claimDueFills = (): ClaimedFill[] => transaction(() => claimFills(db, deps.now()));
 
   const fillsSent = (claimed: readonly ClaimedFill[]): void => {
-    storage.transaction(() => {
+    transaction(() => {
       sentFills(db, claimed);
     });
   };
@@ -399,7 +398,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return filled;
     });
     if (!landed.ok && landed.refusal.kind !== "gone") {
-      storage.transaction(() => {
+      transaction(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
       });
     }
@@ -413,7 +412,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { ok: false, refusal: { kind: "gone" } };
     }
     try {
-      return { moved: null, ok: true, value: storage.transaction(read) };
+      return { moved: null, ok: true, value: transaction(read) };
     } catch (error) {
       if (error instanceof RefusedWriteError) {
         return { ok: false, refusal: error.refusal };
@@ -422,12 +421,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }
   };
 
-  const read = <T>(work: (cell: CellStorage) => T): CellResult<T> => reading(() => work(storage));
+  const read = <T>(work: (cell: CellDb) => T): CellResult<T> => reading(() => work(db));
 
   // a read over the listing, caught up to the library's head
   const readListing = <T>(
-    work: (index: LibraryIndex<ListingRow>, cell: CellStorage) => T,
-  ): CellResult<T> => reading(() => work(listing(db, libraryHead(db)), storage));
+    work: (index: LibraryIndex<ListingRow>, cell: CellDb) => T,
+  ): CellResult<T> => reading(() => work(listing(db, libraryHead(db)), db));
 
   // what a write already answered under `opId`, or null while none has: a write whose work waits on
   // the network between its transactions asks first, and lands its op with its last one
@@ -438,12 +437,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     reading(() => (opId === undefined ? null : priorAnswer(opId, answer)));
 
   const fillWanted = (itemId: string, url: string): CellResult<boolean> =>
-    reading(() => fillWaits(storage, itemId, url));
+    reading(() => fillWaits(db, itemId, url));
 
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
-        sealChangeSet(storage, job.payload.changeSetId, now);
+        sealChangeSet(db, job.payload.changeSetId, now);
         break;
       }
       case "upload": {
@@ -460,7 +459,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "prune": {
-        const more = pruneChangeSets(storage.db, now);
+        const more = pruneChangeSets(db, now);
         scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
         break;
       }
@@ -472,14 +471,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // again later and the rest still run
   const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
     const now = deps.now();
-    for (const job of storage.transaction(() => dueJobs(db, now, STORAGE_JOBS))) {
+    for (const job of transaction(() => dueJobs(db, now, STORAGE_JOBS))) {
       try {
-        storage.transaction(() => {
+        transaction(() => {
           runJob(job, now);
         });
       } catch (error) {
         onFailure(job, error);
-        storage.transaction(() => {
+        transaction(() => {
           retryJob(db, job, now);
         });
       }
@@ -489,13 +488,13 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // ---- what each item's note asks (`./cell-notes`) ----
 
   const noteOpening = (sessionId: string, itemId: string): NoteOpening =>
-    storage.transaction(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
+    transaction(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
 
   const seedFor = (itemId: string): SeedAnswer =>
-    storage.transaction(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
+    transaction(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
 
   const seedTaken = (itemId: string): void => {
-    storage.transaction(() => {
+    transaction(() => {
       confirmSeed(db, itemId);
     });
   };
@@ -507,11 +506,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     );
 
   const sessionNotes = (sessionId: string): string[] =>
-    storage.transaction(() => takeSessionNotes(db, sessionId));
+    transaction(() => takeSessionNotes(db, sessionId));
 
   // the purged items' notes due to be emptied, each put off until it is reported done
   const claimNotePurges = (): NotePurge[] =>
-    storage.transaction(() => {
+    transaction(() => {
       const now = deps.now();
       return dueJobs(db, now, ["note-purge"]).map((job) => {
         deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
@@ -520,7 +519,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
 
   const notePurged = (purge: NotePurge, done: boolean): void => {
-    storage.transaction(() => {
+    transaction(() => {
       if (done) {
         dropJob(db, purge.job.id);
       } else {
@@ -531,7 +530,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // the account's deletion has begun: every later write and read is refused
   const tombstone = (): void => {
-    storage.transaction(() => {
+    transaction(() => {
       if (deletedAt() === null) {
         writeMeta(db, "deleted_at", deps.now());
       }

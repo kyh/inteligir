@@ -64,7 +64,7 @@ export const threadEvents = (
 
 // the thread and every event it stored
 export const deleteThread = (scope: LandingScope, threadId: string): void => {
-  const { db } = scope.storage;
+  const { db } = scope;
   if (!threadExists(db, threadId)) {
     refuse({ kind: "not-found" });
   }

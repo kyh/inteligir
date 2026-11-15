@@ -75,7 +75,7 @@ export const passOver = (
   counts: ImportStep["counts"],
 ): StepOutcome | null =>
   apart(library, (scope) => {
-    advanceImport(scope.storage.db, job.id, { counts, cursor: idx + 1 });
+    advanceImport(scope.db, job.id, { counts, cursor: idx + 1 });
   })
     ? null
     : DONE;

@@ -20,7 +20,7 @@ import type { NewItem } from "../library/cell-items";
 import { settleCommit } from "../library/cell-library";
 import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
-import { cellStorageOf } from "../library/cell-storage";
+import { cellDbOf } from "../library/cell-db";
 import { cellAccountId, libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { landedSchema, openLibraryEngine } from "../library/library-engine";
@@ -48,7 +48,7 @@ export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB
     bytesCap,
     ids: cellIds(() => clock.now),
     now: () => clock.now,
-    storage: cellStorageOf(state.storage),
+    db: cellDbOf(state.storage),
   });
 
 // each item's note as the cell under test reaches it
@@ -157,7 +157,7 @@ export const refusalOf = <T>(result: CellResult<T>) => {
 // an item's blocks as the cell's seed holds them, in order; an item whose body went to its note
 // holds none here
 export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[] => {
-  const held = landedValue(library.read((storage) => heldBody(storage.db, itemId)));
+  const held = landedValue(library.read((db) => heldBody(db, itemId)));
   if (held?.kind !== "seed") {
     throw new Error(`the cell holds no seed for ${itemId}`);
   }
@@ -166,4 +166,4 @@ export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[]
 
 // an item's row as the cell holds it, or null for none
 export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>
-  landedValue(library.read((sql) => readItem(sql.db, itemId)));
+  landedValue(library.read((db) => readItem(db, itemId)));

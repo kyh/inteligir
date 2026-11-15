@@ -38,31 +38,31 @@ export const startImport = (
   ids: CellIds,
   input: { readonly sha: string; readonly source: ImportSource },
 ): ImportJob => {
-  const file = readBlobRow(scope.storage.db, input.sha);
+  const file = readBlobRow(scope.db, input.sha);
   if (file === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
   if (input.source === "raindrop" && file.bytes > RAINDROP_MAX_BYTES) {
     return refuse({ kind: "too-large" });
   }
-  return insertImportJob(scope.storage.db, { id: ids.item(), ...input }, scope.now);
+  return insertImportJob(scope.db, { id: ids.item(), ...input }, scope.now);
 };
 
 // stops after the page it is on; what it added stays, and its change set closes on the next run
 export const cancelImport = (scope: LandingScope, id: string): ImportJob => {
-  const job = readImportJob(scope.storage.db, id);
+  const job = readImportJob(scope.db, id);
   if (job === null) {
     return refuse({ kind: "not-found" });
   }
   if (job.state === "running") {
-    stopImport(scope.storage.db, id, { message: null, state: "cancelled" }, scope.now);
-    runImportNext(scope.storage.db, id, scope.now);
+    stopImport(scope.db, id, { message: null, state: "cancelled" }, scope.now);
+    runImportNext(scope.db, id, scope.now);
   }
-  return readImportJob(scope.storage.db, id) ?? job;
+  return readImportJob(scope.db, id) ?? job;
 };
 
 const readJob = (host: ImportHost, id: string): ImportJob | null => {
-  const read = host.library.read((storage) => readImportJob(storage.db, id));
+  const read = host.library.read((db) => readImportJob(db, id));
   return read.ok ? read.value : null;
 };
 
@@ -76,7 +76,7 @@ const finish = (host: ImportHost, id: string): void => {
     host.library.closeChangeSet(setId);
   }
   apart(host.library, (scope) => {
-    const { db } = scope.storage;
+    const { db } = scope;
     const kept =
       job === null ? [] : [job.sha, ...(job.source === "markdown" ? keptFileShas(db, id) : [])];
     dropImportRuns(db, id);
@@ -89,13 +89,13 @@ const finish = (host: ImportHost, id: string): void => {
 const settle = (host: ImportHost, job: ImportJob, outcome: StepOutcome): void => {
   if (outcome.kind === "more") {
     apart(host.library, (scope) => {
-      runImportNext(scope.storage.db, job.id, scope.now);
+      runImportNext(scope.db, job.id, scope.now);
     });
     return;
   }
   apart(host.library, (scope) => {
     stopImport(
-      scope.storage.db,
+      scope.db,
       job.id,
       outcome.kind === "done"
         ? { message: null, state: "done" }
@@ -110,7 +110,7 @@ const runOne = async (host: ImportHost, id: string): Promise<void> => {
   const job = readJob(host, id);
   if (job === null) {
     apart(host.library, (scope) => {
-      dropImportRuns(scope.storage.db, id);
+      dropImportRuns(scope.db, id);
     });
     return;
   }
@@ -127,7 +127,7 @@ const runOne = async (host: ImportHost, id: string): Promise<void> => {
 // platform ends is tried again later, and a job whose runs keep moving it on by nothing is stopped
 // with the reason said
 export const runImports = async (host: ImportHost): Promise<void> => {
-  const due = host.library.read((storage) => dueJobs(storage.db, host.now(), ["import"]));
+  const due = host.library.read((db) => dueJobs(db, host.now(), ["import"]));
   if (!due.ok) {
     return;
   }
@@ -135,13 +135,13 @@ export const runImports = async (host: ImportHost): Promise<void> => {
     const id = alarmJob.payload.jobId;
     if (alarmJob.attempts >= ATTEMPTS_MAX) {
       apart(host.library, (scope) => {
-        stopImport(scope.storage.db, id, { message: STOPPED, state: "failed" }, scope.now);
+        stopImport(scope.db, id, { message: STOPPED, state: "failed" }, scope.now);
       });
       finish(host, id);
       continue;
     }
     apart(host.library, (scope) => {
-      retryJob(scope.storage.db, alarmJob, scope.now);
+      retryJob(scope.db, alarmJob, scope.now);
     });
     await host.durable();
     try {

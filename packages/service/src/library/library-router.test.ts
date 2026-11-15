@@ -23,7 +23,7 @@ import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { FILL_ACTOR } from "./cell-fills";
 import { addFileBytes } from "./cell-quota";
-import { cellStorageOf } from "./cell-storage";
+import { cellDbOf } from "./cell-db";
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { libraryRouter } from "./library-router";
@@ -656,7 +656,7 @@ describe("the library's procedures", () => {
       });
 
       // a full library still takes words in an item it holds, and refuses only a new one
-      addFileBytes(cellStorageOf(state.storage).db, GiB);
+      addFileBytes(cellDbOf(state.storage), GiB);
       await library.items.edit({
         edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
         id: item.id,

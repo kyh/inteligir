@@ -8,7 +8,6 @@ import { readCount, writeMeta } from "./library-queries";
 
 import { noteBytes } from "./cell-body";
 import type { CellDb } from "./cell-db";
-import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
 const BYTES_USED = "bytes_used";
@@ -20,15 +19,16 @@ export const addFileBytes = (db: CellDb, delta: number): void => {
   writeMeta(db, BYTES_USED, Math.max(0, fileBytes(db) + delta));
 };
 
-const bytesUsed = (storage: CellStorage): number =>
-  fileBytes(storage.db) + storage.databaseSize() + noteBytes(storage.db);
+// the SQLite's size is what the cell's storage holds, its change sets included
+const bytesUsed = (db: CellDb): number =>
+  fileBytes(db) + db.$client.sql.databaseSize + noteBytes(db);
 
 // refuses `growth` more bytes once they would pass the cap
-export const holdRoomFor = (storage: CellStorage, bytesCap: number, growth: number): void => {
+export const holdRoomFor = (db: CellDb, bytesCap: number, growth: number): void => {
   if (growth <= 0) {
     return;
   }
-  const used = bytesUsed(storage);
+  const used = bytesUsed(db);
   if (used + growth > bytesCap) {
     refuse({ bytesCap, bytesUsed: used, kind: "quota" });
   }

@@ -22,7 +22,7 @@ import { cellOf, inCell } from "../test-support/library-cell";
 import { R2_FAULTS } from "../test-support/library-files";
 import { blobKey } from "./cell-blobs";
 import { addFileBytes } from "./cell-quota";
-import { cellStorageOf } from "./cell-storage";
+import { cellDbOf } from "./cell-db";
 
 const sha256Hex = async (bytes: Uint8Array): Promise<string> =>
   bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
@@ -140,7 +140,7 @@ describe("a file's bytes", () => {
     expect(huge.status).toBe(413);
 
     await inCell(cellOf(accountId), (state) => {
-      addFileBytes(cellStorageOf(state.storage).db, Number(env.LIBRARY_STORAGE_CAP_BYTES));
+      addFileBytes(cellDbOf(state.storage), Number(env.LIBRARY_STORAGE_CAP_BYTES));
     });
     await expect(put(auth, sha, bytes)).resolves.toBe(507);
   });

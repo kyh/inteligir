@@ -109,16 +109,14 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   let moved: BodyBlock[] = [];
   for (let tries = 0; tries < 2 && projection === null; tries += 1) {
     // an item in Deleted takes no edit, as its note says once it opened, and one it never opened too
-    const editable = library.read(
-      (storage) => readLiveItem(storage.db, input.id)?.fields.deletedAt === null,
-    );
+    const editable = library.read((db) => readLiveItem(db, input.id)?.fields.deletedAt === null);
     if (!editable.ok || !editable.value) {
       return editable.ok ? refused({ kind: "not-found" }) : editable;
     }
     const read = await note.read();
     const blocks = noteBlocksSchema.parse(read.blocks);
-    const outcome = library.read((storage) =>
-      editItemView(blocks, input.edits, cellCodec(storage.db, library.ids).edit),
+    const outcome = library.read((db) =>
+      editItemView(blocks, input.edits, cellCodec(db, library.ids).edit),
     );
     if (!outcome.ok) {
       return outcome;
@@ -152,12 +150,12 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   }
   const landed = projection;
   return library.land(deps.actor(), { answer: editedSchema, opId: input.opId }, (scope) => {
-    const item = readLiveItem(scope.storage.db, input.id);
+    const item = readLiveItem(scope.db, input.id);
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
-    touchItem(scope.storage, { before: item.fields, itemId: item.id, setId: scope.set().id });
+    touchItem(scope.db, { before: item.fields, itemId: item.id, setId: scope.set().id });
     landProjection(scope, item.id, landed);
-    return { seq: readLiveItem(scope.storage.db, item.id)?.seq ?? item.seq };
+    return { seq: readLiveItem(scope.db, item.id)?.seq ?? item.seq };
   });
 };

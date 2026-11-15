@@ -31,7 +31,7 @@ import { FILL_ACTOR } from "./cell-fills";
 import { scheduleJob } from "./cell-jobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
-import { cellStorageOf } from "./cell-storage";
+import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
 import { PRINCIPAL_HEADER, principalFromHeader, principalHeaderValue } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
@@ -440,7 +440,7 @@ describe("deleting the account from its cell", () => {
         env,
       });
       scheduleJob(
-        cellStorageOf(state.storage).db,
+        cellDbOf(state.storage),
         { id: "agent-watch:left", kind: "agent-watch", payload: { threadId: "left" } },
         Date.now(),
       );

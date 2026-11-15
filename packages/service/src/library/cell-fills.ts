@@ -26,7 +26,6 @@ import type { NoteArticle } from "./article-landing";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
-import type { CellStorage } from "./cell-storage";
 import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
@@ -90,7 +89,7 @@ export const askFill = (
 ): void => {
   if (waitsForFill(item)) {
     queueFill(
-      scope.storage.db,
+      scope.db,
       { coverHint, heldBy: null, itemId: item.id, url: item.fields.url },
       scope.now,
     );
@@ -107,7 +106,7 @@ export const askFillAfterTurn = (
 ): void => {
   if (waitsForFill(item)) {
     queueFill(
-      scope.storage.db,
+      scope.db,
       { coverHint: null, heldBy: changeSetId, itemId: item.id, url: item.fields.url },
       scope.now + HELD_MS,
     );
@@ -131,8 +130,8 @@ export const releaseHeldFills = (
 };
 
 // whether a held row's turn has sealed: a set the library no longer keeps holds nothing
-const turnSealed = (storage: CellStorage, changeSetId: string): boolean =>
-  setSealed(storage, changeSetId) !== false;
+const turnSealed = (db: CellDb, changeSetId: string): boolean =>
+  setSealed(db, changeSetId) !== false;
 
 export interface ClaimedFill {
   readonly job: DueJob<"fill">;
@@ -143,15 +142,15 @@ export interface ClaimedFill {
 
 // the readings waiting to be sent, each put off a minute, so a send that never answers is sent
 // again by the alarm and two commits in flight do not both send one
-export const claimFills = (storage: CellStorage, now: number): ClaimedFill[] =>
-  dueJobs(storage.db, now, ["fill"]).flatMap((job) => {
+export const claimFills = (db: CellDb, now: number): ClaimedFill[] =>
+  dueJobs(db, now, ["fill"]).flatMap((job) => {
     const { heldBy, ...request } = job.payload;
-    if (heldBy !== null && !turnSealed(storage, heldBy)) {
-      deferJob(storage.db, job.id, now + HELD_MS);
+    if (heldBy !== null && !turnSealed(db, heldBy)) {
+      deferJob(db, job.id, now + HELD_MS);
       return [];
     }
     const resendAt = now + RESEND_AFTER_MS;
-    deferJob(storage.db, job.id, resendAt);
+    deferJob(db, job.id, resendAt);
     return [{ job, request, resendAt }];
   });
 
@@ -208,17 +207,17 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
 };
 
 // whether an item still waits for a reading of `url`, so a consumer reads no page nobody waits for
-export const fillWaits = (storage: CellStorage, itemId: string, url: string): boolean =>
-  waiting(readLiveItem(storage.db, itemId), url);
+export const fillWaits = (db: CellDb, itemId: string, url: string): boolean =>
+  waiting(readLiveItem(db, itemId), url);
 
 // the note a reading's article goes to before it lands, when the item waiting for it has opened
 // its note: named by the item's sequence, so the same reading sent again replaces nothing twice,
 // and a reading asked for again replaces it anew
-export const fillForNote = (storage: CellStorage, landing: FillLanding): NoteArticle | null => {
+export const fillForNote = (db: CellDb, landing: FillLanding): NoteArticle | null => {
   if (landing.kind !== "read" || landing.article.length === 0) {
     return null;
   }
-  const item = readLiveItem(storage.db, landing.itemId);
+  const item = readLiveItem(db, landing.itemId);
   return waiting(item, landing.url) && item.body.home === "note"
     ? { article: landing.article, itemId: item.id, onceId: `fill:${item.id}:${item.seq}` }
     : null;
@@ -245,10 +244,10 @@ export const landFill = (
   landing: FillLanding,
   articleInNote: boolean,
 ): FillLanded => {
-  const item = readLiveItem(scope.storage.db, landing.itemId);
+  const item = readLiveItem(scope.db, landing.itemId);
   if (!waiting(item, landing.url)) {
     // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
-    hurryUnnamed(scope.storage.db, readingFiles(landing), scope.now);
+    hurryUnnamed(scope.db, readingFiles(landing), scope.now);
     return { kind: "stale" };
   }
   const { fields } = item;

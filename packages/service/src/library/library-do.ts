@@ -375,7 +375,7 @@ export class LibraryDO extends DurableObject<Env> {
     const landed = await articleThenLand(this.#notes, {
       land: (inNote) => library.landReading(reading, inNote?.projection ?? null),
       target: () => {
-        const target = library.read((storage) => fillForNote(storage, reading));
+        const target = library.read((db) => fillForNote(db, reading));
         return target.ok ? target.value : null;
       },
     });

@@ -19,7 +19,6 @@ import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
 import type { CellDb } from "./cell-db";
 import { storeFieldsPart } from "./cell-parts";
-import type { CellStorage } from "./cell-storage";
 import { PRUNE_EVERY_MS } from "./change-set-prune";
 
 // the change-set prune's job, made by whichever lands first, a sealed set or an op's answer,
@@ -139,8 +138,8 @@ const writeAfter = (
 };
 
 // whether a change set is sealed, or null for one the library does not keep
-export const setSealed = (storage: CellStorage, setId: string): boolean | null => {
-  const set = storage.db
+export const setSealed = (db: CellDb, setId: string): boolean | null => {
+  const set = db
     .select({ sealedAt: changeSets.sealedAt })
     .from(changeSets)
     .where(eq(changeSets.id, setId))
@@ -151,9 +150,8 @@ export const setSealed = (storage: CellStorage, setId: string): boolean | null =
 // writes the after of each item the set still holds open, and closes the set, unless it was
 // already sealed or never was. An item another set changed since already has its after, written at
 // that change
-export const sealChangeSet = (storage: CellStorage, setId: string, now: number): void => {
-  const { db } = storage;
-  if (setSealed(storage, setId) !== false) {
+export const sealChangeSet = (db: CellDb, setId: string, now: number): void => {
+  if (setSealed(db, setId) !== false) {
     dropJob(db, sealJobOf(setId).id);
     return;
   }
@@ -181,7 +179,7 @@ export const sealChangeSet = (storage: CellStorage, setId: string, now: number):
 // the actor's open set, which this write joins: a new one when it has none, when its own has gone
 // quiet past its deadline (sealed here, since the alarm may run late), or when one write is a set
 export const joinChangeSet = (
-  storage: CellStorage,
+  db: CellDb,
   actor: CellActor,
   now: number,
   newId: () => string,
@@ -189,55 +187,50 @@ export const joinChangeSet = (
   const policy = SEAL_POLICIES[actor.kind];
   const keys = keysOf(actor);
   if (policy.kind !== "commit") {
-    const open = findOpen(storage.db, actor.kind, keys);
+    const open = findOpen(db, actor.kind, keys);
     if (open !== null) {
       const overdue =
         policy.kind === "quiet" && quietDeadline(policy, open.openedAt, open.touchedAt) <= now;
       if (!overdue) {
-        storage.db
-          .update(changeSets)
-          .set({ touchedAt: now })
-          .where(eq(changeSets.id, open.id))
-          .run();
+        db.update(changeSets).set({ touchedAt: now }).where(eq(changeSets.id, open.id)).run();
         if (policy.kind === "quiet") {
-          scheduleJob(storage.db, sealJobOf(open.id), quietDeadline(policy, open.openedAt, now));
+          scheduleJob(db, sealJobOf(open.id), quietDeadline(policy, open.openedAt, now));
         }
         return { actor: actor.kind, id: open.id, policy };
       }
-      sealChangeSet(storage, open.id, now);
+      sealChangeSet(db, open.id, now);
     }
   }
   const id = newId();
-  insertSet(storage.db, { actor: actor.kind, id, label: actor.label }, keys, now);
+  insertSet(db, { actor: actor.kind, id, label: actor.label }, keys, now);
   if (policy.kind === "quiet") {
-    scheduleJob(storage.db, sealJobOf(id), quietDeadline(policy, now, now));
+    scheduleJob(db, sealJobOf(id), quietDeadline(policy, now, now));
   }
   return { actor: actor.kind, id, policy };
 };
 
 // an undo is a set of its own, by whoever asked for it, sealed with the write
 export const openUndoSet = (
-  storage: CellStorage,
+  db: CellDb,
   requester: CellActor,
   now: number,
   newId: () => string,
 ): OpenSet => {
   const id = newId();
-  insertSet(storage.db, { actor: "undo", id, label: requester.label }, keysOf(requester), now);
+  insertSet(db, { actor: "undo", id, label: requester.label }, keysOf(requester), now);
   return { actor: "undo", id, policy: SEAL_POLICIES.undo };
 };
 
 // the set's first write to the item keeps the item as it was; and the other open set whose after
 // is the item as it is now writes that after down, since this write is about to change it
 export const touchItem = (
-  storage: CellStorage,
+  db: CellDb,
   change: {
     readonly setId: string;
     readonly itemId: string;
     readonly before: LibraryItemFields | null;
   },
 ): void => {
-  const { db } = storage;
   const { before, itemId, setId } = change;
   const held = db
     .select({ afterFields: changeSetItems.afterFields })

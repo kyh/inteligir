@@ -179,7 +179,7 @@ const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 // an item's body in reading order, read where it lives: the seed the cell kept, or its note, which
 // is read outside any transaction since a cold note's load calls back into the cell
 const bodyOf = async (context: CellContext, itemId: string) => {
-  const held = answer(context.library.read((storage) => heldBody(storage.db, itemId)));
+  const held = answer(context.library.read((db) => heldBody(db, itemId)));
   if (held === null) {
     throw new NotFoundError();
   }
@@ -198,9 +198,9 @@ const tellNotesDeleted = async (
   deleted: boolean,
 ): Promise<void> => {
   const inNotes = answer(
-    context.library.read((storage) =>
+    context.library.read((db) =>
       ids.filter((id) => {
-        const item = readLiveItem(storage.db, id);
+        const item = readLiveItem(db, id);
         return item !== null && bodyInNote(item);
       }),
     ),
@@ -238,15 +238,15 @@ export const libraryRouter = os.router({
     ),
     events: os.agent.events.handler(({ context, input }) =>
       answer(
-        context.library.read((storage) =>
-          threadEvents(storage.db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
+        context.library.read((db) =>
+          threadEvents(db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),
     list: os.agent.list.handler(({ context, input }) =>
       answer(
-        context.library.read((storage) =>
-          listThreads(storage.db, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
+        context.library.read((db) =>
+          listThreads(db, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),
@@ -259,7 +259,7 @@ export const libraryRouter = os.router({
         await committed(context, await sendToAgent(context.agent, input)),
     ),
     rules: os.agent.rules.handler(({ context }) =>
-      answer(context.library.read((storage) => ({ rules: readLibraryRules(storage.db) }))),
+      answer(context.library.read((db) => ({ rules: readLibraryRules(db) }))),
     ),
     setEnabled: os.agent.setEnabled.handler(
       async ({ context, input }) => await committed(context, setAgentEnabled(context.agent, input)),
@@ -270,7 +270,7 @@ export const libraryRouter = os.router({
         await committed(
           context,
           context.library.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
-            writeLibraryRules(scope.storage.db, input.rules);
+            writeLibraryRules(scope.db, input.rules);
             return { rules: input.rules };
           }),
         ),
@@ -287,7 +287,7 @@ export const libraryRouter = os.router({
             { answer: foldersWrittenSchema, opId: input.opId },
             (scope) => ({
               folders: writeFolders(scope, input.ops),
-              seq: libraryHead(scope.storage.db),
+              seq: libraryHead(scope.db),
             }),
           ),
         ),
@@ -296,8 +296,8 @@ export const libraryRouter = os.router({
   history: {
     list: os.history.list.handler(({ context, input }) =>
       answer(
-        context.library.read((storage) =>
-          listChangeSets(storage.db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
+        context.library.read((db) =>
+          listChangeSets(db, { ...input, limit: input.limit ?? PAGE_DEFAULT }),
         ),
       ),
     ),
@@ -305,7 +305,7 @@ export const libraryRouter = os.router({
     // undo's own set; the write then lands what they answered beside the fields
     undo: os.history.undo.handler(async ({ context, input }) => {
       const { library } = context;
-      const plan = answer(library.read((storage) => planUndo(storage, input.changeSetIds)));
+      const plan = answer(library.read((db) => planUndo(db, input.changeSetIds)));
       const undoSetId = library.ids.changeSet();
       const answers: { itemId: string; undone: TurnUndone }[] = [];
       for (const { itemId, setId } of plan) {
@@ -328,14 +328,14 @@ export const libraryRouter = os.router({
         ),
     ),
     get: os.imports.get.handler(({ context, input }) => {
-      const job = answer(context.library.read((storage) => readImportJob(storage.db, input.id)));
+      const job = answer(context.library.read((db) => readImportJob(db, input.id)));
       if (job === null) {
         throw new NotFoundError();
       }
       return { job: importJobView(job) };
     }),
     latest: os.imports.latest.handler(({ context }) => {
-      const job = answer(context.library.read((storage) => latestImportJob(storage.db)));
+      const job = answer(context.library.read((db) => latestImportJob(db)));
       return { job: job === null ? null : importJobView(job) };
     }),
     start: os.imports.start.handler(async ({ context, input }) => {
@@ -377,7 +377,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-          item: createNote(scope, cellCodec(scope.storage.db, library.ids), library.ids, input),
+          item: createNote(scope, cellCodec(scope.db, library.ids), library.ids, input),
         })),
       );
     }),
@@ -404,12 +404,12 @@ export const libraryRouter = os.router({
     ),
     get: os.items.get.handler(async ({ context, input }) => {
       const blocks = await bodyOf(context, input.id);
-      return answer(context.library.read((storage) => itemWhole(storage, input.id, blocks)));
+      return answer(context.library.read((db) => itemWhole(db, input.id, blocks)));
     }),
     list: os.items.list.handler(({ context, input }) =>
       answer(
-        context.library.readListing((listing, storage) =>
-          listItems(storage.db, listing, {
+        context.library.readListing((listing, db) =>
+          listItems(db, listing, {
             ...input,
             limit: input.limit ?? PAGE_DEFAULT,
             responseFormat: input.responseFormat ?? "concise",
@@ -434,10 +434,10 @@ export const libraryRouter = os.router({
     read: os.items.read.handler(async ({ context, input }) => {
       const blocks = await bodyOf(context, input.id);
       return answer(
-        context.library.read((storage) =>
+        context.library.read((db) =>
           readItemView(
-            storage,
-            cellCodec(storage.db, context.library.ids),
+            db,
+            cellCodec(db, context.library.ids),
             { ...input, responseFormat: input.responseFormat ?? "concise" },
             blocks,
           ),
@@ -473,7 +473,7 @@ export const libraryRouter = os.router({
       return { addressHeld, missing, restored: changed };
     }),
     row: os.items.row.handler(({ context, input }) =>
-      answer(context.library.read((storage) => itemRow(storage, input.id))),
+      answer(context.library.read((db) => itemRow(db, input.id))),
     ),
     // a page read into an item whose note opened puts its article in the note first, once per op
     save: os.items.save.handler(async ({ context, input }) => {
@@ -481,7 +481,7 @@ export const libraryRouter = os.router({
       const saved = await articleThenLand(context.notes, {
         land: (inNote) =>
           library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
-            const page = savePage(scope, cellCodec(scope.storage.db, library.ids), {
+            const page = savePage(scope, cellCodec(scope.db, library.ids), {
               ...input,
               articleInNote: inNote !== null,
             });
@@ -491,7 +491,7 @@ export const libraryRouter = os.router({
             return page;
           }),
         target: () => {
-          const item = answer(library.read((storage) => pageForNote({ storage }, input.url)));
+          const item = answer(library.read((db) => pageForNote(db, input.url)));
           return item === null
             ? null
             : { article: input.article, itemId: item.id, onceId: `save:${input.opId}` };
@@ -506,12 +506,7 @@ export const libraryRouter = os.router({
       return await committed(
         context,
         library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) => {
-          const saved = saveLink(
-            scope,
-            cellCodec(scope.storage.db, library.ids),
-            library.ids,
-            input,
-          );
+          const saved = saveLink(scope, cellCodec(scope.db, library.ids), library.ids, input);
           if (saved.created) {
             askReading(scope, actor, saved.item);
           }
@@ -522,9 +517,7 @@ export const libraryRouter = os.router({
   },
   listing: {
     page: os.listing.page.handler(({ context, input }) =>
-      answer(
-        context.library.readListing((listing, storage) => listingPage(storage, listing, input)),
-      ),
+      answer(context.library.readListing((listing, db) => listingPage(db, listing, input))),
     ),
     scopes: os.listing.scopes.handler(({ context }) =>
       answer(context.library.readListing((listing) => listing.scopes())),
@@ -535,13 +528,13 @@ export const libraryRouter = os.router({
   },
   organize: {
     outline: os.organize.outline.handler(({ context }) =>
-      answer(context.library.readListing((listing, storage) => outlineOf(storage.db, listing))),
+      answer(context.library.readListing((listing, db) => outlineOf(db, listing))),
     ),
   },
   search: os.search.handler(({ context, input }) =>
     answer(
-      context.library.readListing((listing, storage) =>
-        searchItems(storage, listing, {
+      context.library.readListing((listing, db) =>
+        searchItems(db, listing, {
           ...input,
           limit: input.limit ?? PAGE_DEFAULT,
           responseFormat: input.responseFormat ?? "concise",

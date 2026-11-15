@@ -15,7 +15,7 @@ import type { DueJob } from "./cell-jobs";
 import type { ListingHold } from "./cell-listing";
 import type { CellResult } from "./cell-refusal";
 import { tellSockets } from "./cell-sockets";
-import { cellStorageOf } from "./cell-storage";
+import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
 import type { LibraryEngine, UploadSettlement } from "./library-engine";
@@ -43,7 +43,7 @@ export const openCellLibrary = (
     ids: cellIds(now),
     listing,
     now,
-    storage: cellStorageOf(ctx.storage),
+    db: cellDbOf(ctx.storage),
   });
 
 // the one alarm at the earliest waiting job, and none while no job waits; an alarm already set

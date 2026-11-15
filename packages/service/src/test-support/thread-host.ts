@@ -71,17 +71,17 @@ export const openTurnInCell = async (
         if (turn === 1) {
           createThread(scope, threadId, text);
         }
-        insertTurn(scope.storage.db, {
+        insertTurn(scope.db, {
           at: scope.now,
           message: { text, viewContext: null },
           threadId,
           turn,
         });
-        bookTurn(scope.storage.db, dayOf(scope.now), 1);
+        bookTurn(scope.db, dayOf(scope.now), 1);
         restatus(scope, threadId);
         return {
-          pushedThrough: lastPush(scope.storage.db, threadId),
-          rules: filingRules(scope.storage.db),
+          pushedThrough: lastPush(scope.db, threadId),
+          rules: filingRules(scope.db),
         };
       }),
     );

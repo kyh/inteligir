@@ -23,7 +23,7 @@ export const storeEvent = (
   eventId: string,
   event: AgentEvent,
 ): void => {
-  const { db } = scope.storage;
+  const { db } = scope;
   const kept = db
     .select({ eventId: threadEvents.eventId })
     .from(threadEvents)

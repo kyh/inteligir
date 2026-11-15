@@ -109,7 +109,7 @@ export const landProjection = (
   itemId: string,
   projection: NoteProjection,
 ): ProjectAnswer => {
-  const { db } = scope.storage;
+  const { db } = scope;
   const item = readLiveItem(db, itemId);
   if (item === null) {
     return "gone";
@@ -139,7 +139,7 @@ export const landProjection = (
     .where(eq(items.id, itemId))
     .run();
   storeBodyText(db, itemId, projection.text);
-  storeSearchRow(scope.storage, itemId, { ...derived.search, body: projection.text });
+  storeSearchRow(scope.db, itemId, { ...derived.search, body: projection.text });
   if (linksChanged) {
     storeLinks(db, itemId, projection.links);
   }

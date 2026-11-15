@@ -17,7 +17,6 @@ import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";
 import { heldBody } from "./cell-body";
 import { cellDbOf } from "./cell-db";
-import { cellStorageOf } from "./cell-storage";
 import { readLiveItem } from "./library-queries";
 
 const read = (
@@ -277,7 +276,7 @@ describe("a page's reading, landed", () => {
     await inCell(cellOf(accountId), async (state) => {
       const library = libraryIn(state, accountId);
       const engine = openCellLibrary(state, env);
-      const storage = cellStorageOf(state.storage);
+      const db = cellDbOf(state.storage);
       const png = { mime: "image/png" };
       const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
       const stray = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(900, 600) });
@@ -295,12 +294,12 @@ describe("a page's reading, landed", () => {
           value: { kind: "stale" },
         });
       }
-      expect(readBlobRow(storage.db, stray)).not.toBeNull();
+      expect(readBlobRow(db, stray)).not.toBeNull();
       engine.runDueJobs(() => {
         throw new Error("no job fails here");
       });
-      expect(readBlobRow(storage.db, stray)).toBeNull();
-      expect(readBlobRow(storage.db, named)).not.toBeNull();
+      expect(readBlobRow(db, stray)).toBeNull();
+      expect(readBlobRow(db, named)).not.toBeNull();
     });
   });
 

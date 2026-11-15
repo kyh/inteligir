@@ -46,7 +46,7 @@ const conflictCurrentOf = (itemId: string, conflict: FieldConflict): ConflictCur
 // the item's row as it stands, for a write every op of which was already true, or a save of an
 // address the item holds
 export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const item = readLiveItem(scope.storage.db, itemId);
+  const item = readLiveItem(scope.db, itemId);
   if (item === null) {
     return refuse({ kind: "not-found" });
   }
@@ -56,7 +56,7 @@ export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
 
 export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow => {
   const { itemId } = input;
-  const before = readLiveItem(scope.storage.db, itemId);
+  const before = readLiveItem(scope.db, itemId);
   if (before === null) {
     return refuse({ kind: "not-found" });
   }

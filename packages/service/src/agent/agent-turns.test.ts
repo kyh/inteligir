@@ -14,7 +14,6 @@ import { z } from "zod";
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { openCellLibrary } from "../library/cell-library";
-import { cellStorageOf } from "../library/cell-storage";
 import { ACCOUNT_PURGE_STEPS } from "../library/account-purge";
 import { SCHEMA_HASH_KEY } from "../object-schema";
 import {
@@ -583,7 +582,7 @@ describe("the switch and deletion", () => {
         await tombstone?.run(scope);
         await agent?.run(scope);
         // the cell's own rows are still there: the next step takes them
-        const rows = cellStorageOf(state.storage).all("SELECT id FROM threads", []);
+        const rows = state.storage.sql.exec("SELECT id FROM threads").toArray();
         expect(rows).toHaveLength(2);
       });
       for (const threadId of threads) {
