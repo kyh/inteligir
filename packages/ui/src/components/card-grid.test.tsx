@@ -1,10 +1,8 @@
-// @vitest-environment jsdom
-
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { ComponentProps } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CardGrid } from "./card-grid";
 import type { CardGridHandle } from "./card-grid";
@@ -25,8 +23,6 @@ beforeAll(() => {
   }
 });
 /* oxlint-enable anti-slop/no-runtime-typeof */
-
-afterEach(cleanup);
 
 // 800 wide less 16 either side is 768: four columns of 180 with three gaps of 16
 const RECT = { height: 600, width: 800 };

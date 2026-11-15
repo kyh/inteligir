@@ -1,6 +1,4 @@
-// @vitest-environment jsdom
-
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { Profiler } from "react";
 import type { ProfilerOnRenderCallback } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StreamingText } from "./streaming-text";
 
 afterEach(() => {
-  cleanup();
   vi.useRealTimers();
 });
 

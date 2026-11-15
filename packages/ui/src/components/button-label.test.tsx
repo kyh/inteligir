@@ -1,11 +1,7 @@
-// @vitest-environment jsdom
-
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import { Button } from "./button";
-
-afterEach(cleanup);
 
 const noop = (): void => {
   // a button needs a handler; this test is about layout

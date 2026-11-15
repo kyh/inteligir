@@ -1,11 +1,7 @@
-// @vitest-environment jsdom
-
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog";
-
-afterEach(cleanup);
 
 describe("a dialog", () => {
   it("closes on the first Escape when its first focus is its close button", async () => {

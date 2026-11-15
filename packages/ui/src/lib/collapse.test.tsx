@@ -1,11 +1,7 @@
-// @vitest-environment jsdom
-
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import { Collapse } from "./collapse";
-
-afterEach(cleanup);
 
 describe(Collapse, () => {
   it("makes a closed fold inert, so the controls it clips leave the tab order with the accessibility tree", () => {
