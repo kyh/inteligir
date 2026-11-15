@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
-import { PlateElement, useEditorRef } from "platejs/react";
+import { PlateElement, useEditorRef, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { Button } from "@repo/ui/components/button";
@@ -16,6 +16,7 @@ import {
 
 export const TableElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
+  const readOnly = useReadOnly();
   const { element } = props;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -53,70 +54,74 @@ export const TableElement = (props: PlateElementProps) => {
   // bottom padding, since a run of blocks clips what hangs past its last one (styles.css).
   return (
     <div className="group/table relative w-fit max-w-full pb-2.5">
-      <Button
-        variant="ghost"
-        size="icon-compact"
-        contentEditable={false}
-        ref={menuBtnRef}
-        onMouseDown={(e) => {
-          e.preventDefault();
-        }}
-        onClick={() => {
-          setMenuOpen(true);
-        }}
-        title="Table options"
-        className="absolute -top-2.5 -left-2.5 z-10 size-5 rounded-md border-border bg-background text-muted-foreground opacity-0 group-hover/table:opacity-100"
-      >
-        <EllipsisIcon className="size-3.5" />
-      </Button>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuContent anchor={menuBtnRef} side="bottom" align="start">
-          <DropdownMenuItem
-            onClick={() => {
-              deleteRow(editor);
-            }}
-          >
-            Delete row
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              deleteColumn(editor);
-            }}
-          >
-            Delete column
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={removeTable}>
-            <Trash2Icon />
-            Delete table
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
       <div className="overflow-x-auto">
         <PlateElement {...props} as="table" className="mt-0">
           <tbody>{props.children}</tbody>
         </PlateElement>
       </div>
-      <Button
-        variant="ghost"
-        size="compact"
-        contentEditable={false}
-        onClick={addRow}
-        title="Add row"
-        className="absolute inset-x-0 bottom-0 h-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
-      >
-        <PlusIcon className="size-3" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="compact"
-        contentEditable={false}
-        onClick={addColumn}
-        title="Add column"
-        className="absolute inset-y-0 -right-2.5 h-auto w-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
-      >
-        <PlusIcon className="size-3" />
-      </Button>
+      {readOnly ? null : (
+        <>
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            contentEditable={false}
+            ref={menuBtnRef}
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
+            onClick={() => {
+              setMenuOpen(true);
+            }}
+            title="Table options"
+            className="absolute -top-2.5 -left-2.5 z-10 size-5 rounded-md border-border bg-background text-muted-foreground opacity-0 group-hover/table:opacity-100"
+          >
+            <EllipsisIcon className="size-3.5" />
+          </Button>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuContent anchor={menuBtnRef} side="bottom" align="start">
+              <DropdownMenuItem
+                onClick={() => {
+                  deleteRow(editor);
+                }}
+              >
+                Delete row
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  deleteColumn(editor);
+                }}
+              >
+                Delete column
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={removeTable}>
+                <Trash2Icon />
+                Delete table
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="compact"
+            contentEditable={false}
+            onClick={addRow}
+            title="Add row"
+            className="absolute inset-x-0 bottom-0 h-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
+          >
+            <PlusIcon className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="compact"
+            contentEditable={false}
+            onClick={addColumn}
+            title="Add column"
+            className="absolute inset-y-0 -right-2.5 h-auto w-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
+          >
+            <PlusIcon className="size-3" />
+          </Button>
+        </>
+      )}
     </div>
   );
 };

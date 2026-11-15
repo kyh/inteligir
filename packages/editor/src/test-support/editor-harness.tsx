@@ -21,6 +21,7 @@ export const EditorHarness = ({
   nodeIds = false,
   profile = "desktop",
   chunkSize,
+  readOnly = false,
 }: {
   value: Value;
   // the item the editor shows, as the item editor provides it and answers for it
@@ -33,6 +34,8 @@ export const EditorHarness = ({
   profile?: EditorProfile;
   // the top level in runs of this many blocks, each a box as the app draws it
   chunkSize?: number;
+  // a note that takes no edit, as the item editor draws one offline, held or in Deleted
+  readOnly?: boolean;
 }) => {
   const editor = usePlateEditor({
     // Plate's own default unless a size is asked for
@@ -50,7 +53,7 @@ export const EditorHarness = ({
   }, [itemId, editor]);
   return (
     <OpenItemProvider itemId={itemId}>
-      <Plate editor={editor}>
+      <Plate editor={editor} readOnly={readOnly}>
         <PlateContent
           renderChunk={({ attributes, children, lowest }) =>
             lowest ? (

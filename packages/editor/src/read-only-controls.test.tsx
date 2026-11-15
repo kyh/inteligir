@@ -1,0 +1,80 @@
+// A note that takes no edit draws no control that would write: the model refuses the op either
+// way, so a control left drawn is a press that does nothing.
+
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { Value } from "platejs";
+
+import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+
+import { EditorHarness } from "./test-support/editor-harness";
+
+const NOTE = [
+  "| a | b |",
+  "| - | - |",
+  "| 1 | 2 |",
+  "",
+  "```inteligir-chart",
+  '{"type":"bar","data":[{"label":"A","value":3}]}',
+  "```",
+  "",
+  "```inteligir-canvas",
+  "[inteligir:grid:v2]",
+  "..##..",
+  "```",
+  "",
+  "```inteligir-html",
+  "<p>hello</p>",
+  "```",
+  "",
+  "::::tabs",
+  ":::tab[One]",
+  "first",
+  ":::",
+  "",
+  ":::tab[Two]",
+  "second",
+  ":::",
+  "::::",
+  "",
+].join("\n");
+
+const noteValue = (): Value => {
+  const parsed = parseMarkdown(NOTE);
+  if (!parsed.ok) {
+    throw new Error(`the note must parse: ${parsed.reason.kind}`);
+  }
+  return parsed.value;
+};
+
+const WRITES = [
+  "Table options",
+  "Add row",
+  "Add column",
+  "Edit data",
+  "Sketch",
+  "Edit payload",
+  "Edit",
+  "Add tab",
+  "Remove One",
+];
+
+describe("a note's editing controls", () => {
+  beforeEach(() => {
+    installFakeEditorHost();
+  });
+
+  it.each([
+    ["a note that takes edits", false],
+    ["a note that takes none", true],
+  ] as const)("are drawn by %s: %s", (_note, readOnly) => {
+    render(<EditorHarness readOnly={readOnly} value={noteValue()} />);
+    for (const name of WRITES) {
+      expect(screen.queryAllByRole("button", { name }).length > 0, name).toBe(!readOnly);
+    }
+    for (const name of ["Source", "Preview", "One", "Two"]) {
+      expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
+    }
+  });
+});

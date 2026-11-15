@@ -1,7 +1,7 @@
 // slate-react hands every DOM event of a read-only editor to Plate's handler pipe, which skips a
 // plugin only when its editOnly keeps its handlers for an editable editor. So with no connection a
 // paste, a drop or a key reaches every other plugin, and one that writes would edit an item the
-// cloud cannot take.
+// cloud cannot take. A handler that slips through still writes nothing: the model refuses the op.
 
 import { describe, expect, it } from "vitest";
 import { DOM_HANDLERS, createPlateEditor, pipeHandler } from "platejs/react";
@@ -140,5 +140,29 @@ describe.each(KITS)("a key in the %s kit", (_profile, kit) => {
   it.each(KEYS_THAT_WRITE)("$name writes while editable and nothing read-only", (key) => {
     expect(press(key, false)).toBe(true);
     expect(press(key, true)).toBe(false);
+  });
+});
+
+// a node's own button writes through a transform, which Plate's readOnly never gates
+describe.each(KITS)("a transform in the %s kit", (_profile, kit) => {
+  it("writes nothing read-only, where the caret still moves", () => {
+    const editor = createPlateEditor({
+      plugins: kit,
+      value: [{ children: [{ text: "line" }], type: "p" }],
+    });
+    editor.dom.readOnly = true;
+    const before = editor.children;
+
+    editor.tf.setNodes({ type: "h1" }, { at: [0] });
+    editor.tf.insertText("typed", { at: { offset: 0, path: [0, 0] } });
+    editor.tf.insertNodes({ children: [{ text: "more" }], type: "p" }, { at: [1] });
+    editor.tf.select(caretAt([0, 0], 2));
+
+    expect(editor.children).toBe(before);
+    expect(editor.selection).toStrictEqual(caretAt([0, 0], 2));
+
+    editor.dom.readOnly = false;
+    editor.tf.setNodes({ type: "h1" }, { at: [0] });
+    expect(editor.children).toMatchObject([{ type: "h1" }]);
   });
 });

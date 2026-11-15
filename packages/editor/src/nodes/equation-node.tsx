@@ -3,7 +3,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { RadicalIcon } from "lucide-react";
 import type { TElement } from "platejs";
-import { PlateElement, useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
+import { PlateElement, useEditorRef, useElement, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
@@ -12,6 +12,8 @@ import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
 import { stringProp } from "@repo/editor/node-props";
+
+import { useEditPopover } from "./edit-popover";
 
 const KatexView = lazy(async () => await import("@repo/editor/nodes/equation-katex"));
 
@@ -91,7 +93,7 @@ const EquationEditor = ({
 const useEquationPopover = () => {
   const editor = useEditorRef();
   const element = useElement();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useEditPopover();
 
   const close = () => {
     setOpen(false);
@@ -101,21 +103,13 @@ const useEquationPopover = () => {
 };
 
 export const EquationElement = (props: PlateElementProps) => {
-  const readOnly = useReadOnly();
   const selected = useSelected();
   const { close, open, setOpen } = useEquationPopover();
   const expression = tex(props.element);
 
   return (
     <PlateElement {...props} className="my-1">
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          if (!readOnly) {
-            setOpen(next);
-          }
-        }}
-      >
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/control-has-associated-label -- a <button> cannot contain KaTeX's block-level display markup, and Base UI merges the trigger's children into this element, which is what names it.
           render={<div role="button" />}
@@ -154,21 +148,13 @@ export const EquationElement = (props: PlateElementProps) => {
 };
 
 export const InlineEquationElement = (props: PlateElementProps) => {
-  const readOnly = useReadOnly();
   const selected = useSelected();
   const { close, open, setOpen } = useEquationPopover();
   const expression = tex(props.element);
 
   return (
     <PlateElement {...props} as="span" className="mx-px inline-block rounded-sm select-none">
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          if (!readOnly) {
-            setOpen(next);
-          }
-        }}
-      >
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/control-has-associated-label -- a <button> cannot contain KaTeX's markup, and Base UI merges the trigger's children into this element, which is what names it.
           render={<span role="button" />}

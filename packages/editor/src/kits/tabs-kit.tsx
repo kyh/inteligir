@@ -12,7 +12,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/dialect-node-keys";
-import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen, useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 import { LockedContent } from "@repo/editor/nodes/rich-block-chrome";
 
@@ -32,7 +32,7 @@ const TabGroupElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
   const path = usePath();
-  const locked = useRichBlocksLocked();
+  const frozen = useFrozen();
   const panels = useMemo(() => panelsOf(element), [element]);
   const [active, setActive] = useState(0);
   const shown = Math.min(active, Math.max(panels.length - 1, 0));
@@ -91,7 +91,7 @@ const TabGroupElement = (props: PlateElementProps) => {
             >
               {panel.label}
             </button>
-            {!locked && panels.length > 1 && panel.index === shown ? (
+            {!frozen && panels.length > 1 && panel.index === shown ? (
               <Tooltip content={`Remove ${panel.label}`}>
                 <button
                   type="button"
@@ -110,7 +110,7 @@ const TabGroupElement = (props: PlateElementProps) => {
             ) : null}
           </span>
         ))}
-        {locked ? null : (
+        {frozen ? null : (
           <Tooltip content="Add tab">
             <button
               type="button"

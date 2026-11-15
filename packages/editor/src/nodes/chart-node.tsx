@@ -6,7 +6,7 @@ import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
-import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { ChartGridEditor, emitChartPayload } from "./chart-grid";
@@ -368,7 +368,7 @@ const ChartActions = ({
 
 export const ChartElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<ChartMode>("view");
-  const locked = useRichBlocksLocked();
+  const frozen = useFrozen();
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseChartPayload(value);
 
@@ -376,7 +376,7 @@ export const ChartElement = (props: PlateElementProps) => {
     <PlateElement {...props}>
       <RichBlockCard
         label={parsed.ok ? (parsed.chart.title ?? "chart") : "chart"}
-        actions={locked ? null : <ChartActions mode={mode} parsed={parsed} onMode={setMode} />}
+        actions={frozen ? null : <ChartActions mode={mode} parsed={parsed} onMode={setMode} />}
       >
         <ChartBody
           mode={mode}

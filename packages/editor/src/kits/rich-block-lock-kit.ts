@@ -1,14 +1,11 @@
 // A touch surface shows the rich blocks it gives no way to edit: a chart's data, a sketch, an
-// html payload, and what tabs and columns hold. The lock guards the model rather than the
-// buttons, so no surface's edit reaches what such a block holds, while the block itself can
-// still be inserted, removed or moved whole: a re-seed lands, and a deleted block comes back
-// with one undo. An op it refuses never applies, so history never records it either. Another
-// device's change always lands, since the note's live document already holds it, and so does a
-// normalizer's fix, since Slate's own normalizer loops forever on a fix that never lands.
+// html payload, and what tabs and columns hold. The lock guards the model (`edit-guard.ts`), so no
+// surface's edit reaches what such a block holds, while the block itself can still be inserted,
+// removed or moved whole: a re-seed lands, and a deleted block comes back with one undo.
 
-import { ElementApi, KEYS, NodeApi, PathApi, createSlatePlugin } from "platejs";
+import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { Operation, Path, SlateEditor, TRange } from "platejs";
-import { createPlatePlugin, useEditorRef } from "platejs/react";
+import { createPlatePlugin, useEditorRef, useReadOnly } from "platejs/react";
 
 import {
   CANVAS_BLOCK_KEY,
@@ -17,7 +14,7 @@ import {
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
 } from "@repo/editor/dialect-node-keys";
-import { appliesRemoteChange } from "@repo/editor/live/yjs-binding";
+import { editGuard } from "@repo/editor/live/edit-guard";
 
 const RICH_BLOCK_LOCK_KEY = "richBlockLock";
 
@@ -120,30 +117,10 @@ const lockInstalled = (editor: SlateEditor): boolean =>
   Object.hasOwn(editor.plugins, RICH_BLOCK_LOCK_KEY);
 
 export const RichBlockLockKit = [
-  createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(
-    ({ editor, tf: { apply, normalize } }) => {
-      const locked = lockedBlockTypes(editor);
-      let normalizing = 0;
-      return {
-        transforms: {
-          apply(op) {
-            if (normalizing === 0 && !appliesRemoteChange(editor) && refuses(editor, locked, op)) {
-              return;
-            }
-            apply(op);
-          },
-          normalize(options) {
-            normalizing += 1;
-            try {
-              normalize(options);
-            } finally {
-              normalizing -= 1;
-            }
-          },
-        },
-      };
-    },
-  ),
+  editGuard(RICH_BLOCK_LOCK_KEY, (editor) => {
+    const locked = lockedBlockTypes(editor);
+    return (op) => refuses(editor, locked, op);
+  }),
   // A tap lands the DOM caret in a locked block's text, which is outside the editable, and
   // slate-react defers a plain character's insert to an input event the browser never fires
   // there; the deferred insert then lands wherever anyone types next. So a keystroke aimed inside
@@ -163,8 +140,15 @@ export const RichBlockLockKit = [
   }),
 ];
 
-// the node renderers' switch: an editor built with the lock hides the controls it would refuse
+// whether this editor carries the lock
 export const useRichBlocksLocked = (): boolean => {
   const editor = useEditorRef();
   return lockInstalled(editor);
+};
+
+// what a locked type's renderer reads: its block draws no editing control while the note takes
+// no edit or the lock holds it, since the model would refuse what the control writes
+export const useFrozen = (): boolean => {
+  const readOnly = useReadOnly();
+  return useRichBlocksLocked() || readOnly;
 };

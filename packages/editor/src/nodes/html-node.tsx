@@ -6,7 +6,7 @@ import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
-import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
@@ -65,7 +65,7 @@ const HtmlBody = ({
 export const HtmlElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<HtmlMode>("source");
   const [editing, setEditing] = useState(false);
-  const locked = useRichBlocksLocked();
+  const frozen = useFrozen();
   const value = stringProp(props.element, "value") ?? "";
 
   const modeButton = (target: HtmlMode, label: string) => (
@@ -93,7 +93,7 @@ export const HtmlElement = (props: PlateElementProps) => {
           <span className="flex items-center gap-2">
             {modeButton("source", "Source")}
             {modeButton("preview", "Preview")}
-            {locked ? null : (
+            {frozen ? null : (
               <button
                 type="button"
                 className="text-body text-muted-foreground hover:text-foreground"
