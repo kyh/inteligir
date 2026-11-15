@@ -7,7 +7,6 @@ use tauri::webview::{DownloadEvent, NewWindowResponse, PermissionResponse};
 use tauri::{
     AppHandle, Config, Manager, Runtime, Url, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
-use tauri_plugin_opener::OpenerExt;
 
 use crate::navigation::{self, Verdict};
 
@@ -25,8 +24,10 @@ fn app_url(config: &Config) -> Option<Url> {
     }
 }
 
-fn open_externally<R: Runtime>(app: &AppHandle<R>, url: &Url) {
-    if let Err(error) = app.opener().open_url(url.as_str(), None::<&str>) {
+/// Only Rust opens links, so the opener plugin is not registered: its script would catch a
+/// `_blank` click and ask for a command the page is not granted.
+fn open_externally(url: &Url) {
+    if let Err(error) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
         eprintln!("[desktop] could not open {url} in the browser: {error}");
     }
 }
@@ -60,22 +61,20 @@ pub fn create_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         ));
     };
     let pinned = app_url.clone();
-    let navigating = app.clone();
-    let opening = app.clone();
 
     let builder = WebviewWindowBuilder::from_config(app, window)?
         .on_navigation(move |url| match navigation::classify(url, &pinned) {
             Verdict::Allow => true,
             Verdict::OpenExternally => {
-                open_externally(&navigating, url);
+                open_externally(url);
                 false
             }
             Verdict::Deny => false,
         })
         // `window.open` and `target="_blank"`: never a second window, a web page in the browser
-        .on_new_window(move |url, _features| {
+        .on_new_window(|url, _features| {
             if navigation::is_web_url(&url) {
-                open_externally(&opening, &url);
+                open_externally(&url);
             }
             NewWindowResponse::Deny
         })

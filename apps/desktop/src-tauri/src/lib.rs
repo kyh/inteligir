@@ -17,14 +17,7 @@ pub fn run() {
     // bundle to replace
     let updates = context.config().plugins.0.contains_key("updater") && !tauri::is_dev();
 
-    let mut builder = tauri::Builder::default()
-        // only Rust opens links (window.rs): the plugin's own script would catch a `_blank`
-        // click and ask for a command the page is not granted, so the link would do nothing
-        .plugin(
-            tauri_plugin_opener::Builder::new()
-                .open_js_links_on_click(false)
-                .build(),
-        );
+    let mut builder = tauri::Builder::default();
     if updates {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
