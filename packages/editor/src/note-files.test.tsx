@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Value } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";

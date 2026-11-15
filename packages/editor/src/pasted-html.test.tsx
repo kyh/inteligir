@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 // HTML pasted into the live editor as a host mounts it, read as the block a pause would write.
 
 import { createRef } from "react";

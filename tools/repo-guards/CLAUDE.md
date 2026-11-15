@@ -49,6 +49,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A test sits beside the module it tests, and shared test code in
   `test-support/`.** Why: those two names are all a config reads to tell a test
   from a source, as kyh/init does. `oxlint.config.ts`.
+- **A DOM suite is a `*.test.tsx`**, in `@repo/ui`, the library tab and the
+  editor: its vitest project sets jsdom and a setup file unmounts after each
+  case, and a `*.test.ts` that needs a document says so in vitest's docblock.
+  Why: an environment and an unmount spelled per file are forgotten per file.
+  `packages/ui/vitest.config.ts`.
 - **Every tsconfig extends `@kyh/tsconfig/base.json`, as kyh/init's do** (owner
   decision), adding only what its runtime needs, and no `lib` equal to the
   base's, the Mac WebKit's ES2023 ceiling in `apps/web/tsconfig.json`. Why: a

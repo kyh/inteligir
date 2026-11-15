@@ -1,8 +1,6 @@
-// @vitest-environment jsdom
-
 import { createRef } from "react";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, waitFor } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlateEditor } from "platejs/react";
 
 import { fileSha } from "@repo/contract/library/file-sha";
@@ -46,8 +44,6 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
 });
-
-afterEach(cleanup);
 
 afterAll(() => {
   Reflect.deleteProperty(URL, "createObjectURL");

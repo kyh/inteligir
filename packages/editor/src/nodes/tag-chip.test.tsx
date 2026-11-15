@@ -1,9 +1,9 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { createSlateEditor } from "platejs";
 import type { Descendant, TElement, Value } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
@@ -12,7 +12,6 @@ import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { inlineTagSpans } from "@repo/contract/knowledge/tag-grammar";
 
-afterEach(cleanup);
 const showTag = vi.fn<(tag: string) => void>();
 beforeEach(() => {
   showTag.mockClear();
