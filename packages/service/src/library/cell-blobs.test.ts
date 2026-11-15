@@ -5,49 +5,29 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
-import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
-import {
-  cellOf,
-  clockAt,
-  engineIn,
-  inCell,
-  landedValue,
-  newAccountId,
-} from "../test-support/library-cell";
+import { pngOf } from "../fill/test-support/fill-cell";
+import { cellIn, cellOf, clockAt, inCell, landedValue } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
-import { jobHostIn, uploadedFile, zipOf } from "../test-support/library-files";
+import { uploadedFile, zipOf } from "../test-support/library-files";
 import { blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
 import { runImports } from "./cell-imports";
 import { removeStrays } from "./cell-library";
-import type { LibraryEngine } from "./library-engine";
 
 const DAY = 24 * 60 * 60_000;
 
 const png = (width: number) => ({ bytes: pngOf(width, 600), mime: "image/png" });
 
-interface Cell {
-  readonly accountId: string;
-  readonly client: ReturnType<typeof libraryIn>;
+type Cell = ReturnType<typeof cellIn> & {
   readonly clock: Clock;
-  readonly library: LibraryEngine;
   readonly state: DurableObjectState;
-}
-
-const inLibrary = async <T>(run: (cell: Cell) => Promise<T>): Promise<T> => {
-  const accountId = newAccountId();
-  return await inCell(cellOf(accountId), async (state) => {
-    const clock = clockAt(Date.now());
-    const library = engineIn(state, clock);
-    return await run({
-      accountId,
-      client: libraryIn(state, accountId, library),
-      clock,
-      library,
-      state,
-    });
-  });
 };
+
+const inLibrary = async <T>(run: (cell: Cell) => Promise<T>): Promise<T> =>
+  await inCell(cellOf(), async (state) => {
+    const clock = clockAt(Date.now());
+    return await run({ ...cellIn(state, { clock, settle: "skip" }), clock, state });
+  });
 
 const fileItem = async ({ client, clock, library }: Cell, sha: string): Promise<string> => {
   const { item } = await client.items.createFile({
@@ -181,7 +161,7 @@ describe("a file nothing names any more", () => {
         await uploadedFile(library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      const write = (ops: Parameters<LibraryEngine["write"]>[1]["ops"]) =>
+      const write = (ops: Parameters<Cell["library"]["write"]>[1]["ops"]) =>
         landedValue(library.write(FILL_ACTOR, { itemId: note, ops }));
       // a reading's writes, each a set of its own: the second's before names the old cover
       write([{ base: null, field: "coverSha", op: "set", value: old }]);
@@ -201,7 +181,7 @@ describe("a file nothing names any more", () => {
 
   it("waits for an import's end, whose plan may name it", async () => {
     await inLibrary(async (cell) => {
-      const { accountId, client, clock, library, state } = cell;
+      const { accountId, client, clock, library } = cell;
       const sha = await uploadedFile(library, accountId, png(1200));
       const itemId = await fileItem(cell, sha);
       const zip = await uploadedFile(library, accountId, {
@@ -213,7 +193,7 @@ describe("a file nothing names any more", () => {
       await runAlarm(cell);
       expect(fileRows(cell, sha)).toBe(1);
       await client.imports.cancel({ id: job.id });
-      await runImports(jobHostIn(state, accountId, library, () => clock.now));
+      await runImports(cell);
       clock.now += DAY;
       await runAlarm(cell);
       expect(fileRows(cell, sha)).toBe(0);

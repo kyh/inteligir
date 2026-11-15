@@ -74,7 +74,7 @@ import type {
 } from "./thread-wire";
 import { threadStub } from "./thread-stub";
 
-// the cell as the agent's turns need it (`../library/library-do`)
+// the cell as the agent's turns need it (`../library/open-cell`)
 export interface AgentCell {
   readonly accountId: string;
   readonly env: Env;

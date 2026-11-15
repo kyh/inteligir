@@ -15,7 +15,7 @@ import {
   cellOf,
   clockAt,
   createItem,
-  engineIn,
+  cellIn,
   inCell,
   landedValue,
   newAccountId,
@@ -29,7 +29,7 @@ import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
 import { scheduleJob } from "./cell-jobs";
-import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
+import { scheduleAlarm } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
@@ -69,7 +69,7 @@ describe("the library cell", () => {
     const theirs = cellOf();
     await inCell(mine, (state) => {
       landedValue(
-        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "mine")]),
           fields: noteFixture(),
           id: crypto.randomUUID(),
@@ -151,7 +151,7 @@ describe("the library cell", () => {
     const stub = cellOf();
     const written = Date.now() - 20_000;
     await inCell(stub, async (state) => {
-      const library = engineIn(state, clockAt(written));
+      const { library } = cellIn(state, { clock: clockAt(written) });
       landedValue(
         createItem(library, person(), {
           blocks: placed([paragraph("a", "typed a while ago")]),
@@ -176,19 +176,19 @@ describe("the library cell", () => {
     const stub = cellOf();
     const itemId = crypto.randomUUID();
     const alarm = await inCell(stub, async (state) => {
-      const library = openCellLibrary(state, env);
+      const { library, settle } = cellIn(state);
       const result = createItem(library, person(), {
         blocks: placed([paragraph("a", "before the eviction")]),
         fields: noteFixture(),
         id: itemId,
       });
-      await settleCommit(state, env, library, result);
+      await settle(result);
       return await state.storage.getAlarm();
     });
     expect(alarm).toStrictEqual(expect.any(Number));
     await evictDurableObject(stub);
     const after = await inCell(stub, async (state) => {
-      const library = openCellLibrary(state, env);
+      const { library } = cellIn(state);
       return {
         alarm: await state.storage.getAlarm(),
         body: blocksOf(library, itemId).length,
@@ -204,7 +204,7 @@ describe("the library cell", () => {
     const stub = cellOf();
     await inCell(stub, (state) => {
       landedValue(
-        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "a later build's")]),
           fields: noteFixture(),
           id: crypto.randomUUID(),
@@ -257,7 +257,10 @@ describe("the library cell", () => {
     const stub = cellOf(accountId);
     const key = blobKey(accountId, SHA);
     await inCell(stub, async (state) => {
-      const library = engineIn(state, clockAt(), state.storage.sql.databaseSize + 1000);
+      const { library } = cellIn(state, {
+        bytesCap: state.storage.sql.databaseSize + 1000,
+        clock: clockAt(),
+      });
       landedValue(library.reserve({ bytes: 5, mime: "image/png", sha: SHA }));
       const removalsSeen = library.blobRemovals();
       // the device sent more than the cap leaves room for
@@ -339,13 +342,13 @@ describe("deleting the account from its cell", () => {
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
       landedValue(
-        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );
-      const library = openCellLibrary(state, env);
+      const cell = cellIn(state);
       for (const threadId of threadIds) {
         state.storage.sql.exec(
           `INSERT INTO threads (id, title, status, created_at, updated_at)
@@ -353,8 +356,8 @@ describe("deleting the account from its cell", () => {
           threadId,
         );
       }
-      await scheduleAlarm(state, library);
-      const scope = { accountId, ctx: state, email, env };
+      await scheduleAlarm(state, cell.library);
+      const scope = { cell, ctx: state, email };
       for (const step of ACCOUNT_PURGE_STEPS) {
         await step.run(scope);
         seen.set(step.name, {
@@ -363,7 +366,7 @@ describe("deleting the account from its cell", () => {
           grants: await grants(),
           invites: await invites(),
           items: itemCount(state),
-          read: refusalOf(engineIn(state, clockAt()).read(() => null)),
+          read: refusalOf(cellIn(state, { clock: clockAt() }).library.read(() => null)),
           threads: await heldThreads(),
         });
       }
@@ -405,7 +408,11 @@ describe("deleting the account from its cell", () => {
       expect(before.truncated).toBe(true);
       const filesStep = ACCOUNT_PURGE_STEPS.find((step) => step.name === "files");
       await inCell(cellOf(accountId), async (state) => {
-        await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
+        await filesStep?.run({
+          cell: cellIn(state),
+          ctx: state,
+          email: "files-paged@example.test",
+        });
       });
       await expect(files(prefix)).resolves.toBe(0);
     },
@@ -434,10 +441,9 @@ describe("deleting the account from its cell", () => {
     await inCell(stub, async (state) => {
       const [tombstone] = ACCOUNT_PURGE_STEPS;
       await tombstone?.run({
-        accountId,
+        cell: cellIn(state),
         ctx: state,
         email: "never-signed-up@example.test",
-        env,
       });
       scheduleJob(
         cellDbOf(state.storage),
@@ -445,7 +451,7 @@ describe("deleting the account from its cell", () => {
         Date.now(),
       );
       await state.storage.setAlarm(Date.now() + 60_000);
-      await scheduleAlarm(state, openCellLibrary(state, env));
+      await scheduleAlarm(state, cellIn(state).library);
       await expect(state.storage.getAlarm()).resolves.toBeNull();
     });
   });
@@ -454,7 +460,7 @@ describe("deleting the account from its cell", () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
     await inCell(stub, async (state) => {
-      const scope = { accountId, ctx: state, email: "never-signed-up@example.test", env };
+      const scope = { cell: cellIn(state), ctx: state, email: "never-signed-up@example.test" };
       const [tombstone, storage] = ACCOUNT_PURGE_STEPS;
       await tombstone?.run(scope);
       await storage?.run(scope);
@@ -467,7 +473,7 @@ describe("deleting the account from its cell", () => {
     await evictDurableObject(stub);
     const after = await inCell(stub, (state) => ({
       items: itemCount(state),
-      read: refusalOf(engineIn(state, clockAt()).read(() => null)),
+      read: refusalOf(cellIn(state, { clock: clockAt() }).library.read(() => null)),
     }));
     expect(after).toStrictEqual({ items: 0, read: { kind: "gone" } });
     await expect(

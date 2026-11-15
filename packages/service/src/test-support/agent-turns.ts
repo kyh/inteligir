@@ -6,7 +6,6 @@
 // move the turn.
 
 import type { FakeStats } from "@repo/messages-fake/messages-fake";
-import { createRouterClient } from "@orpc/server";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { vi } from "vitest";
@@ -14,13 +13,10 @@ import { z } from "zod";
 
 import type { AgentThreadDO } from "../agent/agent-thread";
 import { threadStub } from "../agent/thread-stub";
-import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { openCellLibrary } from "../library/cell-library";
 import type { CellResult } from "../library/cell-refusal";
 import type { LibraryDO } from "../library/library-do";
-import { cellActorOf } from "../library/library-principal";
-import { libraryRouter } from "../library/library-router";
-import { agentCellIn, cellOf, inCell, newAccountId, notesIn } from "./library-cell";
+import { cellIn, cellOf, inCell, newAccountId } from "./library-cell";
+import type { CellUnderTest } from "./library-cell";
 
 export const valueOf = <T>(result: CellResult<T>): T => {
   if (!result.ok) {
@@ -39,31 +35,16 @@ export const agentAccount = (): AgentAccount => {
   return { accountId, cell: cellOf(accountId) };
 };
 
-export type LaptopClient = ReturnType<typeof laptopClient>;
-
-const laptopClient = (
-  state: DurableObjectState,
-  options: { readonly env?: Env; readonly frames?: LibrarySocketFrame[] },
-) => {
-  const library = openCellLibrary(state, options.env ?? env);
-  const agent = agentCellIn(state, library, options);
-  const actor = cellActorOf({
-    accountId: agent.accountId,
-    actor: { door: "page", kind: "session", sessionId: "laptop-1" },
-  });
-  return createRouterClient(libraryRouter, {
-    context: { actor: () => actor, agent, library, notes: notesIn(state), settle: agent.settle },
-  });
-};
+export type LaptopClient = ReturnType<typeof cellIn>["client"];
 
 // the account's library as its laptop calls it, inside its cell; `env` stands in for the
 // deployment's bindings the call reads, and `frames` hears what the call tells the sockets
 export const asLaptop = async <T>(
   account: AgentAccount,
   run: (client: LaptopClient, state: DurableObjectState) => Promise<T>,
-  options: { readonly env?: Env; readonly frames?: LibrarySocketFrame[] } = {},
+  options: Pick<CellUnderTest, "env" | "frames"> = {},
 ): Promise<T> =>
-  await inCell(account.cell, async (state) => await run(laptopClient(state, options), state));
+  await inCell(account.cell, async (state) => await run(cellIn(state, options).client, state));
 
 // the person's words and a script's directive lines (tools/messages-fake/README.md), opened by a
 // line of its own, so no two tests' requests are the same bytes to the fake's per-body counters

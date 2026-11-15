@@ -44,6 +44,9 @@ src/            the doors, their routes and the build floor, the rate limits, th
   through Start's request context and the suites' Worker by `DOOR_ROUTES`.
 - `CellDb` (`src/library/cell-db.ts`): drizzle over the cell's storage, the one
   handle every statement of the cell runs on, the search's among them.
+- `openCell(ctx, env)` (`src/library/open-cell.ts`): the cell as one wake holds
+  it, which `LibraryDO` opens once a wake and a suite opens inside the cell
+  over the clock, the cap or the sockets it swaps.
 - The clock, random bytes and fresh ids come into the model's modules as ports.
 
 ## The doors

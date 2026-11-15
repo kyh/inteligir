@@ -8,14 +8,13 @@ import { env } from "cloudflare:workers";
 import { zipSync } from "fflate";
 import type { Zippable } from "fflate";
 
-import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
+import { pngOf } from "../fill/test-support/fill-cell";
 import { blobKey } from "../library/cell-blobs";
-import type { ImportHost } from "../library/cell-import-host";
 import { runImports } from "../library/cell-imports";
-import { openCellLibrary, scheduleAlarm, sendFills, settleStored } from "../library/cell-library";
+import { scheduleAlarm, sendFills, settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
-import { cellOf, inCell } from "./library-cell";
+import { cellIn, cellOf, inCell } from "./library-cell";
 
 // what a put can meet that says nothing of its bytes, as the runtime throws it
 // (https://developers.cloudflare.com/r2/api/error-codes/), each with the name a test reads
@@ -100,7 +99,7 @@ export interface Started {
 
 export const importJobOf = async (accountId: string, id: string) =>
   await inCell(cellOf(accountId), async (state) => {
-    const answer = await libraryIn(state, accountId).imports.get({ id });
+    const answer = await cellIn(state, { settle: "skip" }).client.imports.get({ id });
     return answer.job;
   });
 
@@ -118,37 +117,21 @@ export const startImport = async (
   alarm = false,
 ): Promise<Started> =>
   await inCell(cellOf(accountId), async (state) => {
-    const library = openCellLibrary(state, env);
+    const { client, library } = cellIn(state, { settle: "skip" });
     const sha = await uploadedFile(library, accountId, file);
-    const { job } = await libraryIn(state, accountId, library).imports.start({ sha, source });
+    const { job } = await client.imports.start({ sha, source });
     if (alarm) {
       await scheduleAlarm(state, library);
     }
     return { jobId: job.id, sha };
   });
 
-// what an import's run works with inside the cell, as the alarm hands it over
-export const jobHostIn = (
-  state: DurableObjectState,
-  accountId: string,
-  library: LibraryEngine = openCellLibrary(state, env),
-  now: () => number = Date.now,
-): ImportHost => ({
-  accountId,
-  durable: async () => {
-    await state.storage.sync();
-  },
-  env,
-  library,
-  now,
-});
-
 // one run of every import due, and the readings it asked for sent, as one alarm runs them
 export const runImportsOnce = async (accountId: string): Promise<void> => {
   await inCell(cellOf(accountId), async (state) => {
-    const library = openCellLibrary(state, env);
-    await runImports(jobHostIn(state, accountId, library));
-    await sendFills(state, env, library);
+    const cell = cellIn(state);
+    await runImports(cell);
+    await sendFills(state, env, cell.library);
   });
 };
 

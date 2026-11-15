@@ -41,7 +41,7 @@ const THREAD_STUB = {
   regex: "(?:^|/)thread-stub(?:\\.ts)?$",
 };
 const NOTE_STUB = {
-  message: "only the cell, account-purge.ts and the note's own door and object name a note",
+  message: "only the cell (open-cell.ts) and the note's own door and object name a note",
   regex: "(?:^|/)note-stub(?:\\.ts)?$",
 };
 // a cold note asks its cell for the seed, so a cell blocked while it awaits a note deadlocks
@@ -54,8 +54,7 @@ const THREAD_STUB_CALLERS = [
   "packages/service/src/agent/agent-turns.ts",
 ];
 const NOTE_STUB_CALLERS = [
-  "packages/service/src/library/library-do.ts",
-  "packages/service/src/library/account-purge.ts",
+  "packages/service/src/library/open-cell.ts",
   "packages/service/src/note/note-routes.ts",
   "packages/service/src/note/note-do.ts",
 ];
@@ -245,10 +244,6 @@ export default defineConfig({
       excludeFiles: [...tests, ...THREAD_STUB_CALLERS, ...NOTE_STUB_CALLERS],
       files: ["packages/service/src/**"],
       rules: { "no-restricted-imports": serviceImports(THREAD_STUB, NOTE_STUB) },
-    },
-    {
-      files: ["packages/service/src/library/library-do.ts"],
-      rules: { "no-restricted-imports": serviceImports() },
     },
     {
       excludeFiles: NOTE_STUB_CALLERS,

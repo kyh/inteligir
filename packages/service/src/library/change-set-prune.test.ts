@@ -7,7 +7,7 @@ import {
   cellOf,
   clockAt,
   createItem,
-  engineIn,
+  cellIn,
   inCell,
   landedValue,
   person,
@@ -44,7 +44,7 @@ describe("the change-set prune", () => {
   it("drops a set seven days after it closed, with what only it named, and the set after it still undoes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const itemId = crypto.randomUUID();
       landedValue(
         createItem(library, FILL_ACTOR, {
@@ -108,7 +108,7 @@ describe("the change-set prune", () => {
   it("keeps a set still open, however old", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const itemId = crypto.randomUUID();
       const line = paragraph("a", "the first line");
       landedValue(
@@ -141,7 +141,7 @@ describe("the change-set prune", () => {
   it("drops a page a run, and runs again at once while more wait", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       for (let index = 0; index < 101; index += 1) {
         landedValue(
           createItem(library, FILL_ACTOR, {
@@ -164,7 +164,7 @@ describe("the change-set prune", () => {
   it("forgets an op's answer after 30 days", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const opId = crypto.randomUUID();
       landedValue(
         createItem(library, FILL_ACTOR, {

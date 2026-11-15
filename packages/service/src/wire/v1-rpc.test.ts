@@ -29,7 +29,7 @@ import {
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
-import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
+import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
 
 const DAY_MS = 86_400_000;
 
@@ -328,7 +328,7 @@ describe("every refusal's status", () => {
   it("answers a library whose account was deleted meanwhile as gone", async () => {
     const { accountId, phone } = await signedUp("rpc-gone@example.test");
     await inCell(cellOf(accountId), (state) => {
-      engineIn(state, clockAt()).tombstone();
+      cellIn(state, { clock: clockAt() }).library.tombstone();
     });
     await expect(
       phone.refusalOf(phone.library.items.createNote({ markdown: "Late." })),

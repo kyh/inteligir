@@ -17,17 +17,16 @@ import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "@repo/db/d1/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { accountBlobPrefix } from "./cell-blobs";
-import { noteStub } from "../note/note-stub";
-import { CELL_SCHEMA, cellDbOf } from "./cell-db";
+import { CELL_SCHEMA } from "./cell-db";
 import { applyObjectSchema } from "../object-schema";
 import { notesHeld } from "./cell-notes";
 import { closeEverySocket } from "./cell-sockets";
-import { openCellLibrary } from "./cell-library";
+import type { Cell } from "./open-cell";
 
 export interface PurgeScope {
+  // the cell this wake holds, whose handle and engine outlive the wipe: they keep only the storage
+  readonly cell: Cell;
   readonly ctx: DurableObjectState;
-  readonly env: Env;
-  readonly accountId: string;
   readonly email: string;
 }
 
@@ -41,50 +40,50 @@ interface PurgeStep {
 const R2_PAGE = 1000;
 
 // an empty schema and the time it was deleted, which every later call to the cell meets
-const markDeleted = async (ctx: DurableObjectState, env: Env): Promise<void> => {
+const markDeleted = async ({ cell, ctx }: PurgeScope): Promise<void> => {
   await applyObjectSchema(ctx.storage, CELL_SCHEMA);
-  openCellLibrary(ctx, env).tombstone();
+  cell.library.tombstone();
 };
 
 export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
   {
     name: "tombstone",
-    run: async ({ ctx, env }) => {
-      await markDeleted(ctx, env);
-      closeEverySocket(ctx);
+    run: async (scope) => {
+      await markDeleted(scope);
+      closeEverySocket(scope.ctx);
     },
   },
   {
     // read past the tombstone, which refuses the engine's reads, from the cell's own rows
     name: "agent",
-    run: async ({ accountId, ctx }) => {
-      await purgeThreadObjects(cellDbOf(ctx.storage), ctx.exports, accountId);
+    run: async ({ cell }) => {
+      await purgeThreadObjects(cell.db, cell.exports, cell.accountId);
     },
   },
   {
     // each item's note, named from the cell's own rows past the tombstone, those a purge left to
     // the alarm among them
     name: "notes",
-    run: async ({ accountId, ctx }) => {
-      for (const itemId of notesHeld(cellDbOf(ctx.storage))) {
-        await noteStub(ctx.exports, { accountId, itemId }).purge();
+    run: async ({ cell }) => {
+      for (const itemId of notesHeld(cell.db)) {
+        await cell.notes(itemId).purge();
       }
     },
   },
   {
     name: "storage",
-    run: async ({ ctx, env }) => {
+    run: async (scope) => {
       // the alarm goes with the rows (compatibility date 2026-02-24 and later). Storage calls
       // alone keep the cell's input gate shut, so no event lands between the wipe and the
       // tombstone, as one would across the R2 and D1 calls after it
       // (https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/)
-      await ctx.storage.deleteAll();
-      await markDeleted(ctx, env);
+      await scope.ctx.storage.deleteAll();
+      await markDeleted(scope);
     },
   },
   {
     name: "files",
-    run: async ({ accountId, env }) => {
+    run: async ({ cell: { accountId, env } }) => {
       const prefix = accountBlobPrefix(accountId);
       // page by page on the listing's cursor: a page may come back short, even empty, while more
       // follow
@@ -104,14 +103,14 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     // every assistant let in through the connector, its tokens with it, before the sessions that
     // could let one in again
     name: "grants",
-    run: async ({ accountId, env }) => {
+    run: async ({ cell: { accountId, env } }) => {
       await revokeEveryGrant(connectorAuth(env).helpers, accountId);
     },
   },
   {
     name: "invite",
-    run: async ({ email, env }) => {
-      await forgetInviteRedeemer(createDb(env.DB), email);
+    run: async ({ cell, email }) => {
+      await forgetInviteRedeemer(createDb(cell.env.DB), email);
     },
   },
 ];

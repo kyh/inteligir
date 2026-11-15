@@ -67,6 +67,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   only through `ctx.exports` under a name a verified credential or its own cell
   gives.** Naming an object creates it, so no namespace is bound; a retired
   class stays a `deleted` tombstone. `apps/web/cloudflare.config.ts`.
+- **The cell is opened once a wake, by the one `openCell` its object and its
+  suites both call.** Opened per call it rebuilds its handle and every closure
+  on each event, and a suite that wires its own cell drifts from the object's.
+  `packages/service/src/library/open-cell.ts`.
 - **A library write changes fields alone, only on the bases it names, in one
   transaction.** Last write wins loses an edit unseen, and a whole-item base
   makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.

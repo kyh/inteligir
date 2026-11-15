@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { openCellLibrary } from "../library/cell-library";
 import { ACCOUNT_PURGE_STEPS } from "../library/account-purge";
 import { SCHEMA_HASH_KEY } from "../object-schema";
 import {
@@ -31,7 +30,7 @@ import {
   threadStatus,
 } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
-import { agentCellIn, inCell } from "../test-support/library-cell";
+import { cellIn, inCell } from "../test-support/library-cell";
 import { openTurnInCell } from "../test-support/thread-host";
 import { nextDayAt } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
@@ -115,7 +114,7 @@ const startsOver = async (account: AgentAccount, threadId: string): Promise<void
 const watchedLater = async (account: AgentAccount): Promise<void> => {
   await inCell(account.cell, async (state) => {
     const later = { now: Date.now() + 6 * 60_000 };
-    await runAgentJobs(agentCellIn(state, openCellLibrary(state, env), { clock: later }));
+    await runAgentJobs(cellIn(state, { clock: later }));
   });
 };
 
@@ -247,7 +246,7 @@ describe("what a conversation's object asks of its cell", () => {
     await openTurnInCell(account, threadId, "Open.");
     const frames: LibrarySocketFrame[] = [];
     await inCell(account.cell, async (state) => {
-      const cell = agentCellIn(state, openCellLibrary(state, env), { frames });
+      const cell = cellIn(state, { frames });
       const push: PushRequest = {
         events: [{ text: "Said once.", type: "agent.message" }],
         seq: 1,
@@ -277,7 +276,7 @@ describe("what a conversation's object asks of its cell", () => {
     await openTurnInCell(account, unreachable, "Unreachable.");
     await expect(usageToday(account)).resolves.toStrictEqual({ turns: 2 });
     await inCell(account.cell, async (state) => {
-      const cell = agentCellIn(state, openCellLibrary(state, env));
+      const cell = cellIn(state);
       for (const [threadId, reason] of [
         [stopped, "cancelled"],
         [unreachable, "unavailable"],
@@ -578,7 +577,7 @@ describe("the switch and deletion", () => {
       const [tombstone, agent] = ACCOUNT_PURGE_STEPS;
       expect(agent?.name).toBe("agent");
       await inCell(account.cell, async (state) => {
-        const scope = { accountId: account.accountId, ctx: state, email: "gone@example.test", env };
+        const scope = { cell: cellIn(state), ctx: state, email: "gone@example.test" };
         await tombstone?.run(scope);
         await agent?.run(scope);
         // the cell's own rows are still there: the next step takes them

@@ -105,7 +105,7 @@ const catchUp = (db: CellDb, index: LibraryIndex<ListingRow>, since: number): vo
 // folder row it touches with the sequence its transaction takes, so the rows past the held head are
 // what moved since; a head behind it is a library wiped under it, read again whole. The cell keeps
 // one in its memory, so it goes when the object sleeps and the first read after the wake builds it.
-export type ListingHold = (db: CellDb, head: number) => LibraryIndex<ListingRow>;
+type ListingHold = (db: CellDb, head: number) => LibraryIndex<ListingRow>;
 
 export const holdListing = (): ListingHold => {
   let held: { readonly head: number; readonly index: LibraryIndex<ListingRow> } | null = null;

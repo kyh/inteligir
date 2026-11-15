@@ -1,50 +1,19 @@
-// The cell's engine as the Durable Object runs it: over its own storage, the platform's clock and
-// ids, and the account's cap; what follows a committed write, the socket's frames (held by the
-// output gate until the write is durable, never sent unconfirmed), the readings it asked for sent to the
-// fill queue and the alarm set to the earliest job; and the jobs that wait on a binding, a stray
-// file's removal from R2 and a reading's send. The router the cell serves and a test running
-// inside the cell open it the same way.
+// What the cell does around its engine's transactions, on the platform's bindings: what follows a
+// committed write, the socket's frames (held by the output gate until the write is durable, never
+// sent unconfirmed), the readings it asked for sent to the fill queue and the alarm set to the
+// earliest job; and the jobs that wait on a binding, a stray file's removal from R2 and a
+// reading's send.
 
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";
 import type { ClaimedFill } from "./cell-fills";
-import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
-import type { ListingHold } from "./cell-listing";
 import type { CellResult } from "./cell-refusal";
 import { tellSockets } from "./cell-sockets";
-import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
-import { openLibraryEngine } from "./library-engine";
 import type { LibraryEngine, UploadSettlement } from "./library-engine";
-
-const STORAGE_CAP = /^[1-9]\d*$/u;
-
-// what one account's library may hold, its change sets included: 1 GiB
-const libraryStorageCap = (env: Env): number => {
-  const cap = env.LIBRARY_STORAGE_CAP_BYTES;
-  if (!STORAGE_CAP.test(cap)) {
-    throw new Error(`LIBRARY_STORAGE_CAP_BYTES must be a whole number of bytes, not "${cap}"`);
-  }
-  return Number(cap);
-};
-
-const now = (): number => Date.now();
-
-export const openCellLibrary = (
-  ctx: DurableObjectState,
-  env: Env,
-  listing?: ListingHold,
-): LibraryEngine =>
-  openLibraryEngine({
-    bytesCap: libraryStorageCap(env),
-    ids: cellIds(now),
-    listing,
-    now,
-    db: cellDbOf(ctx.storage),
-  });
 
 // the one alarm at the earliest waiting job, and none while no job waits; an alarm already set
 // earlier stays, and finds nothing due or the job it was set for

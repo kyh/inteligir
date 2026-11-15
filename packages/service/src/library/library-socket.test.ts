@@ -37,6 +37,7 @@ import { ended, runAlarmsUntil, startImport } from "../test-support/library-file
 import { issueToken } from "../test-support/password-reset";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
+  cellIn,
   cellOf,
   createItem,
   inCell,
@@ -45,7 +46,6 @@ import {
   placed,
 } from "../test-support/library-cell";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
-import { openCellLibrary, settleCommit } from "./cell-library";
 import { CELL_SOCKET_PATH } from "./cell-sockets";
 import { libraryCellName } from "./library-cell";
 import { forwardAsPrincipal, SOCKET_HOLDER_HEADER } from "./library-principal";
@@ -127,14 +127,14 @@ const signedInTab = async (email: string) => {
 // made, at the sequence it holds
 const writeInCell = async (accountId: string): Promise<{ id: string; seq: number }> =>
   await inCell(cellOf(accountId), async (state) => {
-    const library = openCellLibrary(state, env);
+    const { library, settle } = cellIn(state);
     const id = crypto.randomUUID();
     const result = createItem(library, person(), {
       blocks: placed([paragraph("a", "a new note")]),
       fields: noteFixture(),
       id,
     });
-    await settleCommit(state, env, library, result);
+    await settle(result);
     return { id, seq: landedValue(result).item.seq };
   });
 
@@ -372,7 +372,11 @@ describe("the account's socket", () => {
     const opened = await openWithTicket(ticket);
     await inCell(cellOf(accountId), async (state) => {
       const tombstone = ACCOUNT_PURGE_STEPS.find((step) => step.name === "tombstone");
-      await tombstone?.run({ accountId, ctx: state, email: "socket-deleted@example.test", env });
+      await tombstone?.run({
+        cell: cellIn(state),
+        ctx: state,
+        email: "socket-deleted@example.test",
+      });
     });
     await expect(opened.closed).resolves.toBe(1001);
     const refused = await drained(
