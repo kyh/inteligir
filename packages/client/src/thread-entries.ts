@@ -8,6 +8,8 @@
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
+import { isLibraryToolName, LIBRARY_TOOLS } from "@repo/contract/library/agent-tools";
+import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import type { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import { cleanUrl, urlHost } from "@repo/contract/items/item-url";
@@ -109,20 +111,25 @@ const approvalNext = (
   }
 };
 
-// what a tool's name says to the person
-const TOOL_WORDS = new Map([
-  ["create_note", "Wrote a note"],
-  ["delete_items", "Moved items to Deleted"],
-  ["edit_item", "Edited an item"],
-  ["list_items", "Looked through the library"],
-  ["list_tags_and_folders", "Read the folders and tags"],
-  ["organize_items", "Filed items"],
-  ["read_item", "Read an item"],
-  ["save_link", "Saved a link"],
-  ["search_library", "Searched the library"],
-]);
+const TOOL_WORDS = {
+  create_note: "Wrote a note",
+  delete_items: "Moved items to Deleted",
+  edit_item: "Edited an item",
+  list_items: "Looked through the library",
+  list_tags_and_folders: "Read the folders and tags",
+  organize_items: "Filed items",
+  read_item: "Read an item",
+  save_link: "Saved a link",
+  search_library: "Searched the library",
+} satisfies Record<LibraryToolName, string>;
 
-export const toolWords = (name: string): string => TOOL_WORDS.get(name) ?? "Used the library";
+// what a tool's name says to the person; a tool a newer cell names used the library
+export const toolWords = (name: string): string =>
+  isLibraryToolName(name) ? TOOL_WORDS[name] : "Used the library";
+
+// a call that only reads the library, drawn with the read icon; every other one writes
+export const readsOnly = (name: string): boolean =>
+  isLibraryToolName(name) && LIBRARY_TOOLS[name].reads;
 
 // the most of a delete's items a card names; the rest it counts
 const TITLES_SHOWN = 10;
@@ -391,8 +398,3 @@ export const conversationOf = (rows: readonly ThreadEventRow[]): Conversation =>
     ),
   };
 };
-
-// the calls that only read the library, drawn with the read icon; every other one writes
-const READS = new Set(["list_items", "list_tags_and_folders", "read_item", "search_library"]);
-
-export const readsOnly = (name: string): boolean => READS.has(name);

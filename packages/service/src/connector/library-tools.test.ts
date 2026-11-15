@@ -1,6 +1,7 @@
 import { McpRegistrar } from "@orpc/mcp";
 import { implement, ORPCError } from "@orpc/server";
 import { McpServer } from "@modelcontextprotocol/server";
+import { LIBRARY_TOOLS } from "@repo/contract/library/agent-tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -111,6 +112,13 @@ describe("the library's tools", () => {
     expect(
       Object.entries(tools).map(([name, tool]) => [name, tool.title, tool.annotations]),
     ).toStrictEqual(TOOLS);
+  });
+
+  it("only read where the contract's table says so, which every device draws a call by", async () => {
+    const tools = await registered();
+    expect(TOOLS.map(([name]) => [name, LIBRARY_TOOLS[name].reads])).toStrictEqual(
+      Object.entries(tools).map(([name, tool]) => [name, tool.annotations?.readOnlyHint === true]),
+    );
   });
 
   it("each carry a short name, a title, a description and an explicit read-only or destructive hint", async () => {

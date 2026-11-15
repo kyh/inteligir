@@ -4,6 +4,8 @@
 // changes it at the start of its next turn, never mid-turn (`./thread-request`, `./thread-loop`),
 // and the cell runs every call it asks for (`./agent-tools`).
 
+import type { LibraryToolName } from "@repo/contract/library/agent-tools";
+
 // one model for everyone, Sonnet 5.5, at medium effort: it defaults to high, its levels are
 // recalibrated from earlier models', and medium is where Anthropic's guidance starts multistep tool
 // use, which every turn of ours is
@@ -17,12 +19,11 @@ export const AGENT_MAX_TOKENS = 32_000;
 // the agent to go on, which a filing pass over many items needs and a loop does not
 export const AGENT_MAX_STEPS = 20;
 
-// every library tool the agent may call, by the name it is listed under, and whether it runs at
-// once or waits for the person: an allowlist, so a tool the library gains later stays off until it
-// is named here. Deleting asks, and so does saving a link: the cloud reads a saved page, so its
-// address reaches that site, the one way the agent's words leave the library, and no Undo recalls
-// a request. Every other change joins the turn's one undoable set, which the person's Undo this
-// turn takes back
+// every library tool, by the name the contract holds, and whether the agent runs it at once or
+// waits for the person: a tool the library gains does not compile until it is given one here.
+// Deleting asks, and so does saving a link: the cloud reads a saved page, so its address reaches
+// that site, the one way the agent's words leave the library, and no Undo recalls a request. Every
+// other change joins the turn's one undoable set, which the person's Undo this turn takes back
 export const AGENT_TOOL_POLICIES = {
   create_note: "run",
   delete_items: "ask",
@@ -33,9 +34,4 @@ export const AGENT_TOOL_POLICIES = {
   read_item: "run",
   save_link: "ask",
   search_library: "run",
-} as const;
-
-export type AgentToolName = keyof typeof AGENT_TOOL_POLICIES;
-
-export const isAgentToolName = (name: string): name is AgentToolName =>
-  Object.hasOwn(AGENT_TOOL_POLICIES, name);
+} as const satisfies Record<LibraryToolName, "run" | "ask">;

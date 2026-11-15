@@ -165,8 +165,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 ## The connector
 
 - **The library's rows become the connector's tools in the Worker, by meta
-  chained on the contract's own rows.** Meta in `@repo/contract` would bundle MCP
-  and OpenAPI into every client. `packages/service/src/connector/library-tools.ts`.
+  chained on the contract's own rows, under the names the contract's table
+  holds.** Meta in `@repo/contract` would bundle MCP and OpenAPI into every
+  client. `packages/service/src/connector/library-tools.ts`.
 - **The connector's OAuth is `@cloudflare/workers-oauth-provider`'s, on KV,
   named from one origin per deployment** (owner decision). A verifier of our own
   is a second to audit; a disconnected grant is a D1 row, since KV has no

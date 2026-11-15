@@ -1,5 +1,5 @@
 // The built-in agent's tools: the library's own procedures, the rows the connector serves as tools
-// (`../connector/library-tools`) whose name `AGENT_TOOL_POLICIES` allows, each defined as the Messages
+// (`../connector/library-tools`) by the names the contract holds, each defined as the Messages
 // API takes a tool, by its name, its description and its input's JSON Schema less the `opId` the
 // cell mints itself. The definitions are built once and sorted by name: their bytes are every new
 // thread's cached prefix (a committed snapshot holds them). The cell runs a call
@@ -16,12 +16,13 @@ import type { AnyProcedure, AnyRouter, Context, ProcedureClientInterceptor } fro
 import type { AnySchema, ErrorMap } from "@orpc/contract";
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { sha256Hex } from "@repo/contract/bytes";
+import { isLibraryToolName } from "@repo/contract/library/agent-tools";
+import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import { PAGE_MAX } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
 import { isLibraryTool, libraryTools } from "../connector/library-tools";
-import { AGENT_TOOL_POLICIES, isAgentToolName } from "./library-agent";
-import type { AgentToolName } from "./library-agent";
+import { AGENT_TOOL_POLICIES } from "./library-agent";
 import type { ToolAnswer, ToolRequest } from "./thread-wire";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
@@ -65,7 +66,7 @@ const toolInputSchema = (input: z.ZodType): BetaTool["input_schema"] => {
 };
 
 interface AgentToolRow {
-  readonly name: AgentToolName;
+  readonly name: LibraryToolName;
   readonly path: readonly string[];
   readonly definition: BetaTool;
   // whether its input takes an op id, which a write's does
@@ -80,7 +81,7 @@ const agentToolRows = (): AgentToolRow[] => {
   walkProcedureContractsSync(libraryTools, (contract, path) => {
     const meta = getOpenAPIMeta(contract);
     const name = meta?.operationId;
-    if (!isLibraryTool(contract) || name === undefined || !isAgentToolName(name)) {
+    if (!isLibraryTool(contract) || name === undefined || !isLibraryToolName(name)) {
       return;
     }
     const input = zodOf(contract["~orpc"].inputSchemas);
@@ -107,7 +108,7 @@ export const AGENT_TOOL_DEFINITIONS: readonly BetaTool[] = AGENT_TOOL_ROWS.map(
 
 // whether a call waits on the person before it runs
 export const asksFirst = (name: string): boolean =>
-  isAgentToolName(name) && AGENT_TOOL_POLICIES[name] === "ask";
+  isLibraryToolName(name) && AGENT_TOOL_POLICIES[name] === "ask";
 
 // ---- running a call, in the cell ----
 
