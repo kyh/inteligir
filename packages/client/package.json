@@ -9,6 +9,7 @@
     "./agent-send": "./src/agent-send.ts",
     "./library-cache": "./src/library-cache.ts",
     "./library-labels": "./src/library-labels.ts",
+    "./listing-view": "./src/listing-view.ts",
     "./test-support/fake-sockets": "./src/test-support/fake-sockets.ts",
     "./thread-entries": "./src/thread-entries.ts",
     "./thread-queries": "./src/thread-queries.ts"

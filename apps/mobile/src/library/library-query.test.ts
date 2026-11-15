@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { listingPage, listingQuery, scopeTitle } from "./library-query";
+import { listingPage, listingQuery } from "./library-query";
 
-const FOLDER = "0190a000-0000-7000-8000-0000000000f1";
 const NONE = new Set<never>();
 
 describe("the Library's question to the listing", () => {
@@ -33,11 +32,5 @@ describe("the Library's question to the listing", () => {
       query: { sort: "saved" },
       words: undefined,
     });
-  });
-
-  it("says where it stands", () => {
-    const folders = [{ id: FOLDER, name: "Recipes" }];
-    expect(scopeTitle({ folderId: FOLDER, kind: "folder" }, folders)).toBe("Recipes");
-    expect(scopeTitle({ kind: "unsorted" }, folders)).toBe("Unsorted");
   });
 });

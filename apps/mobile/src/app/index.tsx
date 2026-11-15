@@ -28,7 +28,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CHIP_ORDER, KIND_CHIP_LABELS, saveFolderOf } from "@repo/client/library-labels";
+import {
+  CHIP_ORDER,
+  KIND_CHIP_LABELS,
+  saveFolderOf,
+  scopeTitle,
+} from "@repo/client/library-labels";
+import { listingView } from "@repo/client/listing-view";
 import { UNREACHABLE } from "@repo/contract/library/call-outcome";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { refusalText } from "@repo/contract/refusal-text";
@@ -43,7 +49,7 @@ import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { screenStyle, SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { ListedItem } from "@/library/library-card";
-import { listingPage, scopeTitle } from "@/library/library-query";
+import { listingPage } from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 import { online } from "@/ui/needs-connection";
@@ -213,7 +219,7 @@ const LibraryScreen = () => {
       placeholderData: keepPreviousData,
     }),
   );
-  const rows = listing.data?.pages.flatMap((page) => page.items) ?? [];
+  const rows = listingView(listing.data?.pages ?? [])?.items ?? [];
   const changedItems = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: queries.library.key() });
   };
@@ -315,7 +321,7 @@ const LibraryScreen = () => {
             },
             placeholder: "Search your library",
           },
-          title: scopeTitle(scope, folders),
+          title: scopeTitle(scope, folders, "Library"),
         }}
       />
       <Stack.Toolbar placement="right">

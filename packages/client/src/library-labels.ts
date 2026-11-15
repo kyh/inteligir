@@ -1,5 +1,5 @@
-// What every device calls an item's kind, the kind chips in the order a person scans them, and what
-// a library scope asks the cell's listing, spelled once.
+// What every device calls an item's kind and a library scope, the kind chips in the order a person
+// scans them, and what a scope asks the cell's listing, spelled once.
 
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { LibraryScope } from "@repo/contract/library-scope";
@@ -58,6 +58,32 @@ export const scopeQuery = (
     }
     case "deleted": {
       return { deleted: true };
+    }
+    // no default
+  }
+};
+
+// what a header calls the scope, every item by the name the device gives its home (`all`)
+export const scopeTitle = (
+  scope: LibraryScope,
+  folders: readonly { readonly id: string; readonly name: string }[],
+  all: string,
+): string => {
+  switch (scope.kind) {
+    case "all": {
+      return all;
+    }
+    case "unsorted": {
+      return "Unsorted";
+    }
+    case "folder": {
+      return folders.find((folder) => folder.id === scope.folderId)?.name ?? "Folder";
+    }
+    case "tag": {
+      return `#${scope.tag}`;
+    }
+    case "deleted": {
+      return "Deleted";
     }
     // no default
   }

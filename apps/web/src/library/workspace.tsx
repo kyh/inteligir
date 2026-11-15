@@ -7,7 +7,8 @@
 
 import { viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
-import { saveFolderOf } from "@repo/client/library-labels";
+import { saveFolderOf, scopeTitle } from "@repo/client/library-labels";
+import { listingView } from "@repo/client/listing-view";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
@@ -47,7 +48,7 @@ import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
 import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { listingQuery, listingView, saveTagsOf, scopeTitle } from "./library/listing";
+import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
@@ -110,6 +111,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const folders = counts?.folders ?? [];
   // a remembered folder is judged once the rail's folders have answered
   const scope = counts === undefined ? storedScope : listedScope(storedScope, folders);
+  const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
   const titles = useQuery(queries.titles()).data;
@@ -338,7 +340,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   const { catcherRef, dropInto } = useWindowCapture({
     enabled: !covered,
-    into: () => (scope.kind === "folder" ? scopeTitle(scope, folders) : "Unsorted"),
+    into: () => (scope.kind === "folder" ? scopeName : "Unsorted"),
     modifier,
     onCapture: savePayload,
   });
@@ -565,7 +567,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                 {openItem === null ? (
                   <LibraryView
                     scope={scope}
-                    title={scopeTitle(scope, folders)}
+                    title={scopeName}
                     listing={{
                       more: () => {
                         if (listing.hasNextPage && !listing.isFetchingNextPage) {
