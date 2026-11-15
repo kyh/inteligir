@@ -1,7 +1,7 @@
 // The ranked index, `search_fts`: FTS5, which sqlite-core cannot declare, so its statements are raw
-// text over the cell's port (`../library/cell-storage`). The cell keeps an item's row in code,
-// beside the item's own, never by a trigger, and a search asks it by the one policy
-// (`./search-query`).
+// text over the cell's port (`../library/cell-storage`). It ranks and keeps no text, which is
+// `body_texts`'s. The cell keeps an item's row in code, beside the item's own, never by a trigger,
+// and a search asks it by the one policy (`./search-query`).
 
 import { z } from "zod";
 
@@ -14,8 +14,8 @@ import { renderFtsMatch } from "./fts-match";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "./search-query";
 import type { SearchQueryTerm } from "./search-query";
 
-// a Durable Object row holds 2 MB, and an index row holds every column with its stem shadow
-export const SEARCH_ROW_MAX_BYTES = 1_900_000;
+// a Durable Object binds a value of at most 2 MB, so a long item ranks by its body's opening
+const VALUE_MAX_BYTES = 1_900_000;
 const TITLE_MAX_BYTES = 4096;
 const HEADINGS_MAX_BYTES = 256 * 1024;
 const META_MAX_BYTES = 64 * 1024;
@@ -38,55 +38,6 @@ const clipToBytes = (text: string, maxBytes: number): string => {
   return text.slice(0, end);
 };
 
-export interface SearchRow {
-  readonly title: string;
-  readonly headings: string;
-  readonly meta: string;
-  readonly body: string;
-  readonly titleStems: string;
-  readonly headingStems: string;
-  readonly metaStems: string;
-  readonly bodyStems: string;
-}
-
-export const searchRowBytes = (row: SearchRow): number =>
-  [
-    row.title,
-    row.headings,
-    row.meta,
-    row.body,
-    row.titleStems,
-    row.headingStems,
-    row.metaStems,
-    row.bodyStems,
-  ].reduce((sum, column) => sum + utf8ByteLength(column), 0);
-
-// an item's index row within SEARCH_ROW_MAX_BYTES: the short columns are capped, and the body
-// gets what is left, so a long item ranks by the part of it the row can hold
-export const searchRowOf = (text: ItemSearchText): SearchRow => {
-  const title = clipToBytes(text.title, TITLE_MAX_BYTES);
-  const headings = clipToBytes(text.headings, HEADINGS_MAX_BYTES);
-  const metaText = clipToBytes(text.meta, META_MAX_BYTES);
-  const fixed = {
-    headingStems: stemText(headings),
-    headings,
-    meta: metaText,
-    metaStems: stemText(metaText),
-    title,
-    titleStems: stemText(title),
-  };
-  const room = SEARCH_ROW_MAX_BYTES - searchRowBytes({ ...fixed, body: "", bodyStems: "" });
-  let budget = Math.floor(room / 2);
-  for (;;) {
-    const body = clipToBytes(text.body, budget);
-    const row = { ...fixed, body, bodyStems: stemText(body) };
-    if (searchRowBytes(row) <= SEARCH_ROW_MAX_BYTES || budget === 0) {
-      return row;
-    }
-    budget = Math.floor(budget * 0.9);
-  }
-};
-
 // an item's row gone from the index, as a purge or a rewrite leaves it
 export const dropSearchRow = (storage: CellStorage, itemId: string): void => {
   storage.run("DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)", [
@@ -98,24 +49,25 @@ const INSERT_SEARCH_ROW = `INSERT INTO search_fts (rowid, title, headings, meta,
   heading_stems, meta_stems, body_stems)
 SELECT rid, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ?`;
 
+// an item's index row, the four columns then their stems, each a value the object binds: a fold
+// can lengthen a column past it, since Hangul decomposes to three times its bytes
+export const searchRowOf = (text: ItemSearchText): string[] => {
+  const columns = [
+    clipToBytes(text.title, TITLE_MAX_BYTES),
+    clipToBytes(text.headings, HEADINGS_MAX_BYTES),
+    clipToBytes(text.meta, META_MAX_BYTES),
+    clipToBytes(text.body, VALUE_MAX_BYTES),
+  ];
+  return [...columns, ...columns.map((column) => clipToBytes(stemText(column), VALUE_MAX_BYTES))];
+};
+
 export const storeSearchRow = (
   storage: CellStorage,
   itemId: string,
   text: ItemSearchText,
 ): void => {
-  const row = searchRowOf(text);
   dropSearchRow(storage, itemId);
-  storage.run(INSERT_SEARCH_ROW, [
-    row.title,
-    row.headings,
-    row.meta,
-    row.body,
-    row.titleStems,
-    row.headingStems,
-    row.metaStems,
-    row.bodyStems,
-    itemId,
-  ]);
+  storage.run(INSERT_SEARCH_ROW, [...searchRowOf(text), itemId]);
 };
 
 const COLUMN_WEIGHTS = [

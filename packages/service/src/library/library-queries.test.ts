@@ -8,13 +8,7 @@ import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { literalMatches, searchHits } from "../search/search-hits";
-import {
-  SEARCH_ROW_MAX_BYTES,
-  searchLibrary,
-  searchRowBytes,
-  searchRowOf,
-  storeSearchRow,
-} from "../search/search-index";
+import { searchLibrary, searchRowOf, storeSearchRow } from "../search/search-index";
 import {
   linksTo,
   linksToUrl,
@@ -375,20 +369,24 @@ describe("search", () => {
   });
 
   it(
-    "cuts an item's index row under a Durable Object's row limit",
+    "indexes as much of a body, and of its stems, as a Durable Object binds in a value",
     { timeout: 30_000 },
     async () => {
-      const huge = "word ".repeat(1_000_000);
-      const row = searchRowOf({ body: huge, headings: "", meta: "", title: "t" });
-      expect(searchRowBytes(row)).toBeLessThanOrEqual(SEARCH_ROW_MAX_BYTES);
-      expect(row.body.length).toBeGreaterThan(500_000);
+      // decomposed for its stems, Hangul is two and a half times its bytes
+      const row = searchRowOf({
+        body: "한국어 ".repeat(100_000),
+        headings: "",
+        meta: "",
+        title: "",
+      });
+      expect(row.map(utf8ByteLength)).toStrictEqual([0, 0, 0, 1_000_000, 0, 0, 0, 1_900_000]);
       await inLibrary(({ storage }) => {
         put(
           storage,
           "huge",
           itemOf(
             Array.from({ length: 12 }, (_, index) =>
-              paragraph(`p${String(index)}`, huge.slice(0, 400_000)),
+              paragraph(`p${String(index)}`, "word ".repeat(80_000)),
             ),
           ),
         );

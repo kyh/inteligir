@@ -128,7 +128,8 @@ export const seedBlocks = sqliteTable(
 );
 
 // an item's body as text, cut at line ends into parts a row holds, whether the cell keeps the body
-// or a note projects it: what search's literal tier matches and the index's body column is cut from
+// or a note projects it: what search's literal tier matches and a hit's passage is cut from, the
+// one copy of the text the index ranks
 export const bodyTexts = sqliteTable(
   "body_texts",
   {

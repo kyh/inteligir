@@ -168,6 +168,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   around the match.** A cut for every candidate reads two hundred bodies a
   keystroke to show twenty, and a line cut from its start can leave the match
   out. `packages/service/src/search/search-hits.ts`.
+- **The index ranks and keeps no text: a body's one copy is `body_texts`.** An
+  FTS5 table that keeps its content stores each body twice more against the
+  1 GiB, in a row that must fit 2 MB whole.
+  `packages/service/src/search/search-index.ts`.
 
 ## The connector
 

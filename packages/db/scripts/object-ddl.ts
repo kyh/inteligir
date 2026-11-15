@@ -10,12 +10,15 @@ import path from "node:path";
 
 // The search index, which sqlite-core cannot declare. `remove_diacritics 2` and `_` as a token
 // character are stated, not defaulted: the search policy's tokenizer folds and splits the same way
-// (packages/service/src/search/search-query.ts). Its row id is the item's `rid`, and the cell
-// keeps it in code (packages/service/src/search/search-index.ts), never by a trigger.
+// (packages/service/src/search/search-query.ts). It keeps no text (`content=''`), since the cell
+// holds each body's in `body_texts`, and `contentless_delete` lets a row be dropped. Its row id is
+// the item's `rid`, and the cell keeps it in code (packages/service/src/search/search-index.ts),
+// never by a trigger.
 const SEARCH_FTS = `
 CREATE VIRTUAL TABLE \`search_fts\` USING fts5(
   title, headings, meta, body,
   title_stems, heading_stems, meta_stems, body_stems,
+  content='', contentless_delete=1,
   tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
 );
 `;
