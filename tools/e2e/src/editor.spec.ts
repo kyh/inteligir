@@ -43,6 +43,8 @@ test("every construct draws under the page's policy, opening writes nothing, and
   await expect(editor.locator("strong")).toHaveText("bold");
   // the callout and the ordinary quote
   await expect(editor.locator("blockquote")).toHaveCount(2);
+  // the callout is its label and its words, with no marker among them
+  await expect(editor.locator("blockquote").first()).toHaveText("WarningMind the gap.");
   await expect(editor.getByRole("checkbox")).toHaveCount(2);
   await expect(editor.locator("pre").first()).toBeVisible();
 

@@ -91,7 +91,6 @@
     "./live/picker-owner": "./src/live/picker-owner.ts",
     "./live/yjs-binding": "./src/live/yjs-binding.ts",
     "./mark-shortcuts": "./src/mark-shortcuts.ts",
-    "./markdown/alert-marker": "./src/markdown/alert-marker.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/flow-spans": "./src/markdown/flow-spans.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",

@@ -16,8 +16,8 @@ import {
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
 } from "@repo/editor/dialect-node-keys";
-import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
 import { lettersKept } from "@repo/editor/markdown/markdown-doc";
+import { alertProp } from "@repo/editor/node-props";
 
 import { meaningOf, readValue, rewrite, writeValue } from "./test-support/markdown-meaning";
 
@@ -84,16 +84,14 @@ const DIALECT_CONSTRUCTS = [
   ALERT,
 ];
 
-// what each element of a value reads as; a quote led by an alert's marker is that alert
+// what each element of a value reads as; a quote that names an alert is that alert
 const constructsOf = (value: readonly TElement[]): Set<string> => {
   const found = new Set<string>();
   for (const block of value) {
     for (const [node] of NodeApi.nodes(block)) {
       if (ElementApi.isElement(node)) {
         found.add(
-          node.type === KEYS.blockquote && alertMarkerPrefix(NodeApi.string(node)) !== null
-            ? ALERT
-            : node.type,
+          node.type === KEYS.blockquote && alertProp(node) !== undefined ? ALERT : node.type,
         );
       }
     }

@@ -47,6 +47,7 @@ const EVERY_BLOCK = [
   { children: [{ text: "Five" }], id: "h5", type: "h5" },
   { children: [{ text: "Six" }], id: "h6", indent: 1, listStyleType: "disc", type: "h6" },
   { children: [{ text: "Quote" }], id: "q1", type: "blockquote" },
+  { alert: "WARNING", children: [{ text: "Alert" }], id: "q2", type: "blockquote" },
   {
     children: [{ children: [{ text: "const a = 1;" }], type: "code_line" }],
     id: "c1",
@@ -113,6 +114,10 @@ describe("the persisted node set", () => {
   it.each([
     ["a prop no node names", { children: [{ text: "a" }], color: "red", id: "p", type: "p" }],
     ["a type no kit has", { children: [{ text: "a" }], id: "p", type: "callout" }],
+    [
+      "an alert that is none of the five",
+      { alert: "INFO", children: [{ text: "a" }], id: "q", type: "blockquote" },
+    ],
     ["a top-level block without its id", { children: [{ text: "a" }], type: "p" }],
     ["a nested-only element at the top", { children: [{ text: "a" }], id: "r", type: "tr" }],
     ["an image with both a sha and a url", { children: leaf, id: "i", sha, type: "img", url: "u" }],

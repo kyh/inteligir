@@ -43,9 +43,11 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **The dialect has no JSX, and raw HTML is its text.** Its blocks are remark-directive containers
   and a tag is the text it spells, since an MDX tokenizer or a raw html node is a second spelling
   the editor cannot edit. `packages/editor/src/markdown/md-plugins.ts`.
-- **The alert is the only callout** (owner decision). A quote led by `[!NOTE]` to `[!CAUTION]` is
-  that alert, and any other marker, an `inteligir-callout` fence or a `<callout>` tag stays text,
-  since five alerts need no second grammar. `packages/editor/src/markdown/md-alerts.test.ts`.
+- **The alert is the only callout, and the quote's `alert` prop is the whole of it** (owner
+  decision). A quote led by `[!NOTE]` to `[!CAUTION]` reads as that alert and writes its marker on a
+  line of its own; any other marker, one a write escaped, an `inteligir-callout` fence or a
+  `<callout>` tag stays text, since five alerts need no second grammar and a marker kept in the
+  words is read again by every surface. `packages/editor/src/markdown/md-alerts.test.ts`.
 - **An item's properties are its fields, and only a file has frontmatter.** Each row's edit is one
   property op, and the title, tags, folder and pin are Info's, so no key has two editors; a `---`
   fence in a paste or an agent's text is a YAML code block.

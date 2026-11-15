@@ -3,6 +3,7 @@
 
 import type {
   BlockContent,
+  Blockquote,
   Code,
   DefinitionContent,
   Html,
@@ -39,14 +40,13 @@ import {
   TAB_PANEL_KEY,
 } from "@repo/editor/dialect-node-keys";
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
-import { writtenAlertMarker } from "@repo/editor/markdown/alert-marker";
 import {
   CANVAS_LANG,
   CHART_LANG,
   HTML_LANG,
   RICH_FENCE_LANGS,
 } from "@repo/editor/markdown/fence-langs";
-import { numberProp, stringProp } from "@repo/editor/node-props";
+import { alertProp, numberProp, stringProp } from "@repo/editor/node-props";
 
 declare module "mdast" {
   interface Data {
@@ -73,6 +73,7 @@ const required = <T>(rule: T | null | undefined, key: string): T => {
 
 const defaultParagraph = required(defaultRules.p?.deserialize, "p");
 const defaultLink = required(defaultRules.a?.deserialize, "a");
+const defaultQuote = required(defaultRules.blockquote?.deserialize, "blockquote");
 const defaultBlockquote = required(defaultRules.blockquote?.serialize, "blockquote");
 const defaultEquation = required(defaultRules.equation?.deserialize, "equation");
 const defaultCodeBlock = required(defaultRules.code_block?.deserialize, "code_block");
@@ -81,6 +82,10 @@ const defaultTable = required(defaultRules.table?.deserialize, "table");
 const defaultCell = required(defaultRules.td?.serialize, "td");
 
 const emptyParagraph = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
+
+// Plate writes an empty line as a lone zero-width space, which its paragraph rule reads back as
+// empty and a cell (no paragraph to Plate's reader) keeps
+const ZWSP = "\u200B";
 
 const FLOW_TYPES: ReadonlySet<string> = new Set([
   "blockquote",
@@ -534,40 +539,34 @@ const writeMention = (node: TElement): Link => {
   };
 };
 
-// what follows an alert's marker on its line: its break is a plain newline, since the writer would
-// end the marker's line with a hard break
-const afterMarker = (tail: string, after: PhrasingContent | undefined): PhrasingContent[] => {
-  if (after === undefined) {
-    return [];
-  }
-  return after.type === "break" && tail === "" ? [{ type: "html", value: "\n" }] : [after];
+// the alert the plugins lifted off a quote's first line is the quote's prop
+const readBlockquote = (
+  node: Blockquote,
+  deco: MdDecoration,
+  options: DeserializeMdOptions,
+): TElement => {
+  const quote: TElement = defaultQuote(node, deco, options);
+  const alert = node.data?.alert;
+  return alert === undefined ? quote : { ...quote, alert };
 };
 
-// GitHub's alert opens `> [!NOTE]` on a line of its own; the writer would escape the `[`, so the
-// marker goes as written
-const writeBlockquote = (node: TElement, options: SerializeMdOptions): RootContent => {
+// the marker is a raw line of its own: as text the writer escapes its `[`, and GitHub reads an
+// alert only where the marker stands alone
+const writeBlockquote = (node: TElement, options: SerializeMdOptions): Blockquote => {
   const quote = defaultBlockquote(node, options);
+  const alert = alertProp(node);
+  if (alert === undefined) {
+    return quote;
+  }
+  const marker = `[!${alert}]`;
   const [first, ...others] = quote.children;
   if (first?.type !== "paragraph") {
-    return quote;
+    const line: Paragraph = { children: [{ type: "html", value: marker }], type: "paragraph" };
+    return { ...quote, children: [line, ...quote.children] };
   }
-  const [lead, after, ...rest] = first.children;
-  const written = lead?.type === "text" ? writtenAlertMarker(lead.value) : null;
-  if (written === null || lead?.type !== "text") {
-    return quote;
-  }
-  const tail = lead.value.slice(written.length);
-  const marker: PhrasingContent[] = [{ type: "html", value: written }];
-  if (tail !== "") {
-    marker.push({ type: "text", value: tail });
-  }
-  return {
-    ...quote,
-    children: [
-      { ...first, children: [...marker, ...afterMarker(tail, after), ...rest] },
-      ...others,
-    ],
-  };
+  const words = first.children.filter((child) => child.type !== "text" || child.value !== ZWSP);
+  const lead: Html = { type: "html", value: words.length === 0 ? marker : `${marker}\n` };
+  return { ...quote, children: [{ ...first, children: [lead, ...words] }, ...others] };
 };
 
 const TODO_TEXT_RE = /^\[(?<mark>[ xX])\]$/u;
@@ -636,10 +635,6 @@ const listOf = (list: List): List => ({
 });
 
 const BR_RE = /^<br\s*\/?>$/iu;
-
-// Plate writes an empty cell's line as a lone zero-width space, which a cell (no paragraph to
-// Plate's reader) keeps
-const ZWSP = "\u200B";
 
 const isBreakLeaf = (child: Descendant): child is TText =>
   TextApi.isText(child) &&
@@ -786,7 +781,7 @@ const linkRule: WideMdRule = {
   }),
 };
 
-const blockquoteRule: WideMdRule = { serialize: writeBlockquote };
+const blockquoteRule: WideMdRule = { deserialize: readBlockquote, serialize: writeBlockquote };
 
 // markdown has no empty inline math: `$$$$` reads back as text
 const inlineEquationRule: WideMdRule = {

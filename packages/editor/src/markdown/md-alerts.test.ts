@@ -1,35 +1,40 @@
 import { describe, expect, it } from "vitest";
+import type { TElement } from "platejs";
+
+import { ALERT_VARIANTS } from "@repo/contract/library/library-nodes";
 
 import { meaningOf, readValue, rewrite, writeValue } from "../test-support/markdown-meaning";
-import { ALERT_VARIANTS } from "./alert-marker";
 import { headlessEditor } from "./markdown-doc";
 import { readMarkdown } from "./md-read";
 
-const KINDS = ALERT_VARIANTS.flatMap((variant) => [variant, variant.toLowerCase()]);
+const quote = (text: string): TElement => ({
+  children: [{ children: [{ text }], type: "p" }],
+  type: "blockquote",
+});
 
-// GitHub's alert is the one callout: a quote whose text opens with its marker
+// GitHub's alert is the one callout: a quote whose first line is its marker
 describe("an alert", () => {
-  it.each(KINDS)("reads `[!%s]` as a quote led by its marker, and writes it back", (kind) => {
-    const md = `> [!${kind}]\n> Body.\n`;
-    expect(readValue(md)).toStrictEqual([
-      {
-        children: [{ children: [{ text: `[!${kind}]\nBody.` }], type: "p" }],
-        type: "blockquote",
-      },
-    ]);
-    expect(rewrite(md)).toBe(md);
+  it.each(ALERT_VARIANTS)("reads `[!%s]` in either case as the quote's alert", (variant) => {
+    const md = `> [!${variant}]\n> Body.\n`;
+    for (const written of [md, `> [!${variant.toLowerCase()}]\n> Body.\n`]) {
+      expect(readValue(written)).toStrictEqual([{ ...quote("Body."), alert: variant }]);
+      expect(rewrite(written)).toBe(md);
+    }
   });
 
-  it.each(KINDS)("reads `[!%s]` alike where Obsidian's links are read", (kind) => {
-    const md = `> [!${kind}]\n> Body.\n`;
+  it("reads alike where Obsidian's links are read", () => {
+    const md = "> [!NOTE]\n> Body.\n";
     const read = readMarkdown(headlessEditor(), md, { wiki: () => null });
     expect(read).toStrictEqual({ ok: true, value: readValue(md) });
   });
 
-  it("keeps the words on the marker's line and every paragraph after it", () => {
-    for (const md of ["> [!WARNING] Words on its line.\n", "> [!CAUTION]\n> One.\n>\n> Two.\n"]) {
-      expect(rewrite(md)).toBe(md);
-    }
+  it("puts the marker on a line of its own, whatever stood beside it", () => {
+    expect(rewrite("> [!WARNING] Words on its line.\n")).toBe(
+      "> [!WARNING]\n> Words on its line.\n",
+    );
+    expect(rewrite("> [!CAUTION]\n>\n> One.\n>\n> Two.\n")).toBe(
+      "> [!CAUTION]\n> One.\n>\n> Two.\n",
+    );
   });
 
   it("escapes a marker no alert has, so it stays the text it is", () => {
@@ -37,6 +42,12 @@ describe("an alert", () => {
     const written = writeValue(value);
     expect(written).toBe("> \\[!NOPE]\\\n> Body.\n");
     expect(meaningOf(readValue(written))).toBe(meaningOf(value));
+  });
+
+  it("keeps a marker typed into a quote the words it is", () => {
+    const written = writeValue([quote("[!NOTE] typed")]);
+    expect(written).toBe("> \\[!NOTE] typed\n");
+    expect(readValue(written)).toStrictEqual([quote("[!NOTE] typed")]);
   });
 
   it("escapes a marker typed outside a quote", () => {

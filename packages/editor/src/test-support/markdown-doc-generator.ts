@@ -1,7 +1,7 @@
 // Seeded markdown over the dialect's constructs, not as the writer spells them, so a suite reads
 // and writes the modelled nodes in shapes no fixture holds.
 
-import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
+import { ALERT_VARIANTS } from "@repo/contract/library/library-nodes";
 
 // oxlint-disable no-bitwise -- mulberry32 is defined in terms of 32-bit word math; the seeded sequence is the point
 const mulberry32 = (seed: number): (() => number) => {
@@ -162,7 +162,7 @@ const table = (rng: Rng): string => {
 const blockquote = (rng: Rng): string => {
   if (chance(rng, 0.5)) {
     const variant = pick(rng, ALERT_VARIANTS);
-    // GitHub reads the marker in any case, so the dialect must round-trip one written lowercase
+    // GitHub reads the marker in any case, so the dialect must read one written lowercase
     const kind = chance(rng, 0.3) ? variant.toLowerCase() : variant;
     return `> [!${kind}]\n> ${inlineText(rng, 3, 8)}`;
   }

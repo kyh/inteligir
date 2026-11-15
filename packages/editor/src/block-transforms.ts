@@ -4,9 +4,10 @@ import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, TElement, TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
+import type { AlertVariant } from "@repo/contract/library/library-nodes";
+
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
-import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
-import { stringProp } from "@repo/editor/node-props";
+import { alertProp, stringProp } from "@repo/editor/node-props";
 
 // Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.
 export type TurnIntoId =
@@ -27,7 +28,7 @@ export interface TurnIntoOption {
   label: string;
   type: string;
   listStyleType?: string;
-  marker?: string;
+  alert?: AlertVariant;
 }
 
 const TURN_INTO_ROWS = {
@@ -37,8 +38,7 @@ const TURN_INTO_ROWS = {
     listStyleType: "disc",
     type: KEYS.p,
   },
-  // a line of its own, as the reader models one: the badge hides only a whole marker line
-  callout: { id: "callout", label: "Callout", marker: "[!NOTE]\n", type: KEYS.blockquote },
+  callout: { alert: "NOTE", id: "callout", label: "Callout", type: KEYS.blockquote },
   "code-block": { id: "code-block", label: "Code block", type: KEYS.codeBlock },
   "heading-1": { id: "heading-1", label: "Heading 1", type: KEYS.h1 },
   "heading-2": { id: "heading-2", label: "Heading 2", type: KEYS.h2 },
@@ -121,38 +121,21 @@ export const turnIntoOptionFor = (node: TElement): TurnIntoOption => {
   if (listStyleType !== undefined) {
     return TURN_INTO.find((opt) => opt.listStyleType === listStyleType) ?? TURN_INTO_ROWS.text;
   }
-  const isAlert =
-    node.type === KEYS.blockquote && leadingAlertMarker(NodeApi.string(node)) !== null;
+  const isAlert = alertProp(node) !== undefined;
   const match = TURN_INTO.find(
     (opt) =>
-      opt.listStyleType === undefined && opt.type === node.type && Boolean(opt.marker) === isAlert,
+      opt.listStyleType === undefined &&
+      opt.type === node.type &&
+      (opt.alert !== undefined) === isAlert,
   );
   return match ?? TURN_INTO_ROWS.text;
 };
 
-// Only when the first leaf carries the whole marker; one split across marks is left alone rather than half-deleted.
-const stripAlertMarker = (editor: PlateEditor, at: Path): void => {
-  const start = editor.api.start(at);
-  if (!start) {
-    return;
-  }
-  const leaf = editor.api.leaf(start);
-  if (!leaf) {
-    return;
-  }
-  const marker = leadingAlertMarker(leaf[0].text);
-  if (!marker) {
-    return;
-  }
-  editor.tf.delete({
-    at: { anchor: start, focus: { offset: start.offset + marker.end, path: start.path } },
-  });
-};
-
 // Plate's quote holds blocks, so a block joins one as a wrapped paragraph, the shape the reader
 // makes. Retyped instead, its bare text is rebuilt by the quote's normalizer, and the caret falls
-// out of the replaced text into the block above.
-const quoteAt = (editor: PlateEditor, at: Path, marker: string | undefined): void => {
+// out of the replaced text into the block above. A quote that is an alert already keeps the one
+// it is.
+const quoteAt = (editor: PlateEditor, at: Path, alert: AlertVariant | undefined): void => {
   const element = elementAt(editor, at);
   if (element === null) {
     return;
@@ -161,12 +144,8 @@ const quoteAt = (editor: PlateEditor, at: Path, marker: string | undefined): voi
     editor.tf.setNodes({ type: editor.getType(KEYS.p) }, { at });
     editor.tf.wrapNodes({ children: [], type: editor.getType(KEYS.blockquote) }, { at });
   }
-  const start = editor.api.start(at);
-  if (marker === undefined || start === undefined) {
-    return;
-  }
-  if (leadingAlertMarker(NodeApi.string(element)) === null) {
-    editor.tf.insertText(marker, { at: start });
+  if (alert !== undefined && alertProp(element) === undefined) {
+    editor.tf.setNodes({ alert }, { at });
   }
 };
 
@@ -205,7 +184,7 @@ const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void =
   }
   editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
   if (opt.type === KEYS.blockquote) {
-    quoteAt(editor, at, opt.marker);
+    quoteAt(editor, at, opt.alert);
     return;
   }
   editor.tf.setNodes({ type: opt.type }, { at });
@@ -249,8 +228,8 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
       return;
     }
 
-    if (node.type === editor.getType(KEYS.blockquote) && opt.marker === undefined) {
-      stripAlertMarker(editor, at);
+    if (opt.alert === undefined) {
+      editor.tf.unsetNodes("alert", { at });
     }
 
     applyTarget(editor, at, opt);

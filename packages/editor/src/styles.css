@@ -10,20 +10,6 @@
   visibility: hidden;
 }
 
-/* the `> [!TIP]` marker stays in the bytes and is only hidden at render. the marker leaf needs
-   display:none (its span carries the soft break, so anything layout-preserving keeps a blank
-   first line); a marker-only paragraph collapses like a toggle body since slate needs its dom. */
-.callout-alert:not(.callout-editing) .callout-marker {
-  display: none;
-}
-.callout-alert:not(.callout-editing) .callout-marker-line {
-  height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  visibility: hidden;
-}
-
 /* a long note renders in runs of blocks, and a run off screen skips its layout and paint, held at
    an estimate of its height until it first draws and at its last height after. paint containment
    clips to the run's own box, so it overhangs the column by the gutter the drag handle, a
