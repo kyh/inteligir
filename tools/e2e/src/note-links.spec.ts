@@ -47,6 +47,15 @@ test("a bound formula reads its pill, Extract makes a linked note, and [[ links 
     .poll(async () => await markdownOf(library, item.id))
     .toContain(':formula[42]{meta="id=fa;name=bigger"');
 
+  // the pill's editor opens with its entry selected, so typing replaces it, and Enter saves
+  await page.locator(EDITOR).getByRole("button", { name: "42" }).click();
+  await expect(page.getByRole("textbox", { name: "Edit formula" })).toBeFocused();
+  await page.keyboard.type("bigger=40+3");
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(async () => await markdownOf(library, item.id))
+    .toContain(':formula[43]{meta="id=fa;name=bigger"');
+
   await page.locator(EDITOR).getByText(PASSAGE, { exact: true }).selectText();
   await page.getByRole("button", { name: "Extract to new note" }).click();
   await expect.poll(async () => await inFolder(PASSAGE)).toBeDefined();

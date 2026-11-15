@@ -1,61 +1,52 @@
-import { useRef, useState } from "react";
 import { KEYS, NodeApi, TextApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/cn";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
-import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
+import { convertFormulaToText, FormulaEditForm } from "@repo/editor/formulas/formula-edit";
 import { formulaNodeFromTyped, isFormulaPill } from "@repo/editor/formulas/formula-entry";
+import { useEditPopover } from "@repo/editor/nodes/edit-popover";
 
 import { formulaPillBasePlugin } from "./headless/inline-constructs-base";
 
-/* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
-   the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
-   raw <button> for controls that carry a product Tooltip instead of a native title. */
 const FormulaPillElement = (props: PlateElementProps) => {
-  const [editing, setEditing] = useState(false);
-  const pillRef = useRef<HTMLSpanElement | null>(null);
+  const { open, setOpen } = useEditPopover();
   const source = stringProp(props.element, "source") ?? "";
   const display = stringProp(props.element, "display") ?? "";
   const meta = parseFormulaMeta(stringProp(props.element, "meta"));
   return (
     <PlateElement {...props} as="span" className="relative inline-block">
-      <span
-        ref={pillRef}
-        contentEditable={false}
-        role="button"
-        tabIndex={-1}
-        title={meta.stale ? "Stale: a referenced variable is missing or cyclic" : source}
-        className={cn(
-          "cursor-pointer rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums",
-          meta.stale && "underline decoration-amber-500 decoration-dotted underline-offset-2",
-        )}
-        onClick={() => {
-          setEditing(true);
-        }}
-      >
-        {display === "" ? source : display}
-      </span>
-      {editing ? (
-        <FormulaEditPopover
-          element={props.element}
-          anchor={pillRef}
-          onClose={() => {
-            setEditing(false);
-          }}
-        />
-      ) : null}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          contentEditable={false}
+          draggable={false}
+          title={meta.stale ? "Stale: a referenced variable is missing or cyclic" : source}
+          className={cn(
+            "cursor-pointer rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums",
+            meta.stale && "underline decoration-amber-500 decoration-dotted underline-offset-2",
+          )}
+        >
+          {display === "" ? source : display}
+        </PopoverTrigger>
+        <PopoverContent initialFocus side="bottom" align="start" className="w-auto p-1">
+          <FormulaEditForm
+            element={props.element}
+            onDone={() => {
+              setOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
       {props.children}
     </PlateElement>
   );
 };
-
-/* oxlint-enable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role */
 
 const FORMULA_COMPLETION_RE = /\{\{(?<body>[^{}\n]+)\}$/u;
 

@@ -1,9 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
-
-import { Popover, PopoverContent } from "@repo/ui/components/popover";
-import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
 import {
@@ -62,71 +59,31 @@ export const convertFormulaToText = (editor: SlateEditor, element: TElement): vo
   });
 };
 
-export const FormulaEditPopover = ({
-  element,
-  anchor,
-  onClose,
-}: {
-  element: TElement;
-  anchor: React.RefObject<HTMLElement | null>;
-  onClose: () => void;
-}) => {
+export const FormulaEditForm = ({ element, onDone }: { element: TElement; onDone: () => void }) => {
   const editor = useEditorRef();
   const [entry, setEntry] = useState(() => entryTextOf(element));
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-
-  const save = (): void => {
-    const props = formulaPropsFromEntry(entry, { meta: stringProp(element, "meta") ?? "" });
-    if (props !== null) {
-      applyFormulaEdit(editor, element, props);
-    }
-    onClose();
-  };
-
   return (
-    <Popover
-      open
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const props = formulaPropsFromEntry(entry, { meta: stringProp(element, "meta") ?? "" });
+        if (props !== null) {
+          applyFormulaEdit(editor, element, props);
         }
+        onDone();
       }}
     >
-      <PopoverContent
-        anchor={anchor}
-        side="bottom"
-        align="start"
-        className="w-auto flex-row items-center gap-1 p-1"
-      >
-        <input
-          ref={inputRef}
-          aria-label="Edit formula"
-          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-body outline-none"
-          value={entry}
-          onChange={(event) => {
-            setEntry(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (isImeComposing(event)) {
-              return;
-            }
-            if (event.key === "Enter") {
-              event.preventDefault();
-              save();
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onClose();
-            }
-          }}
-          onBlur={onClose}
-        />
-      </PopoverContent>
-    </Popover>
+      <input
+        aria-label="Edit formula"
+        className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-body outline-none"
+        value={entry}
+        onChange={(event) => {
+          setEntry(event.target.value);
+        }}
+        onFocus={(event) => {
+          event.currentTarget.select();
+        }}
+      />
+    </form>
   );
 };
