@@ -112,6 +112,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   codec.** Each answer is parsed through its row's output schema, so a leaked
   column never ships; a `[[Title]]` two items share stays text.
   `packages/service/src/library/library-router.ts`.
+- **A handler runs the engine through its call's context, which answers the
+  value or throws the error its row declares.** A refusal thrown past the engine
+  skips the one mapping, and a result unwrapped at each handler is a step one
+  forgets. `packages/service/src/library/library-orpc.ts`.
 - **A file's bytes are R2's, addressed by their sha, and R2 checks it.** One
   `keepBytes` reserves, puts and settles every upload, and R2 parses a read's
   range; a signed URL would log a credential.

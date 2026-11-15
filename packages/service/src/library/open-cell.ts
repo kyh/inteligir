@@ -8,7 +8,7 @@
 import type { LibrarySocketFrame, MovedFrame } from "@repo/contract/library/library-socket";
 
 import { runAgentTool } from "../agent/agent-tools";
-import { turnActorOf } from "../agent/agent-turns";
+import { turnActorIn } from "../agent/agent-turns";
 import type { AgentCell } from "../agent/agent-turns";
 import { noteStub } from "../note/note-stub";
 import type { NoteReach } from "../note/note-wire";
@@ -20,11 +20,11 @@ import type { ImportHost } from "./cell-import-host";
 import { tellSockets } from "./cell-sockets";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
-import type { LibraryEngine } from "./library-engine";
+import { cellContext } from "./library-orpc";
+import type { CellContext } from "./library-orpc";
 import { agentPrincipal, cellActorOf, isNamedPrincipal } from "./library-principal";
 import type { Principal } from "./library-principal";
 import { libraryRouter } from "./library-router";
-import type { CellContext } from "./library-router";
 
 const STORAGE_CAP = /^[1-9]\d*$/u;
 
@@ -59,12 +59,12 @@ export interface Cell extends AgentCell, ImportHost {
 
 // whom a call's writes are by: what its principal names, or for the built-in agent its turn,
 // read again as each write lands, which a turn sealed meanwhile refuses
-const actorOf = (library: LibraryEngine, principal: Principal): (() => CellActor) => {
+const actorIn = (principal: Principal): ((db: CellDb) => CellActor) => {
   if (isNamedPrincipal(principal)) {
     const actor = cellActorOf(principal);
     return () => actor;
   }
-  return turnActorOf(library, principal.actor);
+  return (db) => turnActorIn(db, principal.actor);
 };
 
 export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {}): Cell => {
@@ -99,12 +99,8 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
   });
   const cell: Cell = {
     accountId,
-    contextFor: (principal) => ({
-      actor: actorOf(library, principal),
-      agent: cell,
-      library,
-      notes: cell.notes,
-    }),
+    contextFor: (principal) =>
+      cellContext({ agent: cell, library, notes: cell.notes }, actorIn(principal)),
     db,
     durable: async () => {
       await ctx.storage.sync();

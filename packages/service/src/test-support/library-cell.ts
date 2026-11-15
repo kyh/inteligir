@@ -36,7 +36,7 @@ export interface Clock {
 
 export const clockAt = (now: number = Date.UTC(2026, 9, 1)): Clock => ({ now });
 
-// what a suite states of its cell; left out, each is the deployment's own
+// what a suite states of its cell; left out, each but the alarm is the deployment's own
 export interface CellUnderTest {
   readonly clock?: Clock;
   readonly env?: Env;

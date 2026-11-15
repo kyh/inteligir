@@ -14,7 +14,6 @@ import { agentEventSchema } from "@repo/contract/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { THREAD_STATUSES } from "@repo/contract/library/library-wire";
-import { ORPCError } from "@orpc/server";
 import type { agentViewContextSchema } from "@repo/contract/library/library-wire";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -487,15 +486,13 @@ export const agentStatus = (cell: AgentCell) => {
 
 // whom a turn's tool calls write as: that turn, read again as each write lands, so a call that
 // lands once its turn sealed is refused
-export const turnActorOf =
-  (library: LibraryEngine, named: { readonly threadId: string; readonly turn: number }) =>
-  (): CellActor => {
-    const open = library.read((db) => openTurnOf(db, named.threadId));
-    if (!open.ok || open.value?.turn !== named.turn) {
-      throw new ORPCError("FORBIDDEN", { message: "This turn has ended." });
-    }
-    return turnActor(open.value);
-  };
+export const turnActorIn = (
+  db: CellDb,
+  named: { readonly threadId: string; readonly turn: number },
+): CellActor => {
+  const open = openTurnOf(db, named.threadId);
+  return open?.turn === named.turn ? turnActor(open) : refuse({ kind: "turn-ended" });
+};
 
 // ---- what a thread's object asks ----
 

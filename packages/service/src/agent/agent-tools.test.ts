@@ -18,6 +18,7 @@ import {
   cellIn,
   cellOf,
   createItem,
+  headOf,
   inCell,
   landedValue,
   placed,
@@ -159,6 +160,22 @@ describe("the built-in agent's tools", () => {
       });
       expect(unread.isError).toBe(true);
       expect(unread.content).toMatch(/^Input validation failed\n/u);
+    });
+  });
+
+  it("refuse a write once its turn has ended, and land nothing", async () => {
+    await inCell(cellOf(), async (state) => {
+      const { library, runTool } = cellIn(state);
+      await expect(
+        runTool({
+          input: { markdown: "Too late." },
+          name: "create_note",
+          threadId: "thread-1",
+          toolUseId: "toolu_1",
+          turn: 1,
+        }),
+      ).resolves.toStrictEqual({ content: "This turn has ended.", isError: true });
+      expect(headOf(library)).toBe(0);
     });
   });
 });

@@ -33,6 +33,8 @@ export type CellRefusal =
   | { readonly kind: "agent-unavailable" }
   // the day's allowance of the built-in agent is spent, until `resetsAt`
   | { readonly kind: "agent-budget"; readonly resetsAt: number }
+  // the built-in agent's turn the call is one of is no longer open
+  | { readonly kind: "turn-ended" }
   // the write would have kept a body in the cell for an item whose note opened since it looked, so
   // it goes again by the note
   | { readonly kind: "note-opened"; readonly itemId: string };
