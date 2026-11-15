@@ -171,7 +171,7 @@ describe("the connector's tools", () => {
       .parse(stale.content);
     expect(JSON.parse(content?.text ?? "null")).toMatchObject({
       code: "UNPROCESSABLE_CONTENT",
-      data: { edit: 0, reason: "missing" },
+      data: { edit: 0, kind: "missing" },
       defined: true,
     });
     await client.close();

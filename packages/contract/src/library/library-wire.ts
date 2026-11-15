@@ -183,16 +183,17 @@ export const conflictCurrentSchema = z.discriminatedUnion("kind", [
   z.object({ itemId: idSchema, kind: z.literal("item"), seq: seqSchema }),
 ]);
 
-// why an agent's edit cannot land: an `old_text` that is empty, stands nowhere or stands more than
-// once, a change to the lines the article opens and closes on, nesting deeper than the editor
-// reads, text no block can store, or blocks someone changed while the edit was made twice over,
-// `blocks` naming them as they now are; `edit` is its index in the request
-export const editRefusalSchema = z.object({
-  blocks: z.array(bodyBlockSchema).optional(),
-  count: z.number().int().positive().optional(),
-  edit: z.number().int().nonnegative(),
-  reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep", "unstorable", "moved"]),
-});
+const editIndex = z.number().int().nonnegative();
+
+// why an agent's edit cannot land, `edit` its index in the request: an `old_text` that stands
+// nowhere in the note or more than once, one that reaches the article, new text that nests deeper
+// than the editor reads or that no block can store, or blocks someone changed while the edit was
+// made twice over, `blocks` naming them as they now are
+export const editRefusalSchema = z.discriminatedUnion("kind", [
+  z.object({ edit: editIndex, kind: z.enum(["missing", "section", "too-deep", "unstorable"]) }),
+  z.object({ count: z.number().int().positive(), edit: editIndex, kind: z.literal("ambiguous") }),
+  z.object({ blocks: z.array(bodyBlockSchema), kind: z.literal("moved") }),
+]);
 
 // ---- what the apps list ----
 

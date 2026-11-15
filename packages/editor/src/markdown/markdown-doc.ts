@@ -1,15 +1,11 @@
 // Markdown in and out of an item's blocks, headless. Markdown is stock and lossy: a read keeps every
 // letter a person wrote, and a write keeps what the blocks mean, never the bytes they came from.
 
-import type { Root } from "mdast";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, TElement, Value } from "platejs";
 import { MarkdownPlugin } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { recordFlowSpans } from "@repo/editor/markdown/flow-spans";
-import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
-import { MD_STRINGIFY } from "@repo/editor/markdown/md-plugins";
 import { readMarkdown } from "@repo/editor/markdown/md-read";
 import type { MarkdownRead, ReadOptions } from "@repo/editor/markdown/md-read";
 import {
@@ -17,8 +13,6 @@ import {
   markListNesting,
   pruneEmptyEquations,
 } from "@repo/editor/markdown/md-rules";
-
-import { nestInLists } from "./mdast-lists";
 
 // fresh per call: Slate editors carry mutable state
 export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
@@ -70,30 +64,6 @@ export const serializeNote = (editor: SlateEditor, value: Value = editor.childre
   editor
     .getApi(MarkdownPlugin)
     .markdown.serialize({ value: markListNesting(pruneEmptyEquations(value)) });
-
-export interface SpannedNote {
-  readonly markdown: string;
-  // where each top-level node the rules wrote (a block, or a run of list items as one list) sits
-  readonly spans: readonly FlowSpan[];
-}
-
-// the same bytes, with where each top-level node landed: what the codec's view of an item maps an
-// edit back to its blocks by
-export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNote => {
-  const recorder = recordFlowSpans();
-  const markdown = editor.getApi(MarkdownPlugin).markdown.serialize({
-    remarkStringifyOptions: {
-      ...MD_STRINGIFY,
-      handlers: {
-        ...MD_STRINGIFY.handlers,
-        root: (node: Root, parent, state, info) =>
-          recorder.root({ ...node, children: nestInLists(node.children) }, parent, state, info),
-      },
-    },
-    value: markListNesting(pruneEmptyEquations(value)),
-  });
-  return { markdown, spans: recorder.spans };
-};
 
 const LETTER_RE = /[\p{L}\p{N}]/gu;
 

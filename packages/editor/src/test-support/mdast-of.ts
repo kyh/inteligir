@@ -2,7 +2,6 @@
 // for a suite that holds the tree or times the parse rather than the blocks.
 
 import type { Root } from "mdast";
-import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
@@ -18,7 +17,3 @@ export const mdastOf = (md: string): Root => {
   }
   return tree;
 };
-
-// the writer's extensions the dialect's plugins register
-export const writerExtensions = (): ToMarkdownOptions[] =>
-  processor.data("toMarkdownExtensions") ?? [];

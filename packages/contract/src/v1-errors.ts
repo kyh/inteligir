@@ -62,7 +62,7 @@ export const QuotaError = error("QUOTA", {
   message: "Your library is full.",
 });
 
-// an `old_text` that stands nowhere or more than once, or an edit the item's sections cannot take
+// an edit by passages that cannot land, for the reason its data names
 export const EditRefusedError = error("UNPROCESSABLE_CONTENT", {
   data: editRefusalSchema,
   message: "That edit doesn't match the item's text.",

@@ -90,7 +90,21 @@ export interface CellContext {
   readonly notes: NoteReach;
 }
 
-const EDIT_UNSTORABLE = "That edit holds a block the library can't keep.";
+type EditRefusal = Extract<CellRefusal, { kind: "edit-refused" }>["refusal"];
+
+// what a refused edit's writer does next, said in the message, since the built-in agent is handed
+// a refusal's message alone
+const EDIT_REFUSED: Record<EditRefusal["kind"], string> = {
+  ambiguous:
+    "That old text stands more than once in the note. Quote more of the passage, so it stands once.",
+  missing:
+    "That old text isn't in the item's note. Read the item again and quote the passage exactly.",
+  moved: "The note changed while this edit was made. Read the item again, then edit what it holds.",
+  section:
+    "That passage is in the article, the page as it was read, which no edit changes. Write in the note: an empty old text adds its new text after the note.",
+  "too-deep": "That new text nests deeper than an item holds.",
+  unstorable: "That edit holds a block the library can't keep.",
+};
 
 const refusalError = (refusal: CellRefusal): Error => {
   switch (refusal.kind) {
@@ -124,9 +138,10 @@ const refusalError = (refusal: CellRefusal): Error => {
       });
     }
     case "edit-refused": {
-      return refusal.refusal.reason === "unstorable"
-        ? new EditRefusedError({ data: refusal.refusal, message: EDIT_UNSTORABLE })
-        : new EditRefusedError({ data: refusal.refusal });
+      return new EditRefusedError({
+        data: refusal.refusal,
+        message: EDIT_REFUSED[refusal.refusal.kind],
+      });
     }
     case "bad-cursor": {
       return new ORPCError("BAD_REQUEST", {

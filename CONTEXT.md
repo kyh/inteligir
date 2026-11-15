@@ -59,8 +59,9 @@ any depth: a block's children are inside it
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a **fill** wrote. A fill
 and Refresh replace only `article` blocks, so reading a page again never
-touches the person's writing (`packages/service/src/note/article-body.ts`).
-Not a heading's stretch of a note, and not a folder.
+touches the person's writing (`packages/service/src/note/article-body.ts`),
+and an agent's edit writes only `note` blocks. Not a heading's stretch of a
+note, and not a folder.
 
 **live document** — a note's body as one Yjs document, each top-level
 **block** carrying its **section**, which every device's editor and the agent

@@ -14,7 +14,7 @@ import { z } from "zod";
 import { noteBlocksSchema } from "../note/note-wire";
 import type { NoteHeld, NoteProjection, NoteReach } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
-import { cellCodec } from "./cell-codec";
+import { cellCodec, logReadFailure } from "./cell-codec";
 import { landProjection } from "./cell-notes";
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import { refuse } from "./cell-refusal";
@@ -62,15 +62,15 @@ const originOf = (actor: CellActor): string => {
   }
 };
 
-type EditRefusal = Extract<EditOutcome, { kind: "refused" }>["refusal"];
-
-const refusalOf = (refusal: EditRefusal): CellRefusal => ({
-  kind: "edit-refused",
-  refusal:
-    refusal.kind === "ambiguous"
-      ? { count: refusal.count, edit: refusal.edit, reason: refusal.kind }
-      : { edit: refusal.edit, reason: refusal.kind },
-});
+// an edit the codec did not land: its own refusal as it is, and new text a rule failed on as
+// text the library cannot keep
+const refusalOf = (outcome: Exclude<EditOutcome, { kind: "changed" }>): CellRefusal => {
+  if (outcome.kind === "refused") {
+    return { kind: "edit-refused", refusal: outcome.refusal };
+  }
+  logReadFailure(outcome.error);
+  return { kind: "edit-refused", refusal: { edit: outcome.edit, kind: "unstorable" } };
+};
 
 const refused = (refusal: CellRefusal): CellResult<never> => ({ ok: false, refusal });
 
@@ -123,8 +123,8 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
     if (!outcome.ok) {
       return outcome;
     }
-    if (outcome.value.kind === "refused") {
-      return refused(refusalOf(outcome.value.refusal));
+    if (outcome.value.kind !== "changed") {
+      return refused(refusalOf(outcome.value));
     }
     const reply = await note.applyChange({
       changeSetId: logSet.value,
@@ -148,7 +148,7 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
     }
   }
   if (projection === null) {
-    return refused({ kind: "edit-refused", refusal: { blocks: moved, edit: 0, reason: "moved" } });
+    return refused({ kind: "edit-refused", refusal: { blocks: moved, kind: "moved" } });
   }
   const landed = projection;
   return library.land(deps.actor(), { answer: editedSchema, opId: input.opId }, (scope) => {

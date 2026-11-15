@@ -93,7 +93,6 @@
     "./live/yjs-binding": "./src/live/yjs-binding.ts",
     "./mark-shortcuts": "./src/mark-shortcuts.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
-    "./markdown/flow-spans": "./src/markdown/flow-spans.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
     "./markdown/markdown-doc": "./src/markdown/markdown-doc.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",

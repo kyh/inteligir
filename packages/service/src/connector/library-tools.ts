@@ -48,7 +48,7 @@ export const libraryTools = {
     edit: items.edit.meta(
       openapi({
         description:
-          "Replaces exact passages of an item's markdown, as read_item returned it. Each old text must stand exactly once in the item as it is now; other passages, and anything written there meanwhile, are left as they are. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
+          "Changes an item's note by exact passages of its markdown, as read_item returned it. Each old text must stand exactly once in the note as it is now, and an empty old text adds its new text after the note; other passages, and anything written there meanwhile, are left as they are. A saved page's article is the page as it was read, and no edit changes it. New text links another item as [Title](mention:id), or [[Title]] for the one item so titled.",
         method: "PATCH",
         operationId: "edit_item",
         summary: "Edit an item",

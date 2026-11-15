@@ -119,6 +119,10 @@ const CONTAINER_TYPES: ReadonlySet<string> = new Set([
   TAB_PANEL_KEY,
 ]);
 
+// whether a block is written in a list: a list line, or a block nested under one
+export const writtenInList = (block: TElement): boolean =>
+  isListLine(block) || numberProp(block, "indent") !== undefined;
+
 // Plate writes only a paragraph as a list item, so every other block with an indent, which its
 // list rule reads under the item it nests in, is marked here and nested by `nestInLists`
 export const markListNesting = (blocks: readonly Descendant[]): Descendant[] =>
