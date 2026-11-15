@@ -19,6 +19,14 @@ describe("the page's policy", () => {
     expect(policy).toContain("frame-ancestors 'none'");
   });
 
+  it("draws an item from this origin and the bytes the page holds, never a web address", () => {
+    const policy = pagePolicy(SITE, "n");
+    expect(directiveOf(policy, "default-src")).toBe("default-src 'self'");
+    expect(directiveOf(policy, "img-src")).toBe("img-src 'self' data: blob:");
+    expect(directiveOf(policy, "media-src")).toBe("media-src 'self' blob:");
+    expect(directiveOf(policy, "font-src")).toBe("font-src 'self' data:");
+  });
+
   it("frames the library's own files on this origin, and nothing else", () => {
     expect(directiveOf(pagePolicy(SITE, "n"), "frame-src")).toBe(
       "frame-src https://inteligir.com/v1/blobs/",

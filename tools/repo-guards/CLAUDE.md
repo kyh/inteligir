@@ -6,8 +6,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 ## Repo guards, vendoring and tooling
 
 - **A guard is for a rule spanning workspaces that no tool checks**, and states
-  its rule and the file to change. Why: a guard repeating pnpm, tsc, knip or
-  oxlint is one more table to keep in step. `tools/repo-guards/README.md`.
+  its rule and the file to change. Why: a guard repeating pnpm, tsc, knip,
+  oxlint or a build is one more table to keep in step. `tools/repo-guards/README.md`.
 - **Vendored code is this repo's code, except for the attribution**: rename and
   delete freely, keeping each `// Vendored from X, MIT.` header. Why: a re-pull
   conflict is no reason; the licences live in `tools/licenses`, and the .app

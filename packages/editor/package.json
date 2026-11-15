@@ -19,6 +19,7 @@
     "./combobox-input": "./src/combobox-input.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
     "./dialect-node-keys": "./src/dialect-node-keys.ts",
+    "./drawing-policy": "./src/drawing-policy.ts",
     "./editor-chrome": "./src/editor-chrome.tsx",
     "./editor-profile": "./src/editor-profile.tsx",
     "./editor-shortcuts": "./src/editor-shortcuts.ts",

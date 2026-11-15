@@ -6,10 +6,8 @@ change.
 
 - `product-words.test.ts`: no product surface says an engine's word
   (`AGENTS.md` § Rules that matter), or the file is an `ALLOWED` row.
-- `remote-media.test.ts`: the library tab's, the Mac's and the phone's editor
-  content policies let no item draw from the web.
 
-`src/repo.ts` is the one tree walk they share: pnpm's workspaces, a
+`src/repo.ts` is the tree walk a guard reads through: pnpm's workspaces, a
 workspace's source files, and `sourceOf`, which drops full-line comments.
 
 ```sh
