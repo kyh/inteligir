@@ -101,6 +101,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **The agent panel is the account's threads.** A conversation is the cell's rows, the same on
   every device, a send carrying the screen it leaves from, since an agent the device runs needs a
   model credential on every device. `apps/web/src/library/agent/agent-panel.tsx`.
+- **An approval is answered when its thread says so, and its card holds only while the answer is on
+  its way.** Each waiting approval owns its `respond` mutation, whose refusal hands the options
+  back, since a card with a status of its own reads answered over an answer the cell refused.
+  `apps/web/src/library/agent/agent-panel.tsx`.
 - **Tidy my library is a request from Unsorted, and the filing rules are the cell's.** The request
   never says whether rules exist, since every turn carries the rules the cell read for it.
   `apps/web/src/library/agent/tidy-library.ts`.

@@ -194,6 +194,16 @@ const gone = async (): Promise<void> => {
   });
 };
 
+// a delete of one item, waiting on the person
+const deleteAsked = (idx: number): ThreadEventRow =>
+  row(idx, {
+    input: { ids: ["x"] },
+    name: "delete_items",
+    toolUseId: "toolu_1",
+    type: "approval.asked",
+    until: AT + 600_000,
+  });
+
 describe("the agent panel's conversation", () => {
   it("answers an approval by the event that asked it", async () => {
     const { calls, library } = fakePageLibrary({
@@ -201,16 +211,7 @@ describe("the agent panel's conversation", () => {
         path === "library.history.list"
           ? { changeSets: [], cursor: null }
           : { status: "running", threadId: THREAD },
-      events: [
-        row(0, { text: "Bin the draft.", type: "user.message" }),
-        row(1, {
-          input: { ids: ["x"] },
-          name: "delete_items",
-          toolUseId: "toolu_1",
-          type: "approval.asked",
-          until: AT + 600_000,
-        }),
-      ],
+      events: [row(0, { text: "Bin the draft.", type: "user.message" }), deleteAsked(1)],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
     renderOnLibrary(panel(), library);
@@ -220,6 +221,55 @@ describe("the agent panel's conversation", () => {
         { eventId: "e1", result: "allow", threadId: THREAD },
       ]);
     });
+  });
+
+  it("holds an approval's options while its answer is on the way, and hands them back when it is refused", async () => {
+    const refused = vi.spyOn(toast, "error");
+    const answers = [deferred<object>(), deferred<object>()];
+    const { calls, library } = fakePageLibrary({
+      answer: async ({ path }) =>
+        path === "library.agent.respond"
+          ? await answers[callsTo(calls, path).length - 1]?.promise
+          : { changeSets: [], cursor: null },
+      events: [deleteAsked(0)],
+      threads: [{ ...thread, status: "awaiting_approval" }],
+    });
+    renderOnLibrary(panel(), library);
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    fireEvent.click(approve);
+    await waitFor(() => {
+      expect(heldDown(cancel)).toBe(true);
+    });
+    fireEvent.click(cancel);
+    answers[0]?.reject(
+      createORPCErrorFromJson({
+        code: "NOT_FOUND",
+        data: undefined,
+        defined: true,
+        message: "That conversation is gone.",
+      }),
+    );
+    await waitFor(() => {
+      expect(heldDown(approve)).toBe(false);
+    });
+    expect(refused).toHaveBeenCalledWith("That conversation is gone.");
+    expect(approve.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(cancel);
+    answers[1]?.resolve({ status: "running", threadId: THREAD });
+    await waitFor(() => {
+      expect(cancel.getAttribute("aria-pressed")).toBe("true");
+    });
+    await act(async () => {
+      await delay(0);
+    });
+    // answered, and held until the thread drops the card
+    expect(heldDown(approve)).toBe(true);
+    expect(callsTo(calls, "library.agent.respond")).toStrictEqual([
+      { eventId: "e0", result: "allow", threadId: THREAD },
+      { eventId: "e0", result: "deny", threadId: THREAD },
+    ]);
   });
 
   it("shows the whole address before the person allows a link to be saved", async () => {
@@ -295,13 +345,7 @@ describe("the agent panel's conversation", () => {
         row(0, { text: "File these.", type: "user.message" }),
         row(1, { reason: "done", turn: 1, type: "turn.ended" }),
         row(2, { text: "Bin the draft.", type: "user.message" }),
-        row(3, {
-          input: { ids: ["x"] },
-          name: "delete_items",
-          toolUseId: "toolu_1",
-          type: "approval.asked",
-          until: AT + 600_000,
-        }),
+        deleteAsked(3),
       ],
       threads: [{ ...thread, status: "awaiting_approval" }],
     });
