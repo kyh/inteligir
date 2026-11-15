@@ -40,6 +40,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **A directive the dialect does not name is its text, and typed text stays text.** An unknown
   directive is restored to the bytes that wrote it, and a `:` is escaped only before `date` or
   `formula`, so `10:30` stays as typed. `packages/editor/src/markdown/md-text-safety.test.ts`.
+- **A directive's name is spelled once, and the rules switch over the names with no default.** The
+  plugins restore what the list does not name and the rules read what it does, so a name added to
+  one alone fails typecheck, where a default lost the block's fence lines.
+  `packages/editor/src/markdown/directive-names.ts`.
 - **The dialect has no JSX, and raw HTML is its text.** Its blocks are remark-directive containers
   and a tag is the text it spells, since an MDX tokenizer or a raw html node is a second spelling
   the editor cannot edit. `packages/editor/src/markdown/md-plugins.ts`.

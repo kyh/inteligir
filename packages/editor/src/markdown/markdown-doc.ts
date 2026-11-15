@@ -15,9 +15,10 @@ import type { MarkdownRead, ReadOptions } from "@repo/editor/markdown/md-read";
 import {
   ARTICLE_SECTION_KEY,
   markListNesting,
-  nestInLists,
   pruneEmptyEquations,
 } from "@repo/editor/markdown/md-rules";
+
+import { nestInLists } from "./mdast-lists";
 
 // fresh per call: Slate editors carry mutable state
 export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });

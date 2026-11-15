@@ -24,6 +24,7 @@ import type {
 import type { InlineMath } from "mdast-util-math";
 import { defaultHandlers } from "mdast-util-to-markdown";
 import type { Handle, Options as ToMarkdownOptions, Unsafe } from "mdast-util-to-markdown";
+import { ZERO_WIDTH_SPACE } from "platejs";
 import type { Plugin, Processor, Transformer } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
 import { mathFromMarkdown, mathToMarkdown } from "mdast-util-math";
@@ -38,8 +39,9 @@ import { z } from "zod";
 import { ISO_DATE_PATTERN } from "@repo/contract/iso-date";
 import { ALERT_VARIANTS, alertVariantSchema } from "@repo/contract/library/library-nodes";
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
-import { nestInLists } from "@repo/editor/markdown/md-rules";
 
+import { containerDirectiveSchema, textDirectiveSchema } from "./directive-names";
+import { nestInLists } from "./mdast-lists";
 import { isMdastRoot } from "./mdast-nodes";
 
 declare module "mdast" {
@@ -48,10 +50,6 @@ declare module "mdast" {
     alert?: AlertVariant;
   }
 }
-
-// the directives the dialect reads; any other is the text it was written as
-const CONTAINER_DIRECTIVES = new Set(["article", "column", "columns", "tab", "tabs", "toggle"]);
-const TEXT_DIRECTIVES = ["date", "formula"] as const;
 
 const ISO_DATE_RE = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
 
@@ -65,16 +63,17 @@ const labelText = (node: { children: readonly PhrasingContent[] }): string =>
 // source
 const readableText = (node: TextDirective): boolean => {
   const attributes = node.attributes ?? {};
-  switch (node.name) {
+  switch (textDirectiveSchema.safeParse(node.name).data) {
     case "date": {
       return Object.keys(attributes).length === 0 && ISO_DATE_RE.test(labelText(node));
     }
     case "formula": {
       return z.string().safeParse(attributes.source).success;
     }
-    default: {
+    case undefined: {
       return false;
     }
+    // no default
   }
 };
 
@@ -123,7 +122,10 @@ const restoreUnknownDirectives = (tree: Root, source: string): void => {
       parent.children.splice(index, 1, paragraphOf(sourceOf(node, source) ?? `::${node.name}`));
       return [SKIP, index + 1];
     }
-    if (node.type === "containerDirective" && !CONTAINER_DIRECTIVES.has(node.name)) {
+    if (
+      node.type === "containerDirective" &&
+      !containerDirectiveSchema.safeParse(node.name).success
+    ) {
       parent.children.splice(index, 1, ...containerAsText(node, source));
       return index;
     }
@@ -138,7 +140,7 @@ const isStockColonEntry = (entry: Unsafe): boolean =>
   entry.character === ":" && entry.before === "[^:]" && entry.atBreak !== true;
 
 const DIALECT_COLON: Unsafe = {
-  after: `(?:${TEXT_DIRECTIVES.join("|")})[\\[{]`,
+  after: `(?:${textDirectiveSchema.options.join("|")})[\\[{]`,
   before: "[^:]",
   character: ":",
   inConstruct: ["phrasing"],
@@ -303,7 +305,9 @@ const listItemEmptyTodo: Handle = (node: ListItem, parent, state, info) => {
     head?.type === "paragraph" &&
     head.children.every((child) => child.type === "text" && child.value === "");
   return gfmListItem(
-    empty ? { ...node, children: [{ ...head, children: [textNode("​")] }, ...rest] } : node,
+    empty
+      ? { ...node, children: [{ ...head, children: [textNode(ZERO_WIDTH_SPACE)] }, ...rest] }
+      : node,
     parent,
     state,
     info,
