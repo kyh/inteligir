@@ -27,7 +27,7 @@ export const savedLink = async (url: string): Promise<SavedLink> => {
   const accountId = newAccountId();
   const saved = await inCell(
     cellOf(accountId),
-    async (state) => await cellIn(state, { settle: "skip" }).client.items.saveLink({ url }),
+    async (state) => await cellIn(state).client.items.saveLink({ url }),
   );
   return {
     accountId,

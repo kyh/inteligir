@@ -240,12 +240,12 @@ describe("what a conversation's object asks of its cell", () => {
     },
   );
 
-  it("lands a push once by its sequence, and tells the sockets only the reply being written", async () => {
+  it("lands a push once by its sequence, telling the sockets its thread moved, and the reply being written", async () => {
     const account = agentAccount();
     const threadId = crypto.randomUUID();
     await openTurnInCell(account, threadId, "Open.");
     const frames: LibrarySocketFrame[] = [];
-    await inCell(account.cell, async (state) => {
+    await inCell(account.cell, (state) => {
       const cell = cellIn(state, { frames });
       const push: PushRequest = {
         events: [{ text: "Said once.", type: "agent.message" }],
@@ -253,8 +253,8 @@ describe("what a conversation's object asks of its cell", () => {
         threadId,
         turn: 1,
       };
-      await expect(landPush(cell, push)).resolves.toStrictEqual({ ok: true, value: null });
-      await expect(landPush(cell, push)).resolves.toStrictEqual({ ok: true, value: null });
+      expect(landPush(cell, push)).toStrictEqual({ ok: true, value: null });
+      expect(landPush(cell, push)).toStrictEqual({ ok: true, value: null });
       expect(showPreview(cell, { text: "Said on", threadId, turn: 1 })).toStrictEqual({
         ok: true,
         value: null,
@@ -266,7 +266,10 @@ describe("what a conversation's object asks of its cell", () => {
       threadId,
     );
     expect(events).toStrictEqual([{ event_id: `${threadId}:1:0`, type: "agent.message" }]);
-    expect(frames).toStrictEqual([{ text: "Said on", threadId, type: "preview" }]);
+    expect(frames).toStrictEqual([
+      { folders: false, items: [], threads: [threadId], type: "moved" },
+      { text: "Said on", threadId, type: "preview" },
+    ]);
   });
 
   it("does not give back a turn the person stopped, and gives back one Claude could not be reached for", async () => {
@@ -275,13 +278,13 @@ describe("what a conversation's object asks of its cell", () => {
     await openTurnInCell(account, stopped, "Stopped.");
     await openTurnInCell(account, unreachable, "Unreachable.");
     await expect(usageToday(account)).resolves.toStrictEqual({ turns: 2 });
-    await inCell(account.cell, async (state) => {
+    await inCell(account.cell, (state) => {
       const cell = cellIn(state);
       for (const [threadId, reason] of [
         [stopped, "cancelled"],
         [unreachable, "unavailable"],
       ] as const) {
-        await landPush(cell, {
+        landPush(cell, {
           events: [{ reason, turn: 1, type: "turn.ended" }],
           seq: 1,
           threadId,

@@ -4,7 +4,6 @@
 // write did so far rolls back; it is caught at the transaction's edge and never leaves the cell as
 // an exception.
 
-import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { conflictCurrentSchema, editRefusalSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
@@ -38,10 +37,8 @@ export type CellRefusal =
   // it goes again by the note
   | { readonly kind: "note-opened"; readonly itemId: string };
 
-// `moved` is what the write moved, which the sockets are told once it commits, or null when it
-// moved nothing
 export type CellResult<T> =
-  | { readonly ok: true; readonly value: T; readonly moved: MovedFrame | null }
+  | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly refusal: CellRefusal };
 
 export class RefusedWriteError extends Error {

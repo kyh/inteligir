@@ -8,6 +8,7 @@ import {
   clockAt,
   createItem,
   cellIn,
+  headOf,
   inCell,
   landedValue,
   person,
@@ -94,7 +95,7 @@ describe("a write to the library cell", () => {
         kind: "conflict",
       });
       // the whole write landed nothing: the head did not move, and the description is as it was
-      expect(library.head()).toBe(2);
+      expect(headOf(library)).toBe(2);
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { description: null, title: "Edited" },
       });
@@ -139,8 +140,8 @@ describe("a write to the library cell", () => {
         opId,
       });
       expect(landedValue(first).item.seq).toBe(1);
-      expect(again).toStrictEqual({ moved: null, ok: true, value: landedValue(first) });
-      expect(library.head()).toBe(1);
+      expect(again).toStrictEqual({ ok: true, value: landedValue(first) });
+      expect(headOf(library)).toBe(1);
     });
   });
 
@@ -186,7 +187,7 @@ describe("a write to the library cell", () => {
         id: newItemId(),
       });
       expect(refusalOf(refused)).toStrictEqual({ kind: "too-large" });
-      expect(library.head()).toBe(0);
+      expect(headOf(library)).toBe(0);
     });
   });
 
@@ -331,7 +332,6 @@ describe("a write to the library cell", () => {
       expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
       expect(settled).toStrictEqual({
-        moved: null,
         ok: true,
         value: { settled: true },
       });
@@ -374,7 +374,7 @@ describe("change sets and undo", () => {
   it("joins a person's writes into one set until 15 s of quiet, then seals it with its after", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const { alarmAt, library } = cellIn(state, { clock });
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -392,7 +392,7 @@ describe("change sets and undo", () => {
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBeNull();
       expect(after()).toBeNull();
-      expect(library.nextJobAt()).toBe(start + 25_000);
+      expect(alarmAt()).toBe(start + 25_000);
       clock.now = start + 25_000;
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBe(start + 25_000);
@@ -403,7 +403,7 @@ describe("change sets and undo", () => {
   it("seals a person's set a minute after its first write however busy, and opens the next", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const { alarmAt, library } = cellIn(state, { clock });
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -416,7 +416,7 @@ describe("change sets and undo", () => {
         retitle(library, person(), itemId, title, next);
         title = next;
       }
-      expect(library.nextJobAt()).toBe(start + 60_000);
+      expect(alarmAt()).toBe(start + 60_000);
       clock.now = start + 60_000;
       library.runDueJobs(() => {});
       clock.now = start + 61_000;

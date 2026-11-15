@@ -15,7 +15,7 @@ const ORIGIN = "https://cell.test";
 
 // the library's rows over the cell's handler, with a cap on what the library may hold
 const linkIn = (state: DurableObjectState, bytesCap: number) => {
-  const { context } = cellIn(state, { bytesCap, clock: clockAt(), settle: "skip" });
+  const { context } = cellIn(state, { bytesCap, clock: clockAt() });
   const serve = async (request: Request): Promise<Response> =>
     (await serveLibraryRpc(request, context)) ?? new Response("not found", { status: 404 });
   // a client reads a refusal's code and data from its body, and the status only the response holds

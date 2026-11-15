@@ -1,10 +1,11 @@
 // The account's cell as one wake holds it: one handle on its storage, the engine over it with the
 // listing it keeps, each item's note, the built-in agent over the library's own procedures, and a
-// call's context for whoever it is by. Its Durable Object opens it once a wake
-// (`./library-do`), and a suite opens it the same way inside the cell, over the clock, the cap or
-// the sockets it swaps, so no suite wires a cell the object does not.
+// call's context for whoever it is by. Its Durable Object opens it once a wake and once more for
+// each run of its alarm, over the frames that run merges (`./library-do`), and a suite opens it the
+// same way inside the cell, over the clock, the cap, the sockets or the alarm it swaps, so no suite
+// wires a cell the object does not.
 
-import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+import type { LibrarySocketFrame, MovedFrame } from "@repo/contract/library/library-socket";
 
 import { runAgentTool } from "../agent/agent-tools";
 import { turnActorOf } from "../agent/agent-turns";
@@ -16,7 +17,6 @@ import { cellDbOf } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { cellIds } from "./cell-ids";
 import type { ImportHost } from "./cell-import-host";
-import { settleCommit } from "./cell-library";
 import { tellSockets } from "./cell-sockets";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
@@ -37,12 +37,15 @@ const libraryStorageCap = (env: Env): number => {
   return Number(cap);
 };
 
-// what a suite stands in for: the platform's clock, the deployment's cap, and the sockets the
-// agent's frames go to
+// what a suite or an alarm's run stands in for: the platform's clock, the deployment's cap, the
+// sockets every frame goes to, where a write's own goes in their place, and the platform's alarm,
+// set to a time or to none
 interface CellPorts {
   readonly now?: (() => number) | undefined;
   readonly bytesCap?: number | undefined;
   readonly tell?: ((frame: LibrarySocketFrame) => void) | undefined;
+  readonly moved?: ((frame: MovedFrame) => void) | undefined;
+  readonly arm?: ((at: number | null) => void) | undefined;
 }
 
 // the cell as the agent's turns and an import's runs each need it, and what every door reads
@@ -50,7 +53,7 @@ export interface Cell extends AgentCell, ImportHost {
   readonly db: CellDb;
   // each item's note, which this cell alone names for the items its rows hold
   readonly notes: NoteReach;
-  // a call's cell: whom its writes are by, and what follows its commit
+  // a call's cell, and whom its writes are by
   readonly contextFor: (principal: Principal) => CellContext;
 }
 
@@ -68,8 +71,28 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
   const accountId = cellAccountId(ctx.id.name);
   const now = ports.now ?? Date.now;
   const db = cellDbOf(ctx.storage);
+  const tell =
+    ports.tell ??
+    ((frame) => {
+      tellSockets(ctx, frame);
+    });
+  const arm =
+    ports.arm ??
+    ((at) => {
+      void (at === null ? ctx.storage.deleteAlarm() : ctx.storage.setAlarm(at));
+    });
   const library = openLibraryEngine({
     bytesCap: ports.bytesCap ?? libraryStorageCap(env),
+    // Neither awaits: storage calls with no await between them commit as one
+    // (developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/), so a
+    // write never stands without the alarm for its jobs, and the output gate holds its frame
+    // until both are on disk
+    committed: (moved, nextJobAt) => {
+      if (moved !== null) {
+        (ports.moved ?? tell)(moved);
+      }
+      arm(nextJobAt);
+    },
     db,
     ids: cellIds(now),
     now,
@@ -81,7 +104,6 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
       agent: cell,
       library,
       notes: cell.notes,
-      settle: cell.settle,
     }),
     db,
     durable: async () => {
@@ -99,12 +121,7 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
         cell.contextFor(agentPrincipal(accountId, request)),
         request,
       ),
-    settle: async (result) => await settleCommit(ctx, env, library, result),
-    tell:
-      ports.tell ??
-      ((frame) => {
-        tellSockets(ctx, frame);
-      }),
+    tell,
   };
   return cell;
 };

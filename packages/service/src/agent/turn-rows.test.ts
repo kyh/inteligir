@@ -36,14 +36,8 @@ const statusesAfter = async (
 ): Promise<(string | null)[]> => {
   const statuses: (string | null)[] = [];
   for (const [index, event] of events.entries()) {
-    await inCell(account.cell, async (state) => {
-      const cell = cellIn(state);
-      await landPush(cell, {
-        events: [event],
-        seq: index + 1,
-        threadId,
-        turn: 1,
-      });
+    await inCell(account.cell, (state) => {
+      landPush(cellIn(state), { events: [event], seq: index + 1, threadId, turn: 1 });
     });
     statuses.push(await threadStatus(account, threadId));
   }

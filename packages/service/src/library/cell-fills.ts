@@ -1,15 +1,15 @@
 // The cloud's reading of the pages the library saved unread. A write that lands a link waiting for
 // its page queues the reading in the same transaction, as a `fill` row of the jobs table, so a
-// reading is never asked for a write that did not land and never lost by one that did; once the
-// write commits the cell sends it to the fill queue (`packages/service/fill-queues.ts`), and the
-// alarm sends again any row still waiting a minute later, a send that failed or a cell evicted
-// before it sent. The consumer reads the page and hands it back (`../fill/fill-consumer`), and it
-// lands here as a change set of its own: only the article and the facts a fill owns, so the
-// person's note and fields are never touched, and only on an item still waiting for that reading at
-// that address, so a message met twice lands once. A page whose redirects end at another address is
-// read into the item that waited for it, which keeps the address it was saved at. An item whose
-// note has opened takes the article in its note, which the cell's object sends there before the
-// landing (`fillForNote`).
+// reading is never asked for a write that did not land and never lost by one that did. The row is
+// due at once, so the write's commit sets the alarm for now, and the alarm alone sends it to the
+// fill queue (`packages/service/fill-queues.ts`), again a minute on while the row still waits: a
+// send that failed, or a cell evicted before the queue took it. The consumer reads the page and
+// hands it back (`../fill/fill-consumer`), and it lands here as a change set of its own: only the
+// article and the facts a fill owns, so the person's note and fields are never touched, and only on
+// an item still waiting for that reading at that address, so a message met twice lands once. A page
+// whose redirects end at another address is read into the item that waited for it, which keeps the
+// address it was saved at. An item whose note has opened takes the article in its note, which the
+// cell's object sends there before the landing (`fillForNote`).
 
 import { and, eq, sql } from "drizzle-orm";
 
@@ -141,7 +141,7 @@ export interface ClaimedFill {
 }
 
 // the readings waiting to be sent, each put off a minute, so a send that never answers is sent
-// again by the alarm and two commits in flight do not both send one
+// again by the alarm's next run
 export const claimFills = (db: CellDb, now: number): ClaimedFill[] =>
   dueJobs(db, now, ["fill"]).flatMap((job) => {
     const { heldBy, ...request } = job.payload;

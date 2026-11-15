@@ -1,7 +1,7 @@
 // A library cell under test: a fresh one per test, opened inside it as its object opens it
-// (`../library/open-cell`) over the clock, the bindings and the cap a suite states, and items
-// built by hand. The cell is the real Durable Object, so every statement meets a SQLite Durable
-// Object's own limits.
+// (`../library/open-cell`) over the clock, the bindings and the cap a suite states, its alarm held
+// unless the suite asks for the platform's, and items built by hand. The cell is the real Durable
+// Object, so every statement meets a SQLite Durable Object's own limits.
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
@@ -19,10 +19,9 @@ import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
 import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
-import { landedSchema } from "../library/library-engine";
+import { landedSchema, libraryHead } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
 import { libraryRouter } from "../library/library-router";
-import type { CellContext } from "../library/library-router";
 import { openCell } from "../library/open-cell";
 
 export const newAccountId = (): string => crypto.randomUUID();
@@ -43,17 +42,24 @@ export interface CellUnderTest {
   readonly env?: Env;
   // what the library may hold
   readonly bytesCap?: number;
-  // hears what the agent tells the sockets
+  // hears every frame the cell tells the sockets
   readonly frames?: LibrarySocketFrame[];
-  // `skip` leaves what follows a commit (the sockets told, the readings sent, the alarm set) to
-  // the suite, which runs each by hand
-  readonly settle?: "commit" | "skip";
+  // `platform` sets the object's own alarm as each write commits. Left out, the cell holds it: a
+  // suite runs the cell's jobs itself, by its own clock, and `alarmAt` says when it would ring
+  readonly alarm?: "platform";
 }
 
 // the cell as its object opens it, and the library's procedures as the account's laptop calls them
 export const cellIn = (state: DurableObjectState, options: CellUnderTest = {}) => {
   const { bytesCap, clock, frames } = options;
+  let alarmAt: number | null = null;
   const cell = openCell(state, options.env ?? env, {
+    arm:
+      options.alarm === "platform"
+        ? undefined
+        : (at) => {
+            alarmAt = at;
+          },
     bytesCap,
     now: clock === undefined ? undefined : () => clock.now,
     tell:
@@ -64,15 +70,16 @@ export const cellIn = (state: DurableObjectState, options: CellUnderTest = {}) =
             tellSockets(state, frame);
           },
   });
-  const laptop = cell.contextFor({
+  const context = cell.contextFor({
     accountId: cell.accountId,
     actor: { door: "page", kind: "session", sessionId: "laptop-1" },
   });
-  const context: CellContext =
-    options.settle === "skip"
-      ? { ...laptop, settle: async (result) => await Promise.resolve(result) }
-      : laptop;
-  return { ...cell, client: createRouterClient(libraryRouter, { context }), context };
+  return {
+    ...cell,
+    alarmAt: () => alarmAt,
+    client: createRouterClient(libraryRouter, { context }),
+    context,
+  };
 };
 
 // the engine inside a fresh cell, its result handed back out
@@ -138,6 +145,9 @@ export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[]
   }
   return held.blocks.map((stored) => stored.block);
 };
+
+// the last sequence number a write took
+export const headOf = (library: LibraryEngine): number => landedValue(library.read(libraryHead));
 
 // an item's row as the cell holds it, or null for none
 export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>

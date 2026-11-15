@@ -81,7 +81,7 @@ const heldRefusal = (held: NoteHeld): CellRefusal =>
 // note keeps the turn's log by it; any other writer's edit is logged nowhere
 const logSetOf = (library: LibraryEngine, actor: CellActor): CellResult<string | null> => {
   if (actor.kind !== "agent") {
-    return { moved: null, ok: true, value: null };
+    return { ok: true, value: null };
   }
   const joined = library.land(actor, { answer: joinedSchema, opId: undefined }, (scope) => ({
     changeSetId: scope.set().id,
@@ -96,7 +96,7 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
     return prior;
   }
   if (prior.value !== null) {
-    return { moved: null, ok: true, value: prior.value };
+    return { ok: true, value: prior.value };
   }
   const actor = deps.actor();
   const logSet = logSetOf(library, actor);

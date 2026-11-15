@@ -405,7 +405,7 @@ describe("a message the consumer meets", () => {
 
     const deleted = await savedLink("https://pages.example/deleted");
     await inCell(cellOf(deleted.accountId), async (state) => {
-      await cellIn(state, { settle: "skip" }).client.items.delete({ ids: [deleted.itemId] });
+      await cellIn(state).client.items.delete({ ids: [deleted.itemId] });
     });
     await expect(deliver(deleted.job)).resolves.toMatchObject({ acked: true });
     expect(web.asked).toHaveLength(asked);

@@ -12,7 +12,7 @@ const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8A
 // the cell's router as a laptop calls it, beside the engine and the clock it runs on
 const laptopIn = (state: DurableObjectState) => {
   const clock = clockAt();
-  const { client, library } = cellIn(state, { clock, settle: "skip" });
+  const { client, library } = cellIn(state, { clock });
   return { clock, engine: library, library: client };
 };
 

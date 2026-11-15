@@ -1,7 +1,6 @@
 // The cloud's reading as the cell lands it: only the article and the facts a fill owns, in a
 // change set of its own, over an item still waiting for it, at the address it was saved at; and
-// the reading's ask kept as a job row, sent once the write commits and sent again until the queue
-// took it.
+// the reading's ask kept as a job row, which the alarm sends, and again until the queue took it.
 
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
@@ -11,7 +10,14 @@ import type { FillJob } from "../fill/fill-job";
 import type { FillLanding } from "../fill/fill-landing";
 import { pngOf } from "../fill/test-support/fill-cell";
 import { paragraph } from "@repo/contract/test-support/library-items";
-import { cellIn, cellOf, clockAt, inCell, newAccountId } from "../test-support/library-cell";
+import {
+  cellIn,
+  cellOf,
+  clockAt,
+  headOf,
+  inCell,
+  newAccountId,
+} from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
 import { readBlobRow } from "./cell-blobs";
 import { sendFills } from "./cell-library";
@@ -64,7 +70,7 @@ describe("a page's reading, landed", () => {
   it("lands only the article and the facts a fill owns, in a change set of its own", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const saved = await library.items.saveLink({
         note: "For Tuesday.",
         tags: ["reading"],
@@ -97,7 +103,7 @@ describe("a page's reading, landed", () => {
   it("never touches the person's note or a title they gave while it waited", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const saved = await library.items.saveLink({
         note: "First thought.",
         url: "https://pages.example/b",
@@ -128,7 +134,7 @@ describe("a page's reading, landed", () => {
   it("replaces a refreshed page's article", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/c";
       const saved = await library.items.saveLink({ url });
       const { id } = saved.item;
@@ -146,7 +152,7 @@ describe("a page's reading, landed", () => {
   it("reads a page whose redirects end at another item's address into the item that waited", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const final = "https://pages.example/final";
       const holder = await library.items.saveLink({ url: final });
       engine.landReading(
@@ -176,7 +182,7 @@ describe("a page's reading, landed", () => {
   it("asks for the reading again when a link still waiting comes back from Deleted", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/restored";
       const saved = await library.items.saveLink({ url });
       await sendFills(state, env, engine);
@@ -194,7 +200,7 @@ describe("a page's reading, landed", () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const clock = clockAt(Date.now());
-      const { client: library, library: engine } = cellIn(state, { clock, settle: "skip" });
+      const { client: library, library: engine } = cellIn(state, { clock });
       const saved = await library.items.saveLink({ url: "https://pages.example/undone" });
       await sendFills(state, env, engine);
       clock.now += 120_000;
@@ -216,7 +222,7 @@ describe("a page's reading, landed", () => {
   it("asks nothing for a link that stays in Deleted, or one already read", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/read";
       const saved = await library.items.saveLink({ url });
       engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]), null);
@@ -241,11 +247,11 @@ describe("a page's reading, landed", () => {
   it("lands nothing on an item that no longer waits for the reading", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/d";
       const saved = await library.items.saveLink({ url });
       await library.items.delete({ ids: [saved.item.id] });
-      const head = engine.head();
+      const head = headOf(engine);
       expect(
         engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "x")]), null),
       ).toMatchObject({
@@ -260,14 +266,14 @@ describe("a page's reading, landed", () => {
           null,
         ),
       ).toMatchObject({ value: { kind: "stale" } });
-      expect(engine.head()).toBe(head + 1);
+      expect(headOf(engine)).toBe(head + 1);
     });
   });
 
   it("lets go at the alarm's next run the cover it kept, once it lands nowhere", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const db = cellDbOf(state.storage);
       const png = { mime: "image/png" };
       const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
@@ -298,7 +304,7 @@ describe("a page's reading, landed", () => {
   it("says a failure in the item, its text untouched", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/f";
       const saved = await library.items.saveLink({ url });
       engine.landReading(
@@ -323,7 +329,7 @@ describe("a page's reading, landed", () => {
     const url = "https://pages.example/g";
     const saved = await inCell(
       cellOf(accountId),
-      async (state) => await cellIn(state, { settle: "skip" }).client.items.saveLink({ url }),
+      async (state) => await cellIn(state).client.items.saveLink({ url }),
     );
     await expect(
       cellOf(accountId).landFill({
@@ -332,7 +338,7 @@ describe("a page's reading, landed", () => {
         sentence: "x".repeat(20_000),
         url,
       }),
-    ).resolves.toStrictEqual({ moved: null, ok: true, value: { kind: "stale" } });
+    ).resolves.toStrictEqual({ ok: true, value: { kind: "stale" } });
     const fields = await inCell(
       cellOf(accountId),
       (state) => stateOf(state, saved.item.id)?.fields,
@@ -362,7 +368,7 @@ describe("Undo of a saved link, once its page is read", () => {
   it("takes a link the reading named to Deleted, a fill being no person", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/named";
       const { item } = await library.items.saveLink({ url });
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
@@ -378,7 +384,7 @@ describe("Undo of a saved link, once its page is read", () => {
   it("takes a link that answered with a file to Deleted", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/figure.png";
       const originalSha = await uploadedFile(engine, accountId, {
         bytes: pngOf(800, 600),
@@ -408,7 +414,7 @@ describe("Undo of a saved link, once its page is read", () => {
   it("keeps a link renamed once the reading named it", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/renamed";
       const { item } = await library.items.saveLink({ url });
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
@@ -428,7 +434,7 @@ describe("Undo of a saved link, once its page is read", () => {
   it("keeps a link renamed while it waited, the reading leaving that name", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state, { settle: "skip" });
+      const { client: library, library: engine } = cellIn(state);
       const url = "https://pages.example/waited";
       const { item } = await library.items.saveLink({ url });
       const renamed = engine.write(PHONE, {
@@ -462,7 +468,7 @@ describe("Undo of a saved link, once its page is read", () => {
       const accountId = newAccountId();
       await inCell(cellOf(accountId), async (state) => {
         const clock = clockAt();
-        const { client: library, library: engine } = cellIn(state, { clock, settle: "skip" });
+        const { client: library, library: engine } = cellIn(state, { clock });
         const url = "https://pages.example/final";
         const holder = await library.items.saveLink({ url });
         engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]), null);
@@ -484,7 +490,7 @@ describe("a reading's ask", () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const clock = clockAt();
-      const { client: library, library: engine } = cellIn(state, { clock, settle: "skip" });
+      const { client: library, library: engine } = cellIn(state, { clock });
       const saved = await library.items.saveLink({ url: "https://pages.example/h" });
       expect(fillJobs(state)).toStrictEqual([
         { id: `fill:${saved.item.id}`, payload: expect.any(String) },
@@ -493,7 +499,7 @@ describe("a reading's ask", () => {
       expect(claimed.map((fill) => fill.request)).toStrictEqual([
         { coverHint: null, itemId: saved.item.id, url: "https://pages.example/h" },
       ]);
-      // claimed, so neither a second commit nor the alarm sends it again at once
+      // claimed, so the alarm's next run does not send it again at once
       expect(engine.claimDueFills()).toStrictEqual([]);
       clock.now += 60_000;
       const again = engine.claimDueFills();
@@ -507,10 +513,10 @@ describe("a reading's ask", () => {
     });
   });
 
-  it("is sent to the fill queue after the commit, and kept for the alarm when the send fails", async () => {
+  it("is sent to the fill queue by the alarm, and kept for its next run when the send fails", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client, library } = cellIn(state, { settle: "skip" });
+      const { client, library } = cellIn(state);
       await client.items.saveLink({ url: "https://pages.example/i" });
       const sent: FillJob[] = [];
       const refusing: Queue<FillJob> = {

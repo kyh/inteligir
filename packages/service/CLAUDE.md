@@ -67,10 +67,19 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   only through `ctx.exports` under a name a verified credential or its own cell
   gives.** Naming an object creates it, so no namespace is bound; a retired
   class stays a `deleted` tombstone. `apps/web/cloudflare.config.ts`.
-- **The cell is opened once a wake, by the one `openCell` its object and its
-  suites both call.** Opened per call it rebuilds its handle and every closure
-  on each event, and a suite that wires its own cell drifts from the object's.
+- **The cell is opened once a wake, and once more a run of its alarm, by the
+  one `openCell` its object and its suites both call.** Opened per call it
+  rebuilds its handle and every closure on each event, and a suite that wires
+  its own cell drifts from the object's.
   `packages/service/src/library/open-cell.ts`.
+- **A write settles itself: its transaction tells the sockets and sets the
+  alarm in the turn it commits.** A follow-up each caller owes is one a new
+  write forgets, and an alarm set after an await is lost with the isolate.
+  `packages/service/src/library/library-engine.ts`.
+- **An alarm's run tells the sockets once, its writes' frames merged on a cell
+  of its own.** An import's page would tell a frame an item, and a flag on the
+  wake's cell would hold a call's frame for the run's ten seconds.
+  `packages/service/src/library/library-do.ts`.
 - **A library write changes fields alone, only on the bases it names, in one
   transaction.** Last write wins loses an edit unseen, and a whole-item base
   makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.
@@ -144,8 +153,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 ## Fills
 
 - **A saved link is read off the fill queue, asked for in the write that made it
-  wait.** A send inside the write asks for a reading the write may roll back,
-  and a page's seconds of CPU on the alarm hold every write.
+  wait and sent by the alarm alone.** A send inside the write asks for a reading
+  the write may roll back, a second sender races the alarm for the row, and a
+  page's seconds of CPU on the alarm hold every write.
   `packages/service/src/library/cell-fills.ts`.
 - **The cloud's fetch is the platform's, each hop judged by how its address is
   spelled.** A Worker resolves no name, so `fetchPage` refuses a private

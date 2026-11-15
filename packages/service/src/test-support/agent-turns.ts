@@ -37,14 +37,18 @@ export const agentAccount = (): AgentAccount => {
 
 export type LaptopClient = ReturnType<typeof cellIn>["client"];
 
-// the account's library as its laptop calls it, inside its cell; `env` stands in for the
+// the account's library as its laptop calls it, inside its cell, on the platform's alarm, which
+// hands a turn over again and sends the readings it asked for; `env` stands in for the
 // deployment's bindings the call reads, and `frames` hears what the call tells the sockets
 export const asLaptop = async <T>(
   account: AgentAccount,
   run: (client: LaptopClient, state: DurableObjectState) => Promise<T>,
   options: Pick<CellUnderTest, "env" | "frames"> = {},
 ): Promise<T> =>
-  await inCell(account.cell, async (state) => await run(cellIn(state, options).client, state));
+  await inCell(
+    account.cell,
+    async (state) => await run(cellIn(state, { ...options, alarm: "platform" }).client, state),
+  );
 
 // the person's words and a script's directive lines (tools/messages-fake/README.md), opened by a
 // line of its own, so no two tests' requests are the same bytes to the fake's per-body counters

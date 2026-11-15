@@ -33,16 +33,10 @@ import { purgeAccount } from "./account-purge";
 import { articleThenLand } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
 import { fillForNote } from "./cell-fills";
-import {
-  logJobFailure,
-  removeStrays,
-  scheduleAlarm,
-  sendFills,
-  settleStored,
-} from "./cell-library";
+import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
-import { EVERYTHING_MOVED } from "./cell-moved";
+import { collectMoved } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
 import { CELL_SCHEMA } from "./cell-db";
 import {
@@ -69,6 +63,19 @@ import type { Cell } from "./open-cell";
 
 // an alarm whose run failed outright tries again after this; a job's own failure waits longer
 const ALARM_RETRY_MS = 60_000;
+
+// the purged items' notes, emptied between two transactions; one that fails waits its turn again
+const purgeNotes = async ({ library, notes }: Cell): Promise<void> => {
+  for (const purge of library.claimNotePurges()) {
+    try {
+      await notes(purge.itemId).purge();
+      library.notePurged(purge, true);
+    } catch (error) {
+      logJobFailure(purge.job, error);
+      library.notePurged(purge, false);
+    }
+  }
+};
 
 export class LibraryDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -163,41 +170,28 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // the jobs due: the storage's own, then those that wait on R2 (strays, imports), the
-  // readings to send, and the agent's turns to hand over or ask after; whatever moved the library
-  // is told to the sockets once. The agent's writes tell what they moved as each settles, and
-  // anything else that moved it, an import's pages above all, says everything moved
+  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends: an
+  // import's page would tell the sockets a frame an item, and a call landing meanwhile tells its
+  // own at once, on the wake's cell. The storage's jobs first, the readings to send ahead of an
+  // import's page, which may run ten seconds, then what waits on R2 or another object. Every commit
+  // sets the alarm again, so the run leaves it at the earliest job still waiting
   override async alarm(): Promise<void> {
-    const { accountId, library } = this.#cell;
-    const head = library.head();
+    const moved = collectMoved();
+    const cell = openCell(this.ctx, this.env, { moved: moved.add });
     try {
-      library.runDueJobs(logJobFailure);
-      await removeStrays(this.env, accountId, library);
-      await runImports(this.#cell);
-      await sendFills(this.ctx, this.env, library);
-      await this.#purgeNotes();
-      if (library.head() !== head) {
-        tellSockets(this.ctx, EVERYTHING_MOVED);
-      }
-      await runAgentJobs(this.#cell);
-      await scheduleAlarm(this.ctx, library);
+      cell.library.runDueJobs(logJobFailure);
+      await sendFills(this.ctx, this.env, cell.library);
+      await removeStrays(this.env, cell.accountId, cell.library);
+      await runImports(cell);
+      await purgeNotes(cell);
+      await runAgentJobs(cell);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
       await this.ctx.storage.setAlarm(Date.now() + ALARM_RETRY_MS);
     }
-  }
-
-  // the purged items' notes, emptied between two transactions; one that fails waits its turn again
-  async #purgeNotes(): Promise<void> {
-    const { library, notes } = this.#cell;
-    for (const purge of library.claimNotePurges()) {
-      try {
-        await notes(purge.itemId).purge();
-        library.notePurged(purge, true);
-      } catch (error) {
-        logJobFailure(purge.job, error);
-        library.notePurged(purge, false);
-      }
+    const frame = moved.frame();
+    if (frame !== null) {
+      tellSockets(this.ctx, frame);
     }
   }
 
@@ -231,9 +225,8 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // a note's save; `gone` once the account's deletion began, so the note stops pushing
-  async projectNote(itemId: string, projection: NoteProjection): Promise<ProjectAnswer> {
-    const { library, settle } = this.#cell;
-    const result = await settle(library.projectNote(itemId, projection));
+  projectNote(itemId: string, projection: NoteProjection): ProjectAnswer {
+    const result = this.#cell.library.projectNote(itemId, projection);
     return result.ok ? result.value : "gone";
   }
 
@@ -250,8 +243,8 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // what a turn did, landed once by its sequence
-  async agentPush(request: PushRequest): Promise<CellAnswer<null>> {
-    return await landPush(this.#cell, request);
+  agentPush(request: PushRequest): CellAnswer<null> {
+    return landPush(this.#cell, request);
   }
 
   // the reply as it is written, on the sockets alone
@@ -260,15 +253,14 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // room for a file a device is about to upload to `/v1/blobs/<sha>`
-  async reserveBlob(request: UploadRequest): Promise<CellResult<UploadRoom>> {
-    const { library, settle } = this.#cell;
-    return await settle(library.reserve(request));
+  reserveBlob(request: UploadRequest): CellResult<UploadRoom> {
+    return this.#cell.library.reserve(request);
   }
 
   // the file's row once its upload is in R2, at the size R2 holds (`settleStored`)
   async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
-    const { accountId, library, settle } = this.#cell;
-    return await settle(await settleStored(this.env, accountId, library, sha));
+    const { accountId, library } = this.#cell;
+    return await settleStored(this.env, accountId, library, sha);
   }
 
   // whether the item still waits for the cloud's reading of `url`, asked before the page is read
@@ -282,17 +274,16 @@ export class LibraryDO extends DurableObject<Env> {
     const parsed = fillLandingSchema.safeParse(landing);
     if (!parsed.success) {
       console.error({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
-      return { moved: null, ok: true, value: { kind: "stale" } };
+      return { ok: true, value: { kind: "stale" } };
     }
-    const { library, notes, settle } = this.#cell;
+    const { library, notes } = this.#cell;
     const reading = parsed.data;
-    const landed = await articleThenLand(notes, {
+    return await articleThenLand(notes, {
       land: (inNote) => library.landReading(reading, inNote?.projection ?? null),
       target: () => {
         const target = library.read((db) => fillForNote(db, reading));
         return target.ok ? target.value : null;
       },
     });
-    return await settle(landed);
   }
 }

@@ -28,8 +28,7 @@ const GiB = 1024 * 1024 * 1024;
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
-const clientIn = (state: DurableObjectState, clock: Clock) =>
-  cellIn(state, { clock, settle: "skip" }).client;
+const clientIn = (state: DurableObjectState, clock: Clock) => cellIn(state, { clock }).client;
 
 // the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {
@@ -786,7 +785,6 @@ describe("the library's procedures", () => {
       const { agent } = cellIn(state, {
         clock: clockAt(),
         env: unconfigured,
-        settle: "skip",
       }).client;
       const threadId = crypto.randomUUID();
       await expect(refusalOf(agent.send({ text: "Tidy my library." }))).resolves.toMatchObject({

@@ -73,7 +73,7 @@ const items = (state: DurableObjectState) =>
 describe("a Raindrop import", () => {
   it("lands every bookmark as an unread link in one change set, the file let go after", async () => {
     const accountId = newAccountId();
-    const started = await startImport(accountId, csv(RAINDROP_EXPORT), "raindrop", true);
+    const started = await startImport(accountId, csv(RAINDROP_EXPORT), "raindrop", "platform");
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
     const job = await jobOf(accountId, started.jobId);
     expect(job).toMatchObject({
@@ -92,7 +92,7 @@ describe("a Raindrop import", () => {
       expect(landed.every((row) => row.fetch_state === "pending")).toBe(true);
       const file = landed.find((row) => row.title === "File over app");
       expect(file?.url).toBe("https://stephango.com/file-over-app");
-      const library = cellIn(state, { settle: "skip" }).client;
+      const library = cellIn(state).client;
       // its highlights, the later row's among them, fold into its note, each quoted with its own
       // note under it, a line break inside a quote kept as the editor spells one
       const { view } = await library.items.read({ id: z.string().parse(file?.id) });
@@ -171,7 +171,7 @@ describe("a Raindrop import", () => {
         ].join("\n"),
       ),
       "raindrop",
-      true,
+      "platform",
     );
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
     await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
@@ -193,7 +193,7 @@ describe("a Raindrop import", () => {
         ].join("\n"),
       ),
       "raindrop",
-      true,
+      "platform",
     );
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
     await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
@@ -209,11 +209,11 @@ describe("a Raindrop import", () => {
       accountId,
       csv(`title,url,folder\nA,https://example.com/a,R&D: Notes/${"n".repeat(300)}\n`),
       "raindrop",
-      true,
+      "platform",
     );
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
     await inCell(cellOf(accountId), async (state) => {
-      const { folders } = await cellIn(state, { settle: "skip" }).client.organize.outline();
+      const { folders } = await cellIn(state).client.organize.outline();
       expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual([
         "R&D: Notes",
         "n".repeat(FOLDER_NAME_MAX),
@@ -234,7 +234,7 @@ describe("a Raindrop import", () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       await expect(
-        cellIn(state, { settle: "skip" }).client.imports.start({
+        cellIn(state).client.imports.start({
           sha: "a".repeat(64),
           source: "raindrop",
         }),
@@ -267,7 +267,7 @@ describe("a zip of notes", () => {
         ["lone", "pdf"],
       ]);
       const beta = landed.find((row) => row.title === "Beta");
-      const alpha = await cellIn(state, { settle: "skip" }).client.items.read({
+      const alpha = await cellIn(state).client.items.read({
         id: z.string().parse(landed.find((row) => row.title === "Alpha")?.id),
       });
       expect(JSON.stringify(alpha)).toContain(z.string().parse(beta?.id));
@@ -301,7 +301,7 @@ describe("a zip of notes", () => {
     await inCell(cellOf(accountId), async (state) => {
       const landed = items(state);
       expect(landed.map((row) => row.title)).toStrictEqual(["Alpha", "board"]);
-      const { folders } = await cellIn(state, { settle: "skip" }).client.organize.outline();
+      const { folders } = await cellIn(state).client.organize.outline();
       expect(folders.map((folder) => folder.name)).toStrictEqual(["assets"]);
       const board = landed.find((row) => row.title === "board");
       expect(board?.folder_id).toBe(folders[0]?.id);
@@ -320,7 +320,7 @@ describe("a zip of notes", () => {
     );
     await runToEnd(accountId, started.jobId);
     await inCell(cellOf(accountId), async (state) => {
-      const library = cellIn(state, { settle: "skip" }).client;
+      const library = cellIn(state).client;
       await expect(library.agent.rules()).resolves.toStrictEqual({ rules: null });
       const note = items(state).find((row) => row.title === "AGENTS");
       const read = await library.items.read({ id: z.string().parse(note?.id) });
@@ -365,7 +365,7 @@ const landedFrom = async (files: Readonly<Record<string, Uint8Array>>) => {
   await inSteps(accountId, started.jobId);
   const job = await jobOf(accountId, started.jobId);
   const read = await inCell(cellOf(accountId), async (state) => {
-    const { folders } = await cellIn(state, { settle: "skip" }).client.organize.outline();
+    const { folders } = await cellIn(state).client.organize.outline();
     const names = new Map<unknown, string>(folders.map(({ id, name }) => [id, name]));
     return {
       folders: folders.map((folder) => folder.name).toSorted(),
@@ -537,7 +537,7 @@ describe("the files an import kept", () => {
       };
       await runImports(host);
       expect(filesIn(state).shas).toHaveLength(2);
-      await cellIn(state, { settle: "skip" }).client.imports.cancel({ id: started.jobId });
+      await cellIn(state).client.imports.cancel({ id: started.jobId });
       await runImports(host);
       expect(filesIn(state)).toStrictEqual({ bytes: 0, shas: [] });
     });

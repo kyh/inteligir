@@ -3,9 +3,11 @@
 // (`./cell-listing`), so the cell opens it once a wake (`./open-cell`). A write takes the library's
 // next sequence number once, stamps every row it touches with it, joins its actor's change set,
 // and keeps its answer under its `opId` for 30 days, so a client resending after a lost answer is
-// told what landed.
+// told what landed. What follows a commit is the engine's own, in the turn that committed it: the
+// sockets told what it moved and the alarm set to the earliest job, so no caller settles a write.
 
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
+import type { MovedFrame } from "@repo/contract/library/library-socket";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import {
   nextHead,
@@ -64,6 +66,7 @@ import {
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
+import type { MovedCollector } from "./cell-moved";
 import {
   bodyInNote,
   confirmSeed,
@@ -88,6 +91,9 @@ export interface LibraryEngineDeps {
   // every id the cell mints: items, blocks, change sets
   readonly ids: CellIds;
   readonly bytesCap: number;
+  // what follows every commit, in the turn that made it: what it moved, null for nothing a client
+  // reads, and when the earliest job waits, null for none
+  readonly committed: (moved: MovedFrame | null, nextJobAt: number | null) => void;
 }
 
 export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
@@ -179,9 +185,17 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, db, ids } = deps;
   const listing = holdListing();
 
-  const transaction = <T>(work: () => T): T => db.$client.transactionSync(work);
-
   const deletedAt = (): number | null => readInstant(db, "deleted_at");
+
+  // Every transaction that may write, and what follows it with no await between: the sockets told
+  // what it moved, the alarm set to the earliest job. Once the deletion began no job runs, so one
+  // a failed step left sets no alarm; the deletion's retry wipes it
+  const commit = <T>(work: (moved: MovedCollector) => T): T => {
+    const moved = collectMoved();
+    const value = db.$client.transactionSync(() => work(moved));
+    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null);
+    return value;
+  };
 
   // what the op answered when it landed, or null while it has not
   const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {
@@ -200,17 +214,16 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => {
     try {
-      return transaction((): CellResult<z.output<S>> => {
+      return commit((moved): CellResult<z.output<S>> => {
         if (deletedAt() !== null) {
           refuse({ kind: "gone" });
         }
         const now = deps.now();
         const prior = request.opId === undefined ? null : priorAnswer(request.opId, request.answer);
         if (prior !== null) {
-          return { moved: null, ok: true, value: prior };
+          return { ok: true, value: prior };
         }
         const taken: Taken = { seq: null, set: null };
-        const moved = collectMoved();
         const scope: LandingScope = {
           bytesCap,
           moved,
@@ -236,7 +249,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             .run();
           ensureJob(db, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
-        return { moved: moved.frame(), ok: true, value };
+        return { ok: true, value };
       });
     } catch (error) {
       if (error instanceof RefusedWriteError) {
@@ -316,7 +329,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // an import closes its own set
   const closeChangeSet = (changeSetId: string): void => {
-    transaction(() => {
+    commit(() => {
       sealChangeSet(db, changeSetId, deps.now());
     });
   };
@@ -342,7 +355,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }),
     );
     if (!result.ok && result.refusal.kind === "quota") {
-      transaction(() => {
+      commit(() => {
         refuseUpload(db, sha, deps.now());
       });
     }
@@ -352,7 +365,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the strays whose removal is due, each begun unless a file row or an upload's room holds its
   // sha again
   const beginStrayRemovals = (): StrayRemoval[] =>
-    transaction(() =>
+    commit(() =>
       dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
         const { sha } = job.payload;
         return beginRemoval(db, sha) ? [{ job, sha }] : [];
@@ -362,7 +375,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the removals R2 took, or the ones it failed, which wait their turn again
   const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
     const now = deps.now();
-    transaction(() => {
+    commit(() => {
       for (const removal of removals) {
         if (removed) {
           endRemoval(db, removal.sha);
@@ -373,11 +386,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  // the readings committed writes asked for, each put off a minute until the queue takes it
-  const claimDueFills = (): ClaimedFill[] => transaction(() => claimFills(db, deps.now()));
+  // the readings committed writes asked for, each put off a minute: its send's own time to land
+  const claimDueFills = (): ClaimedFill[] => commit(() => claimFills(db, deps.now()));
 
   const fillsSent = (claimed: readonly ClaimedFill[]): void => {
-    transaction(() => {
+    commit(() => {
       sentFills(db, claimed);
     });
   };
@@ -394,7 +407,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return filled;
     });
     if (!landed.ok && landed.refusal.kind !== "gone") {
-      transaction(() => {
+      commit(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
       });
     }
@@ -408,7 +421,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { ok: false, refusal: { kind: "gone" } };
     }
     try {
-      return { moved: null, ok: true, value: transaction(read) };
+      return { ok: true, value: db.$client.transactionSync(read) };
     } catch (error) {
       if (error instanceof RefusedWriteError) {
         return { ok: false, refusal: error.refusal };
@@ -467,14 +480,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // again later and the rest still run
   const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
     const now = deps.now();
-    for (const job of transaction(() => dueJobs(db, now, STORAGE_JOBS))) {
+    for (const job of commit(() => dueJobs(db, now, STORAGE_JOBS))) {
       try {
-        transaction(() => {
+        commit(() => {
           runJob(job, now);
         });
       } catch (error) {
         onFailure(job, error);
-        transaction(() => {
+        commit(() => {
           retryJob(db, job, now);
         });
       }
@@ -484,13 +497,13 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // ---- what each item's note asks (`./cell-notes`) ----
 
   const noteOpening = (sessionId: string, itemId: string): NoteOpening =>
-    transaction(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
+    commit(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
 
   const seedFor = (itemId: string): SeedAnswer =>
-    transaction(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
+    commit(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
 
   const seedTaken = (itemId: string): void => {
-    transaction(() => {
+    commit(() => {
       confirmSeed(db, itemId);
     });
   };
@@ -502,11 +515,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     );
 
   const sessionNotes = (sessionId: string): string[] =>
-    transaction(() => takeSessionNotes(db, sessionId));
+    commit(() => takeSessionNotes(db, sessionId));
 
   // the purged items' notes due to be emptied, each put off until it is reported done
   const claimNotePurges = (): NotePurge[] =>
-    transaction(() => {
+    commit(() => {
       const now = deps.now();
       return dueJobs(db, now, ["note-purge"]).map((job) => {
         deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
@@ -515,7 +528,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
 
   const notePurged = (purge: NotePurge, done: boolean): void => {
-    transaction(() => {
+    commit(() => {
       if (done) {
         dropJob(db, purge.job.id);
       } else {
@@ -526,7 +539,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // the account's deletion has begun: every later write and read is refused
   const tombstone = (): void => {
-    transaction(() => {
+    commit(() => {
       if (deletedAt() === null) {
         writeMeta(db, "deleted_at", deps.now());
       }
@@ -544,16 +557,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     endStrayRemovals,
     fillWanted,
     fillsSent,
-    head: () => libraryHead(db),
     ids,
     land,
     landApart,
     landReading,
     noteOpening,
     notePurged,
-    // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
-    // the deletion's retry wipes it
-    nextJobAt: () => (deletedAt() === null ? nextJobAt(db) : null),
     projectNote,
     purgeItems,
     read,

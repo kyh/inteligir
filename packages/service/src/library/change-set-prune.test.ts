@@ -141,7 +141,7 @@ describe("the change-set prune", () => {
   it("drops a page a run, and runs again at once while more wait", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const { alarmAt, library } = cellIn(state, { clock });
       for (let index = 0; index < 101; index += 1) {
         landedValue(
           createItem(library, FILL_ACTOR, {
@@ -154,7 +154,7 @@ describe("the change-set prune", () => {
       clock.now = START + 8 * DAY;
       library.runDueJobs(failOn);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(1);
-      expect(library.nextJobAt()).toBe(clock.now + 1000);
+      expect(alarmAt()).toBe(clock.now + 1000);
       clock.now += 1000;
       library.runDueJobs(failOn);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(0);

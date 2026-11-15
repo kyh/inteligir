@@ -82,8 +82,6 @@ export interface AgentCell {
   readonly library: LibraryEngine;
   readonly now: () => number;
   readonly tell: (frame: LibrarySocketFrame) => void;
-  // what follows a committed write: the sockets told the head, the readings sent, the alarm set
-  readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
   // one tool call of an open turn, run through the library's procedures as that turn's
   readonly runTool: (request: ToolRequest) => Promise<ToolAnswer>;
 }
@@ -122,7 +120,7 @@ const answeredBefore = <T>(
   if (!prior.ok) {
     return prior;
   }
-  return prior.value === null ? null : { moved: null, ok: true, value: prior.value };
+  return prior.value === null ? null : { ok: true, value: prior.value };
 };
 
 const statusOf = (db: CellDb, threadId: string): ThreadAnswer => ({
@@ -209,14 +207,12 @@ const closeTurn = (scope: LandingScope, turn: OpenTurn, reason: TurnEndReason): 
 
 // ---- handing a turn to its thread ----
 
-// a write of the agent's bookkeeping rows alone, its jobs: nothing to answer, settled as any other
-const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): Promise<void> => {
-  await cell.settle(
-    cell.library.landApart({ answer: z.null(), opId: undefined }, (scope) => {
-      work(scope);
-      return null;
-    }),
-  );
+// a write of the agent's bookkeeping rows alone, its jobs: nothing to answer
+const landRows = (cell: AgentCell, work: (scope: LandingScope) => void): void => {
+  cell.library.landApart({ answer: z.null(), opId: undefined }, (scope) => {
+    work(scope);
+    return null;
+  });
 };
 
 // the open turn handed to its thread's object with the last push landed of it, and stopped there
@@ -232,7 +228,7 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
     return;
   }
   if (read.value === null) {
-    await landRows(cell, (scope) => {
+    landRows(cell, (scope) => {
       dropJob(scope.db, deliverJob(threadId).id);
     });
     return;
@@ -253,12 +249,12 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
     }
   } catch (error) {
     console.warn({ event: "agent-deliver-failed", threadId, ...errorFields(error) });
-    await landRows(cell, (scope) => {
+    landRows(cell, (scope) => {
       deferJob(scope.db, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
     });
     return;
   }
-  await landRows(cell, (scope) => {
+  landRows(cell, (scope) => {
     // a stop asked for meanwhile is delivered by the job it asked for
     if (openTurnOf(scope.db, threadId)?.cancel !== true || turn.cancel) {
       dropJob(scope.db, deliverJob(threadId).id);
@@ -557,10 +553,7 @@ const pushOutcomeSchema = z.object({ kind: z.enum(["landed", "unknown-thread", "
 
 // one push of a thread's object, applied once by its sequence in one transaction: its events
 // stored, the thread's status moved, and the turn sealed by the push that ends it
-export const landPush = async (
-  cell: AgentCell,
-  request: PushRequest,
-): Promise<CellAnswer<null>> => {
+export const landPush = (cell: AgentCell, request: PushRequest): CellAnswer<null> => {
   const parsed = pushRequestSchema.safeParse(request);
   if (!parsed.success) {
     // a push this build cannot read lands nothing, and is let go rather than sent forever
@@ -607,7 +600,6 @@ export const landPush = async (
   if (!landed.ok) {
     return gone();
   }
-  await cell.settle(landed);
   const { kind } = landed.value;
   return kind === "landed" ? { ok: true, value: null } : { ok: false, refusal: kind };
 };
@@ -650,7 +642,7 @@ const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
       await deliverTurn(cell, threadId);
     }
   }
-  await landRows(cell, (scope) => {
+  landRows(cell, (scope) => {
     if (openTurnOf(scope.db, threadId) === null) {
       dropJob(scope.db, watchJob(threadId).id);
     } else {
@@ -680,7 +672,7 @@ export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
       await runAgentJob(cell, job);
     } catch (error) {
       console.error({ event: "agent-job-failed", kind: job.kind, ...errorFields(error) });
-      await landRows(cell, (scope) => {
+      landRows(cell, (scope) => {
         retryJob(scope.db, job, scope.now);
       });
     }

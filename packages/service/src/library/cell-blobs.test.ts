@@ -26,7 +26,7 @@ type Cell = ReturnType<typeof cellIn> & {
 const inLibrary = async <T>(run: (cell: Cell) => Promise<T>): Promise<T> =>
   await inCell(cellOf(), async (state) => {
     const clock = clockAt(Date.now());
-    return await run({ ...cellIn(state, { clock, settle: "skip" }), clock, state });
+    return await run({ ...cellIn(state, { clock }), clock, state });
   });
 
 const fileItem = async ({ client, clock, library }: Cell, sha: string): Promise<string> => {

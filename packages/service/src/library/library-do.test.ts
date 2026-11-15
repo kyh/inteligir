@@ -29,7 +29,6 @@ import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
 import { scheduleJob } from "./cell-jobs";
-import { scheduleAlarm } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellDbOf } from "./cell-db";
 import { cellAccountId } from "./library-cell";
@@ -52,6 +51,17 @@ const principal = (accountId: string): NamedPrincipal => ({
 
 const itemCount = (state: DurableObjectState): number =>
   Number(state.storage.sql.exec("SELECT count(*) AS n FROM items").one().n);
+
+// a person's note, landed on the platform's alarm
+const writeNote = (state: DurableObjectState): void => {
+  landedValue(
+    createItem(cellIn(state, { alarm: "platform" }).library, person(), {
+      blocks: placed([paragraph("a", "typed just now")]),
+      fields: noteFixture(),
+      id: crypto.randomUUID(),
+    }),
+  );
+};
 
 describe("the library cell", () => {
   it("reads its account back from its own name, and is named by nothing else", async () => {
@@ -172,17 +182,33 @@ describe("the library cell", () => {
     expect(after.alarm).toBeGreaterThan(Date.now() + 23 * 60 * 60_000);
   });
 
+  it("sets its alarm in the turn a write commits, so a cell cut off there keeps both or neither", async () => {
+    const accountId = newAccountId();
+    const held = async () =>
+      await inCell(cellOf(accountId), async (state) => ({
+        alarm: await state.storage.getAlarm(),
+        items: itemCount(state),
+      }));
+    await expect(
+      inCell(cellOf(accountId), (state) => {
+        writeNote(state);
+        state.abort("cut off as the write returned");
+      }),
+    ).rejects.toThrow("cut off as the write returned");
+    await expect(held()).resolves.toStrictEqual({ alarm: null, items: 0 });
+    await inCell(cellOf(accountId), writeNote);
+    await expect(held()).resolves.toStrictEqual({ alarm: expect.any(Number), items: 1 });
+  });
+
   it("loses nothing to an eviction: the rows, the open set and its alarm", async () => {
     const stub = cellOf();
     const itemId = crypto.randomUUID();
     const alarm = await inCell(stub, async (state) => {
-      const { library, settle } = cellIn(state);
-      const result = createItem(library, person(), {
+      createItem(cellIn(state, { alarm: "platform" }).library, person(), {
         blocks: placed([paragraph("a", "before the eviction")]),
         fields: noteFixture(),
         id: itemId,
       });
-      await settle(result);
       return await state.storage.getAlarm();
     });
     expect(alarm).toStrictEqual(expect.any(Number));
@@ -227,12 +253,10 @@ describe("the library cell", () => {
     const stub = cellOf(accountId);
     const request = { bytes: 5, mime: "image/png", sha: SHA };
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
-      moved: null,
       ok: true,
       value: { held: false },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      moved: null,
       ok: true,
       value: { settled: false },
     });
@@ -241,12 +265,10 @@ describe("the library cell", () => {
       httpMetadata: { contentType: "image/png" },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      moved: null,
       ok: true,
       value: { settled: true },
     });
     await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
-      moved: null,
       ok: true,
       value: { held: true },
     });
@@ -341,14 +363,14 @@ describe("deleting the account from its cell", () => {
     }
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
+      const cell = cellIn(state, { alarm: "platform" });
       landedValue(
-        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
+        createItem(cell.library, person(), {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFixture(),
           id: crypto.randomUUID(),
         }),
       );
-      const cell = cellIn(state);
       for (const threadId of threadIds) {
         state.storage.sql.exec(
           `INSERT INTO threads (id, title, status, created_at, updated_at)
@@ -356,7 +378,8 @@ describe("deleting the account from its cell", () => {
           threadId,
         );
       }
-      await scheduleAlarm(state, cell.library);
+      // the write's set waits to seal, so the alarm is set until the tombstone takes it
+      await expect(state.storage.getAlarm()).resolves.toStrictEqual(expect.any(Number));
       const scope = { cell, ctx: state, email };
       for (const step of ACCOUNT_PURGE_STEPS) {
         await step.run(scope);
@@ -372,14 +395,14 @@ describe("deleting the account from its cell", () => {
       }
     });
     const gone = { kind: "gone" };
-    const before = { alarm: expect.any(Number), files: 1, grants: 1, invites: 1, items: 1 };
+    // the tombstone's own commit takes the alarm: no job runs once the deletion began
+    const before = { alarm: null, files: 1, grants: 1, invites: 1, items: 1 };
     expect(Object.fromEntries(seen)).toStrictEqual({
-      // a thread's purge settles through the cell, which keeps no alarm past the tombstone
-      agent: { ...before, alarm: null, read: gone, threads: 0 },
+      agent: { ...before, read: gone, threads: 0 },
       files: { alarm: null, files: 0, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
       grants: { alarm: null, files: 0, grants: 0, invites: 1, items: 0, read: gone, threads: 0 },
       invite: { alarm: null, files: 0, grants: 0, invites: 0, items: 0, read: gone, threads: 0 },
-      notes: { ...before, alarm: null, read: gone, threads: 0 },
+      notes: { ...before, read: gone, threads: 0 },
       storage: { alarm: null, files: 1, grants: 1, invites: 1, items: 0, read: gone, threads: 0 },
       tombstone: { ...before, read: gone, threads: 2 },
     });
@@ -424,7 +447,7 @@ describe("deleting the account from its cell", () => {
     const key = blobKey(accountId, SHA);
     await expect(
       stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA }),
-    ).resolves.toStrictEqual({ moved: null, ok: true, value: { held: false } });
+    ).resolves.toStrictEqual({ ok: true, value: { held: false } });
     await stub.purge("purge-race@example.test");
     // the upload's bytes reach R2 after the files step listed the account's prefix
     await env.BLOBS.put(key, "bytes", { httpMetadata: { contentType: "image/png" } });
@@ -451,7 +474,10 @@ describe("deleting the account from its cell", () => {
         Date.now(),
       );
       await state.storage.setAlarm(Date.now() + 60_000);
-      await scheduleAlarm(state, cellIn(state).library);
+    });
+    // the alarm's own commits set none again, though the job still waits
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    await inCell(stub, async (state) => {
       await expect(state.storage.getAlarm()).resolves.toBeNull();
     });
   });

@@ -11,7 +11,7 @@ import type { Zippable } from "fflate";
 import { pngOf } from "../fill/test-support/fill-cell";
 import { blobKey } from "../library/cell-blobs";
 import { runImports } from "../library/cell-imports";
-import { scheduleAlarm, sendFills, settleStored } from "../library/cell-library";
+import { sendFills, settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
 import { cellIn, cellOf, inCell } from "./library-cell";
@@ -99,7 +99,7 @@ export interface Started {
 
 export const importJobOf = async (accountId: string, id: string) =>
   await inCell(cellOf(accountId), async (state) => {
-    const answer = await cellIn(state, { settle: "skip" }).client.imports.get({ id });
+    const answer = await cellIn(state).client.imports.get({ id });
     return answer.job;
   });
 
@@ -108,25 +108,22 @@ export const ended = (accountId: string, id: string) => async () => {
   return job.state !== "running";
 };
 
-// the file uploaded and its import started; `alarm` sets the cell's alarm as the commit would, and
-// without it the suite runs each of the job's runs itself
+// the file uploaded and its import started; `platform` sets the cell's alarm for it, and without
+// it the suite runs each of the job's runs itself
 export const startImport = async (
   accountId: string,
   file: { readonly bytes: Uint8Array; readonly mime: string },
   source: "raindrop" | "markdown",
-  alarm = false,
+  alarm?: "platform",
 ): Promise<Started> =>
   await inCell(cellOf(accountId), async (state) => {
-    const { client, library } = cellIn(state, { settle: "skip" });
+    const { client, library } = cellIn(state, { alarm });
     const sha = await uploadedFile(library, accountId, file);
     const { job } = await client.imports.start({ sha, source });
-    if (alarm) {
-      await scheduleAlarm(state, library);
-    }
     return { jobId: job.id, sha };
   });
 
-// one run of every import due, and the readings it asked for sent, as one alarm runs them
+// one run of every import due, and the readings it asked for sent, as the alarm's runs do
 export const runImportsOnce = async (accountId: string): Promise<void> => {
   await inCell(cellOf(accountId), async (state) => {
     const cell = cellIn(state);
