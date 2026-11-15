@@ -95,14 +95,22 @@ export type LogoutOutcome =
   // the phone could not let its copy go, so it stays signed in, and the screen says why
   | { readonly kind: "failed"; readonly message: string };
 
-// where this runtime's sign-in stands: nothing open; its library open, with its socket; or a
-// leave under way, whose outcome a sign-out asked meanwhile waits for
-type Phase =
-  | { readonly kind: "closed" }
+// where this runtime's sign-in stands, which the screens read as a session: signed in is its
+// library open, with its socket, or a leave under way, whose outcome a sign-out asked meanwhile
+// waits for and whose library the screens keep until its copy is gone
+type State =
+  | Exclude<PhoneSession, { readonly kind: "signed-in" }>
   | { readonly kind: "open"; readonly library: PhoneLibrary; readonly socket: LibrarySocket }
-  | { readonly kind: "leaving"; readonly done: Promise<LogoutOutcome> };
+  | {
+      readonly kind: "leaving";
+      readonly library: PhoneLibrary;
+      readonly done: Promise<LogoutOutcome>;
+    };
 
-const CLOSED: Phase = { kind: "closed" };
+const shown = (state: State): PhoneSession =>
+  state.kind === "open" || state.kind === "leaving"
+    ? { kind: "signed-in", library: state.library }
+    : state;
 
 // whether the app is in front and online, as it last said: unsaid until it first says, which a
 // socket meets as reachable and a resume as a return
@@ -129,7 +137,8 @@ export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.
 const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
-  const session = createExternalStore<PhoneSession>({ kind: "restoring" });
+  let state: State = { kind: "restoring" };
+  const session = createExternalStore(shown(state));
   const queryClient = new QueryClient({
     defaultOptions: {
       // a write made offline fails at once: nothing waits for a connection but a share
@@ -142,22 +151,34 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     storage: args.storage,
     throttleTime: CACHE_WRITE_MS,
   });
-  let phase: Phase = CLOSED;
   let reach: Reach = "unsaid";
 
-  // the phase's one writer: a library that stops being open lets its socket go
-  const enter = (next: Phase): void => {
-    if (phase.kind === "open" && (next.kind !== "open" || next.library !== phase.library)) {
-      phase.socket.close();
+  // the state's one writer: a library that stops being open lets its socket go, and the screens
+  // hear of every move but one that keeps the library they hold
+  const move = (next: State): void => {
+    if (state.kind === "open") {
+      state.socket.close();
     }
-    phase = next;
+    state = next;
+    const before = session.get();
+    const after = shown(next);
+    if (
+      before.kind !== "signed-in" ||
+      after.kind !== "signed-in" ||
+      before.library !== after.library
+    ) {
+      session.set(after);
+    }
   };
 
-  // a leave whose outcome every sign-out asked meanwhile shares; `run` awaits before it moves the
-  // phase on, so the phase says leaving first
-  const leaving = async (run: () => Promise<LogoutOutcome>): Promise<LogoutOutcome> => {
+  // a leave of `library`'s whose outcome every sign-out asked meanwhile shares; `run` awaits
+  // before it moves the state on, so the state says leaving first
+  const leaving = async (
+    library: PhoneLibrary,
+    run: () => Promise<LogoutOutcome>,
+  ): Promise<LogoutOutcome> => {
     const done = run();
-    enter({ done, kind: "leaving" });
+    move({ done, kind: "leaving", library });
     return await done;
   };
 
@@ -170,7 +191,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
 
   const files = createFileCache({
     download: async (sha) =>
-      phase.kind === "open" ? await downloadBlob(transport, args.sha256Hex, sha) : null,
+      state.kind === "open" ? await downloadBlob(transport, args.sha256Hex, sha) : null,
     folder: args.folder,
     shrink: args.shrinkCover,
   });
@@ -183,14 +204,13 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     await persister.removeClient();
   };
 
-  // this phone leaves its account, its library already stopped by the phase it left, so whether or
+  // this phone leaves its account, its library already stopped by the state it left, so whether or
   // not the clear finishes it hears nothing more; the session goes only once the copy has, so a
   // copy that would not go is still the account's
   const leave = async (library: PhoneLibrary, notice: string | null): Promise<void> => {
     await forgetAccount(library.shares);
     await args.auth.signOut();
-    enter(CLOSED);
-    session.set({ kind: "signed-out", notice });
+    move({ kind: "signed-out", notice });
   };
 
   // the cloud ended this sign-in (a session ended elsewhere, a deleted account): the phone leaves
@@ -201,8 +221,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     try {
       await leave(library, notice);
     } catch (error) {
-      enter(CLOSED);
-      session.set({
+      move({
         kind: "signed-out",
         notice: `${notice} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: ${messageOf(error)}`,
       });
@@ -213,16 +232,15 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   // a refusal of the sign-in itself, heard by any call of `library`'s; one heard under an earlier
   // sign-in, or while this one is already ending, ends nothing more
   const sessionEnded = (library: PhoneLibrary, end: SessionEnd): void => {
-    if (phase.kind !== "open" || phase.library !== library) {
+    if (state.kind !== "open" || state.library !== library) {
       return;
     }
     if (end === "outdated") {
-      enter(CLOSED);
-      session.set({ kind: "outdated" });
+      move({ kind: "outdated" });
       return;
     }
     const notice = end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE;
-    void leaving(async () => await ended(library, notice));
+    void leaving(library, async () => await ended(library, notice));
   };
 
   // Better Auth's own read: a session it no longer holds ends this one, and a cloud it could not
@@ -286,8 +304,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       shares,
     };
     library = made;
-    enter({ kind: "open", library: made, socket });
-    session.set({ kind: "signed-in", library: made });
+    move({ kind: "open", library: made, socket });
     if (reach === "away") {
       socket.offline();
     }
@@ -302,8 +319,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     try {
       await open("restored");
     } catch (error) {
-      enter(CLOSED);
-      session.set({ kind: "failed", message: messageOf(error) });
+      move({ kind: "failed", message: messageOf(error) });
     }
   };
 
@@ -330,18 +346,18 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
 
   return {
     async logout(options = {}) {
-      if (phase.kind === "leaving") {
-        return await phase.done;
+      if (state.kind === "leaving") {
+        return await state.done;
       }
-      if (phase.kind === "closed") {
+      if (state.kind !== "open") {
         return { kind: "signed-out" };
       }
-      const { library } = phase;
+      const { library } = state;
       const waiting = library.shares.waiting.get().length;
       if (waiting > 0 && options.discardWaiting !== true) {
         return { kind: "waiting", saves: waiting };
       }
-      return await leaving(async () => await signOut(library));
+      return await leaving(library, async () => await signOut(library));
     },
     login,
     persistOptions: {
@@ -361,10 +377,10 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         return;
       }
       reach = "reached";
-      if (phase.kind === "open") {
-        phase.socket.online();
-        void phase.library.shares.flush();
-        void checkSession(phase.library);
+      if (state.kind === "open") {
+        state.socket.online();
+        void state.library.shares.flush();
+        void checkSession(state.library);
       }
     },
     session,
@@ -380,18 +396,18 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         login.fail(`The saved sign-in could not be read: ${messageOf(error)}`);
       }
       if (kept === null) {
-        session.set({ kind: "signed-out", notice: null });
+        move({ kind: "signed-out", notice: null });
         return;
       }
       await restore();
-      if (phase.kind === "open") {
-        void checkSession(phase.library);
+      if (state.kind === "open") {
+        void checkSession(state.library);
       }
     },
     suspend() {
       reach = "away";
-      if (phase.kind === "open") {
-        phase.socket.offline();
+      if (state.kind === "open") {
+        state.socket.offline();
       }
     },
   };

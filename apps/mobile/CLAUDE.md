@@ -31,8 +31,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
 ## Cloud and accounts
 
 - **On the phone, the runtime that moves a value is the one that notifies.** A sign-in is one
-  library made and closed together, so a revocation any call hears ends it for all, once, and the
-  route guard alone decides which screens exist. `apps/mobile/src/lib/app-runtime.ts`.
+  state under one writer, its library made and closed together and the screens' session read off
+  it, so a revocation any call hears ends it for all, once, and the route guard alone decides which
+  screens exist. `apps/mobile/src/lib/compose-runtime.ts`.
 - **The phone reads through TanStack Query, its cache kept between launches, and holds its socket
   only in the foreground.** What was last read shows offline and a write made there is refused at
   once (`networkMode: "always"`), never kept or paused, since the cloud keeps the truth, and iOS
