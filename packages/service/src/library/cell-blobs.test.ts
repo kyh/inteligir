@@ -1,6 +1,6 @@
-// A file past the item that named it, driven through the verbs a device calls and the alarm's jobs:
-// it stays while an item or any change set names it, and once nothing does it leaves the library,
-// the quota and R2.
+// A file past the item that named it, driven through the verbs a device calls, the cell's own
+// write of a cover and the alarm's jobs: it stays while an item or any change set names it, and
+// once nothing does it leaves the library, the quota and R2.
 
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ import {
   inCell,
   landedValue,
   newAccountId,
+  person,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { jobHostIn, uploadedFile, zipOf } from "../test-support/library-files";
@@ -73,8 +74,10 @@ const noteItem = async ({ client, clock, library }: Cell): Promise<string> => {
   return item.id;
 };
 
-const setCover = async ({ client }: Cell, itemId: string, base: string | null, value: string) => {
-  await client.write({ itemId, ops: [{ base, field: "coverSha", op: "set", value }] });
+const setCover = ({ library }: Cell, itemId: string, base: string | null, value: string): void => {
+  landedValue(
+    library.write(person(), { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
+  );
 };
 
 const purge = async ({ client }: Cell, itemId: string): Promise<void> => {
@@ -137,11 +140,11 @@ describe("a file nothing names any more", () => {
       ];
       const fileHolder = await fileItem(cell, old);
       const note = await noteItem(cell);
-      await setCover(cell, note, null, old);
+      setCover(cell, note, null, old);
       // sealed, so the next write's set keeps the cover it replaces
       cell.clock.now += 120_000;
       cell.library.runDueJobs(() => {});
-      await setCover(cell, note, old, fresh);
+      setCover(cell, note, old, fresh);
       await purge(cell, fileHolder);
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);
@@ -162,8 +165,8 @@ describe("a file nothing names any more", () => {
         await uploadedFile(cell.library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      await setCover(cell, note, null, first);
-      await setCover(cell, note, first, second);
+      setCover(cell, note, null, first);
+      setCover(cell, note, first, second);
       await runAlarm(cell);
       expect(fileRows(cell, first)).toBe(1);
       cell.clock.now += DAY;

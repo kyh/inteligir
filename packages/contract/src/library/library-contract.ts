@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-import { fieldOpSchema } from "./field-ops";
+import { propertyOpSchema } from "./field-ops";
 import { libraryItemFieldsSchema } from "./library-item";
 import { storableBlockSchema } from "./library-nodes";
 
@@ -583,12 +583,12 @@ export const libraryContract = {
     )
     .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
 
-  // one item's field ops, each guarded by its base: it lands whole or not at all; a body is
-  // written live in its note. `write`, not `apply`: a client's path is a function's property, and
-  // `apply` would be Function.prototype's
+  // one item's property ops, each guarded by its base, landing whole or not at all. Every other
+  // field moves by a verb of `items`, which asks the reading or tells the note with it, and a body
+  // is written live in its note. `write`, not `apply`: a client's path is a function's property,
+  // and `apply` would be Function.prototype's
   write: signedBase
     .errors({
-      [BlobMissingError.code]: BlobMissingError,
       [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
@@ -597,7 +597,7 @@ export const libraryContract = {
       z.strictObject({
         itemId: idSchema,
         opId,
-        ops: z.array(fieldOpSchema).min(1).max(WRITE_OPS_MAX),
+        ops: z.array(propertyOpSchema).min(1).max(WRITE_OPS_MAX),
       }),
     )
     .output(landed),

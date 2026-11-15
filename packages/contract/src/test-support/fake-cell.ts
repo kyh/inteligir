@@ -256,20 +256,11 @@ export const createFakeCell = (): FakeCell => {
     return null;
   };
 
-  // a write refused for leaving its item live at an address another live item holds
-  const refuseHeldAddress = (itemId: string, fields: LibraryItemFields): void => {
-    const holder = fields.url === null || fields.deletedAt !== null ? null : holderOf(fields.url);
-    if (holder !== null && holder !== itemId) {
-      throw new ConflictError({ message: "Another item in your library already holds this link." });
-    }
-  };
-
   const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
     const item = items.get(input.itemId);
     if (item === undefined) {
       throw new NotFoundError();
     }
-    needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyFieldOps(item.fields, input.ops);
     if (outcome.kind === "conflict") {
       throw new ConflictError();
@@ -277,7 +268,6 @@ export const createFakeCell = (): FakeCell => {
     if (outcome.kind === "invalid") {
       throw new PayloadTooLargeError();
     }
-    refuseHeldAddress(input.itemId, outcome.fields);
     // every op already true, a resend's after its answer was let go: the item as it stands
     if (!outcome.changed) {
       return { item: liveRow(input.itemId, item) };

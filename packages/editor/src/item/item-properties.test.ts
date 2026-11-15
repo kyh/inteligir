@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { noteFixture } from "@repo/contract/test-support/library-items";
 
@@ -8,7 +8,7 @@ import { itemProperties } from "./item-properties";
 
 // the item as a host holds it, recording each op written
 const heldItem = (fields: LibraryItemFields | null) => {
-  const written: FieldOp[] = [];
+  const written: PropertyOp[] = [];
   const source = itemProperties({
     fields: () => fields,
     subscribe: () => () => {},

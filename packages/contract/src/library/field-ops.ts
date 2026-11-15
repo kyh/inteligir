@@ -105,12 +105,13 @@ const aliasesOpSchema = z.strictObject({
 
 // one property by its key; a missing base or value is the property absent. The value's size is
 // the item's to hold: the fields are checked whole once a batch lands
-const propertyOpSchema = z.strictObject({
+export const propertyOpSchema = z.strictObject({
   base: z.json().optional(),
   key: propertyKeySchema,
   op: z.literal("property"),
   value: z.json().optional(),
 });
+export type PropertyOp = z.infer<typeof propertyOpSchema>;
 
 export const fieldOpSchema = z.discriminatedUnion("op", [
   setOpSchema,
