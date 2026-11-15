@@ -3,12 +3,7 @@ import { z } from "zod";
 import { AGENT_ALLOWANCE } from "@repo/service/agent-limits";
 import { compatibilityDate, compatibilityFlags } from "@repo/service/compatibility";
 import type { FillJob } from "@repo/service/fill/fill-job";
-import {
-  FILL_BATCH_SIZE,
-  FILL_FAILED_QUEUE,
-  FILL_QUEUE,
-  FILL_RETRIES,
-} from "@repo/service/fill-queues";
+import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "@repo/service/fill-queues";
 
 // the file path, not `@tanstack/react-start/server-entry`: the package export builds Start's
 // default entry and drops the API routes (cloudflare/workers-sdk#11100). Imported, not named by
@@ -92,10 +87,13 @@ export default defineConfig(({ isPreview, mode }) => {
       triggers: [
         triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
         triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
-        // the pages the cloud reads, consumed by this Worker (@repo/service/fill-queues)
+        // the pages the cloud reads, consumed by this Worker (@repo/service/fill-queues), one a
+        // delivery: a larger batch waits up to 5 s to fill
+        // (developers.cloudflare.com/queues/configuration/batching-retries/), and an invocation a
+        // page kills spends a delivery of every message beside it
         triggers.queue({
           deadLetterQueue: FILL_FAILED_QUEUE,
-          maxBatchSize: FILL_BATCH_SIZE,
+          maxBatchSize: 1,
           maxRetries: FILL_RETRIES,
           name: FILL_QUEUE,
         }),

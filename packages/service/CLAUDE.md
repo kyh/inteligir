@@ -142,6 +142,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   wait.** A send inside the write asks for a reading the write may roll back,
   and a page's seconds of CPU on the alarm hold every write.
   `packages/service/src/library/cell-fills.ts`.
+- **The fill queue delivers one page a batch.** A larger batch waits five
+  seconds to fill, and a page that kills its invocation spends a delivery of
+  every message beside it. `apps/web/cloudflare.config.ts`.
 - **The cloud's fetch is the platform's, each hop judged by how its address is
   spelled.** A Worker resolves no name, so `fetchPage` refuses a private
   spelling at once rather than after three vague retries.
