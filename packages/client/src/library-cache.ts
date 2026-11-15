@@ -14,7 +14,7 @@ import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { V1Client } from "@repo/contract/v1";
 
 import { createAccountSocket } from "./account-socket";
-import type { AccountSocket, WebSocketClass } from "./account-socket";
+import type { AccountSocket, Reach, WebSocketClass } from "./account-socket";
 
 export type V1Queries = RouterUtils<V1Client>;
 
@@ -47,6 +47,7 @@ interface LibrarySocketArgs {
   readonly queries: V1Queries;
   readonly queryClient: QueryClient;
   readonly origin: string;
+  readonly reach: Reach;
   readonly WebSocket?: WebSocketClass;
 }
 
@@ -145,6 +146,7 @@ export const createLibrarySocket = ({
   queries,
   queryClient,
   origin,
+  reach,
   WebSocket,
 }: LibrarySocketArgs): LibrarySocket => {
   const itemListeners = new Set<(moved: ItemsMoved) => void>();
@@ -179,6 +181,7 @@ export const createLibrarySocket = ({
       itemsMoved(null);
     },
     origin,
+    reach,
     ticket: async () => {
       const { ticket } = await client.account.socketTicket();
       return ticket;

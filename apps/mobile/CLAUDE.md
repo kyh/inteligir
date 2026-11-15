@@ -34,10 +34,14 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   state under one writer, its library made and closed together and the screens' session read off
   it, so a revocation any call hears ends it for all, once, and the route guard alone decides which
   screens exist. `apps/mobile/src/lib/compose-runtime.ts`.
-- **The phone reads through TanStack Query, its cache kept between launches, and holds its socket
-  only in the foreground.** What was last read shows offline and a write made there is refused at
-  once (`networkMode: "always"`), never kept or paused, since the cloud keeps the truth, and iOS
-  suspends a background app's socket anyway. `apps/mobile/src/lib/compose-runtime.ts`.
+- **The phone reads through TanStack Query, its cache kept between launches, and no write is kept
+  or paused.** What was last read shows offline and a write made there is refused at once
+  (`networkMode: "always"`), since the cloud keeps the truth and only a share waits.
+  `apps/mobile/src/lib/compose-runtime.ts`.
+- **Whether the phone reaches the cloud is one store: in front and online.** The socket, an open
+  note, the shares waiting and the session's check read it and nothing derives it again, since iOS
+  suspends a background app's socket anyway and two derivations disagree at `inactive`.
+  `apps/mobile/src/lib/compose-runtime.ts`.
 - **The phone's key-value store is out of the device backup, and its files are in the cache**
   (owner decision). A restore onto another phone would send waiting shares under nobody's sign-in,
   and a sign-in, sign-out or revocation clears the cache, shares and files.
@@ -61,8 +65,9 @@ The phone: its editor, its cache, its shares and its files, the agent, its look,
   PNG.** The Mac's editor draws no HEIC, no location may reach the library, and a JPEG draws
   transparency black. `apps/mobile/src/items/photo-plan.ts`.
 - **A share is a save the app makes, kept on the phone before its first call until it lands; the
-  share extension only hands it over.** The outbox sends what waits at each launch, resume and
-  reconnect, so it lands once, and a sign-out with any asks, then discards them (owner decision).
+  share extension only hands it over.** The outbox sends what waits at each launch and each time
+  the phone is back in front and online, so it lands once, and a sign-out with any asks, then
+  discards them (owner decision).
   `apps/mobile/src/items/share-outbox.ts`.
 - **A shared text's link is read whole, to its last character.** Every spelling of the link comes
   out with its lines kept, since expo-share-intent's `webUrl` stops at a bracket, a comma or an

@@ -4,9 +4,9 @@
 // report of its note, the screen's depth and a leave move, and which says whether a leave asks
 // first and whether the page is shown at all.
 
-import { onlineManager, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AppState } from "react-native";
+import { useReach } from "@/lib/app-runtime";
 import { getCloudUrl } from "@/lib/cloud-url";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
@@ -14,21 +14,6 @@ import { noteActions } from "./note-actions";
 import { notePageLife } from "./note-page-life";
 import type { NotePageLifeStore } from "./note-page-life";
 import type { MovedItems, PageProps } from "./page/page-host";
-
-const subscribeOffline = (listener: () => void): (() => void) => {
-  const stopOnline = onlineManager.subscribe(listener);
-  const appState = AppState.addEventListener("change", listener);
-  return () => {
-    stopOnline();
-    appState.remove();
-  };
-};
-
-// iOS suspends the page behind the app, its socket with it, so the note reads as offline there and
-// redials the moment the app is in front, ahead of any ping noticing; `inactive` is a passing state
-// (a pulled-down notification centre), not a departure
-const offlineNow = (): boolean =>
-  !onlineManager.isOnline() || AppState.currentState === "background";
 
 export interface NotePage {
   // every prop the page takes but the web view's own
@@ -52,7 +37,9 @@ export const useNotePage = (itemId: string, { deep, focus }: NotePageOptions): N
   const queryClient = useQueryClient();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [actions] = useState(() => noteActions({ itemId, library, openItem, queryClient }));
-  const offline = useSyncExternalStore(subscribeOffline, offlineNow);
+  // iOS suspends the page behind the app, its socket with it, so the note reads as offline there
+  // and redials the moment the app is in front, ahead of any ping noticing
+  const offline = !useReach();
   const [moved, setMoved] = useState<MovedItems>({ ids: [], seq: 0 });
   useEffect(
     () =>

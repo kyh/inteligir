@@ -1,6 +1,6 @@
 // The library's reads as the cell answers them, each a TanStack query under oRPC's own key, so the
-// account's socket invalidates a family by its key (`use-library-socket.ts`) and a mutation patches
-// what a screen shows by the same keys.
+// account's socket invalidates a family by its key (`@repo/client/library-cache`) and a mutation
+// patches what a screen shows by the same keys.
 
 import type { InferClientOutputs } from "@orpc/client";
 import { PAGE_MAX } from "@repo/contract/library/library-wire";

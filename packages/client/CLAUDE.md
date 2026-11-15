@@ -5,9 +5,10 @@ What the library tab and the phone share above the contract. It names no platfor
 
 ## The library on a device
 
-- **The account's socket is partysocket's, and only its keepalive, its frames and its
-  online/offline gate are ours.** Its ticket is the URL provider and its backoff partysocket's, since
-  a hand-rolled redial machine is ours forever. `packages/client/src/account-socket.ts`.
+- **The account's socket is partysocket's, and only its keepalive, its frames and its gate on the
+  host's `Reach` are ours.** Its ticket is the URL provider and its backoff partysocket's, since a
+  hand-rolled redial machine is ours forever, and it subscribes to the reach itself, since a host
+  that pushes each edge holds a second copy. `packages/client/src/account-socket.ts`.
 - **One module says what a frame reads again, for the tab and the phone alike.** An item's read goes
   again only when the copy held is older than the frame's sequence, and a thread's by its key, since
   a copy per device drifts. `packages/client/src/library-cache.ts`.

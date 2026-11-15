@@ -112,10 +112,6 @@ const shown = (state: State): PhoneSession =>
     ? { kind: "signed-in", library: state.library }
     : state;
 
-// whether the app is in front and online, as it last said: unsaid until it first says, which a
-// socket meets as reachable and a resume as a return
-type Reach = "unsaid" | "reached" | "away";
-
 export interface AppRuntime {
   readonly session: ReadableStore<PhoneSession>;
   readonly login: LoginStore;
@@ -126,11 +122,11 @@ export interface AppRuntime {
   readonly start: () => Promise<void>;
   // refuses while shares wait, unless told to discard them
   readonly logout: (options?: { readonly discardWaiting?: boolean }) => Promise<LogoutOutcome>;
-  // the app is in front and online again: the socket dials, the shares go and the session is
-  // asked, once however many times it is told before the next suspend
-  readonly resume: () => void;
-  // the app went behind or offline: the socket goes until it resumes
-  readonly suspend: () => void;
+  // whether the app is in front and online: while it is not the socket is let go, and each return
+  // dials it, sends the shares waiting and asks the session
+  readonly reach: ReadableStore<boolean>;
+  // either half, as the OS says it
+  readonly setReach: (fact: { readonly front?: boolean; readonly online?: boolean }) => void;
 }
 
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
@@ -151,7 +147,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     storage: args.storage,
     throttleTime: CACHE_WRITE_MS,
   });
-  let reach: Reach = "unsaid";
 
   // the state's one writer: a library that stops being open lets its socket go, and the screens
   // hear of every move but one that keeps the library they hold
@@ -251,6 +246,25 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   };
 
+  // in front and online, which changes only when the two together do, so a wake that also brings
+  // the network back is one return
+  const reach = createExternalStore(true);
+  let reachFacts = { front: true, online: true };
+  const setReach: AppRuntime["setReach"] = (fact) => {
+    reachFacts = { ...reachFacts, ...fact };
+    const reaches = reachFacts.front && reachFacts.online;
+    if (reaches !== reach.get()) {
+      reach.set(reaches);
+    }
+  };
+  // never removed: the runtime lives as long as the app
+  reach.subscribe(() => {
+    if (reach.get() && state.kind === "open") {
+      void state.library.shares.flush();
+      void checkSession(state.library);
+    }
+  });
+
   const open = async (source: "restored" | "signed-in"): Promise<void> => {
     if (source === "signed-in") {
       // another account's library, or the last sign-in's, goes before this one's is read
@@ -291,6 +305,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       origin: args.cloudUrl,
       queries,
       queryClient,
+      reach,
       WebSocket: args.WebSocket ?? undefined,
     });
     const made: PhoneLibrary = {
@@ -305,9 +320,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     };
     library = made;
     move({ kind: "open", library: made, socket });
-    if (reach === "away") {
-      socket.offline();
-    }
     if (args.WebSocket !== null) {
       socket.connect();
     }
@@ -372,18 +384,9 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       persister,
     },
     queryClient,
-    resume() {
-      if (reach === "reached") {
-        return;
-      }
-      reach = "reached";
-      if (state.kind === "open") {
-        state.socket.online();
-        void state.library.shares.flush();
-        void checkSession(state.library);
-      }
-    },
+    reach,
     session,
+    setReach,
     async start() {
       if (started) {
         return;
@@ -402,12 +405,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       await restore();
       if (state.kind === "open") {
         void checkSession(state.library);
-      }
-    },
-    suspend() {
-      reach = "away";
-      if (state.kind === "open") {
-        state.socket.offline();
       }
     },
   };

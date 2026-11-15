@@ -119,9 +119,7 @@ export const fakePageLibrary = ({
       socket: {
         close: nothingToClose,
         connect: nothingToClose,
-        offline: nothingToClose,
         onItems: items.add,
-        online: nothingToClose,
         previews,
       },
       wire: { client, orpc: createTanstackQueryUtils(client) },

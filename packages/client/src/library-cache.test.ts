@@ -46,6 +46,7 @@ const openSocket = async () => {
     origin: "https://library.test",
     queries,
     queryClient,
+    reach: { get: () => true, subscribe: () => vi.fn<() => void>() },
     WebSocket,
   });
   const moved: ItemsMoved[] = [];
