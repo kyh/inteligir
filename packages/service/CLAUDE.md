@@ -221,6 +221,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **Saving a link is the agent's one way out of the library, and the person sees
   the whole address before it goes.** A saved page the agent read can ask it to
   carry the person's words to a site. `packages/service/src/agent/library-agent.ts`.
+- **A call that asks is read through its row's own input before it waits, and
+  one the row refuses is answered there.** The event carries what the call
+  would do, so no card words the model's raw input and a malformed call asks
+  nobody. `packages/service/src/agent/agent-tools.ts`.
 - **No device draws a remote image, frame or media in an item.** The agent
   writes notes a saved page may steer, and a fetch on open is a request no person
   made. `tools/repo-guards/src/remote-media.test.ts`.

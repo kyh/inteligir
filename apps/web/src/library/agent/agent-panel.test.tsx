@@ -197,8 +197,7 @@ const gone = async (): Promise<void> => {
 // a delete of one item, waiting on the person
 const deleteAsked = (idx: number): ThreadEventRow =>
   row(idx, {
-    input: { ids: ["x"] },
-    name: "delete_items",
+    ask: { ids: ["x"], kind: "delete" },
     toolUseId: "toolu_1",
     type: "approval.asked",
     until: AT + 600_000,
@@ -281,8 +280,7 @@ describe("the agent panel's conversation", () => {
           : { status: "running", threadId: THREAD },
       events: [
         row(0, {
-          input: { url },
-          name: "save_link",
+          ask: { kind: "save", url },
           toolUseId: "toolu_1",
           type: "approval.asked",
           until: AT + 600_000,

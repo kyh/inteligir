@@ -16,8 +16,10 @@ import type { AnyProcedure, AnyRouter, Context, ProcedureClientInterceptor } fro
 import type { AnySchema, ErrorMap } from "@orpc/contract";
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { sha256Hex } from "@repo/contract/bytes";
+import type { ApprovalAsk } from "@repo/contract/library/agent-events";
 import { isLibraryToolName } from "@repo/contract/library/agent-tools";
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
+import { deleteInputSchema, saveLinkInputSchema } from "@repo/contract/library/library-contract";
 import { PAGE_MAX } from "@repo/contract/library/library-wire";
 import { z } from "zod";
 
@@ -106,9 +108,44 @@ export const AGENT_TOOL_DEFINITIONS: readonly BetaTool[] = AGENT_TOOL_ROWS.map(
   (row) => row.definition,
 );
 
+type AskingTool = {
+  [Name in LibraryToolName]: (typeof AGENT_TOOL_POLICIES)[Name] extends "ask" ? Name : never;
+}[LibraryToolName];
+
+// what a call that waits on the person would do, read through its row's own input, so its card
+// says what the cell would run; a tool given the ask policy does not compile until it is read here
+const ASKS = {
+  delete_items: deleteInputSchema.transform(({ ids }): ApprovalAsk => ({ ids, kind: "delete" })),
+  save_link: saveLinkInputSchema.transform(({ url }): ApprovalAsk => ({ kind: "save", url })),
+} satisfies Record<AskingTool, z.ZodType<ApprovalAsk>>;
+
 // whether a call waits on the person before it runs
-export const asksFirst = (name: string): boolean =>
+export const asksFirst = (name: string): name is AskingTool =>
   isLibraryToolName(name) && AGENT_TOOL_POLICIES[name] === "ask";
+
+// how a call a reply made starts: run by the cell, waiting on the person with what it would do,
+// or answered at once where its row refuses its input, since that call would wait under a card
+// that can say nothing of it
+export type CallStart =
+  | { readonly kind: "run" }
+  | { readonly kind: "ask"; readonly ask: ApprovalAsk }
+  | { readonly kind: "refused"; readonly answer: ToolAnswer };
+
+export const callStart = (name: string, input: z.infer<typeof jsonObjectSchema>): CallStart => {
+  if (!asksFirst(name)) {
+    return { kind: "run" };
+  }
+  const read = ASKS[name].safeParse(input);
+  return read.success
+    ? { ask: read.data, kind: "ask" }
+    : {
+        answer: {
+          content: `Input validation failed\n${z.prettifyError(read.error)}`,
+          isError: true,
+        },
+        kind: "refused",
+      };
+};
 
 // ---- running a call, in the cell ----
 

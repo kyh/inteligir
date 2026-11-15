@@ -2,8 +2,9 @@
 // (`@repo/db/thread/schema`): the `status` and `decision` columns read together as the one state
 // they mean, and the one way a call moves (`toolCallNext`), which the loop's round, the person's
 // answer and a stop each go through (`./thread-loop`). A call the reply asked for runs unless it
-// asks the person first; a denied one is answered with the person's words whatever answers it,
-// its round or a stop; a result lands only on a call that runs.
+// asks the person first, and one that would ask over input its row refuses is journaled answered
+// (`./agent-tools`); a denied one is answered with the person's words whatever answers it, its
+// round or a stop; a result lands only on a call that runs.
 
 import type { toolCalls } from "@repo/db/thread/schema";
 

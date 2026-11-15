@@ -33,6 +33,14 @@ const TURN_END_REASONS = [
 ] as const;
 export type TurnEndReason = (typeof TURN_END_REASONS)[number];
 
+// what a call that waits on the person would do, as its row's own input read the call: the items
+// a delete would move, or the address a save names
+const approvalAskSchema = z.discriminatedUnion("kind", [
+  z.object({ ids: z.array(z.string()).min(1), kind: z.literal("delete") }),
+  z.object({ kind: z.literal("save"), url: z.string() }),
+]);
+export type ApprovalAsk = z.infer<typeof approvalAskSchema>;
+
 // who settled an approval: the person, its ten minutes running out, or the turn stopped
 const APPROVAL_DECIDERS = ["person", "timeout", "cancel"] as const;
 
@@ -60,10 +68,12 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     toolUseId: toolUseIdSchema,
     type: z.literal("agent.tool_result"),
   }),
-  // a call that waits on the person until `until`, when it is denied
+  // a call that waits on the person until `until`, when it is denied. An `ask` this build does
+  // not know reads as none, since a reader skips an event it cannot parse, and a skipped approval
+  // is one nobody can answer
   z.object({
-    input: z.json(),
-    name: toolNameSchema,
+    // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
+    ask: z.catch(approvalAskSchema.optional(), undefined),
     toolUseId: toolUseIdSchema,
     type: z.literal("approval.asked"),
     until: instant,
