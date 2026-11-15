@@ -288,71 +288,79 @@ const Conversation = ({
   });
   const working = thread !== undefined && isWorking(thread.status);
   const underWay = thread !== undefined && isUnderWay(thread.status);
+  // a reversed column scrolls from its end, so the browser keeps the conversation on the reply as
+  // it grows and lets go once the person scrolls up; the auto margin keeps a short one at the top
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>
-      {blocks.map((block, index) =>
-        block.kind === "work" ? (
-          <WorkBlock key={block.key} block={block} live={working && index === blocks.length - 1} />
-        ) : (
-          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
-        ),
-      )}
-      {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
-      {waiting.map((approval) => {
-        const { detail, question } = approvalWords(
-          approval,
-          (id) => titles.find((target) => target.id === id)?.title ?? null,
-        );
-        return (
-          <div key={approval.eventId} data-approval={approval.eventId}>
-            <ApprovalCard
-              sentLabel="Answered"
-              onSubmit={(answers: readonly ApprovalAnswer[]) => {
-                const picked = answers[0]?.optionIds[0];
-                if (picked === "allow" || picked === "deny") {
-                  respond.mutate({ eventId: approval.eventId, result: picked, threadId });
-                }
+    <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto" data-thread={threadId}>
+      <div className="mb-auto flex flex-col gap-2 p-3">
+        {blocks.map((block, index) =>
+          block.kind === "work" ? (
+            <WorkBlock
+              key={block.key}
+              block={block}
+              live={working && index === blocks.length - 1}
+            />
+          ) : (
+            <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
+          ),
+        )}
+        {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
+        {waiting.map((approval) => {
+          const { detail, question } = approvalWords(
+            approval,
+            (id) => titles.find((target) => target.id === id)?.title ?? null,
+          );
+          return (
+            <div key={approval.eventId} data-approval={approval.eventId}>
+              <ApprovalCard
+                sentLabel="Answered"
+                onSubmit={(answers: readonly ApprovalAnswer[]) => {
+                  const picked = answers[0]?.optionIds[0];
+                  if (picked === "allow" || picked === "deny") {
+                    respond.mutate({ eventId: approval.eventId, result: picked, threadId });
+                  }
+                }}
+              >
+                <ApprovalQuestion
+                  questionId={approval.eventId}
+                  prompt={question}
+                  detail={detail ?? undefined}
+                >
+                  <ApprovalOption optionId="allow">Approve</ApprovalOption>
+                  <ApprovalOption optionId="deny">Cancel</ApprovalOption>
+                </ApprovalQuestion>
+              </ApprovalCard>
+            </div>
+          );
+        })}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {thread === undefined || statusWords(thread.status) === "" ? null : (
+            <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
+          )}
+          {underWay ? (
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={() => {
+                cancel.mutate({ threadId });
               }}
             >
-              <ApprovalQuestion
-                questionId={approval.eventId}
-                prompt={question}
-                detail={detail ?? undefined}
-              >
-                <ApprovalOption optionId="allow">Approve</ApprovalOption>
-                <ApprovalOption optionId="deny">Cancel</ApprovalOption>
-              </ApprovalQuestion>
-            </ApprovalCard>
-          </div>
-        );
-      })}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {thread === undefined || statusWords(thread.status) === "" ? null : (
-          <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
-        )}
-        {underWay ? (
-          <Button
-            size="compact"
-            variant="ghost"
-            onClick={() => {
-              cancel.mutate({ threadId });
-            }}
-          >
-            Stop
-          </Button>
-        ) : null}
-        {whole === null || underWay ? null : (
-          <Button
-            size="compact"
-            variant="ghost"
-            disabled={undoWaits}
-            onClick={() => {
-              undoConversation.mutate();
-            }}
-          >
-            Undo this conversation
-          </Button>
-        )}
+              Stop
+            </Button>
+          ) : null}
+          {whole === null || underWay ? null : (
+            <Button
+              size="compact"
+              variant="ghost"
+              disabled={undoWaits}
+              onClick={() => {
+                undoConversation.mutate();
+              }}
+            >
+              Undo this conversation
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

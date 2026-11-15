@@ -363,8 +363,9 @@ turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
   payload logs and a spend limit of $5 a day split by the `account` metadata
   key; its Anthropic workspace is separate and capped; the Deploy run names it.
 - **A real turn**, open in a tab and the Mac at once: events
-  stream, one change set, Undo keeps your typing, the allowance counts, and
-  cache reads show.
+  stream, the conversation follows the reply to its end and the reply does not
+  blink as it lands, one change set, Undo keeps your typing, the allowance
+  counts, and cache reads show.
 - **Budgets**: a deploy mid-turn costs one call, a turn stops at 20 steps, and a
   spent per-account limit ends it as the day's allowance.
 - **Real-model behaviour**: a declined turn finishes on the fallback; approvals

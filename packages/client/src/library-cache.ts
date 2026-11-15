@@ -3,8 +3,8 @@
 // the socket coming up marks every one, since a drop or a deploy may have hidden a write meanwhile.
 // An item's read goes again only when the copy held is older than the sequence the frame names, so
 // a note's typing reads its row again only when it changed what a row holds. A screen hears which
-// items moved, and the reply the agent is writing, until a write moves its thread or the socket
-// goes down.
+// items moved, and the reply the agent is writing, until the read a write to its thread asks for
+// lands or the socket goes down.
 
 import type { RouterUtils } from "@orpc/tanstack-query";
 import type { QueryClient } from "@tanstack/query-core";
@@ -22,8 +22,9 @@ export type V1Queries = RouterUtils<V1Client>;
 export type ItemsMoved = ReadonlySet<string> | null;
 
 // the text so far of the reply the agent is writing in a thread; or none any more (null) in a
-// thread a write moved, since its reply landed or its turn moved on, or in every thread
-// (`threadId` null) when the write moved more than a frame names or the socket went down
+// thread whose stored events were read again, since its reply landed or its turn moved on, or in
+// every thread (`threadId` null) when the write moved more than a frame names or the socket went
+// down
 type ThreadPreview =
   | { readonly threadId: string; readonly text: string }
   | { readonly threadId: string | null; readonly text: null };
@@ -97,6 +98,7 @@ export const createThreadPreviews = (): ThreadPreviews => {
   };
 };
 
+// every read a moved frame asks for but a named thread's events, which `threadMoved` asks for
 const invalidateMoved = (
   { library }: V1Queries,
   queryClient: QueryClient,
@@ -125,18 +127,12 @@ const invalidateMoved = (
   if (frame.folders) {
     void queryClient.invalidateQueries({ queryKey: library.listing.scopes.key() });
   }
-  const { threads } = frame;
-  if (threads === "all" || threads.length > 0) {
+  if (frame.threads === "all" || frame.threads.length > 0) {
     void queryClient.invalidateQueries({ queryKey: library.agent.list.key() });
     void queryClient.invalidateQueries({ queryKey: library.history.key() });
-    if (threads === "all") {
-      void queryClient.invalidateQueries({ queryKey: library.agent.events.key() });
-    }
-    for (const threadId of threads === "all" ? [] : threads) {
-      void queryClient.invalidateQueries({
-        queryKey: library.agent.events.key({ input: { threadId } }),
-      });
-    }
+  }
+  if (frame.threads === "all") {
+    void queryClient.invalidateQueries({ queryKey: library.agent.events.key() });
   }
   return moved;
 };
@@ -156,6 +152,18 @@ export const createLibrarySocket = ({
     }
   };
   const previews = createThreadPreviews();
+  // a thread a write moved reads its stored events again, and the reply being written stays until
+  // that read lands with its stored message: it goes then, unless the agent wrote more meanwhile,
+  // which is the next message's
+  const threadMoved = async (threadId: string): Promise<void> => {
+    const held = previews.get(threadId);
+    await queryClient.invalidateQueries({
+      queryKey: queries.library.agent.events.key({ input: { threadId } }),
+    });
+    if (held !== null && previews.get(threadId) === held) {
+      previews.hear({ text: null, threadId });
+    }
+  };
   const socket = createAccountSocket({
     onFrame: (frame) => {
       if (frame.type === "preview") {
@@ -166,8 +174,12 @@ export const createLibrarySocket = ({
       if (moved === null || moved.size > 0) {
         itemsMoved(moved);
       }
-      for (const threadId of frame.threads === "all" ? [null] : frame.threads) {
-        previews.hear({ text: null, threadId });
+      if (frame.threads === "all") {
+        previews.hear({ text: null, threadId: null });
+        return;
+      }
+      for (const threadId of frame.threads) {
+        void threadMoved(threadId);
       }
     },
     // down: no frame can let a preview go any more, and a reply still being written sends its

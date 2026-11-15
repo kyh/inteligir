@@ -27,3 +27,6 @@ What the library tab and the phone share above the contract. It names no platfor
 - **A thread's read is spelled once, beside the socket that reads it again.** Its events are one
   query that asks only for what came after the last one held, since a paged copy downloads the
   whole conversation on every frame of a turn. `packages/client/src/thread-queries.ts`.
+- **The reply being written goes when the read that brings its stored message lands.** A preview
+  let go on the frame leaves neither text on screen for a round trip, and one the agent wrote
+  more of meanwhile is the next message's. `packages/client/src/library-cache.ts`.

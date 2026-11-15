@@ -31,9 +31,22 @@ test("the built-in agent writes, asks before deleting, undoes its conversation a
   await composer.press("Enter");
   const preview = page.locator("[data-agent-preview]");
   await expect(preview).toBeVisible();
+  // whether the reply ever left the conversation between its preview and its stored message
+  const reply = await page.evaluateHandle(() => {
+    const seen = { gone: false };
+    const thread = document.querySelector("[data-thread]") ?? document.body;
+    new MutationObserver(() => {
+      seen.gone ||= thread.querySelector('[data-slot="streaming-text"]') === null;
+    }).observe(thread, { childList: true, subtree: true });
+    return seen;
+  });
   await expect(page.getByText("Wrote a note")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Undo this turn" })).toBeVisible();
+  const undoTurn = page.getByRole("button", { name: "Undo this turn" });
+  await expect(undoTurn).toBeVisible();
   await expect(preview).toHaveCount(0);
+  await expect(reply.jsonValue()).resolves.toStrictEqual({ gone: false });
+  // the conversation followed the reply to its end
+  await expect(undoTurn).toBeInViewport();
   const [made] = await agentSets();
   await expect(card(made?.items[0]?.id ?? "")).toBeVisible();
 
