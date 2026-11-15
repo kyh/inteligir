@@ -25,9 +25,9 @@ src/
   codec/         an item as markdown, headless: an import's plan and file, the agent's view and edits
   kits/          the plugin kits: the shared content kit, the desktop and touch profiles, the headless mirror
   nodes/         every node type as a Base (headless) + React pair
-  item/          an item edited by its id: its editor, its note's connection, its properties
+  item/          an item edited by its id: its editor and its note's connection
   live/          a note's live document: the binding, the blocks it seeds and reads, a writer's edits
-  formulas/, mention/, properties/   formula pills, the `[[` picker, the properties panel
+  formulas/, mention/                formula pills, the `[[` picker
   knowledge/, items/, text/, lib/    an import's link targets, a file's facts, the one diff, helpers
   test-support/  the fake host, memory notes behind a fake socket, the corpus fixtures
   *.ts(x)        the editor surface and its in-document affordances, and the host seam

@@ -46,10 +46,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **The alert is the only callout** (owner decision). A quote led by `[!NOTE]` to `[!CAUTION]` is
   that alert, and any other marker, an `inteligir-callout` fence or a `<callout>` tag stays text,
   since five alerts need no second grammar. `packages/editor/src/markdown/md-alerts.test.ts`.
-- **An item's properties are its fields, and only a file has frontmatter.** Each row's edit is one
-  property op, and the title, tags, folder and pin are Info's, so no key has two editors; a `---`
-  fence in a paste or an agent's text is a YAML code block.
-  `packages/editor/src/item/item-properties.ts`.
+- **An item's properties are its fields, and only a file has frontmatter.** Info edits them, and
+  the title, tags, folder and pin are Info's, so no key has two editors; a `---` fence in a paste
+  or an agent's text is a YAML code block. `packages/editor/src/markdown/md-rules.ts`.
 - **The Plate slash menu is the insertion surface, and the touch toolbar is its soft-keyboard
   twin.** Each row writes its own fixpoint and no other row's bytes, a touch button is a row of a
   table the desktop reads, and an empty inline equation writes no bytes (owner decision).

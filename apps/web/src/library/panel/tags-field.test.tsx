@@ -1,8 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+// @vitest-environment jsdom
 
-import { TagsField } from "@repo/editor/properties/property-fields";
 import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { TagsField } from "./property-fields";
+
+afterEach(cleanup);
 
 const mount = (key: string, value: string[]) => {
   const onChange = vi.fn<(next: TypedProperty) => void>();

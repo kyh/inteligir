@@ -1,20 +1,21 @@
-import { useState, useSyncExternalStore } from "react";
-import type { KeyboardEvent } from "react";
-import { PlusIcon } from "lucide-react";
-
+import type { PropertyOp } from "@repo/contract/library/field-ops";
 import { typeNewProperty } from "@repo/editor/markdown/frontmatter";
 import type { PropertyType, TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
+import { PlusIcon } from "lucide-react";
+import { useState } from "react";
+import type { KeyboardEvent } from "react";
 
-import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";
+import { patchOf, rowsOf } from "./item-properties";
+import type { Properties, PropertyEdit } from "./item-properties";
 import {
   CheckboxField,
   NumberField,
   TagsField,
   TextField,
   UnsupportedField,
-} from "@repo/editor/properties/property-fields";
+} from "./property-fields";
 
 // only strings are ambiguous (text and date serialize identically); overrides are session-only.
 const overrideOptions = (prop: TypedProperty): PropertyType[] =>
@@ -189,14 +190,21 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
   );
 };
 
-// the rows a source holds, each editable in place
-export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) => {
-  const snapshot = useSyncExternalStore(source.subscribe, source.snapshot);
+// an item's properties as rows, each editable in place, and each edit handed back as one op
+export const PropertiesPanel = ({
+  properties,
+  onWrite,
+}: {
+  properties: Properties;
+  onWrite: (op: PropertyOp) => void;
+}) => {
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
-  const properties = source.read(snapshot);
 
   const commit = (edit: PropertyEdit) => {
-    source.commit(edit);
+    const op = patchOf(properties, edit);
+    if (op !== null) {
+      onWrite(op);
+    }
   };
 
   const applyOverride = (prop: TypedProperty): TypedProperty => {
@@ -219,7 +227,7 @@ export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) =
 
   return (
     <div className="flex flex-col gap-0.5">
-      {properties.map((prop) => {
+      {rowsOf(properties).map((prop) => {
         const shown = applyOverride(prop);
         return (
           <PropertyRow

@@ -1,22 +1,19 @@
-// An item's own properties as the panel's rows: the fields the library holds in place of a
-// frontmatter, read off the item as its host holds it and written as one property op each, over
-// the value the item holds. A value the panel cannot edit (an object, a list that is not all
-// words) is drawn as it is and never written.
+// An item's own properties as Info's rows: the fields the library holds in place of a
+// frontmatter, each row typed by its value and each edit one property op over the value the row
+// showed. A value the panel cannot edit (an object, a list that is not all words) is drawn as it
+// is and never written.
 
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields, PropertyValue } from "@repo/contract/library/library-item";
 import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { z } from "zod";
 
-import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";
+export type Properties = LibraryItemFields["properties"];
 
-// the item as its host holds it: its fields, null while they are still to come, and the write of
-// one property op over them
-export interface ItemFields {
-  readonly fields: () => LibraryItemFields | null;
-  readonly subscribe: (listener: () => void) => () => void;
-  readonly write: (op: PropertyOp) => void;
-}
+export type PropertyEdit =
+  | { readonly kind: "set"; readonly prop: TypedProperty }
+  | { readonly kind: "remove"; readonly key: string }
+  | { readonly kind: "add"; readonly prop: TypedProperty };
 
 // the frontmatter reader's own spelling of a date, so a property reads as a date wherever it is
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
@@ -49,19 +46,12 @@ const rowOf = (key: string, value: PropertyValue): TypedProperty => {
 const valueOf = (prop: TypedProperty): PropertyValue | null =>
   prop.type === "unsupported" ? null : prop.value;
 
-const rowsOf = (fields: LibraryItemFields | null): readonly TypedProperty[] =>
-  fields === null
-    ? []
-    : Object.entries(fields.properties).flatMap(([key, value]) =>
-        value === undefined ? [] : [rowOf(key, value)],
-      );
+export const rowsOf = (properties: Properties): readonly TypedProperty[] =>
+  Object.entries(properties).map(([key, value]) => rowOf(key, value));
 
-// the patch an edit makes over the properties the item holds now; none for one that no longer
-// applies, or a row the panel does not edit
-const patchOf = (
-  properties: Readonly<Record<string, PropertyValue | undefined>>,
-  edit: PropertyEdit,
-): PropertyOp | null => {
+// the op an edit makes over the properties the panel drew; none for an add over a key they hold,
+// or a row the panel does not edit
+export const patchOf = (properties: Properties, edit: PropertyEdit): PropertyOp | null => {
   const key = edit.kind === "remove" ? edit.key : edit.prop.key;
   const base = Object.hasOwn(properties, key) ? properties[key] : undefined;
   if (edit.kind === "remove") {
@@ -73,16 +63,3 @@ const patchOf = (
   }
   return base === undefined ? { key, op: "property", value } : { base, key, op: "property", value };
 };
-
-export const itemProperties = (item: ItemFields): PropertySource<LibraryItemFields | null> => ({
-  commit: (edit) => {
-    const fields = item.fields();
-    const op = fields === null ? null : patchOf(fields.properties, edit);
-    if (op !== null) {
-      item.write(op);
-    }
-  },
-  read: rowsOf,
-  snapshot: item.fields,
-  subscribe: item.subscribe,
-});

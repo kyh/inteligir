@@ -1,7 +1,3 @@
-import { useId, useState } from "react";
-import type { KeyboardEvent } from "react";
-import { XIcon } from "lucide-react";
-
 import { isTagName, TAG_NAME_RULE } from "@repo/contract/knowledge/tag-grammar";
 import { TAGS_KEY } from "@repo/editor/markdown/frontmatter";
 import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
@@ -10,6 +6,9 @@ import { Input } from "@repo/ui/components/input";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
+import { XIcon } from "lucide-react";
+import { useId, useState } from "react";
+import type { KeyboardEvent } from "react";
 
 const FIELD_CLASS =
   "h-7 border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
