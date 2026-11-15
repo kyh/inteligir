@@ -2,13 +2,13 @@
 // refused, with the API's own words, for what Claude Sonnet 5.5 refuses before it samples
 // (platform.claude.com/docs/en/api/messages, and the claude-api skill's Sonnet 5.5 migration notes):
 // sampling parameters, thinking other than adaptive, a forced tool choice, a field on a message
-// but its role and content, an assistant message last (a prefill), a system message out of place,
-// a tool call with no result next, a result with no call before it, cache breakpoints past four
-// or a 1-hour one after a 5-minute one, a breakpoint on a thinking block, a beta's field without
-// its beta, and a compaction trigger other than input tokens or under 50,000. A conversation the
-// API compacted is read from its last compaction block that kept a summary on, as the API reads it:
-// everything before the block is ignored, and a block whose summary was not written, its content
-// null, is ignored itself and compacts nothing
+// but its role and content, an assistant message last (a prefill), a tool call with no result
+// next, a result with no call before it, cache breakpoints past four or a 1-hour one after a
+// 5-minute one, a breakpoint on a thinking block, a beta's field without its beta, and a
+// compaction trigger other than input tokens or under 50,000. A conversation the API compacted is
+// read from its last compaction block that kept a summary on, as the API reads it: everything
+// before the block is ignored, and a block whose summary was not written, its content null, is
+// ignored itself and compacts nothing
 // (platform.claude.com/docs/en/build-with-claude/compaction-threshold).
 
 import { z } from "zod";
@@ -82,7 +82,7 @@ const contentSchema = z.union([z.string().transform(asText), z.array(blockSchema
 // a message is its role and content and nothing else: any other field is a 400
 const messageSchema = z.strictObject({
   content: contentSchema,
-  role: z.enum(["user", "assistant", "system"]),
+  role: z.enum(["user", "assistant"]),
 });
 
 type FakeMessage = z.infer<typeof messageSchema>;
@@ -252,14 +252,6 @@ const placementRefusal = (messages: readonly FakeMessage[]): string | null => {
   for (const [index, message] of messages.entries()) {
     const before = messages[index - 1];
     const after = messages[index + 1];
-    if (message.role === "system") {
-      if (before?.role !== "user" || (after !== undefined && after.role !== "assistant")) {
-        return `messages.${String(index)}: a system message must follow a user message, and be the last message or come before an assistant message.`;
-      }
-      if (message.content.some((block) => block.type !== "text")) {
-        return `messages.${String(index)}.content: a system message holds text alone.`;
-      }
-    }
     const asked = toolUseIds(message);
     if (asked.size > 0) {
       const answered = new Set<string>();

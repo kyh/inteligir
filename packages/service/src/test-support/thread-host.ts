@@ -21,7 +21,7 @@ import { anthropicClient } from "../agent/anthropic-client";
 import { threadDbOf } from "../agent/thread-db";
 import { cutCall, nextDrive, RESTING } from "../agent/thread-drive";
 import type { Drive, DriveEffect, DriveEvent, StepResult } from "../agent/thread-drive";
-import { acceptDelivery, listeningFetch, rulesHashOf, step } from "../agent/thread-loop";
+import { acceptDelivery, listeningFetch, step } from "../agent/thread-loop";
 import type { CallInFlight, ThreadCell, ThreadHost } from "../agent/thread-loop";
 import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
@@ -97,7 +97,7 @@ export const inSteppedThread = async <T>(
   work: (thread: SteppedThread) => Promise<T>,
   options: {
     readonly cell?: (real: ThreadCell) => ThreadCell;
-    readonly definition?: () => ThreadDefinition;
+    readonly definition?: (rules: string | null) => ThreadDefinition;
   } = {},
 ): Promise<T> => {
   const first = await openTurnInCell(account, threadId, text);
@@ -154,26 +154,22 @@ export const inSteppedThread = async <T>(
         threadId,
         transaction: (run) => state.storage.transactionSync(run),
       };
-      const handOver = async (turn: {
+      const handOver = (turn: {
         readonly text: string;
         readonly turn: number;
         readonly handed: z.infer<typeof handedSchema>;
-      }) => {
+      }): void => {
         const content = turnUserMessage({ text: turn.text, viewContext: null });
-        acceptDelivery(
-          host,
-          {
-            content,
-            opId: `${threadId}:${String(turn.turn)}`,
-            pushedThrough: turn.handed.pushedThrough,
-            rules: turn.handed.rules,
-            threadId,
-            turn: turn.turn,
-          },
-          await rulesHashOf(turn.handed.rules),
-        );
+        acceptDelivery(host, {
+          content,
+          opId: `${threadId}:${String(turn.turn)}`,
+          pushedThrough: turn.handed.pushedThrough,
+          rules: turn.handed.rules,
+          threadId,
+          turn: turn.turn,
+        });
       };
-      await handOver({ handed: first, text, turn: 1 });
+      handOver({ handed: first, text, turn: 1 });
       const deliver = async (next: string): Promise<number> => {
         const turn =
           (db
@@ -187,7 +183,7 @@ export const inSteppedThread = async <T>(
           next,
           turn,
         );
-        await handOver({ handed: held, text: next, turn });
+        handOver({ handed: held, text: next, turn });
         return turn;
       };
       const run = async (most = 40): Promise<StepResult[]> => {

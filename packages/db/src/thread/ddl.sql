@@ -18,6 +18,7 @@ CREATE TABLE `definition` (
 	`model` text NOT NULL,
 	`effort` text NOT NULL,
 	`system` text NOT NULL,
+	`rules` text,
 	`tools` text NOT NULL,
 	`since_seq` integer NOT NULL UNIQUE
 );
@@ -25,7 +26,6 @@ CREATE TABLE `definition` (
 CREATE TABLE `thread_meta` (
 	`id` integer PRIMARY KEY,
 	`push_seq` integer DEFAULT 0 NOT NULL,
-	`rules_hash` text,
 	CONSTRAINT "thread_meta_one" CHECK("id" = 1)
 );
 
@@ -39,7 +39,7 @@ CREATE TABLE `transcript` (
 	`turn` integer NOT NULL,
 	`role` text NOT NULL,
 	`content` text NOT NULL,
-	CONSTRAINT "transcript_role" CHECK("role" IN ('user', 'assistant', 'system'))
+	CONSTRAINT "transcript_role" CHECK("role" IN ('user', 'assistant'))
 );
 
 CREATE TABLE `turns` (
@@ -47,7 +47,6 @@ CREATE TABLE `turns` (
 	`op_id` text NOT NULL UNIQUE,
 	`content` text NOT NULL,
 	`rules` text,
-	`rules_hash` text,
 	`status` text NOT NULL,
 	`started` integer DEFAULT 0 NOT NULL,
 	`cancel_requested` integer DEFAULT 0 NOT NULL,

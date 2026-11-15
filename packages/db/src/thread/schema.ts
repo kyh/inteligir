@@ -19,7 +19,7 @@ export const MODEL_CALL_STATUSES = ["streaming", "done", "cut", "failed", "cance
 // where one tool call stands: journaled, waiting on the person, running, or answered
 export const TOOL_CALL_STATUSES = ["pending", "awaiting_approval", "running", "done"] as const;
 
-const TRANSCRIPT_ROLES = ["user", "assistant", "system"] as const;
+const TRANSCRIPT_ROLES = ["user", "assistant"] as const;
 
 const TOOL_DECISIONS = ["approved", "denied"] as const;
 
@@ -27,26 +27,26 @@ const TOOL_DECISIONS = ["approved", "denied"] as const;
 const oneOf = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(", "));
 
-// the conversation's one row: the last push it wrote to its outbox, and the filing rules its
-// transcript last carried, null for none, '' while a change of them is owed, else their hash
+// the conversation's one row: the last push it wrote to its outbox
 export const threadMeta = sqliteTable(
   "thread_meta",
   {
     id: integer().primaryKey(),
     pushSeq: integer("push_seq").notNull().default(0),
-    rulesHash: text("rules_hash"),
   },
   (t) => [check("thread_meta_one", sql`${t.id} = 1`)],
 );
 
-// the model, effort, system blocks and tool definitions as sent, each row frozen at the start of
-// the turn whose first transcript row is its `since_seq`; the newest is the one in force
+// the model, effort, system blocks and tool definitions as sent, and the person's filing rules,
+// sent after the system blocks, each row frozen at the start of the turn whose first transcript
+// row is its `since_seq`; the newest is the one in force
 export const threadDefinitions = sqliteTable("definition", {
   id: integer().primaryKey(),
   hash: text().notNull(),
   model: text().notNull(),
   effort: text().notNull(),
   system: text().notNull(),
+  rules: text(),
   tools: text().notNull(),
   sinceSeq: integer("since_seq").notNull().unique(),
 });
@@ -71,7 +71,6 @@ export const threadTurns = sqliteTable(
     opId: text("op_id").notNull().unique(),
     content: text().notNull(),
     rules: text(),
-    rulesHash: text("rules_hash"),
     status: text({ enum: THREAD_TURN_STATUSES }).notNull(),
     started: integer().notNull().default(0),
     cancelRequested: integer("cancel_requested").notNull().default(0),

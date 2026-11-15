@@ -250,24 +250,6 @@ describe("the scripted Messages API", () => {
         /tool_result/u,
       ],
       [
-        "a system message that follows no user message",
-        bodyOf([
-          person("Go."),
-          { content: [{ text: "Hi.", type: "text" }], role: "assistant" },
-          { content: [{ text: "Rules.", type: "text" }], role: "system" },
-        ]),
-        /system message/u,
-      ],
-      [
-        "a system message with a user message after it",
-        bodyOf([
-          person("Go."),
-          { content: [{ text: "Rules.", type: "text" }], role: "system" },
-          person("Again."),
-        ]),
-        /system message/u,
-      ],
-      [
         "more than four breakpoints",
         bodyOf([
           {

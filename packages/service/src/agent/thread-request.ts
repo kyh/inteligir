@@ -7,11 +7,14 @@
 // compacted on the server once its input reaches 50,000 tokens, the least threshold the API takes
 // (platform.claude.com/docs/en/build-with-claude/compaction-threshold). The system and the tools
 // are the definition's, byte for byte, each closed by a 1-hour cache breakpoint, so every
-// conversation of every account reads one cached prefix; the last block of the last message
-// carries a 5-minute one on a copy, so each step reads the steps before it. A message is its role
-// and content alone, never an assistant's last: a replayed thinking block is checked against
-// everything before it from the last compaction block on, and a field the API does not expect is a
-// 400. What the transcript holds reaches a request by one rule, the same on every request, so a
+// conversation of every account reads one cached prefix. The person's filing rules are the
+// definition's too, sent as the system's last block, past that breakpoint: a system message among
+// the others is summarized by a compaction, and the fallback model takes none. The last block of
+// the last message carries a 5-minute breakpoint on a copy, so each step reads the steps before
+// it. A message is its role and content alone, never an assistant's last: a replayed thinking
+// block is checked against everything before it from the last compaction block on, and a field
+// the API does not expect is a 400.
+// What the transcript holds reaches a request by one rule, the same on every request, so a
 // prefix never moves once a block is bound to it: nothing before the last compaction that kept a
 // summary, which the API ignores, and before the turn the thread took up its definition at, no
 // thinking block, which that definition's system and tools would fail, the leading run the API
@@ -101,12 +104,10 @@ export type ReplyBlock = z.infer<typeof replyBlockSchema>;
 const userBlockSchema = z.discriminatedUnion("type", [textSchema, toolResultSchema]);
 type UserBlock = z.infer<typeof userBlockSchema>;
 export type ToolResultBlock = z.infer<typeof toolResultSchema>;
-type TextBlock = z.infer<typeof textSchema>;
 
 export type TranscriptMessage =
   | { readonly role: "user"; readonly content: readonly UserBlock[] }
-  | { readonly role: "assistant"; readonly content: readonly ReplyBlock[] }
-  | { readonly role: "system"; readonly content: readonly TextBlock[] };
+  | { readonly role: "assistant"; readonly content: readonly ReplyBlock[] };
 
 // each validated, never parsed: a value narrowed keeps its keys in the order they were written,
 // which a parse would not
@@ -121,9 +122,6 @@ export const transcriptMessage = (role: string, content: string): TranscriptMess
     return { content: value, role };
   }
   if (role === "assistant" && replyContent.validate(value)) {
-    return { content: value, role };
-  }
-  if (role === "system" && systemContent.validate(value)) {
     return { content: value, role };
   }
   throw new Error(`a ${role} row holds content this build cannot replay`);
@@ -144,11 +142,13 @@ const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies rea
   BetaOutputConfig["effort"]
 >[];
 
-// what a turn is sent under: the model and its effort, the system blocks and the tool definitions
+// what a turn is sent under: the model and its effort, the system blocks and the tool definitions,
+// the same for every account, and the person's filing rules, null while they keep none
 export interface ThreadDefinition {
   readonly model: string;
   readonly effort: (typeof EFFORTS)[number];
   readonly system: readonly BetaTextBlockParam[];
+  readonly rules: string | null;
   readonly tools: readonly BetaTool[];
 }
 
@@ -163,6 +163,7 @@ export interface FrozenDefinition {
   readonly model: string;
   readonly effort: string;
   readonly system: string;
+  readonly rules: string | null;
   readonly tools: string;
 }
 
@@ -179,27 +180,31 @@ export const storedDefinition = (row: FrozenDefinition): ThreadDefinition => {
   return {
     effort: z.enum(EFFORTS).parse(row.effort),
     model: z.string().min(1).parse(row.model),
+    rules: row.rules,
     system,
     tools,
   };
 };
 
-// what this deployment would start a turn under: its model and effort, and the prompt and the tools
-// as they stand
-export const deployedDefinition = (): ThreadDefinition => ({
+// what this deployment would start a turn under, for a library that keeps `rules`: its model and
+// effort, and the prompt and the tools as they stand
+export const deployedDefinition = (rules: string | null): ThreadDefinition => ({
   effort: AGENT_MODEL.effort,
   model: AGENT_MODEL.id,
+  rules,
   system: [{ text: AGENT_SYSTEM_PROMPT, type: "text" }],
   tools: AGENT_TOOL_DEFINITIONS,
 });
 
-// the definition as its row keeps it, and the hash a deploy's definition is told apart by
+// the definition as its row keeps it, and the hash a deploy's definition, or the person's edit of
+// their rules, is told apart by
 export const frozenDefinition = async (
   definition: ThreadDefinition,
 ): Promise<FrozenDefinition & { readonly hash: string }> => {
   const frozen: FrozenDefinition = {
     effort: definition.effort,
     model: definition.model,
+    rules: definition.rules,
     system: JSON.stringify(definition.system),
     tools: JSON.stringify(definition.tools),
   };
@@ -228,8 +233,7 @@ const compacts = (message: TranscriptMessage): boolean =>
 // what a request carries of the transcript: every message from the last reply whose compaction
 // kept a summary on, since the API ignores what it summarized; and of the messages before
 // `sinceSeq`, the first of the turn the thread took up its definition at, none of their thinking,
-// a reply left with nothing left out with the system message it alone followed, since a system
-// message is followed by an assistant's or by nothing
+// a reply left with nothing left out
 export const requestMessages = (
   transcript: readonly SequencedMessage[],
   sinceSeq: number,
@@ -243,8 +247,6 @@ export const requestMessages = (
     const content = message.content.filter((block) => !isThinking(block));
     if (content.length > 0) {
       sent.push({ content, role: "assistant" });
-    } else if (sent.at(-1)?.role === "system") {
-      sent.pop();
     }
   }
   return sent;
@@ -261,12 +263,6 @@ const messageParam = (message: TranscriptMessage, last: boolean): BetaMessagePar
         role: "user",
       };
     }
-    case "system": {
-      return {
-        content: rolling === null ? [...message.content] : closedBy(message.content, rolling),
-        role: "system",
-      };
-    }
     case "assistant": {
       const lastBlock = message.content.at(-1);
       return {
@@ -280,6 +276,11 @@ const messageParam = (message: TranscriptMessage, last: boolean): BetaMessagePar
     // no default
   }
 };
+
+// the filing rules as the system block they are sent as, which no breakpoint closes: the prefix
+// before it is every account's
+const rulesBlocks = (rules: string | null): BetaTextBlockParam[] =>
+  rules === null ? [] : [{ text: rules, type: "text" }];
 
 // the request for `messages`, which `requestMessages` read off the transcript; every call asks the
 // same cap, so a step sent again is the same bytes
@@ -301,7 +302,7 @@ export const agentRequest = (
   messages: messages.map((message, index) => messageParam(message, index === messages.length - 1)),
   model: definition.model,
   output_config: { effort: definition.effort },
-  system: closedBy(definition.system, HOUR_CACHE),
+  system: [...closedBy(definition.system, HOUR_CACHE), ...rulesBlocks(definition.rules)],
   thinking: {
     block_binding: { prefix_mismatch_behavior: "drop_block" },
     display: "updates",

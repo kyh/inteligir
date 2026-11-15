@@ -1,7 +1,8 @@
 // The built-in agent's system prompt: @repo/agent-skills as it stands, the agent's own instructions,
 // the hub, then every skill in the order the hub lists them, with nothing of an account or a request
 // in it, so its bytes change only with those files and every conversation of every account reads
-// one cached prefix (`./thread-request`).
+// one cached prefix; the person's filing rules follow it in a block of their own
+// (`./thread-request`).
 
 import builtInAgent from "@repo/agent-skills/built-in-agent.md?raw";
 import canvas from "@repo/agent-skills/skills/inteligir-canvas/SKILL.md?raw";

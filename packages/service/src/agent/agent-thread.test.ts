@@ -3,9 +3,9 @@
 // returned them, its progress notes, its transcript kept across a second wake, its recovery when
 // its instance dies mid-call or mid-tool, its approvals, its cancel, a denial then a stop, two
 // conversations at once, Claude refusing or failing, a turn ended at its last step, a compaction
-// on the server, a delete mid-reply, and a deploy's definition taken up between turns. Every case
-// ends with the fake having dropped no replayed thinking block, the proof that what the thread
-// replays is what Claude sent.
+// on the server, a delete mid-reply, and a deploy's definition or the person's changed filing
+// rules taken up between turns. Every case ends with the fake having dropped no replayed thinking
+// block, the proof that what the thread replays is what Claude sent.
 // The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
 // stepped by hand (`../test-support/thread-host`).
 
@@ -32,7 +32,6 @@ import {
 } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
 import { blockTypesOf, expectSharedPrefixes, unmarkedOf } from "../test-support/request-bodies";
-import { cellOf } from "../test-support/library-cell";
 import { inSteppedThread } from "../test-support/thread-host";
 import type { AgentThreadDO } from "./agent-thread";
 import { AGENT_MAX_STEPS } from "./library-agent";
@@ -46,7 +45,6 @@ import {
   transcriptMessage,
 } from "./thread-request";
 import type { ThreadDefinition } from "./thread-request";
-import { RULES_CLEARED } from "./turn-message";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;
@@ -157,6 +155,7 @@ const transcriptOf = async (account: AgentAccount, threadId: string) => {
 const definitionRowSchema = z.object({
   effort: z.string(),
   model: z.string(),
+  rules: z.string().nullable(),
   since_seq: z.number(),
   system: z.string(),
   tools: z.string(),
@@ -166,7 +165,7 @@ const definitionsOf = async (account: AgentAccount, threadId: string) => {
   const rows = await threadRows(
     account.accountId,
     threadId,
-    "SELECT model, effort, system, tools, since_seq FROM definition ORDER BY id",
+    "SELECT model, effort, system, rules, tools, since_seq FROM definition ORDER BY id",
   );
   return rows.map((row) => definitionRowSchema.parse(row));
 };
@@ -213,8 +212,15 @@ const sentAs = (definition: ThreadDefinition) => ({
   tools: JSON.stringify(definition.tools),
 });
 
-// the filing rules as a system message holds them
-const rulesMessage = (text: string) => z.json().parse([{ text, type: "text" }]);
+// the first transcript row of each of a thread's turns, in order
+const turnStartsOf = async (account: AgentAccount, threadId: string): Promise<number[]> => {
+  const rows = await threadRows(
+    account.accountId,
+    threadId,
+    "SELECT min(seq) AS seq FROM transcript GROUP BY turn ORDER BY turn",
+  );
+  return rows.map((row) => z.object({ seq: z.number() }).parse(row).seq);
+};
 
 // the library's filing rules as the person left them
 const rulesIn = async (account: AgentAccount, rules: string): Promise<void> => {
@@ -334,12 +340,13 @@ describe("a conversation's object", () => {
   );
 
   it(
-    "goes on past a compaction on the server, replaying from it",
+    "goes on past a compaction on the server, replaying from it, the filing rules on every call",
     // eight model calls in two turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
       const account = agentAccount();
-      await rulesIn(account, "File trips under Travel.");
+      const rules = "File trips under Travel.";
+      await rulesIn(account, rules);
       const searches = Array.from(
         { length: 5 },
         (_, index) => `call search_library {"query":"trip ${String(index)}"}`,
@@ -350,11 +357,15 @@ describe("a conversation's object", () => {
         threadId,
         // the compaction opens the second step's reply; five steps follow it
         script('call create_note {"markdown":"Before."}', "compact", ...searches),
-        async ({ deliver, run }) => {
+        async ({ deliver, run, sent }) => {
           await expect(restsAt(run)).resolves.toBe("idle");
-          // the next turn answers, sending the filing rules again: the compaction summarized them
           await deliver(script("And now?"));
           await expect(restsAt(run)).resolves.toBe("idle");
+          // no call lost the rules to the compaction: each carries them after the prompt
+          expect(sent).toHaveLength(8);
+          for (const body of sent) {
+            expect(unmarkedOf(body).system.at(-1)).toStrictEqual({ text: rules, type: "text" });
+          }
         },
       );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
@@ -379,7 +390,6 @@ describe("a conversation's object", () => {
       ]);
       expect(transcript.filter((row) => row.turn === 2).map((row) => row.role)).toStrictEqual([
         "user",
-        "system",
         "assistant",
       ]);
       // every call after the compaction asked from it on, byte for byte as kept
@@ -388,13 +398,12 @@ describe("a conversation's object", () => {
   );
 
   it(
-    "sends the filing rules after the person's message while they are new, and keeps them with the reply",
-    // five turns, one of them stopped mid-reply
+    "sends each turn under the filing rules it brought, and takes up a change of them at the next turn's start",
+    // five model calls in four turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
       const account = agentAccount();
       await rulesIn(account, "File trips under Travel.");
-      // a turn of two steps: the second replays the rules where the first left them
       const { threadId } = await send(
         account,
         script('call create_note {"markdown":"Trips go under Travel."}'),
@@ -402,131 +411,33 @@ describe("a conversation's object", () => {
         ROOMY,
       );
       await settled(account, threadId);
-      // the same rules again: nothing new to send
+      // the same rules again: the definition in force stands, its thinking replayed
       await send(account, script("And the next one?"), threadId, ROOMY);
       await settled(account, threadId);
       await rulesIn(account, "File trips under Journeys.");
       await send(account, script("Changed my mind."), threadId, ROOMY);
       await settled(account, threadId);
-      // a turn stopped before its first reply lands keeps no rules, so the next turn sends them
-      await rulesIn(account, "File trips by year.");
-      const before = await heldSoFar();
-      await send(account, script("stall"), threadId, ROOMY);
-      await heldMidReply(account, [threadId], before);
-      await asLaptop(account, async (client) => await client.agent.cancel({ threadId }));
+      // a blank page is no rules
+      await rulesIn(account, "  \n");
+      await send(account, script("Cleared."), threadId, ROOMY);
       await settled(account, threadId);
-      await send(account, script("Once more."), threadId, ROOMY);
-      await settled(account, threadId);
-      const transcript = await transcriptOf(account, threadId);
-      expect(
-        transcript.map((row) =>
-          row.role === "system"
-            ? [row.turn, row.role, z.json().parse(JSON.parse(row.content))]
-            : [row.turn, row.role],
-        ),
-      ).toStrictEqual([
-        [1, "user"],
-        [1, "system", rulesMessage("File trips under Travel.")],
-        [1, "assistant"],
-        [1, "user"],
-        [1, "assistant"],
-        [2, "user"],
-        [2, "assistant"],
-        [3, "user"],
-        [3, "system", rulesMessage("File trips under Journeys.")],
-        [3, "assistant"],
-        [4, "user"],
-        [5, "user"],
-        [5, "system", rulesMessage("File trips by year.")],
-        [5, "assistant"],
-      ]);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { reason: "done" },
         { reason: "done" },
         { reason: "done" },
-        { reason: "cancelled" },
         { reason: "done" },
       ]);
-      // each first reply was asked with its rules last, and every later call replays them in place
-      await expectRepliesAskedAsKept(account, threadId);
-    },
-  );
-
-  it(
-    "tells a conversation that carried filing rules they are cleared, once, and sends them again when they return",
-    // four turns, and two in a conversation that never carried any
-    { timeout: 2 * TURN_MS },
-    async () => {
-      const account = agentAccount();
-      const { threadId: plain } = await send(account, script("First."), undefined, ROOMY);
-      await settled(account, plain);
-      await rulesIn(account, "");
-      await send(account, script("Second."), plain, ROOMY);
-      await settled(account, plain);
-      const none = await transcriptOf(account, plain);
-      expect(none.map((row) => row.role)).toStrictEqual(["user", "assistant", "user", "assistant"]);
-
-      await rulesIn(account, "File trips under Travel.");
-      const { threadId } = await send(account, script("Noted."), undefined, ROOMY);
-      await settled(account, threadId);
-      await rulesIn(account, "  \n");
-      await send(account, script("Cleared."), threadId, ROOMY);
-      await settled(account, threadId);
-      await send(account, script("Still cleared."), threadId, ROOMY);
-      await settled(account, threadId);
-      await rulesIn(account, "File trips under Travel.");
-      await send(account, script("Back again."), threadId, ROOMY);
-      await settled(account, threadId);
-      const transcript = await transcriptOf(account, threadId);
+      const starts = await turnStartsOf(account, threadId);
+      const definitions = await definitionsOf(account, threadId);
       expect(
-        transcript.map((row) =>
-          row.role === "system"
-            ? [row.turn, row.role, z.json().parse(JSON.parse(row.content))]
-            : [row.turn, row.role],
-        ),
+        definitions.map((definition) => [definition.rules, definition.since_seq]),
       ).toStrictEqual([
-        [1, "user"],
-        [1, "system", rulesMessage("File trips under Travel.")],
-        [1, "assistant"],
-        [2, "user"],
-        [2, "system", rulesMessage(RULES_CLEARED)],
-        [2, "assistant"],
-        [3, "user"],
-        [3, "assistant"],
-        [4, "user"],
-        [4, "system", rulesMessage("File trips under Travel.")],
-        [4, "assistant"],
+        ["File trips under Travel.", starts[0]],
+        ["File trips under Journeys.", starts[2]],
+        [null, starts[3]],
       ]);
-      await expectRepliesAskedAsKept(account, threadId);
-    },
-  );
-
-  it(
-    "tells a conversation past a compaction its filing rules are cleared, since the summary may hold them",
-    // three model calls in two turns, each a round trip through the fake
-    { timeout: 2 * TURN_MS },
-    async () => {
-      const account = agentAccount();
-      await rulesIn(account, "File trips under Travel.");
-      const { threadId } = await send(
-        account,
-        script('call create_note {"markdown":"Before."}', "compact", "Done."),
-        undefined,
-        ROOMY,
-      );
-      await settled(account, threadId);
-      await rulesIn(account, "");
-      await send(account, script("Cleared."), threadId, ROOMY);
-      await settled(account, threadId);
-      const transcript = await transcriptOf(account, threadId);
-      expect(
-        transcript.flatMap((row) =>
-          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
-        ),
-      ).toStrictEqual([
-        [1, rulesMessage("File trips under Travel.")],
-        [2, rulesMessage(RULES_CLEARED)],
-      ]);
+      // every call went under its turn's rules, with no thinking from before they were taken up,
+      // and the fake dropped none (afterEach)
       await expectRepliesAskedAsKept(account, threadId);
     },
   );
@@ -1042,15 +953,13 @@ describe("a conversation's loop, stepped", () => {
   );
 
   it(
-    "takes up a deploy's definition at the next turn's start, never mid-turn, replaying no thinking from before it and the filing rules again",
+    "takes up a deploy's definition at the next turn's start, never mid-turn, replaying no thinking from before it",
     // nine model calls in four turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
-      const rules = "File trips under Travel.";
-      await rulesIn(account, rules);
-      const first = deployedDefinition();
+      const first = deployedDefinition(null);
       // a deploy that changes the prompt and a tool's words, and another after it
       const redeployed = (words: string): ThreadDefinition => ({
         ...first,
@@ -1077,27 +986,19 @@ describe("a conversation's loop, stepped", () => {
           for (const body of secondTurn) {
             expect(definitionSent(body)).toStrictEqual(sentAs(second));
           }
-          // no thinking block of the turns before it, every reply of theirs still there, and the
-          // filing rules sent again last, since what the turn's requests leave out may have taken
-          // the message they last went in
+          // no thinking block of the turns before it, every reply of theirs still there
           const [opening = ""] = secondTurn;
           const openingTypes = blockTypesOf(unmarkedOf(opening));
           expect(openingTypes.flat()).not.toContain("thinking");
           expect(openingTypes).toStrictEqual([
             ["text"],
-            ["text"],
             ["tool_use"],
             ["tool_result"],
             ["tool_use"],
             ["tool_result"],
-            ["text"],
             ["text"],
             ["text"],
           ]);
-          expect(unmarkedOf(opening).messages.at(-1)).toStrictEqual({
-            content: rulesMessage(rules),
-            role: "system",
-          });
           expectSharedPrefixes(secondTurn);
           // deployed mid-turn: the turn ends under the definition it started under
           await deliver(
@@ -1121,7 +1022,7 @@ describe("a conversation's loop, stepped", () => {
             expect(blockTypesOf(unmarkedOf(body)).flat()).not.toContain("thinking");
           }
         },
-        { definition: () => deployed },
+        { definition: (rules) => ({ ...deployed, rules }) },
       );
       // nothing refused, nothing dropped (afterEach), every turn done
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
@@ -1131,61 +1032,12 @@ describe("a conversation's loop, stepped", () => {
         { reason: "done" },
       ]);
       // each definition in force from the first row of the turn that took it up
-      const firstRows = await threadRows(
-        account.accountId,
-        threadId,
-        "SELECT min(seq) AS seq FROM transcript GROUP BY turn ORDER BY turn",
-      );
-      const starts = firstRows.map((row) => z.object({ seq: z.number() }).parse(row).seq);
+      const starts = await turnStartsOf(account, threadId);
       const definitions = await definitionsOf(account, threadId);
       expect(definitions.map((definition) => definition.since_seq)).toStrictEqual([
         starts[0],
         starts[1],
         starts[3],
-      ]);
-      // the rules kept with the first reply of each turn that took up a definition, and of no other
-      const transcript = await transcriptOf(account, threadId);
-      const rolesOf = (turn: number) =>
-        transcript.filter((row) => row.turn === turn).map((row) => row.role);
-      expect(rolesOf(1).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
-      expect(rolesOf(2).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
-      expect(rolesOf(3)).not.toContain("system");
-      expect(rolesOf(4)).toStrictEqual(["user", "system", "assistant"]);
-      await expectRepliesAskedAsKept(account, threadId);
-    },
-  );
-
-  it(
-    "tells a conversation taking up a deploy's definition that its filing rules are cleared",
-    { timeout: TURN_MS },
-    async () => {
-      const account = agentAccount();
-      const threadId = crypto.randomUUID();
-      await rulesIn(account, "File trips under Travel.");
-      const first = deployedDefinition();
-      let deployed = first;
-      await inSteppedThread(
-        account,
-        threadId,
-        script("Noted."),
-        async ({ deliver, run }) => {
-          await expect(restsAt(run)).resolves.toBe("idle");
-          deployed = { ...first, system: [...first.system, { text: "A deploy.", type: "text" }] };
-          // a stub made here, inside the thread's object, which may not use one made outside it
-          await rulesIn({ ...account, cell: cellOf(account.accountId) }, "");
-          await deliver(script("Cleared."));
-          await expect(restsAt(run)).resolves.toBe("idle");
-        },
-        { definition: () => deployed },
-      );
-      const transcript = await transcriptOf(account, threadId);
-      expect(
-        transcript.flatMap((row) =>
-          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
-        ),
-      ).toStrictEqual([
-        [1, rulesMessage("File trips under Travel.")],
-        [2, rulesMessage(RULES_CLEARED)],
       ]);
       await expectRepliesAskedAsKept(account, threadId);
     },

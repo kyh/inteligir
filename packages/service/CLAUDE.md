@@ -219,6 +219,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   definition is taken up between turns.** A resumed turn writes its prompt to
   the cache again, 60 cents at 150,000.
   `packages/service/src/agent/thread-request.ts`.
+- **The person's filing rules are part of the definition a turn is sent under,
+  the system's last block.** A system message among the others is summarized by
+  a compaction, and the fallback model takes none; an edit of them rewrites the
+  conversation's cache once. `packages/service/src/agent/thread-request.ts`.
 - **Saving a link is the agent's one way out of the library, and the person sees
   the whole address before it goes.** A saved page the agent read can ask it to
   carry the person's words to a site. `packages/service/src/agent/library-agent.ts`.
