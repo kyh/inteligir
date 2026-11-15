@@ -38,7 +38,7 @@ const storedOf = (text: string): BodyBlock[] => {
     { ...pretendLibrary().importPorts(), ...libraryLinks(portsWith()) },
   );
   if (!read.ok) {
-    throw new Error(read.reason);
+    throw new Error(read.reason.kind);
   }
   return [...read.item.blocks];
 };

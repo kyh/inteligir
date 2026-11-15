@@ -15,7 +15,7 @@ import { numberProp } from "@repo/editor/node-props";
 
 import { isMdastRoot } from "./mdast-nodes";
 
-type MarkdownRefusal = { kind: "too-deep" } | { kind: "failed"; error: Error };
+export type MarkdownRefusal = { kind: "too-deep" } | { kind: "failed"; error: Error };
 
 export type MarkdownRead = { ok: true; value: TElement[] } | { ok: false; reason: MarkdownRefusal };
 
@@ -116,12 +116,7 @@ export const readMarkdown = (
       reason: isTooDeep(failed) ? { kind: "too-deep" } : { error: failed, kind: "failed" },
     };
   }
+  // Plate wraps a root text in a paragraph, so this only narrows the type
   const value = nodes.filter((node) => ElementApi.isElement(node));
-  if (value.length !== nodes.length) {
-    return {
-      ok: false,
-      reason: { error: new Error("a root text survived the read"), kind: "failed" },
-    };
-  }
   return nestsTooDeep(value) ? { ok: false, reason: { kind: "too-deep" } } : { ok: true, value };
 };

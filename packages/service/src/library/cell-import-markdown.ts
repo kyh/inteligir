@@ -39,6 +39,7 @@ import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "../zip/zip
 import type { ByteSource, ZipEntry } from "../zip/zip-read";
 import { r2Source } from "../zip/r2-source";
 import { blobKey } from "./cell-blobs";
+import { logReadFailure } from "./cell-codec";
 import { askFill } from "./cell-fills";
 import { folderOfTarget } from "./cell-folders";
 import {
@@ -481,6 +482,9 @@ const docOutcome = async (
     now: host.now(),
   });
   if (!read.ok) {
+    if (read.reason.kind === "failed") {
+      logReadFailure(read.reason.error);
+    }
     return skip({ unreadable: 1 });
   }
   return landingOutcome(

@@ -371,6 +371,25 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("reads a `---` block opening a new note as a code block, which names no field", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const { item } = await library.items.createNote({
+        markdown: "---\ntitle: From the text\ntags: [yaml]\n---\n\nBody.",
+        tags: ["Asked"],
+      });
+      expect(item.fields).toMatchObject({
+        aliases: [],
+        properties: {},
+        tags: ["Asked"],
+        title: "",
+      });
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        view: { markdown: "```yaml\ntitle: From the text\ntags: [yaml]\n```\n\nBody.\n" },
+      });
+    });
+  });
+
   it("refuses an edit to the lines the article opens and closes on", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

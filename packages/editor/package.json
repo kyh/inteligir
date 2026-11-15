@@ -16,6 +16,7 @@
     "./codec/item-markdown": "./src/codec/item-markdown.ts",
     "./codec/item-view": "./src/codec/item-view.ts",
     "./codec/library-links": "./src/codec/library-links.ts",
+    "./codec/read-body": "./src/codec/read-body.ts",
     "./combobox-input": "./src/combobox-input.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
     "./dialect-node-keys": "./src/dialect-node-keys.ts",

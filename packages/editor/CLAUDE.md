@@ -143,6 +143,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **An agent's edit matches once and reads again only the blocks it spans.** The rest are matched
   by content and keep their ids, since re-reading a whole item turns every block's id over.
   `packages/editor/src/codec/item-edit.ts`.
+- **Markdown written into a body is read by `readBody` at every door.** A new note, a save's note
+  and a fill's page read the same text as the same blocks, and only a file's import reads
+  frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
   the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.

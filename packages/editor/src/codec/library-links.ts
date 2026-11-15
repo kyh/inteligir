@@ -1,13 +1,13 @@
 // What text written into the library from outside the editor names in it, for the agent and a
-// save's note: `[[Title]]` the one live item filed under that title, `![[path]]` a file the view
-// wrote under that path, and a page link's id an item the library holds. Anything else names
-// nothing, so it stays the text it was.
+// save's note: `[[Title]]` the one live item filed under that title, `![[path]]` and an image's
+// address a file the view wrote under that path, and a page link's id an item the library holds.
+// Anything else names nothing, so it stays the text it was.
 
 import type { FileKind } from "@repo/contract/items/item-kind";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
 import { viewFileAt } from "./item-view";
-import type { LinkedItem } from "./read-blocks";
+import type { LibraryFile, LinkedItem } from "./read-blocks";
 
 export interface LibraryLookup {
   // the item a title names when exactly one does
@@ -18,12 +18,21 @@ export interface LibraryLookup {
   readonly fileKind: (sha: string) => FileKind | null;
 }
 
+// what a read of such text is handed (`read-blocks.ts`'s ports), and the `[[…]]` beside them
 export interface LibraryLinks {
   readonly wiki: WikiResolve;
   readonly item: (key: string) => LinkedItem | null;
+  readonly image: (url: string) => LibraryFile | null;
 }
 
 export const libraryLinks = (lookup: LibraryLookup): LibraryLinks => ({
+  image: (url) => {
+    const file = viewFileAt(url);
+    const kind = file === null ? null : lookup.fileKind(file.sha);
+    return file === null || kind === null
+      ? null
+      : { kind, name: file.name ?? file.sha, path: url, sha: file.sha };
+  },
   item: (key) => {
     const title = lookup.title(key);
     return title === null ? null : { itemId: key, title };
