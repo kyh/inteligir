@@ -5,11 +5,6 @@ import { z } from "zod";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-// build output would answer for source, and an agent worktree under a dot-directory is a whole
-// checkout of this repo
-const isSkippedDir = (name: string): boolean =>
-  name.startsWith(".") || ["node_modules", "dist", "coverage", "target"].includes(name);
-
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/u;
 
 export interface Workspace {
@@ -52,9 +47,7 @@ const walk = (dir: string, out: string[]): void => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!isSkippedDir(entry.name)) {
-        walk(full, out);
-      }
+      walk(full, out);
     } else if (SOURCE_FILE.test(entry.name)) {
       out.push(path.relative(REPO_ROOT, full));
     }
