@@ -291,12 +291,12 @@ export default defineConfig({
         "packages/editor/src/markdown/**",
         "packages/editor/src/text/**",
         "packages/service/src/imports/**",
-        "packages/service/src/knowledge/**",
         "packages/service/src/library/library-queries.ts",
         "packages/service/src/library/library-sql.ts",
         "packages/service/src/library/revert-change.ts",
         "packages/service/src/library/sql-value.ts",
         "packages/service/src/note/turn-log.ts",
+        "packages/service/src/search/**",
       ],
       rules: {
         "no-restricted-globals": [

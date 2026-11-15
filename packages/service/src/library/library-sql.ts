@@ -32,3 +32,14 @@ export class LibraryRowError extends Error {
     this.name = "LibraryRowError";
   }
 }
+
+// a raw statement's row as its schema reads it
+export const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
+  const parsed = schema.safeParse(row);
+  if (!parsed.success) {
+    throw new LibraryRowError(`${what} row is not what this build writes`, {
+      cause: parsed.error,
+    });
+  }
+  return parsed.data;
+};

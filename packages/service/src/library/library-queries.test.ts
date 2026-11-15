@@ -7,22 +7,24 @@ import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { literalMatches } from "../search/search-hits";
 import {
-  linksTo,
-  linksToUrl,
-  literalMatches,
-  nextHead,
-  readItem,
-  readLiveItem,
-  readMeta,
   SEARCH_ROW_MAX_BYTES,
   searchLibrary,
   searchRowBytes,
   searchRowOf,
+  storeSearchRow,
+} from "../search/search-index";
+import {
+  linksTo,
+  linksToUrl,
+  nextHead,
+  readItem,
+  readLiveItem,
+  readMeta,
   readListingRows,
   storeItemRow,
   storeLinks,
-  storeSearchRow,
   storeTags,
   storeTombstone,
   writeMeta,

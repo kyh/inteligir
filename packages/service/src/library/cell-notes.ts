@@ -20,7 +20,8 @@ import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import { waitingPayloads } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
-import { readItem, readLiveItem, storeLinks, storeSearchRow, storeTags } from "./library-queries";
+import { storeSearchRow } from "../search/search-index";
+import { readItem, readLiveItem, storeLinks, storeTags } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
 
 // a session's socket on an item's note: writable, read-only while the item is in Deleted, or none

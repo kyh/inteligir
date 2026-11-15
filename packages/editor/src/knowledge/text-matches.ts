@@ -13,10 +13,6 @@ export interface TextOffset {
   length: number;
 }
 
-const EXCERPT_BEFORE = 40;
-const EXCERPT_AFTER = 80;
-const ELLIPSIS = "…";
-
 const escapeRegExp = (needle: string): string => needle.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
 const wholeWord = (pattern: string): string =>
@@ -45,27 +41,3 @@ export const findTextOffsets = (
   needle: string,
   options: TextMatchOptions,
 ): TextOffset[] => (needle === "" ? [] : hitsIn(matcher(needle, options), text));
-
-// a match's line clipped around it, as a listing row shows it
-export interface MatchExcerpt {
-  before: string;
-  text: string;
-  after: string;
-}
-
-export const excerptAround = (line: string, match: TextOffset): MatchExcerpt => {
-  const start = match.offset;
-  const end = start + match.length;
-  const from = Math.max(0, start - EXCERPT_BEFORE);
-  const to = Math.min(line.length, end + EXCERPT_AFTER);
-  return {
-    after: `${line.slice(end, to)}${to < line.length ? ELLIPSIS : ""}`,
-    before: `${from > 0 ? ELLIPSIS : ""}${line.slice(from, start)}`,
-    text: line.slice(start, end),
-  };
-};
-
-const PRINTABLE_ASCII = /^[\u0020-\u007E]+$/u;
-
-// the needles SQLite's case fold reads as this matcher does, each on one line
-export const isPrintableAscii = (needle: string): boolean => PRINTABLE_ASCII.test(needle);

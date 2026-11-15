@@ -1,10 +1,7 @@
 // The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
-// its derived rows and `meta` through drizzle's builders, and the search index and the literal scan
-// of a body's text as raw statements over the cell's port (`./cell-storage`). A write binds every
-// value and cuts every many-row statement under a Durable Object's limits (`insertChunks`); a
-// user's text is matched with instr(), since a Durable Object refuses a pattern-match operand past
-// 50 bytes. A row is applied only over an older one, so a write stamped with a sequence the row has
-// passed lands nothing.
+// its derived rows and `meta`, through drizzle's builders. A write binds every value and cuts every
+// many-row statement under a Durable Object's limits (`insertChunks`). A row is applied only over
+// an older one, so a write stamped with a sequence the row has passed lands nothing.
 
 import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -19,24 +16,20 @@ import {
   meta,
   seedBlocks,
 } from "@repo/db/cell/schema";
-import { renderFtsMatch } from "../knowledge/fts-match";
-import { searchExcerpt } from "../knowledge/search-excerpt";
-import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
-import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
 import type {
   BodyDigest,
   DerivedLink,
   DerivedTag,
   ItemCard,
-  ItemSearchText,
 } from "@repo/contract/library/derive-item";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { ListingRow } from "@repo/contract/library/library-index";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { dropSearchRow } from "../search/search-index";
 import { LibraryRowError } from "./library-sql";
-import type { SqlRow } from "./library-sql";
 
 import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -52,16 +45,6 @@ const parseJsonColumn = <T>(text: string, schema: z.ZodType<T>, what: string): T
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new LibraryRowError(`${what} is not what this build writes`, { cause: parsed.error });
-  }
-  return parsed.data;
-};
-
-const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
-  const parsed = schema.safeParse(row);
-  if (!parsed.success) {
-    throw new LibraryRowError(`${what} row is not what this build writes`, {
-      cause: parsed.error,
-    });
   }
   return parsed.data;
 };
@@ -148,9 +131,6 @@ const TOMBSTONE_UPSERT = Object.fromEntries(
   REPLACED.map(([key, column]) => [key, TOMBSTONE_TAKES.has(key) ? excluded(column) : sql`NULL`]),
 );
 
-const DELETE_SEARCH_ROW =
-  "DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)";
-
 export interface TombstoneWrite {
   readonly id: string;
   readonly deletedAt: number;
@@ -178,7 +158,7 @@ export const storeTombstone = (storage: CellStorage, write: TombstoneWrite): boo
   if (landed.length === 0) {
     return false;
   }
-  storage.run(DELETE_SEARCH_ROW, [write.id]);
+  dropSearchRow(storage, write.id);
   db.delete(seedBlocks).where(eq(seedBlocks.itemId, write.id)).run();
   db.delete(bodyTexts).where(eq(bodyTexts.itemId, write.id)).run();
   db.delete(links).where(eq(links.sourceId, write.id)).run();
@@ -362,219 +342,6 @@ export const storeTags = (db: CellDb, itemId: string, tags: readonly DerivedTag[
   for (const chunk of insertChunks(itemTags, tagRows)) {
     db.insert(itemTags).values(chunk).onConflictDoNothing().run();
   }
-};
-
-// ---- search ----
-
-// a Durable Object row holds 2 MB, and an index row holds every column with its stem shadow
-export const SEARCH_ROW_MAX_BYTES = 1_900_000;
-const TITLE_MAX_BYTES = 4096;
-const HEADINGS_MAX_BYTES = 256 * 1024;
-const META_MAX_BYTES = 64 * 1024;
-
-// the longest prefix of `text` within `maxBytes` of UTF-8, never splitting a character
-const clipToBytes = (text: string, maxBytes: number): string => {
-  if (utf8ByteLength(text) <= maxBytes) {
-    return text;
-  }
-  let bytes = 0;
-  let end = 0;
-  for (const char of text) {
-    const size = utf8ByteLength(char);
-    if (bytes + size > maxBytes) {
-      break;
-    }
-    bytes += size;
-    end += char.length;
-  }
-  return text.slice(0, end);
-};
-
-export interface SearchRow {
-  readonly title: string;
-  readonly headings: string;
-  readonly meta: string;
-  readonly body: string;
-  readonly titleStems: string;
-  readonly headingStems: string;
-  readonly metaStems: string;
-  readonly bodyStems: string;
-}
-
-export const searchRowBytes = (row: SearchRow): number =>
-  [
-    row.title,
-    row.headings,
-    row.meta,
-    row.body,
-    row.titleStems,
-    row.headingStems,
-    row.metaStems,
-    row.bodyStems,
-  ].reduce((sum, column) => sum + utf8ByteLength(column), 0);
-
-// an item's index row within SEARCH_ROW_MAX_BYTES: the short columns are capped, and the body
-// gets what is left, so a long item ranks by the part of it the row can hold
-export const searchRowOf = (text: ItemSearchText): SearchRow => {
-  const title = clipToBytes(text.title, TITLE_MAX_BYTES);
-  const headings = clipToBytes(text.headings, HEADINGS_MAX_BYTES);
-  const metaText = clipToBytes(text.meta, META_MAX_BYTES);
-  const fixed = {
-    headingStems: stemText(headings),
-    headings,
-    meta: metaText,
-    metaStems: stemText(metaText),
-    title,
-    titleStems: stemText(title),
-  };
-  const room = SEARCH_ROW_MAX_BYTES - searchRowBytes({ ...fixed, body: "", bodyStems: "" });
-  let budget = Math.floor(room / 2);
-  for (;;) {
-    const body = clipToBytes(text.body, budget);
-    const row = { ...fixed, body, bodyStems: stemText(body) };
-    if (searchRowBytes(row) <= SEARCH_ROW_MAX_BYTES || budget === 0) {
-      return row;
-    }
-    budget = Math.floor(budget * 0.9);
-  }
-};
-
-const INSERT_SEARCH_ROW = `INSERT INTO search_fts (rowid, title, headings, meta, body, title_stems,
-  heading_stems, meta_stems, body_stems)
-SELECT rid, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ?`;
-
-export const storeSearchRow = (
-  storage: CellStorage,
-  itemId: string,
-  text: ItemSearchText,
-): void => {
-  const row = searchRowOf(text);
-  storage.run(DELETE_SEARCH_ROW, [itemId]);
-  storage.run(INSERT_SEARCH_ROW, [
-    row.title,
-    row.headings,
-    row.meta,
-    row.body,
-    row.titleStems,
-    row.headingStems,
-    row.metaStems,
-    row.bodyStems,
-    itemId,
-  ]);
-};
-
-const COLUMN_WEIGHTS = [
-  SEARCH_FIELD_WEIGHTS.title,
-  SEARCH_FIELD_WEIGHTS.headings,
-  SEARCH_FIELD_WEIGHTS.meta,
-  SEARCH_FIELD_WEIGHTS.body,
-].join(", ");
-
-// the body comes back whole and search-excerpt cuts it, since fts5's snippet() cannot see a
-// stem-only hit; a search answers from one side of Deleted
-const SEARCH_SQL = `SELECT items.id AS id, search_fts.title AS title, search_fts.meta AS meta,
-  search_fts.body AS body,
-  bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}) AS rank
-FROM search_fts JOIN items ON items.rid = search_fts.rowid
-WHERE search_fts MATCH ? AND (items.deleted_at IS NOT NULL) = ? AND items.purged = 0
-ORDER BY rank, items.id
-LIMIT ?`;
-
-const searchRowSchema = z.object({
-  body: z.string(),
-  id: z.string(),
-  meta: z.string(),
-  rank: z.number(),
-  title: z.string(),
-});
-
-// the side of Deleted a search answers from: an item in Deleted is found only from Deleted itself
-export type SearchSide = "live" | "deleted";
-
-export interface LibrarySearchHit {
-  readonly itemId: string;
-  readonly title: string;
-  readonly snippet: string;
-  // higher is better
-  readonly score: number;
-}
-
-// the search policy's plans in turn, every term required first, until one finds anything
-export const searchLibrary = (
-  storage: CellStorage,
-  query: string,
-  limit: number,
-  side: SearchSide = "live",
-): LibrarySearchHit[] => {
-  if (limit <= 0) {
-    return [];
-  }
-  for (const plan of planSearchQuery(query)) {
-    const rows = storage.all(SEARCH_SQL, [renderFtsMatch(plan), side === "deleted" ? 1 : 0, limit]);
-    if (rows.length > 0) {
-      return rows.map((raw) => {
-        const row = parseRow(raw, searchRowSchema, "a search hit");
-        const snippet = searchExcerpt(row.body, plan.terms) || searchExcerpt(row.meta, plan.terms);
-        return {
-          itemId: row.id,
-          score: -row.rank,
-          snippet: snippet === "" ? row.title : snippet,
-          title: row.title,
-        };
-      });
-    }
-  }
-  return [];
-};
-
-// ---- literal matches ----
-
-export interface LiteralMatch {
-  readonly itemId: string;
-  // the first line of the item's body that holds the needle
-  readonly text: string;
-}
-
-const matchedRowSchema = z.object({ item_id: z.string() });
-const partTextSchema = z.object({ text: z.string() });
-
-// the live items whose body holds `needle` (printable ascii, matched case-folded, since SQLite's
-// lower() folds ascii alone), in id order after `after` and at most `limit` of them, each with its
-// first such line: a body's text is cut into parts at line ends, so a line lives in one part, and
-// only the first part that holds the needle is read, whatever the library holds
-export const literalMatches = (
-  storage: CellStorage,
-  needle: string,
-  page: { readonly after: string | null; readonly limit: number },
-): LiteralMatch[] => {
-  const folded = needle.toLowerCase();
-  const ids: string[] = [];
-  for (const raw of storage.all(
-    `SELECT DISTINCT t.item_id FROM body_texts t JOIN items i ON i.id = t.item_id
-     WHERE t.item_id > ? AND i.deleted_at IS NULL AND i.purged = 0 AND instr(lower(t.text), ?) > 0
-     ORDER BY t.item_id LIMIT ?`,
-    [page.after ?? "", folded, page.limit],
-  )) {
-    ids.push(parseRow(raw, matchedRowSchema, "a matched item").item_id);
-  }
-  const matches: LiteralMatch[] = [];
-  for (const itemId of ids) {
-    const [raw] = storage.all(
-      `SELECT text FROM body_texts WHERE item_id = ? AND instr(lower(text), ?) > 0
-       ORDER BY part LIMIT 1`,
-      [itemId, folded],
-    );
-    const line =
-      raw === undefined
-        ? undefined
-        : parseRow(raw, partTextSchema, "a body's text")
-            .text.split("\n")
-            .find((one) => one.toLowerCase().includes(folded));
-    if (line !== undefined) {
-      matches.push({ itemId, text: line });
-    }
-  }
-  return matches;
 };
 
 // ---- links ----
