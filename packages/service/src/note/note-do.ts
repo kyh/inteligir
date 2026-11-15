@@ -50,6 +50,7 @@ import type { NoteStanding, StandingEvent } from "./note-standing";
 import { noteNameOf } from "./note-stub";
 import type { NoteName } from "./note-stub";
 import { noteBlocksSchema, NOTE_HOLDER_HEADER, NOTE_MODE_HEADER } from "./note-wire";
+import { joined, partsOf } from "./row-parts";
 import type {
   ChangeAnswer,
   NoteChange,
@@ -65,8 +66,6 @@ import type { TurnLogRow } from "./turn-log";
 // read-only and says why, so typing never fails mid-word)
 export const NOTE_UPDATE_CAP = 1024 * 1024;
 export const NOTE_STATE_CAP = 8 * 1024 * 1024;
-// a snapshot part sits well inside a Durable Object's 2 MB row
-const SNAPSHOT_PART_BYTES = 1024 * 1024;
 // the cell keeps a change set this long after it closes, and prunes once a day
 const TURN_LOG_KEPT_MS = UNDO_REACH_MS + PRUNE_EVERY_MS;
 
@@ -88,21 +87,6 @@ const modeOf = (connection: Connection): NoteOpening =>
 
 const refused = (connection: Connection): boolean =>
   connectionStateSchema.safeParse(connection.state).success;
-
-const joined = (parts: readonly Uint8Array[]): Uint8Array => {
-  const whole = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
-  let at = 0;
-  for (const part of parts) {
-    whole.set(part, at);
-    at += part.length;
-  }
-  return whole;
-};
-
-const partsOf = (bytes: Uint8Array): Uint8Array[] =>
-  Array.from({ length: Math.max(1, Math.ceil(bytes.length / SNAPSHOT_PART_BYTES)) }, (_, part) =>
-    bytes.slice(part * SNAPSHOT_PART_BYTES, (part + 1) * SNAPSHOT_PART_BYTES),
-  );
 
 // who wrote an update: a socket's connection, which y-partyserver reads it from, or a name the
 // note and the cell's writers give theirs
@@ -589,8 +573,19 @@ export class NoteDO extends YServer<Env> {
     if (changeSetId !== null && turn !== undefined) {
       this.#keepTurn(changeSetId, turn);
     }
-    this.#db.insert(appliedOps).values({ answer: "applied", opId: change.opId }).run();
+    this.#keepOp(change.opId);
     return { kind: "applied", projection: this.#projection() };
+  }
+
+  // an op that landed, so the same one sent again lands nothing; kept as long as a turn's log, the
+  // older ones let go as each is written, so the ledger needs no deadline of its own
+  #keepOp(opId: string): void {
+    const at = Date.now();
+    this.#db
+      .delete(appliedOps)
+      .where(lt(appliedOps.at, at - TURN_LOG_KEPT_MS))
+      .run();
+    this.#db.insert(appliedOps).values({ at, opId }).run();
   }
 
   #keepTurn(changeSetId: string, recorded: TurnRecord): void {
@@ -628,7 +623,7 @@ export class NoteDO extends YServer<Env> {
     if (outcome.kind === "moved") {
       return this.#movedAnswer(outcome.blockIds);
     }
-    this.#db.insert(appliedOps).values({ answer: "applied", opId: fillId }).run();
+    this.#keepOp(fillId);
     return { kind: "applied", projection: this.#projection() };
   }
 

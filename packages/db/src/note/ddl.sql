@@ -3,7 +3,7 @@
 
 CREATE TABLE `applied_ops` (
 	`op_id` text PRIMARY KEY,
-	`answer` text NOT NULL
+	`at` integer NOT NULL
 );
 
 CREATE TABLE `note_meta` (
@@ -44,4 +44,5 @@ CREATE TABLE `turn_log` (
 	CONSTRAINT "turn_log_kind" CHECK("kind" IN ('pre', 'turn'))
 );
 
+CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);
 CREATE INDEX `turn_cursors_at` ON `turn_cursors` (`at`);

@@ -8,8 +8,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { utf8ToBytes } from "@noble/hashes/utils.js";
 import * as Y from "yjs";
 
-// a Durable Object's SQLite refuses a row past 2 MB, and a note's whole state is one update
-const PART_BYTES = 1024 * 1024;
+import { joined, partsOf } from "./row-parts";
 
 type TurnLogKind = "pre" | "turn";
 
@@ -38,19 +37,12 @@ const NOTHING_TO_UNDO: TurnUndo = { lostText: false, update: null };
 
 const TURN = Symbol("turn");
 
-const partsOf = (
+const rowsOf = (
   changeSetId: string,
   seq: number,
   kind: TurnLogKind,
   update: Uint8Array,
-): TurnLogRow[] =>
-  Array.from({ length: Math.max(1, Math.ceil(update.length / PART_BYTES)) }, (_, part) => ({
-    bytes: update.slice(part * PART_BYTES, (part + 1) * PART_BYTES),
-    changeSetId,
-    kind,
-    part,
-    seq,
-  }));
+): TurnLogRow[] => partsOf(update).map((bytes, part) => ({ bytes, changeSetId, kind, part, seq }));
 
 // The edit runs in one transaction under the turn's origin, which a bound editor's own origin must
 // equal. Answers the rows to keep and the cursor the turn's next edit to this note takes; it keeps
@@ -69,20 +61,10 @@ export const recordTurnEdit = (
   return {
     cursor: { seq: seq + 2, stateVector: Y.encodeStateVector(doc) } satisfies TurnCursor,
     rows: [
-      ...partsOf(turn.changeSetId, seq, "pre", pre),
-      ...partsOf(turn.changeSetId, seq + 1, "turn", Y.encodeStateAsUpdate(doc, before)),
+      ...rowsOf(turn.changeSetId, seq, "pre", pre),
+      ...rowsOf(turn.changeSetId, seq + 1, "turn", Y.encodeStateAsUpdate(doc, before)),
     ],
   };
-};
-
-const joined = (parts: readonly Uint8Array[]): Uint8Array => {
-  const whole = new Uint8Array(parts.reduce((length, part) => length + part.length, 0));
-  let at = 0;
-  for (const part of parts) {
-    whole.set(part, at);
-    at += part.length;
-  }
-  return whole;
 };
 
 const logOf = (rows: readonly TurnLogRow[]) => {

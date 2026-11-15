@@ -1,7 +1,7 @@
 import { NOTE_SOCKET, notePath, SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { noteMeta, noteUpdates } from "@repo/db/note/schema";
+import { appliedOps, noteMeta, noteUpdates } from "@repo/db/note/schema";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { applyBodyChanges } from "@repo/editor/live/body-change";
 import type { BodyChange } from "@repo/editor/live/body-change";
@@ -406,6 +406,23 @@ describe("a note edited live", () => {
     expect(ids.toSorted()).toStrictEqual([above.id, x.id, below.id].toSorted());
     a.provider.destroy();
     b.provider.destroy();
+  });
+
+  it("lands an op sent again once, and lets go an op past a turn log's reach as the next lands", async () => {
+    const { accountId, itemId } = await signedIn("note-ops@example.test");
+    const note = noteOf(accountId, itemId);
+    const before = blockAt(await serverBlocks(accountId, itemId), 0);
+    await runInDurableObject(note, (_note, state) => {
+      noteDbOf(state.storage).insert(appliedOps).values({ at: 0, opId: "long-ago" }).run();
+    });
+    const put = agentPut("turn-ops", before, withText(before, "Put once."), "op-now");
+    await expect(note.applyChange(put)).resolves.toMatchObject({ kind: "applied" });
+    // the block no longer stands as the put read it, so only the op's id lets it answer applied
+    await expect(note.applyChange(put)).resolves.toMatchObject({ kind: "applied" });
+    const ops = await runInDurableObject(note, (_note, state) =>
+      noteDbOf(state.storage).select({ opId: appliedOps.opId }).from(appliedOps).all(),
+    );
+    expect(ops).toStrictEqual([{ opId: "op-now" }]);
   });
 
   it("answers a ping without waking, and a device's ask before it closes once its frames are stored", async () => {

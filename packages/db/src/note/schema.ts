@@ -85,8 +85,12 @@ export const turnCursors = sqliteTable(
   (t) => [index("turn_cursors_at").on(t.at)],
 );
 
-// each agent edit's op id and what it answered, so an edit sent twice lands once
-export const appliedOps = sqliteTable("applied_ops", {
-  opId: text("op_id").primaryKey(),
-  answer: text().notNull(),
-});
+// each agent edit's and each page's op id and when it landed, so one sent twice lands once
+export const appliedOps = sqliteTable(
+  "applied_ops",
+  {
+    opId: text("op_id").primaryKey(),
+    at: integer().notNull(),
+  },
+  (t) => [index("applied_ops_at").on(t.at)],
+);
