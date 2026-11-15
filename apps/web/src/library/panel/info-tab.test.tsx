@@ -113,9 +113,13 @@ describe("Info over an item", () => {
     renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
     await screen.findByText("Reading");
     fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-    fireEvent.change(screen.getByPlaceholderText("Property"), { target: { value: "status" } });
-    fireEvent.change(screen.getByPlaceholderText("Value"), { target: { value: "draft" } });
-    fireEvent.keyDown(screen.getByPlaceholderText("Value"), { key: "Enter" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "status" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Value" }), {
+      target: { value: "draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     await screen.findByDisplayValue("draft");
     expect(calls.filter((call) => call.path === "library.write")).toMatchObject([

@@ -95,6 +95,11 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   hands back one property op over the value a row showed, which the cell refuses once that value
   moved, since a second reading of the item's query is a second truth.
   `apps/web/src/library/panel/item-properties.ts`.
+- **A property's value is typed by its control, never read out of what was typed.** Add property
+  takes a name, a type and that type's control, a row is the control of the value it holds, and a
+  name the item already has is refused in the form, since a value read as YAML drops
+  `Meeting: Q3 review` and turns `02139` into a number.
+  `apps/web/src/library/panel/property-fields.tsx`.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
   merges. `apps/web/src/library/library/library-verbs.ts`.

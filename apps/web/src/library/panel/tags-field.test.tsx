@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,10 +7,10 @@ import { TagsField } from "./property-fields";
 
 afterEach(cleanup);
 
-const mount = (key: string, value: string[]) => {
-  const onChange = vi.fn<(next: TypedProperty) => void>();
-  render(<TagsField prop={{ key, type: "tags", value }} onChange={onChange} />);
-  return { field: screen.getByRole("textbox", { name: `${key} tags` }), onChange };
+const mount = (value: string[]) => {
+  const onCommit = vi.fn<(next: string[]) => void>();
+  render(<TagsField label="tags" value={value} onCommit={onCommit} />);
+  return { field: screen.getByRole("textbox", { name: "tags tags" }), onCommit };
 };
 
 const commit = (field: HTMLElement, value: string): void => {
@@ -19,38 +18,17 @@ const commit = (field: HTMLElement, value: string): void => {
   fireEvent.blur(field);
 };
 
-describe("the properties panel's tags field", () => {
-  it("adds a name the inline grammar can spell, a leading # dropped", () => {
-    const { field, onChange } = mount("tags", ["ok"]);
-    commit(field, "#area/deep");
-    expect(onChange).toHaveBeenCalledWith({
-      key: "tags",
-      type: "tags",
-      value: ["ok", "area/deep"],
-    });
+describe("the properties panel's list field", () => {
+  it("adds what was typed as it was typed, under any name", () => {
+    const { field, onCommit } = mount(["ok"]);
+    commit(field, "#Reading List 2026");
+    expect(onCommit).toHaveBeenCalledWith(["ok", "#Reading List 2026"]);
   });
 
-  it("refuses a name no inline # could address, keeping the draft and saying why", () => {
-    const { field, onChange } = mount("tags", []);
-    commit(field, "reading list");
-    expect(onChange).not.toHaveBeenCalled();
-    expect(field).toHaveProperty("value", "reading list");
-    expect(field.getAttribute("aria-invalid")).toBe("true");
-    const hint = screen.getByText(/starts with a letter/u);
-    expect(field.getAttribute("aria-describedby")).toBe(hint.id);
-
-    fireEvent.change(field, { target: { value: "reading" } });
-    expect(field.getAttribute("aria-invalid")).toBeNull();
-    expect(screen.queryByText(/starts with a letter/u)).toBeNull();
-  });
-
-  it("holds free text on any other list key", () => {
-    const { field, onChange } = mount("aliases", []);
-    commit(field, "Reading List 2026");
-    expect(onChange).toHaveBeenCalledWith({
-      key: "aliases",
-      type: "tags",
-      value: ["Reading List 2026"],
-    });
+  it("adds no entry the list already holds", () => {
+    const { field, onCommit } = mount(["ok"]);
+    commit(field, " ok ");
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(field).toHaveProperty("value", "");
   });
 });
