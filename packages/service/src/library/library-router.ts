@@ -101,11 +101,10 @@ const refusalError = (refusal: CellRefusal): Error => {
       return new NotFoundError();
     }
     case "conflict": {
-      return new ConflictError({ data: { current: [...refusal.current] } });
+      return new ConflictError();
     }
     case "url-held": {
       return new ConflictError({
-        data: { current: [{ itemId: refusal.itemId, kind: "item", seq: refusal.seq }] },
         message: "Another item in your library already holds this link.",
       });
     }

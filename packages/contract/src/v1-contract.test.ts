@@ -244,27 +244,6 @@ describe("/v1's error statuses", () => {
     });
     expect(statuses).toStrictEqual([V1_CUSTOM_ERROR_STATUS[sample.code]]);
   });
-
-  it("carries a conflict's current state back to the writer, typed", async () => {
-    const current = { field: "title" as const, itemId: UUID_V7, kind: "field" as const };
-    const { client, statuses } = served({
-      library: {
-        write: os.library.write.handler(({ errors }) => {
-          throw errors.CONFLICT({ data: { current: [{ ...current, current: "Theirs" }] } });
-        }),
-      },
-    });
-    const { error } = await safe(
-      client.library.write({
-        itemId: UUID_V7,
-        ops: [{ base: "Mine before", field: "title", op: "set", value: "Mine" }],
-      }),
-    );
-    expect(
-      isDefinedError(error) && error.code === "CONFLICT" ? error.data.current : null,
-    ).toStrictEqual([{ ...current, current: "Theirs" }]);
-    expect(statuses).toStrictEqual([409]);
-  });
 });
 
 describe("/v1's rows", () => {
@@ -337,7 +316,6 @@ describe("the library's wire", () => {
         url: null,
       },
       id: UUID_V7,
-      kind: "live",
       seq: 3,
       updatedAt: 1,
     };

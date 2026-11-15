@@ -17,7 +17,6 @@ import { excluded } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import type { LandingScope } from "./cell-landing";
 import { refuse } from "./cell-refusal";
-import type { ConflictCurrent } from "./cell-refusal";
 
 type FolderOp = z.infer<typeof folderOpSchema>;
 
@@ -80,26 +79,19 @@ const readerOf = (db: CellDb): FolderReader => ({
   folder: (id) => readFolder(db, id),
 });
 
-// every op in order, each against the tree the ones before it left; any conflict lands none. The
+// every op in order, each against the tree the ones before it left; one refusal lands none. The
 // answer is each folder the write changed, as it left it
 export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): FolderRow[] => {
-  const conflicts: ConflictCurrent[] = [];
   const landed = new Map<string, FolderRow>();
   const reader = readerOf(scope.storage.db);
   for (const op of ops) {
     const refusal = folderOpRefusal(reader, op);
-    if (refusal === null) {
-      for (const row of folderOpLanding(reader, op, scope.now)) {
-        landed.set(row.id, storeFolder(scope, row));
-      }
-    } else if (refusal.kind === "not-found") {
-      refuse(refusal);
-    } else {
-      conflicts.push({ current: refusal.current, id: refusal.id, kind: "folder" });
+    if (refusal !== null) {
+      refuse({ kind: refusal });
     }
-  }
-  if (conflicts.length > 0) {
-    refuse({ current: conflicts, kind: "conflict" });
+    for (const row of folderOpLanding(reader, op, scope.now)) {
+      landed.set(row.id, storeFolder(scope, row));
+    }
   }
   return [...landed.values()];
 };

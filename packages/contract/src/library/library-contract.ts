@@ -583,9 +583,9 @@ export const libraryContract = {
     )
     .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
 
-  // one item's field ops, each guarded by its base: it lands whole or answers every conflict; a
-  // body is written live in its note. `write`, not `apply`: a client's path is a function's
-  // property, and `apply` would be Function.prototype's
+  // one item's field ops, each guarded by its base: it lands whole or not at all; a body is
+  // written live in its note. `write`, not `apply`: a client's path is a function's property, and
+  // `apply` would be Function.prototype's
   write: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,

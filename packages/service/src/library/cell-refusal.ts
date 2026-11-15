@@ -5,25 +5,24 @@
 // an exception.
 
 import type { MovedFrame } from "@repo/contract/library/library-socket";
-import type { conflictCurrentSchema, editRefusalSchema } from "@repo/contract/library/library-wire";
+import type { editRefusalSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
-export type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type EditRefusal = z.infer<typeof editRefusalSchema>;
 
 export type CellRefusal =
   // the account is being deleted
   | { readonly kind: "gone" }
   | { readonly kind: "not-found" }
-  // what each guarded thing holds now, so the writer merges and sends again
-  | { readonly kind: "conflict"; readonly current: readonly ConflictCurrent[] }
+  // a base the write named no longer holds, or the id it would make is held
+  | { readonly kind: "conflict" }
   // a block, an item's text or its fields past their cap
   | { readonly kind: "too-large" }
   | { readonly kind: "quota"; readonly bytesUsed: number; readonly bytesCap: number }
   // files the write names that were never uploaded
   | { readonly kind: "blob-missing"; readonly shas: readonly string[] }
-  // the write would give a second live item a url another one holds, at the sequence it holds it
-  | { readonly kind: "url-held"; readonly itemId: string; readonly seq: number }
+  // the write would give a second live item a url another one holds
+  | { readonly kind: "url-held" }
   | { readonly kind: "already-undone"; readonly changeSetId: string; readonly undoneBy: string }
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }

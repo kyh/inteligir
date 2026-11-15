@@ -29,12 +29,10 @@ export interface NewItem {
   readonly blocks: readonly BodyBlock[];
 }
 
-// an item the write makes, with its body; an id the library holds already is a conflict naming
-// that item
+// an item the write makes, with its body; an id the library holds already is a conflict
 export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
-  const held = readItem(scope.storage.db, item.id);
-  if (held !== null) {
-    refuse({ current: [{ itemId: item.id, kind: "item", seq: held.seq }], kind: "conflict" });
+  if (readItem(scope.storage.db, item.id) !== null) {
+    refuse({ kind: "conflict" });
   }
   return landItem(scope, { before: null, fields: item.fields, itemId: item.id, seed: item.blocks });
 };
