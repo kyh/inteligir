@@ -15,7 +15,7 @@ import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import { z } from "zod";
 import { test } from "./fixtures";
-import type { Cloud } from "./fixtures";
+import type { Account, Cloud } from "./fixtures";
 
 const REPO = path.resolve(import.meta.dirname, "../../..");
 const DEVICES = `${V1_RPC_PATH}/account/devices/list`;
@@ -24,6 +24,10 @@ const statusOf = async (answer: Promise<APIResponse>): Promise<number> => {
   return response.status();
 };
 const buildOf = (cloud: Cloud) => clientBuildHeaders({ platform: "mobile", version: cloud.build });
+// the browser's sign-in, as a request that is no browser's carries it
+const cookieOf = (account: Account): string =>
+  account.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+const wayBack = (asked: string): string => `?next=${encodeURIComponent(asked)}`;
 
 // the first heading of a doc and the first sentence under it, as its page renders them
 const docLandmarks = async (doc: string) => {
@@ -113,23 +117,36 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
-test("a page for someone signed in sends a request with no session cookie to sign in, every document carries its own nonce policy, and the home page loads none of the library", async ({
+test("the Worker answers for the session before a page loads: with no cookie a signed-in page goes to sign in and back, and sign-in is skipped for someone signed in", async ({
   account,
   cloud,
   request,
 }) => {
-  for (const asked of [
-    LIBRARY_PAGE_PATH,
-    `${LIBRARY_PAGE_PATH}/settings?from=mail`,
-    CONNECT_EXTENSION_PATH,
-  ]) {
-    const gate = await request.get(`${cloud.origin}${asked}`, { maxRedirects: 0 });
-    expect([gate.status(), gate.headers().location], asked).toEqual([
-      307,
-      `/app/sign-in?next=${encodeURIComponent(asked)}`,
-    ]);
+  const signedIn = cookieOf(account);
+  const settings = `${LIBRARY_PAGE_PATH}/settings?from=mail`;
+  for (const [asked, cookie, status, location] of [
+    [LIBRARY_PAGE_PATH, "", 307, `/app/sign-in${wayBack(LIBRARY_PAGE_PATH)}`],
+    [settings, "", 307, `/app/sign-in${wayBack(settings)}`],
+    [CONNECT_EXTENSION_PATH, "", 307, `/app/sign-in${wayBack(CONNECT_EXTENSION_PATH)}`],
+    ["/app/sign-in", signedIn, 307, LIBRARY_PAGE_PATH],
+    [`/app/sign-up${wayBack(settings)}`, signedIn, 307, settings],
+    // a cookie whose session ended is no sign-in, so the form is served and nothing loops
+    ["/app/sign-in", "better-auth.session_token=ended", 200, undefined],
+  ] as const) {
+    const answer = await request.get(`${cloud.origin}${asked}`, {
+      headers: { cookie },
+      maxRedirects: 0,
+    });
+    expect([answer.status(), answer.headers().location], asked).toEqual([status, location]);
   }
-  const cookie = account.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+});
+
+test("every document carries its own nonce policy, and the home page loads none of the library", async ({
+  account,
+  cloud,
+  request,
+}) => {
+  const cookie = cookieOf(account);
   const library = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}`, cookie);
   const settings = await documentAt(
     request,

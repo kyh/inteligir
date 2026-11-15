@@ -32,6 +32,10 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
   read would cost every library document a database query, so a cookie whose
   session ended is the page's own read to find.
   `apps/web/src/lib/session-guard.ts`.
+- **Sign-in and sign-up ask the Worker who is signed in as it renders them,
+  through Start's request context, and nothing in the browser.** A fetch of
+  this zone's own route skips Workers, and a guard in the browser reads the
+  session on every hover of a link. `apps/web/src/worker/server.ts`.
 - **A sign-in or sign-up lands in the library unless something asked it back,
   and the site links the library.** Only a document load opens the account just
   signed in to. `apps/web/src/lib/next-path.ts`.

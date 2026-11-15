@@ -7,6 +7,7 @@
   "exports": {
     "./agent-limits": "./agent-limits.ts",
     "./agent/agent-thread": "./src/agent/agent-thread.ts",
+    "./auth/signed-in": "./src/auth/signed-in.ts",
     "./compatibility": "./compatibility.ts",
     "./doors": "./src/doors.ts",
     "./fill-queues": "./fill-queues.ts",

@@ -1,5 +1,5 @@
 import { useState, useTransition } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { EXTENSION_STORE_URL } from "@repo/contract/extension/extension-identity";
 import { Button } from "@repo/ui/components/button";
@@ -7,12 +7,13 @@ import { Button } from "@repo/ui/components/button";
 import { AuthShell } from "#components/auth-shell";
 import { tellExtension } from "#lib/extension-connect";
 import type { ConnectOutcome } from "#lib/extension-connect";
-import { currentSession, requireSessionCookie } from "#lib/session-guard";
+import { requireSessionCookie } from "#lib/session-guard";
 
 // The browser extension's connection: the person signed in here clicks Connect, and the extension
 // in this browser learns where the site is and saves to the account this browser is signed in to
-// (src/lib/extension-connect.ts). ssr: false, since it reads the live session and talks to the
-// extension, which only the client can.
+// (src/lib/extension-connect.ts). The Worker serves the page only to a session cookie, and whether
+// that session still stands is the extension's own read to say. ssr: false, since all the page
+// does is message the extension, which only the browser can.
 
 const outcomeText = (outcome: ConnectOutcome): string => {
   switch (outcome.kind) {
@@ -82,14 +83,5 @@ export const Route = createFileRoute("/_site/connect/extension")({
   server: { middleware: [requireSessionCookie] },
   // a page for the person already signed in, never a search result
   head: () => ({ meta: [{ content: "noindex, nofollow", name: "robots" }] }),
-  beforeLoad: async ({ location }) => {
-    const session = await currentSession();
-    if (session.kind === "signed-out") {
-      redirect({ search: { next: location.href }, throw: true, to: "/app/sign-in" });
-    }
-    if (session.kind === "unknown") {
-      throw new Error(session.message);
-    }
-  },
   component: ConnectExtensionPage,
 });

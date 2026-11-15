@@ -7,46 +7,23 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/contract/account/account-schema";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
 
+import type { RequestContext } from "../request-context";
 import { routeTree } from "../routeTree.gen";
 import { Route as resetPasswordRoute } from "../routes/_site/app/reset-password";
-import { internalNextPath } from "./next-path";
 import { siteGraph } from "./structured-data";
 
-// The site's routes as the Worker and a browser load them. The real guard over the real client,
-// which settles its base and its fetch as it loads, so what a worker lacks and what get-session
-// answers a live cookie are in place first; under vitest the guard reads as server-rendered,
-// which answers signed-out, until a case says it runs in a browser.
-vi.hoisted(() => {
-  vi.stubEnv("BETTER_AUTH_URL", "http://localhost");
-  vi.stubGlobal("fetch", async () => {
-    const at = new Date().toISOString();
-    return Response.json({
-      session: { createdAt: at, expiresAt: at, id: "s", token: "t", updatedAt: at, userId: "u" },
-      user: {
-        createdAt: at,
-        email: "a@b.c",
-        emailVerified: true,
-        id: "u",
-        name: "A",
-        updatedAt: at,
-      },
-    });
-  });
-});
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
-});
-
-// isServer: false runs the ssr: false routes' guards and pages as a browser would
-const open = async (path: string, { isServer = false } = {}) => {
+// The site's routes as the Worker and a browser load them. isServer: false runs the ssr: false
+// routes' pages as a browser would; a server load is handed what the Worker's entry answers a
+// page's guard, here whether the request is signed in.
+const open = async (path: string, { isServer = false, signedIn = false } = {}) => {
+  const serverContext: Pick<RequestContext, "signedIn"> = { signedIn: async () => signedIn };
   const router = createRouter({
+    additionalContext: isServer ? { serverContext } : undefined,
     history: createMemoryHistory({ initialEntries: [path] }),
     isServer,
     origin: "http://localhost",
@@ -63,6 +40,12 @@ const landed = async (path: string, options?: { isServer?: boolean }) => {
 
 const drawn = async (path: string, options?: { isServer?: boolean }): Promise<string> =>
   renderToString(createElement(RouterProvider, { router: await open(path, options) }));
+
+// where the Worker sends a request in place of the page it asked for
+const sentTo = async (path: string, signedIn: boolean): Promise<string | null> => {
+  const { _serverResult: answer } = await open(path, { isServer: true, signedIn });
+  return answer?.type === "redirect" ? answer.redirect.headers.get("Location") : null;
+};
 
 // The reset page is ssr: false, so the site's tree draws none of its views; a route at its id,
 // bound to its search schema and its page, is the page a browser draws.
@@ -90,14 +73,6 @@ const resetPage = async (path: string): Promise<string> => {
   return renderToString(createElement(RouterProvider, { router }));
 };
 
-// the library is no route of the site's, so the way there is the browser's own document load
-const documentLoads = (): string[] => {
-  const loads: string[] = [];
-  vi.stubGlobal("window", { location: { replace: (href: string) => loads.push(href) } });
-  vi.stubEnv("SSR", false);
-  return loads;
-};
-
 const WAY = "/connect/authorize?client_id=c1&state=s1";
 const WAY_BACK = encodeURIComponent(WAY);
 
@@ -105,38 +80,25 @@ describe("where a session lands", () => {
   it.each(["/app/sign-in", "/app/sign-up", "/app"])(
     "%s with nowhere to come back to lands in the library",
     async (path) => {
-      const loads = documentLoads();
-      await open(path);
-      expect(loads).toStrictEqual([LIBRARY_PAGE_PATH]);
+      await expect(sentTo(path, true)).resolves.toBe(LIBRARY_PAGE_PATH);
     },
   );
 
   it.each(["/app/sign-in", "/app/sign-up"])("%s follows next", async (path) => {
-    const loads = documentLoads();
-    await open(`${path}?next=${WAY_BACK}`);
-    expect(loads).toStrictEqual([WAY]);
+    await expect(sentTo(`${path}?next=${WAY_BACK}`, true)).resolves.toBe(WAY);
   });
 
-  it("lands in the library when next leaves this origin", async () => {
-    const loads = documentLoads();
-    await open(`/app/sign-in?next=${encodeURIComponent("//evil.example/steal")}`);
-    expect(loads).toStrictEqual([LIBRARY_PAGE_PATH]);
+  it("goes to the bare sign-in, which lands in the library, when next leaves this origin", async () => {
+    const leaving = encodeURIComponent("//evil.example/steal");
+    await expect(sentTo(`/app/sign-in?next=${leaving}`, true)).resolves.toBe("/app/sign-in");
   });
 
-  it("is the server's own redirect for bare /app on a browser's first request", async () => {
-    const { _serverResult: answer } = await open("/app", { isServer: true });
-    expect(answer?.type).toBe("redirect");
-    expect(answer?.type === "redirect" && answer.redirect.headers.get("Location")).toBe(
-      LIBRARY_PAGE_PATH,
-    );
-  });
-
-  it("sends a signed-out visit to a page that needs one to sign-in, carrying the way back", async () => {
-    const asked = "/connect/extension?from=welcome#connect";
-    const { location } = await landed(asked);
-    expect(location.pathname).toBe("/app/sign-in");
-    expect(internalNextPath(location.search.next)).toBe(asked);
-  });
+  it.each(["/app/sign-in", "/app/sign-up"])(
+    "%s is the form for a request that is not signed in",
+    async (path) => {
+      await expect(sentTo(path, false)).resolves.toBeNull();
+    },
+  );
 
   it("drops a next that is not a path rather than failing the sign-in page", async () => {
     const { matches } = await landed("/app/sign-in?next=5");

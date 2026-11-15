@@ -5,7 +5,7 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { authClient, authErrorMessage } from "#lib/auth-client";
 import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
-import { redirectWhenSignedIn, ssrWhenSignedOut } from "#lib/session-guard";
+import { redirectWhenSignedIn } from "#lib/session-guard";
 import { siteConfig } from "#lib/site-config";
 
 const SignInPage = () => {
@@ -71,7 +71,6 @@ const SignInPage = () => {
 };
 
 export const Route = createFileRoute("/_site/app/sign-in")({
-  ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
   beforeLoad: redirectWhenSignedIn,
   component: SignInPage,

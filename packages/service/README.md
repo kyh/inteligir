@@ -43,6 +43,9 @@ src/            the doors, their routes and the build floor, the rate limits, th
   request alone, which picks the door by `DOOR_ROUTES`; `apps/web`'s mounts
   reach it through Start's request context, and it is the suites' Worker's
   fetch.
+- `signedInFor(env, ctx, request)` (`src/auth/signed-in.ts`): whether the
+  request is from someone signed in, which the site's sign-in and sign-up ask
+  through the same context as the Worker renders them.
 - `SqlPort` (`src/library/library-sql.ts`): one statement per call, which the
   cell binds to `ctx.storage.sql` and the search runs over.
 - The clock, random bytes and fresh ids come into the model's modules as ports.

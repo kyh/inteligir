@@ -12,7 +12,7 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { AUTH_FALLBACK_ERROR } from "#lib/auth-client";
 import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
-import { redirectWhenSignedIn, ssrWhenSignedOut } from "#lib/session-guard";
+import { redirectWhenSignedIn } from "#lib/session-guard";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
@@ -96,7 +96,6 @@ const SignUpPage = () => {
 };
 
 export const Route = createFileRoute("/_site/app/sign-up")({
-  ssr: ssrWhenSignedOut,
   validateSearch: authPageSearchSchema,
   beforeLoad: redirectWhenSignedIn,
   component: SignUpPage,

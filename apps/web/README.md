@@ -35,8 +35,8 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                                                         |
 | `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                                                              |
 | `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own                                         |
-| `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                                                            |
-| `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                              |
+| `/app/sign-in`              | —               | Sign-in; the Worker redirects someone already signed in to where they were going (`lib/session-guard.ts`)             |
+| `/app/sign-up`              | —               | Sign-up form, redirected the same way; submits to the invite gate                                                     |
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                               |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                   |
 | `/library`, `/library/*`    | session cookie  | The library in a tab (`src/library`), drawn in the browser; with no cookie the Worker redirects to sign-in            |
@@ -60,7 +60,9 @@ Every path but the site's own pages falls under one of six mounts (`api/$`,
 server route declaring `ANY` that hands the raw request to the service,
 `context.service`, built per request in `src/worker/server.ts`. The service
 names the door a path reaches (`packages/service/src/door-routes.ts`), and what
-each door does is `packages/service/README.md` § The doors and § Auth.
+each door does is `packages/service/README.md` § The doors and § Auth. The
+same context answers a page's guard whether its request is signed in,
+`context.signedIn`, read in process.
 
 ## Invites
 
