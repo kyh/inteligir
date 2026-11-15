@@ -161,6 +161,22 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("lands a device's read by the note of a held link whose note is still opening", async () => {
+    await inCell(cellOf(), async (state) => {
+      const { client: library, library: engine } = cellIn(state, { clock: clockAt() });
+      const url = "https://example.com/opening";
+      const stub = await library.items.saveLink({ note: "For Tuesday.", url });
+      // the note read its seed and went no further
+      expect(engine.seedFor(stub.item.id)).toMatchObject({ kind: "seed" });
+      const landed = await library.items.save(pageSave(url));
+      expect(landed).toMatchObject({ created: false, item: { id: stub.item.id } });
+      const read = await library.items.read({ id: stub.item.id });
+      expect(read.fields.fetchState).toBe("filled");
+      expect(read.view.markdown).toContain("For Tuesday.");
+      expect(read.view.markdown).toContain("The quick brown fox jumps");
+    });
+  });
+
   it("lands a device's read on a held link whose reading failed, and leaves a waiting one to the cloud when the read found no article", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

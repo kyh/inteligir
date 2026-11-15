@@ -49,6 +49,7 @@ import {
   settleUpload,
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
+import { bodyWriter } from "./cell-body";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
@@ -68,7 +69,6 @@ import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
 import type { MovedCollector } from "./cell-moved";
 import {
-  bodyInNote,
   confirmSeed,
   forgetNoteSockets,
   landProjection,
@@ -304,7 +304,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
         dropItemBlobs(db, id, scope.now);
         forgetNoteSockets(db, id);
-        if (bodyInNote(item)) {
+        if (bodyWriter(item.body.home) === "note") {
           scheduleJob(
             db,
             { id: `note-purge:${id}`, kind: "note-purge", payload: { itemId: id } },
@@ -397,7 +397,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // A page the cloud read, landed as a change set of the fill's own; an article its note already
   // took lands as the note's projection. When the library would not take it, the alarm lets go at
-  // once what it kept that no item names.
+  // once what it kept that no item names; a reading its note is yet to take lands again.
   const landReading = (landing: FillLanding, inNote: NoteProjection | null) => {
     const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) => {
       const filled = landFill(scope, landing, inNote !== null);
@@ -406,7 +406,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       return filled;
     });
-    if (!landed.ok && landed.refusal.kind !== "gone") {
+    if (!landed.ok && landed.refusal.kind !== "gone" && landed.refusal.kind !== "note-opened") {
       commit(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
       });

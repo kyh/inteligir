@@ -7,7 +7,7 @@
 // set: typing is no change Undo takes back. The sockets hear of it only when what a listing shows
 // moved.
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { deriveItem, itemCardSchema } from "@repo/contract/library/derive-item";
@@ -15,13 +15,12 @@ import type { DerivedLink, ItemCard } from "@repo/contract/library/derive-item";
 import { items, links, noteSockets } from "@repo/db/cell/schema";
 
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
-import { dropSeed, readSeedBlocks, storeBodyText } from "./cell-body";
+import { bodyWriter, dropSeed, readSeedBlocks, storeBodyText, writtenByNote } from "./cell-body";
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import { waitingPayloads } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { readItem, readLiveItem, storeLinks, storeSearchRow, storeTags } from "./library-queries";
-import type { LiveStoredItem } from "./library-queries";
 
 // a session's socket on an item's note: writable, read-only while the item is in Deleted, or none
 // for an item the library does not hold; recorded, so the session's end closes it
@@ -81,9 +80,6 @@ export const confirmSeed = (db: CellDb, itemId: string): void => {
   }
 };
 
-// whether an item's body is its note's to write: once the note has read its seed
-export const bodyInNote = (item: LiveStoredItem): boolean => item.body.home !== "seed";
-
 // read through the card's schema, so a card built here and one read from its row compare alike
 const sameCard = (a: ItemCard, b: ItemCard): boolean =>
   canonicalJson(itemCardSchema.parse(a)) === canonicalJson(itemCardSchema.parse(b));
@@ -114,7 +110,7 @@ export const landProjection = (
   if (item === null) {
     return "gone";
   }
-  if (!bodyInNote(item) || projection.version <= item.body.version) {
+  if (bodyWriter(item.body.home) === "cell" || projection.version <= item.body.version) {
     return "stale";
   }
   const derived = deriveItem(item.fields, projection.digest);
@@ -162,7 +158,7 @@ export const notesHeld = (db: CellDb): string[] => [
     ...db
       .select({ id: items.id })
       .from(items)
-      .where(and(eq(items.purged, 0), ne(items.bodyHome, "seed")))
+      .where(and(eq(items.purged, 0), writtenByNote))
       .all()
       .map((row) => row.id),
     ...waitingPayloads(db, "note-purge").map((payload) => payload.itemId),

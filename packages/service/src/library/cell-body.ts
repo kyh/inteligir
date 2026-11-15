@@ -3,12 +3,12 @@
 // Either way the cell holds the body's text, cut into parts at line ends, which search's literal tier
 // matches and the index's body column is read from.
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { libraryBlockSchema } from "@repo/contract/library/library-nodes";
-import { bodyTexts, items, seedBlocks } from "@repo/db/cell/schema";
+import { BODY_HOMES, bodyTexts, items, seedBlocks } from "@repo/db/cell/schema";
 
 import { insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
@@ -16,6 +16,17 @@ import { LibraryRowError } from "./library-sql";
 
 // a part sits well inside a Durable Object's 2 MB row
 const TEXT_PART_BYTES = 512 * 1024;
+
+// who writes an item's body: the cell while it keeps the seed, and the item's note from its first
+// read of that seed on, so a note still opening already is
+export const bodyWriter = (home: (typeof BODY_HOMES)[number]): "cell" | "note" =>
+  home === "seed" ? "cell" : "note";
+
+// the same answer for a statement, which asks by column
+export const writtenByNote = inArray(
+  items.bodyHome,
+  BODY_HOMES.filter((home) => bodyWriter(home) === "note"),
+);
 
 // the text cut at line ends into parts within TEXT_PART_BYTES; a line longer than a part is cut
 // between characters, so only such a line can split a match
@@ -116,11 +127,10 @@ export const heldBody = (db: CellDb, itemId: string): HeldBody => {
     .from(items)
     .where(and(eq(items.id, itemId), eq(items.purged, 0)))
     .get();
-  if (row === undefined) {
+  if (row === undefined || row.home === null) {
     return null;
   }
-  // a note still opening may already hold edits its seed does not
-  return row.home === "seed"
+  return bodyWriter(row.home) === "cell"
     ? { blocks: readSeedBlocks(db, itemId), kind: "seed" }
     : { kind: "note" };
 };
@@ -134,5 +144,5 @@ export const noteBytes = (db: CellDb): number =>
   db
     .select({ bytes: sql`coalesce(sum(${items.bodyBytes}), 0)`.mapWith(Number) })
     .from(items)
-    .where(and(eq(items.bodyHome, "note"), eq(items.purged, 0)))
+    .where(and(writtenByNote, eq(items.purged, 0)))
     .get()?.bytes ?? 0;

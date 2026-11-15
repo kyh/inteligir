@@ -8,8 +8,8 @@
 // article and the facts a fill owns, so the person's note and fields are never touched, and only on
 // an item still waiting for that reading at that address, so a message met twice lands once. A page
 // whose redirects end at another address is read into the item that waited for it, which keeps the
-// address it was saved at. An item whose note has opened takes the article in its note, which the
-// cell's object sends there before the landing (`fillForNote`).
+// address it was saved at. An item whose note writes its body takes the article there
+// (`./article-landing`).
 
 import { and, eq, sql } from "drizzle-orm";
 
@@ -22,7 +22,6 @@ import type { LiveStoredItem } from "./library-queries";
 import { kindForUrl, urlKey } from "@repo/contract/items/item-url";
 
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
-import type { NoteArticle } from "./article-landing";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
@@ -209,19 +208,6 @@ const waiting = (item: LiveStoredItem | null, url: string): item is LiveStoredIt
 // whether an item still waits for a reading of `url`, so a consumer reads no page nobody waits for
 export const fillWaits = (db: CellDb, itemId: string, url: string): boolean =>
   waiting(readLiveItem(db, itemId), url);
-
-// the note a reading's article goes to before it lands, when the item waiting for it has opened
-// its note: named by the item's sequence, so the same reading sent again replaces nothing twice,
-// and a reading asked for again replaces it anew
-export const fillForNote = (db: CellDb, landing: FillLanding): NoteArticle | null => {
-  if (landing.kind !== "read" || landing.article.length === 0) {
-    return null;
-  }
-  const item = readLiveItem(db, landing.itemId);
-  return waiting(item, landing.url) && item.body.home === "note"
-    ? { article: landing.article, itemId: item.id, onceId: `fill:${item.id}:${item.seq}` }
-    : null;
-};
 
 // the files a reading kept in the library on its way (`../fill/store-file`)
 export const readingFiles = (landing: FillLanding): string[] => {

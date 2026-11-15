@@ -15,12 +15,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import { changeSetItems, changeSets } from "@repo/db/cell/schema";
 
 import type { TurnUndone } from "../note/note-wire";
+import { bodyWriter } from "./cell-body";
 import type { CellDb } from "./cell-db";
 import { listChunks } from "./cell-db";
 import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
-import { bodyInNote, landProjection } from "./cell-notes";
+import { landProjection } from "./cell-notes";
 import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
@@ -127,7 +128,9 @@ export const planUndo = (db: CellDb, changeSetIds: readonly string[]): NoteToUnd
     .flatMap((set) =>
       setItems(db, set.id).flatMap(({ itemId }) => {
         const item = readLiveItem(db, itemId);
-        return item !== null && bodyInNote(item) ? [{ itemId, setId: set.id }] : [];
+        return item !== null && bodyWriter(item.body.home) === "note"
+          ? [{ itemId, setId: set.id }]
+          : [];
       }),
     );
 

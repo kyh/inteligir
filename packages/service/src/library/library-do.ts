@@ -30,9 +30,8 @@ import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
-import { articleThenLand } from "./article-landing";
+import { landArticle } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
-import { fillForNote } from "./cell-fills";
 import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
@@ -278,12 +277,8 @@ export class LibraryDO extends DurableObject<Env> {
     }
     const { library, notes } = this.#cell;
     const reading = parsed.data;
-    return await articleThenLand(notes, {
-      land: (inNote) => library.landReading(reading, inNote?.projection ?? null),
-      target: () => {
-        const target = library.read((db) => fillForNote(db, reading));
-        return target.ok ? target.value : null;
-      },
-    });
+    return await landArticle(notes, reading.kind === "read" ? reading.article : [], (inNote) =>
+      library.landReading(reading, inNote?.projection ?? null),
+    );
   }
 }

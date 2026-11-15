@@ -106,7 +106,7 @@ const refusalError = (refusal: CellRefusal): Error => {
     case "turn-ended": {
       return new ORPCError("FORBIDDEN", { message: "This turn has ended." });
     }
-    // a write that met a body gone to its note twice over: a fault to send again
+    // an article the item's note would not take: a fault to send again
     case "note-opened": {
       return new ORPCError("INTERNAL_SERVER_ERROR", {
         message: "That item just opened elsewhere. Try again.",
