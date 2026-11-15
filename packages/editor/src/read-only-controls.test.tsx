@@ -59,7 +59,6 @@ const WRITES = [
   "Edit data",
   "Sketch",
   "Edit payload",
-  "Edit",
   "Add tab",
   "Remove One",
 ];
@@ -89,6 +88,19 @@ describe("a note's editing controls", () => {
     for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
+  });
+
+  it("a block's open editor gives way to its view as the note stops taking edits", () => {
+    const value = noteValue();
+    const view = render(<EditorHarness value={value} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Edit data" }));
+    });
+    expect(screen.queryByRole("textbox", { name: "Row 1 label" })).not.toBeNull();
+
+    view.rerender(<EditorHarness readOnly value={value} />);
+    expect(screen.queryByRole("textbox", { name: "Row 1 label" })).toBeNull();
+    expect(screen.getByRole("img", { name: "chart" })).toBeDefined();
   });
 
   it("a formula's pill opens its editor, which saves on Enter", () => {

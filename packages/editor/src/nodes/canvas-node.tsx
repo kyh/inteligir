@@ -1,18 +1,14 @@
 import { z } from "zod";
-import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { ComponentProps, PointerEvent as ReactPointerEvent } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
-import { stringProp } from "@repo/editor/node-props";
-
 import { clearCanvasGrid, paintCanvasCells, strokeSegmentCells } from "./canvas-sketch";
 import type { CanvasCell } from "./canvas-sketch";
-import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
-import { setBlockValue } from "./rich-block-value";
+import { RichBlock } from "./rich-block-chrome";
+import type { Parse } from "./rich-block-chrome";
 import {
   CANVAS_COLS,
   CANVAS_ROWS,
@@ -39,18 +35,19 @@ const labelSchema = z.strictObject({
   text: z.string().min(1),
 });
 
-export type CanvasParse =
-  | { ok: true; grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }
-  | { ok: false; reason: string };
+interface CanvasPayload {
+  grid: boolean[][];
+  labels: z.infer<typeof labelSchema>[];
+}
 
-export const parseCanvasPayload = (value: string): CanvasParse => {
+export const parseCanvasPayload = (value: string): Parse<CanvasPayload> => {
   const lines = value.split("\n");
   const [headerLine, labelLine] = lines;
   if (!isGridHeader(headerLine)) {
     return { ok: false, reason: `The payload does not begin with ${GRID_HEADER}.` };
   }
   let rowStart = 1;
-  let labels: z.infer<typeof labelSchema>[] = [];
+  let labels: CanvasPayload["labels"] = [];
   if (isLabelsLine(labelLine)) {
     if (!labelLine.endsWith("]]")) {
       return { ok: false, reason: "The labels line does not close." };
@@ -76,81 +73,84 @@ export const parseCanvasPayload = (value: string): CanvasParse => {
       return cell !== undefined && cell !== "." && cell !== " ";
     }),
   );
-  return { grid, labels, ok: true };
+  return { ok: true, payload: { grid, labels } };
 };
 
-const usedRowsOf = (grid: boolean[][], labels: z.infer<typeof labelSchema>[]): number =>
+const usedRowsOf = ({ grid, labels }: CanvasPayload): number =>
   // crop to used rows so a small sketch is not a sea of empty grid; columns stay full width for stable label geometry.
   Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
 
-const CanvasSvg = ({
-  grid,
-  labels,
-}: {
-  grid: boolean[][];
-  labels: z.infer<typeof labelSchema>[];
-}) => {
-  const usedRows = usedRowsOf(grid, labels);
-  return (
-    <svg
-      viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(usedRows * CELL)}`}
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
-      role="img"
-      aria-label="canvas sketch"
-      className="w-full"
-    >
-      <defs>
-        <pattern id="canvas-dots" width={CELL * 4} height={CELL * 4} patternUnits="userSpaceOnUse">
-          <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#canvas-dots)" />
-      {grid.flatMap((row, rowIndex) =>
-        row.flatMap((filled, colIndex) =>
-          filled
-            ? [
-                <rect
-                  key={`${String(rowIndex)}-${String(colIndex)}`}
-                  x={colIndex * CELL}
-                  y={rowIndex * CELL}
-                  width={CELL}
-                  height={CELL}
-                  fill="var(--muted-foreground)"
-                  opacity={0.8}
-                />,
-              ]
-            : [],
-        ),
-      )}
-      {labels.map((label) => (
-        <g
-          key={label.id}
-          transform={`translate(${String(label.col * CELL)}, ${String(label.row * CELL)})`}
-        >
-          <text fontSize={CELL * 1.8} dominantBaseline="hanging" className="fill-foreground">
-            {label.text}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-};
+const cellKey = (col: number, row: number): string => `${String(col)},${String(row)}`;
+
+// the one drawing of a canvas: its children are the sketch's stroke in progress, under the labels
+const CanvasGrid = ({
+  canvas,
+  children,
+  erased,
+  rows,
+  ...svg
+}: ComponentProps<"svg"> & {
+  canvas: CanvasPayload;
+  rows: number;
+  // the ink a stroke in progress rubs out
+  erased?: ReadonlyMap<string, CanvasCell>;
+}) => (
+  <svg
+    viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(rows * CELL)}`}
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
+    role="img"
+    {...svg}
+  >
+    <defs>
+      <pattern id="canvas-dots" width={CELL * 4} height={CELL * 4} patternUnits="userSpaceOnUse">
+        <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#canvas-dots)" />
+    {canvas.grid.flatMap((row, rowIndex) =>
+      row.flatMap((filled, colIndex) =>
+        filled && erased?.has(cellKey(colIndex, rowIndex)) !== true
+          ? [
+              <rect
+                key={`${String(rowIndex)}-${String(colIndex)}`}
+                x={colIndex * CELL}
+                y={rowIndex * CELL}
+                width={CELL}
+                height={CELL}
+                fill="var(--muted-foreground)"
+                opacity={0.8}
+              />,
+            ]
+          : [],
+      ),
+    )}
+    {children}
+    {canvas.labels.map((label) => (
+      <g
+        key={label.id}
+        transform={`translate(${String(label.col * CELL)}, ${String(label.row * CELL)})`}
+      >
+        <text fontSize={CELL * 1.8} dominantBaseline="hanging" className="fill-foreground">
+          {label.text}
+        </text>
+      </g>
+    ))}
+  </svg>
+);
 
 type SketchTool = "pencil" | "eraser";
 
 // the stroke commits once on pointer-up: one transaction, one undo step.
 const SketchSurface = ({
-  grid,
-  labels,
+  canvas,
   onStroke,
   tool,
 }: {
-  grid: boolean[][];
-  labels: z.infer<typeof labelSchema>[];
+  canvas: CanvasPayload;
   onStroke: (cells: CanvasCell[], ink: boolean) => void;
   tool: SketchTool;
 }) => {
-  const rowsShown = Math.min(CANVAS_ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
+  const rowsShown = Math.min(CANVAS_ROWS, Math.max(24, usedRowsOf(canvas) + 6));
   const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
   const lastCell = useRef<CanvasCell | null>(null);
 
@@ -168,7 +168,7 @@ const SketchSurface = ({
     setPending((prior) => {
       const next = new Map(prior);
       for (const cell of strokeSegmentCells(from, to)) {
-        next.set(`${String(cell.col)},${String(cell.row)}`, cell);
+        next.set(cellKey(cell.col, cell.row), cell);
       }
       return next;
     });
@@ -176,10 +176,10 @@ const SketchSurface = ({
 
   const erasing = tool === "eraser";
   return (
-    <svg
-      viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(rowsShown * CELL)}`}
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
-      role="img"
+    <CanvasGrid
+      canvas={canvas}
+      rows={rowsShown}
+      erased={erasing ? pending : undefined}
       aria-label="canvas sketch surface"
       className={cn("w-full touch-none", erasing ? "cursor-cell" : "cursor-crosshair")}
       onPointerDown={(event) => {
@@ -204,34 +204,6 @@ const SketchSurface = ({
         lastCell.current = null;
       }}
     >
-      <defs>
-        <pattern
-          id="canvas-sketch-dots"
-          width={CELL * 4}
-          height={CELL * 4}
-          patternUnits="userSpaceOnUse"
-        >
-          <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#canvas-sketch-dots)" />
-      {grid.flatMap((row, rowIndex) =>
-        row.flatMap((filled, colIndex) =>
-          filled && !(erasing && pending.has(`${String(colIndex)},${String(rowIndex)}`))
-            ? [
-                <rect
-                  key={`${String(rowIndex)}-${String(colIndex)}`}
-                  x={colIndex * CELL}
-                  y={rowIndex * CELL}
-                  width={CELL}
-                  height={CELL}
-                  fill="var(--muted-foreground)"
-                  opacity={0.8}
-                />,
-              ]
-            : [],
-        ),
-      )}
       {erasing
         ? null
         : [...pending.values()].map((cell) => (
@@ -245,17 +217,7 @@ const SketchSurface = ({
               opacity={0.7}
             />
           ))}
-      {labels.map((label) => (
-        <g
-          key={label.id}
-          transform={`translate(${String(label.col * CELL)}, ${String(label.row * CELL)})`}
-        >
-          <text fontSize={CELL * 1.8} dominantBaseline="hanging" className="fill-foreground">
-            {label.text}
-          </text>
-        </g>
-      ))}
-    </svg>
+    </CanvasGrid>
   );
 };
 
@@ -280,168 +242,73 @@ const SketchToolButton = ({
   </button>
 );
 
-type CanvasMode = "view" | "sketch" | "raw";
-
-const CanvasActions = ({
-  canSketch,
-  mode,
-  onMode,
-}: {
-  canSketch: boolean;
-  mode: CanvasMode;
-  onMode: (mode: CanvasMode) => void;
-}) => {
-  if (mode === "sketch") {
-    return (
-      <button
-        type="button"
-        className="text-body text-muted-foreground hover:text-foreground"
-        onClick={() => {
-          onMode("view");
-        }}
-      >
-        Done
-      </button>
-    );
-  }
-  if (mode !== "view") {
-    return null;
-  }
-  return (
-    <span className="flex items-center gap-1">
-      {canSketch ? (
-        <button
-          type="button"
-          className="text-body text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            onMode("sketch");
-          }}
-        >
-          Sketch
-        </button>
-      ) : null}
-      <button
-        type="button"
-        className="text-body text-muted-foreground hover:text-foreground"
-        onClick={() => {
-          onMode("raw");
-        }}
-      >
-        Edit payload
-      </button>
-    </span>
-  );
-};
-
-const CanvasBody = ({
-  mode,
-  onMode,
-  onStroke,
-  onTool,
-  onValue,
-  parsed,
-  tool,
+const CanvasSketch = ({
+  canvas,
   value,
+  write,
 }: {
-  mode: CanvasMode;
-  onMode: (mode: CanvasMode) => void;
-  onStroke: (cells: CanvasCell[], ink: boolean) => void;
-  onTool: (tool: SketchTool) => void;
-  onValue: (next: string) => void;
-  parsed: CanvasParse;
-  tool: SketchTool;
+  canvas: CanvasPayload;
   value: string;
+  write: (next: string) => void;
 }) => {
-  if (mode === "raw") {
-    return (
-      <PayloadEditor
-        initial={value}
-        validate={(next) => {
-          const verdict = parseCanvasPayload(next);
-          return verdict.ok ? null : verdict.reason;
-        }}
-        onCancel={() => {
-          onMode("view");
-        }}
-        onSave={(next) => {
-          onValue(next);
-          onMode("view");
-        }}
-      />
-    );
-  }
-  if (!parsed.ok) {
-    return <DegradedPayloadView reason={parsed.reason} value={value} />;
-  }
-  if (mode === "sketch") {
-    return (
-      <div className="px-2 py-1">
-        <div className="flex items-center gap-1 pb-1">
-          <SketchToolButton
-            active={tool === "pencil"}
-            label="Pencil"
-            onClick={() => {
-              onTool("pencil");
-            }}
-          />
-          <SketchToolButton
-            active={tool === "eraser"}
-            label="Eraser"
-            onClick={() => {
-              onTool("eraser");
-            }}
-          />
-          <span className="flex-1" />
-          <SketchToolButton
-            active={false}
-            label="Clear"
-            onClick={() => {
-              onValue(clearCanvasGrid(value));
-            }}
-          />
-        </div>
-        <SketchSurface grid={parsed.grid} labels={parsed.labels} tool={tool} onStroke={onStroke} />
-      </div>
-    );
-  }
+  const [tool, setTool] = useState<SketchTool>("pencil");
   return (
     <div className="px-2 py-1">
-      <CanvasSvg grid={parsed.grid} labels={parsed.labels} />
+      <div className="flex items-center gap-1 pb-1">
+        <SketchToolButton
+          active={tool === "pencil"}
+          label="Pencil"
+          onClick={() => {
+            setTool("pencil");
+          }}
+        />
+        <SketchToolButton
+          active={tool === "eraser"}
+          label="Eraser"
+          onClick={() => {
+            setTool("eraser");
+          }}
+        />
+        <span className="flex-1" />
+        <SketchToolButton
+          active={false}
+          label="Clear"
+          onClick={() => {
+            write(clearCanvasGrid(value));
+          }}
+        />
+      </div>
+      <SketchSurface
+        canvas={canvas}
+        tool={tool}
+        onStroke={(cells, ink) => {
+          write(paintCanvasCells(value, cells, ink));
+        }}
+      />
     </div>
   );
 };
 
-export const CanvasElement = (props: PlateElementProps) => {
-  const [mode, setMode] = useState<CanvasMode>("view");
-  const [tool, setTool] = useState<SketchTool>("pencil");
-  const frozen = useFrozen();
-  const value = stringProp(props.element, "value") ?? "";
-  const parsed = parseCanvasPayload(value);
-
-  return (
-    <PlateElement {...props}>
-      <RichBlockCard
-        label="canvas"
-        actions={
-          frozen ? null : <CanvasActions canSketch={parsed.ok} mode={mode} onMode={setMode} />
-        }
-      >
-        <CanvasBody
-          mode={mode}
-          parsed={parsed}
-          tool={tool}
-          value={value}
-          onMode={setMode}
-          onStroke={(cells, ink) => {
-            setBlockValue(props.editor, props.element, paintCanvasCells(value, cells, ink));
-          }}
-          onTool={setTool}
-          onValue={(next) => {
-            setBlockValue(props.editor, props.element, next);
-          }}
+export const CanvasElement = (props: PlateElementProps) => (
+  <RichBlock
+    {...props}
+    label="canvas"
+    parse={parseCanvasPayload}
+    renderView={(canvas) => (
+      <div className="px-2 py-1">
+        <CanvasGrid
+          canvas={canvas}
+          rows={usedRowsOf(canvas)}
+          aria-label="canvas sketch"
+          className="w-full"
         />
-      </RichBlockCard>
-      {props.children}
-    </PlateElement>
-  );
-};
+      </div>
+    )}
+    structured={{
+      label: "Sketch",
+      renderEditor: (canvas, write, value) => (
+        <CanvasSketch canvas={canvas} value={value} write={write} />
+      ),
+    }}
+  />
+);

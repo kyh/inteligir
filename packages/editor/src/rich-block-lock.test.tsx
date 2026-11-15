@@ -287,10 +287,10 @@ describe("a locked block's controls", () => {
 
   it.each([
     ["touch", []],
-    ["desktop", ["Edit data", "Sketch", "Edit payload", "Edit", "Add tab"]],
+    ["desktop", ["Edit data", "Sketch", "Edit payload", "Add tab"]],
   ] as const)("the %s kit draws only the editing controls it would apply", (profile, editing) => {
     render(<EditorHarness profile={profile} value={valueOf(NOTE)} />);
-    for (const name of ["Edit data", "Sketch", "Edit payload", "Edit", "Add tab"]) {
+    for (const name of ["Edit data", "Sketch", "Edit payload", "Add tab"]) {
       expect(screen.queryAllByRole("button", { name }).length > 0, name).toBe(
         editing.some((drawn) => drawn === name),
       );

@@ -2,16 +2,11 @@
 // An invalid payload stays code; the bytes are never touched.
 
 import { z } from "zod";
-import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
-import { useState } from "react";
-
-import { useFrozen } from "@repo/editor/kits/rich-block-lock-kit";
-import { stringProp } from "@repo/editor/node-props";
 
 import { ChartGridEditor, emitChartPayload } from "./chart-grid";
-import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
-import { setBlockValue } from "./rich-block-value";
+import { RichBlock } from "./rich-block-chrome";
+import type { Parse } from "./rich-block-chrome";
 
 const NAMED_COLORS = new Set([
   "black",
@@ -82,9 +77,7 @@ const chartSchema = z.union([
 
 export type ChartPayload = z.infer<typeof chartSchema>;
 
-export type ChartParse = { ok: true; chart: ChartPayload } | { ok: false; reason: string };
-
-export const parseChartPayload = (value: string): ChartParse => {
+export const parseChartPayload = (value: string): Parse<ChartPayload> => {
   let json: unknown;
   try {
     json = JSON.parse(value);
@@ -96,7 +89,7 @@ export const parseChartPayload = (value: string): ChartParse => {
     const [first] = parsed.error.issues;
     return { ok: false, reason: `Not a chart: ${first?.message ?? "shape mismatch"}` };
   }
-  return { chart: parsed.data, ok: true };
+  return { ok: true, payload: parsed.data };
 };
 
 const W = 480;
@@ -272,123 +265,34 @@ const ChartSvg = ({ chart }: { chart: ChartPayload }) => {
   );
 };
 
-type ChartMode = "view" | "grid" | "raw";
+const ChartFrame = ({ chart }: { chart: ChartPayload }) => (
+  <div className="px-2 py-1">
+    <ChartSvg chart={chart} />
+  </div>
+);
 
-const ChartBody = ({
-  mode,
-  onMode,
-  onValue,
-  parsed,
-  value,
-}: {
-  mode: ChartMode;
-  onMode: (mode: ChartMode) => void;
-  onValue: (next: string) => void;
-  parsed: ChartParse;
-  value: string;
-}) => {
-  if (mode === "raw") {
-    return (
-      <PayloadEditor
-        initial={value}
-        validate={(next) => {
-          const verdict = parseChartPayload(next);
-          return verdict.ok ? null : verdict.reason;
-        }}
-        onCancel={() => {
-          onMode("view");
-        }}
-        onSave={(next) => {
-          onValue(next);
-          onMode("view");
-        }}
-      />
-    );
-  }
-  if (!parsed.ok) {
-    return <DegradedPayloadView reason={parsed.reason} value={value} />;
-  }
-  if (mode === "grid") {
-    return (
-      <>
-        <div className="px-2 py-1">
-          <ChartSvg chart={parsed.chart} />
-        </div>
-        <div className="border-t border-border/60">
-          <ChartGridEditor
-            chart={parsed.chart}
-            onCommit={(next) => {
-              onValue(emitChartPayload(next));
-            }}
-            onRawEdit={() => {
-              onMode("raw");
-            }}
-          />
-        </div>
-      </>
-    );
-  }
-  return (
-    <div className="px-2 py-1">
-      <ChartSvg chart={parsed.chart} />
-    </div>
-  );
-};
-
-const ChartActions = ({
-  mode,
-  onMode,
-  parsed,
-}: {
-  mode: ChartMode;
-  onMode: (mode: ChartMode) => void;
-  parsed: ChartParse;
-}) =>
-  mode === "view" ? (
-    <button
-      type="button"
-      className="text-body text-muted-foreground hover:text-foreground"
-      onClick={() => {
-        onMode(parsed.ok ? "grid" : "raw");
-      }}
-    >
-      Edit data
-    </button>
-  ) : (
-    <button
-      type="button"
-      className="text-body text-muted-foreground hover:text-foreground"
-      onClick={() => {
-        onMode("view");
-      }}
-    >
-      Done
-    </button>
-  );
-
-export const ChartElement = (props: PlateElementProps) => {
-  const [mode, setMode] = useState<ChartMode>("view");
-  const frozen = useFrozen();
-  const value = stringProp(props.element, "value") ?? "";
-  const parsed = parseChartPayload(value);
-
-  return (
-    <PlateElement {...props}>
-      <RichBlockCard
-        label={parsed.ok ? (parsed.chart.title ?? "chart") : "chart"}
-        actions={frozen ? null : <ChartActions mode={mode} parsed={parsed} onMode={setMode} />}
-      >
-        <ChartBody
-          mode={mode}
-          parsed={parsed}
-          value={value}
-          onMode={setMode}
-          onValue={(next) => {
-            setBlockValue(props.editor, props.element, next);
-          }}
-        />
-      </RichBlockCard>
-      {props.children}
-    </PlateElement>
-  );
-};
+export const ChartElement = (props: PlateElementProps) => (
+  <RichBlock
+    {...props}
+    label="chart"
+    parse={parseChartPayload}
+    titleOf={(chart) => chart.title}
+    renderView={(chart) => <ChartFrame chart={chart} />}
+    structured={{
+      label: "Edit data",
+      renderEditor: (chart, write) => (
+        <>
+          <ChartFrame chart={chart} />
+          <div className="border-t border-border/60">
+            <ChartGridEditor
+              chart={chart}
+              onCommit={(next) => {
+                write(emitChartPayload(next));
+              }}
+            />
+          </div>
+        </>
+      ),
+    }}
+  />
+);

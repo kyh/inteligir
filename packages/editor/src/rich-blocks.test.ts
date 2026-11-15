@@ -47,9 +47,9 @@ describe(parseCanvasPayload, () => {
       '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"research","text":"Research","col":8,"row":4}]]\n....####\n....#..#\n....####',
     );
     assert(verdict.ok, "the skill's example parses");
-    expect(verdict.labels[0]?.text).toBe("Research");
-    expect(verdict.grid[0]?.[4]).toBe(true);
-    expect(verdict.grid[0]?.[0]).toBe(false);
+    expect(verdict.payload.labels[0]?.text).toBe("Research");
+    expect(verdict.payload.grid[0]?.[4]).toBe(true);
+    expect(verdict.payload.grid[0]?.[0]).toBe(false);
   });
 
   it("accepts a labels-free grid", () => {

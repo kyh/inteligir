@@ -78,6 +78,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
   whole-block op lands, since hiding the buttons lets a paste or key in.
   `packages/editor/src/kits/rich-block-lock-kit.ts`.
+- **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
+  structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
+  check, since a lifecycle copied per block drifts.
+  `packages/editor/src/nodes/rich-block-chrome.tsx`.
 - **A Mermaid fence is drawn by Pele, synchronously, and its theme is CSS.** Pele reads Mermaid
   into SVG with no dependency in each change's layout effect, where mermaid.js is 2 MB, async and
   bakes its theme into its DOM. `packages/editor/src/nodes/code-block-mermaid.tsx`.
