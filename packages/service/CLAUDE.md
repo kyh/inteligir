@@ -145,9 +145,14 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   to land, and the first to land hands the seed over.** A confirm of the seed's
   own is a second duty, retry and column that says nothing the first projection
   does not. `packages/service/src/note/note-duty.ts`.
-- **A note's standing is one value, and leaving full or Deleted reopens every
-  socket.** A boolean per standing leaves devices read-only after a compaction.
-  `packages/service/src/note/note-standing.ts`.
+- **A note's standing is one value, open, full or gone, and leaving full
+  reopens every socket.** A boolean per standing leaves devices read-only after
+  a compaction. `packages/service/src/note/note-standing.ts`.
+- **Whether an item is in Deleted is the cell's alone: the door asks it for
+  every socket, and the landing that moves it reopens its note's sockets.** A
+  copy in the note is one that an Undo's or an import's restore never reaches,
+  so the item opens read-only for good.
+  `packages/service/src/library/cell-landing.ts`.
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
   it again. `packages/service/src/library/cell-jobs.ts`.

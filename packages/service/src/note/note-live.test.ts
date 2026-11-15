@@ -461,11 +461,13 @@ describe("a note's door", () => {
     expect(response.status).toBe(403);
   });
 
-  it("opens a note in Deleted read-only whatever the client claims, and closes it for a reopen once restored", async () => {
+  it("opens a note in Deleted read-only whatever the client claims, its sockets closed for a reopen as it goes there and as it comes back", async () => {
     const { accountId, itemId, library, ticket } = await signedIn("door-deleted@example.test");
     const live = await openClient(itemId, ticket, "deleted-live");
     await library.items.delete({ ids: [itemId] });
-    await until(() => live.messages.includes(NOTE_SOCKET.deleted));
+    await until(() => opens.get("deleted-live") === 2 && live.provider.synced);
+    // told as the delete landed, and again by the door it opened through after
+    expect(live.messages).toStrictEqual([NOTE_SOCKET.deleted, NOTE_SOCKET.deleted]);
 
     const forged = await dial(`${notePath(itemId)}?${SOCKET_TICKET_PARAM}=${await ticket()}`, {
       [NOTE_HOLDER_HEADER]: "someone-else",
@@ -482,10 +484,36 @@ describe("a note's door", () => {
     await expect(serverLine(accountId, itemId, 0)).resolves.toBe("Above the fox.");
 
     await library.items.restore({ ids: [itemId] });
-    await until(() => traces.get("deleted-live")?.closes.includes(NOTE_SOCKET.reopenCode) === true);
-    expect(traces.get("deleted-live")?.closes[0]).toBe(NOTE_SOCKET.reopenCode);
+    await until(() => opens.get("deleted-live") === 3 && live.provider.synced);
+    expect(traces.get("deleted-live")?.closes).toStrictEqual([
+      NOTE_SOCKET.reopenCode,
+      NOTE_SOCKET.reopenCode,
+    ]);
     live.provider.destroy();
     reader.provider.destroy();
+  });
+
+  it("opens a note writable again once its delete is undone", async () => {
+    const email = "door-undone@example.test";
+    const { accountId, itemId, library, ticket } = await signedIn(email);
+    // another device's delete, so its change set holds the delete alone
+    const phone = v1Link(phoneHeaders(await signInPhone(email)));
+    const open = await openClient(itemId, ticket, "undone-open");
+    await phone.library.items.delete({ ids: [itemId] });
+    await until(() => opens.get("undone-open") === 2 && open.provider.synced);
+
+    const { changeSets } = await library.history.list({});
+    const deleting = changeSets.find((set) =>
+      set.items.some((item) => item.id === itemId && item.deleted),
+    );
+    await library.history.undo({ changeSetIds: deleting === undefined ? [] : [deleting.id] });
+    await until(() => opens.get("undone-open") === 3 && open.provider.synced);
+    typeInto(open, 0, 0, "back ");
+    await until(async () => (await serverLine(accountId, itemId, 0)) === "back Above the fox.");
+    const late = await openClient(itemId, ticket, "undone-late");
+    expect(late.messages).toStrictEqual([]);
+    open.provider.destroy();
+    late.provider.destroy();
   });
 
   it("closes a session's note sockets as the session ends, and opens none on its ticket after", async () => {
@@ -520,12 +548,11 @@ describe("a note's door", () => {
     await expect(serverText(accountId, itemId)).resolves.toStrictEqual([]);
   });
 
-  it("stays gone once the library holds no body for it, whatever a restore or a delete says", async () => {
+  it("stays gone once the library holds no body for it, whatever is asked of it after", async () => {
     const { accountId } = await signedIn("door-gone@example.test");
     const note = noteOf(accountId, "unheldItem");
     await expect(serverText(accountId, "unheldItem")).resolves.toStrictEqual([]);
-    await note.setDeleted(true);
-    await note.setDeleted(false);
+    await note.reopen();
     await expect(note.replaceArticle([], "fill-gone")).resolves.toStrictEqual({
       held: "gone",
       kind: "held",
@@ -533,10 +560,6 @@ describe("a note's door", () => {
     await expect(note.undoTurn("turn-gone", "undo-gone")).resolves.toMatchObject({
       projection: null,
     });
-    const meta = await runInDurableObject(note, (_note, state) =>
-      noteDbOf(state.storage).select().from(noteMeta).get(),
-    );
-    expect(meta).toMatchObject({ deleted: 0, full: 0 });
   });
 });
 

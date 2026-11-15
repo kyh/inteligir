@@ -10,6 +10,7 @@ import type { LibrarySocketFrame, MovedFrame } from "@repo/contract/library/libr
 import { runAgentTool } from "../agent/agent-tools";
 import { turnActorIn } from "../agent/agent-turns";
 import type { AgentCell } from "../agent/agent-turns";
+import { errorFields } from "../log";
 import { noteStub } from "../note/note-stub";
 import type { NoteReach } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
@@ -81,17 +82,31 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
     ((at) => {
       void (at === null ? ctx.storage.deleteAlarm() : ctx.storage.setAlarm(at));
     });
+  const notes: NoteReach = (itemId) => noteStub(ctx.exports, { accountId, itemId });
+  // A note whose item went into Deleted or came back closes its sockets, so each dials again
+  // through the door, which asks this cell how it opens. Never awaited, so a write answers as it
+  // lands: a note that misses it leaves a socket as it was only until that socket's next dial.
+  const reopen = async (itemId: string): Promise<void> => {
+    try {
+      await notes(itemId).reopen();
+    } catch (error) {
+      console.warn({ event: "note-reopen-unsent", ...errorFields(error) });
+    }
+  };
   const library = openLibraryEngine({
     bytesCap: ports.bytesCap ?? libraryStorageCap(env),
-    // Neither awaits: storage calls with no await between them commit as one
-    // (developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/), so a
-    // write never stands without the alarm for its jobs, and the output gate holds its frame
+    // The frame and the alarm are not awaited: storage calls with no await between them commit as
+    // one (developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/), so
+    // a write never stands without the alarm for its jobs, and the output gate holds its frame
     // until both are on disk
-    committed: (moved, nextJobAt) => {
+    committed: (moved, nextJobAt, reopens) => {
       if (moved !== null) {
         (ports.moved ?? tell)(moved);
       }
       arm(nextJobAt);
+      for (const itemId of reopens) {
+        void reopen(itemId);
+      }
     },
     db,
     ids: cellIds(now),
@@ -99,8 +114,7 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
   });
   const cell: Cell = {
     accountId,
-    contextFor: (principal) =>
-      cellContext({ agent: cell, library, notes: cell.notes }, actorIn(principal)),
+    contextFor: (principal) => cellContext({ agent: cell, library, notes }, actorIn(principal)),
     db,
     durable: async () => {
       await ctx.storage.sync();
@@ -108,7 +122,7 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
     env,
     exports: ctx.exports,
     library,
-    notes: (itemId) => noteStub(ctx.exports, { accountId, itemId }),
+    notes,
     now,
     // every tool call the agent runs is one of its turn's, through the library's procedures
     runTool: async (request) =>

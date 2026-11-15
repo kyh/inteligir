@@ -38,8 +38,8 @@ export type ProjectAnswer = "landed" | "stale" | "gone";
 // how a session's socket on a note opens: writable, read-only (the item is in Deleted), or not at all
 export type NoteOpening = "live" | "read" | "missing";
 
-// why a note takes no edit: past its size, in Deleted, or purged
-export type NoteHeld = "full" | "deleted" | "gone";
+// why a note takes no edit: past its size, or purged
+export type NoteHeld = "full" | "gone";
 
 // an edit of a note's body by block id, under its writer's origin; an agent's is logged under its
 // turn's change set, which Undo takes back, and any other writer's under none

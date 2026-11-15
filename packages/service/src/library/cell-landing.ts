@@ -232,5 +232,14 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     storeItemBlobs(db, itemId, shas, scope.now);
   }
   scope.moved.item(itemId, seq);
+  // every writer of `deletedAt` lands here, and a note's door reads it for each socket as it
+  // opens, so the sockets already open are opened again
+  if (
+    before !== null &&
+    bodyWriter(before.body.home) === "note" &&
+    (before.fields.deletedAt === null) !== (fields.deletedAt === null)
+  ) {
+    scope.moved.reopen(itemId);
+  }
   return { card: derived.card, fields, id: itemId, kind: "live", seq, updatedAt: scope.now };
 };

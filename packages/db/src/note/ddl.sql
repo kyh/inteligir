@@ -13,8 +13,6 @@ CREATE TABLE `note_meta` (
 	`dirty_at` integer,
 	`retry_at` integer,
 	`full` integer DEFAULT 0 NOT NULL,
-	`deleted` integer DEFAULT 0 NOT NULL,
-	`purged` integer DEFAULT 0 NOT NULL,
 	`person_edited` integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "note_meta_one" CHECK("id" = 1)
 );

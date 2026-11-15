@@ -72,10 +72,10 @@ while the note's socket is open, and no presence crosses it.
 document** (`packages/service/src/note/note-do.ts`), reached by a device on
 the account socket's **ticket** and by the agent through the cell, by block id.
 Its first load takes the cell's **seed**, and each save pushes a
-**projection**. Its standing is open, full, in Deleted or gone
-(`packages/service/src/note/note-standing.ts`): an item in Deleted or a full
-note opens read-only, and a purged one is gone for good. Not the **library
-cell**: typing never passes through it.
+**projection**. Its standing is open, full or gone
+(`packages/service/src/note/note-standing.ts`): a full note opens read-only, as
+an item in Deleted does, which the cell tells its door, and a purged one is
+gone for good. Not the **library cell**: typing never passes through it.
 
 **seed** — the body the **library cell** keeps for an item until its **note
 object** first opens, written by a save, a fill, an import or a new note, and

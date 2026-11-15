@@ -4,7 +4,8 @@
 // next sequence number once, stamps every row it touches with it, joins its actor's change set,
 // and keeps its answer under its `opId` for 30 days, so a client resending after a lost answer is
 // told what landed. What follows a commit is the engine's own, in the turn that committed it: the
-// sockets told what it moved and the alarm set to the earliest job, so no caller settles a write.
+// sockets told what it moved, the alarm set to the earliest job and each note whose item went into
+// Deleted or came back told to reopen, so no caller settles a write.
 
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
@@ -91,8 +92,13 @@ export interface LibraryEngineDeps {
   readonly ids: CellIds;
   readonly bytesCap: number;
   // what follows every commit, in the turn that made it: what it moved, null for nothing a client
-  // reads, and when the earliest job waits, null for none
-  readonly committed: (moved: MovedFrame | null, nextJobAt: number | null) => void;
+  // reads, when the earliest job waits, null for none, and the items it moved into or out of
+  // Deleted whose notes are open
+  readonly committed: (
+    moved: MovedFrame | null,
+    nextJobAt: number | null,
+    reopens: readonly string[],
+  ) => void;
 }
 
 export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
@@ -192,7 +198,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const commit = <T>(work: (moved: MovedCollector) => T): T => {
     const moved = collectMoved();
     const value = db.$client.transactionSync(() => work(moved));
-    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null);
+    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null, moved.reopens());
     return value;
   };
 

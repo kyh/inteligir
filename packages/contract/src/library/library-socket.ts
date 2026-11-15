@@ -52,7 +52,7 @@ export const NOTE_SOCKET = {
   saved: "saved",
   // the item is not in the library: a client stops dialing
   missingCode: 4404,
-  // the item came back from Deleted, or its note takes edits again: a client dials again, writable
+  // the item went into Deleted or came back, or its note takes edits again: a client dials again
   reopenCode: 4000,
   // the session that opened the socket ended
   revokedCode: SOCKET_REVOKED_CLOSE_CODE,
