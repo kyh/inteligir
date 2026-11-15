@@ -11,8 +11,8 @@ import type { ItemSearchText } from "@repo/contract/library/derive-item";
 import type { CellStorage } from "../library/cell-storage";
 import { parseRow } from "../library/library-sql";
 import { renderFtsMatch } from "./fts-match";
-import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "./search-query";
+import type { SearchQueryTerm } from "./search-query";
 
 // a Durable Object row holds 2 MB, and an index row holds every column with its stem shadow
 export const SEARCH_ROW_MAX_BYTES = 1_900_000;
@@ -125,33 +125,24 @@ const COLUMN_WEIGHTS = [
   SEARCH_FIELD_WEIGHTS.body,
 ].join(", ");
 
-// the body comes back whole and search-excerpt cuts it, since fts5's snippet() cannot see a
-// stem-only hit; a search answers from one side of Deleted
-const SEARCH_SQL = `SELECT items.id AS id, search_fts.title AS title, search_fts.meta AS meta,
-  search_fts.body AS body,
-  bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}) AS rank
+// the hits alone, since a passage is cut only for the rows a page shows (`./search-hits`); a search
+// answers from one side of Deleted
+const SEARCH_SQL = `SELECT items.id AS id
 FROM search_fts JOIN items ON items.rid = search_fts.rowid
 WHERE search_fts MATCH ? AND (items.deleted_at IS NOT NULL) = ? AND items.purged = 0
-ORDER BY rank, items.id
+ORDER BY bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}), items.id
 LIMIT ?`;
 
-const searchRowSchema = z.object({
-  body: z.string(),
-  id: z.string(),
-  meta: z.string(),
-  rank: z.number(),
-  title: z.string(),
-});
+const hitRowSchema = z.object({ id: z.string() });
 
 // the side of Deleted a search answers from: an item in Deleted is found only from Deleted itself
 export type SearchSide = "live" | "deleted";
 
-export interface LibrarySearchHit {
-  readonly itemId: string;
-  readonly title: string;
-  readonly snippet: string;
-  // higher is better
-  readonly score: number;
+export interface RankedHits {
+  // best first
+  readonly ids: readonly string[];
+  // what the index matched them by
+  readonly terms: readonly SearchQueryTerm[];
 }
 
 // the search policy's plans in turn, every term required first, until one finds anything
@@ -160,24 +151,15 @@ export const searchLibrary = (
   query: string,
   limit: number,
   side: SearchSide = "live",
-): LibrarySearchHit[] => {
-  if (limit <= 0) {
-    return [];
-  }
-  for (const plan of planSearchQuery(query)) {
+): RankedHits => {
+  for (const plan of limit > 0 ? planSearchQuery(query) : []) {
     const rows = storage.all(SEARCH_SQL, [renderFtsMatch(plan), side === "deleted" ? 1 : 0, limit]);
     if (rows.length > 0) {
-      return rows.map((raw) => {
-        const row = parseRow(raw, searchRowSchema, "a search hit");
-        const snippet = searchExcerpt(row.body, plan.terms) || searchExcerpt(row.meta, plan.terms);
-        return {
-          itemId: row.id,
-          score: -row.rank,
-          snippet: snippet === "" ? row.title : snippet,
-          title: row.title,
-        };
-      });
+      return {
+        ids: rows.map((raw) => parseRow(raw, hitRowSchema, "a search hit").id),
+        terms: plan.terms,
+      };
     }
   }
-  return [];
+  return { ids: [], terms: [] };
 };

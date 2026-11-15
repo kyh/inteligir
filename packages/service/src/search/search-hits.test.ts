@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { excerptAround, isPrintableAscii } from "./search-hits";
-
-describe("the excerpt around a match", () => {
-  it("clips both sides and marks the cut", () => {
-    const line = `${"a".repeat(60)}NEEDLE${"b".repeat(120)}`;
-    expect(excerptAround(line, { length: 6, offset: 60 })).toBe(
-      `…${"a".repeat(40)}NEEDLE${"b".repeat(80)}…`,
-    );
-  });
-});
+import { isPrintableAscii } from "./search-hits";
 
 describe("a needle SQLite folds as the matcher does", () => {
   it("is printable ascii on one line", () => {

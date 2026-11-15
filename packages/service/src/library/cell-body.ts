@@ -1,7 +1,7 @@
 // What the cell keeps of an item's body. Until its note first opens, the body is the cell's own:
 // its blocks in reading order as seed rows, which the note's first load reads and its confirm drops.
 // Either way the cell holds the body's text, cut into parts at line ends, which search's literal tier
-// matches and the index's body column is read from.
+// matches, a hit's passage is cut from and the index's body column is read from.
 
 import { and, asc, eq, sql } from "drizzle-orm";
 
@@ -62,6 +62,15 @@ export const readBodyText = (db: CellDb, itemId: string): string =>
     .all()
     .map((row) => row.text)
     .join("");
+
+// the first `chars` characters of an item's body, of its first part at most: what a search hit's
+// passage is cut from, read for a page's rows
+export const readBodyOpening = (db: CellDb, itemId: string, chars: number): string =>
+  db
+    .select({ text: sql`substr(${bodyTexts.text}, 1, ${chars})`.mapWith(String) })
+    .from(bodyTexts)
+    .where(and(eq(bodyTexts.itemId, itemId), eq(bodyTexts.part, 0)))
+    .get()?.text ?? "";
 
 // the body the cell keeps for an item whose note has yet to open, over whatever it kept before
 export const storeSeed = (db: CellDb, itemId: string, blocks: readonly BodyBlock[]): void => {

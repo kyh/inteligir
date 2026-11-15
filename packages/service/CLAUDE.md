@@ -164,6 +164,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **Stemming is a shadow of the indexed text, never a rewrite of it.** FTS5's
   `porter` stems the index, so a half-typed word's prefix stops matching.
   `packages/service/src/search/search-query.ts`.
+- **A search ranks ids, and a passage is cut only for a row its page shows,
+  around the match.** A cut for every candidate reads two hundred bodies a
+  keystroke to show twenty, and a line cut from its start can leave the match
+  out. `packages/service/src/search/search-hits.ts`.
 
 ## The connector
 

@@ -170,12 +170,12 @@ export const searchItems = (
     sort: "relevance",
     subfolders: true,
     tag: input.tag,
-    within: new Map([...hits.keys()].map((id, rank) => [id, rank])),
+    within: hits.rank,
   });
   return {
     cursor: nextCursor(offset, page.items.length, page.total),
     hits: page.items.map((row): SearchHit => {
-      const snippet = hits.get(row.id) ?? row.title;
+      const snippet = hits.passage(row.id) ?? row.title;
       return {
         id: row.id,
         kind: row.kind,

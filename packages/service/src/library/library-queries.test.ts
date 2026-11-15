@@ -7,7 +7,7 @@ import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { literalMatches } from "../search/search-hits";
+import { literalMatches, searchHits } from "../search/search-hits";
 import {
   SEARCH_ROW_MAX_BYTES,
   searchLibrary,
@@ -189,10 +189,8 @@ describe("items", () => {
         }),
       ).toBe(false);
       expect(laidOf(storage, "item-1")).toStrictEqual(newer);
-      expect(searchLibrary(storage, "older", 10)).toStrictEqual([]);
-      expect(searchLibrary(storage, "newer", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "item-1",
-      ]);
+      expect(searchLibrary(storage, "older", 10).ids).toStrictEqual([]);
+      expect(searchLibrary(storage, "newer", 10).ids).toStrictEqual(["item-1"]);
       expect(
         storage.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"]),
       ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
@@ -242,7 +240,7 @@ describe("items", () => {
         updatedAt: 8,
       });
       expect(readSeedBlocks(storage.db, "gone")).toStrictEqual([]);
-      expect(searchLibrary(storage, "findable", 10)).toStrictEqual([]);
+      expect(searchLibrary(storage, "findable", 10).ids).toStrictEqual([]);
       expect(storage.all("SELECT count(*) AS n FROM item_tags", [])).toStrictEqual([{ n: 0 }]);
     });
   });
@@ -255,9 +253,7 @@ describe("items", () => {
         false,
       );
       expect(laidOf(storage, "kept")).toStrictEqual(state);
-      expect(searchLibrary(storage, "findable", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "kept",
-      ]);
+      expect(searchLibrary(storage, "findable", 10).ids).toStrictEqual(["kept"]);
       expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(
         true,
       );
@@ -373,14 +369,8 @@ describe("search", () => {
         "gone",
         itemOf([paragraph("a", "gardening")], noteFixture({ deletedAt: 1, title: "Old" })),
       );
-      expect(searchLibrary(storage, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "titled",
-        "body",
-      ]);
-      expect(searchLibrary(storage, "garden", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "titled",
-        "body",
-      ]);
+      expect(searchLibrary(storage, "gardening", 10).ids).toStrictEqual(["titled", "body"]);
+      expect(searchLibrary(storage, "garden", 10).ids).toStrictEqual(["titled", "body"]);
     });
   });
 
@@ -402,14 +392,14 @@ describe("search", () => {
             ),
           ),
         );
-        expect(searchLibrary(storage, "word", 1).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
+        expect(searchLibrary(storage, "word", 1).ids).toStrictEqual(["huge"]);
       });
     },
   );
 });
 
 describe(literalMatches, () => {
-  it("names each live item whose body holds the text, ascii case folded, with its first such line", async () => {
+  it("names each live item whose body holds the text, ascii case folded", async () => {
     await inLibrary(({ statements, storage }) => {
       put(
         storage,
@@ -421,30 +411,73 @@ describe(literalMatches, () => {
       );
       put(storage, "two", itemOf([paragraph("a", "slow")], noteFixture({ title: "Two" })));
       put(storage, "gone", itemOf([paragraph("a", "quick")], noteFixture({ deletedAt: 1 })));
-      expect(literalMatches(storage, "QUICK", { after: null, limit: 10 })).toStrictEqual([
-        { itemId: "one", text: "The Quick fox" },
-      ]);
+      expect(literalMatches(storage, "QUICK", { after: null, limit: 10 })).toStrictEqual(["one"]);
       expect(
         statements.some((statement) => /instr\(lower\(t\.text\), \?\)/u.test(statement.sql)),
       ).toBe(true);
     });
   });
 
-  it("pages through the items in id order, reading no more of them than a page asks", async () => {
-    await inLibrary(({ statements, storage }) => {
+  it("pages through the items in id order", async () => {
+    await inLibrary(({ storage }) => {
       for (const id of ["c", "a", "d", "b"]) {
         put(storage, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
       }
-      const before = statements.length;
-      const first = literalMatches(storage, "xyzzy", { after: null, limit: 3 });
-      expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
-      const reads = statements
-        .slice(before)
-        .filter((statement) => statement.sql.startsWith("SELECT text FROM body_texts"));
-      expect(reads).toHaveLength(3);
-      expect(literalMatches(storage, "xyzzy", { after: "c", limit: 3 })).toStrictEqual([
-        { itemId: "d", text: "item d holds xyzzy" },
+      expect(literalMatches(storage, "xyzzy", { after: null, limit: 3 })).toStrictEqual([
+        "a",
+        "b",
+        "c",
       ]);
+      expect(literalMatches(storage, "xyzzy", { after: "c", limit: 3 })).toStrictEqual(["d"]);
+    });
+  });
+});
+
+describe(searchHits, () => {
+  it("ranks every hit, and cuts a passage around the match only for the hit it is asked of", async () => {
+    await inLibrary(({ statements, storage }) => {
+      const deep = `${"filler ".repeat(60)}the zebrafish swims`;
+      put(storage, "deep", itemOf([paragraph("a", deep)], noteFixture({ title: "Deep" })));
+      put(
+        storage,
+        "described",
+        itemOf(
+          [],
+          noteFixture({
+            description: "All about zebrafish.",
+            kind: "link",
+            title: "A page",
+            url: "https://example.com/a",
+          }),
+        ),
+      );
+      put(
+        storage,
+        "titled",
+        itemOf([paragraph("a", "nothing")], noteFixture({ title: "Zebrafish" })),
+      );
+      put(
+        storage,
+        "part",
+        itemOf([paragraph("a", "jumps"), paragraph("b", "call parse_zebrafish(x)")]),
+      );
+      const bodyReads = (): number =>
+        statements.filter((statement) => statement.sql.startsWith("SELECT text FROM body_texts"))
+          .length;
+
+      const hits = searchHits(storage, "zebrafish", "live");
+      expect(new Set(hits.rank.keys())).toStrictEqual(
+        new Set(["deep", "described", "titled", "part"]),
+      );
+      // the index's words miss a part of a word, so its exact text finds it last
+      expect(hits.rank.get("part")).toBe(3);
+      expect(bodyReads()).toBe(0);
+
+      expect(hits.passage("deep")).toBe(`… ${"filler ".repeat(5)}the zebrafish swims`);
+      expect(hits.passage("described")).toBe("All about zebrafish.");
+      expect(hits.passage("titled")).toBeNull();
+      expect(hits.passage("part")).toBe("call parse_zebrafish(x)");
+      expect(bodyReads()).toBe(1);
     });
   });
 });
