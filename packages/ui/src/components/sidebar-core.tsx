@@ -36,9 +36,8 @@ export type SidebarSide = "left" | "right";
 export type SidebarVariant = "sidebar" | "floating";
 
 interface SidebarContextValue {
-  state: "expanded" | "collapsed";
   open: boolean;
-  setOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  onOpenChange?: ((open: boolean) => void) | undefined;
   openMobile: boolean;
   setOpenMobile: React.Dispatch<React.SetStateAction<boolean>>;
   isMobile: boolean;
@@ -85,8 +84,7 @@ export interface SidebarActions {
 }
 
 interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
-  defaultOpen?: boolean;
-  open?: boolean;
+  open: boolean;
   onOpenChange?: (open: boolean) => void;
   // the chord that toggles this sidebar, spelled for the keyboard in use, for the rail's tooltip
   // alone: the app's own key table owns the binding, so no provider listens for a key
@@ -94,17 +92,16 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   // once per resize, when the drag ends or collapses the sidebar, never per frame
   onWidthCommitted?: (px: number) => void;
   actionsRef?: RefObject<SidebarActions | null>;
-  width?: string;
+  defaultWidth?: string;
 }
 
 const SidebarProvider = ({
-  defaultOpen = true,
-  open: openProp,
+  open,
   onOpenChange,
   shortcut = null,
   onWidthCommitted,
   actionsRef,
-  width: widthProp = SIDEBAR_WIDTH,
+  defaultWidth = SIDEBAR_WIDTH,
   className,
   style,
   children,
@@ -114,36 +111,16 @@ const SidebarProvider = ({
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = useState(false);
 
-  const [width, setWidth] = useState(widthProp);
-  const [prevWidthProp, setPrevWidthProp] = useState(widthProp);
-  if (prevWidthProp !== widthProp) {
-    setPrevWidthProp(widthProp);
-    setWidth(widthProp);
-  }
+  const [width, setWidth] = useState(defaultWidth);
   const [isResizing, setIsResizing] = useState(false);
-
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const open = openProp ?? internalOpen;
-
-  const setOpen = useCallback(
-    (value: boolean | ((prev: boolean) => boolean)) => {
-      const next = value instanceof Function ? value(open) : value;
-      if (onOpenChange) {
-        onOpenChange(next);
-      } else {
-        setInternalOpen(next);
-      }
-    },
-    [open, onOpenChange],
-  );
 
   const toggleSidebar = useCallback(() => {
     if (isMobile) {
       setOpenMobile((prev) => !prev);
     } else {
-      setOpen((prev) => !prev);
+      onOpenChange?.(!open);
     }
-  }, [isMobile, setOpen]);
+  }, [isMobile, open, onOpenChange]);
 
   useEffect(() => {
     if (actionsRef !== undefined) {
@@ -154,15 +131,14 @@ const SidebarProvider = ({
   const value: SidebarContextValue = {
     isMobile,
     isResizing,
+    onOpenChange,
     onWidthCommitted,
     open,
     openMobile,
     setIsResizing,
-    setOpen,
     setOpenMobile,
     setWidth,
     shortcut,
-    state: open ? "expanded" : "collapsed",
     toggleSidebar,
     width,
   };
@@ -207,8 +183,15 @@ const SidebarRail = ({
   ref,
   ...props
 }: SidebarRailProps & RefAttributes<HTMLButtonElement>) => {
-  const { toggleSidebar, setOpen, setWidth, onWidthCommitted, setIsResizing, shortcut } =
-    useSidebar();
+  const {
+    toggleSidebar,
+    onOpenChange,
+    setWidth,
+    onWidthCommitted,
+    isResizing,
+    setIsResizing,
+    shortcut,
+  } = useSidebar();
   const railRef = useRef<HTMLButtonElement | null>(null);
   const dragRef = useRef<{
     startX: number;
@@ -216,7 +199,6 @@ const SidebarRail = ({
     width: number;
     moved: boolean;
   } | null>(null);
-  const [dragging, setDragging] = useState(false);
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     const closest = railRef.current?.closest('[data-slot="sidebar"]');
@@ -244,7 +226,6 @@ const SidebarRail = ({
     }
     if (!drag.moved) {
       drag.moved = true;
-      setDragging(true);
       setIsResizing(true);
     }
     const delta = side === "left" ? dx : -dx;
@@ -252,11 +233,10 @@ const SidebarRail = ({
     if (raw < SIDEBAR_MIN_WIDTH - SIDEBAR_COLLAPSE_SLOP) {
       dragRef.current = null;
       event.currentTarget.releasePointerCapture(event.pointerId);
-      setDragging(false);
       setIsResizing(false);
       setWidth(`${SIDEBAR_MIN_WIDTH}px`);
       onWidthCommitted?.(SIDEBAR_MIN_WIDTH);
-      setOpen(false);
+      onOpenChange?.(false);
       return;
     }
     const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, raw));
@@ -269,7 +249,6 @@ const SidebarRail = ({
   const endDrag = (toggleOnClick: boolean): void => {
     const drag = dragRef.current;
     dragRef.current = null;
-    setDragging(false);
     setIsResizing(false);
     if (drag?.moved === true) {
       onWidthCommitted?.(drag.width);
@@ -303,7 +282,7 @@ const SidebarRail = ({
       side={side === "left" ? "right" : "left"}
       sideOffset={8}
       followCursor="y"
-      disabled={dragging}
+      disabled={isResizing}
       content={
         <span className="flex flex-col items-start gap-1 py-0.5">
           <span>
