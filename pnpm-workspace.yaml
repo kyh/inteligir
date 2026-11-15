@@ -59,29 +59,29 @@ catalog:
   # and it moves with yjs only once the binding suites pass on the pair
   "@slate-yjs/core": 1.0.2
   # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
-  "@tailwindcss/postcss": ^4.3.3
-  "@tailwindcss/vite": ^4.3.3
+  "@tailwindcss/postcss": ^4.3.5
+  "@tailwindcss/vite": ^4.3.5
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
-  "@tanstack/react-query": ^5.104.5
+  "@tanstack/react-query": ^5.107.1
   # exact, the react-query build the lockfile resolves: each persister peers react-query at its own
   # version, and the phone's persisted cache is read back in the shape that build dehydrates
-  "@tanstack/query-async-storage-persister": 5.105.0
-  "@tanstack/react-query-persist-client": 5.105.0
+  "@tanstack/query-async-storage-persister": 5.107.1
+  "@tanstack/react-query-persist-client": 5.107.1
   # exact: the committed route tree is an artifact of the plugin version
   "@tanstack/react-router": 1.170.46
-  "@tanstack/react-start": 1.169.4
+  "@tanstack/react-start": 1.169.5
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
-  "@vitejs/plugin-react": ^6.1.2
+  "@vitejs/plugin-react": ^6.3.0
   # exact, and the same as the @better-auth/core override: the four are released in lockstep, and
   # a pair one patch apart resolves a second core
-  "@better-auth/drizzle-adapter": 1.7.18
-  "@better-auth/expo": 1.7.18
-  better-auth: 1.7.18
+  "@better-auth/drizzle-adapter": 1.7.23
+  "@better-auth/expo": 1.7.23
+  better-auth: 1.7.23
   cn: ^0.4.0
   # exact: 0.x output moves between patches; the fill corpus pins it
   defuddle: 0.19.5
@@ -113,10 +113,10 @@ catalog:
   jsdom: ^30.1.3
   # the note object reads a sync frame's header with yjs's own decoder; one copy, the one yjs resolves
   lib0: 0.2.119
-  lucide-react: ^1.61.0
-  mdast-util-to-markdown: ^2.2.0
+  lucide-react: ^1.73.0
+  mdast-util-to-markdown: ^2.2.3
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
-  motion: ^14.9.1
+  motion: ^14.14.0
   # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
   # what a note's object inherits
   partyserver: 0.5.10
@@ -129,11 +129,11 @@ catalog:
   react-native-css: 3.1.0-rc.0
   # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2005, and its
   # major tracks the TypeScript it embeds, the 7 every program here checks under
-  oxlint-tsgolint: ^7.0.2005
+  oxlint-tsgolint: ^7.0.2007
   # the editor and the note object, whose headless editor applies the agent's changes, run one Plate
   platejs: ^53.5.2
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
-  postcss: ^8.5.29
+  postcss: ^8.5.33
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
@@ -157,16 +157,16 @@ catalog:
   # exact, the one @platejs/slate pins: the live binding narrows Plate's editor to slate's own type
   # with its guard, so the two must be one slate, and it moves only with a Plate bump
   slate: 0.146.0
-  tailwindcss: ^4.3.3
+  tailwindcss: ^4.3.5
   typescript: ^7.0.2
   unified: ^11.0.5
-  vite: ^8.3.5
+  vite: ^8.3.8
   vitest: ^4.1.12
   # exact: a beta, whose config API moves between releases
   cf: 1.0.0-beta.23
   # the one cf resolves; tools/e2e boots `cf build` output with it
   miniflare: 5.20261023.0-beta
-  wrangler: ^4.153.0
+  wrangler: ^4.162.0
   # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it
   # overrides, and the editor's provider is its client half, which must match it
   y-partyserver: 2.2.0
@@ -176,7 +176,7 @@ catalog:
   # and @slate-yjs/core 1.0.2 binds against 13's types; 14 is a beta it predates
   yjs: 13.6.33
   zod: ^4.6.7
-  zustand: ^5.0.16
+  zustand: ^5.1.0
 
 catalogs:
   # the SDK-blessed typescript; bump only with an Expo SDK upgrade
@@ -235,7 +235,7 @@ overrides:
   "agents>@babel/plugin-proposal-decorators": "-"
   "agents>@rolldown/plugin-babel": "-"
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
-  "@better-auth/core": 1.7.18
+  "@better-auth/core": 1.7.23
   # NativeWind 5's install pins lightningcss at 1.30.1, since past it react-native-css "may encounter
   # deserialization errors" on the phone's sheet (nativewind.dev/v5/getting-started/installation);
   # scoped to the two that compile that sheet, since Tailwind pins its own, exactly

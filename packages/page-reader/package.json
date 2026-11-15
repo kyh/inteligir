@@ -20,8 +20,8 @@
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "defuddle": "catalog:",
-    "linkedom": "0.18.13",
-    "turndown": "^7.2.4",
+    "linkedom": "0.18.15",
+    "turndown": "^7.2.5",
     "zod": "catalog:"
   },
   "devDependencies": {

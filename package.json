@@ -25,12 +25,12 @@
     "verify:affected": "turbo run typecheck lint knip test build --affected --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
   },
   "devDependencies": {
-    "dotenv-cli": "^11.0.0",
-    "knip": "^6.43.0",
+    "dotenv-cli": "^11.1.0",
+    "knip": "^6.45.1",
     "oxfmt": "^0.72.0",
-    "oxlint": "^1.88.0",
+    "oxlint": "^1.93.0",
     "oxlint-tsgolint": "catalog:",
-    "turbo": "^2.11.10",
+    "turbo": "^2.11.11",
     "typescript": "catalog:",
     "ultracite": "^8.0.0"
   },

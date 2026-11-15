@@ -19,7 +19,7 @@
   "dependencies": {
     "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",
-    "@tanstack/query-core": "^5.105.0",
+    "@tanstack/query-core": "^5.107.1",
     "partysocket": "catalog:",
     "zod": "catalog:"
   },
