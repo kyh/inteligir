@@ -1,14 +1,10 @@
-// @vitest-environment jsdom
-
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PageLibrary } from "../cloud/library-context";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall } from "../test-support/fake-page-library";
 import { AccountSection } from "./account-section";
-
-afterEach(cleanup);
 
 // Better Auth's calls, answered with the suite's `status` and recorded as their method and path.
 // Its client binds `fetch` as it is made, so the stub is in place before any import.

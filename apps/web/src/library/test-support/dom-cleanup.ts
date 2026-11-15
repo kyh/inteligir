@@ -1,7 +1,11 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { toast } from "@repo/ui/components/sonner";
-import { configure } from "@testing-library/react";
-import { afterAll } from "vitest";
+import { cleanup, configure } from "@testing-library/react";
+import { afterAll, afterEach } from "vitest";
+
+// Nothing turns on vitest's `globals`, so Testing Library never registers its own auto-cleanup and
+// a rendered tree stays mounted past its case.
+afterEach(cleanup);
 
 // a CI runner running four suites at once misses testing-library's one-second default on work a
 // laptop finishes in a tenth of it; the booted suites also cross a real server per wait. A wait

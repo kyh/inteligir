@@ -1,14 +1,11 @@
-// @vitest-environment jsdom
-
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createLibraryRouter, openedOver } from "../test-support/library-router";
 import { fakePageLibrary } from "../test-support/fake-page-library";
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
 });
 

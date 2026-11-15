@@ -1,14 +1,10 @@
-// @vitest-environment jsdom
-
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import { InfoTab } from "./info-tab";
-
-afterEach(cleanup);
 
 // a cell holding a link filed in a folder and tagged
 const cellWithALink = () => {

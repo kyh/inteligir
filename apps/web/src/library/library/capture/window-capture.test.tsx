@@ -1,13 +1,10 @@
-// @vitest-environment jsdom
-
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CapturePayload } from "./capture-payload";
 import { useWindowCapture } from "./window-capture";
 
 afterEach(() => {
-  cleanup();
   vi.useRealTimers();
 });
 

@@ -1,17 +1,13 @@
-// @vitest-environment jsdom
-
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall } from "../test-support/fake-page-library";
 import { CommandPalette } from "./command-palette";
 import type { PaletteActions } from "./command-palette";
-
-afterEach(cleanup);
 
 const spyActions = () =>
   ({

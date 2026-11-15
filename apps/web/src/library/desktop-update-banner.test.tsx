@@ -1,8 +1,6 @@
-// @vitest-environment jsdom
-
 import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DesktopUpdateState } from "./shell/desktop-bridge";
@@ -13,7 +11,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   clearMocks();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

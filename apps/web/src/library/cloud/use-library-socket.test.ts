@@ -3,7 +3,7 @@
 import { createLibrarySocket } from "@repo/client/library-cache";
 import { fakeSockets } from "@repo/client/test-support/fake-sockets";
 import { onlineManager } from "@tanstack/react-query";
-import { cleanup, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary } from "../test-support/fake-page-library";
@@ -11,7 +11,6 @@ import { useLibrarySocket } from "./use-library-socket";
 import { createPageQueryClient } from "./v1";
 
 afterEach(() => {
-  cleanup();
   onlineManager.setOnline(true);
 });
 

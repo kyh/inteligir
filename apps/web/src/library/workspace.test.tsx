@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
@@ -10,7 +8,7 @@ import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -20,7 +18,6 @@ import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

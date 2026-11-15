@@ -1,8 +1,6 @@
-// @vitest-environment jsdom
-
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { toast } from "@repo/ui/components/sonner";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
@@ -58,7 +56,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
 });
 
