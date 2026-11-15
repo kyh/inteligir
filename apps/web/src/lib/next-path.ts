@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LIBRARY_PAGE_PATH } from "@repo/contract/library-page";
+import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
 
 // where a sign-in or sign-up lands when nothing asked to come back
 export const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;
@@ -50,6 +50,10 @@ export const authPageSearchSchema = z.object({
 // answers before this router (an assistant's consent page), and the library opens on a document of
 // its own
 export const signedInLanding = (next?: string): string => internalNextPath(next) ?? SIGNED_IN_HOME;
+
+// the sign-in, which loads `here` again once it signs the browser in
+export const signInHref = (here: Pick<URL, "pathname" | "search">): string =>
+  `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;
 
 const RESET_PAGE_PATH = "/app/reset-password";
 

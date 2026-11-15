@@ -39,7 +39,7 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                                                              |
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                               |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                   |
-| `/library`, `/library/*`    | —               | The library in a tab (`src/library`), drawn in the browser; a signed-out visit goes to sign-in                        |
+| `/library`, `/library/*`    | session cookie  | The library in a tab (`src/library`), drawn in the browser; with no cookie the Worker redirects to sign-in            |
 | `/api/auth/*`               | —               | Better Auth, on the six routes a client calls: sign-in, sign-out, the session read and the three for a password reset |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form and the phone's                                |
 | `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable           |
@@ -49,7 +49,7 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/v1/blobs/:sha`            | session         | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range                                                      |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell                                                   |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in                                                      |
-| `/connect/extension`        | session         | The site's page that tells the browser extension where the site is and whose sign-in it found; it hands over nothing  |
+| `/connect/extension`        | session cookie  | The site's page that tells the browser extension where the site is and whose sign-in it found; it hands over nothing  |
 | `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                                                               |
 | `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused                                         |
 | `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation                                                   |

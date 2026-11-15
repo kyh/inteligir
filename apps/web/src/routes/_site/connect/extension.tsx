@@ -7,7 +7,7 @@ import { Button } from "@repo/ui/components/button";
 import { AuthShell } from "#components/auth-shell";
 import { tellExtension } from "#lib/extension-connect";
 import type { ConnectOutcome } from "#lib/extension-connect";
-import { currentSession } from "#lib/session-guard";
+import { currentSession, requireSessionCookie } from "#lib/session-guard";
 
 // The browser extension's connection: the person signed in here clicks Connect, and the extension
 // in this browser learns where the site is and saves to the account this browser is signed in to
@@ -79,6 +79,7 @@ const ConnectExtensionPage = () => {
 
 export const Route = createFileRoute("/_site/connect/extension")({
   ssr: false,
+  server: { middleware: [requireSessionCookie] },
   // a page for the person already signed in, never a search result
   head: () => ({ meta: [{ content: "noindex, nofollow", name: "robots" }] }),
   beforeLoad: async ({ location }) => {

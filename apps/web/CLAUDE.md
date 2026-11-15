@@ -27,6 +27,11 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **The library tab is a route of the site, at `/library`, drawn in the browser
   under the policy every document carries.** A tab built apart is a second
   build with a door for its deep links. `apps/web/src/routes/library.tsx`.
+- **The Worker sends a request with no session cookie for a signed-in page to
+  sign in, before any of the page loads, and reads no session to do it.** A
+  read would cost every library document a database query, so a cookie whose
+  session ended is the page's own read to find.
+  `apps/web/src/lib/session-guard.ts`.
 - **A sign-in or sign-up lands in the library unless something asked it back,
   and the site links the library.** Only a document load opens the account just
   signed in to. `apps/web/src/lib/next-path.ts`.

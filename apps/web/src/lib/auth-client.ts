@@ -1,4 +1,3 @@
-import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { createAuthClient } from "better-auth/client";
 
 // no baseURL: the same Worker serves the app and /api/auth/*, so the relative default is right on every host
@@ -40,10 +39,6 @@ export const activeSession = async (): Promise<SessionState> => {
   const { email, id, name } = data.user;
   return { kind: "signed-in", user: { email, id, name } };
 };
-
-// the sign-in, which loads `here` again once it signs the browser in
-export const signInHref = (here: Pick<Location, "pathname" | "search">): string =>
-  `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;
 
 // Better Auth slides a session and its cookie together on its own read alone, which a tab
 // otherwise makes only as it opens, so a tab left open would lose its cookie seven days after its

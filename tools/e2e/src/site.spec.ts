@@ -5,6 +5,7 @@ import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
@@ -55,8 +56,8 @@ const LIBRARY_ASSET = /\/assets\/library-[\w-]{8}\.(?:js|css)/gu;
 
 // a document under the site's policy: its scripts run by a nonce of its own, and nothing inline
 // runs without it
-const documentAt = async (request: APIRequestContext, url: string) => {
-  const response = await request.get(url, { headers: { accept: "text/html" } });
+const documentAt = async (request: APIRequestContext, url: string, cookie = "") => {
+  const response = await request.get(url, { headers: { accept: "text/html", cookie } });
   expect(response.ok(), `GET ${url}`).toBe(true);
   const policy = response.headers()["content-security-policy"] ?? "";
   const scripts = policy.split("; ").find((directive) => directive.startsWith("script-src")) ?? "";
@@ -112,12 +113,29 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
-test("every document carries its own nonce policy, and the home page loads none of the library", async ({
+test("a page for someone signed in sends a request with no session cookie to sign in, every document carries its own nonce policy, and the home page loads none of the library", async ({
+  account,
   cloud,
   request,
 }) => {
-  const library = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}`);
-  const settings = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}/settings`);
+  for (const asked of [
+    LIBRARY_PAGE_PATH,
+    `${LIBRARY_PAGE_PATH}/settings?from=mail`,
+    CONNECT_EXTENSION_PATH,
+  ]) {
+    const gate = await request.get(`${cloud.origin}${asked}`, { maxRedirects: 0 });
+    expect([gate.status(), gate.headers().location], asked).toEqual([
+      307,
+      `/app/sign-in?next=${encodeURIComponent(asked)}`,
+    ]);
+  }
+  const cookie = account.cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+  const library = await documentAt(request, `${cloud.origin}${LIBRARY_PAGE_PATH}`, cookie);
+  const settings = await documentAt(
+    request,
+    `${cloud.origin}${LIBRARY_PAGE_PATH}/settings`,
+    cookie,
+  );
   expect(library.nonce).not.toBe(settings.nonce);
   for (const { headers } of [library, settings]) {
     expect(headers).toMatchObject({

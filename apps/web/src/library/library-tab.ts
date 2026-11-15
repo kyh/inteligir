@@ -12,8 +12,9 @@ import { onlineManager } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
-import { activeSession, keepSession, signInHref } from "#lib/auth-client";
+import { activeSession, keepSession } from "#lib/auth-client";
 import type { SessionState } from "#lib/auth-client";
+import { signInHref } from "#lib/next-path";
 
 import { claimAccountStorage, forgetAccountStorage } from "./cloud/account-storage";
 import { createLeaveGuard } from "./cloud/leave-guard";

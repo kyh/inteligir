@@ -1,7 +1,19 @@
 import { redirect } from "@tanstack/react-router";
+import { createMiddleware } from "@tanstack/react-start";
+import { getSessionCookie } from "better-auth/cookies";
 
 import type { SessionState } from "#lib/auth-client";
-import { signedInLanding } from "#lib/next-path";
+import { signedInLanding, signInHref } from "#lib/next-path";
+
+// A page for someone signed in, asked for with no session cookie, goes to sign in and back before
+// the Worker serves any of it. The cookie alone, with no read of its session: that would spend a
+// database read on every such document, and a cookie whose session ended is the page's to find.
+export const requireSessionCookie = createMiddleware().server(async ({ next, request }) => {
+  if (getSessionCookie(request) === null) {
+    redirect({ href: signInHref(new URL(request.url)), throw: true });
+  }
+  return await next();
+});
 
 // Dynamic import: a route guard cannot be code-split, so a static import would put Better
 // Auth's client in the entry chunk every marketing page loads. On the server the answer is
@@ -35,6 +47,6 @@ export const ssrWhenSignedOut = async (): Promise<boolean | undefined> => {
     return undefined;
   }
   const { getRequest } = await import("@tanstack/react-start/server");
-  const { getSessionCookie } = await import("better-auth/cookies");
-  return getSessionCookie(getRequest()) === null;
+  const cookies = await import("better-auth/cookies");
+  return cookies.getSessionCookie(getRequest()) === null;
 };
