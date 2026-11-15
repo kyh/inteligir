@@ -1,6 +1,6 @@
 // One page read for the cell, by the rules every device that fills a link reads it by
 // (`@repo/contract/items/link-fill`'s limits, `@repo/page-reader` over linkedom,
-// `@repo/service/items/oembed` and `@repo/contract/items/sniff-media`): the page asked for through
+// `./oembed` and `@repo/contract/items/sniff-media`): the page asked for through
 // the guarded fetch (`./page-fetch`), a file the address answered with kept as the item's
 // original, a page's article and facts read, a media host's oEmbed asked, and the first candidate
 // that is really a picture of a cover's size kept as the cover, whole: no picture is decoded here,
@@ -13,7 +13,6 @@
 import { fieldLine, savedFacts } from "@repo/contract/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 import type { ReadHtml } from "@repo/page-reader/read-html";
-import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "../items/fill-sentences";
 import { originalFileName } from "@repo/contract/items/item-name";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import {
@@ -24,15 +23,15 @@ import {
   playableKindOf,
   preferredText,
 } from "@repo/contract/items/link-fill";
-import { OEMBED_MAX_BYTES, oembedEndpoint, parseOEmbed, youTubeStills } from "../items/oembed";
-import type { OEmbed } from "../items/oembed";
-import type { FetchedPage } from "../items/page-fetch";
 import { sniffMedia } from "@repo/contract/items/sniff-media";
-import { decodeText } from "../text/decode-text";
 
+import { decodeText } from "./decode-text";
 import type { FillJob } from "./fill-job";
 import type { FillLanding } from "./fill-landing";
-import type { PageFetch } from "./page-fetch";
+import { failureOf, fileOnlyLinked, PAGE_UNREACHED, TEXT_NOT_SAVED } from "./fill-sentences";
+import { OEMBED_MAX_BYTES, oembedEndpoint, parseOEmbed, youTubeStills } from "./oembed";
+import type { OEmbed } from "./oembed";
+import type { FetchedPage, PageFetch } from "./page-fetch";
 
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 const COVER_ACCEPT =
@@ -132,7 +131,7 @@ const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
   }
   const sha = await ports.keep({ bytes: page.bytes, mime: sniffed.mediaType });
   return sha === null
-    ? { kind: "retry", sentence: failureOf({ kind: "unreachable", transient: true }).sentence }
+    ? { kind: "retry", sentence: PAGE_UNREACHED }
     : {
         kind: "landing",
         landing: {

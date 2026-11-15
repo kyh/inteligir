@@ -3,7 +3,6 @@
 // runs, its files kept in R2, and the reading landed in the account's cell; a page a later try may
 // get past asked again later each time, then said in the item; the dead letters said too.
 
-import { oembedEndpoint } from "../items/oembed";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +18,7 @@ import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw
 import { blobKey } from "../library/cell-blobs";
 import { cellOf, inCell } from "../test-support/library-cell";
 import { FILL_FAILED_QUEUE } from "../../fill-queues";
+import { oembedEndpoint } from "./oembed";
 import {
   deliver,
   filePage,

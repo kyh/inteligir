@@ -30,9 +30,9 @@ src/            the doors, their routes and the build floor, the rate limits, th
   connector/    the connector's OAuth, consent page, route and per-request server
   agent/        the built-in agent: its definition and prompt, each conversation's object and loop, the
                 cell's tools, allowance and switch
-  fill/         the fill queue's consumer and the guarded fetch
+  fill/         the fill queue's consumer, the guarded fetch, and a page's charset, oEmbed and sentences
   knowledge/    the one search query policy and its excerpt
-  items/, imports/, text/, zip/   the fill's helpers, a Raindrop export, a page's charset, the zip reader
+  imports/, zip/   a Raindrop export, the zip reader
   types/        the DOM-free stubs the Worker's program reads
   test-support/ the suites' Worker and the harnesses a suite drives
 ```

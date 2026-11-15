@@ -9,8 +9,6 @@
 // reaches the dead-letter queue, whose consumer says the failure in the item, so no link waits
 // unread for good.
 
-import { failureOf, TEXT_NOT_SAVED } from "../items/fill-sentences";
-
 import { libraryCell } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { errorFields } from "../log";
@@ -18,6 +16,7 @@ import { fillJobSchema } from "./fill-job";
 import type { FillJob } from "./fill-job";
 import { checkedLanding } from "./fill-landing";
 import type { FillLanding } from "./fill-landing";
+import { PAGE_UNREACHED, TEXT_NOT_SAVED } from "./fill-sentences";
 import { fetchPage } from "./page-fetch";
 import { readPage } from "./read-page";
 import { storeFile } from "./store-file";
@@ -35,9 +34,6 @@ const failedLanding = (job: FillJob, sentence: string): FillLanding => ({
   sentence,
   url: job.url,
 });
-
-// what the dead-letter queue says in an item the retries could not read
-const UNREACHED = failureOf({ kind: "unreachable", transient: false }).sentence;
 
 type Cell = DurableObjectStub<LibraryDO>;
 
@@ -67,7 +63,7 @@ const consumeOne = async (
 ): Promise<void> => {
   const cell = libraryCell(exports, job.accountId);
   if (deadLetter) {
-    await land(cell, job, failedLanding(job, UNREACHED));
+    await land(cell, job, failedLanding(job, PAGE_UNREACHED));
     message.ack();
     return;
   }
