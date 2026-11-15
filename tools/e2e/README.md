@@ -13,8 +13,9 @@ pnpm e2e -- -g "Raindrop"         # tests whose title matches
 `src/fixtures.ts` gives each Playwright worker one Worker on a free port,
 beside the scripted Claude (`tools/messages-fake`), and each test:
 
-- `cloud`: the origin, `mint()` for an invite, and a `pages` map that answers
-  the Worker's fetch of each `pageUrl(path)`; any other fetch fails the test.
+- `cloud`: the origin and `mint()` for an invite.
+- `web`: a page host of the test's own, whose `pages` map answers the Worker's
+  fetch of each `pageUrl(path)`; any other fetch fails the test.
 - `account`, signed up by invite and signed in on the test's browser, with
   `library`, a `/v1` client on its own session, and `secondContext`, another
   browser on the same account.
