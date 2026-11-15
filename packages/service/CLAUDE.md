@@ -211,8 +211,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   Worker with no gateway fails closed.
   `packages/service/src/agent/anthropic-client.ts`.
 - **The local Worker, the e2e and the suites run the one thread path against a
-  scripted Messages API.** It refuses what Sonnet 5.5 refuses and counts dropped
-  thinking blocks, which every run expects to be none. `tools/e2e/src/fixtures.ts`.
+  scripted Messages API, which answers what that path sends and reads and no
+  more.** It refuses what Sonnet 5.5 refuses and counts dropped thinking blocks,
+  which every run expects to be none; a usage nothing reads is one constant.
+  `tools/e2e/src/fixtures.ts`.
 - **A long conversation is compacted by the API at 50,000 tokens, and a deploy's
   definition is taken up between turns.** A resumed turn writes its prompt to
   the cache again, 60 cents at 150,000.

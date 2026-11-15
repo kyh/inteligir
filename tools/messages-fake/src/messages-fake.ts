@@ -12,13 +12,7 @@
 
 import { z } from "zod";
 
-import {
-  BINDING_BETA,
-  COMPACT_BETA,
-  issueText,
-  requestRefusal,
-  requestSchema,
-} from "./fake-request.ts";
+import { BINDING_BETA, issueText, requestRefusal, requestSchema } from "./fake-request.ts";
 import { conversationOf, FAKE_MODEL, planReply } from "./fake-reply.ts";
 import type { StreamPlan } from "./fake-reply.ts";
 import { scriptOf, stepAt } from "./fake-script.ts";
@@ -220,7 +214,6 @@ export const messagesFake = (): MessagesFake => {
         return true;
       },
       id: `msg_fake_${String(requests)}`,
-      iterating: betas.has(COMPACT_BETA),
       previousSignature: thinking.last,
       step: stepAt(script, conversation.replies),
       toolIdPrefix: `toolu_fake_${hash.slice(0, 16)}`,

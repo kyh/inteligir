@@ -17,7 +17,7 @@ import { z } from "zod";
 // fallback on a refusal, threshold compaction, and progress notes between tool calls
 export const BINDING_BETA = "thinking-binding-controls-2026-08-01";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-export const COMPACT_BETA = "compact-2026-01-12";
+const COMPACT_BETA = "compact-2026-01-12";
 const DISPLAY_BETA = "thinking-display-updates-2026-08-18";
 
 // the one compaction a request may ask for: at its threshold, on the server, which is input
@@ -121,7 +121,9 @@ export const requestSchema = z.looseObject({
       block_binding: z
         .strictObject({ prefix_mismatch_behavior: z.enum(["error", "drop_block"]) })
         .optional(),
-      display: z.enum(["summarized", "omitted", "updates"]).optional(),
+      // the displays the fake answers: it shows a note under `updates` and nothing else, so a
+      // request for `summarized` words is one it does not know
+      display: z.enum(["omitted", "updates"]).optional(),
       type: z.string(),
     })
     .optional(),
@@ -176,23 +178,21 @@ export const issueText = (error: z.ZodError): string => {
 };
 
 // every block in the order the API renders them: tools, then system, then each message's
-export interface RenderedBlock {
-  readonly json: string;
+interface RenderedBlock {
   readonly breakpoint: "5m" | "1h" | null;
   readonly thinking: boolean;
 }
 
-// a block as the API compares it and counts it, its breakpoint aside
+// a block as the API compares it, its breakpoint aside
 const withoutBreakpoint = (block: FakeBlock | FakeTool) =>
   Object.fromEntries(Object.entries(block).filter(([key]) => key !== "cache_control"));
 
 const breakpointOf = (block: FakeBlock | FakeTool): "5m" | "1h" | null =>
   block.cache_control === undefined ? null : (block.cache_control.ttl ?? "5m");
 
-export const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
+const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
   const tools = (request.tools ?? []).map((tool) => ({
     breakpoint: breakpointOf(tool),
-    json: JSON.stringify(withoutBreakpoint(tool)),
     thinking: false,
   }));
   const blocks = [
@@ -203,7 +203,6 @@ export const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
     ...tools,
     ...blocks.map((block) => ({
       breakpoint: breakpointOf(block),
-      json: JSON.stringify(withoutBreakpoint(block)),
       thinking: block.type === "thinking" || block.type === "redacted_thinking",
     })),
   ];

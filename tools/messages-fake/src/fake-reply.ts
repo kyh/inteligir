@@ -1,13 +1,10 @@
 // The fake's reply to one request, in place of sampling: the step the person's latest message asks
-// for (`./fake-script.ts`), its usage, deterministic as no model's is, and the documented stream of
-// events that carries it (platform.claude.com/docs/en/build-with-claude/streaming), typed by the
-// SDK's own event union. Tokens are a quarter of a block's characters, rounded up; everything
-// before the request's last breakpoint is read from the cache, the block that carries it is written
-// at its lifetime, and what follows it is input. A reply thinks first, as an adaptive Sonnet
-// 5.5 does, and writes a progress note in a thinking block of its own before each tool call, each
-// signed against the request it answers (`./fake-signature.ts`); what a thinking block shows is
-// what the request's `thinking.display` asks for: the note alone under `updates`, every block's
-// words under `summarized`, nothing otherwise. A step the script marks `compact` opens with a
+// for (`./fake-script.ts`) and the documented stream of events that carries it
+// (platform.claude.com/docs/en/build-with-claude/streaming), typed by the SDK's own event union.
+// A reply thinks first, as an adaptive Sonnet 5.5 does, and writes a progress note in a thinking
+// block of its own before each tool call, each signed against the request it answers
+// (`./fake-signature.ts`); a thinking block shows its words only where it is a note and the
+// request's `thinking.display` is `updates`. A step the script marks `compact` opens with a
 // compaction block, when the request asks for compaction: its summary carries, as the fake's own
 // opaque content, the person's words and the replies since, which is all a later request that
 // starts from the block tells of them
@@ -17,7 +14,6 @@ import type {
   BetaCompactionBlock,
   BetaContentBlock,
   BetaFallbackBlock,
-  BetaIterationsUsage,
   BetaMessage,
   BetaRawContentBlockDelta,
   BetaRawMessageStreamEvent,
@@ -30,7 +26,7 @@ import type {
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
 
-import { anchorOf, asksCompaction, renderedBlocks } from "./fake-request.ts";
+import { anchorOf, asksCompaction } from "./fake-request.ts";
 import type { FakeBlock, FakeRequest } from "./fake-request.ts";
 import type { RefusalCategory, ScriptedStep, StallAt } from "./fake-script.ts";
 import { signThinking } from "./fake-signature.ts";
@@ -39,8 +35,22 @@ export const FAKE_MODEL = "claude-sonnet-5-5";
 // what a refusal of the request model falls back to, as `fallbacks: "default"` names it
 const FALLBACK_MODEL = "claude-sonnet-5";
 
-// a declined hop's own output before its refusal
-const DECLINED_OUTPUT_TOKENS = 8;
+// the gateway alone prices a reply and no caller reads its usage, so every reply carries the one
+// the SDK's stream needs to be well-formed
+const USAGE: BetaUsage = {
+  cache_creation: null,
+  cache_creation_input_tokens: null,
+  cache_read_input_tokens: null,
+  fallback_credit: null,
+  inference_geo: null,
+  input_tokens: 0,
+  iterations: null,
+  output_tokens: 0,
+  output_tokens_details: null,
+  server_tool_use: null,
+  service_tier: "standard",
+  speed: null,
+};
 
 const SUMMARY = "The fake summarized the conversation so far.";
 
@@ -63,13 +73,9 @@ interface Reply {
   readonly blocks: readonly Planned[];
   readonly stop: BetaStopReason;
   readonly refused: RefusalCategory | null;
-  // the model whose output closes the reply: a fallback's, once one took the request up
-  readonly servedBy: string;
   readonly slow: boolean;
   readonly stall: StallAt | null;
 }
-
-const tokensOf = (text: string): number => Math.ceil(text.length / 4);
 
 const text = (words: string): BetaTextBlock => ({ citations: null, text: words, type: "text" });
 
@@ -158,7 +164,7 @@ const stepReply = (
   step: ScriptedStep["step"],
   toolIdPrefix: string,
 ): Omit<Reply, "stall"> => {
-  const base = { refused: null, servedBy: request.model, slow: false };
+  const base = { refused: null, slow: false };
   if (step === null) {
     return { ...base, blocks: closing(conversation.called), stop: "end_turn" };
   }
@@ -204,7 +210,6 @@ const stepReply = (
       return {
         ...base,
         blocks: [boundary, text("Answered by the fallback model.")],
-        servedBy: FALLBACK_MODEL,
         stop: "end_turn",
       };
     }
@@ -229,139 +234,9 @@ const replyOf = (request: FakeRequest, options: ReplyOptions): Reply => {
   return { ...reply, blocks: [compaction, ...reply.blocks], stall };
 };
 
-// what a thinking block shows under the request's display: the note under `updates`, every
-// block's words under `summarized`, and nothing under `omitted`, Sonnet 5.5's default
-const shownOf = (planned: PlannedThinking, request: FakeRequest): string => {
-  const display = request.thinking?.display ?? "omitted";
-  if (display === "summarized" || (display === "updates" && planned.kind === "progress")) {
-    return planned.words;
-  }
-  return "";
-};
-
-// ---- usage ----
-
-interface InputUsage {
-  readonly cache_creation: {
-    readonly ephemeral_1h_input_tokens: number;
-    readonly ephemeral_5m_input_tokens: number;
-  };
-  readonly cache_creation_input_tokens: number;
-  readonly cache_read_input_tokens: number;
-  readonly input_tokens: number;
-}
-
-const sumOf = (blocks: readonly { readonly json: string }[]): number => {
-  let total = 0;
-  for (const block of blocks) {
-    total += tokensOf(block.json);
-  }
-  return total;
-};
-
-// the request's input tokens as the cache bills them
-const inputUsage = (request: FakeRequest): InputUsage => {
-  const blocks = renderedBlocks(request);
-  const last = blocks.findLastIndex((block) => block.breakpoint !== null);
-  const written = last === -1 ? 0 : sumOf(blocks.slice(last, last + 1));
-  const lasting = last === -1 ? null : (blocks[last]?.breakpoint ?? null);
-  return {
-    cache_creation: {
-      ephemeral_1h_input_tokens: lasting === "1h" ? written : 0,
-      ephemeral_5m_input_tokens: lasting === "5m" ? written : 0,
-    },
-    cache_creation_input_tokens: written,
-    cache_read_input_tokens: last === -1 ? 0 : sumOf(blocks.slice(0, last)),
-    input_tokens: last === -1 ? sumOf(blocks) : sumOf(blocks.slice(last + 1)),
-  };
-};
-
-// what the model reads once a compaction ran: the system and the tools, cached, and the summary
-const compactedUsage = (request: FakeRequest): InputUsage => ({
-  cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-  cache_creation_input_tokens: 0,
-  cache_read_input_tokens: sumOf(
-    [...(request.tools ?? []), ...(request.system ?? [])].map((block) => ({
-      json: JSON.stringify(block),
-    })),
-  ),
-  input_tokens: tokensOf(SUMMARY),
-});
-
-// a reply's output, its thinking billed at its whole length whatever it shows
-const outputTokensOf = (blocks: readonly Planned[]): number => {
-  let total = 0;
-  for (const block of blocks) {
-    if (block.type === "thinking") {
-      total += tokensOf(block.words);
-    } else if (block.type === "text") {
-      total += tokensOf(block.text);
-    } else if (block.type === "tool_use") {
-      total += tokensOf(JSON.stringify(block.input));
-    }
-  }
-  return total;
-};
-
-const added = (parts: readonly InputUsage[]): InputUsage => ({
-  cache_creation: {
-    ephemeral_1h_input_tokens: parts.reduce(
-      (sum, part) => sum + part.cache_creation.ephemeral_1h_input_tokens,
-      0,
-    ),
-    ephemeral_5m_input_tokens: parts.reduce(
-      (sum, part) => sum + part.cache_creation.ephemeral_5m_input_tokens,
-      0,
-    ),
-  },
-  cache_creation_input_tokens: parts.reduce(
-    (sum, part) => sum + part.cache_creation_input_tokens,
-    0,
-  ),
-  cache_read_input_tokens: parts.reduce((sum, part) => sum + part.cache_read_input_tokens, 0),
-  input_tokens: parts.reduce((sum, part) => sum + part.input_tokens, 0),
-});
-
-// the reply's usage: each sampling step an entry of `iterations` (a compaction's, the request
-// model's, a fallback's), which the compaction beta asks for on every reply, and the top level
-// every step's but a compaction's, as the API reports it
-const usageOf = (request: FakeRequest, reply: Reply, iterating: boolean): BetaUsage => {
-  const compaction = reply.blocks.find((block) => block.type === "compaction");
-  const whole = inputUsage(request);
-  const input = compaction === undefined ? whole : compactedUsage(request);
-  const output = outputTokensOf(reply.blocks);
-  const answered: BetaIterationsUsage =
-    reply.servedBy === request.model
-      ? [{ ...input, model: request.model, output_tokens: output, type: "message" }]
-      : [
-          {
-            ...input,
-            model: request.model,
-            output_tokens: DECLINED_OUTPUT_TOKENS,
-            type: "message",
-          },
-          { ...input, model: reply.servedBy, output_tokens: output, type: "fallback_message" },
-        ];
-  const iterations: BetaIterationsUsage =
-    compaction === undefined
-      ? answered
-      : [
-          { ...whole, output_tokens: tokensOf(compaction.content), type: "compaction" },
-          ...answered,
-        ];
-  const top = added(answered.map(() => input));
-  return {
-    ...top,
-    fallback_credit: null,
-    inference_geo: null,
-    iterations: iterating || answered.length > 1 ? iterations : null,
-    output_tokens: answered.reduce((sum, part) => sum + part.output_tokens, 0),
-    output_tokens_details: null,
-    server_tool_use: null,
-    service_tier: "standard",
-    speed: null,
-  };
-};
+// what a thinking block shows: a progress note under `updates`, and nothing otherwise
+const shownOf = (planned: PlannedThinking, request: FakeRequest): string =>
+  planned.kind === "progress" && request.thinking?.display === "updates" ? planned.words : "";
 
 // ---- the stream ----
 
@@ -398,8 +273,6 @@ export interface ReplyOptions {
   readonly previousSignature: string | null;
   // the blocks the request's thinking check dropped, when it asked to hear of them
   readonly dropped: readonly string[] | null;
-  // whether every reply reports its iterations, as the compaction beta asks
-  readonly iterating: boolean;
   // whether the stall a step asks for holds this sending of it
   readonly holds: (stall: StallAt) => boolean;
 }
@@ -445,7 +318,6 @@ export const planReply = async (
   options: ReplyOptions,
 ): Promise<StreamPlan> => {
   const reply = replyOf(request, options);
-  const usage = usageOf(request, reply, options.iterating);
   const message: BetaMessage = {
     container: null,
     content: [],
@@ -458,7 +330,7 @@ export const planReply = async (
     stop_reason: null,
     stop_sequence: null,
     type: "message",
-    usage: { ...usage, output_tokens: 0 },
+    usage: USAGE,
   };
   if (options.dropped !== null) {
     message.input_transformations = options.dropped.map((path) => ({
@@ -529,7 +401,7 @@ export const planReply = async (
         stop_sequence: null,
       },
       type: "message_delta",
-      usage,
+      usage: USAGE,
     },
     { type: "message_stop" },
   );
