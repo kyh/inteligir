@@ -64,8 +64,9 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   its width kept through the rail's own resize handle, so there is no second resize mechanism.
   `apps/web/src/library/panel/panel.tsx`.
 - **The open item rides the URL, and Settings covers a workspace that stays mounted.** `?item=<id>`
-  is a history entry, so Back and Forward work, and Settings is a layer over the inert workspace,
-  since a sibling route unmounts the item. `apps/web/src/library/library-search.ts`.
+  is a history entry, so Back and Forward work, a search's words ride beside it as `?find=` until
+  the item's find bar is on them, and Settings is a layer over the inert workspace, since a sibling
+  route unmounts the item. `apps/web/src/library/library-search.ts`.
 - **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
   row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
   the device's and not the account's. `apps/web/src/library/prefs.ts`.

@@ -6,14 +6,16 @@
 
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { OpenNote } from "@repo/editor/item/item-editor";
-import { setFindBarAnchor } from "@repo/editor/find-bar";
+import { jumpToFindMatch, setFindBarAnchor } from "@repo/editor/find-bar";
+import { onLiveEditor } from "@repo/editor/live-editor";
 import { shownTitle, UNTITLED } from "@repo/contract/items/item-name";
 import { Button } from "@repo/ui/components/button";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
@@ -21,6 +23,8 @@ import { shortcutFor } from "../shortcuts";
 import { useLibraryVerbs } from "../library/library-verbs";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
+
+const libraryRoute = getRouteApi("/library");
 
 export interface ItemViewProps {
   readonly itemId: string;
@@ -77,6 +81,26 @@ const EditorScroller = ({ children }: { children: ReactNode }) => (
 export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProps) => {
   const item = useQuery(useLibraryQueries().item(itemId));
   const modifier = platformShortcutModifier();
+  const find = libraryRoute.useSearch({ select: (search) => search.find });
+  const navigate = useNavigate();
+
+  // the find bar lands on a search's words a frame after the item's editor first answers, since it
+  // answers before Plate has drawn the text, and the address then drops them
+  useEffect(() => {
+    if (find === undefined) {
+      return;
+    }
+    return onLiveEditor(itemId, (editor) => {
+      requestAnimationFrame(() => {
+        jumpToFindMatch(editor, find, 0);
+        void navigate({
+          replace: true,
+          search: (prior) => ({ ...prior, find: undefined }),
+          to: ".",
+        });
+      });
+    });
+  }, [find, itemId, navigate]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (shortcutFor(event.nativeEvent, "item", modifier)?.action === "back-to-library") {

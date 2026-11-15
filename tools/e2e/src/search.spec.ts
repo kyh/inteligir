@@ -32,6 +32,8 @@ test("the palette finds exactly the items holding the words, a word typed a mome
   }
   await page.locator(`[data-search-hit="${two.item.id}"]`).click();
   await expect(page.getByRole("textbox", { name: "Find" })).toHaveValue("zebrafish");
+  // the address drops the words once the bar is on them, so a reload or Back opens no bar
+  await expect(page).toHaveURL((url) => !url.searchParams.has("find"));
   await expect(page.locator(EDITOR)).toContainText("Another zebrafish");
 
   // the chord over the editor types nothing into it: the next keys typed land alone

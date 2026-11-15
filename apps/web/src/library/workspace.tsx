@@ -10,11 +10,9 @@ import type { AgentViewContext } from "@repo/client/agent-send";
 import { saveFolderOf } from "@repo/client/library-labels";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
-import { jumpToFindMatch } from "@repo/editor/find-bar";
 import { setLibraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import { noteHolds } from "@repo/editor/item/note-holds";
-import { getLiveEditor, onLiveEditor } from "@repo/editor/live-editor";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -63,12 +61,6 @@ export interface WorkspaceProps {
 // a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
 const DELETE_ASKS_OVER = 50;
 
-// a search's words, which the item it opened lands its find bar on once its note has synced
-interface PendingFind {
-  readonly itemId: string;
-  readonly stop: () => void;
-}
-
 // what a tag's verb acts on: each item and the tags its own field holds, which it can take off
 interface TagSubject {
   readonly id: string;
@@ -96,7 +88,6 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
   useLeaveItem(noteRef);
-  const findRef = useRef<PendingFind | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
@@ -112,14 +103,16 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const view = listingView(listing.data?.pages ?? []);
   const titles = useQuery(queries.titles()).data;
 
-  // on the current route, so an open that lands while Settings covers the workspace keeps it
+  // on the current route, so an open that lands while Settings covers the workspace keeps it; the
+  // item already open is replaced, so a hit found in it adds no entry to go Back through
   const open = (
     itemId: string | null,
-    { ignoreBlocker }: { ignoreBlocker?: boolean } = {},
+    { find, ignoreBlocker }: { find?: string; ignoreBlocker?: boolean } = {},
   ): void => {
     void navigate({
       ignoreBlocker,
-      search: (prior) => ({ ...prior, item: itemId ?? undefined }),
+      replace: itemId === openItem,
+      search: (prior) => ({ ...prior, find, item: itemId ?? undefined }),
       to: ".",
     });
   };
@@ -187,33 +180,6 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       setLibraryTitles(titles.targets);
     }
   }, [titles]);
-
-  useEffect(() => {
-    // a search's find waits for the item it opened, and for no other
-    if (findRef.current !== null && findRef.current.itemId !== openItem) {
-      findRef.current.stop();
-      findRef.current = null;
-    }
-  }, [openItem]);
-
-  // lands the find bar on a search's words once the item's editor draws its synced note, a frame
-  // after it first answers, since it answers before Plate has drawn the text
-  const findOnceOpen = (itemId: string, query: string): void => {
-    findRef.current?.stop();
-    findRef.current = null;
-    const pending = {
-      itemId,
-      stop: onLiveEditor(itemId, (editor) => {
-        findRef.current = null;
-        requestAnimationFrame(() => {
-          jumpToFindMatch(editor, query, 0);
-        });
-      }),
-    };
-    if (getLiveEditor(itemId) === null) {
-      findRef.current = pending;
-    }
-  };
 
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
   const listed = view?.items;
@@ -671,11 +637,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
           },
           askSaveLink,
           newNote,
-          openHit: (itemId, query) => {
-            findOnceOpen(itemId, query);
-            if (itemId !== openItem) {
-              open(itemId);
-            }
+          openHit: (itemId, find) => {
+            open(itemId, { find });
           },
           openSettings,
           saveLink,

@@ -49,7 +49,7 @@ const pageOverANote = (): void => {
 };
 
 // the whole page with a note open over its live document, once the note's line has drawn
-const pageOverALiveNote = async () => {
+const pageOverALiveNote = async (alsoInAddress = "") => {
   const server = noteServer();
   const cell = createFakeCell();
   const id = cell.seed.item({ title: NOTE });
@@ -59,7 +59,7 @@ const pageOverALiveNote = async () => {
       section: "note",
     },
   ]);
-  const { router } = pageAt(`/library?item=${id}`, cell);
+  const { router } = pageAt(`/library?item=${id}${alsoInAddress}`, cell);
   await screen.findByText("Typed on the Mac.");
   return { id, router, server };
 };
@@ -176,6 +176,17 @@ describe("an open item's body", () => {
 
     await screen.findByText(NEEDS_CONNECTION);
     expect(document.querySelector('[contenteditable="true"]')).toBeNull();
+  });
+
+  it("opens with the find bar on the words its address carries, and the address drops them", async () => {
+    const { id, router } = await pageOverALiveNote("&find=Mac");
+
+    const find = await screen.findByRole("textbox", { name: "Find" });
+
+    expect(find).toHaveProperty("value", "Mac");
+    await waitFor(() => {
+      expect(router.history.location.search).toBe(`?item=${id}`);
+    });
   });
 });
 
