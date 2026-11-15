@@ -40,7 +40,7 @@ declare `BufferSource` and `BodyInit` with different bounds.
 | `/app/forgot-password`      | —               | Requests the reset link                                                                                               |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)                                                   |
 | `/library`, `/library/*`    | —               | The library in a tab (`src/library`), drawn in the browser; a signed-out visit goes to sign-in                        |
-| `/api/auth/*`               | —               | Better Auth (email+password; the session cookie, signed as the extension's bearer, under `expo-origin` for the phone) |
+| `/api/auth/*`               | —               | Better Auth, on the six routes a client calls: sign-in, sign-out, the session read and the three for a password reset |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form and the phone's                                |
 | `GET /v1/socket`            | ticket          | The account's socket: a moved frame per landed write, a thread's events; on a minute's ticket; hibernatable           |
 | `GET /v1/notes/:id`         | ticket          | An item's note: its live document's socket, on the account socket's ticket, to the note's own object                  |

@@ -15,30 +15,13 @@ import { cookieHeaderOf, drained, OWN_PAGE_HEADERS } from "./test-support/cloud-
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
 
-const UNUSED_AUTH_ROUTES = [
-  ["GET", "/account-info"],
-  ["POST", "/change-email"],
-  ["POST", "/change-password"],
-  ["POST", "/delete-user"],
-  ["GET", "/delete-user/callback"],
-  ["GET", "/error"],
-  ["GET", "/expo-authorization-proxy"],
-  ["POST", "/get-access-token"],
-  ["POST", "/link-social"],
-  ["GET", "/list-accounts"],
+// Better Auth serves each of these, and no client calls one: a route by a name the door does not
+// list, one whose path no exact list could name, and a listed route by a method no client sends
+const UNLISTED_AUTH_ROUTES = [
   ["GET", "/list-sessions"],
-  ["GET", "/ok"],
-  ["POST", "/refresh-token"],
-  ["POST", "/revoke-other-sessions"],
-  ["POST", "/revoke-session"],
-  ["POST", "/revoke-sessions"],
-  ["POST", "/send-verification-email"],
-  ["POST", "/sign-in/social"],
-  ["POST", "/unlink-account"],
-  ["POST", "/update-session"],
-  ["POST", "/update-user"],
-  ["GET", "/verify-email"],
-  ["POST", "/verify-password"],
+  ["POST", "/delete-user"],
+  ["GET", "/callback/x"],
+  ["POST", "/get-session"],
 ] as const;
 
 const signInBodySchema = z.looseObject({ token: z.string() });
@@ -183,10 +166,8 @@ describe("invite-gated sign-up", () => {
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
     });
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      code: "EMAIL_PASSWORD_SIGN_UP_DISABLED",
-    });
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toBe("not found");
 
     const signIn = await drained(
       exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
@@ -198,7 +179,7 @@ describe("invite-gated sign-up", () => {
     expect(signIn.status).not.toBe(200);
   });
 
-  it("answers 404 on each Better Auth route no client calls, even to a signed-in browser", async () => {
+  it("answers 404 on a Better Auth route no client calls, even to a signed-in browser", async () => {
     await mintCode("INVITE-SURFACE");
     const signedUp = await drained(
       signUp({
@@ -211,15 +192,15 @@ describe("invite-gated sign-up", () => {
     expect(signedUp.status).toBe(200);
     const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
 
-    for (const [method, path] of UNUSED_AUTH_ROUTES) {
-      const response = await drained(
-        exports.default.fetch(`${ORIGIN}/api/auth${path}`, {
-          body: method === "POST" ? "{}" : null,
-          headers: { ...headers, "content-type": "application/json" },
-          method,
-        }),
-      );
+    for (const [method, path] of UNLISTED_AUTH_ROUTES) {
+      const response = await exports.default.fetch(`${ORIGIN}/api/auth${path}`, {
+        body: method === "POST" ? "{}" : null,
+        headers: { ...headers, "content-type": "application/json" },
+        method,
+      });
       expect(response.status, `${method} ${path}`).toBe(404);
+      // the door's own answer, before Better Auth reads the request
+      await expect(response.text(), `${method} ${path}`).resolves.toBe("not found");
     }
   });
 

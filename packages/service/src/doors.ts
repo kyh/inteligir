@@ -4,7 +4,7 @@
 // OAuth provider writes `ctx.props` and `ctx.auth` on that very object and the connector reads them
 // back, so the service is built per request, never kept.
 
-import { createAuth, withoutAuthToken } from "./auth/auth";
+import { createAuth, isClientRoute, withoutAuthToken } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { connectorAuth } from "./connector/connector-auth";
 import { handleConnector } from "./connector/connector-route";
@@ -30,7 +30,9 @@ const authorizationServer: Door = async (request, env, ctx) =>
 
 const DOORS: Record<DoorName, Door> = {
   auth: async (request, env, ctx, url) =>
-    withoutAuthToken(await createAuth(env, ctx, url.origin).handler(request)),
+    isClientRoute(request.method, url.pathname)
+      ? withoutAuthToken(await createAuth(env, ctx, url.origin).handler(request))
+      : notFound(),
   // the site's sign-up form, which its own page posts and which ships in the same deploy
   signUp: async (request, env, ctx) =>
     request.method === "POST" ? await handleInviteSignUp(request, env, ctx) : notFound(),

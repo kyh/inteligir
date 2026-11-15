@@ -60,8 +60,9 @@ the principal a library call carries into its cell;
 
 ## Auth
 
-`src/auth/auth.ts` builds Better Auth per request and shuts every route no
-client calls; `src/auth/invite.ts` gates sign-up by invite in front of it;
+`src/auth/auth.ts` builds Better Auth per request and names the six routes a
+client calls, all its door answers; `src/auth/invite.ts` gates sign-up by
+invite in front of it;
 `src/auth/session-devices.ts` makes the account's sessions its devices;
 `src/rate-limit.ts` holds the D1 windows and the Rate Limiting bindings every
 signed call spends; and `src/auth/delete-account.ts` with
