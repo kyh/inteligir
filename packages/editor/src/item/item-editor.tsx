@@ -20,6 +20,7 @@ import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 import { YjsEditor } from "@slate-yjs/core";
 import type * as Y from "yjs";
 
+import { deferred } from "@repo/contract/deferred";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 
@@ -69,11 +70,15 @@ export const HELD_BACK: Record<NoteHeld, string> = {
 export const REFUSED_EDIT =
   "That was too much to add at once, so this note is going back to what it held.";
 
-// the open note as a host reaches it: what it waits on before a leave
-export interface OpenNote extends Pick<NoteConnection, "status" | "subscribe"> {
-  // true once the note holds every edit made here before the call, a file still being kept among
-  // them; false when the note closes, or drops what this device held, first
-  readonly whenSaved: () => Promise<boolean>;
+// the open note as a host reaches it: what a leave asks of it
+export interface OpenNote {
+  // told whenever `unsaved` or `unsent` may have turned
+  readonly subscribe: (listener: () => void) => () => void;
+  // whether the note holds every edit made here before the call, a file still being kept among
+  // them, as `NoteConnection.holds` answers
+  readonly holds: () => Promise<boolean>;
+  // an edit made here, or a file still being kept, that a leave now would wait on or lose
+  readonly unsaved: () => boolean;
   // an edit made here while no connection could carry it, until the socket syncs again
   readonly unsent: () => boolean;
 }
@@ -93,11 +98,33 @@ interface FollowedNote extends OpenNote {
 const followNote = (itemId: string, host: NoteHost): FollowedNote => {
   const connection = noteConnection(itemId, host);
   const keeping = new Set<Promise<void>>();
+  const listeners = new Set<() => void>();
   let bound: SlateEditor | null = null;
+  const moved = (): void => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
+  connection.subscribe(moved);
+  // a keep starting or ending moves no status, so it tells the listeners itself
   const track = async (kept: Promise<void>): Promise<void> => {
     keeping.add(kept);
+    moved();
     await Promise.allSettled([kept]);
     keeping.delete(kept);
+    moved();
+  };
+  const open = () => {
+    const status = connection.status();
+    return status.kind === "open" ? status : null;
+  };
+  // a file being kept whose block can still land, which only a note that takes edits is handed
+  const keeps = (): boolean => keeping.size > 0 && open()?.edits.kind === "live";
+  const nextMove = async (): Promise<void> => {
+    const { promise, resolve } = deferred();
+    listeners.add(resolve);
+    await promise;
+    listeners.delete(resolve);
   };
   return {
     bind: (editor) => {
@@ -112,22 +139,24 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
       };
     },
     connection,
-    status: connection.status,
-    subscribe: connection.subscribe,
-    unsent: () => {
-      const status = connection.status();
-      return status.kind === "open" && status.unsent;
-    },
-    whenSaved: async () => {
-      while (keeping.size > 0) {
-        await Promise.allSettled(keeping);
+    holds: async () => {
+      while (keeps()) {
+        await nextMove();
       }
       // Slate hands the binding an edit only once its change settles, a moment after the edit
       if (bound !== null) {
         flushEdits(bound);
       }
-      return await connection.whenSaved();
+      return await connection.holds();
     },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    unsaved: () => keeps() || open()?.unsaved === true,
+    unsent: () => open()?.unsent === true,
   };
 };
 
@@ -278,7 +307,7 @@ const ItemSurface = ({ itemId, onNote }: ItemEditorProps) => {
   // leaves nothing running
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [note] = useState(() => followNote(itemId, host));
-  const status = useSyncExternalStore(note.subscribe, note.status);
+  const status = useSyncExternalStore(note.connection.subscribe, note.connection.status);
   const announce = useEffectEvent((next: OpenNote | null) => {
     onNote(next);
   });

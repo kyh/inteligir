@@ -12,7 +12,6 @@ import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import { setLibraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
-import { noteHolds } from "@repo/editor/item/note-holds";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -610,9 +609,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
                   dispatchComposer={dispatchComposer}
                   viewContext={viewContext}
                   flushOpen={async () => {
-                    if (noteRef.current !== null) {
-                      await noteHolds(noteRef.current);
-                    }
+                    await noteRef.current?.holds();
                   }}
                   infoActions={{
                     move: (itemId) => {

@@ -301,8 +301,9 @@ The unpacked store build, against production, with no dev build loaded.
   open under a second, Inter and KaTeX faces, no zoom, the caret above the
   keyboard, Mermaid in dark mode.
 - **Live**: phone and Mac typing in one note at once, a Mac edit arriving at
-  once, a reconnect after a lock or airplane mode, and Leave without saving
-  with unsent typing.
+  once, a reconnect after a lock or airplane mode, Back and the edge swipe
+  leaving a note not typed in at once, and Leave without saving with unsent
+  typing.
 - **An offline launch**: items read-only, Needs a connection, and "1 save
   waiting", which lands once back online.
 - **Shares** from Safari, YouTube, Mail, X and Notes (text, Japanese, a bit.ly

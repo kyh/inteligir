@@ -1,19 +1,10 @@
-import type { LeavingNote } from "@repo/editor/item/note-holds";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
 import { describe, expect, it, vi } from "vitest";
 
 import { leaveItem, unloadAsks } from "./leave-item";
 
-const nothing = (): void => {
-  // the note's status never moves in these cases
-};
-
-// an open note that stored every edit, or one holding an edit typed with no connection
-const noteThat = (holds: boolean): LeavingNote => ({
-  status: () => ({ edits: { kind: holds ? "live" : "offline" }, kind: "open", unsent: !holds }),
-  subscribe: () => nothing,
-  whenSaved: async () => await Promise.resolve(true),
-});
+// an open note that holds every edit made here, or one that lacks an edit typed with no connection
+const noteThat = (holds: boolean) => ({ holds: async () => await Promise.resolve(holds) });
 
 const STAYS = vi.fn<() => Promise<boolean>>(async () => false);
 

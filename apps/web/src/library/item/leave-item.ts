@@ -4,8 +4,6 @@
 // while no connection could carry it is given up only on the person's word.
 
 import type { OpenNote } from "@repo/editor/item/item-editor";
-import { noteHolds } from "@repo/editor/item/note-holds";
-import type { LeavingNote } from "@repo/editor/item/note-holds";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
 import { useBlocker } from "@tanstack/react-router";
@@ -17,10 +15,10 @@ import { librarySearchSchema } from "../library-search";
 
 // whether the page may leave the item
 export const leaveItem = async (
-  note: LeavingNote | null,
+  note: Pick<OpenNote, "holds"> | null,
   ask: (options: ConfirmOptions) => Promise<boolean>,
 ): Promise<boolean> => {
-  if (note === null || (await noteHolds(note))) {
+  if (note === null || (await note.holds())) {
     return true;
   }
   return await ask({

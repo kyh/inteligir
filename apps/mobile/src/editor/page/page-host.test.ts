@@ -1,13 +1,12 @@
 // The note page's host as the editor reaches it: the library through the actions native handed it
 // last, the note's socket at the cloud's origin, and native's props followed after every render:
-// whether there is a connection, which items moved, and a leave's ask, answered by where the open
-// note stands.
+// whether there is a connection, which items moved, and a leave's ask, which the open note answers.
 
 import { bytesFromBase64 } from "@repo/contract/bytes";
 import { notePath } from "@repo/contract/library/library-socket";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
-import type { LeavingNote } from "@repo/editor/item/note-holds";
+import type { OpenNote } from "@repo/editor/item/item-editor";
 import { describe, expect, it, vi } from "vitest";
 import { deferred } from "@repo/contract/deferred";
 import { nextTask } from "../../test-support/async";
@@ -16,8 +15,6 @@ import type { NoteState, PageProps, Settled } from "./page-host";
 
 const NOTE = "0190a000-0000-7000-8000-0000000000a1";
 const OTHER = "0190a000-0000-7000-8000-0000000000a2";
-
-type Status = ReturnType<LeavingNote["status"]>;
 
 const pageOver = () => {
   const states: NoteState[] = [];
@@ -65,39 +62,34 @@ const pageOver = () => {
   };
 };
 
-// an open note whose status the suite moves, and whose save it answers
-const noteAt = (start: Status) => {
-  let status = start;
-  const saved = deferred<boolean>();
+// an open note whose unsaved edit the suite turns, and whose leave it answers
+const noteThat = (start: { readonly unsaved: boolean }) => {
+  let { unsaved } = start;
+  const holds = deferred<boolean>();
   const listeners = new Set<() => void>();
-  const note: LeavingNote = {
-    status: () => status,
+  const note: OpenNote = {
+    holds: async () => await holds.promise,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    whenSaved: async () => await saved.promise,
+    unsaved: () => unsaved,
+    unsent: () => false,
   };
   return {
+    answer: holds.resolve,
     listeners,
-    move: (next: Status) => {
-      status = next;
+    note,
+    turn: (next: boolean) => {
+      unsaved = next;
       for (const listener of listeners) {
         listener();
       }
     },
-    note,
-    save: saved.resolve,
   };
 };
-
-const open = (live: boolean, unsent = false): Status => ({
-  edits: { kind: live ? "live" : "offline" },
-  kind: "open",
-  unsent,
-});
 
 describe("the note page's host", () => {
   it("dials the note's socket at the cloud's origin, on a ticket native fetched", async () => {
@@ -202,28 +194,20 @@ describe("the note page's host", () => {
     expect(libraryTitles.getState().targets).toMatchObject([{ id: OTHER, title: "Later" }]);
   });
 
-  it("tells native where the open note stands, once each time it moves", () => {
+  it("tells native its note is being edited only while an edit may not be held, once each time that turns", () => {
     const { host, states } = pageOver();
-    const live = noteAt(open(true));
+    const open = noteThat({ unsaved: false });
 
     host.noteIs(null);
-    host.noteIs(live.note);
-    live.move(open(true));
-    live.move({ edits: { held: "deleted", kind: "held" }, kind: "open", unsent: false });
+    host.noteIs(open.note);
+    open.turn(false);
+    open.turn(true);
+    open.turn(true);
+    open.turn(false);
     host.noteIs(null);
 
-    expect(states).toStrictEqual(["none", "editing", "reading", "none"]);
-    expect(live.listeners.size).toBe(0);
-  });
-
-  it("counts an edit no connection carried yet as editing, and a note that took none as reading", () => {
-    const { host, states } = pageOver();
-
-    host.noteIs(noteAt(open(false, true)).note);
-    host.noteIs(noteAt(open(false)).note);
-    host.noteIs(noteAt({ kind: "opening", stalled: false }).note);
-
-    expect(states).toStrictEqual(["editing", "reading", "none"]);
+    expect(states).toStrictEqual(["none", "reading", "editing", "reading", "none"]);
+    expect(open.listeners.size).toBe(0);
   });
 
   it("answers a leave's ask once the open note holds every edit made here", async () => {
@@ -232,12 +216,12 @@ describe("the note page's host", () => {
     await nextTask();
     expect(answers).toStrictEqual([{ ask: 1, holds: true }]);
 
-    const live = noteAt(open(true));
-    host.noteIs(live.note);
+    const open = noteThat({ unsaved: true });
+    host.noteIs(open.note);
     host.follow({ ...first, settle: 2 });
     await nextTask();
     expect(answers).toHaveLength(1);
-    live.save(false);
+    open.answer(false);
     await nextTask();
 
     expect(answers).toStrictEqual([
