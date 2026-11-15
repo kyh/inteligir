@@ -490,7 +490,6 @@ const agentContract = {
     })
     .input(
       z.strictObject({
-        denyMessage: z.string().min(1).max(1000).optional(),
         eventId: eventIdSchema,
         opId,
         result: z.enum(["allow", "deny"]),

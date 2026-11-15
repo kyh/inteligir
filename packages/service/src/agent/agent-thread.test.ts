@@ -610,7 +610,6 @@ describe("a conversation's object", () => {
       // a second answer decides nothing
       await threadOf(account.accountId, sent.threadId).respond({
         approved: false,
-        reason: null,
         toolUseId: z.object({ toolUseId: z.string() }).parse(asked?.event).toolUseId,
       });
       await expect(
@@ -619,7 +618,7 @@ describe("a conversation's object", () => {
     },
   );
 
-  it("runs nothing the person denies, and says why", { timeout: TURN_MS }, async () => {
+  it("runs nothing the person denies, and says so", { timeout: TURN_MS }, async () => {
     const account = agentAccount();
     const itemId = await noteIn(account, "To keep.");
     const sent = await send(account, script(`call delete_items {"ids":["${itemId}"]}`));
@@ -634,7 +633,6 @@ describe("a conversation's object", () => {
       account,
       async (client) =>
         await client.agent.respond({
-          denyMessage: "Keep it.",
           eventId: asked?.eventId ?? "",
           result: "deny",
           threadId: sent.threadId,
@@ -645,7 +643,7 @@ describe("a conversation's object", () => {
     const [result] = await eventsOf(account, sent.threadId, "agent.tool_result");
     expect(result?.event).toMatchObject({
       isError: true,
-      summary: "The person declined this, so it did not run. Keep it.",
+      summary: "The person declined this, so it did not run.",
     });
   });
 
@@ -1231,11 +1229,11 @@ describe("a conversation's loop, stepped", () => {
     await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
   });
 
-  it("tells Claude the person's no and their words for a call they denied, then stopped", async () => {
+  it("tells Claude the person's no for a call they denied, then stopped", async () => {
     const account = agentAccount();
     const threadId = crypto.randomUUID();
     const itemId = await noteIn(account, "Kept.");
-    const declined = "The person declined this, so it did not run. Keep it.";
+    const declined = "The person declined this, so it did not run.";
     await inSteppedThread(
       account,
       threadId,
@@ -1251,7 +1249,6 @@ describe("a conversation's loop, stepped", () => {
           decideCall(host, {
             approved: false,
             by: "person",
-            reason: "Keep it.",
             toolUseId: toolUseId ?? "",
           }),
         ).resolves.toBe(true);

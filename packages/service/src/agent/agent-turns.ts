@@ -336,7 +336,6 @@ export interface RespondInput {
   readonly threadId: string;
   readonly eventId: string;
   readonly result: "allow" | "deny";
-  readonly denyMessage?: string | undefined;
 }
 
 const eventText = jsonTextSchema.pipe(agentEventSchema);
@@ -380,7 +379,6 @@ export const respondToAgent = async (
   try {
     await threadStub(cell.exports, cell.accountId, input.threadId).respond({
       approved: input.result === "allow",
-      reason: input.denyMessage ?? null,
       toolUseId: read.value,
     });
   } catch (error) {

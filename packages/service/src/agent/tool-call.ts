@@ -2,8 +2,8 @@
 // (`@repo/db/thread/schema`): the `status` and `decision` columns read together as the one state
 // they mean, and the one way a call moves (`toolCallNext`), which the loop's round, the person's
 // answer and a stop each go through (`./thread-loop`). A call the reply asked for runs unless it
-// asks the person first; a denied one is answered with the person's words whatever answers it,
-// its round or a stop; a result lands only on a call that runs.
+// asks the person first; a denied one is answered that the person declined it whatever answers
+// it, its round or a stop; a result lands only on a call that runs.
 
 import type { toolCalls } from "@repo/db/thread/schema";
 
@@ -17,20 +17,20 @@ export type ToolCall =
   | { readonly kind: "asked" }
   | { readonly kind: "awaiting" }
   | { readonly kind: "approved" }
-  | { readonly kind: "denied"; readonly reason: string | null }
+  | { readonly kind: "denied" }
   // handed to the cell; met again by a later step, it was cut mid-run and runs again
   | { readonly kind: "running" }
   | { readonly kind: "answered"; readonly answer: ToolAnswer };
 
 export type ToolCallEvent =
-  | { readonly kind: "decide"; readonly approved: boolean; readonly reason: string | null }
+  | { readonly kind: "decide"; readonly approved: boolean }
   | { readonly kind: "run" }
   | { readonly kind: "result"; readonly answer: ToolAnswer }
   | { readonly kind: "stop" };
 
 type ToolCallRow = Pick<
   typeof toolCalls.$inferSelect,
-  "decision" | "isError" | "reason" | "result" | "status"
+  "decision" | "isError" | "result" | "status"
 >;
 
 export const toolCallOf = (row: ToolCallRow): ToolCall => {
@@ -42,9 +42,7 @@ export const toolCallOf = (row: ToolCallRow): ToolCall => {
       if (row.decision === "approved") {
         return { kind: "approved" };
       }
-      return row.decision === "denied"
-        ? { kind: "denied", reason: row.reason }
-        : { kind: "awaiting" };
+      return { kind: row.decision === "denied" ? "denied" : "awaiting" };
     }
     case "running": {
       return { kind: "running" };
@@ -59,10 +57,7 @@ export const toolCallOf = (row: ToolCallRow): ToolCall => {
   }
 };
 
-const declined = (reason: string | null): ToolCall => ({
-  answer: { content: reason === null ? DECLINED : `${DECLINED} ${reason}`, isError: true },
-  kind: "answered",
-});
+const DECLINED_CALL: ToolCall = { answer: { content: DECLINED, isError: true }, kind: "answered" };
 
 const STOPPED_CALL: ToolCall = { answer: { content: STOPPED, isError: true }, kind: "answered" };
 
@@ -75,11 +70,11 @@ export const toolCallNext = (call: ToolCall, event: ToolCallEvent): ToolCall | n
       if (call.kind !== "awaiting") {
         return null;
       }
-      return event.approved ? { kind: "approved" } : { kind: "denied", reason: event.reason };
+      return { kind: event.approved ? "approved" : "denied" };
     }
     case "run": {
       if (call.kind === "denied") {
-        return declined(call.reason);
+        return DECLINED_CALL;
       }
       return call.kind === "asked" || call.kind === "approved" || call.kind === "running"
         ? { kind: "running" }
@@ -92,7 +87,7 @@ export const toolCallNext = (call: ToolCall, event: ToolCallEvent): ToolCall | n
       if (call.kind === "answered") {
         return null;
       }
-      return call.kind === "denied" ? declined(call.reason) : STOPPED_CALL;
+      return call.kind === "denied" ? DECLINED_CALL : STOPPED_CALL;
     }
     // no default
   }

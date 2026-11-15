@@ -963,22 +963,17 @@ export const decideCall = async (
     readonly toolUseId: string;
     readonly approved: boolean;
     readonly by: "person" | "timeout";
-    readonly reason: string | null;
   },
 ): Promise<boolean> => {
   const { db } = host;
   const decided = host.transaction(() => {
     const row = db.select().from(toolCalls).where(eq(toolCalls.toolUseId, answer.toolUseId)).get();
-    const decide: ToolCallEvent = {
-      approved: answer.approved,
-      kind: "decide",
-      reason: answer.reason,
-    };
+    const decide: ToolCallEvent = { approved: answer.approved, kind: "decide" };
     if (row === undefined || toolCallNext(toolCallOf(row), decide) === null) {
       return false;
     }
     db.update(toolCalls)
-      .set({ decision: answer.approved ? "approved" : "denied", reason: answer.reason })
+      .set({ decision: answer.approved ? "approved" : "denied" })
       .where(eq(toolCalls.toolUseId, answer.toolUseId))
       .run();
     db.update(threadTurns)

@@ -65,7 +65,6 @@ CREATE TABLE `tool_calls` (
 	`input` text NOT NULL,
 	`status` text NOT NULL,
 	`decision` text,
-	`reason` text,
 	`attempts` integer DEFAULT 0 NOT NULL,
 	`result` text,
 	`is_error` integer DEFAULT 0 NOT NULL,
