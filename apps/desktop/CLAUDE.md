@@ -10,8 +10,8 @@ carries, and updates.
   every permission request. `apps/desktop/src-tauri/src/window.rs`.
 - **The window is the library tab the site serves** (owner decision). A release loads
   `https://inteligir.com/library` and bundles only the shell, since offline copies would be most of the
-  code; `INTELIGIR_CLOUD_ORIGIN` may name only a loopback origin, so no variable points a release at
-  any site. `apps/desktop/src-tauri/tauri.conf.json`.
+  code; its site is compiled in from the config, so nothing at launch moves it.
+  `apps/desktop/src-tauri/tauri.conf.json`.
 - **A debug build is an app of its own.** `pnpm dev` loads `http://localhost:5174/library` as
   `com.inteligir.desktop.dev`, so its WebKit store and cookie are never the release's.
   `apps/desktop/src-tauri/tauri.local.conf.json`.

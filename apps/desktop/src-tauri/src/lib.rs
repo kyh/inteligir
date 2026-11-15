@@ -12,10 +12,7 @@ fn fail(error: &dyn std::fmt::Display) -> ! {
 }
 
 pub fn run() {
-    let mut context = tauri::generate_context!();
-    if let Err(error) = window::follow_local_site(context.config_mut()) {
-        fail(&error);
-    }
+    let context = tauri::generate_context!();
     // `plugins.updater`, which the pack writes, turns updates on; under `tauri dev` there is no
     // bundle to replace
     let updates = context.config().plugins.0.contains_key("updater") && !tauri::is_dev();

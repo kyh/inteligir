@@ -61,12 +61,13 @@ Never `push:remote` or `studio:remote`: both reach the PRODUCTION D1
 `pnpm dev` runs `tauri dev --config src-tauri/tauri.local.conf.json`: the Rust
 shell compiled and launched on its `devUrl`, `http://localhost:5174/library`,
 the library tab `pnpm dev:web` serves, as an app of its own
-(`com.inteligir.desktop.dev`). `INTELIGIR_CLOUD_ORIGIN`, a loopback origin
-only, points any build at another Worker on this machine
-(`apps/desktop/src-tauri/src/window.rs`). Its first run is the site's sign-in
-with an account of that Worker (`AGENTS.md` § There is no seeded login). An
-edit to the shell's Rust rebuilds and relaunches it; an edit to the library tab
-reaches the window as `pnpm dev:web` serves it.
+(`com.inteligir.desktop.dev`). A Worker on another port is one more config for
+Tauri to merge:
+`pnpm --filter @repo/desktop dev --config '{"build":{"devUrl":"http://localhost:<port>/library"}}'`.
+Its first run is the site's sign-in with an account of that Worker (`AGENTS.md`
+§ There is no seeded login). An edit to the shell's Rust rebuilds and
+relaunches it; an edit to the library tab reaches the window as `pnpm dev:web`
+serves it.
 
 Iterating on the library tab needs no Rust: `pnpm dev:web` serves it at
 `localhost:5174/library` as it serves the site, through the same route and

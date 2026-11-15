@@ -13,45 +13,6 @@ use crate::navigation::{self, Verdict};
 
 pub const MAIN: &str = "main";
 
-/// Names a Worker on this machine to load in place of the configured site.
-const LOCAL_SITE_VAR: &str = "INTELIGIR_CLOUD_ORIGIN";
-
-/// An http origin on this machine, spelled as the origin it parses to: no path, query, fragment,
-/// userinfo or trailing slash.
-fn loopback_origin(value: &str) -> Option<Url> {
-    let url = Url::parse(value).ok()?;
-    let loopback = url.scheme() == "http"
-        && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
-        && url.origin().ascii_serialization() == value;
-    loopback.then_some(url)
-}
-
-fn on_origin(url: &Url, origin: &Url) -> Url {
-    let mut moved = origin.clone();
-    moved.set_path(url.path());
-    moved
-}
-
-/// The window on a local Worker, at the configured path: a debug window's beside a Worker on
-/// another port. It names this machine or the app refuses to start, so no build
-/// loads a site its environment chose from elsewhere, and none silently falls back to production.
-pub fn follow_local_site(config: &mut Config) -> Result<(), String> {
-    let Ok(value) = std::env::var(LOCAL_SITE_VAR) else {
-        return Ok(());
-    };
-    let Some(origin) = loopback_origin(&value) else {
-        return Err(format!(
-            "{LOCAL_SITE_VAR} is {value:?}, not an http origin on this machine"
-        ));
-    };
-    let build = &mut config.build;
-    build.dev_url = build.dev_url.as_ref().map(|url| on_origin(url, &origin));
-    if let Some(FrontendDist::Url(url)) = &mut build.frontend_dist {
-        *url = on_origin(url, &origin);
-    }
-    Ok(())
-}
-
 /// The URL `WebviewUrl::default()` resolves to, read the same way Tauri reads it.
 fn app_url(config: &Config) -> Option<Url> {
     if tauri::is_dev() {
@@ -173,35 +134,5 @@ pub fn reload_main<R: Runtime>(app: &AppHandle<R>) {
     };
     if let Err(error) = reloaded {
         eprintln!("[desktop] could not reload the window: {error}");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_local_site_is_on_this_machine_alone() {
-        assert!(loopback_origin("http://127.0.0.1:48213").is_some());
-        assert!(loopback_origin("http://localhost:5174").is_some());
-        assert!(loopback_origin("http://[::1]:5174").is_some());
-        assert!(loopback_origin("https://inteligir.com").is_none());
-        assert!(loopback_origin("http://127.0.0.1:48213/").is_none());
-        assert!(loopback_origin("http://evil.example:80").is_none());
-        assert!(loopback_origin("http://localhost:5174/v1").is_none());
-        assert!(loopback_origin("http://localhost:5174#x").is_none());
-        assert!(loopback_origin("http://u:p@localhost:5174").is_none());
-        assert!(loopback_origin("http://localhost:5174?x=1").is_none());
-    }
-
-    #[test]
-    fn a_local_site_keeps_the_configured_path() {
-        let origin = loopback_origin("http://127.0.0.1:48213").unwrap_or_else(|| panic!("origin"));
-        let site =
-            Url::parse("https://inteligir.com/library").unwrap_or_else(|error| panic!("{error}"));
-        assert_eq!(
-            on_origin(&site, &origin).as_str(),
-            "http://127.0.0.1:48213/library"
-        );
     }
 }
