@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
+import { createORPCErrorFromJson } from "@orpc/client";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { onlineManager } from "@tanstack/react-query";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +14,10 @@ import type { CellCall } from "../test-support/fake-page-library";
 import { CommandPalette } from "./command-palette";
 import type { PaletteActions } from "./command-palette";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  onlineManager.setOnline(true);
+});
 
 const spyActions = () =>
   ({
@@ -54,15 +60,21 @@ const drawPalette = () => {
     ["https://example.com/spring", [{ ...cell.listed(plans), snippet: "example.com/spring" }]],
   ]);
   const { calls, library } = fakePageLibrary({
-    answer: (call) =>
-      call.path === "library.listing.page"
-        ? {
-            items: hits.get(WORDS.parse(call.input).words) ?? [],
-            kindCounts: {},
-            nextCursor: null,
-            total: 0,
-          }
-        : undefined,
+    answer: (call) => {
+      if (call.path !== "library.listing.page") {
+        return;
+      }
+      const { words } = WORDS.parse(call.input);
+      if (words === "broken") {
+        throw createORPCErrorFromJson({
+          code: "BAD_REQUEST",
+          data: undefined,
+          defined: false,
+          message: "",
+        });
+      }
+      return { items: hits.get(words) ?? [], kindCounts: {}, nextCursor: null, total: 0 };
+    },
     cell,
   });
   const actions = spyActions();
@@ -81,6 +93,14 @@ const lit = (): string => {
   const id = field().getAttribute("aria-activedescendant");
   const option = id === null ? null : document.querySelector(`#${id}`);
   return option?.textContent ?? "";
+};
+
+// the words typed, and the line under the field once the palette says it
+const said = async (words: string, line: string): Promise<void> => {
+  fireEvent.change(field(), { target: { value: words } });
+  await waitFor(() => {
+    expect(screen.getByRole("status").textContent).toBe(line);
+  });
 };
 
 describe("the palette", () => {
@@ -166,6 +186,18 @@ describe("the palette", () => {
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(actions.saveLink).toHaveBeenCalledWith("https://example.com/spring");
     expect(actions.openHit).not.toHaveBeenCalled();
+  });
+
+  it("says why a search has no hits: none match, the cell did not answer, or it waits offline", async () => {
+    drawPalette();
+    await said("winter", "Nothing in your library matches.");
+    await said("broken", "Your library couldn't be searched.");
+    await said("spring", "");
+    await screen.findByRole("option", { name: /Plans/u });
+    onlineManager.setOnline(false);
+    // the hits typed before answer other words
+    await said("spring trip", NEEDS_CONNECTION);
+    expect(screen.queryByRole("option", { name: /Plans/u })).toBeNull();
   });
 
   it("closes on Escape", async () => {

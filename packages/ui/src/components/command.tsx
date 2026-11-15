@@ -140,6 +140,17 @@ const CommandInput = ({ className, ...props }: CommandInputProps) => (
   </Autocomplete.InputGroup>
 );
 
+// What the page's query met, in a line under the field. It stays mounted while it says nothing,
+// since a screen reader announces a change of words only in a region it already holds.
+const CommandStatus = ({ children }: { children: ReactNode }) => (
+  <Autocomplete.Status
+    data-slot="command-status"
+    className="shrink-0 px-3 text-caption text-muted-foreground not-empty:pb-2"
+  >
+    {children}
+  </Autocomplete.Status>
+);
+
 const CommandList = ({ className, children }: { className?: string; children: ReactNode }) => (
   <Autocomplete.List
     data-slot="command-list"
@@ -280,4 +291,5 @@ export {
   CommandItem,
   CommandList,
   CommandShortcut,
+  CommandStatus,
 };
