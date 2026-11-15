@@ -150,23 +150,15 @@ export const createTabSession = ({ read, guard, forget, location }: TabSessionAr
   return { end, store };
 };
 
-const readSession = async (): Promise<SessionState | null> => {
-  try {
-    return await activeSession();
-  } catch {
-    return null;
-  }
-};
-
 const open = async (): Promise<TabOpening> => {
   // before the first paint: a stored "off" must not flash red underlines
   applyStoredSpellcheck();
   installLightPrints();
   const { origin } = window.location;
-  const session = await readSession();
+  const session = await activeSession();
   // a fault of the site's says neither signed in nor out, so it never sends a signed-in person to
   // sign in again
-  if (session === null || session.kind === "unknown") {
+  if (session.kind === "unknown") {
     return { kind: "unreached" };
   }
   if (session.kind === "signed-out") {

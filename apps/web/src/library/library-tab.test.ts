@@ -86,7 +86,7 @@ describe("where a tab's session stands", () => {
 
   it("finds out at the keeper's read that the session ended elsewhere, and leaves once", async () => {
     const { standing, went } = tabOver([
-      { kind: "unknown", message: "Something went wrong — try again." },
+      { kind: "unknown" },
       { kind: "signed-out" },
       { kind: "signed-out" },
     ]);
