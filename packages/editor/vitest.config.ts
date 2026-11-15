@@ -2,7 +2,6 @@ import path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
-import type { TestProjectInlineConfiguration } from "vitest/config";
 
 const TYPING_BUDGET = "src/typing-budget.test.tsx";
 
@@ -21,25 +20,6 @@ const reactCompiler = async () =>
     ],
     presets: [reactCompilerPreset()],
   });
-
-// a 10k-line note mounted in jsdom under React's dev build peaks near 4 GB, past the heap V8 sizes
-// for a 7 GB CI runner; only this suite's worker gets the larger ceiling. Beside the other suites
-// on the macOS runner that note swaps, and a keystroke's cost there measures the swap rather than
-// the editor, so that job sets SKIP_TYPING_BUDGET and the Linux job holds the budget alone.
-const budgetProject: TestProjectInlineConfiguration = {
-  extends: true,
-  plugins: [reactCompiler()],
-  test: {
-    environment: "jsdom",
-    execArgv: ["--max-old-space-size=4096"],
-    include: [TYPING_BUDGET],
-    name: "editor-budget",
-    setupFiles: [DOM_CLEANUP],
-    // unmounting a 10k-line tree outlasts the 10s default on a slow runner
-    hookTimeout: 120_000,
-    testTimeout: 120_000,
-  },
-};
 
 export default defineConfig({
   // the jsx transform every project takes, kit-parity's @repo/ui .tsx sources under node included
@@ -75,7 +55,22 @@ export default defineConfig({
           testTimeout: 20_000,
         },
       },
-      ...(process.env.SKIP_TYPING_BUDGET === "1" ? [] : [budgetProject]),
+      {
+        // a 10k-line note mounted in jsdom under React's dev build peaks near 4 GB, past the heap
+        // V8 sizes on a small machine; only this suite's worker gets the larger ceiling.
+        extends: true,
+        plugins: [reactCompiler()],
+        test: {
+          environment: "jsdom",
+          execArgv: ["--max-old-space-size=4096"],
+          include: [TYPING_BUDGET],
+          name: "editor-budget",
+          setupFiles: [DOM_CLEANUP],
+          // unmounting a 10k-line tree outlasts the 10s default on a slow runner
+          hookTimeout: 120_000,
+          testTimeout: 120_000,
+        },
+      },
     ],
   },
 });

@@ -72,8 +72,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   `packages/editor/src/markdown/md-stringify.test.ts`.
 - **Typing in a long note walks it only through a recorded budget, and pays for no store atom per
   block.** A pass over a 10k-line note is a named row timed as a ratio, so a new pass fails by its
-  name and a slow runner never does; `SKIP_TYPING_BUDGET` skips it on the swapping macOS runner.
-  `packages/editor/src/typing-budget.test.tsx`.
+  name and a slow runner never does. `packages/editor/src/typing-budget.test.tsx`.
 - **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
   whole-block op lands, since hiding the buttons lets a paste or key in.

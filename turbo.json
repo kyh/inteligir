@@ -69,10 +69,7 @@
       "dependsOn": ["^topo", "generate"],
       // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
       // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
-      "cache": false,
-      // the macOS CI job's opt-out of the editor's typing budget
-      // (packages/editor/vitest.config.ts says why)
-      "passThroughEnv": ["SKIP_TYPING_BUDGET"]
+      "cache": false
     }
   },
   // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
