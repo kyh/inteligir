@@ -20,23 +20,20 @@ afterEach(() => {
 });
 
 // a tab's session, the keeper's reads answered in turn and then signed in, with each page it went
-// to and each time it dropped its guard or forgot the account's storage
+// to, where the session stood as it went, and each time it forgot the account's storage
 const tabOver = (answers: SessionState[] = []) => {
   const went: string[] = [];
-  const counts = { dropped: 0, forgotten: 0, heard: 0 };
+  const wentAs: string[] = [];
+  const counts = { forgotten: 0, heard: 0 };
   const tab = createTabSession({
     forget: () => {
       counts.forgotten += 1;
-    },
-    guard: {
-      drop: () => {
-        counts.dropped += 1;
-      },
     },
     location: {
       ...HERE,
       assign: (to) => {
         went.push(String(to));
+        wentAs.push(tab.store.get().kind);
       },
     },
     read: async () => await Promise.resolve(answers.shift() ?? SIGNED_IN),
@@ -44,17 +41,19 @@ const tabOver = (answers: SessionState[] = []) => {
   tab.store.subscribe(() => {
     counts.heard += 1;
   });
-  return { counts, standing: tab.store.get, tab, went };
+  return { counts, standing: tab.store.get, tab, went, wentAs };
 };
 
 describe("where a tab's session stands", () => {
   it("goes to sign-in once, to come back here, however many calls hear the session end", () => {
-    const { counts, standing, tab, went } = tabOver();
+    const { counts, standing, tab, went, wentAs } = tabOver();
     tab.end({ kind: "ended", why: "signed-out" });
     tab.end({ kind: "ended", why: "signed-out" });
     tab.end({ kind: "ended", why: "gone" });
     expect(went).toStrictEqual([signInHref(HERE)]);
-    expect(counts).toStrictEqual({ dropped: 1, forgotten: 1, heard: 1 });
+    // already ended as the page goes, so the browser asks nothing over what the tab still holds
+    expect(wentAs).toStrictEqual(["ended"]);
+    expect(counts).toStrictEqual({ forgotten: 1, heard: 1 });
     expect(standing()).toStrictEqual({ kind: "ended", why: "signed-out" });
   });
 
@@ -63,7 +62,7 @@ describe("where a tab's session stands", () => {
     tab.end({ kind: "ended", why: "outdated" });
     tab.end({ kind: "ended", why: "signed-out" });
     expect(went).toStrictEqual([]);
-    expect(counts).toStrictEqual({ dropped: 1, forgotten: 0, heard: 1 });
+    expect(counts).toStrictEqual({ forgotten: 0, heard: 1 });
     expect(standing()).toStrictEqual({ kind: "ended", why: "outdated" });
   });
 

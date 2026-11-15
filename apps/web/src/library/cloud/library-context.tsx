@@ -3,9 +3,9 @@
 // bytes, how the session ends and where a sign-out goes). Mounted once, above the router's routes,
 // so Settings and back keeps the one socket.
 
+import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { createContext, useContext } from "react";
 
-import type { LeaveGuard } from "./leave-guard";
 import type { FileCloud } from "./library-files";
 import { libraryQueries } from "./library-queries";
 import type { LibraryQueries } from "./library-queries";
@@ -17,14 +17,27 @@ import type { CloudWire } from "./v1";
 // why this device leaves its account: a sign-out, or the account deleted
 export type LeaveReason = "signed-out" | "deleted";
 
+// where the tab's session stands: live; ended by the cloud, an `outdated` end keeping the session
+// and saying the browser is too old, any other sending the tab to sign in; or left, by this
+// device's own sign-out or its account deleted. The first end wins, and every later one does
+// nothing
+export type TabSession =
+  | { readonly kind: "live" }
+  | { readonly kind: "ended"; readonly why: SessionEnd }
+  | { readonly kind: "left" };
+
+export interface TabSessionStore {
+  readonly get: () => TabSession;
+  readonly subscribe: (heard: () => void) => () => void;
+}
+
 export interface PageLibrary {
   readonly account: SignedIn;
   readonly wire: CloudWire;
   // `/v1` for the bytes the wire does not carry: a file a note names, an import's file
   readonly cloud: FileCloud;
   readonly socket: LibrarySocket;
-  // what asks before the page leaves while the open item holds an edit not yet written
-  readonly leave: LeaveGuard;
+  readonly session: TabSessionStore;
   // this device has left its account: the host's next screen
   readonly left: (reason: LeaveReason) => void;
 }

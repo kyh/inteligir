@@ -2,7 +2,7 @@ import type { LeavingNote } from "@repo/editor/item/note-holds";
 import type { ConfirmOptions } from "@repo/ui/components/confirm-dialog";
 import { describe, expect, it, vi } from "vitest";
 
-import { leaveItem } from "./leave-item";
+import { leaveItem, unloadAsks } from "./leave-item";
 
 const nothing = (): void => {
   // the note's status never moves in these cases
@@ -33,5 +33,17 @@ describe("leaving the open item", () => {
     ask.mockResolvedValue(true);
     await expect(leaveItem(note, ask)).resolves.toBe(true);
     await expect(leaveItem(note, STAYS)).resolves.toBe(false);
+  });
+});
+
+const typing = (unsent: boolean) => ({ unsent: () => unsent });
+
+describe("the browser's ask as the tab closes or reloads", () => {
+  it("is made only over typing no connection carried, and never once the session ended", () => {
+    expect(unloadAsks(typing(true), { kind: "live" })).toBe(true);
+    expect(unloadAsks(typing(false), { kind: "live" })).toBe(false);
+    expect(unloadAsks(null, { kind: "live" })).toBe(false);
+    expect(unloadAsks(typing(true), { kind: "ended", why: "signed-out" })).toBe(false);
+    expect(unloadAsks(typing(true), { kind: "left" })).toBe(false);
   });
 });

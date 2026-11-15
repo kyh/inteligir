@@ -35,7 +35,7 @@ import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
-import { leaveItem } from "./item/leave-item";
+import { leaveItem, useLeaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
@@ -56,7 +56,6 @@ import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
   readonly openItem: string | null;
-  readonly onOpenItem: (itemId: string | null) => void;
   // another surface draws over the workspace: it goes inert and its window-level chords stand down
   readonly covered: boolean;
 }
@@ -76,7 +75,7 @@ interface TagSubject {
   readonly tags: readonly string[];
 }
 
-export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
+export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const { cloud, socket, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
@@ -96,9 +95,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
+  useLeaveItem(noteRef);
   const findRef = useRef<PendingFind | null>(null);
-  // the open item's note, which the leave guard asks about what it holds
-  const [note, setNote] = useState<OpenNote | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
@@ -114,10 +112,25 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const view = listingView(listing.data?.pages ?? []);
   const titles = useQuery(queries.titles()).data;
 
-  const open = (itemId: string | null): void => {
+  // on the current route, so an open that lands while Settings covers the workspace keeps it
+  const open = (
+    itemId: string | null,
+    { ignoreBlocker }: { ignoreBlocker?: boolean } = {},
+  ): void => {
+    void navigate({
+      ignoreBlocker,
+      search: (prior) => ({ ...prior, item: itemId ?? undefined }),
+      to: ".",
+    });
+  };
+
+  // to the grid with a change of its scope, made only once the leave is allowed, so Stay keeps the
+  // scope too; asked here, since a navigation the blocker refuses never settles to say so
+  const leaveTo = (scoped: () => void): void => {
     void (async () => {
       if (await leaveItem(noteRef.current, confirm)) {
-        onOpenItem(itemId);
+        scoped();
+        open(null, { ignoreBlocker: true });
       }
     })();
   };
@@ -144,8 +157,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     open(itemId);
   });
   const hostShowsTag = useEffectEvent((tag: string) => {
-    storeScope({ kind: "tag", tag });
-    open(null);
+    leaveTo(() => {
+      storeScope({ kind: "tag", tag });
+    });
   });
   // in the folder of the item open now, whose row its view has read
   const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
@@ -173,15 +187,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       setLibraryTitles(titles.targets);
     }
   }, [titles]);
-
-  // CLAUDE.md § The tab asks before it loses the open item's edit: an edit reaches the note as it is
-  // typed, so the tab holds one only while it was typed with no connection to carry it
-  const { leave } = usePageLibrary();
-  useEffect(
-    () =>
-      note === null ? undefined : leave.hold({ holding: note.unsent, onMove: note.subscribe }),
-    [leave, note],
-  );
 
   useEffect(() => {
     // a search's find waits for the item it opened, and for no other
@@ -224,10 +229,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   }, [listed, selection]);
 
   const chooseScope = (next: LibraryScope): void => {
-    storeScope(next);
-    setKind(null);
-    selection.apply({ kind: "clear" });
-    open(null);
+    leaveTo(() => {
+      storeScope(next);
+      setKind(null);
+      selection.apply({ kind: "clear" });
+    });
   };
 
   const openSettings = (): void => {
@@ -368,8 +374,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       ) {
         return;
       }
+      // deleted on the person's word, so its leave asks nothing
       if (openItem !== null && ids.includes(openItem)) {
-        onOpenItem(null);
+        open(null, { ignoreBlocker: true });
       }
       let deleted: number;
       try {
@@ -616,7 +623,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     }}
                     onNote={(opened) => {
                       noteRef.current = opened;
-                      setNote(opened);
                     }}
                   />
                 )}
