@@ -13,7 +13,7 @@ import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import type { V1Client } from "@repo/contract/v1";
 import type { threadEventRowSchema, threadRowSchema } from "@repo/contract/library/library-wire";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { render, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { z } from "zod";
 
@@ -131,10 +131,19 @@ export const fakePageLibrary = ({
   };
 };
 
-// a screen drawn over the fake, under the page's own QueryClient
-export const renderOnLibrary = (ui: ReactNode, library: PageLibrary) =>
-  render(
-    <QueryClientProvider client={createPageQueryClient()}>
-      <PageLibraryProvider library={library}>{ui}</PageLibraryProvider>
-    </QueryClientProvider>,
+// the page's providers over the fake, under one page QueryClient of its own
+const onLibrary = (library: PageLibrary) => {
+  const queryClient = createPageQueryClient();
+  const OnLibrary = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <PageLibraryProvider library={library}>{children}</PageLibraryProvider>
+    </QueryClientProvider>
   );
+  return OnLibrary;
+};
+
+export const renderOnLibrary = (ui: ReactNode, library: PageLibrary) =>
+  render(ui, { wrapper: onLibrary(library) });
+
+export const renderHookOnLibrary = <T,>(hook: () => T, library: PageLibrary) =>
+  renderHook(hook, { wrapper: onLibrary(library) });

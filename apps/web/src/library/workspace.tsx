@@ -2,8 +2,8 @@
 // the right panel (Info, the agent), over the account's library cell. Every screen reads the cell
 // through the page's queries and writes through its mutations, so each needs a connection and says
 // so without one. A link or a file pasted or dropped where no field takes it is saved where the
-// grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a link all
-// open it.
+// grid's scope saves. Where the tab is rides the url, the grid's scope and kind and the item open
+// over them, so a reload, Back and a link all open it.
 
 import { viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
@@ -33,10 +33,10 @@ import { COMPOSER_START, composerAfter } from "./agent/agent-composer";
 import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
-import { leaveItem, useLeaveItem } from "./item/leave-item";
+import { useLeaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
-import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
+import type { CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
 import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
@@ -49,10 +49,13 @@ import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
-import { PREFS, readPref, usePref, writePref } from "./prefs";
+import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
+  // where the tab is, as its address says
+  readonly scope: LibraryScope;
+  readonly kind: ItemKind | null;
   readonly openItem: string | null;
   // another surface draws over the workspace: it goes inert and its window-level chords stand down
   readonly covered: boolean;
@@ -67,17 +70,18 @@ interface TagSubject {
   readonly tags: readonly string[];
 }
 
-export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
+export const Workspace = ({ scope: addressed, kind, openItem, covered }: WorkspaceProps) => {
   const { cloud, socket, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
-  const [storedScope, storeScope] = usePref(PREFS.libraryScope);
-  const [sort, setSort] = usePref(PREFS.librarySort);
-  const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
-  const [kind, setKind] = useState<ItemKind | null>(null);
+  const [sort, setSort] = usePref(windowLayout, "librarySort");
+  const [panelOpen, setPanelOpen] = usePref(windowLayout, "panelOpen");
+  const [panelWidth, setPanelWidth] = usePref(windowLayout, "panelWidth");
+  const [railOpen, setRailOpen] = usePref(windowLayout, "railOpen");
+  const [railWidth, setRailWidth] = usePref(windowLayout, "railWidth");
   const [tab, setTab] = useState<PanelTab>("info");
   const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -91,14 +95,13 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
-  const [railOpen, setRailOpen] = useState(true);
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
   const counts = useQuery(queries.scopes()).data;
   const folders = counts?.folders ?? [];
-  // a remembered folder is judged once the rail's folders have answered
-  const scope = counts === undefined ? storedScope : listedScope(storedScope, folders);
+  // an addressed folder is judged once the rail's folders have answered
+  const scope = counts === undefined ? addressed : listedScope(addressed, folders);
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
@@ -118,15 +121,19 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     });
   };
 
-  // to the grid with a change of its scope, made only once the leave is allowed, so Stay keeps the
-  // scope too; asked here, since a navigation the blocker refuses never settles to say so
-  const leaveTo = (scoped: () => void): void => {
-    void (async () => {
-      if (await leaveItem(noteRef.current, confirm)) {
-        scoped();
-        open(null, { ignoreBlocker: true });
-      }
-    })();
+  // a new entry with no kind and no item, so Back walks scopes and the leave guard asks once; All
+  // items is the bare address, which a fresh tab opens on
+  const showScope = (next: LibraryScope): void => {
+    void navigate({ search: { scope: next.kind === "all" ? undefined : next }, to: "/library" });
+  };
+
+  // a narrowing of the scope, not a place of its own, so it replaces the entry Back would return to
+  const showKind = (next: ItemKind | null): void => {
+    void navigate({
+      replace: true,
+      search: (prior) => ({ ...prior, kind: next ?? undefined }),
+      to: ".",
+    });
   };
 
   const revealPanel = (next: PanelTab): void => {
@@ -151,9 +158,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     open(itemId);
   });
   const hostShowsTag = useEffectEvent((tag: string) => {
-    leaveTo(() => {
-      storeScope({ kind: "tag", tag });
-    });
+    showScope({ kind: "tag", tag });
   });
   // in the folder of the item open now, whose row its view has read
   const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
@@ -182,6 +187,17 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     }
   }, [titles]);
 
+  // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since the
+  // prune below waits for the scope's listing and keeps an id both scopes list
+  const scopeKey = JSON.stringify(scope);
+  const selectedIn = useRef(scopeKey);
+  useEffect(() => {
+    if (selectedIn.current !== scopeKey) {
+      selectedIn.current = scopeKey;
+      selection.apply({ kind: "clear" });
+    }
+  }, [scopeKey, selection]);
+
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
   const listed = view?.items;
   useEffect(() => {
@@ -194,14 +210,6 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       selection.apply({ gone: new Set(gone), kind: "prune" });
     }
   }, [listed, selection]);
-
-  const chooseScope = (next: LibraryScope): void => {
-    leaveTo(() => {
-      storeScope(next);
-      setKind(null);
-      selection.apply({ kind: "clear" });
-    });
-  };
 
   const openSettings = (): void => {
     void navigate({ search: true, to: "/library/settings" });
@@ -245,40 +253,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     })();
   };
 
-  const saveLinks = (links: readonly CapturedLink[]): void => {
-    void (async () => {
-      const made = [];
-      const unsaved =
-        links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.";
-      for (const link of links) {
-        try {
-          made.push(await verbs.saveLink(link.url, link.title, into()));
-        } catch (error) {
-          toast.error(refusalText(error, unsaved));
-          return;
-        }
-      }
-      const [only, ...more] = made;
-      if (only === undefined) {
-        return;
-      }
-      if (more.length > 0) {
-        toast.success(`Saved ${plural(made.length, "link")}.`);
-        return;
-      }
-      toast.success(only.created ? "Saved." : "Your library already holds that link.", {
-        action: {
-          label: "Open",
-          onClick: () => {
-            open(only.id);
-          },
-        },
-      });
-    })();
-  };
-
   const saveLink = (url: string): void => {
-    saveLinks([{ title: null, url }]);
+    void verbs.saveLinks([{ title: null, url }], into(), open);
   };
 
   // what a paste, a drop or the file picker handed over: each file and each link saved where the
@@ -287,26 +263,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
     for (const sentence of payload.refused) {
       toast.error(sentence);
     }
-    if (payload.urls.length > 0) {
-      saveLinks(payload.urls);
-    }
-    if (payload.files.length > 0) {
-      void (async () => {
-        let made = 0;
-        for (const file of payload.files) {
-          try {
-            await verbs.addFile(file, into());
-          } catch (error) {
-            toast.error(refusalText(error, "Not every file could be added."));
-            break;
-          }
-          made += 1;
-        }
-        if (made > 0) {
-          toast.success(`Added ${plural(made, "file")}.`);
-        }
-      })();
-    }
+    void verbs.saveLinks(payload.urls, into(), open);
+    void verbs.addFiles(payload.files, into());
   };
 
   const { catcherRef, dropInto } = useWindowCapture({
@@ -345,21 +303,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       if (openItem !== null && ids.includes(openItem)) {
         open(null, { ignoreBlocker: true });
       }
-      let deleted: number;
-      try {
-        deleted = await verbs.remove(ids);
-      } catch (error) {
-        toast.error(refusalText(error, "That couldn't be deleted."));
-        return;
-      }
-      toast.success(`Moved ${plural(deleted, "item")} to Deleted.`, {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            verbs.restore(ids);
-          },
-        },
-      });
+      await verbs.remove(ids);
     })();
   };
 
@@ -431,7 +375,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       open(row.id);
     },
     pin: (rows, pinned) => {
-      verbs.pin(
+      void verbs.pin(
         rows.map((row) => row.id),
         pinned,
       );
@@ -446,7 +390,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
       removeItems(rows.map((row) => row.id));
     },
     restore: (rows) => {
-      verbs.restore(rows.map((row) => row.id));
+      void verbs.restore(rows.map((row) => row.id));
     },
     tag: (rows) => {
       askTag(rows.map((row) => ({ id: row.id, tags: row.fields.tags })));
@@ -470,16 +414,14 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
           onOpenChange={setRailOpen}
           actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
-          defaultWidth={`${String(readPref(PREFS.sidebarWidth))}px`}
-          onWidthCommitted={(px) => {
-            writePref(PREFS.sidebarWidth, px);
-          }}
+          defaultWidth={`${String(railWidth)}px`}
+          onWidthCommitted={setRailWidth}
         >
           <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
             <Rail
               scope={scope}
               itemOpen={openItem !== null}
-              onScope={chooseScope}
+              onScope={showScope}
               onOpenSearch={() => {
                 setPaletteOpen(true);
               }}
@@ -530,10 +472,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
               open={panelOpen}
               onOpenChange={setPanelOpen}
               shortcut={bindingFor("toggle-panel", modifier)}
-              defaultWidth={`${String(readPref(PREFS.panelWidth))}px`}
-              onWidthCommitted={(px) => {
-                writePref(PREFS.panelWidth, px);
-              }}
+              defaultWidth={`${String(panelWidth)}px`}
+              onWidthCommitted={setPanelWidth}
             >
               <SidebarInset className="relative bg-surface">
                 {openItem === null ? (
@@ -553,7 +493,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
                       }),
                     }}
                     kind={kind}
-                    onKindChange={setKind}
+                    onKindChange={showKind}
                     sort={sort}
                     onSortChange={setSort}
                     selection={selection}

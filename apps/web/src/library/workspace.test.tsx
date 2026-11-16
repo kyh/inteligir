@@ -7,14 +7,16 @@ import { seedDoc } from "@repo/editor/live/note-blocks";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { onlineManager } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { forgetAccountStorage } from "./cloud/account-storage";
+import { windowLayout } from "./prefs";
 import { createLibraryRouter, openedOver } from "./test-support/library-router";
-import { forgetPref, PREFS, readPref } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
 
@@ -29,7 +31,7 @@ const NOTE = "Field notes";
 
 // the whole page at an address, over the fake cell, unless the suite answers a call itself
 const pageAt = (entry: string, cell: FakeCell, answer?: (call: CellCall) => object | undefined) => {
-  forgetPref(PREFS.libraryScope);
+  forgetAccountStorage();
   const { calls, library } = fakePageLibrary({ answer, cell });
   const router = createLibraryRouter(entry, openedOver(library));
   render(<RouterProvider router={router} />);
@@ -122,7 +124,9 @@ describe("Save a link", () => {
     submit("https://example.com/page");
 
     await vi.waitFor(() => {
-      expect(failed).toHaveBeenCalledWith("That link couldn't be saved.");
+      expect(failed.mock.lastCall?.[0]).toBe(
+        "That link couldn't be saved. The library didn't answer.",
+      );
     });
   });
 });
@@ -161,6 +165,44 @@ describe("an open item's title", () => {
     const title = await screen.findByRole("textbox", { name: "Title" });
 
     expect(title.getAttribute("spellcheck")).toBe("false");
+  });
+
+  it("keeps the keyboard as Enter names it", async () => {
+    const cell = createFakeCell();
+    const id = cell.seed.item({ title: NOTE });
+    pageAt(`/library?item=${id}`, cell);
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    title.focus();
+    fireEvent.change(title, { target: { value: "Field journal" } });
+    fireEvent.keyDown(title, { key: "Enter" });
+
+    await vi.waitFor(() => {
+      expect(cell.item(id)?.fields.title).toBe("Field journal");
+    });
+    expect(document.activeElement).toBe(title);
+    expect(title).toHaveProperty("value", "Field journal");
+  });
+
+  it("says why the cell refused a new one, and shows the one it holds", async () => {
+    const cell = createFakeCell();
+    pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell, (call) => {
+      if (call.path === "library.items.organize") {
+        throw new Error("the cell is down");
+      }
+    });
+    const failed = vi.spyOn(toast, "error");
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    fireEvent.change(title, { target: { value: "Field journal" } });
+    fireEvent.blur(title);
+
+    await vi.waitFor(() => {
+      expect(failed).toHaveBeenCalledWith("The title couldn't be changed.");
+    });
+    await vi.waitFor(() => {
+      expect(title).toHaveProperty("value", NOTE);
+    });
   });
 });
 
@@ -203,7 +245,6 @@ describe("an open item holding typing no connection carried", () => {
 
   it("asks before a leave: Stay keeps the item and the grid's scope, Discard edits goes", async () => {
     const { id, router, server } = await pageOverALiveNote();
-    const scope = readPref(PREFS.libraryScope);
     server.answer = "hang";
     await act(async () => {
       server.drop();
@@ -217,8 +258,7 @@ describe("an open item holding typing no connection carried", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
     await answer("Stay");
-    expect(openItem(router)).toBe(id);
-    expect(readPref(PREFS.libraryScope)).toStrictEqual(scope);
+    expect(router.history.location.search).toBe(`?item=${id}`);
 
     fireEvent.click(screen.getByRole("button", { name: "Back to the library" }));
     await answer("Discard edits");
@@ -285,5 +325,139 @@ describe("what the editor asks of the page", () => {
       expect(field).toHaveProperty("value", "> the passage\n\n");
     });
     expect(document.activeElement).toBe(field);
+  });
+});
+
+const shows = async (title: string) =>
+  await screen.findByRole("heading", { level: 1, name: title });
+
+const railRow = (list: string, name: RegExp): HTMLElement =>
+  within(screen.getByRole("list", { name: list })).getByRole("button", { name });
+
+// a folder of a tagged note and an image, so the folder offers a kind to narrow by
+const readingFolder = () => {
+  const cell = createFakeCell();
+  const folderId = cell.seed.folder("Reading");
+  cell.seed.item({ folderId, tags: ["field"], title: NOTE });
+  cell.seed.item({ folderId, kind: "image", title: "Pier" });
+  return { cell, folderId };
+};
+
+describe("where the tab is", () => {
+  it("walks scopes on Back and Forward, All items being the bare address", async () => {
+    const { router } = pageAt("/library", readingFolder().cell);
+    await shows("All items");
+
+    fireEvent.click(railRow("Folders", /^Reading/u));
+    await shows("Reading");
+    fireEvent.click(railRow("Tags", /^field/u));
+    await shows("#field");
+
+    act(() => {
+      router.history.back();
+    });
+    await shows("Reading");
+    act(() => {
+      router.history.back();
+    });
+    await shows("All items");
+    act(() => {
+      router.history.forward();
+    });
+    await shows("Reading");
+  });
+
+  it("opens the scope its address names", async () => {
+    const { cell, folderId } = readingFolder();
+    const scope = JSON.stringify({ folderId, kind: "folder" });
+
+    pageAt(`/library?scope=${encodeURIComponent(scope)}`, cell);
+
+    await shows("Reading");
+  });
+
+  it("narrows by kind in place, so Back leaves the scope rather than the kind", async () => {
+    const { router } = pageAt("/library", readingFolder().cell);
+    await shows("All items");
+    fireEvent.click(railRow("Folders", /^Reading/u));
+    await shows("Reading");
+
+    fireEvent.click(
+      within(screen.getByLabelText("Kind")).getByRole("button", { name: /^Images/u }),
+    );
+
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({ kind: "image" });
+    });
+    act(() => {
+      router.history.back();
+    });
+    await shows("All items");
+  });
+
+  it("shows a tag a note names in the tag's grid, leaving the note and its kind", async () => {
+    const { cell } = readingFolder();
+    const { router } = pageAt(
+      `/library?kind=note&item=${cell.seed.item({ title: "Plans" })}`,
+      cell,
+    );
+    await screen.findByRole("textbox", { name: "Title" });
+
+    act(() => {
+      getEditorHostActions().agent.showTag("field");
+    });
+
+    await shows("#field");
+    expect(router.state.location.search).toEqual({ scope: { kind: "tag", tag: "field" } });
+  });
+
+  it("opens every scope with nothing selected, Back's too, though both scopes list the item", async () => {
+    const NOTHING_SELECTED = "Select an item to see it here.";
+    const selectAll = async (): Promise<void> => {
+      fireEvent.keyDown(
+        await screen.findByRole("grid", { name: "Library" }),
+        platformShortcutModifier() === "meta"
+          ? { key: "a", metaKey: true }
+          : { ctrlKey: true, key: "a" },
+      );
+      await waitFor(() => {
+        expect(screen.queryByText(NOTHING_SELECTED)).toBeNull();
+      });
+    };
+    const cell = createFakeCell();
+    cell.seed.item({ tags: ["field"], title: NOTE });
+    const { router } = pageAt("/library", cell);
+    await shows("All items");
+    await selectAll();
+
+    fireEvent.click(railRow("Tags", /^field/u));
+    await shows("#field");
+    await screen.findByText(NOTHING_SELECTED);
+    await selectAll();
+    act(() => {
+      router.history.back();
+    });
+
+    await shows("All items");
+    await screen.findByText(NOTHING_SELECTED);
+  });
+});
+
+const railState = (): string | undefined => {
+  const shell = document.querySelector('[data-slot="sidebar"][data-side="left"]');
+  return shell instanceof HTMLElement ? shell.dataset.state : undefined;
+};
+
+describe("the window's layout", () => {
+  it("opens the rail as the window last left it, and keeps its toggle for the next", async () => {
+    windowLayout.setState({ railOpen: false });
+    pageAt("/library", createFakeCell());
+    await screen.findByRole("button", { name: "Add to the library" });
+    expect(railState()).toBe("collapsed");
+
+    fireEvent.keyDown(window, { key: "[" });
+
+    expect(railState()).toBe("expanded");
+    expect(windowLayout.getState().railOpen).toBe(true);
   });
 });

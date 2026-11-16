@@ -17,6 +17,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { useRaisedSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -25,9 +26,6 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 
 const SIDEBAR_WIDTH = "16rem";
 export const SIDEBAR_WIDTH_MOBILE = "18rem";
-// exported: every persisted width preference clamps to these
-export const SIDEBAR_MIN_WIDTH = 192;
-export const SIDEBAR_MAX_WIDTH = 360;
 const SIDEBAR_COLLAPSE_SLOP = 56;
 // Tailwind's md, so the shell is hidden by CSS before hydration and by the sheet branch after
 const MOBILE = { below: 768, hidden: "max-md:hidden" } as const;

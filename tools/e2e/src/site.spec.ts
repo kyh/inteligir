@@ -133,6 +133,18 @@ test("a print is light under the dark theme, which stays on the screen", async (
   await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
 });
 
+test("a chosen theme is drawn before any of the page's code runs", async ({ cloud, page }) => {
+  await page.goto(`${cloud.origin}/privacy`);
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+  // the document's own inline script alone, as on a load whose code has not arrived
+  await page.route("**/*.js", async (route) => {
+    await route.fulfill({ body: "", contentType: "text/javascript" });
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+});
+
 test("the Worker answers for the session before a page loads: with no cookie a signed-in page goes to sign in and back, and sign-in is skipped for someone signed in", async ({
   account,
   cloud,

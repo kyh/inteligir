@@ -43,7 +43,7 @@ import { useState } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
 import { formatCount } from "../library/item-labels";
-import { PREFS, usePref } from "../prefs";
+import { usePref, windowLayout } from "../prefs";
 import { folderPaths } from "./folder-paths";
 
 interface FolderActions {
@@ -225,7 +225,7 @@ export const Rail = ({
   onOpenSettings,
 }: RailProps) => {
   const scopes = useQuery(useLibraryQueries().scopes()).data;
-  const [tagsOpen, setTagsOpen] = usePref(PREFS.railTagsOpen);
+  const [tagsOpen, setTagsOpen] = usePref(windowLayout, "railTagsOpen");
   const all: LibraryScope = { kind: "all" };
   const unsorted: LibraryScope = { kind: "unsorted" };
   const deleted: LibraryScope = { kind: "deleted" };

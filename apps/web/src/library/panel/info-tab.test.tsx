@@ -1,10 +1,15 @@
 import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
+import { toast } from "@repo/ui/components/sonner";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import { InfoTab } from "./info-tab";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // a cell holding a link filed in a folder and tagged
 const cellWithALink = () => {
@@ -80,6 +85,30 @@ describe("Info over an item", () => {
     landed.resolve();
     await waitFor(() => {
       expect(cell.item(id)?.fields.pinnedAt).not.toBeNull();
+    });
+  });
+
+  it("says why the cell refused a pin, and puts the switch back", async () => {
+    const { cell, id } = cellWithALink();
+    const { library } = fakePageLibrary({
+      answer: (call) => {
+        if (call.path === "library.items.organize") {
+          throw new Error("the cell is down");
+        }
+      },
+      cell,
+    });
+    const failed = vi.spyOn(toast, "error");
+
+    renderOnLibrary(<InfoTab itemId={id} actions={noActions()} />, library);
+    await screen.findByText("Reading");
+    fireEvent.click(pinned());
+
+    await waitFor(() => {
+      expect(failed).toHaveBeenCalledWith("That couldn't be pinned.");
+    });
+    await waitFor(() => {
+      expect(pinned().getAttribute("aria-checked")).toBe("false");
     });
   });
 

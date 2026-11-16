@@ -1,7 +1,7 @@
-// The one spelling of which part of the library a screen shows: the page's pref, the cell's
-// listing and the view context a message to the built-in agent carries all read it, a folder named
-// by its id as the account's cell keeps it. zod alone; a tag's name is held to its grammar at the
-// wire.
+// The one spelling of which part of the library a screen shows: the library tab's address, the
+// cell's listing and the view context a message to the built-in agent carries all read it, a folder
+// named by its id as the account's cell keeps it. zod alone; a tag's name is held to its grammar at
+// the wire.
 
 import { z } from "zod";
 

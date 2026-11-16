@@ -1,8 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, ScriptOnce, Scripts } from "@tanstack/react-router";
 import bodyFontLatin from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
-import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
-import { PREFS } from "#library/prefs";
+import { noFlashThemeScript } from "#library/prefs";
 
 // The document every page shares, the site's and the library's: what each draws in its <head>
 // beyond this is its own layout's (`_site.tsx`, `library.tsx`), so the library loads none of the
@@ -15,7 +14,7 @@ import { PREFS } from "#library/prefs";
 const RootDocument = ({ children }: { children: React.ReactNode }) => (
   <html lang="en" suppressHydrationWarning>
     <head>
-      <ScriptOnce>{noFlashThemeScript(PREFS.theme.key, PREFS.theme.fallback)}</ScriptOnce>
+      <ScriptOnce>{noFlashThemeScript}</ScriptOnce>
       <HeadContent />
       <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
       <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />

@@ -12,15 +12,14 @@ import { shownTitle, UNTITLED } from "@repo/contract/items/item-name";
 import { Button } from "@repo/ui/components/button";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
-import { useLibraryQueries } from "../cloud/library-context";
+import { useLibraryQueries, useLibraryWrites } from "../cloud/library-context";
 import { shortcutFor } from "../shortcuts";
-import { useLibraryVerbs } from "../library/library-verbs";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
 
@@ -34,13 +33,13 @@ export interface ItemViewProps {
 }
 
 const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
-  const verbs = useLibraryVerbs();
+  const retitle = useMutation(useLibraryWrites().organize("The title couldn't be changed."));
   const [draft, setDraft] = useState<string | null>(null);
   const commit = (): void => {
     const next = (draft ?? title).trim();
     setDraft(null);
     if (next !== "" && next !== title) {
-      verbs.retitle(itemId, next);
+      retitle.mutate({ ids: [itemId], title: next });
     }
   };
   return (
@@ -123,7 +122,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProp
         {held === null ? (
           <span className="flex-1" />
         ) : (
-          <TitleField key={held.fields.title} itemId={itemId} title={held.fields.title} />
+          <TitleField key={itemId} itemId={itemId} title={held.fields.title} />
         )}
         <Button
           variant="ghost"

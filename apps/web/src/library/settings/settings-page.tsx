@@ -11,7 +11,6 @@ import type { Theme } from "@repo/ui/lib/theme";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 
-import { useAppearance } from "../appearance";
 import {
   EDITOR_FONTS,
   EDITOR_LEADINGS,
@@ -20,6 +19,7 @@ import {
 } from "../appearance-options";
 import { seedReads } from "../library-tab";
 import type { TabOpening } from "../library-tab";
+import { devicePrefs, usePref } from "../prefs";
 import { AccountSection, accountReads } from "./account-section";
 import { ImportSection } from "./import-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -43,7 +43,7 @@ const NAV = [
 
 const EditorSection = () => {
   const { theme, setTheme } = useTheme();
-  const { appearance, setAppearance } = useAppearance();
+  const [appearance, setAppearance] = usePref(devicePrefs, "appearance");
   return (
     <section id="editor" className="scroll-mt-10 space-y-2">
       <SectionHeading>Editor</SectionHeading>

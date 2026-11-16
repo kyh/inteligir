@@ -9,9 +9,9 @@ The tab is the site's `/library` route (`apps/web/src/routes/library.tsx`), its 
 workspace and Settings, its code this folder. `library-tab.ts` opens the tab once a document (the
 session, the wire, the account's socket and the QueryClient) in the route's `beforeLoad`, and
 `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
-queries and the socket; `workspace.tsx` the rail, the grid or the open item, the panel and the
-palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/` the
-agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an
+queries, the writes and the socket; `workspace.tsx` the rail, the grid or the open item, the panel
+and the palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/`
+the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an
 import's reading; `styles/` the sheet only this route links; `shell/desktop-bridge.ts` the Mac
 app's update.
 
@@ -25,6 +25,10 @@ app's update.
   routes' `beforeLoad` context, so a loader and a component share one cache, and a socket frame
   reaches a family by oRPC's key, never one of ours.
   `apps/web/src/library/cloud/library-queries.ts`.
+- **A write is mutation options beside the reads, and says how it went once.** A screen mounts only
+  the write it asks, and its refusal is said by the write's options or by the flow that awaits it,
+  never by a callback handed to `mutate`, since TanStack drops that with the screen that asked.
+  `apps/web/src/library/cloud/library-writes.ts`.
 - **A cell call pauses offline and says so.** Every call only the cell answers runs with
   `networkMode: "online"`, so offline it waits under `NEEDS_CONNECTION`, the one sentence every
   device says, and a read's standing is one value, `cellStanding`.
@@ -59,9 +63,9 @@ app's update.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
   with the cell's count, and a waiting call is the layout's one notice, since an online tab has
   nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
-- **A library scope has one spelling, `@repo/contract/library-scope`.** The pref, the grid's listing
-  and a view context read one set of zod arms, a folder by its id, since a scope per surface drifts
-  and a folder by path leaves every remembered scope on a rename.
+- **A library scope has one spelling, `@repo/contract/library-scope`.** The address, the grid's
+  listing and a view context read one set of zod arms, a folder by its id, since a scope per surface
+  drifts and a folder by path breaks every link to it on a rename.
   `packages/contract/src/library-scope.ts`.
 - **There is one search surface, and it is ⌘P.** One field over the cell's full-text index, ranked
   as the cell ranks it for every device, and ⌘F searches the open item, since an index of the tab's
@@ -69,15 +73,18 @@ app's update.
 - **The panel starts closed, is flat-tabbed, and is dragged like the rail.** Info and the Agent,
   its width kept through the rail's own resize handle, so there is no second resize mechanism.
   `apps/web/src/library/panel/panel.tsx`.
-- **The open item rides the URL, and Settings covers a workspace that stays mounted.** `?item=<id>`
-  is a history entry, so Back and Forward work, a search's words ride beside it as `?find=` until
-  the item's find bar is on them, and Settings is a layer over the inert workspace, since a sibling
-  route unmounts the item. `apps/web/src/library/library-search.ts`.
-- **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
-  row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
-  the device's and not the account's. `apps/web/src/library/prefs.ts`.
+- **Where the tab is rides the URL, and Settings covers a workspace that stays mounted.** The scope,
+  the kind and the open item are the route's search, so Back and Forward walk them, a link opens
+  them and a bare `/library` is All items; a kind replaces its entry, a search's words ride beside
+  the item as `?find=` until its find bar is on them, and Settings is a layer over the inert
+  workspace, since a view held beside the router is one Back cannot reach and a sibling route
+  unmounts the item. `apps/web/src/library/library-search.ts`.
+- **What the tab remembers is a field of a persisted store, by whose it is.** The device's (the
+  site's theme, the dials, spell check) reach every window, the window's layout opens the next, and
+  the account's id goes with the account, each a zod field behind `usePref`, since a pref nothing
+  subscribes to grows a sync of its own. `apps/web/src/library/prefs.ts`.
 - **Spell check is the tab's attribute.** WKWebView has no session-wide spell-check switch, so it
-  is a pref on the document root. `apps/web/src/library/spellcheck.ts`.
+  is a pref on the document root. `apps/web/src/library/document-prefs.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is
   `user-select: none` and what a person would copy opts in, since selectable by default makes every
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.
@@ -88,9 +95,10 @@ app's update.
 - **The grid's selection is a store, a click selects and a double-click opens.** Finder's grammar by
   item id, and the store outlives an open item, since the selection is the panel's subject and the
   agent's context. `apps/web/src/library/library/library-selection.ts`.
-- **A bulk verb runs in chunks, under one toast with Stop.** One cell call a chunk, in order, a
-  failure saying how far it got, and a delete of more than fifty asks first.
-  `apps/web/src/library/library/bulk-actions.ts`.
+- **A verb that makes several calls is one run, under one toast with Stop.** A chunk of items or
+  one link or file a call, in order, a failure saying how far it got beside Delete's Undo of what
+  went, and a delete of more than fifty asks first, since a loop of a verb's own says less of what
+  landed. `apps/web/src/library/library/bulk-actions.ts`.
 - **A save from the window is a paste or a drop that no field claimed.** Each link and file goes
   where the grid's scope saves, and a file past 100 MB is refused before a byte is queued, since the
   grid has no save field of its own. `apps/web/src/library/library/capture/window-capture.ts`.
@@ -108,7 +116,7 @@ app's update.
   `apps/web/src/library/panel/property-fields.tsx`.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
-  merges. `apps/web/src/library/library/library-verbs.ts`.
+  merges. `apps/web/src/library/cloud/library-writes.ts`.
 - **Undo is one queue of the agent's change sets.** A set goes back once the open note stored what
   was typed, so typing since stays, and every undo waits in press order; there is no version
   history, since ⌘Z and Deleted take back the person's own.

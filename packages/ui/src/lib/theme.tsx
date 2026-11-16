@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-// controlled on purpose: each surface owns its own persistence (a localStorage key, an SSR
-// no-flash script)
+// controlled on purpose: each surface owns its own persistence, and the script that reads it before
+// the first paint
 
 export type Theme = "system" | "light" | "dark";
 type ResolvedTheme = "light" | "dark";
@@ -63,7 +63,3 @@ export const useTheme = (): ThemeContextValue => {
   }
   return ctx;
 };
-
-// runs in <head> before first paint on SSR pages; a client-only shell paints on mount and needs none
-export const noFlashThemeScript = (key: string, fallback: Theme = "system"): string =>
-  `(function(){try{var t=localStorage.getItem(${JSON.stringify(key)})||${JSON.stringify(fallback)};var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;

@@ -13,6 +13,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// the toast a run closed on, by its sentence
+const closing = (sentence: string) =>
+  toast.getToasts().find((shown) => "title" in shown && shown.title === sentence);
+
 describe("a bulk verb", () => {
   it("counts only what each chunk landed", async () => {
     const success = vi.spyOn(toast, "success");
@@ -130,6 +134,85 @@ describe("a bulk verb", () => {
     expect(failed.mock.lastCall?.[0]).toBe("Stopped after 2 of 5. Your library is full.");
   });
 
+  it("names what it runs over when that is no item", async () => {
+    const failed = vi.spyOn(toast, "error");
+    const job = {
+      chunk: 1,
+      done: (count: number) => `Saved ${String(count)}`,
+      noun: "link",
+      past: "saved",
+      run: async () => await Promise.resolve(0),
+      verb: "Saving",
+    };
+    await runBulk({ ...job, items: ["https://example.com"] });
+    expect(failed.mock.lastCall?.[0]).toBe("That link couldn't be saved.");
+    await runBulk({ ...job, items: ["https://example.com", "https://example.org"] });
+    expect(failed.mock.lastCall?.[0]).toBe("None of these 2 links could be saved.");
+  });
+
+  it("shows a call that takes a while from the first, with nothing after it to stop", async () => {
+    const running = vi.spyOn(toast, "loading");
+    await runBulk({
+      chunk: 1,
+      done: (count) => `Added ${String(count)}`,
+      items: ["photo.png"],
+      past: "added",
+      run: async () => await Promise.resolve(1),
+      show: "always",
+      verb: "Adding",
+    });
+    expect(running.mock.calls).toMatchObject([["Adding 1 of 1…", { action: undefined }]]);
+  });
+
+  it("offers Stop only while a call after the one in flight is left, and counts through it", async () => {
+    const running = vi.spyOn(toast, "loading");
+    await runBulk({
+      chunk: 2,
+      done: (count) => `Moved ${String(count)} to Reading`,
+      items: ["a", "b", "c"],
+      past: "moved",
+      run: async (chunk) => await Promise.resolve(chunk.length),
+      verb: "Moving",
+    });
+    expect(running.mock.calls).toMatchObject([
+      ["Moving 2 of 3…", { action: { label: "Stop" } }],
+      ["Moving 3 of 3…", { action: undefined }],
+    ]);
+  });
+
+  it("puts the job's button on a closing toast where any landed, stopped or not", async () => {
+    const undo = { label: "Undo", onClick: vi.fn<() => void>() };
+    const job = {
+      action: () => undo,
+      chunk: 1,
+      done: (count: number) => `Put ${String(count)} in Deleted`,
+      items: ["a", "b"],
+      past: "put in Deleted",
+      verb: "Deleting",
+    };
+    let asked = 0;
+    const secondFails = async (): Promise<number> => {
+      asked += 1;
+      return asked === 2 ? await Promise.reject(new Error("the socket closed")) : 1;
+    };
+
+    await runBulk({ ...job, run: async () => await Promise.resolve(1) });
+    await runBulk({ ...job, run: secondFails });
+    await runBulk({
+      ...job,
+      run: async () => await Promise.reject(new Error("the socket closed")),
+    });
+
+    expect(closing("Put 2 in Deleted")).toHaveProperty("action", undo);
+    expect(closing("Stopped after 1 of 2. The library didn't answer.")).toHaveProperty(
+      "action",
+      undo,
+    );
+    expect(
+      closing("None of these 2 items could be put in Deleted. The library didn't answer."),
+    ).toHaveProperty("action");
+  });
+
   it.each([
     ["landed", async () => await Promise.resolve(1), "Moved 2 to Reading"],
     [
@@ -151,8 +234,7 @@ describe("a bulk verb", () => {
       run,
       verb: "Moving",
     });
-    const closing = toast.getToasts().find((shown) => "title" in shown && shown.title === sentence);
-    expect(closing).toBeDefined();
-    expect(closing).not.toHaveProperty("action.label", "Stop");
+    expect(closing(sentence)).toBeDefined();
+    expect(closing(sentence)).not.toHaveProperty("action.label", "Stop");
   });
 });
