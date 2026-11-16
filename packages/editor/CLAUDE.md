@@ -94,9 +94,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   and where WebKit keeps no scroll anchor the editor keeps one.
   `packages/editor/src/run-anchoring.ts`.
 - **An item is edited by its id, over its note's live document, drawn once that has synced.** No
-  device seeds a note, a socket down past 3 s turns the editor read-only, and a leave asks
-  `whenSaved`, since block ops after a pause need a merge a live document does not.
-  `packages/editor/src/item/note-connection.ts`.
+  device seeds a note and a socket down past 3 s turns the editor read-only, since block ops after
+  a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
+  table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
   `readItemBlocks`, `onItemsChanged` and `notes` take ids and `readFile` a sha, since paths a host
   mapped to items let two titles share one. `packages/editor/src/host-io.ts`.

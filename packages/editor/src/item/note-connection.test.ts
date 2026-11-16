@@ -20,6 +20,8 @@ import type { NoteServer } from "../test-support/note-server";
 
 // the provider's longest wait between dials
 const BACKOFF_MS = 2500;
+// long enough for the provider's first redials, and two of them short of the grace
+const BLIP_MS = 1000;
 
 interface TestHost extends NoteHost {
   readonly goOffline: (offline: boolean) => void;
@@ -121,7 +123,7 @@ describe("a note's live document over its socket", () => {
     const before = Y.encodeStateVector(server.note("n1").doc);
     await pass();
     const status = opened(note.status());
-    expect(status).toMatchObject({ edits: LIVE, unsent: false });
+    expect(status).toMatchObject({ edits: LIVE, unsaved: false, unsent: false });
     expect(textOf(status.doc)).toBe("held");
     expect(Y.encodeStateVector(server.note("n1").doc)).toStrictEqual(before);
     expect(server.awarenessFrames()).toBe(0);
@@ -170,7 +172,7 @@ describe("a note's live document over its socket", () => {
     expect(note.status()).toStrictEqual({ kind: "missing" });
     await pass(BACKOFF_MS * 4);
     expect(server.sockets).toHaveLength(1);
-    await expect(note.whenSaved()).resolves.toBe(false);
+    await expect(note.holds()).resolves.toBe(true);
   });
 
   it("stays writable through a blip, and turns read-only once a socket is down 3 s", async () => {
@@ -303,9 +305,9 @@ describe("a note's live document over its socket", () => {
     }
     server.refuse(socket);
     before.getText("probe").insert(0, "too much ");
-    const saved = note.whenSaved();
+    const leaving = note.holds();
     await pass(BACKOFF_MS);
-    await expect(saved).resolves.toBe(false);
+    await expect(leaving).resolves.toBe(true);
     const after = opened(note.status());
     expect(after.doc).not.toBe(before);
     expect(after.edits).toStrictEqual(LIVE);
@@ -313,39 +315,76 @@ describe("a note's live document over its socket", () => {
     expect(textOf(server.note("n1").doc)).toBe("held");
   });
 
-  it("answers whenSaved once the note says it stored every edit made before the ask", async () => {
+  it("answers a leave once the note says it stored every edit made before the ask", async () => {
     const note = await connect(testHost());
-    await expect(note.whenSaved()).resolves.toBe(true);
+    await expect(note.holds()).resolves.toBe(true);
     expect(server.sockets[0]?.texts).toStrictEqual([]);
     const { doc } = opened(note.status());
+    let heard = 0;
+    note.subscribe(() => {
+      heard += 1;
+    });
     doc.getText("probe").insert(0, "a");
-    await expect(Promise.all([note.whenSaved(), pass()])).resolves.toStrictEqual([true, undefined]);
+    doc.getText("probe").insert(0, "b");
+    expect(opened(note.status()).unsaved).toBe(true);
+    await expect(Promise.all([note.holds(), pass()])).resolves.toStrictEqual([true, undefined]);
     expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
-    await expect(note.whenSaved()).resolves.toBe(true);
+    expect(opened(note.status()).unsaved).toBe(false);
+    expect(heard).toBe(2);
+    await expect(note.holds()).resolves.toBe(true);
   });
 
-  it("asks again after a drop, once the edits made meanwhile went with the sync", async () => {
+  it("asks again after a blip, once the edits made meanwhile went with the sync", async () => {
     const note = await connect(testHost());
     const { doc } = opened(note.status());
     server.answersSaved = false;
     doc.getText("probe").insert(0, "a");
-    let saved: boolean | null = null;
-    void note.whenSaved().then((answer) => {
-      saved = answer;
+    let holds: boolean | null = null;
+    void note.holds().then((answer) => {
+      holds = answer;
     });
     await pass();
-    expect(saved).toBeNull();
+    expect(holds).toBeNull();
     server.answer = "hang";
     server.drop();
     doc.getText("probe").insert(0, "b");
-    await pass(BACKOFF_MS);
-    expect(saved).toBeNull();
+    await pass(BLIP_MS);
+    expect(holds).toBeNull();
     server.answer = "open";
     server.answersSaved = true;
     server.sockets.at(-1)?.ended(1006);
-    await pass(BACKOFF_MS);
-    expect(saved).toBe(true);
+    await pass(BLIP_MS);
+    expect(holds).toBe(true);
     expect(textOf(server.note("n1").doc)).toBe("baheld");
+  });
+
+  it("tells a leave waiting on a socket that stays down by what a socket carried", async () => {
+    const note = await connect(testHost());
+    const { doc } = opened(note.status());
+    server.answersSaved = false;
+    server.answer = "hang";
+    doc.getText("probe").insert(0, "sent ");
+    const sent = note.holds();
+    await pass();
+    server.drop();
+    await pass(DOWN_GRACE_MS);
+    await expect(sent).resolves.toBe(true);
+    expect(opened(note.status())).toMatchObject({ edits: OFFLINE, unsaved: false });
+    doc.getText("probe").insert(0, "typed ");
+    expect(opened(note.status()).unsaved).toBe(true);
+    await expect(note.holds()).resolves.toBe(false);
+  });
+
+  it("tells a leave waiting as the host goes offline that the note lacks what was typed in a blip", async () => {
+    const host = testHost();
+    const note = await connect(host);
+    server.answer = "hang";
+    server.drop();
+    await pass();
+    opened(note.status()).doc.getText("probe").insert(0, "typed ");
+    const typed = note.holds();
+    host.goOffline(true);
+    await expect(typed).resolves.toBe(false);
   });
 
   it("says an edit made while no socket carried it is unsent, until the next sync hands it over", async () => {
@@ -398,28 +437,30 @@ describe("a note's live document over its socket", () => {
     expect(server.open()).toHaveLength(1);
   });
 
-  it("answers whenSaved false once the note holds every edit back, which it answers no ask for", async () => {
+  it("lets a leave go once the note holds every edit back, and asks it no more", async () => {
     const note = await connect(testHost());
     server.answersSaved = false;
     opened(note.status()).doc.getText("probe").insert(0, "a");
-    const saved = note.whenSaved();
+    const leaving = note.holds();
     await pass();
     server.note("n1").greeting = NOTE_SOCKET.deleted;
     server.say("n1", NOTE_SOCKET.deleted);
     await pass();
-    await expect(saved).resolves.toBe(false);
-    await expect(note.whenSaved()).resolves.toBe(false);
+    await expect(leaving).resolves.toBe(true);
+    await expect(note.holds()).resolves.toBe(true);
+    expect(opened(note.status()).unsaved).toBe(false);
+    expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
   });
 
-  it("answers whenSaved false when the note closes first", async () => {
+  it("lets a leave go when the note closes before it answers", async () => {
     const note = await connect(testHost());
     server.answersSaved = false;
     opened(note.status()).doc.getText("probe").insert(0, "a");
-    const saved = note.whenSaved();
+    const leaving = note.holds();
     await pass();
     note.close();
-    await expect(saved).resolves.toBe(false);
-    await expect(note.whenSaved()).resolves.toBe(false);
+    await expect(leaving).resolves.toBe(true);
+    await expect(note.holds()).resolves.toBe(true);
   });
 
   it("asks no ticket and dials nothing while the host is offline, and dials once when it is back", async () => {
@@ -469,6 +510,7 @@ describe("a note's live document over its socket", () => {
     expect(note.status()).toStrictEqual(FRESH);
     await pass(1);
     expect(note.status()).toStrictEqual({ kind: "opening", stalled: true });
+    await expect(note.holds()).resolves.toBe(true);
   });
 
   it("says the note refused a frame too large for it, and never that it needs a connection", async () => {
@@ -487,7 +529,7 @@ describe("a note's live document over its socket", () => {
     expect(editsOf(note)).toStrictEqual(LIVE);
   });
 
-  it("answers whenSaved asked while a refused document is dropped, and asks afresh once it is", async () => {
+  it("lets a leave go while a refused document is dropped, and once the note's own is shown", async () => {
     const note = await connect(testHost());
     server.answersSaved = false;
     opened(note.status()).doc.getText("probe").insert(0, "too much ");
@@ -498,11 +540,11 @@ describe("a note's live document over its socket", () => {
     server.answer = "hang";
     server.refuse(socket);
     await pass();
-    await expect(note.whenSaved()).resolves.toBe(false);
+    await expect(note.holds()).resolves.toBe(true);
     server.answer = "open";
     server.sockets.at(-1)?.ended(1006);
     await pass(BACKOFF_MS);
-    await expect(note.whenSaved()).resolves.toBe(true);
+    await expect(note.holds()).resolves.toBe(true);
   });
 
   it("is missing with nothing unsent once the note goes for good after an edit no socket carried", async () => {
@@ -546,14 +588,11 @@ describe("a note's live document over its socket", () => {
     opened(note.status()).doc.getText("probe").insert(0, "a");
     server.say("n1", NOTE_SOCKET.saved);
     await pass();
-    let saved: boolean | null = null;
-    void note.whenSaved().then((answer) => {
-      saved = answer;
+    let holds: boolean | null = null;
+    void note.holds().then((answer) => {
+      holds = answer;
     });
     await pass();
-    expect(saved).toBeNull();
-    note.close();
-    await pass();
-    expect(saved).toBe(false);
+    expect(holds).toBeNull();
   });
 });

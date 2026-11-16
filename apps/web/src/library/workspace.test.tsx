@@ -6,21 +6,23 @@ import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import type { FakeCell } from "@repo/contract/test-support/fake-cell";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { seedDoc } from "@repo/editor/live/note-blocks";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { noteServer } from "@repo/editor/test-support/note-server";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createLibraryRouter, openedOver } from "./test-support/library-router";
-import { forgetPref, PREFS } from "./prefs";
+import { forgetPref, PREFS, readPref } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
 
 afterEach(() => {
   cleanup();
+  onlineManager.setOnline(true);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -45,6 +47,27 @@ const pageOverANote = (): void => {
   const cell = createFakeCell();
   pageAt(`/library?item=${cell.seed.item({ title: NOTE })}`, cell);
 };
+
+// the whole page with a note open over its live document, once the note's line has drawn
+const pageOverALiveNote = async (alsoInAddress = "") => {
+  const server = noteServer();
+  const cell = createFakeCell();
+  const id = cell.seed.item({ title: NOTE });
+  seedDoc(server.note(id).doc, [
+    {
+      block: { children: [{ text: "Typed on the Mac." }], id: "p1", type: "p" },
+      section: "note",
+    },
+  ]);
+  const { router } = pageAt(`/library?item=${id}${alsoInAddress}`, cell);
+  await screen.findByText("Typed on the Mac.");
+  return { id, router, server };
+};
+
+type PageRouter = ReturnType<typeof pageAt>["router"];
+
+const openItem = (router: PageRouter): string | null =>
+  new URL(router.history.location.href, "http://page").searchParams.get("item");
 
 // the whole page at the library, with Save a link's dialog open
 const askedToSaveALink = async (answer?: (call: CellCall) => object | undefined) => {
@@ -143,18 +166,8 @@ describe("an open item's title", () => {
 
 describe("an open item's body", () => {
   it("is its note's live document, dialled on the account socket's ticket, read-only offline", async () => {
-    const server = noteServer();
-    const cell = createFakeCell();
-    const id = cell.seed.item({ title: NOTE });
-    seedDoc(server.note(id).doc, [
-      {
-        block: { children: [{ text: "Typed on the Mac." }], id: "p1", type: "p" },
-        section: "note",
-      },
-    ]);
-    pageAt(`/library?item=${id}`, cell);
+    const { server } = await pageOverALiveNote();
 
-    await screen.findByText("Typed on the Mac.");
     expect(server.sockets.map((socket) => socket.ticket)).toStrictEqual(["a-ticket"]);
     expect(document.querySelector('[contenteditable="true"]')).not.toBeNull();
     act(() => {
@@ -163,8 +176,54 @@ describe("an open item's body", () => {
 
     await screen.findByText(NEEDS_CONNECTION);
     expect(document.querySelector('[contenteditable="true"]')).toBeNull();
+  });
+
+  it("opens with the find bar on the words its address carries, and the address drops them", async () => {
+    const { id, router } = await pageOverALiveNote("&find=Mac");
+
+    const find = await screen.findByRole("textbox", { name: "Find" });
+
+    expect(find).toHaveProperty("value", "Mac");
+    await waitFor(() => {
+      expect(router.history.location.search).toBe(`?item=${id}`);
+    });
+  });
+});
+
+describe("an open item holding typing no connection carried", () => {
+  const LEAVE = { name: "Leave without saving?" };
+
+  const answer = async (label: string): Promise<void> => {
+    const ask = await screen.findByRole("alertdialog", LEAVE);
+    fireEvent.click(within(ask).getByRole("button", { name: label }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog", LEAVE)).toBeNull();
+    });
+  };
+
+  it("asks before a leave: Stay keeps the item and the grid's scope, Discard edits goes", async () => {
+    const { id, router, server } = await pageOverALiveNote();
+    const scope = readPref(PREFS.libraryScope);
+    server.answer = "hang";
+    await act(async () => {
+      server.drop();
+      const editor = getLiveEditor(id);
+      editor?.tf.insertText(" And here.", { at: editor.api.end([0]) });
+      await Promise.resolve();
+    });
     act(() => {
-      onlineManager.setOnline(true);
+      onlineManager.setOnline(false);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
+    await answer("Stay");
+    expect(openItem(router)).toBe(id);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual(scope);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to the library" }));
+    await answer("Discard edits");
+    await waitFor(() => {
+      expect(openItem(router)).toBeNull();
     });
   });
 });
@@ -176,9 +235,7 @@ const madeANote = async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
   const title = await screen.findByRole("textbox", { name: "Title" });
-  const id = z
-    .string()
-    .parse(new URL(router.history.location.href, "http://page").searchParams.get("item"));
+  const id = z.string().parse(openItem(router));
   return { cell, id, title };
 };
 

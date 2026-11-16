@@ -10,11 +10,11 @@ import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
-import { noteHolds } from "@repo/editor/item/note-holds";
-import type { LeavingNote } from "@repo/editor/item/note-holds";
+import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { LibraryActions } from "./library-actions";
 
-// where the open note stands for a leave: `editing` while an edit made here may not be held yet
+// where the page's note stands for a leave: `editing` while an edit made here may not be held
+// yet, and `none` while the page follows no note
 export type NoteState = "none" | "reading" | "editing";
 
 // the page's answer to a leave's ask, by the ask's count
@@ -53,27 +53,14 @@ export interface PageHost {
   // the page's props, handed over after every render
   readonly follow: (props: PageProps) => void;
   // the open note, as the item editor announces it
-  readonly noteIs: (note: LeavingNote | null) => void;
+  readonly noteIs: (note: OpenNote | null) => void;
 }
 
-const stateOf = (note: LeavingNote | null): NoteState => {
-  const status = note?.status();
-  if (status?.kind !== "open") {
+const stateOf = (note: OpenNote | null): NoteState => {
+  if (note === null) {
     return "none";
   }
-  switch (status.edits.kind) {
-    case "live": {
-      return "editing";
-    }
-    case "offline": {
-      return status.unsent ? "editing" : "reading";
-    }
-    case "held":
-    case "refused": {
-      return "reading";
-    }
-    // no default
-  }
+  return note.unsaved() ? "editing" : "reading";
 };
 
 // one read at a time, the last signal it missed read once it ends; a read that fails waits for the
@@ -109,7 +96,7 @@ const nothingToDo = (): void => {
 export const installPageHost = (first: PageProps): PageHost => {
   let props = first;
   let followed = false;
-  let note: LeavingNote | null = null;
+  let note: OpenNote | null = null;
   let stopNote = nothingToDo;
   let reported: NoteState | null = null;
   const offlineListeners = new Set<() => void>();
@@ -128,7 +115,7 @@ export const installPageHost = (first: PageProps): PageHost => {
   };
 
   const answer = async (ask: number): Promise<void> => {
-    const holds = note === null || (await noteHolds(note));
+    const holds = note === null || (await note.holds());
     props.settled({ ask, holds });
   };
 

@@ -17,7 +17,6 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { z } from "zod";
 
-import { createLeaveGuard } from "../cloud/leave-guard";
 import { PageLibraryProvider } from "../cloud/library-context";
 import type { PageLibrary } from "../cloud/library-context";
 import { createPageQueryClient } from "../cloud/v1";
@@ -41,6 +40,9 @@ const unread = (): never => {
 const nothingToClose = (): void => {
   // the suite's socket dials nothing
 };
+
+// one value, since the layout reads it through useSyncExternalStore
+const LIVE = { kind: "live" } as const;
 
 const eventsInput = z.object({ after: z.number().optional(), threadId: z.string() });
 
@@ -114,8 +116,8 @@ export const fakePageLibrary = ({
     library: {
       account: { email: "person@example.com", name: "" },
       cloud: { fetch: unread, onSessionEnd: unread, origin: "https://library.test" },
-      leave: createLeaveGuard(new EventTarget()),
       left: unread,
+      session: { get: () => LIVE, subscribe: () => () => {} },
       socket: {
         close: nothingToClose,
         connect: nothingToClose,

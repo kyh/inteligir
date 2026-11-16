@@ -217,20 +217,25 @@ describe("an item's surface", () => {
     const server = oneNote();
     render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
+    expect(lastNote().unsaved()).toBe(false);
     typeInto(A, "!");
-    await expect(lastNote().whenSaved()).resolves.toBe(true);
+    await waitFor(() => {
+      expect(lastNote().unsaved()).toBe(true);
+    });
+    await expect(lastNote().holds()).resolves.toBe(true);
+    expect(lastNote().unsaved()).toBe(false);
     expect(textsOf(server.note(A).doc)).toStrictEqual(["A one!"]);
   });
 
-  it("answers a leave the note never confirms as unsaved once the surface closes", async () => {
+  it("lets a leave the note never answers go once the surface closes", async () => {
     const server = oneNote();
     server.answersSaved = false;
     const view = render(<Host itemId={A} />);
     await expect(screen.findByText("A one")).resolves.toBeDefined();
     typeInto(A, "!");
-    const saving = lastNote().whenSaved();
+    const leaving = lastNote().holds();
     view.unmount();
-    await expect(saving).resolves.toBe(false);
+    await expect(leaving).resolves.toBe(true);
     expect(announced.at(-1)).toBeNull();
   });
 });
@@ -386,8 +391,10 @@ const pasteHeld = async () => {
     throw new Error("the surface drew no editor");
   }
   editor.tf.select(editor.api.end([0]));
+  const heard = vi.fn<() => void>();
+  lastNote().subscribe(heard);
   pastePicture(target);
-  return { host, kept, server, view };
+  return { heard, host, kept, server, view };
 };
 
 const storedShas = (server: NoteServer): unknown[] =>
@@ -413,12 +420,16 @@ describe("a file still being kept in an open note", () => {
   });
 
   it("holds a leave until the note holds the block that names it", async () => {
-    const { kept, server } = await pasteHeld();
+    const { heard, kept, server } = await pasteHeld();
+    await waitFor(() => {
+      expect(heard).toHaveBeenCalledOnce();
+    });
+    expect(lastNote().unsaved()).toBe(true);
     let left = false;
     const leaving = (async () => {
-      const saved = await lastNote().whenSaved();
+      const holds = await lastNote().holds();
       left = true;
-      return saved;
+      return holds;
     })();
     await act(async () => {
       await delay(0);
@@ -429,7 +440,21 @@ describe("a file still being kept in an open note", () => {
     await act(async () => {
       await expect(leaving).resolves.toBe(true);
     });
+    expect(lastNote().unsaved()).toBe(false);
     expect(storedShas(server)).toStrictEqual([SHA]);
+  });
+
+  it("lets a leave go without a file still being kept once the note takes no more edits", async () => {
+    const { heard, host } = await pasteHeld();
+    await waitFor(() => {
+      expect(heard).toHaveBeenCalledOnce();
+    });
+    const leaving = lastNote().holds();
+    act(() => {
+      host.goOffline(true);
+    });
+    await expect(leaving).resolves.toBe(true);
+    expect(lastNote().unsaved()).toBe(false);
   });
 
   it("adds no block for a file kept once the note took no more edits", async () => {
@@ -444,7 +469,7 @@ describe("a file still being kept in an open note", () => {
     act(() => {
       host.goOffline(false);
     });
-    await expect(lastNote().whenSaved()).resolves.toBe(true);
+    await expect(lastNote().holds()).resolves.toBe(true);
     expect(storedShas(server)).toStrictEqual([]);
   });
 

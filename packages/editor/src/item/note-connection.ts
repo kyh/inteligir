@@ -37,6 +37,8 @@ export type NoteStatus =
       // the document the editor binds, which a reopen replaces
       readonly doc: Y.Doc;
       readonly edits: NoteEdits;
+      // an edit made here that `holds`, asked now, would wait on or say the note lacks
+      readonly unsaved: boolean;
       // an edit made here while no connection could carry it, which the next sync hands over
       readonly unsent: boolean;
     };
@@ -44,9 +46,9 @@ export type NoteStatus =
 export interface NoteConnection {
   readonly status: () => NoteStatus;
   readonly subscribe: (listener: () => void) => () => void;
-  // true once the note has stored every edit this device made before the call; false when the
-  // connection closes, or the note drops or holds back the document, first
-  readonly whenSaved: () => Promise<boolean>;
+  // whether the note holds every edit this device made before the call, which a leave asks; it
+  // answers at once unless only a live note's word can say (`holdsAt`)
+  readonly holds: () => Promise<boolean>;
   // dials, and follows the note until `close`; a start after a close opens it afresh
   readonly start: () => void;
   readonly close: () => void;
@@ -87,9 +89,10 @@ type Wire =
 
 type Up = Extract<Wire, { kind: "up" }>;
 
+// a leave waiting on the note's word that it stored this many of the device's edits
 interface Waiter {
   readonly upTo: number;
-  readonly resolve: (saved: boolean) => void;
+  readonly resolve: (holds: boolean) => void;
 }
 
 interface Opening {
@@ -135,14 +138,11 @@ type NoteEvent =
   | { readonly kind: "socket"; readonly up: boolean }
   | { readonly kind: "said"; readonly word: string }
   | { readonly kind: "edited"; readonly doc: Y.Doc }
-  | { readonly kind: "save-asked"; readonly resolve: (saved: boolean) => void };
+  | { readonly kind: "holds-asked"; readonly resolve: (holds: boolean) => void };
 
 type Effect =
-  | {
-      readonly kind: "settle";
-      readonly resolves: readonly ((saved: boolean) => void)[];
-      readonly saved: boolean;
-    }
+  // a leave is told whether the note holds its edits
+  | { readonly kind: "tell"; readonly resolve: (holds: boolean) => void; readonly holds: boolean }
   // a ping on the open socket; the note asked whether it stored what this device sent
   | { readonly kind: "ping" | "ask" }
   // the provider dials now, unless a socket or a ticket is already on its way
@@ -173,15 +173,6 @@ const dialing = (dial: number): Wire => ({
 });
 
 const at = (state: State, effects: readonly Effect[] = []): Step => ({ effects, state });
-
-const settle = (waiters: readonly Waiter[], saved: boolean): readonly Effect[] =>
-  waiters.length === 0
-    ? []
-    : [{ kind: "settle", resolves: waiters.map(({ resolve }) => resolve), saved }];
-
-const answer = (resolve: (saved: boolean) => void, saved: boolean): readonly Effect[] => [
-  { kind: "settle", resolves: [resolve], saved },
-];
 
 const isHeld = (word: string): word is NoteHeld =>
   word === NOTE_SOCKET.full || word === NOTE_SOCKET.deleted;
@@ -269,10 +260,6 @@ const openingAfter = (state: Opening, event: NoteEvent): Step => {
     case "gone": {
       return at(GONE);
     }
-    // nothing is shown, so no edit was made here
-    case "save-asked": {
-      return at(state, answer(event.resolve, true));
-    }
     case "said": {
       if (wire.kind !== "up") {
         return at(state);
@@ -296,134 +283,6 @@ const openingAfter = (state: Opening, event: NoteEvent): Step => {
   }
 };
 
-// asks the note whether it stored what this device edited, once the socket can carry the ask
-const asking = (state: Open): Step => {
-  const { wire } = state;
-  if (state.waiters.length === 0 || wire.kind !== "up" || !wire.synced) {
-    return at(state);
-  }
-  return at({ ...state, wire: { ...wire, asked: [...wire.asked, state.edits] } }, [ASK]);
-};
-
-// The note refused what this document holds, so it is dropped for the note's own: still shown,
-// taking no edit, until a fresh one syncs.
-const reopened = (state: Open): Open => ({
-  ...state,
-  reopen: new Y.Doc(),
-  waiters: [],
-  wire: dialing(0),
-});
-
-const saveAsked = (state: Open, resolve: (saved: boolean) => void): Step => {
-  if (state.edits <= state.confirmed) {
-    return at(state, answer(resolve, true));
-  }
-  // a note holding every edit back answers no ask, since what it was sent may have been dropped
-  if (state.held !== null || state.reopen !== null) {
-    return at(state, answer(resolve, false));
-  }
-  return asking({ ...state, waiters: [...state.waiters, { resolve, upTo: state.edits }] });
-};
-
-const synced = (state: Open, wire: Up): Step => {
-  const up: Up = { ...wire, synced: true };
-  if (state.reopen !== null) {
-    return at(openOn(state.reopen, up), settle(state.waiters, false));
-  }
-  // a sync hands the note what this document holds that it lacks, the edits made while no socket
-  // carried them among it
-  return asking({ ...state, held: up.greeted, unsent: false, wire: up });
-};
-
-const said = (state: Open, wire: Up, word: string): Step => {
-  if (word === NOTE_SOCKET.saved) {
-    const [answered, ...asked] = wire.asked;
-    // an answer to no ask confirms nothing
-    if (answered === undefined) {
-      return at(state);
-    }
-    const confirmed = Math.max(state.confirmed, answered);
-    return at(
-      {
-        ...state,
-        confirmed,
-        waiters: state.waiters.filter(({ upTo }) => upTo > confirmed),
-        wire: { ...wire, asked },
-      },
-      settle(
-        state.waiters.filter(({ upTo }) => upTo <= confirmed),
-        true,
-      ),
-    );
-  }
-  if (word === NOTE_SOCKET.refused) {
-    return at(reopened(state), settle(state.waiters, false));
-  }
-  if (!isHeld(word)) {
-    return at(state);
-  }
-  const held: Open = { ...state, held: word, waiters: [], wire: { ...wire, greeted: word } };
-  // a full note greets every socket so; only one that synced may hold what it refused
-  return at(
-    word === NOTE_SOCKET.full && wire.synced ? reopened(held) : held,
-    settle(state.waiters, false),
-  );
-};
-
-const openAfter = (state: Open, event: NoteEvent): Step => {
-  const { wire } = state;
-  switch (event.kind) {
-    case "close": {
-      return at(IDLE, settle(state.waiters, false));
-    }
-    case "gone": {
-      return at(GONE, settle(state.waiters, false));
-    }
-    case "save-asked": {
-      return saveAsked(state, event.resolve);
-    }
-    // an edit to a document a reopen is dropping goes with it
-    case "edited": {
-      if (event.doc !== state.shown || state.reopen !== null) {
-        return at(state);
-      }
-      const carried = wire.kind === "up" && wire.synced;
-      return at({ ...state, edits: state.edits + 1, unsent: state.unsent || !carried });
-    }
-    case "synced": {
-      return wire.kind === "up" ? synced(state, wire) : at(state);
-    }
-    case "said": {
-      return wire.kind === "up" ? said(state, wire, event.word) : at(state);
-    }
-    default: {
-      const next = wireAfter(wire, event);
-      return at({ ...state, wire: next.wire }, next.effects);
-    }
-  }
-};
-
-const step = (state: State, event: NoteEvent): Step => {
-  switch (state.kind) {
-    case "idle":
-    case "missing": {
-      if (event.kind === "start") {
-        const { offline } = event;
-        const doc = new Y.Doc();
-        return at({ doc, kind: "opening", stalled: offline, wire: offline ? PAUSED : dialing(0) });
-      }
-      return event.kind === "save-asked" ? at(state, answer(event.resolve, false)) : at(state);
-    }
-    case "opening": {
-      return openingAfter(state, event);
-    }
-    case "open": {
-      return openAfter(state, event);
-    }
-    // no default
-  }
-};
-
 const LIVE: NoteEdits = { kind: "live" };
 const OFFLINE: NoteEdits = { kind: "offline" };
 const REFUSED: NoteEdits = { kind: "refused" };
@@ -431,9 +290,6 @@ const HELD: Record<NoteHeld, NoteEdits> = {
   deleted: { held: "deleted", kind: "held" },
   full: { held: "full", kind: "held" },
 };
-const FRESH: NoteStatus = { kind: "opening", stalled: false };
-const STALLED: NoteStatus = { kind: "opening", stalled: true };
-const MISSING: NoteStatus = { kind: "missing" };
 
 const editsOf = (state: Open): NoteEdits => {
   if (state.held !== null) {
@@ -448,6 +304,147 @@ const editsOf = (state: Open): NoteEdits => {
     : LIVE;
 };
 
+// Whether the note holds the first `upTo` edits made here, by where it stands: one that is not
+// open, or takes no edit, holds all it can; one with no connection all but what was typed then; a
+// live one those it said it stored, and null while only its word can say.
+const holdsAt = (state: State, upTo: number): boolean | null => {
+  if (state.kind !== "open") {
+    return true;
+  }
+  switch (editsOf(state).kind) {
+    case "held":
+    case "refused": {
+      return true;
+    }
+    case "offline": {
+      return !state.unsent;
+    }
+    case "live": {
+      return upTo <= state.confirmed ? true : null;
+    }
+    // no default
+  }
+};
+
+const telling = (state: State, { resolve, upTo }: Waiter): readonly Effect[] => {
+  const holds = holdsAt(state, upTo);
+  return holds === null ? [] : [{ holds, kind: "tell", resolve }];
+};
+
+// asks the note whether it stored what a leave waits on, once the socket can carry the ask
+const asking = (state: Open): Step => {
+  const { wire } = state;
+  const waits = state.waiters.some(({ upTo }) => holdsAt(state, upTo) === null);
+  if (!waits || wire.kind !== "up" || !wire.synced) {
+    return at(state);
+  }
+  return at({ ...state, wire: { ...wire, asked: [...wire.asked, state.edits] } }, [ASK]);
+};
+
+// The note refused what this document holds, so it is dropped for the note's own: still shown,
+// taking no edit, until a fresh one syncs.
+const reopened = (state: Open): Open => ({ ...state, reopen: new Y.Doc(), wire: dialing(0) });
+
+const synced = (state: Open, wire: Up): Step => {
+  const up: Up = { ...wire, synced: true };
+  if (state.reopen !== null) {
+    return at(openOn(state.reopen, up));
+  }
+  // a sync hands the note what this document holds that it lacks, the edits made while no socket
+  // carried them among it
+  return asking({ ...state, held: up.greeted, unsent: false, wire: up });
+};
+
+const said = (state: Open, wire: Up, word: string): Open => {
+  if (word === NOTE_SOCKET.saved) {
+    const [answered, ...asked] = wire.asked;
+    // an answer to no ask confirms nothing
+    return answered === undefined
+      ? state
+      : { ...state, confirmed: Math.max(state.confirmed, answered), wire: { ...wire, asked } };
+  }
+  if (word === NOTE_SOCKET.refused) {
+    return reopened(state);
+  }
+  if (!isHeld(word)) {
+    return state;
+  }
+  const held: Open = { ...state, held: word, wire: { ...wire, greeted: word } };
+  // a full note greets every socket so; only one that synced may hold what it refused
+  return word === NOTE_SOCKET.full && wire.synced ? reopened(held) : held;
+};
+
+const openAfter = (state: Open, event: NoteEvent): Step => {
+  const { wire } = state;
+  switch (event.kind) {
+    case "close": {
+      return at(IDLE);
+    }
+    case "gone": {
+      return at(GONE);
+    }
+    case "holds-asked": {
+      const waiter: Waiter = { resolve: event.resolve, upTo: state.edits };
+      return asking({ ...state, waiters: [...state.waiters, waiter] });
+    }
+    // an edit to a document a reopen is dropping goes with it
+    case "edited": {
+      if (event.doc !== state.shown || state.reopen !== null) {
+        return at(state);
+      }
+      const carried = wire.kind === "up" && wire.synced;
+      return at({ ...state, edits: state.edits + 1, unsent: state.unsent || !carried });
+    }
+    case "synced": {
+      return wire.kind === "up" ? synced(state, wire) : at(state);
+    }
+    case "said": {
+      return at(wire.kind === "up" ? said(state, wire, event.word) : state);
+    }
+    default: {
+      const next = wireAfter(wire, event);
+      return at({ ...state, wire: next.wire }, next.effects);
+    }
+  }
+};
+
+// Every leave the note can answer is told on the step that made it so, whichever step that is,
+// and the rest wait on the note's word.
+const told = (before: Open, { effects, state }: Step): Step => {
+  const asked = state.kind === "open" ? state.waiters : before.waiters;
+  const waiters = asked.filter(({ upTo }) => holdsAt(state, upTo) === null);
+  const tells = asked.flatMap((waiter) => telling(state, waiter));
+  return at(state.kind === "open" ? { ...state, waiters } : state, [...effects, ...tells]);
+};
+
+const step = (state: State, event: NoteEvent): Step => {
+  if (event.kind === "holds-asked" && state.kind !== "open") {
+    return at(state, telling(state, { resolve: event.resolve, upTo: 0 }));
+  }
+  switch (state.kind) {
+    case "idle":
+    case "missing": {
+      if (event.kind === "start") {
+        const { offline } = event;
+        const doc = new Y.Doc();
+        return at({ doc, kind: "opening", stalled: offline, wire: offline ? PAUSED : dialing(0) });
+      }
+      return at(state);
+    }
+    case "opening": {
+      return openingAfter(state, event);
+    }
+    case "open": {
+      return told(state, openAfter(state, event));
+    }
+    // no default
+  }
+};
+
+const FRESH: NoteStatus = { kind: "opening", stalled: false };
+const STALLED: NoteStatus = { kind: "opening", stalled: true };
+const MISSING: NoteStatus = { kind: "missing" };
+
 // a connection closed reads as one not yet started
 const statusOf = (state: State): NoteStatus => {
   switch (state.kind) {
@@ -461,7 +458,13 @@ const statusOf = (state: State): NoteStatus => {
       return state.stalled ? STALLED : FRESH;
     }
     case "open": {
-      return { doc: state.shown, edits: editsOf(state), kind: "open", unsent: state.unsent };
+      return {
+        doc: state.shown,
+        edits: editsOf(state),
+        kind: "open",
+        unsaved: holdsAt(state, state.edits) !== true,
+        unsent: state.unsent,
+      };
     }
     // no default
   }
@@ -474,6 +477,7 @@ const sameStatus = (a: NoteStatus, b: NoteStatus): boolean =>
     b.kind === "open" &&
     a.doc === b.doc &&
     a.edits === b.edits &&
+    a.unsaved === b.unsaved &&
     a.unsent === b.unsent);
 
 // what a running connection dials: the document, and the wire it dials it over
@@ -554,9 +558,9 @@ class LiveNote implements NoteConnection {
     };
   };
 
-  readonly whenSaved = async (): Promise<boolean> => {
+  readonly holds = async (): Promise<boolean> => {
     const { promise, resolve } = deferred<boolean>();
-    this.dispatch({ kind: "save-asked", resolve });
+    this.dispatch({ kind: "holds-asked", resolve });
     return await promise;
   };
 
@@ -602,10 +606,8 @@ class LiveNote implements NoteConnection {
 
   private run(effect: Effect): void {
     switch (effect.kind) {
-      case "settle": {
-        for (const resolve of effect.resolves) {
-          resolve(effect.saved);
-        }
+      case "tell": {
+        effect.resolve(effect.holds);
         break;
       }
       case "ping": {

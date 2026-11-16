@@ -11,7 +11,7 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { getRouteApi, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Outlet, useMatch } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
 
 import { ThemeProvider } from "#components/theme-provider";
@@ -35,19 +35,11 @@ const TOO_OLD =
 
 const WorkspaceLayout = () => {
   const { item } = libraryRoute.useSearch();
-  const navigate = useNavigate();
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/library/", shouldThrow: false }) === undefined;
   return (
     <>
-      <Workspace
-        openItem={item ?? null}
-        covered={covered}
-        onOpenItem={(itemId) => {
-          // on the current route: an open that lands while Settings covers the workspace keeps it
-          void navigate({ search: (prior) => ({ ...prior, item: itemId ?? undefined }), to: "." });
-        }}
-      />
+      <Workspace openItem={item ?? null} covered={covered} />
       {covered ? (
         <div className="fixed inset-0 bg-surface text-ink">
           <Outlet />
@@ -59,8 +51,8 @@ const WorkspaceLayout = () => {
 
 type Opened = Extract<TabOpening, { kind: "open" }>;
 
-const OpenLibrary = ({ library, queryClient, session }: Opened) => {
-  const standing = useSyncExternalStore(session.subscribe, session.get);
+const OpenLibrary = ({ library, queryClient }: Opened) => {
+  const standing = useSyncExternalStore(library.session.subscribe, library.session.get);
   if (standing.kind === "ended" && standing.why === "outdated") {
     return TOO_OLD;
   }

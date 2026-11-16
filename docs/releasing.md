@@ -301,8 +301,9 @@ The unpacked store build, against production, with no dev build loaded.
   open under a second, Inter and KaTeX faces, no zoom, the caret above the
   keyboard, Mermaid in dark mode.
 - **Live**: phone and Mac typing in one note at once, a Mac edit arriving at
-  once, a reconnect after a lock or airplane mode, and Leave without saving
-  with unsent typing.
+  once, a reconnect after a lock or airplane mode, Back and the edge swipe
+  leaving a note not typed in at once, and Leave without saving with unsent
+  typing.
 - **An offline launch**: items read-only, Needs a connection, and "1 save
   waiting", which lands once back online.
 - **Shares** from Safari, YouTube, Mail, X and Notes (text, Japanese, a bit.ly
@@ -338,9 +339,9 @@ The unpacked store build, against production, with no dev build loaded.
   schema starts the cell over; and the output says which deleted class may leave the
   `exports` map in `apps/web/cloudflare.config.ts`.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
-  prompt with unsent typing, popups fading, ⌘P, VoiceOver, a Docs or Word list
-  paste, Info's Add property picking a date and refusing an empty number, and a
-  tab left open keeping its sign-in.
+  prompt with unsent typing on Back and on closing the tab, popups fading, ⌘P,
+  VoiceOver, a Docs or Word list paste, Info's Add property picking a date and
+  refusing an empty number, and a tab left open keeping its sign-in.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
   Page not read opens its popover on a tap, and the header fits a phone.
 
