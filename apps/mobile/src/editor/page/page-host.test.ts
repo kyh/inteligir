@@ -5,7 +5,6 @@
 import { resolveObjectURL } from "node:buffer";
 
 import { bytesFromBase64 } from "@repo/contract/bytes";
-import { notePath } from "@repo/contract/library/library-socket";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
@@ -99,7 +98,6 @@ describe("the note page's host", () => {
     const { notes } = getEditorHostIo();
 
     expect(notes.socketOrigin).toBe("https://cell.test");
-    expect(notes.notePath(NOTE)).toBe(notePath(NOTE));
     await expect(notes.socketTicket()).resolves.toBe("a-ticket");
   });
 

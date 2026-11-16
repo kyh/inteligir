@@ -8,7 +8,6 @@
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
-import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost, setLibraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { LibraryActions } from "./library-actions";
@@ -155,7 +154,6 @@ export const installPageHost = (first: PageProps): PageHost => {
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
-        notePath,
         offline: () => props.offline,
         onOfflineChange: (listener) => {
           offlineListeners.add(listener);

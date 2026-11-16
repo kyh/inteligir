@@ -213,8 +213,10 @@
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
+    "lib0": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "y-protocols": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:",

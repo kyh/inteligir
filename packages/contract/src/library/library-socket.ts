@@ -36,8 +36,8 @@ export const V1_NOTES_PATH = "/v1/notes";
 
 export const notePath = (itemId: string): string => `${V1_NOTES_PATH}/${itemId}`;
 
-// What a note's socket says beside y-sync: the ping its object answers without waking, the words
-// it sends as text, and the codes it closes with.
+// What a note's socket says beside y-sync: the words each end sends as text, the ping its object
+// answers without waking among them, and the codes it closes with.
 export const NOTE_SOCKET = {
   ping: "ping",
   pong: "pong",
@@ -57,6 +57,9 @@ export const NOTE_SOCKET = {
   // the session that opened the socket ended
   revokedCode: SOCKET_REVOKED_CLOSE_CODE,
 } as const;
+
+// a word as it crosses a note's socket, in y-partyserver's frame for a message beside y-sync
+export const noteWordFrame = (word: string): string => `__YPS:${word}`;
 
 // what one landed write moved, so a client refetches only what it shows of that: each item at the
 // sequence it now holds, whether any folder moved, and which threads did; "all" when the write

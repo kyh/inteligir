@@ -1,4 +1,9 @@
-import { NOTE_SOCKET, notePath, SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
+import {
+  NOTE_SOCKET,
+  notePath,
+  noteWordFrame,
+  SOCKET_TICKET_PARAM,
+} from "@repo/contract/library/library-socket";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { appliedOps, noteMeta, noteUpdates } from "@repo/db/note/schema";
@@ -251,8 +256,6 @@ const socketOf = (response: Response): WebSocket => {
   return response.webSocket;
 };
 
-const custom = (message: string): string => `__YPS:${message}`;
-
 describe("a note edited live", () => {
   it("carries two devices' typing through its door, and the cell's search finds it within the save's debounce", async () => {
     const { accountId, itemId, library, ticket } = await signedIn("note-two@example.test");
@@ -437,9 +440,9 @@ describe("a note edited live", () => {
       await dial(`${notePath(itemId)}?${SOCKET_TICKET_PARAM}=${await ticket()}`),
     );
     const { texts } = heard(socket);
-    socket.send(NOTE_SOCKET.ping);
-    await until(() => texts.includes(NOTE_SOCKET.pong));
-    expect(texts).toContain(NOTE_SOCKET.pong);
+    socket.send(noteWordFrame(NOTE_SOCKET.ping));
+    await until(() => texts.includes(noteWordFrame(NOTE_SOCKET.pong)));
+    expect(texts).toContain(noteWordFrame(NOTE_SOCKET.pong));
     socket.close();
   });
 });
@@ -492,7 +495,7 @@ describe("a note's door", () => {
     });
     const socket = socketOf(forged);
     const { texts } = heard(socket);
-    await until(() => texts.includes(custom(NOTE_SOCKET.deleted)));
+    await until(() => texts.includes(noteWordFrame(NOTE_SOCKET.deleted)));
     socket.close();
 
     const reader = await openClient(itemId, ticket, "deleted-reader");

@@ -9,7 +9,7 @@
 import YProvider from "y-partyserver/provider";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
@@ -143,8 +143,8 @@ type NoteEvent =
 type Effect =
   // a leave is told whether the note holds its edits
   | { readonly kind: "tell"; readonly resolve: (holds: boolean) => void; readonly holds: boolean }
-  // a ping on the open socket; the note asked whether it stored what this device sent
-  | { readonly kind: "ping" | "ask" }
+  // a word to the note on the open socket: a ping, or whether it stored what this device sent
+  | { readonly kind: "say"; readonly word: string }
   // the provider dials now, unless a socket or a ticket is already on its way
   | { readonly kind: "connect" };
 
@@ -161,8 +161,8 @@ interface WireStep {
 const IDLE: State = { kind: "idle" };
 const GONE: State = { kind: "missing" };
 const PAUSED: Wire = { kind: "paused" };
-const PING: Effect = { kind: "ping" };
-const ASK: Effect = { kind: "ask" };
+const PING: Effect = { kind: "say", word: NOTE_SOCKET.ping };
+const ASK: Effect = { kind: "say", word: NOTE_SOCKET.savedAsk };
 const CONNECT: Effect = { kind: "connect" };
 
 const dialing = (dial: number): Wire => ({
@@ -529,6 +529,7 @@ const TIMERS = {
 } as const satisfies Record<Timer, { readonly event: NoteEvent; readonly ms: number }>;
 
 const PROBE: NoteEvent = { kind: "probe" };
+const PONG: NoteEvent = { kind: "pong" };
 
 class LiveNote implements NoteConnection {
   private readonly itemId: string;
@@ -610,15 +611,8 @@ class LiveNote implements NoteConnection {
         effect.resolve(effect.holds);
         break;
       }
-      case "ping": {
-        const socket = this.link?.provider.ws ?? null;
-        if (socket !== null && socket.readyState === socket.OPEN) {
-          socket.send(NOTE_SOCKET.ping);
-        }
-        break;
-      }
-      case "ask": {
-        this.link?.provider.sendMessage(NOTE_SOCKET.savedAsk);
+      case "say": {
+        this.link?.provider.sendMessage(effect.word);
         break;
       }
       case "connect": {
@@ -707,7 +701,7 @@ class LiveNote implements NoteConnection {
       connect: false,
       disableBc: true,
       params: async () => ({ ticket: await this.host.socketTicket() }),
-      prefix: this.host.notePath(this.itemId),
+      prefix: notePath(this.itemId),
       protocol: cloud.protocol === "https:" ? "wss" : "ws",
     });
     // presence is off: the default awareness stays, holding nothing of this device
@@ -721,15 +715,7 @@ class LiveNote implements NoteConnection {
     provider.on("status", ({ status }: ProviderStatus) => {
       if (status !== "connecting") {
         heard({ kind: "socket", up: status === "connected" });
-        return;
       }
-      // a raw frame the provider passes over: the object's answer to a ping
-      const socket = provider.ws;
-      socket?.addEventListener("message", (event) => {
-        if (event.data === NOTE_SOCKET.pong && provider.ws === socket) {
-          heard({ kind: "pong" });
-        }
-      });
     });
     provider.on("synced", (isSynced: boolean) => {
       if (isSynced) {
@@ -737,7 +723,7 @@ class LiveNote implements NoteConnection {
       }
     });
     provider.on("custom-message", (word: string) => {
-      heard({ kind: "said", word });
+      heard(word === NOTE_SOCKET.pong ? PONG : { kind: "said", word });
     });
     provider.on("connection-close", (event: CloseEvent) => {
       if (event.code === NOTE_SOCKET.missingCode) {

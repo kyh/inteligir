@@ -9,7 +9,6 @@
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { isOrpcError, NotFoundError } from "@repo/contract/v1/errors";
-import { notePath } from "@repo/contract/library/library-socket";
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, ItemActions } from "@repo/editor/host-io";
 import { onlineManager } from "@tanstack/react-query";
@@ -60,7 +59,6 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
     fileSrc: async (sha) => await Promise.resolve(fileUrl(sha)),
     keepFile: async (bytes, mime) => ({ sha: await uploadFile(ports.cloud, bytes, mime) }),
     notes: {
-      notePath,
       offline: () => !onlineManager.isOnline(),
       onOfflineChange: (listener) =>
         onlineManager.subscribe(() => {

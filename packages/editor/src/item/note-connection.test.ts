@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
@@ -45,7 +45,6 @@ const testHost = ({
         listener();
       }
     },
-    notePath,
     offline: () => offline,
     onOfflineChange: (listener) => {
       listeners.add(listener);
@@ -210,7 +209,7 @@ describe("a note's live document over its socket", () => {
     const note = await connect(testHost());
     const [first] = server.sockets;
     await pass(PING_EVERY_MS);
-    expect(first?.texts).toStrictEqual([NOTE_SOCKET.ping]);
+    expect(first?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.ping)]);
     server.answersPings = false;
     await pass(PING_EVERY_MS);
     expect(first?.readyState).toBe(WebSocket.OPEN);
@@ -248,7 +247,10 @@ describe("a note's live document over its socket", () => {
     window.dispatchEvent(new Event("pageshow"));
     document.dispatchEvent(new Event("visibilitychange"));
     await pass();
-    expect(first?.texts).toStrictEqual([NOTE_SOCKET.ping, NOTE_SOCKET.ping]);
+    expect(first?.texts).toStrictEqual([
+      noteWordFrame(NOTE_SOCKET.ping),
+      noteWordFrame(NOTE_SOCKET.ping),
+    ]);
     server.answer = "refuse";
     server.drop();
     await pass(BACKOFF_MS);
@@ -328,7 +330,7 @@ describe("a note's live document over its socket", () => {
     doc.getText("probe").insert(0, "b");
     expect(opened(note.status()).unsaved).toBe(true);
     await expect(Promise.all([note.holds(), pass()])).resolves.toStrictEqual([true, undefined]);
-    expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
+    expect(server.sockets[0]?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.savedAsk)]);
     expect(opened(note.status()).unsaved).toBe(false);
     expect(heard).toBe(2);
     await expect(note.holds()).resolves.toBe(true);
@@ -449,7 +451,7 @@ describe("a note's live document over its socket", () => {
     await expect(leaving).resolves.toBe(true);
     await expect(note.holds()).resolves.toBe(true);
     expect(opened(note.status()).unsaved).toBe(false);
-    expect(server.sockets[0]?.texts).toStrictEqual([`__YPS:${NOTE_SOCKET.savedAsk}`]);
+    expect(server.sockets[0]?.texts).toStrictEqual([noteWordFrame(NOTE_SOCKET.savedAsk)]);
   });
 
   it("lets a leave go when the note closes before it answers", async () => {

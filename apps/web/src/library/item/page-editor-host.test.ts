@@ -83,7 +83,6 @@ describe("the page's editor host", () => {
 
     expect(notes.socketOrigin).toBe(ORIGIN);
     await expect(notes.socketTicket()).resolves.toBe("a-ticket");
-    expect(notes.notePath(PLANS)).toBe(`/v1/notes/${PLANS}`);
     expect(notes.offline()).toBe(false);
     onlineManager.setOnline(false);
     expect(notes.offline()).toBe(true);

@@ -8,7 +8,7 @@
 // turn can be undone from bytes alone. One alarm backs every deadline: a projection the cell did
 // not take, one the debounce never reached, and the turn log's prune.
 
-import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET, noteWordFrame } from "@repo/contract/library/library-socket";
 import { deriveBody } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
@@ -123,7 +123,10 @@ export class NoteDO extends YServer<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair(NOTE_SOCKET.ping, NOTE_SOCKET.pong),
+      new WebSocketRequestResponsePair(
+        noteWordFrame(NOTE_SOCKET.ping),
+        noteWordFrame(NOTE_SOCKET.pong),
+      ),
     );
     // not in y-partyserver's `onLoad`, which runs only once a socket or a call starts the server,
     // so a plain call would meet no tables

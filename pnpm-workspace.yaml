@@ -175,6 +175,8 @@ catalog:
   # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it
   # overrides, and the editor's provider is its client half, which must match it
   y-partyserver: 2.2.0
+  # exact, the one y-partyserver resolves: a note's sync frames are this protocol at both ends
+  y-protocols: 1.0.7
   yaml: ^2.9.1
   # exact, on 13, and one copy: a note's live document, its stored state and its turn log are this
   # encoding on every device and in its object, a second copy breaks yjs's own constructor checks,
