@@ -287,8 +287,8 @@ The unpacked store build, against production, with no dev build loaded.
 - **Save**: the toolbar saves, a second save says already saved, right-click
   saves a link and an image, the badge shows ! and ✓, and a home-network page
   the cloud can't reach saves as the extension read it.
-- **A waiting save**: one made offline, across a browser restart, or signed out
-  lands later with no click.
+- **A waiting save**: one made offline or across a browser restart lands later
+  with no click, and one made signed out lands as you sign in on the site.
 
 ### The iPhone app, on the internal build
 
@@ -432,9 +432,9 @@ Only once every check in § 5 has passed, and the three close together.
    and `scripting` to read the page only when you click, `contextMenus` for the
    right-click Save, `cookies` and the `https://inteligir.com/*` host to read
    your inteligir.com sign-in, so the extension saves as you with no sign-in of
-   its own, `storage` to keep which account it saves to and a save made
-   offline or signed out, `alarms` to send that save once you're back online
-   or signed in), the privacy practices
+   its own and sends a save made signed out as you sign in, `storage` to keep
+   which account it saves to and a save made offline or signed out, `alarms` to
+   send a save made offline once you're back online), the privacy practices
    (website content and authentication information, sent to the person's own
    Inteligir library, never sold or transferred) and the policy URL
    `https://inteligir.com/privacy`. Submit for review; § 7 installs what the

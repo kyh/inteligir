@@ -3,7 +3,7 @@ import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { keepConnection, readConnection } from "./connection";
-import { cloudSignIn, heldSignIn, saveSignIn } from "./sign-in";
+import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "./sign-in";
 import { keptAs } from "./test-support/fake-cloud";
 
 // the cloud a store build rides, and the dev build's
@@ -20,26 +20,26 @@ const KEPT = keptAs(EMAIL, COOKIE);
 const OTHER_COOKIE = "other-token.c2lnbmF0dXJl%3D";
 const OTHER_EMAIL = "someone-else@example.test";
 
+const cookieOf = (url: string, name: string, value: string): Browser.cookies.Cookie => ({
+  domain: new URL(url).hostname,
+  hostOnly: true,
+  httpOnly: true,
+  name,
+  path: "/",
+  sameSite: "lax",
+  secure: url.startsWith("https:"),
+  session: false,
+  storeId: "0",
+  value,
+});
+
 // the browser's jar, holding each value under its site and cookie name; WXT's fake browser has none
 const jarHolds = (cookies: Readonly<Record<string, string>>): void => {
   fakeBrowser.cookies.get = async (
     details: Browser.cookies.CookieDetails,
   ): Promise<Browser.cookies.Cookie | null> => {
     const value = cookies[`${new URL(details.url).origin} ${details.name}`];
-    return value === undefined
-      ? null
-      : {
-          domain: new URL(details.url).hostname,
-          hostOnly: true,
-          httpOnly: true,
-          name: details.name,
-          path: "/",
-          sameSite: "lax",
-          secure: details.url.startsWith("https:"),
-          session: false,
-          storeId: "0",
-          value,
-        };
+    return value === undefined ? null : cookieOf(details.url, details.name, value);
   };
 };
 
@@ -126,6 +126,21 @@ describe("the browser's sign-in, asked of the cloud", () => {
     cloudAnswers(async () => new Response("down", { status: 503 }));
     await expect(cloudSignIn()).resolves.toBeNull();
     await expect(readConnection()).resolves.toBeNull();
+  });
+});
+
+// whether the jar's telling of a cookie's write, or of the removal a rewrite starts with, reads as
+// a sign-in
+const told = (name: string, cause: "explicit" | "overwrite"): boolean =>
+  setsSession({ cause, cookie: cookieOf(SITE, name, COOKIE), removed: cause === "overwrite" });
+
+describe("a change the jar tells of", () => {
+  it("is a sign-in only as a session cookie set, under either name Better Auth gives it", () => {
+    expect(told("__Secure-better-auth.session_token", "explicit")).toBe(true);
+    expect(told("better-auth.session_token", "explicit")).toBe(true);
+    // a rewrite is told as the removal of the cookie it replaces, then as the write
+    expect(told("better-auth.session_token", "overwrite")).toBe(false);
+    expect(told("better-auth.dont_remember", "explicit")).toBe(false);
   });
 });
 

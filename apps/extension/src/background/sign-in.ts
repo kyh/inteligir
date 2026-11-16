@@ -9,6 +9,7 @@
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { createAuthClient } from "better-auth/client";
 import { browser } from "wxt/browser";
+import type { Browser } from "wxt/browser";
 
 import { CALL_DEADLINE_MS } from "./cloud";
 import { cloudOrigin, keepConnection, readConnection } from "./connection";
@@ -30,8 +31,16 @@ export type SignIn =
   | { readonly kind: "none" };
 
 // Better Auth's own name for it, which its `__Secure-` prefix marks on https
+const SESSION_COOKIE = "better-auth.session_token";
+const SECURE_SESSION_COOKIE = `__Secure-${SESSION_COOKIE}`;
+
 const sessionCookieName = (origin: string): string =>
-  `${new URL(origin).protocol === "https:" ? "__Secure-" : ""}better-auth.session_token`;
+  new URL(origin).protocol === "https:" ? SECURE_SESSION_COOKIE : SESSION_COOKIE;
+
+// whether a change the jar tells of set a session cookie, as a sign-in on the site does; the
+// removal it tells first, of the cookie a write replaces, is not one
+export const setsSession = ({ cookie, removed }: Browser.cookies.CookieChangeInfo): boolean =>
+  !removed && (cookie.name === SESSION_COOKIE || cookie.name === SECURE_SESSION_COOKIE);
 
 const sessionCookie = async (origin: string): Promise<string | null> => {
   const cookie = await browser.cookies.get({ name: sessionCookieName(origin), url: origin });

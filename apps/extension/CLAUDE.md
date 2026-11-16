@@ -24,9 +24,10 @@ what it may reach, and how it builds.
 - **No copy of the page: an item keeps what the extension read, and Open original opens the page.**
   No device opens a copy, and an `activeTab` extension cannot fetch a page's stylesheets, fonts and
   pictures across origins. `apps/extension/src/background/save-page.ts`.
-- **A save is queued before its first call, as its address and title, and an alarm sends what
-  waits.** One `storage.local` key a save, resent every 30 s and at every start under the account it
-  was made in, since the worker dies 30 s after its last event.
+- **A save is queued before its first call, as its address and title, and what it waits for sends
+  it.** One `storage.local` key a save: an alarm every 30 s only while a call went unanswered, since
+  the worker dies 30 s after its last event, and the site's session cookie or the worker's start
+  for a save that waits on a sign-in or an update, which no timer brings.
   `apps/extension/src/background/save-queue.ts`.
 - **A save's try settles it one way, the first and every resend alike, and one pass sends the queue
   at a time.** `settle` reads the contract's `sharedFailure` as the tab and the phone do, since a

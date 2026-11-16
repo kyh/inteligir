@@ -27,6 +27,11 @@ beforeEach(async () => {
   await keepConnection(KEPT);
 });
 
+const alarmStands = async (): Promise<boolean> => {
+  const alarm = await browser.alarms.get(SEND_ALARM);
+  return alarm !== undefined;
+};
+
 const NOW = Date.UTC(2026, 10, 5, 12);
 const SECOND = "01900000-0000-7000-8000-0000000000a2";
 const THIRD = "01900000-0000-7000-8000-0000000000a3";
@@ -209,19 +214,17 @@ describe("a save's try settles it one way, the first and every resend alike", ()
       row.waits ? [waiting(), waiting({ opId: SECOND, savedAt: NOW - 900 })] : [],
     );
     await expect(readConnection()).resolves.toStrictEqual(row.accountKept ? KEPT : null);
-    const alarm = await browser.alarms.get(SEND_ALARM);
-    expect(alarm !== undefined).toBe(row.waits);
+    // the alarm stands for a call the cloud did not answer, never for a person a save waits on
+    await expect(alarmStands()).resolves.toBe(
+      row.outcome.kind === "queued" && row.outcome.waitsFor === "connection",
+    );
   });
 });
 
 describe("a save that waits", () => {
-  it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
-    await keepSave(waiting());
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
-  });
-
   it("is sent as its link and goes, and the alarm with the last of them", async () => {
     await keepSave(waiting());
+    await browser.alarms.create(SEND_ALARM, { periodInMinutes: 0.5 });
     const cloud = fakeCloud({});
     await sendQueued(depsWith(cloud));
     expect(cloud.links).toStrictEqual([
@@ -234,34 +237,39 @@ describe("a save that waits", () => {
       },
     ]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+    await expect(alarmStands()).resolves.toBe(false);
   });
 
   it("is sent only under its own account's session", async () => {
     await keepSave(waiting({ email: OTHER_SESSION.email }));
     await keepSave(waiting({ opId: THIRD }));
+    await browser.alarms.create(SEND_ALARM, { periodInMinutes: 0.5 });
     const cloud = fakeCloud({});
     await sendQueued(depsWith(cloud));
     expect(cloud.links.map((link) => link.opId)).toStrictEqual([THIRD]);
-    // the other account's save waits for that account to sign in here again
+    // the other account's save waits for that account to sign in here again, which no timer brings
     await expect(queuedSaves()).resolves.toStrictEqual([waiting({ email: OTHER_SESSION.email })]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    await expect(alarmStands()).resolves.toBe(false);
     const other = fakeCloud({});
     await sendQueued(depsWith(other, { kind: "signed-in", session: OTHER_SESSION }));
     expect(other.links.map((link) => link.opId)).toStrictEqual([waiting().opId]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
-  it("is kept, unsent, while the browser is signed out or the cloud did not say who it is", async () => {
+  it("is kept, unsent, while the browser is signed out or the cloud did not say who it is, which alone the alarm asks again", async () => {
     await keepSave(waiting());
     const none: SignIn = { kind: "none" };
-    for (const signIn of [SIGNED_OUT, none, null]) {
+    for (const [signIn, asksAgain] of [
+      [null, true],
+      [SIGNED_OUT, false],
+      [none, false],
+    ] as const) {
       const cloud = fakeCloud({});
       await sendQueued(depsWith(cloud, signIn));
       expect(cloud.links).toStrictEqual([]);
+      await expect(alarmStands(), signIn?.kind).resolves.toBe(asksAgain);
     }
     await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
   it("asks nobody who is signed in while nothing waits", async () => {
@@ -292,7 +300,7 @@ describe("a save that waits", () => {
     await sendQueued(depsWith(cloud));
     await expect(readConnection()).resolves.toStrictEqual(replaced);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+    await expect(alarmStands()).resolves.toBe(false);
   });
 
   it("drops a record that does not parse, rather than sending it", async () => {
@@ -358,6 +366,8 @@ describe("the queue's passes", () => {
     await sendQueued(depsWith(resent));
     expect(resent.links).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toHaveLength(1);
+    // the worker may stop before the try answers, so the alarm stays through the pass
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
     held.resolve();
     await expect(saving).resolves.toStrictEqual(waitingFor("connection"));
     await sendQueued(depsWith(resent));
@@ -365,6 +375,30 @@ describe("the queue's passes", () => {
       firstTry.links.map((link) => link.opId),
     );
     await expect(queuedSaves()).resolves.toStrictEqual([]);
+    await expect(alarmStands()).resolves.toBe(false);
+  });
+
+  it("keep the alarm for a first try the cloud left unanswered while a pass ran, which that pass never read", async () => {
+    await keepSave(waiting());
+    const held = deferred();
+    const answering = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        return savedAs("File over app");
+      },
+    });
+    const passing = sendQueued(depsWith(answering));
+    await expect.poll(() => answering.links.length).toBe(1);
+    const unanswering = fakeCloud({
+      saveLink: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    await expect(saveTabAsLink(unanswering)).resolves.toStrictEqual(waitingFor("connection"));
+    held.resolve();
+    await passing;
+    await expect(queuedSaves()).resolves.toHaveLength(1);
+    await expect(alarmStands()).resolves.toBe(true);
   });
 
   it("send a save whose worker stopped mid-try, which holds nothing of the try", async () => {

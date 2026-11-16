@@ -319,7 +319,8 @@ describe("a tab saved", () => {
         url: URL_SAVED,
       }),
     ]);
-    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    // the site's sign-in sends it, which no timer brings
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
   });
 
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {

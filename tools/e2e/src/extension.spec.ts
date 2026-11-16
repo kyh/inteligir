@@ -111,8 +111,11 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     const { items } = await library.items.list({ kind: "link" });
     return items.find((item) => item.url === `${PAGES}${pathname}`)?.id;
   };
-  // the extension's alarm sends what waits every 30 s
-  const sent = { timeout: 90_000 };
+  const alarms = async () => await ask(z.array(z.unknown()), `chrome.alarms.getAll()`);
+  // a save the cloud left unanswered is sent by the extension's alarm, 30 s on
+  const byAlarm = { timeout: 90_000 };
+  // one that waited for its account is sent as the site signs it in, well inside the alarm's 30 s
+  const bySignIn = { timeout: 10_000 };
 
   expect(await signedInAs()).toBeNull();
   await signIn(site, cloud, account);
@@ -141,7 +144,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   expect(await save("/later")).toEqual({ kind: "queued", waitsFor: "connection" });
   expect(await queued()).toMatchObject([{ url: `${PAGES}/later` }]);
   await extension.unroute(cut);
-  await expect.poll(queued, sent).toEqual([]);
+  await expect.poll(queued, byAlarm).toEqual([]);
   expect(await landed("/later")).toBeDefined();
 
   const { devices } = await account.client.devices.list();
@@ -154,7 +157,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   ]);
   expect(await signedInAs()).toBeNull();
   await signIn(site, cloud, account);
-  await expect.poll(queued, sent).toEqual([]);
+  await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-elsewhere")).toBeDefined();
 
   const signedOut = await site.evaluate(async () => {
@@ -168,8 +171,10 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   expect(signedOut).toBe(200);
   expect(await signedInAs()).toBeNull();
   expect(await save("/signed-out-here")).toEqual({ kind: "queued", waitsFor: "sign-in" });
+  // it waits on a person, so no alarm wakes the worker for it
+  expect(await alarms()).toEqual([]);
   await signIn(site, cloud, account);
-  await expect.poll(queued, sent).toEqual([]);
+  await expect.poll(queued, bySignIn).toEqual([]);
   expect(await landed("/signed-out-here")).toBeDefined();
   expect(await signedInAs()).toBe(account.email);
 });

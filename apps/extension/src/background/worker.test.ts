@@ -19,38 +19,53 @@ const WAITING = {
 };
 
 // the local Worker's session cookie, as Better Auth names it on plain http
-const COOKIE_NAME = "better-auth.session_token";
+const SESSION_COOKIE: Browser.cookies.Cookie = {
+  domain: "localhost",
+  hostOnly: true,
+  httpOnly: true,
+  name: "better-auth.session_token",
+  path: "/",
+  sameSite: "lax",
+  secure: false,
+  session: false,
+  storeId: "0",
+  value: SESSION.bearer,
+};
 
 // the browser's jar at the cloud, holding the session cookie or not
-const jarHolds = (value: string | null): void => {
+const jarHolds = (held: boolean): void => {
   fakeBrowser.cookies.get = async (
     details: Browser.cookies.CookieDetails,
   ): Promise<Browser.cookies.Cookie | null> =>
-    value === null || details.name !== COOKIE_NAME || new URL(details.url).origin !== SESSION.origin
-      ? null
-      : {
-          domain: "localhost",
-          hostOnly: true,
-          httpOnly: true,
-          name: COOKIE_NAME,
-          path: "/",
-          sameSite: "lax",
-          secure: false,
-          session: false,
-          storeId: "0",
-          value,
-        };
+    held && details.name === SESSION_COOKIE.name && new URL(details.url).origin === SESSION.origin
+      ? SESSION_COOKIE
+      : null;
 };
+
+// the jar tells the worker its session cookie changed: a write is told as `explicit`, after the
+// removal (`overwrite`) of the one it replaced
+const jarListeners: ((change: Browser.cookies.CookieChangeInfo) => void)[] = [];
+const jarTells = (cause: "explicit" | "overwrite"): void => {
+  for (const listener of jarListeners) {
+    listener({ cause, cookie: SESSION_COOKIE, removed: cause === "overwrite" });
+  }
+};
+
+const GET_SESSION = "/api/auth/get-session";
+const SAVE_LINK = "/v1/rpc/library/items/saveLink";
 
 // the cloud: get-session answers the account, and every other call goes unanswered
 const cloudAnswers = () => {
-  const asked: Request[] = [];
+  const asked: string[] = [];
+  const bearers: (string | null)[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input, init) => {
       const request = new Request(input, init);
-      asked.push(request);
-      if (new URL(request.url).pathname === "/api/auth/get-session") {
+      const { pathname } = new URL(request.url);
+      asked.push(pathname);
+      bearers.push(request.headers.get("authorization"));
+      if (pathname === GET_SESSION) {
         return Response.json({
           session: { id: "session-1" },
           user: { email: SESSION.email, id: "reader" },
@@ -59,7 +74,12 @@ const cloudAnswers = () => {
       throw new TypeError("Failed to fetch");
     }),
   );
-  return asked;
+  return { asked, bearers };
+};
+
+const alarmStands = async (): Promise<boolean> => {
+  const alarm = await browser.alarms.get(SEND_ALARM);
+  return alarm !== undefined;
 };
 
 // the calls the fake browser leaves out, which the worker makes
@@ -71,6 +91,10 @@ beforeEach(async () => {
     version: "0.6.0",
   });
   vi.spyOn(browser.contextMenus.onClicked, "addListener").mockImplementation(() => {});
+  jarListeners.length = 0;
+  vi.spyOn(browser.cookies.onChanged, "addListener").mockImplementation((listener) => {
+    jarListeners.push(listener);
+  });
   vi.spyOn(browser.storage.local, "setAccessLevel").mockResolvedValue();
   await keepConnection(KEPT);
 });
@@ -96,28 +120,59 @@ const ask = async (request: ExtensionRequest): Promise<WorkerAnswer | undefined>
 };
 
 describe("the worker", () => {
-  it("sends what waited as the browser starts, under the browser's session, and holds the alarm a restart may have cleared", async () => {
-    jarHolds("session-token.signature");
+  it("sends what waited as it starts where no alarm stands, under the browser's session, and holds the alarm for a call the cloud left unanswered", async () => {
+    jarHolds(true);
     await keepSave(WAITING);
-    await browser.alarms.clearAll();
-    const asked = cloudAnswers();
+    const { asked, bearers } = cloudAnswers();
     worker.main();
-    await fakeBrowser.runtime.onStartup.trigger();
-    await vi.waitFor(() => {
-      expect(asked.map((request) => new URL(request.url).pathname)).toStrictEqual([
-        "/api/auth/get-session",
-        "/v1/rpc/library/items/saveLink",
-      ]);
-    });
-    expect(asked[1]?.headers.get("authorization")).toBe("Bearer session-token.signature");
     await vi.waitFor(async () => {
-      await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+      await expect(alarmStands()).resolves.toBe(true);
     });
+    expect(asked).toStrictEqual([GET_SESSION, SAVE_LINK]);
+    expect(bearers[1]).toBe(`Bearer ${SESSION.bearer}`);
     await expect(queuedSaves()).resolves.toHaveLength(1);
   });
 
+  it("leaves what waits to the alarm where one stands, which sends it in one pass", async () => {
+    jarHolds(true);
+    await keepSave(WAITING);
+    await browser.alarms.create(SEND_ALARM, { periodInMinutes: 0.5 });
+    const { asked } = cloudAnswers();
+    worker.main();
+    // a page's ask is answered after the start has run: the one call is the ask's own
+    await ask({ type: "status" });
+    expect(asked).toStrictEqual([GET_SESSION]);
+    await fakeBrowser.alarms.onAlarm.trigger({
+      name: SEND_ALARM,
+      persistAcrossSessions: true,
+      scheduledTime: Date.now(),
+    });
+    await vi.waitFor(() => {
+      expect(asked).toStrictEqual([GET_SESSION, GET_SESSION, SAVE_LINK]);
+    });
+  });
+
+  it("sends a save that waited for its account as the site signs it in, told by the jar's cookie", async () => {
+    jarHolds(false);
+    await keepSave(WAITING);
+    const { asked } = cloudAnswers();
+    worker.main();
+    await ask({ type: "status" });
+    // signed out, the save waits on a person: nothing is asked and no alarm stands
+    expect(asked).toStrictEqual([]);
+    await expect(alarmStands()).resolves.toBe(false);
+    jarHolds(true);
+    jarTells("overwrite");
+    await ask({ type: "status" });
+    expect(asked).toStrictEqual([GET_SESSION]);
+    jarTells("explicit");
+    await vi.waitFor(() => {
+      expect(asked).toStrictEqual([GET_SESSION, GET_SESSION, SAVE_LINK]);
+    });
+  });
+
   it("says whose library this browser saves to, as the site's session reads, and where to sign in", async () => {
-    jarHolds("session-token.signature");
+    jarHolds(true);
     cloudAnswers();
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
@@ -127,8 +182,8 @@ describe("the worker", () => {
   });
 
   it("is signed out once the site signed out, which leaves no session in the jar, and asks nobody", async () => {
-    jarHolds(null);
-    const asked = cloudAnswers();
+    jarHolds(false);
+    const { asked } = cloudAnswers();
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
       account: null,
@@ -139,7 +194,7 @@ describe("the worker", () => {
 
   it("sends a store build to the production site's sign-in", async () => {
     vi.stubEnv("MODE", "store");
-    jarHolds(null);
+    jarHolds(false);
     cloudAnswers();
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
@@ -149,8 +204,9 @@ describe("the worker", () => {
   });
 
   it("has no sign-out of its own: the site's signs it out, and what waits stays", async () => {
-    jarHolds("session-token.signature");
+    jarHolds(false);
     await keepSave(WAITING);
+    cloudAnswers();
     worker.main();
     await expect(
       fakeBrowser.runtime.onMessage.trigger({ type: "disconnect" }, PAGE, () => {}),

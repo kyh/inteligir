@@ -1,8 +1,9 @@
 // the extension's service worker: the toolbar's and the right-click's saves to the library over
-// `/v1`, under the browser's own sign-in to the site its build names, and the alarm that sends
-// what waited. It answers the extension's own pages, nothing else. Every listener is registered in
-// main()'s first turn, as MV3 wants, and nothing it needs later is held in memory: the account and
-// the queue are storage's, the session the browser's jar.
+// `/v1`, under the browser's own sign-in to the site its build names, and what sends a save that
+// waited: the alarm, a sign-in on the site and the worker's own start. It answers the extension's
+// own pages, nothing else. Every listener is registered in main()'s first turn, as MV3 wants, and
+// nothing it needs later is held in memory: the account and the queue are storage's, the session
+// the browser's jar.
 
 import { LIBRARY_PAGE_PATH, SIGN_IN_PATH } from "@repo/contract/library-page";
 import { browser } from "wxt/browser";
@@ -19,9 +20,9 @@ import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { ensureSendAlarm, SEND_ALARM, sendQueued } from "../background/save-queue";
+import { SEND_ALARM, sendQueued } from "../background/save-queue";
 import type { SendDeps } from "../background/save-queue";
-import { cloudSignIn, heldSignIn, saveSignIn } from "../background/sign-in";
+import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "../background/sign-in";
 import type { Session } from "../background/sign-in";
 
 // src/entrypoints/welcome, which WXT writes at this path
@@ -148,10 +149,14 @@ const installed = async (reason: string): Promise<void> => {
 };
 
 // every start: the account and the queue kept from the capture script the worker injects, and
-// the alarm made again while a save waits, since an update or a restart can clear it
+// what waits sent where no alarm stands to send it, since a restart or an update can clear one and
+// brings what a save may have waited for
 const starting = async (): Promise<void> => {
   await browser.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
-  await ensureSendAlarm();
+  const alarm = await browser.alarms.get(SEND_ALARM);
+  if (alarm === undefined) {
+    await sendQueued(sendDeps);
+  }
 };
 
 // WXT imports this file at build time with main() emptied, so every browser call waits in it; the
@@ -168,12 +173,18 @@ export default defineBackground({
         void sendQueued(sendDeps);
       }
     });
+    // a save that waits for its account goes as the site signs it in
+    browser.cookies.onChanged.addListener((change) => {
+      if (setsSession(change)) {
+        void sendQueued(sendDeps);
+      }
+    });
     browser.runtime.onInstalled.addListener((details) => {
       void installed(details.reason);
     });
-    // the one event that wakes the worker as the browser starts, which a cleared alarm cannot
     browser.runtime.onStartup.addListener(() => {
-      void sendQueued(sendDeps);
+      // listened to only so the browser's start starts the worker, which a cleared alarm cannot:
+      // `starting` sends what waits
     });
     void starting();
   },

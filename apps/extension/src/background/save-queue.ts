@@ -1,13 +1,14 @@
 // A save the cloud did not answer, or made while its account was signed out, waits here, in
-// `storage.local`, and is sent again by an alarm. Each save is kept before its first call goes, so
-// a worker stopped mid-save loses nothing, and it keeps the address and the title, never the page:
-// what the queue sends is a link to read, which the cloud's fill reads once it lands
-// (`items.saveLink`). One key a save, so two saves at once never write over each other; an alarm,
-// since the worker dies 30 s after its last event and a timer with it, made as a save is kept and
-// again at every start, since an update or a restart can clear one. A save is sent only under the
-// session of the account it was made under, so one made before a sign-out waits for that account
-// to sign in again, whoever signs in meanwhile. Every try, the first and each resend, settles the
-// save one way (`settle`).
+// `storage.local`, and is sent again by a pass over the queue. Each save is kept before its first
+// call goes, so a worker stopped mid-save loses nothing, and it keeps the address and the title,
+// never the page: what the queue sends is a link to read, which the cloud's fill reads once it
+// lands (`items.saveLink`). One key a save, so two saves at once never write over each other. A
+// save is sent only under the session of the account it was made under, so one made before a
+// sign-out waits for that account to sign in again, whoever signs in meanwhile. Every try, the
+// first and each resend, settles the save one way (`settle`). What wakes a pass is what the save
+// waits for: an alarm for a call the cloud did not answer, since the worker dies 30 s after its
+// last event and a timer with it, and the browser's own events for a sign-in or an update
+// (../entrypoints/background).
 
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
 import { PayloadTooLargeError, QuotaError } from "@repo/contract/v1/errors";
@@ -61,23 +62,8 @@ export const queuedSaves = async (): Promise<QueuedSave[]> => {
   return saves.toSorted((a, b) => a.savedAt - b.savedAt);
 };
 
-// the alarm stands while a save waits, and goes once none does
-export const ensureSendAlarm = async (): Promise<void> => {
-  const saves = await queuedSaves();
-  const waiting = saves.length > 0;
-  const alarm = await browser.alarms.get(SEND_ALARM);
-  if (waiting && alarm === undefined) {
-    await browser.alarms.create(SEND_ALARM, { periodInMinutes: RETRY_MINUTES });
-  }
-  if (!waiting && alarm !== undefined) {
-    await browser.alarms.clear(SEND_ALARM);
-  }
-};
-
-// the alarm is made with the record, since a worker stopped mid-try says nothing more of it
 export const keepSave = async (save: QueuedSave): Promise<void> => {
   await browser.storage.local.set({ [keyOf(save)]: save });
-  await ensureSendAlarm();
 };
 
 // the cloud deleted the account `email` named: what waited for it can never land, and this browser
@@ -89,7 +75,6 @@ export const accountGone = async (email: string): Promise<void> => {
   if (held?.email === email) {
     await forgetConnection();
   }
-  await ensureSendAlarm();
 };
 
 // a waiting save as the link it is sent as: its title only where it has one
@@ -148,6 +133,14 @@ export const settledBy = <T>(answer: Sent<T>): Settled<T> => {
   }
 };
 
+// What the worker holds of the queue and loses nothing by stopping with. The saves whose first try
+// it still runs, which a pass leaves to them: a resend meanwhile could land the link under the
+// save's op id while the page was on its way, and a save whose worker stopped mid-try is sent at
+// the next pass like any that waits. And the tries the cloud did not answer, counted so a pass's
+// end knows of one that ended while it ran.
+const trying = new Set<string>();
+let unanswered = 0;
+
 // a kept save's try, the first or a resend, and the one place its answer moves the save: one that
 // waits stays as it was kept
 const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promise<Settled<T>> => {
@@ -163,6 +156,9 @@ const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promis
       break;
     }
     case "waiting": {
+      if (settled.for === "connection") {
+        unanswered += 1;
+      }
       break;
     }
     // no default
@@ -170,13 +166,12 @@ const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promis
   return settled;
 };
 
-// The saves whose first try this worker still runs, which a pass leaves to it: a resend meanwhile
-// could land the link under the save's op id while the page was on its way. The set dies with the
-// worker, so a save whose worker stopped mid-try is sent at the next pass like any that waits.
-const trying = new Set<string>();
+const holdAlarm = async (): Promise<void> => {
+  await browser.alarms.create(SEND_ALARM, { periodInMinutes: RETRY_MINUTES });
+};
 
-// a save's first try: kept before its call goes, then settled by the call's answer as every resend
-// is
+// a save's first try: kept before its call goes, the alarm with it, since a worker stopped mid-try
+// says nothing more of the save, then settled by the call's answer as every resend is
 export const sendKept = async <T>(
   save: QueuedSave,
   send: () => Promise<Sent<T>>,
@@ -184,6 +179,7 @@ export const sendKept = async <T>(
   trying.add(save.opId);
   try {
     await keepSave(save);
+    await holdAlarm();
     return await settle(save, send);
   } finally {
     trying.delete(save.opId);
@@ -196,36 +192,46 @@ export interface SendDeps {
   readonly signIn: () => Promise<SignIn | null>;
 }
 
-// every save of the account signed in sent oldest first, until one cannot go yet: the cloud is not
-// there, not for this build, or not for this session, so the rest wait with it. Another account's
-// saves wait for that account, and a first try still under way for its own answer
-const sendPass = async (deps: SendDeps): Promise<void> => {
-  const kept = await queuedSaves();
-  const saves = kept.filter((save) => !trying.has(save.opId));
-  const signIn = saves.length === 0 ? null : await deps.signIn();
-  if (signIn?.kind === "signed-in") {
-    const cloud = deps.cloud(signIn.session);
-    for (const save of saves) {
-      if (save.email !== signIn.session.email) {
-        continue;
-      }
-      const settled = await settle(
-        save,
-        async (): Promise<Sent<Saved>> =>
-          await sent(async () => await cloud.saveLink(linkOf(save))),
-      );
-      if (settled.kind === "waiting" || settled.kind === "gone") {
-        break;
-      }
+// an account's saves sent oldest first, until one cannot go yet: the cloud is not there, not for
+// this build, or not for this session, so the rest wait with it
+const sendAs = async (cloud: Cloud, email: string, saves: readonly QueuedSave[]): Promise<void> => {
+  for (const save of saves) {
+    if (save.email !== email) {
+      continue;
+    }
+    const settled = await settle(
+      save,
+      async (): Promise<Sent<Saved>> => await sent(async () => await cloud.saveLink(linkOf(save))),
+    );
+    if (settled.kind === "waiting" || settled.kind === "gone") {
+      break;
     }
   }
-  await ensureSendAlarm();
 };
 
-// One pass over the queue at a time: a save landed, the alarm and the browser's start each ask for
-// one, and an ask while a pass runs asks for one more after it, so a save kept mid-pass is sent
-// without waiting for the alarm and no two passes send one save. The pass lives as long as the
-// worker, which loses nothing it needs later with it.
+// every save of the account signed in is sent: another account's waits for that account, and a
+// first try still under way for its own answer. The pass's end is where the alarm stands or goes.
+// It stands for what a timer changes, a call the cloud did not answer or a first try whose worker
+// may stop, and goes while every save waits on a person, whom an event tells of
+const sendPass = async (deps: SendDeps): Promise<void> => {
+  const before = unanswered;
+  const kept = await queuedSaves();
+  const saves = kept.filter((save) => !trying.has(save.opId));
+  if (saves.length > 0) {
+    const signIn = await deps.signIn();
+    if (signIn === null) {
+      unanswered += 1;
+    } else if (signIn.kind === "signed-in") {
+      await sendAs(deps.cloud(signIn.session), signIn.session.email, saves);
+    }
+  }
+  await (unanswered > before || trying.size > 0 ? holdAlarm() : browser.alarms.clear(SEND_ALARM));
+};
+
+// One pass over the queue at a time: a save landed, the alarm, a sign-in and the worker's start
+// each ask for one, and an ask while a pass runs asks for one more after it, so what changed
+// mid-pass is read again and no two passes send one save. The pass lives as long as the worker,
+// which loses nothing it needs later with it.
 type Pass = { readonly kind: "idle" } | { readonly kind: "running"; readonly again: boolean };
 
 const passAfter = (pass: Pass, event: "asked" | "finished" | "failed"): Pass => {
