@@ -15,7 +15,7 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import type { PersistQueryClientProviderProps } from "@tanstack/react-query-persist-client";
-import type { WebSocketClass } from "@repo/client/account-socket";
+import type { WebSocketClass } from "@repo/client/live-socket";
 import { createLibrarySocket, retryUnlessRefused } from "@repo/client/library-cache";
 import type { ItemsMoved, LibrarySocket, ThreadPreviews } from "@repo/client/library-cache";
 import { clientBuildValue } from "@repo/contract/client-build";

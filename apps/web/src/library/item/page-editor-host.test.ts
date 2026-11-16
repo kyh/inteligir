@@ -77,15 +77,15 @@ describe("the page's editor host", () => {
     install(refused);
     const { notes } = getEditorHostIo();
     let heard = 0;
-    const stop = notes.onOfflineChange(() => {
+    const stop = notes.reach.subscribe(() => {
       heard += 1;
     });
 
     expect(notes.socketOrigin).toBe(ORIGIN);
     await expect(notes.socketTicket()).resolves.toBe("a-ticket");
-    expect(notes.offline()).toBe(false);
+    expect(notes.reach.get()).toBe(true);
     onlineManager.setOnline(false);
-    expect(notes.offline()).toBe(true);
+    expect(notes.reach.get()).toBe(false);
     onlineManager.setOnline(true);
     stop();
     expect(heard).toBe(2);

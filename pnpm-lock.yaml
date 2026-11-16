@@ -1013,6 +1013,9 @@ importers:
       '@platejs/toggle':
         specifier: ^53.0.0
         version: 53.0.0(@babel/core@7.29.7(supports-color@10.2.2))(@babel/template@7.29.7)(@types/react@19.2.17)(platejs@53.5.2(@types/react@19.2.17)(immer@10.2.0)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8)(scheduler@0.28.0)(use-sync-external-store@1.7.0(react@19.2.8)))(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
+      '@repo/client':
+        specifier: workspace:*
+        version: link:../client
       '@repo/contract':
         specifier: workspace:*
         version: link:../contract
@@ -1028,6 +1031,9 @@ importers:
       katex:
         specifier: ^0.19.1
         version: 0.19.1
+      lib0:
+        specifier: 'catalog:'
+        version: 0.2.119
       lowlight:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1085,9 +1091,9 @@ importers:
       unist-util-visit:
         specifier: ^5.1.0
         version: 5.1.0
-      y-partyserver:
+      y-protocols:
         specifier: 'catalog:'
-        version: 2.2.0(partyserver@0.5.10)(yjs@13.6.33)
+        version: 1.0.7(yjs@13.6.33)
       yaml:
         specifier: 'catalog:'
         version: 2.9.1
@@ -1140,18 +1146,12 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3(@noble/hashes@2.4.0)
-      lib0:
-        specifier: 'catalog:'
-        version: 0.2.119
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-      y-protocols:
-        specifier: 'catalog:'
-        version: 1.0.7(yjs@13.6.33)
 
   packages/page-reader:
     dependencies:

@@ -162,13 +162,13 @@ describe("the note page's host", () => {
     const { first, host } = pageOver();
     const { notes } = getEditorHostIo();
     const heard = vi.fn<() => void>();
-    notes.onOfflineChange(heard);
+    notes.reach.subscribe(heard);
 
     host.follow({ ...first, offline: false });
     expect(heard).not.toHaveBeenCalled();
     host.follow({ ...first, offline: true });
 
-    expect(notes.offline()).toBe(true);
+    expect(notes.reach.get()).toBe(false);
     expect(heard).toHaveBeenCalledOnce();
   });
 

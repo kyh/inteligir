@@ -1,18 +1,19 @@
-// A note's live document, opened by its item's id: y-partyserver's provider dials the note's object
-// at the cloud origin the host names, on the account socket's ticket, and a document is shown only
-// once it has synced, so a device never seeds a note. On top of the provider's own redial, a ping
-// every 20 s finds a socket gone quiet, and a page shown again or a connection back probes at once;
-// while the host says it is offline nothing dials and no ticket is asked. One step moves the
-// connection from state to state, and the provider, the timers and the listeners follow the state it
+// A note's live document, opened by its item's id: its socket (`./note-socket`) dials the note's
+// object at the cloud origin the host names, on the account socket's ticket, and a document is shown
+// only once it has synced, so a device never seeds a note. While the host cannot reach the cloud
+// nothing dials and no ticket is asked, and a page shown again pings at once. One step moves the
+// connection from state to state, and the socket, the grace and the listeners follow the state it
 // leaves (`follow`), so none outlives the state that wants it.
 
-import YProvider from "y-partyserver/provider";
 import * as Y from "yjs";
 
-import { NOTE_SOCKET, notePath } from "@repo/contract/library/library-socket";
+import { NOTE_SOCKET } from "@repo/contract/library/library-socket";
 
 import { deferred } from "@repo/contract/deferred";
 import type { NoteHost } from "@repo/editor/host-io";
+
+import { NoteSocket } from "./note-socket";
+import type { NoteSocketEvent } from "./note-socket";
 
 // why a note takes no edit though its socket is up: it is past its size, or in Deleted
 export type NoteHeld = "full" | "deleted";
@@ -54,37 +55,22 @@ export interface NoteConnection {
   readonly close: () => void;
 }
 
-export const PING_EVERY_MS = 20_000;
-export const PONG_WITHIN_MS = 5000;
 // a socket down this long turns the editor read-only, so a blip goes unseen and a drop does not
 export const DOWN_GRACE_MS = 3000;
-// the provider's own backoff ceiling, which a dial that could not get a ticket waits too
-export const REDIAL_MS = 2500;
 
 type Wire =
-  // the host is offline: no provider, so nothing dials and no ticket is asked
+  // the host is offline: its socket dials nothing and asks no ticket
   | { readonly kind: "paused" }
-  // a provider dials, or waits out its backoff, with no socket open
-  | {
-      readonly kind: "dialing";
-      // which provider: a redial over the same document makes the next
-      readonly dial: number;
-      readonly grace: "within" | "past";
-      // its ticket could not be had, and the provider schedules nothing after a first dial's
-      // failure, so a probe dials again after REDIAL_MS
-      readonly ticketFailed: boolean;
-    }
+  // the socket dials, or waits out its backoff, with none open
+  | { readonly kind: "dialing"; readonly grace: "within" | "past" }
   | {
       readonly kind: "up";
-      readonly dial: number;
       // the note's state crossed this socket, so a word from the note now is about this document
       readonly synced: boolean;
       // what the note said holds every edit back since this socket opened
       readonly greeted: NoteHeld | null;
       // the save asks sent on this socket, oldest first, each by the count of edits it covers
       readonly asked: readonly number[];
-      // a ping waits on its pong
-      readonly pinged: boolean;
     };
 
 type Up = Extract<Wire, { kind: "up" }>;
@@ -122,119 +108,56 @@ interface Open {
 type State = { readonly kind: "idle" } | { readonly kind: "missing" } | Opening | Open;
 
 type NoteEvent =
+  | NoteSocketEvent
   | { readonly kind: "start" | "host"; readonly offline: boolean }
-  // `probe`: a page shown again, a connection back, the heartbeat, or a ticket's wait over
-  | {
-      readonly kind:
-        | "close"
-        | "gone"
-        | "synced"
-        | "probe"
-        | "pong"
-        | "pong-missed"
-        | "grace-over"
-        | "ticket-failed";
-    }
-  | { readonly kind: "socket"; readonly up: boolean }
-  | { readonly kind: "said"; readonly word: string }
+  | { readonly kind: "close" | "grace-over" }
   | { readonly kind: "edited"; readonly doc: Y.Doc }
   | { readonly kind: "holds-asked"; readonly resolve: (holds: boolean) => void };
 
 type Effect =
   // a leave is told whether the note holds its edits
   | { readonly kind: "tell"; readonly resolve: (holds: boolean) => void; readonly holds: boolean }
-  // a word to the note on the open socket: a ping, or whether it stored what this device sent
-  | { readonly kind: "say"; readonly word: string }
-  // the provider dials now, unless a socket or a ticket is already on its way
-  | { readonly kind: "connect" };
+  // the note asked whether it stored what this device sent
+  | { readonly kind: "ask" };
 
 interface Step {
   readonly state: State;
   readonly effects: readonly Effect[];
 }
 
-interface WireStep {
-  readonly wire: Wire;
-  readonly effects: readonly Effect[];
-}
-
 const IDLE: State = { kind: "idle" };
 const GONE: State = { kind: "missing" };
 const PAUSED: Wire = { kind: "paused" };
-const PING: Effect = { kind: "say", word: NOTE_SOCKET.ping };
-const ASK: Effect = { kind: "say", word: NOTE_SOCKET.savedAsk };
-const CONNECT: Effect = { kind: "connect" };
-
-const dialing = (dial: number): Wire => ({
-  dial,
-  grace: "within",
-  kind: "dialing",
-  ticketFailed: false,
-});
+const DIALING: Wire = { grace: "within", kind: "dialing" };
+const ASK: Effect = { kind: "ask" };
 
 const at = (state: State, effects: readonly Effect[] = []): Step => ({ effects, state });
 
 const isHeld = (word: string): word is NoteHeld =>
   word === NOTE_SOCKET.full || word === NOTE_SOCKET.deleted;
 
-// a page shown again or a connection back: a quiet socket is asked now, and a dropped one dialed
-const probed = (wire: Wire): WireStep => {
-  switch (wire.kind) {
-    case "up": {
-      return { effects: [PING], wire: { ...wire, pinged: true } };
-    }
-    case "dialing": {
-      return { effects: [CONNECT], wire: { ...wire, ticketFailed: false } };
-    }
-    case "paused": {
-      return { effects: [], wire };
-    }
-    // no default
-  }
-};
-
-// a socket opened or closed: one that closes leaves the provider to redial it
-const socketAfter = (wire: Wire, up: boolean): Wire => {
-  if (up && wire.kind === "dialing") {
-    return { asked: [], dial: wire.dial, greeted: null, kind: "up", pinged: false, synced: false };
-  }
-  return !up && wire.kind === "up" ? dialing(wire.dial) : wire;
-};
-
 // the wire's own moves, which an opening note and an open one share
-const wireAfter = (wire: Wire, event: NoteEvent): WireStep => {
-  const still: WireStep = { effects: [], wire };
+const wireAfter = (wire: Wire, event: NoteEvent): Wire => {
   switch (event.kind) {
     case "host": {
       if (event.offline) {
-        return { effects: [], wire: PAUSED };
+        return PAUSED;
       }
-      return wire.kind === "paused" ? { effects: [], wire: dialing(0) } : probed(wire);
+      return wire.kind === "paused" ? DIALING : wire;
     }
-    case "probe": {
-      return probed(wire);
+    case "up": {
+      return wire.kind === "dialing"
+        ? { asked: [], greeted: null, kind: "up", synced: false }
+        : wire;
     }
-    case "socket": {
-      return { effects: [], wire: socketAfter(wire, event.up) };
-    }
-    case "pong": {
-      return wire.kind === "up" ? { effects: [], wire: { ...wire, pinged: false } } : still;
-    }
-    // A socket gone quiet can take minutes to say it closed, so a fresh one dials beside it, over
-    // the same document.
-    case "pong-missed": {
-      return wire.kind === "up" ? { effects: [], wire: dialing(wire.dial + 1) } : still;
+    case "down": {
+      return wire.kind === "up" ? DIALING : wire;
     }
     case "grace-over": {
-      return wire.kind === "dialing" ? { effects: [], wire: { ...wire, grace: "past" } } : still;
-    }
-    case "ticket-failed": {
-      return wire.kind === "dialing"
-        ? { effects: [], wire: { ...wire, ticketFailed: true } }
-        : still;
+      return wire.kind === "dialing" ? { ...wire, grace: "past" } : wire;
     }
     default: {
-      return still;
+      return wire;
     }
   }
 };
@@ -265,7 +188,7 @@ const openingAfter = (state: Opening, event: NoteEvent): Step => {
         return at(state);
       }
       if (event.word === NOTE_SOCKET.refused) {
-        return at({ ...state, doc: new Y.Doc(), wire: dialing(0) });
+        return at({ ...state, doc: new Y.Doc(), wire: DIALING });
       }
       return isHeld(event.word)
         ? at({ ...state, wire: { ...wire, greeted: event.word } })
@@ -276,9 +199,8 @@ const openingAfter = (state: Opening, event: NoteEvent): Step => {
     }
     default: {
       const next = wireAfter(wire, event);
-      const stalls =
-        next.wire.kind === "paused" || (next.wire.kind === "dialing" && next.wire.grace === "past");
-      return at({ ...state, stalled: state.stalled || stalls, wire: next.wire }, next.effects);
+      const stalls = next.kind === "paused" || (next.kind === "dialing" && next.grace === "past");
+      return at({ ...state, stalled: state.stalled || stalls, wire: next });
     }
   }
 };
@@ -343,7 +265,7 @@ const asking = (state: Open): Step => {
 
 // The note refused what this document holds, so it is dropped for the note's own: still shown,
 // taking no edit, until a fresh one syncs.
-const reopened = (state: Open): Open => ({ ...state, reopen: new Y.Doc(), wire: dialing(0) });
+const reopened = (state: Open): Open => ({ ...state, reopen: new Y.Doc(), wire: DIALING });
 
 const synced = (state: Open, wire: Up): Step => {
   const up: Up = { ...wire, synced: true };
@@ -402,8 +324,7 @@ const openAfter = (state: Open, event: NoteEvent): Step => {
       return at(wire.kind === "up" ? said(state, wire, event.word) : state);
     }
     default: {
-      const next = wireAfter(wire, event);
-      return at({ ...state, wire: next.wire }, next.effects);
+      return at({ ...state, wire: wireAfter(wire, event) });
     }
   }
 };
@@ -427,7 +348,7 @@ const step = (state: State, event: NoteEvent): Step => {
       if (event.kind === "start") {
         const { offline } = event;
         const doc = new Y.Doc();
-        return at({ doc, kind: "opening", stalled: offline, wire: offline ? PAUSED : dialing(0) });
+        return at({ doc, kind: "opening", stalled: offline, wire: offline ? PAUSED : DIALING });
       }
       return at(state);
     }
@@ -500,36 +421,13 @@ const runningOf = (state: State): Running | null => {
   }
 };
 
-// what the provider's status event carries
-interface ProviderStatus {
-  readonly status: "connecting" | "connected" | "disconnected";
-}
-
-// the provider dialing now, over the document it carries
-interface Link {
-  readonly dial: number;
-  readonly doc: Y.Doc;
-  readonly provider: YProvider;
-  // a ticket is being asked for, so a probe asks no second one
-  asking: boolean;
-}
-
 // a document whose edits reach the step, until `stop`
 interface Watch {
   readonly doc: Y.Doc;
   readonly stop: () => void;
 }
 
-type Timer = "grace" | "redial" | "pong";
-
-const TIMERS = {
-  grace: { event: { kind: "grace-over" }, ms: DOWN_GRACE_MS },
-  pong: { event: { kind: "pong-missed" }, ms: PONG_WITHIN_MS },
-  redial: { event: { kind: "probe" }, ms: REDIAL_MS },
-} as const satisfies Record<Timer, { readonly event: NoteEvent; readonly ms: number }>;
-
-const PROBE: NoteEvent = { kind: "probe" };
-const PONG: NoteEvent = { kind: "pong" };
+const GRACE_OVER: NoteEvent = { kind: "grace-over" };
 
 class LiveNote implements NoteConnection {
   private readonly itemId: string;
@@ -539,11 +437,10 @@ class LiveNote implements NoteConnection {
   private state: State = IDLE;
   private current: NoteStatus = FRESH;
   // what follows the state
-  private link: Link | null = null;
+  private link: NoteSocket | null = null;
   private watched: Watch | null = null;
   private unlisten: (() => void) | null = null;
-  private heartbeat: ReturnType<typeof setInterval> | undefined;
-  private readonly timers = new Map<Timer, ReturnType<typeof setTimeout>>();
+  private grace: ReturnType<typeof setTimeout> | undefined;
 
   constructor(itemId: string, host: NoteHost) {
     this.itemId = itemId;
@@ -566,7 +463,7 @@ class LiveNote implements NoteConnection {
   };
 
   readonly start = (): void => {
-    this.dispatch({ kind: "start", offline: this.host.offline() });
+    this.dispatch({ kind: "start", offline: !this.host.reach.get() });
   };
 
   readonly close = (): void => {
@@ -590,19 +487,13 @@ class LiveNote implements NoteConnection {
     }
   }
 
-  // the provider, the timers and the listeners the state wants, and none it does not
+  // the socket, the grace and the listeners the state wants, and none it does not
   private follow(): void {
     const running = runningOf(this.state);
-    const wire = running?.wire ?? PAUSED;
     this.listen(running !== null);
     this.watch(this.state.kind === "open" ? this.state.shown : null);
-    this.dialTo(
-      running === null || wire.kind === "paused" ? null : { dial: wire.dial, doc: running.doc },
-    );
-    this.arm("grace", wire.kind === "dialing" && wire.grace === "within");
-    this.arm("redial", wire.kind === "dialing" && wire.ticketFailed);
-    this.arm("pong", wire.kind === "up" && wire.pinged);
-    this.beat(wire.kind === "up");
+    this.dialTo(running?.doc ?? null);
+    this.arm(running?.wire.kind === "dialing" && running.wire.grace === "within");
   }
 
   private run(effect: Effect): void {
@@ -611,39 +502,34 @@ class LiveNote implements NoteConnection {
         effect.resolve(effect.holds);
         break;
       }
-      case "say": {
-        this.link?.provider.sendMessage(effect.word);
-        break;
-      }
-      case "connect": {
-        if (this.link !== null) {
-          void this.connect(this.link);
-        }
+      case "ask": {
+        this.link?.say(NOTE_SOCKET.savedAsk);
         break;
       }
       // no default
     }
   }
 
+  // the host's word on its reach, and a page shown again, which pings a socket that may not have
+  // outlived a sleep
   private listen(on: boolean): void {
     if (on && this.unlisten === null) {
+      const { reach } = this.host;
       const probe = (): void => {
-        this.dispatch(PROBE);
+        this.link?.probe();
       };
       const onVisibility = (): void => {
         if (document.visibilityState === "visible") {
           probe();
         }
       };
-      const stopOffline = this.host.onOfflineChange(() => {
-        this.dispatch({ kind: "host", offline: this.host.offline() });
+      const stopReach = reach.subscribe(() => {
+        this.dispatch({ kind: "host", offline: !reach.get() });
       });
-      window.addEventListener("online", probe);
       window.addEventListener("pageshow", probe);
       document.addEventListener("visibilitychange", onVisibility);
       this.unlisten = () => {
-        stopOffline();
-        window.removeEventListener("online", probe);
+        stopReach();
         window.removeEventListener("pageshow", probe);
         document.removeEventListener("visibilitychange", onVisibility);
       };
@@ -661,10 +547,10 @@ class LiveNote implements NoteConnection {
     this.watched = doc === null ? null : this.watching(doc);
   }
 
-  // this device's edits to `doc`: every update but the provider's, which carries the note's own
+  // this device's edits to `doc`: every update but the socket's, which carries the note's own
   private watching(doc: Y.Doc): Watch {
     const onUpdate = doc.on("update", (_update, origin) => {
-      if (origin !== this.link?.provider) {
+      if (origin !== this.link) {
         this.dispatch({ doc, kind: "edited" });
       }
     });
@@ -676,108 +562,40 @@ class LiveNote implements NoteConnection {
     };
   }
 
-  private dialTo(target: Pick<Link, "dial" | "doc"> | null): void {
+  // one socket over the document the state dials, whose every word reaches the step while it is
+  // that one
+  private dialTo(doc: Y.Doc | null): void {
     const { link } = this;
-    if (
-      link !== null &&
-      (target === null || link.dial !== target.dial || link.doc !== target.doc)
-    ) {
+    if (link !== null && link.doc !== doc) {
       this.link = null;
-      link.provider.destroy();
+      link.close();
     }
-    if (target !== null && this.link === null) {
-      const next = this.provide(target.dial, target.doc);
+    if (doc !== null && this.link === null) {
+      const next: NoteSocket = new NoteSocket({
+        doc,
+        heard: (event) => {
+          if (this.link === next) {
+            this.dispatch(event);
+          }
+        },
+        itemId: this.itemId,
+        origin: this.host.socketOrigin,
+        reach: this.host.reach,
+        ticket: this.host.socketTicket,
+      });
       this.link = next;
-      void this.connect(next);
     }
   }
 
-  // a provider over `doc`, whose every word reaches the step while it is the one dialing
-  private provide(dial: number, doc: Y.Doc): Link {
-    const cloud = new URL(this.host.socketOrigin);
-    const provider = new YProvider(cloud.host, this.itemId, doc, {
-      // read at each dial rather than when the module loaded, as the provider's default is
-      WebSocketPolyfill: WebSocket,
-      connect: false,
-      disableBc: true,
-      params: async () => ({ ticket: await this.host.socketTicket() }),
-      prefix: notePath(this.itemId),
-      protocol: cloud.protocol === "https:" ? "wss" : "ws",
-    });
-    // presence is off: the default awareness stays, holding nothing of this device
-    provider.awareness.setLocalState(null);
-    const link: Link = { asking: false, dial, doc, provider };
-    const heard = (event: NoteEvent): void => {
-      if (this.link === link) {
-        this.dispatch(event);
-      }
-    };
-    provider.on("status", ({ status }: ProviderStatus) => {
-      if (status !== "connecting") {
-        heard({ kind: "socket", up: status === "connected" });
-      }
-    });
-    provider.on("synced", (isSynced: boolean) => {
-      if (isSynced) {
-        heard({ kind: "synced" });
-      }
-    });
-    provider.on("custom-message", (word: string) => {
-      heard(word === NOTE_SOCKET.pong ? PONG : { kind: "said", word });
-    });
-    provider.on("connection-close", (event: CloseEvent) => {
-      if (event.code === NOTE_SOCKET.missingCode) {
-        heard({ kind: "gone" });
-      }
-    });
-    return link;
-  }
-
-  private async connect(link: Link): Promise<void> {
-    if (link.asking || link.provider.ws !== null) {
-      return;
-    }
-    link.asking = true;
-    let dialed = true;
-    try {
-      await link.provider.connect();
-    } catch {
-      dialed = false;
-    }
-    link.asking = false;
-    // a hang-up while the ticket was asked for: the provider opened its socket after its destroy
-    if (this.link !== link) {
-      link.provider.destroy();
-    } else if (!dialed) {
-      this.dispatch({ kind: "ticket-failed" });
-    }
-  }
-
-  private arm(timer: Timer, on: boolean): void {
-    const armed = this.timers.get(timer);
-    if (on && armed === undefined) {
-      const { event, ms } = TIMERS[timer];
-      this.timers.set(
-        timer,
-        setTimeout(() => {
-          this.timers.delete(timer);
-          this.dispatch(event);
-        }, ms),
-      );
-    } else if (!on && armed !== undefined) {
-      clearTimeout(armed);
-      this.timers.delete(timer);
-    }
-  }
-
-  private beat(on: boolean): void {
-    if (on && this.heartbeat === undefined) {
-      this.heartbeat = setInterval(() => {
-        this.dispatch(PROBE);
-      }, PING_EVERY_MS);
-    } else if (!on && this.heartbeat !== undefined) {
-      clearInterval(this.heartbeat);
-      this.heartbeat = undefined;
+  private arm(on: boolean): void {
+    if (on && this.grace === undefined) {
+      this.grace = setTimeout(() => {
+        this.grace = undefined;
+        this.dispatch(GRACE_OVER);
+      }, DOWN_GRACE_MS);
+    } else if (!on && this.grace !== undefined) {
+      clearTimeout(this.grace);
+      this.grace = undefined;
     }
   }
 }

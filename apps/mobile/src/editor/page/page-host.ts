@@ -98,7 +98,7 @@ export const installPageHost = (first: PageProps): PageHost => {
   let note: OpenNote | null = null;
   let stopNote = nothingToDo;
   let reported: NoteState | null = null;
-  const offlineListeners = new Set<() => void>();
+  const reachListeners = new Set<() => void>();
   const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
 
   // one address per file for the page's life, so blocks naming one file read its bytes once; a
@@ -154,12 +154,14 @@ export const installPageHost = (first: PageProps): PageHost => {
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
-        offline: () => props.offline,
-        onOfflineChange: (listener) => {
-          offlineListeners.add(listener);
-          return () => {
-            offlineListeners.delete(listener);
-          };
+        reach: {
+          get: () => !props.offline,
+          subscribe: (listener) => {
+            reachListeners.add(listener);
+            return () => {
+              reachListeners.delete(listener);
+            };
+          },
         },
         socketOrigin: first.cloudOrigin,
         socketTicket: async () => await props.socketTicket(),
@@ -187,7 +189,7 @@ export const installPageHost = (first: PageProps): PageHost => {
         void readTargets();
       }
       if (next.offline !== before.offline) {
-        for (const listener of offlineListeners) {
+        for (const listener of reachListeners) {
           listener();
         }
       }

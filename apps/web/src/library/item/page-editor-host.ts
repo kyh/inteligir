@@ -59,11 +59,13 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
     fileSrc: async (sha) => await Promise.resolve(fileUrl(sha)),
     keepFile: async (bytes, mime) => ({ sha: await uploadFile(ports.cloud, bytes, mime) }),
     notes: {
-      offline: () => !onlineManager.isOnline(),
-      onOfflineChange: (listener) =>
-        onlineManager.subscribe(() => {
-          listener();
-        }),
+      reach: {
+        get: () => onlineManager.isOnline(),
+        subscribe: (listener) =>
+          onlineManager.subscribe(() => {
+            listener();
+          }),
+      },
       socketOrigin: ports.cloud.origin,
       socketTicket: async () => {
         const { ticket } = await client.account.socketTicket();

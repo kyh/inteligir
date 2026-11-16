@@ -36,7 +36,10 @@ const fileReadAfter = (read: FileRead, event: FileEvent): FileRead => {
   }
 };
 
-const failedNow = (): FileEvent => ({ kind: "failed", offline: getEditorHostIo().notes.offline() });
+const failedNow = (): FileEvent => ({
+  kind: "failed",
+  offline: !getEditorHostIo().notes.reach.get(),
+});
 
 // the file's read, and what the element drawing its address calls when that would not load
 export const useLibraryFile = (sha: string): readonly [FileRead, () => void] => {
@@ -71,9 +74,9 @@ export const useLibraryFile = (sha: string): readonly [FileRead, () => void] => 
   }, [sha, loading]);
 
   useEffect(() => {
-    const { notes } = getEditorHostIo();
-    return notes.onOfflineChange(() => {
-      if (!notes.offline()) {
+    const { reach } = getEditorHostIo().notes;
+    return reach.subscribe(() => {
+      if (reach.get()) {
         setRead((was) => fileReadAfter(was, { kind: "online" }));
       }
     });

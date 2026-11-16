@@ -60,18 +60,20 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const files = new Map(options.files);
   const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
-  const offlineListeners = new Set<() => void>();
+  const reachListeners = new Set<() => void>();
   let offline = options.offline ?? false;
   let made = 0;
   let tickets = 0;
 
   const notes: NoteHost = {
-    offline: () => offline,
-    onOfflineChange: (listener) => {
-      offlineListeners.add(listener);
-      return () => {
-        offlineListeners.delete(listener);
-      };
+    reach: {
+      get: () => !offline,
+      subscribe: (listener) => {
+        reachListeners.add(listener);
+        return () => {
+          reachListeners.delete(listener);
+        };
+      },
     },
     socketOrigin: NOTES_ORIGIN,
     socketTicket: async () => {
@@ -154,7 +156,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     files,
     goOffline: (next: boolean) => {
       offline = next;
-      for (const listener of offlineListeners) {
+      for (const listener of reachListeners) {
         listener();
       }
     },

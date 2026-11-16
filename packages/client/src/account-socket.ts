@@ -1,12 +1,8 @@
 // The account's socket, a hint and never the state: a frame says what in the library moved, so a
 // client reads again what it shows of it, and so does every time the socket comes up, since a
-// deploy or a drop may have hidden a write meanwhile. partysocket dials, on a short-lived ticket an
-// authenticated call mints for each try, as a browser's socket carries no header, and dials again
-// on a doubling wait; this keeps it alive with the cell's auto-answered ping, drops one gone
-// silent, reads its frames, and holds it closed while it is unwanted or the host cannot reach the
-// cloud.
+// deploy or a drop may have hidden a write meanwhile. A live socket (`./live-socket`) keeps it open
+// on the cell's auto-answered ping; this reads its frames.
 
-import ReconnectingWebSocket from "partysocket/ws";
 import { z } from "zod";
 
 import {
@@ -14,28 +10,21 @@ import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
   socketUrl,
+  V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
+
+import { createLiveSocket } from "./live-socket";
+import type { LiveSocket, Reach, WebSocketClass } from "./live-socket";
 
 // up: anything may have moved while no socket said so; down: nothing the socket said holds any
 // more, and the reply being written stops arriving
 type SocketStatus = "up" | "down";
 
-// the platform's WebSocket, or a suite's
-export type WebSocketClass = new (url: string) => EventTarget;
-
-// answered by the cell's auto-response table without waking it
+// answered by the cell's auto-response table without waking it; a ping goes unanswered for a whole
+// beat before the socket is taken for dead, so a tick that runs late behind a busy loop drops no
+// live socket
 const KEEPALIVE_MS = 45_000;
-// a half-open connection neither answers nor closes, so silence is the only sign of one; two
-// intervals, so a tick that runs late behind a busy loop drops no live socket
-const SILENCE_MS = 2 * KEEPALIVE_MS;
-
-// whether the host can reach the cloud, and a listener told each time that changes: the network
-// alone in a tab, the app in front too on a phone
-export interface Reach {
-  readonly get: () => boolean;
-  readonly subscribe: (listener: () => void) => () => void;
-}
 
 export interface AccountSocketArgs {
   readonly origin: string;
@@ -48,12 +37,7 @@ export interface AccountSocketArgs {
   readonly WebSocket?: WebSocketClass;
 }
 
-export interface AccountSocket {
-  // wanted from now: it dials whenever the host reaches the cloud, and lets go whenever it cannot
-  readonly connect: () => void;
-  // for good, until the next connect
-  readonly close: () => void;
-}
+export type AccountSocket = Pick<LiveSocket, "connect" | "close">;
 
 const frameJsonSchema = z.string().transform((text, context) => {
   try {
@@ -64,74 +48,28 @@ const frameJsonSchema = z.string().transform((text, context) => {
   }
 });
 
-export const createAccountSocket = (args: AccountSocketArgs): AccountSocket => {
-  const socket = new ReconnectingWebSocket(
-    async () => socketUrl(args.origin, await args.ticket()),
-    undefined,
-    {
-      // a ping queued while closed would go out on the next socket, to no purpose
-      maxEnqueuedMessages: 0,
-      maxReconnectionDelay: 60_000,
-      minReconnectionDelay: 1000,
-      reconnectionDelayGrowFactor: 2,
-      startClosed: true,
-      WebSocket: args.WebSocket,
+export const createAccountSocket = (args: AccountSocketArgs): AccountSocket =>
+  createLiveSocket({
+    address: async () => socketUrl(args.origin, V1_SOCKET_PATH, await args.ticket()),
+    backoff: { firstMs: 1000, grow: 2, mostMs: 60_000 },
+    keepalive: {
+      answerMs: KEEPALIVE_MS,
+      everyMs: KEEPALIVE_MS,
+      ping: SOCKET_KEEPALIVE_PING,
+      pong: SOCKET_KEEPALIVE_PONG,
     },
-  );
-  // wanted while it is subscribed to the reach
-  let unsubscribe: (() => void) | null = null;
-  let up = false;
-  let heardAt = 0;
-  let keepalive: ReturnType<typeof setInterval> | undefined;
-
-  socket.addEventListener("open", () => {
-    up = true;
-    heardAt = Date.now();
-    clearInterval(keepalive);
-    keepalive = setInterval(() => {
-      if (Date.now() - heardAt > SILENCE_MS) {
-        socket.reconnect();
-      } else {
-        socket.send(SOCKET_KEEPALIVE_PING);
-      }
-    }, KEEPALIVE_MS);
-    args.onStatus("up");
-  });
-  socket.addEventListener("close", () => {
-    clearInterval(keepalive);
-    if (up) {
-      up = false;
+    onDown: () => {
       args.onStatus("down");
-    }
-  });
-  socket.addEventListener("message", (event) => {
-    heardAt = Date.now();
-    const data: unknown = event.data;
-    if (data === SOCKET_KEEPALIVE_PONG) {
-      return;
-    }
-    const frame = frameJsonSchema.safeParse(data);
-    if (frame.success) {
-      args.onFrame(frame.data);
-    }
-  });
-
-  const judge = (): void => {
-    if (unsubscribe === null || !args.reach.get()) {
-      socket.close();
-    } else if (!socket.shouldReconnect) {
-      socket.reconnect();
-    }
-  };
-  return {
-    close: () => {
-      unsubscribe?.();
-      unsubscribe = null;
-      judge();
     },
-    connect: () => {
-      unsubscribe ??= args.reach.subscribe(judge);
-      judge();
+    onMessage: (message) => {
+      const frame = frameJsonSchema.safeParse(message.kind === "text" ? message.text : null);
+      if (frame.success) {
+        args.onFrame(frame.data);
+      }
     },
-  };
-};
+    onUp: () => {
+      args.onStatus("up");
+    },
+    reach: args.reach,
+    WebSocket: args.WebSocket,
+  });

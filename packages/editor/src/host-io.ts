@@ -1,3 +1,4 @@
+import type { Reach } from "@repo/client/live-socket";
 import { titleKey } from "@repo/contract/library/derive-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { createStore } from "zustand/vanilla";
@@ -91,10 +92,9 @@ export interface NoteHost {
   readonly socketOrigin: string;
   // asked again on every dial, so a ticket that ran out is never sent twice
   readonly socketTicket: () => Promise<string>;
-  // the host's own word that it has no connection, which turns an open note read-only at once,
-  // ahead of any socket noticing
-  readonly offline: () => boolean;
-  readonly onOfflineChange: (listener: () => void) => () => void;
+  // the host's own word on whether it reaches the cloud, which turns an open note read-only at
+  // once, ahead of any socket noticing
+  readonly reach: Reach;
 }
 
 export interface AgentRequestActions {

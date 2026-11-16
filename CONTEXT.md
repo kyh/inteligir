@@ -99,7 +99,8 @@ history: it holds only agent turns.
 **account socket** — the one socket a device holds to its account's cell:
 opened on a **ticket**, kept alive by the cell's ping, redialled on a growing
 wait when it drops, and read again whole each time it comes up
-(`@repo/client/account-socket`). It carries **moved frames** and `preview`
+(`@repo/client/account-socket`), a live socket as each note's is
+(`@repo/client/live-socket`). It carries **moved frames** and `preview`
 frames, the reply the agent is writing, which no read answers. Its frames are
 the contract's (`@repo/contract/library/library-socket`).
 

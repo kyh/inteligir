@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferred } from "@repo/contract/deferred";
 
-import { socketUrl } from "@repo/contract/library/library-socket";
+import { socketUrl, V1_SOCKET_PATH } from "@repo/contract/library/library-socket";
 
 import { createAccountSocket } from "./account-socket";
 import { fakeSockets } from "./test-support/fake-sockets";
@@ -55,10 +55,12 @@ const socketOver = (ticket: () => Promise<string> = async () => await Promise.re
 
 describe("the account's socket", () => {
   it("opens on its ticket at the origin's own scheme", () => {
-    expect(socketUrl("https://inteligir.app", "t 1")).toBe(
+    expect(socketUrl("https://inteligir.app", V1_SOCKET_PATH, "t 1")).toBe(
       "wss://inteligir.app/v1/socket?ticket=t%201",
     );
-    expect(socketUrl("http://localhost:5174", "t")).toBe("ws://localhost:5174/v1/socket?ticket=t");
+    expect(socketUrl("http://localhost:5174", V1_SOCKET_PATH, "t")).toBe(
+      "ws://localhost:5174/v1/socket?ticket=t",
+    );
   });
 
   it("says when it comes up, hands over each frame it reads, and skips what it cannot", async () => {
@@ -78,7 +80,7 @@ describe("the account's socket", () => {
     expect(statuses).toStrictEqual(["up", "down"]);
   });
 
-  it("pings while it hears the cell, and drops a socket gone silent", async () => {
+  it("pings on its beat, and drops a socket whose ping goes a beat unanswered", async () => {
     const { socket, sockets, statuses } = socketOver();
     socket.connect();
     await pass();
@@ -86,9 +88,11 @@ describe("the account's socket", () => {
     await pass(45_000);
     expect(sockets[0]?.sent).toStrictEqual(["ping"]);
     sockets[0]?.message("pong");
-    await pass(90_000);
-    expect(sockets[0]?.closed).toBe(false);
     await pass(45_000);
+    expect(sockets[0]?.sent).toStrictEqual(["ping", "ping"]);
+    await pass(44_999);
+    expect(sockets[0]?.closed).toBe(false);
+    await pass(1);
     expect(sockets[0]?.closed).toBe(true);
     expect(statuses).toStrictEqual(["up", "down"]);
     await pass(1);

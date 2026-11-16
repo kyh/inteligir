@@ -114,7 +114,8 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
   jsdom: ^30.1.3
-  # the note object reads a sync frame's header with yjs's own decoder; one copy, the one yjs resolves
+  # a note's sync frames are read and written with yjs's own coder at both ends; one copy, the one
+  # yjs resolves
   lib0: 0.2.119
   lucide-react: ^1.61.0
   mdast-util-to-markdown: ^2.2.0
@@ -123,8 +124,8 @@ catalog:
   # exact: 0.x, and y-partyserver merges its own options over these with ||, so a minor may move
   # what a note's object inherits
   partyserver: 0.5.10
-  # exact, the one y-partyserver resolves: the account's socket redials on it, so the tab, the phone
-  # and a note's provider share one copy
+  # exact: every socket to the cloud redials on it (`@repo/client/live-socket`), so the tab and the
+  # phone share one copy
   partysocket: 1.3.0
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
@@ -173,7 +174,7 @@ catalog:
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   # exact: each note's object is its YServer, whose onLoad, onSave and connection hooks it
-  # overrides, and the editor's provider is its client half, which must match it
+  # overrides, and whose frames the editor's note socket speaks
   y-partyserver: 2.2.0
   # exact, the one y-partyserver resolves: a note's sync frames are this protocol at both ends
   y-protocols: 1.0.7

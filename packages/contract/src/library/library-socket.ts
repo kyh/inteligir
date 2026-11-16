@@ -11,11 +11,11 @@ import { idSchema, seqSchema } from "./library-wire";
 export const V1_SOCKET_PATH = "/v1/socket";
 export const SOCKET_TICKET_PARAM = "ticket";
 
-// the socket's address on the cloud's origin, its scheme the origin's own made a socket's
-export const socketUrl = (origin: string, ticket: string): string => {
+// a socket's address at `path` on the cloud's origin, its scheme the origin's own made a socket's
+export const socketUrl = (origin: string, path: string, ticket: string): string => {
   const scheme = origin.startsWith("https:") ? "wss:" : "ws:";
   const rest = origin.replace(/^https?:/u, "");
-  return `${scheme}${rest}${V1_SOCKET_PATH}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`;
+  return `${scheme}${rest}${path}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`;
 };
 
 // the cell answers the literal ping by auto-response, without waking from hibernation

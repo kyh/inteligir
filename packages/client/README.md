@@ -1,7 +1,7 @@
 # @repo/client
 
-What the library tab and the phone share above `@repo/contract`: the account's
-socket, what each of its frames reads again, the library's labels, and the
+What the library tab and the phone share above `@repo/contract`: the live
+socket the account's and each note's are, what the account's frames read again, the library's labels, and the
 built-in agent's conversation logic. It names no platform and no UI, so each
 device draws the same rows, words and sends its own way (the tab with
 `@repo/ui`, the phone with React Native). Its decisions are this package's
@@ -10,7 +10,7 @@ device draws the same rows, words and sends its own way (the tab with
 ## Layout
 
 ```
-src/                one module per concern: the socket, the cache's re-reads, the labels, a
+src/                one module per concern: the sockets, the cache's re-reads, the labels, a
                     thread's entries and a send, each with its suite
 src/test-support/   the fake sockets a suite drives
 ```

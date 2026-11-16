@@ -100,6 +100,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   device seeds a note and a socket down past 3 s turns the editor read-only, since block ops after
   a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
   table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
+- **A note's socket is the account's live socket at the note's path, and its document syncs by
+  y-protocols over it.** y-partyserver's provider brings a second redial machine of its own, so
+  only the server is y-partyserver's, and both ends frame with one y-protocols.
+  `packages/editor/src/item/note-socket.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
   `readItemBlocks`, `onItemsChanged` and `notes` take ids, and `fileSrc` and `readFile` a sha,
   since paths a host mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
@@ -131,9 +135,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
   changes, since `@platejs/yjs` takes no custom provider without a type assertion.
   `packages/editor/src/live/yjs-binding.ts`.
-- **The editor and `@repo/ui` reach no oRPC module.** Expo's DOM bundle compiles classes to
-  functions and oRPC's builder dies under that at boot while typecheck stays green, so lint refuses
-  `@orpc/*` and every `@repo/contract` module that reaches it. `oxlint.config.ts`.
+- **The editor, `@repo/ui` and the live socket reach no oRPC module.** Expo's DOM bundle compiles
+  classes to functions and oRPC's builder dies under that at boot while typecheck stays green, so
+  lint refuses `@orpc/*` and every `@repo/contract` module that reaches it. `oxlint.config.ts`.
 
 ## The grammar, links and a file's facts
 
