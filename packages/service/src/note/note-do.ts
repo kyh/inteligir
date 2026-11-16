@@ -411,19 +411,16 @@ export class NoteDO extends YServer<Env> {
     }
   }
 
-  // presence is off: an awareness frame is dropped, never applied or sent on
-  override handleMessage(connection: Connection, message: WSMessage): void {
-    if (frameKind(message) === "awareness") {
+  // Presence is off: an awareness frame is dropped, never applied or sent on. A frame that writes
+  // is weighed before y-partyserver applies it: past an update's cap the socket is held read-only
+  // and told so; past the note's, once a compaction cannot make room, the note is full until one
+  // does.
+  override async onMessage(connection: Connection, message: WSMessage): Promise<void> {
+    const kind = frameKind(message);
+    if (kind === "awareness") {
       return;
     }
-    super.handleMessage(connection, message);
-  }
-
-  // A frame that writes is weighed before y-partyserver applies it: past an update's cap the
-  // socket is held read-only and told so; past the note's, once a compaction cannot make room,
-  // the note is full until one does.
-  override async onMessage(connection: Connection, message: WSMessage): Promise<void> {
-    if (frameKind(message) === "write" && !this.isReadOnly(connection)) {
+    if (kind === "write" && !this.isReadOnly(connection)) {
       const size = frameBytes(message);
       if (size > NOTE_UPDATE_CAP) {
         connection.setState({ refused: true });
