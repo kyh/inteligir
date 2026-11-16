@@ -28,6 +28,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `Cargo.lock`. Why: the catalog binds only the manifests that spell a package.
   `pnpm-workspace.yaml`, `packages/service/compatibility.ts`,
   `apps/desktop/rust-toolchain.toml`.
+- **The product's version is the root `package.json`'s, and each shipped app
+  reads it there.** Why: one client build floor holds every app, so a copy per
+  manifest is three chances to ship apart. `package.json`.
 - **A dependency two workspaces name is spelled `catalog:`**. Why: it is one
   version the repo agrees on; one manifest's inline range stays. `pnpm-workspace.yaml`.
 - **An update sweep skips the Expo SDK's names, not its `expo:` catalog**: after

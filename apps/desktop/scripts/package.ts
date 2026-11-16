@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseEnv } from "node:util";
-import manifest from "../package.json" with { type: "json" };
+import manifest from "../../../package.json" with { type: "json" };
 import { run } from "./run.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");

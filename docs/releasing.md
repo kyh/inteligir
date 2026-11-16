@@ -12,11 +12,11 @@ outright.
 | The iPhone app | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
 | The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
-The three manifests carry one version (`apps/desktop`, `apps/extension`,
-`apps/mobile`, set in § 1), since one client build floor holds the phone and
-the extension alike, and a release's notes are
-`CHANGELOG.md`'s top section, which `apps/desktop/scripts/release-notes.ts`
-refuses to print until it is titled for that version.
+The three read one version, the root `package.json`'s (set in § 1), since one
+client build floor holds the phone and the extension alike, and a release's
+notes are `CHANGELOG.md`'s top section, which
+`apps/desktop/scripts/release-notes.ts` refuses to print until it is titled
+for that version.
 
 The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
@@ -120,10 +120,9 @@ the fallback is a custom build, `.eas/build/production.yml`, that installs with
 
 On main, clean, at the commit to ship:
 
-1. Set `version` in `apps/desktop/package.json`, `apps/extension/package.json`
-   and `apps/mobile/package.json` to the release's `<version>`. The Mac app's
-   About and its update feed read it, and the phone and the extension name it
-   in every call.
+1. Set `version` in the root `package.json` to the release's `<version>`.
+   The Mac app's About and its update feed read it, and the phone and the
+   extension name it in every call.
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
@@ -484,6 +483,6 @@ Only once every check in § 5 has passed, and the three close together.
   build of the same version, `pnpm testflight:mobile` from a branch off the
   tag, then § 4 from step 3. `pnpm --filter @repo/mobile exec eas
   build:version:get --platform ios` prints the latest build number.
-- **The Mac app or the extension**: a patch version through this whole runbook. All
-  three manifests move with it, but the phone's build may stay behind; its
+- **The Mac app or the extension**: a patch version through this whole runbook. The
+  version is all three's, but the phone's build may stay behind; its
   JavaScript hotfixes then branch from the tag of the build TestFlight serves.
