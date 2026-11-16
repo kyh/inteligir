@@ -13,6 +13,7 @@ import {
   SOCKET_KEEPALIVE_PONG,
 } from "@repo/contract/library/library-socket";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
+import { AccountGoneError } from "@repo/contract/v1/errors";
 import { DurableObject } from "cloudflare:workers";
 
 import { landPush, runAgentJobs, runTurnTool, showPreview } from "../agent/agent-turns";
@@ -29,6 +30,7 @@ import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
 import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
+import { plainRefusal } from "../wire/rpc-refusal";
 import { purgeAccount } from "./account-purge";
 import { landArticle } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
@@ -128,7 +130,7 @@ export class LibraryDO extends DurableObject<Env> {
       return plainText(400, "The cell takes only a verified socket upgrade.");
     }
     if (this.#cell.library.deletedAt() !== null) {
-      return plainText(410, "This account was deleted.");
+      return plainRefusal(new AccountGoneError());
     }
     return acceptSocket(this.ctx, holder);
   }

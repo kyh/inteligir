@@ -38,7 +38,9 @@ const phoneOver = (device: FakeDevice, storage: MemoryKv = memoryKv()) => {
     newId: idSource(),
     now: () => 1_700_000_000_000,
     sha256Hex: async (bytes) => await Promise.resolve(fileSha(bytes)),
-    upload: async (file) => await uploadBlob(device.transport, file),
+    upload: async (file) => {
+      await uploadBlob(device.transport, file);
+    },
   });
   const shares = createShareOutbox({
     landed: () => {

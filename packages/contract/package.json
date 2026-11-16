@@ -50,6 +50,7 @@
     "./refusal-text": "./src/refusal-text.ts",
     "./test-support/fake-cell": "./src/test-support/fake-cell.ts",
     "./test-support/library-items": "./src/test-support/library-items.ts",
+    "./test-support/refusal-response": "./src/test-support/refusal-response.ts",
     "./test-support/seeded-random": "./src/test-support/seeded-random.ts",
     "./text/clip-text": "./src/text/clip-text.ts",
     "./text/safe-decode": "./src/text/safe-decode.ts",

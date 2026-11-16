@@ -49,9 +49,9 @@ app's update.
   the item, a click, Back, Forward and the tab's close, since the item rides the URL; only typing
   no connection carried (`OpenNote.unsent`) asks, and a leave waits for the note to say it stored
   every edit. `apps/web/src/library/item/leave-item.ts`.
-- **A session's end is answered however the tab meets it.** A call's 401, an upload's 401, 410 or
-  426, and a keeper reading the session on a timer end it one way, to the site's sign-in, since an
-  idle tab makes no call. `apps/web/src/library/cloud/v1.ts`.
+- **A session's end is answered however the tab meets it.** A call's refusal, an upload's, which
+  is the same error, and a keeper reading the session on a timer end it one way, to the site's
+  sign-in, since an idle tab makes no call. `apps/web/src/library/cloud/v1.ts`.
 - **A tab's session is one value.** Live, ended with why, or left, moved by `tabAfter`: the first
   end wins, since two hand-rolled leaves go twice. `apps/web/src/library/library-tab.ts`.
 

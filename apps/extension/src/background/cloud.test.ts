@@ -1,4 +1,6 @@
 import { fileSha } from "@repo/contract/library/file-sha";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import { QuotaError } from "@repo/contract/v1/errors";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { cloudOf, sendFile } from "./cloud";
@@ -39,8 +41,8 @@ describe("the extension's calls to its cloud", () => {
     expect(put?.signal.aborted).toBe(false);
   });
 
-  it("read a file the cloud refused by the code its call would answer", async () => {
-    cloudAnswering(() => new Response(null, { status: 507 }));
+  it("read a file the cloud refused by the code it answered, as a call's", async () => {
+    cloudAnswering(() => refusalResponse(new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } })));
     await expect(
       sendFile(cloudOf(SESSION, "0.6.0"), new Uint8Array([1]), "image/png"),
     ).resolves.toStrictEqual({ code: "QUOTA", kind: "refused" });

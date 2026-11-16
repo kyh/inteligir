@@ -7,7 +7,6 @@
 // of it. Platform-free: its suites run it under node.
 
 import { CHANGE_REFUSED, sharedFailure } from "@repo/contract/library/call-outcome";
-import type { UploadOutcome } from "@repo/contract/library/call-outcome";
 import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
 import { WEB_URL_RULE } from "@repo/contract/items/item-kind";
@@ -38,10 +37,10 @@ export type SaveOutcome =
   // the sign-in ended under it
   | { readonly kind: "ended" };
 
+type SaveMiss = Exclude<SaveOutcome, { readonly kind: "saved" }>;
+
 // a file's bytes sent up and kept on the phone as they went, or why not
-type KeepOutcome =
-  | { readonly kind: "kept"; readonly sha: string }
-  | Exclude<SaveOutcome, { readonly kind: "saved" }>;
+type KeepOutcome = { readonly kind: "kept"; readonly sha: string } | SaveMiss;
 
 type SharedLink = Omit<Extract<ShareSave, { kind: "link" }>, "kind">;
 
@@ -68,7 +67,8 @@ export interface PhoneSaves {
 
 export interface PhoneSavesArgs {
   readonly client: V1Client;
-  readonly upload: (file: HeldFile & { readonly sha: string }) => Promise<UploadOutcome>;
+  // a file's bytes up by their sha, thrown as a call's failure when the cloud keeps none
+  readonly upload: (file: HeldFile & { readonly sha: string }) => Promise<void>;
   readonly files: Pick<FileCache, "keep">;
   // a fresh UUIDv7, which an item's id and an op id both are
   readonly newId: () => string;
@@ -93,8 +93,8 @@ const paragraphsOf = (text: string, newBlockId: () => string) =>
     .filter((paragraph) => paragraph !== "")
     .map((paragraph) => ({ children: [{ text: paragraph }], id: newBlockId(), type: "p" }));
 
-// what a call that threw met, in the save's terms
-const failedWith = (cause: unknown): SaveOutcome => {
+// what a call or an upload that threw met, in the save's terms
+const failedWith = (cause: unknown): SaveMiss => {
   const failure = cause instanceof Error ? sharedFailure(cause) : null;
   if (failure === null) {
     return { kind: "refused", message: refusalText(cause, CHANGE_REFUSED) };
@@ -150,12 +150,10 @@ export const createPhoneSaves = (args: PhoneSavesArgs): PhoneSaves => {
 
   const keepFile: PhoneSaves["keepFile"] = async ({ bytes, mime }) => {
     const sha = await args.sha256Hex(bytes);
-    const sent = await args.upload({ bytes, mime, sha });
-    if (sent.kind === "refused") {
-      return { kind: "refused", message: sent.reason };
-    }
-    if (sent.kind === "failed") {
-      return sent.failure.kind === "session" ? { kind: "ended" } : { kind: "unreachable" };
+    try {
+      await args.upload({ bytes, mime, sha });
+    } catch (error) {
+      return failedWith(error);
     }
     await args.files.keep(sha, { bytes, mime });
     return { kind: "kept", sha };

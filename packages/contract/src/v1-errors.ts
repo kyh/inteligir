@@ -49,6 +49,12 @@ export const BlobMissingError = error("BLOB_MISSING", {
   message: "A file this names hasn't been uploaded yet.",
 });
 
+// a file's bytes that do not hash to the sha they were sent under, which no resend changes:
+// oRPC's own code, declared, where an undeclared one is a call the cell could not read
+export const BlobMismatchError = error("BAD_REQUEST", {
+  message: "This file changed on this device before it was sent.",
+});
+
 // a block, an item's text or a field past its cap
 export const PayloadTooLargeError = error("PAYLOAD_TOO_LARGE", {
   message: "This is too large to keep in one item.",

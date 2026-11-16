@@ -1,4 +1,14 @@
 import { fileSha } from "@repo/contract/library/file-sha";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import {
+  AccountGoneError,
+  BlobMismatchError,
+  ClientOutdatedError,
+  PayloadTooLargeError,
+  QuotaError,
+  TooManyRequestsError,
+  UnauthorizedError,
+} from "@repo/contract/v1/errors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
@@ -72,6 +82,12 @@ const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
 });
 
 const answering = (status: number) => async () => new Response(null, { status });
+
+// a cloud that refuses an upload, as it answers one
+const uploadRefused = (declared: Parameters<typeof refusalResponse>[0]): FakeCloud =>
+  fakeCloud({ upload: async () => refusalResponse(declared) });
+
+const FULL = new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } });
 
 const refusedFor = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outcome => ({
   kind: "refused",
@@ -161,12 +177,12 @@ describe("a tab saved", () => {
   });
 
   it("is saved without a cover the cloud refuses, and waits with a cover whose session ended", async () => {
-    const refused = fakeCloud({ upload: answering(413) });
+    const refused = uploadRefused(new PayloadTooLargeError());
     await expect(saveTab(depsWith(refused).deps, { tab: TAB })).resolves.toMatchObject({
       kind: "saved",
     });
     expect(refused.saves).toStrictEqual([expect.objectContaining({ coverSha: null })]);
-    const ended = fakeCloud({ upload: answering(401) });
+    const ended = uploadRefused(new UnauthorizedError());
     await expect(saveTab(depsWith(ended).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "queued",
       waitsFor: "sign-in",
@@ -399,13 +415,13 @@ describe("a right-click's address or picture", () => {
 
   it("refuses a picture whatever would keep a save waiting, since its bytes wait in no queue", async () => {
     const rows: readonly (readonly [string, FakeCloud, Outcome, boolean])[] = [
-      ["401", fakeCloud({ upload: answering(401) }), refusedFor("signed-out"), true],
-      ["410", fakeCloud({ upload: answering(410) }), refusedFor("not-connected"), false],
-      ["426", fakeCloud({ upload: answering(426) }), refusedFor("update-extension"), true],
-      ["413", fakeCloud({ upload: answering(413) }), refusedFor("too-large"), true],
-      ["507", fakeCloud({ upload: answering(507) }), refusedFor("library-full"), true],
-      ["400", fakeCloud({ upload: answering(400) }), refusedFor("failed"), true],
-      ["429", fakeCloud({ upload: answering(429) }), refusedFor("needs-connection"), true],
+      ["signed out", uploadRefused(new UnauthorizedError()), refusedFor("signed-out"), true],
+      ["gone", uploadRefused(new AccountGoneError()), refusedFor("not-connected"), false],
+      ["stale", uploadRefused(new ClientOutdatedError()), refusedFor("update-extension"), true],
+      ["too large", uploadRefused(new PayloadTooLargeError()), refusedFor("too-large"), true],
+      ["full", uploadRefused(FULL), refusedFor("library-full"), true],
+      ["changed", uploadRefused(new BlobMismatchError()), refusedFor("failed"), true],
+      ["busy", uploadRefused(new TooManyRequestsError()), refusedFor("needs-connection"), true],
       ["503", fakeCloud({ upload: answering(503) }), refusedFor("needs-connection"), true],
       [
         "no answer",

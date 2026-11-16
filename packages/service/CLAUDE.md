@@ -49,9 +49,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   order each spells again and a new route forgets, and a call is refused as
   unsigned before anything reads what it asks.
   `packages/service/src/wire/v1-principal.ts`.
-- **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once.** REST beside
-  RPC is two serializers and two error vocabularies; only a file's bytes and the
-  sockets stay plain HTTP. `packages/service/src/wire/rpc-refusal.ts`.
+- **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once, and a file's
+  upload is refused in them too.** REST beside RPC is two serializers and two
+  error vocabularies, and a status each client maps back to a code is a third;
+  only a file's bytes and the sockets stay plain HTTP.
+  `packages/service/src/wire/rpc-refusal.ts`.
 - **A library call reaches its cell with the principal the Worker verified, an
   argument of the cell's own method beside the request.** A principal on a
   header rides beside headers the caller controls, so each must be dropped

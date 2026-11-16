@@ -1,14 +1,20 @@
 // `/v1` as every client calls it, and what a call that did not land met, in a client's terms: a
 // refusal of the sign-in itself (the credential, the account, this build), a budget to wait out, or
 // no answer at all, beside each procedure's own refusals, which its caller reads. A file's upload
-// answers in statuses, the same refusals by number.
+// goes outside the link and is refused in the same errors.
 
-import { createORPCClient, onError } from "@orpc/client";
+import {
+  createORPCClient,
+  createORPCErrorFromJson,
+  isORPCErrorJson,
+  onError,
+  RPCSerializer,
+} from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
 import { V1_RPC_PATH } from "../v1-contract";
 import type { V1Client } from "../v1-contract";
-import { isOrpcError, PayloadTooLargeError, QuotaError } from "../v1-errors";
+import { isOrpcError } from "../v1-errors";
 import { V1_BLOBS_PATH } from "./library-blobs";
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the session through the
@@ -82,60 +88,46 @@ export const v1Client = (
     }),
   );
 
-// a file refused, by the code `/v1/rpc` answers its status with, and in the person's words
-interface UploadRefusal {
-  readonly code: "BAD_REQUEST" | typeof PayloadTooLargeError.code | typeof QuotaError.code;
-  readonly reason: string;
-}
+const serializer = new RPCSerializer();
 
-export type UploadOutcome =
-  | { readonly kind: "stored" }
-  | ({ readonly kind: "refused" } & UploadRefusal)
-  | { readonly kind: "failed"; readonly failure: CallFailure };
+// what an answer outside the link refused with, read as the link reads one: the error the wire
+// declares, or for any other answer (a fault, a proxy's page) an error that names no refusal
+const refusalIn = async (response: Response): Promise<Error> => {
+  try {
+    const body: unknown = await response.json();
+    const refusal = serializer.deserialize(body);
+    if (isORPCErrorJson(refusal)) {
+      return createORPCErrorFromJson(refusal);
+    }
+  } catch {
+    // no body the protocol wrote
+  }
+  return new Error(`the cloud answered ${String(response.status)}`);
+};
 
-const UPLOAD_REFUSALS: ReadonlyMap<number, UploadRefusal> = new Map([
-  [400, { code: "BAD_REQUEST", reason: "This file changed on this device before it was sent." }],
-  [
-    413,
-    { code: PayloadTooLargeError.code, reason: "This file is larger than your library keeps." },
-  ],
-  [507, { code: QuotaError.code, reason: "Your library is full." }],
-]);
-
-const UPLOAD_FAILURES: ReadonlyMap<number, CallFailure> = new Map([
-  [401, { end: "signed-out", kind: "session" }],
-  [410, { end: "gone", kind: "session" }],
-  [426, { end: "outdated", kind: "session" }],
-  [429, { kind: "busy" }],
-]);
-
-// a file's bytes to `/v1/blobs/<sha>`, which keeps nothing that hashes otherwise
+// a file's bytes to `/v1/blobs/<sha>`, which keeps nothing that hashes otherwise. It lands or
+// throws as a call does, so `sharedFailure` and `refusalText` read its failure, and the hook hears
+// a sign-in it ended as the link's does
 export const uploadBlob = async (
   transport: V1Transport,
   file: { readonly sha: string; readonly mime: string; readonly bytes: Uint8Array<ArrayBuffer> },
-): Promise<UploadOutcome> => {
-  let response: Response;
-  try {
-    response = await transport.fetch(
-      new Request(`${transport.origin}${V1_BLOBS_PATH}/${file.sha}`, {
-        body: file.bytes,
-        headers: { "content-type": file.mime },
-        method: "PUT",
-      }),
-    );
+  onSessionEnd?: (end: SessionEnd) => void,
+): Promise<void> => {
+  const response = await transport.fetch(
+    new Request(`${transport.origin}${V1_BLOBS_PATH}/${file.sha}`, {
+      body: file.bytes,
+      headers: { "content-type": file.mime },
+      method: "PUT",
+    }),
+  );
+  if (response.ok) {
     await response.arrayBuffer();
-  } catch {
-    return { failure: { kind: "unreachable", message: UNREACHABLE }, kind: "failed" };
+    return;
   }
-  if (response.status === 201 || response.status === 204) {
-    return { kind: "stored" };
+  const refusal = await refusalIn(response);
+  const end = sessionEndOf(refusal);
+  if (end !== null) {
+    onSessionEnd?.(end);
   }
-  const refusal = UPLOAD_REFUSALS.get(response.status);
-  if (refusal !== undefined) {
-    return { ...refusal, kind: "refused" };
-  }
-  return {
-    failure: UPLOAD_FAILURES.get(response.status) ?? { kind: "unreachable", message: UNREACHABLE },
-    kind: "failed",
-  };
+  throw refusal;
 };

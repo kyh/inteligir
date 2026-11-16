@@ -1,10 +1,15 @@
 // A refusal the Worker answers outside any procedure (the build floor, a credential, a rate
-// window), spelled as the RPC protocol answers an error (https://orpc.dev/docs/advanced/rpc-protocol):
-// the status `V1_ERROR_STATUS_MAP` gives its code, and its serialized error, marked as the error
-// every row declares, so an RPCLink client narrows it as it narrows a procedure's own.
+// window, a file it will not keep), spelled as the RPC protocol answers an error
+// (https://orpc.dev/docs/advanced/rpc-protocol): the status `V1_ERROR_STATUS_MAP` gives its code,
+// and its serialized error, marked as declared, so a client narrows it as it narrows a procedure's
+// own, an RPCLink's call and an upload alike (`@repo/contract/library/call-outcome`).
 
 import {
+  AccountGoneError,
+  BlobMismatchError,
   ClientOutdatedError,
+  PayloadTooLargeError,
+  QuotaError,
   TooManyRequestsError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
@@ -13,8 +18,13 @@ import { ORPCError, reconcileORPCError, RPCSerializer } from "@orpc/server";
 
 import { plainText } from "../plain-http";
 
+// what any request may meet, and what a file's upload may, which is no row to declare them on
 const REFUSALS = {
+  [AccountGoneError.code]: AccountGoneError,
+  [BlobMismatchError.code]: BlobMismatchError,
   [ClientOutdatedError.code]: ClientOutdatedError,
+  [PayloadTooLargeError.code]: PayloadTooLargeError,
+  [QuotaError.code]: QuotaError,
   [TooManyRequestsError.code]: TooManyRequestsError,
   [UnauthorizedError.code]: UnauthorizedError,
 };

@@ -16,9 +16,12 @@ import type { UploadSettlement } from "./library-engine";
 // a cell's answer as far as a keep reads it, which its stub's serialized answer is too
 type Answer<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly refusal: Refusal };
+  | { readonly ok: false; readonly refusal: KeepRefusal };
 
-type Refusal = Pick<CellRefusal, "kind">;
+// a refusal's kind, and a full library's numbers, which its answer carries
+export type KeepRefusal =
+  | Extract<CellRefusal, { readonly kind: "quota" }>
+  | { readonly kind: Exclude<CellRefusal["kind"], "quota"> };
 
 export interface KeepPort {
   readonly reserve: (request: UploadRequest) => Answer<UploadRoom> | Promise<Answer<UploadRoom>>;
@@ -36,7 +39,7 @@ export type KeepOutcome =
   | { readonly kind: "held" }
   | { readonly kind: "kept" }
   // the cell gave no room, or would not settle it
-  | { readonly kind: "refused"; readonly refusal: Refusal }
+  | { readonly kind: "refused"; readonly refusal: KeepRefusal }
   // R2 kept nothing: `badDigest` when the bytes did not hash to the sha, which a send again would
   // not change
   | { readonly kind: "unput"; readonly badDigest: boolean; readonly error: unknown }

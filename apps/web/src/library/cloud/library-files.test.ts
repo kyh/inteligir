@@ -1,13 +1,20 @@
 import type { SessionEnd } from "@repo/contract/library/call-outcome";
+import { refusalResponse } from "@repo/contract/test-support/refusal-response";
+import {
+  AccountGoneError,
+  ClientOutdatedError,
+  QuotaError,
+  UnauthorizedError,
+} from "@repo/contract/v1/errors";
 import { describe, expect, it } from "vitest";
 
-import { FileRefusedError, uploadFile } from "./library-files";
+import { uploadFile } from "./library-files";
 import type { FileCloud } from "./library-files";
 
-const answering = (status: number) => {
+const answering = (answer: () => Response) => {
   const ended: SessionEnd[] = [];
   const cloud: FileCloud = {
-    fetch: async () => await Promise.resolve(new Response(null, { status })),
+    fetch: async () => await Promise.resolve(answer()),
     onSessionEnd: (end) => {
       ended.push(end);
     },
@@ -21,20 +28,29 @@ const upload = async (cloud: FileCloud): Promise<string> =>
 
 describe("a file sent up from the page", () => {
   it.each([
-    [401, "signed-out"],
-    [410, "gone"],
-    [426, "outdated"],
-  ] as const)("ends the page's session on a %i, as the wire's calls do", async (status, end) => {
-    const { cloud, ended } = answering(status);
-    await expect(upload(cloud)).rejects.toThrow("the file was not sent: session");
-    expect(ended).toStrictEqual([end]);
-  });
+    ["signed-out", new UnauthorizedError()],
+    ["gone", new AccountGoneError()],
+    ["outdated", new ClientOutdatedError()],
+  ] as const)(
+    "ends the page's session as %s on the refusal that says so, as the wire's calls do",
+    async (end, refusal) => {
+      const { cloud, ended } = answering(() => refusalResponse(refusal));
+      await expect(upload(cloud)).rejects.toMatchObject({ code: refusal.code, defined: true });
+      expect(ended).toStrictEqual([end]);
+    },
+  );
 
-  it("ends nothing on a refusal of the file or a fault of the cloud's", async () => {
-    const full = answering(507);
-    await expect(upload(full.cloud)).rejects.toBeInstanceOf(FileRefusedError);
-    const busy = answering(503);
-    await expect(upload(busy.cloud)).rejects.toThrow("the file was not sent: unreachable");
-    expect([...full.ended, ...busy.ended]).toStrictEqual([]);
+  it("ends nothing on a refusal of the file or a fault of the cloud's, and a refusal says why", async () => {
+    const full = answering(() =>
+      refusalResponse(new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } })),
+    );
+    await expect(upload(full.cloud)).rejects.toMatchObject({
+      code: "QUOTA",
+      defined: true,
+      message: "Your library is full.",
+    });
+    const down = answering(() => new Response(null, { status: 503 }));
+    await expect(upload(down.cloud)).rejects.toThrow("the cloud answered 503");
+    expect([...full.ended, ...down.ended]).toStrictEqual([]);
   });
 });

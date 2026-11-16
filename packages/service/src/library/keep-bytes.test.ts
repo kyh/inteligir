@@ -80,12 +80,12 @@ describe("a file kept in the library", () => {
   it("puts nothing the cell gives no room for", async () => {
     const { bucket, puts } = putting(null);
     const full: KeepPort = {
-      reserve: () => ({ ok: false, refusal: { kind: "quota" } }),
+      reserve: () => ({ ok: false, refusal: { bytesCap: 3, bytesUsed: 3, kind: "quota" } }),
       settle: async () => await Promise.resolve({ ok: true, value: { settled: true } }),
     };
     await expect(keepBytes(bucket, full, FILE)).resolves.toStrictEqual({
       kind: "refused",
-      refusal: { kind: "quota" },
+      refusal: { bytesCap: 3, bytesUsed: 3, kind: "quota" },
     });
     expect(puts).toStrictEqual([]);
   });

@@ -95,17 +95,8 @@ export const sendFile = async (
   mime: string,
 ): Promise<Sent<string>> => {
   const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-  const outcome = await uploadBlob(cloud.transport, { bytes, mime, sha });
-  switch (outcome.kind) {
-    case "stored": {
-      return { answer: sha, kind: "landed" };
-    }
-    case "refused": {
-      return { code: outcome.code, kind: "refused" };
-    }
-    case "failed": {
-      return outcome.failure;
-    }
-    // no default
-  }
+  return await sent(async () => {
+    await uploadBlob(cloud.transport, { bytes, mime, sha });
+    return sha;
+  });
 };
