@@ -2,10 +2,11 @@
 // operation re-resolves the element's path and no-ops when it is gone:
 // restoring text over an undo corrupts history.
 
-import { KEYS, NodeApi, createSlatePlugin } from "platejs";
+import { ElementApi, KEYS, NodeApi, createSlatePlugin } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import { stringProp } from "@repo/editor/node-props";
 
 // the elements a picker keeps its query in, which stand in a block only while it is open
 export const PICKER_INPUT_TYPES: readonly string[] = [
@@ -13,6 +14,24 @@ export const PICKER_INPUT_TYPES: readonly string[] = [
   KEYS.mentionInput,
   FORMULA_INPUT_KEY,
 ];
+
+// A picker's input stands in the shared note, so every editor of it draws it, and only the one
+// that opened it takes its keys, or a picker opened elsewhere would pull the caret into its input
+// here. Plate's trigger names the input by the editor's `userId`; an editor with none owns its own.
+export const ownsPicker = (editor: SlateEditor, element: TElement): boolean =>
+  stringProp(element, "userId") === (editor.meta.userId ?? undefined);
+
+// An editor going away takes its open pickers out of the note, or every other device would keep
+// drawing a trigger nobody is typing into.
+export const closeOwnPickers = (editor: SlateEditor): void => {
+  editor.tf.removeNodes({
+    at: [],
+    match: (node) =>
+      ElementApi.isElement(node) &&
+      PICKER_INPUT_TYPES.includes(node.type) &&
+      ownsPicker(editor, node),
+  });
+};
 
 export type ComboboxCancelCause = "arrowLeft" | "arrowRight" | "backspace" | "deselect" | "escape";
 

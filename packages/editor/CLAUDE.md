@@ -123,6 +123,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
   `tools/e2e/src/editor.spec.ts`.
+- **An open picker is its page's, and leaves the note with its editor.** Plate's trigger names it
+  by the editor's `userId`, one per page, so every other device draws it as its trigger, and the
+  item editor takes its own out before it lets the note go, since no device can close another's.
+  `packages/editor/src/combobox-input.ts`.
 - **A note's body is one live document, every editor of it bound innermost, and every kit fixes
   its nodes alike.** NodeId's ids reach the document and undo takes back only this editor's
   changes, since `@platejs/yjs` takes no custom provider without a type assertion.

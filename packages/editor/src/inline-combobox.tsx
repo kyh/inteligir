@@ -17,12 +17,12 @@ import {
   absorbRacedComboboxText,
   cancelComboboxInput,
   commitComboboxInput,
+  ownsPicker,
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/combobox-input";
 import type { ComboboxCancelCause } from "@repo/editor/combobox-input";
 import { matchesHotkey } from "@repo/editor/editor-shortcuts";
-import { ownsPicker } from "@repo/editor/live/picker-owner";
 import { undoStackSizes } from "@repo/editor/live/yjs-binding";
 
 interface FilterItem {
