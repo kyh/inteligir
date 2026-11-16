@@ -36,7 +36,6 @@ import {
   inspectThread,
   listeningFetch,
   requestCancel,
-  rulesHashOf,
   step,
 } from "./thread-loop";
 import type { CallInFlight, ThreadHost } from "./thread-loop";
@@ -264,7 +263,7 @@ export class AgentThreadDO extends DurableObject<Env> {
     ) {
       return;
     }
-    acceptDelivery(this.#host(), delivery, await rulesHashOf(delivery.rules));
+    acceptDelivery(this.#host(), delivery);
     await this.#wake();
   }
 

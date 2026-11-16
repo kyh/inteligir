@@ -2,13 +2,13 @@
 // refused, with the API's own words, for what Claude Sonnet 5.5 refuses before it samples
 // (platform.claude.com/docs/en/api/messages, and the claude-api skill's Sonnet 5.5 migration notes):
 // sampling parameters, thinking other than adaptive, a forced tool choice, a field on a message
-// but its role and content, an assistant message last (a prefill), a system message out of place,
-// a tool call with no result next, a result with no call before it, cache breakpoints past four
-// or a 1-hour one after a 5-minute one, a breakpoint on a thinking block, a beta's field without
-// its beta, and a compaction trigger other than input tokens or under 50,000. A conversation the
-// API compacted is read from its last compaction block that kept a summary on, as the API reads it:
-// everything before the block is ignored, and a block whose summary was not written, its content
-// null, is ignored itself and compacts nothing
+// but its role and content, an assistant message last (a prefill), a tool call with no result
+// next, a result with no call before it, cache breakpoints past four or a 1-hour one after a
+// 5-minute one, a breakpoint on a thinking block, a beta's field without its beta, and a
+// compaction trigger other than input tokens or under 50,000. A conversation the API compacted is
+// read from its last compaction block that kept a summary on, as the API reads it: everything
+// before the block is ignored, and a block whose summary was not written, its content null, is
+// ignored itself and compacts nothing
 // (platform.claude.com/docs/en/build-with-claude/compaction-threshold).
 
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { z } from "zod";
 // fallback on a refusal, threshold compaction, and progress notes between tool calls
 export const BINDING_BETA = "thinking-binding-controls-2026-08-01";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-export const COMPACT_BETA = "compact-2026-01-12";
+const COMPACT_BETA = "compact-2026-01-12";
 const DISPLAY_BETA = "thinking-display-updates-2026-08-18";
 
 // the one compaction a request may ask for: at its threshold, on the server, which is input
@@ -82,7 +82,7 @@ const contentSchema = z.union([z.string().transform(asText), z.array(blockSchema
 // a message is its role and content and nothing else: any other field is a 400
 const messageSchema = z.strictObject({
   content: contentSchema,
-  role: z.enum(["user", "assistant", "system"]),
+  role: z.enum(["user", "assistant"]),
 });
 
 type FakeMessage = z.infer<typeof messageSchema>;
@@ -121,7 +121,9 @@ export const requestSchema = z.looseObject({
       block_binding: z
         .strictObject({ prefix_mismatch_behavior: z.enum(["error", "drop_block"]) })
         .optional(),
-      display: z.enum(["summarized", "omitted", "updates"]).optional(),
+      // the displays the fake answers: it shows a note under `updates` and nothing else, so a
+      // request for `summarized` words is one it does not know
+      display: z.enum(["omitted", "updates"]).optional(),
       type: z.string(),
     })
     .optional(),
@@ -176,23 +178,21 @@ export const issueText = (error: z.ZodError): string => {
 };
 
 // every block in the order the API renders them: tools, then system, then each message's
-export interface RenderedBlock {
-  readonly json: string;
+interface RenderedBlock {
   readonly breakpoint: "5m" | "1h" | null;
   readonly thinking: boolean;
 }
 
-// a block as the API compares it and counts it, its breakpoint aside
+// a block as the API compares it, its breakpoint aside
 const withoutBreakpoint = (block: FakeBlock | FakeTool) =>
   Object.fromEntries(Object.entries(block).filter(([key]) => key !== "cache_control"));
 
 const breakpointOf = (block: FakeBlock | FakeTool): "5m" | "1h" | null =>
   block.cache_control === undefined ? null : (block.cache_control.ttl ?? "5m");
 
-export const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
+const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
   const tools = (request.tools ?? []).map((tool) => ({
     breakpoint: breakpointOf(tool),
-    json: JSON.stringify(withoutBreakpoint(tool)),
     thinking: false,
   }));
   const blocks = [
@@ -203,7 +203,6 @@ export const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
     ...tools,
     ...blocks.map((block) => ({
       breakpoint: breakpointOf(block),
-      json: JSON.stringify(withoutBreakpoint(block)),
       thinking: block.type === "thinking" || block.type === "redacted_thinking",
     })),
   ];
@@ -253,14 +252,6 @@ const placementRefusal = (messages: readonly FakeMessage[]): string | null => {
   for (const [index, message] of messages.entries()) {
     const before = messages[index - 1];
     const after = messages[index + 1];
-    if (message.role === "system") {
-      if (before?.role !== "user" || (after !== undefined && after.role !== "assistant")) {
-        return `messages.${String(index)}: a system message must follow a user message, and be the last message or come before an assistant message.`;
-      }
-      if (message.content.some((block) => block.type !== "text")) {
-        return `messages.${String(index)}.content: a system message holds text alone.`;
-      }
-    }
     const asked = toolUseIds(message);
     if (asked.size > 0) {
       const answered = new Set<string>();

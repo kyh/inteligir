@@ -11,16 +11,12 @@
 //   before a call past its twentieth reply;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once;
-// - a turn is sent under the definition in force when it started: one a deploy changed is taken up
-//   at the next turn's start, never mid-turn, and from then on no request carries a thinking block
-//   from before that turn (`./thread-request`); a tool call the older definition named still runs
-//   against the cell's procedures as they stand, one they no longer take answered as an error
+// - a turn is sent under the definition in force when it started, the filing rules it brought
+//   part of it: one a deploy or the person's edit of their rules changed is taken up at the next
+//   turn's start, never mid-turn, and from then on no request carries a thinking block from before
+//   that turn (`./thread-request`); a tool call the older definition named still runs against the
+//   cell's procedures as they stand, one they no longer take answered as an error
 //   (`./agent-tools`).
-// The filing rules a turn brings ride a system message after the person's: it goes as the last
-// message until the turn's first reply lands, and lands with it, so a turn that ends with no reply
-// leaves no system message last, which no message after could follow. They go again at the next
-// turn after a compaction, which summarized the system messages before it, and at a turn that
-// takes up a new definition, whose requests may leave an earlier one out.
 
 import type { APIError } from "@anthropic-ai/sdk";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -37,7 +33,7 @@ import {
   threadTurns,
   toolCalls,
 } from "@repo/db/thread/schema";
-import { and, asc, count, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
@@ -64,7 +60,6 @@ import type {
 } from "./thread-request";
 import { toolCallNext, toolCallOf } from "./tool-call";
 import type { ToolCall, ToolCallEvent } from "./tool-call";
-import { RULES_CLEARED } from "./turn-message";
 import type {
   CellAnswer,
   DeliveryRequest,
@@ -122,8 +117,9 @@ export interface ThreadHost {
   readonly client: () => Anthropic | null;
   // the cell, by a fresh stub each time, since a stub that saw a reset stays broken
   readonly cell: () => ThreadCell;
-  // what this deployment would start a turn under (`./thread-request` `deployedDefinition`)
-  readonly definition: () => ThreadDefinition;
+  // what this deployment would start a turn under, for a library that keeps `rules`
+  // (`./thread-request` `deployedDefinition`)
+  readonly definition: (rules: string | null) => ThreadDefinition;
   readonly jobs: ThreadJobs;
   // the model call each turn is making, which a stop, a purge or a silence cuts
   readonly calls: Map<number, CallInFlight>;
@@ -185,7 +181,6 @@ interface OpenTurn {
   readonly turn: number;
   readonly content: string;
   readonly rules: string | null;
-  readonly rulesHash: string | null;
   readonly started: boolean;
   readonly cancelRequested: boolean;
   readonly waiting: boolean;
@@ -206,7 +201,6 @@ const openTurnOf = (db: ThreadDb): OpenTurn | null => {
     cancelRequested: row.cancelRequested === 1,
     content: row.content,
     rules: row.rules,
-    rulesHash: row.rulesHash,
     started: row.started === 1,
     turn: row.turn,
     waiting: row.status === "awaiting_approval",
@@ -227,14 +221,6 @@ const metaOf = (db: ThreadDb) => {
 const setMeta = (db: ThreadDb, values: SQLiteUpdateSetSource<typeof threadMeta>): void => {
   metaOf(db);
   db.update(threadMeta).set(values).where(eq(threadMeta.id, META_ID)).run();
-};
-
-// `rulesHash` is null while the conversation carries no filing rules and the last landed rules'
-// hash while it does. Rules a compaction summarized or a new definition stopped replaying are
-// neither: the next turn owes their words, or word that they are cleared, so it holds what no hash
-// equals.
-const markRulesOwed = (db: ThreadDb): void => {
-  db.update(threadMeta).set({ rulesHash: "" }).where(isNotNull(threadMeta.rulesHash)).run();
 };
 
 type StoredMessage = TranscriptMessage & { readonly seq: number; readonly turn: number };
@@ -335,11 +321,7 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
 
 // the turn the cell delivered, kept once by its op id, and the push sequence taken past the last
 // push the cell landed, which an object that started over on empty tables would otherwise reuse
-export const acceptDelivery = (
-  host: ThreadHost,
-  request: DeliveryRequest,
-  rulesHash: string | null,
-): void => {
+export const acceptDelivery = (host: ThreadHost, request: DeliveryRequest): void => {
   const { db } = host;
   host.transaction(() => {
     db.insert(threadTurns)
@@ -347,7 +329,6 @@ export const acceptDelivery = (
         content: JSON.stringify(request.content),
         opId: request.opId,
         rules: request.rules,
-        rulesHash,
         status: "running",
         turn: request.turn,
       })
@@ -356,9 +337,6 @@ export const acceptDelivery = (
     setMeta(db, { pushSeq: sql`max(${threadMeta.pushSeq}, ${request.pushedThrough})` });
   });
 };
-
-export const rulesHashOf = async (rules: string | null): Promise<string | null> =>
-  rules === null ? null : await sha256Hex(rules);
 
 // ---- the definition ----
 
@@ -391,11 +369,12 @@ const definitionInForce = (db: ThreadDb): DefinitionInForce => {
   return held;
 };
 
-// the turn's first rows: the definition this deployment starts turns under, when it is not the one
-// in force, from the person's message on, then that message. A thread takes up a deploy's
-// definition only here, so a turn is sent under one definition from its first call to its last
+// the turn's first rows: the definition this deployment starts turns under with the filing rules
+// the turn brought, when it is not the one in force, from the person's message on, then that
+// message. A thread takes up a definition only here, so a turn is sent under one from its first
+// call to its last
 const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
-  const deployed = await frozenDefinition(host.definition());
+  const deployed = await frozenDefinition(host.definition(turn.rules));
   const { db } = host;
   host.transaction(() => {
     const held = definitionOf(db);
@@ -406,6 +385,7 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
           hash: deployed.hash,
           id: sql`(SELECT coalesce(max(${threadDefinitions.id}), 0) + 1 FROM ${threadDefinitions})`,
           model: deployed.model,
+          rules: deployed.rules,
           sinceSeq: nextSeq,
           system: deployed.system,
           tools: deployed.tools,
@@ -417,7 +397,6 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
           threadId: host.threadId,
           turn: turn.turn,
         });
-        markRulesOwed(db);
       }
     }
     append(db, { content: turn.content, role: "user", turn: turn.turn });
@@ -426,19 +405,6 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
 };
 
 // ---- one model call ----
-
-// what the turn has to say of the filing rules while it is still to land: on a first reply, the
-// rules when they differ from the last that landed, or that they are cleared when some had
-const pendingRules = (db: ThreadDb, turn: OpenTurn, step: number): string | null =>
-  step !== 0 || turn.rulesHash === metaOf(db).rulesHash ? null : (turn.rules ?? RULES_CLEARED);
-
-const withRules = (
-  transcript: readonly TranscriptMessage[],
-  rules: string | null,
-): readonly TranscriptMessage[] =>
-  rules === null
-    ? transcript
-    : [...transcript, { content: [{ text: rules, type: "text" }], role: "system" }];
 
 // the calls before this one at the same step: every try, and those that failed reaching Claude
 const triesAt = (db: ThreadDb, turn: number, step: number) => {
@@ -516,17 +482,12 @@ const resultEvent = (toolUseId: string, content: string, isError: boolean): Agen
   type: "agent.tool_result",
 });
 
-// the reply landed whole in one transaction: its blocks as returned,
-// after the filing rules it was asked under, and the turn ended unless it asks for tools; a
-// compaction in it has the next turn send the filing rules again
+// the reply landed whole in one transaction: its blocks as returned, and the turn ended unless it
+// asks for tools
 const landReply = (
   host: ThreadHost,
   turn: OpenTurn,
-  call: {
-    readonly callId: string;
-    readonly rules: string | null;
-    readonly message: BetaMessage;
-  },
+  call: { readonly callId: string; readonly message: BetaMessage },
 ): void => {
   const { message } = call;
   const { db } = host;
@@ -549,22 +510,11 @@ const landReply = (
       return;
     }
     if (blocks.length > 0) {
-      if (call.rules !== null) {
-        append(db, {
-          content: JSON.stringify([{ text: call.rules, type: "text" }]),
-          role: "system",
-          turn: turn.turn,
-        });
-        setMeta(db, { rulesHash: turn.rulesHash });
-      }
       append(db, {
         content: JSON.stringify(message.content),
         role: "assistant",
         turn: turn.turn,
       });
-      if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
-        markRulesOwed(db);
-      }
       events.push(...replyEvents(blocks));
     }
     const uses = blocks.flatMap((block) => (block.type === "tool_use" ? [block] : []));
@@ -719,8 +669,7 @@ const sendCall = async (
   const tries = triesAt(db, turn.turn, step);
   const callId = `${host.threadId}:${String(turn.turn)}:${String(step)}:${String(tries.tries)}`;
   const callTry: CallTry = { attempt: tries.tries, callId, step, turn: turn.turn };
-  const rules = pendingRules(db, turn, step);
-  const body = agentRequest(definition, withRules(requestMessages(transcript, sinceSeq), rules));
+  const body = agentRequest(definition, requestMessages(transcript, sinceSeq));
   const requestSha = await sha256Hex(JSON.stringify(body));
   // the last await before the request goes: a stop that landed while its request was hashed sends
   // nothing, and a purge writes nothing over the tables it is deleting
@@ -774,7 +723,7 @@ const sendCall = async (
     });
   }
   logDroppedThinking(host.threadId, message);
-  landReply(host, turn, { callId, message, rules });
+  landReply(host, turn, { callId, message });
   return "continue";
 };
 

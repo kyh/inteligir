@@ -3,7 +3,8 @@
 // replayed as the thread keeps them: consecutive bodies share their system, their tools and every
 // message they both carry, byte for byte as sent, key order included, but for the breakpoints, so
 // each replayed thinking block meets the prefix it was signed against; three breakpoints, the
-// hour's first; a message is its role and content alone, and the last is never the assistant's.
+// hour's first, the filing rules past them in the system's last block; a message is its role and
+// content alone, and the last is never the assistant's.
 // What a request carries of the transcript: from the last compaction that kept a summary on, and
 // before the turn a definition was taken up at, no thinking.
 
@@ -77,10 +78,10 @@ const person = (text: string): TranscriptMessage =>
 describe("a conversation's request", () => {
   it("shares its system, tools and messages with the request before it, but for breakpoints", async () => {
     const { client, sent } = recordingClient();
-    const definition = deployedDefinition();
+    const definition = deployedDefinition("File trips.");
     const send = async (transcript: readonly TranscriptMessage[]): Promise<BetaMessage> =>
       await client.beta.messages.stream(agentRequest(definition, transcript)).finalMessage();
-    // a turn of two steps, a tool's result between them, then a turn of one with filing rules
+    // a turn of two steps, a tool's result between them, then a turn of one
     const transcript: TranscriptMessage[] = [
       person(script('call search_library {"query":"Paris"}')),
     ];
@@ -97,11 +98,7 @@ describe("a conversation's request", () => {
       ),
     );
     const second = await send(transcript);
-    const rules = transcriptMessage(
-      "system",
-      JSON.stringify([{ text: "File trips.", type: "text" }]),
-    );
-    transcript.push(kept(second), person(script("Thanks.")), rules);
+    transcript.push(kept(second), person(script("Thanks.")));
     const third = await send(transcript);
     transcript.push(kept(third));
     expect(sent).toHaveLength(3);
@@ -109,6 +106,9 @@ describe("a conversation's request", () => {
     for (const [index, body] of bodies.entries()) {
       // the hour's breakpoints on the tools and the system, then the rolling one, never on thinking
       expect(breakpointsOf(body), `body ${String(index)}`).toStrictEqual(["1h", "1h", "5m"]);
+      // the filing rules after the prompt every account shares, past its breakpoint
+      expect(body.system).toHaveLength(2);
+      expect(body.system.at(-1)).toStrictEqual({ text: "File trips.", type: "text" });
       // a message is its role and content alone (the strict parse), and never the assistant's last
       expect(body.messages.at(-1)?.role).not.toBe("assistant");
       const thinking = body.messages
@@ -126,7 +126,7 @@ describe("a conversation's request", () => {
   });
 
   it("sends the definition's model and effort, adaptive thinking that drops what fails and shows its notes, compaction at the threshold, and no sampling", () => {
-    const body = agentRequest(deployedDefinition(), [person("Hello.")]);
+    const body = agentRequest(deployedDefinition(null), [person("Hello.")]);
     expect(body).toMatchObject({
       betas: [
         "thinking-binding-controls-2026-08-01",
@@ -152,7 +152,8 @@ describe("a conversation's request", () => {
     for (const field of ["tool_choice", "temperature", "top_p", "top_k", "stop_sequences"]) {
       expect(body, field).not.toHaveProperty(field);
     }
-    const names = deployedDefinition().tools.map((tool) => tool.name);
+    expect(body.system).toHaveLength(1);
+    const names = deployedDefinition(null).tools.map((tool) => tool.name);
     expect(names).toStrictEqual(names.toSorted());
     expect(JSON.stringify(body.tools)).not.toContain("eager_input_streaming");
   });
@@ -160,7 +161,7 @@ describe("a conversation's request", () => {
   it("logs every replayed thinking block the API dropped but those another model could not read", async () => {
     const { client } = recordingClient();
     const message = await client.beta.messages
-      .stream(agentRequest(deployedDefinition(), [person(script("Hello."))]))
+      .stream(agentRequest(deployedDefinition(null), [person(script("Hello."))]))
       .finalMessage();
     expect(message.input_transformations).toStrictEqual([]);
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -205,9 +206,6 @@ const thought = (thinking: string) => ({
 });
 
 const words = (text: string) => ({ citations: null, text, type: "text" });
-
-const rules = (text: string): TranscriptMessage =>
-  transcriptMessage("system", JSON.stringify([{ text, type: "text" }]));
 
 const results = (id: string): TranscriptMessage =>
   transcriptMessage(
@@ -258,17 +256,16 @@ describe("what a request carries of the transcript", () => {
     ]);
   });
 
-  it("leaves out a reply left with nothing, and the system message it alone followed", () => {
-    // a reply cut at max_tokens while it thought, after the filing rules its turn sent
+  it("leaves out a reply left with nothing", () => {
+    // a reply cut at max_tokens while it thought
     const transcript = numbered([
       person("Think hard."),
-      rules("File trips under Travel."),
       reply(thought("long")),
       person("Again."),
       reply({ data: "opaque", type: "redacted_thinking" }, words("Done.")),
       person("Once more."),
     ]);
-    expect(typesOf(requestMessages(transcript, 6))).toStrictEqual([
+    expect(typesOf(requestMessages(transcript, 5))).toStrictEqual([
       ["user", "text"],
       ["user", "text"],
       ["assistant", "text"],

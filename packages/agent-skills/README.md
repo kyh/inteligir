@@ -22,7 +22,8 @@ read one cached prefix; a deploy that changes them is taken up at a conversation
 
 ```
 built-in-agent.md                 # THE AGENT'S OWN INSTRUCTIONS: its tools, a turn, what it
-                                  # must not trust, the view context a message carries
+                                  # must not trust, the view context a message carries, where
+                                  # the person's filing rules sit
 skills/
   inteligir-notes/SKILL.md        # THE HUB: the rules that never bend, how an item reads, the
                                   # block chooser, document syntax, and the index of the
@@ -57,8 +58,8 @@ Finish" checklist the agent runs against its own edit.
   `@repo/editor/markdown/fence-langs`, and a skill that disagrees with it teaches the agent to
   write a block nobody sees.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
-  turn; what a turn needs rides its messages: the view context the person's message, and the
-  filing rules a system message after it.
+  turn; what a turn needs rides beside it: the view context in the person's message, and the
+  filing rules in a system block of their own after the prompt's.
 - **Adding a skill** is one directory, one `SKILL.md`, a row under the hub's "Focused
   Contracts", and the same row in `agent-prompt.ts`'s list, which places it in the prompt. A new construct
   lands in the editor kit, the rule table and `fence-langs` FIRST, then the words.

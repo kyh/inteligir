@@ -217,8 +217,8 @@ tagged.
 
 **filing rules** — what the person wrote for the agent about their library,
 written only from Settings › Account
-(`packages/service/src/library/library-rules.ts`). A conversation carries them
-after the person's message, sent again only when they change, and Tidy my
+(`packages/service/src/library/library-rules.ts`). Every turn is sent under
+them, after the agent's prompt, a change taken up at the next turn, and Tidy my
 library files and tags by them. An import reads an `AGENTS.md` as a note, never
 as filing rules. Not the repo's `AGENTS.md`.
 

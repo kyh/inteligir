@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "catalog:",
     "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
+    "srvx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
