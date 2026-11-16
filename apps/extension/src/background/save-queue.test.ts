@@ -401,6 +401,23 @@ describe("the queue's passes", () => {
     await expect(alarmStands()).resolves.toBe(true);
   });
 
+  it("never bring back a save its account's deletion let go while its first try ran", async () => {
+    await keepSave(waiting());
+    const held = deferred();
+    const firstTry = fakeCloud({
+      saveLink: async () => {
+        await held.promise;
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const saving = saveTabAsLink(firstTry);
+    await expect.poll(() => firstTry.links.length).toBe(1);
+    await sendQueued(depsWith(fakeCloud({ saveLink: refusal("GONE") })));
+    held.resolve();
+    await expect(saving).resolves.toStrictEqual(waitingFor("connection"));
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
   it("send a save whose worker stopped mid-try, which holds nothing of the try", async () => {
     // what a stopped worker leaves: the save as it was kept before its first call
     await keepSave(waiting());

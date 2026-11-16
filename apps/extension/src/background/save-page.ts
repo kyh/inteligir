@@ -77,7 +77,7 @@ const outcomeOf = (settled: Settled<Saved>): Outcome => {
   }
 };
 
-// a save that waits for its account to sign in again, which the alarm then sends
+// a save that waits for its account to sign in again, which the site's sign-in then sends
 const waitsForSignIn = async (queued: QueuedSave): Promise<Outcome> => {
   await keepSave(queued);
   return { kind: "queued", waitsFor: "sign-in" };
