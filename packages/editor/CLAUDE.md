@@ -107,7 +107,7 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
 - **A fold is the device's view state, and holds none of the library's words.** It sits in local
-  storage under a hash of the heading, dropped on leaving the account, since a fold in the cell
+  storage as the heading's block id, dropped on leaving the account, since a fold in the cell
   makes every fold a write. `packages/editor/src/heading-collapse.tsx`.
 - **A table cell keeps a code span's and an equation's pipes, and its `<br/>` parts its blocks.**
   gfm splits a row at every bare pipe and the writer joins a cell's blocks with `<br/>`, so both

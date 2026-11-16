@@ -2,76 +2,32 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import {
-  forgetHeadingFolds,
-  headingCollapseKeys,
-  toggleHeadingCollapse,
-} from "@repo/editor/heading-collapse";
+import { forgetHeadingFolds } from "@repo/editor/heading-collapse";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
-const stubStorage = (): Map<string, string> => {
-  const written = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: (key: string) => written.get(key) ?? null,
-    removeItem: (key: string) => {
-      written.delete(key);
-    },
-    setItem: (key: string, value: string) => {
-      written.set(key, value);
-    },
-  });
-  return written;
-};
+const STORAGE_KEY = "inteligir.collapsed-headings";
 
-describe("heading collapse", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("folds under the note that was toggled and no other", () => {
-    stubStorage();
-    toggleHeadingCollapse("notes/a.md", "1:Intro:0");
-
-    expect([...headingCollapseKeys("notes/a.md")]).toStrictEqual(["1:Intro:0"]);
-    expect([...headingCollapseKeys("notes/b.md")]).toStrictEqual([]);
-  });
-
-  it("persists every note's folds in one record, keyed by path", () => {
-    const written = stubStorage();
-    toggleHeadingCollapse("notes/c.md", "1:Intro:0");
-    toggleHeadingCollapse("notes/d.md", "2:Details:0");
-
-    expect(written.size).toBe(1);
-    const stored: unknown = JSON.parse([...written.values()][0] ?? "{}");
-    expect(stored).toStrictEqual({ "notes/c.md": ["1:Intro:0"], "notes/d.md": ["2:Details:0"] });
-  });
-
-  it("lets every note's folds go when the account leaves", () => {
-    const written = stubStorage();
-    toggleHeadingCollapse("notes/e.md", "1:Intro:0");
-    expect(written.size).toBe(1);
-
-    forgetHeadingFolds();
-
-    expect(written.size).toBe(0);
-    expect([...headingCollapseKeys("notes/e.md")]).toStrictEqual([]);
-  });
-});
-
-const h2 = (text: string) => ({ children: [{ text }], type: "h2" });
-const p = (text: string) => ({ children: [{ text }], type: "p" });
+const h2 = (id: string, text: string) => ({ children: [{ text }], id, type: "h2" });
+const p = (id: string, text: string) => ({ children: [{ text }], id, type: "p" });
 
 const mountNote = (itemId: string, value: Value): PlateEditor => {
-  stubStorage();
   const ref = createRef<PlateEditor>();
   render(<EditorHarness value={value} itemId={itemId} ref={ref} nodeIds />);
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }
   return ref.current;
+};
+
+const STORED = z.object({ state: z.record(z.string(), z.array(z.string())) });
+
+const storedFolds = (): Record<string, string[]> | null => {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw === null ? null : STORED.parse(JSON.parse(raw)).state;
 };
 
 const block = (text: string): Element => {
@@ -102,18 +58,19 @@ const chevronCount = (): number =>
   screen.queryAllByRole("button", { name: /^(?:Collapse|Expand) section$/u }).length;
 
 describe("folds over a live document", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("keeps a fold on its heading as blocks land above and inside the section", async () => {
-    const editor = mountNote("notes/fold-live.md", [h2("A"), p("a body"), h2("B"), p("b body")]);
+    const editor = mountNote("fold-live", [
+      h2("a", "A"),
+      p("a-body", "a body"),
+      h2("b", "B"),
+      p("b-body", "b body"),
+    ]);
 
     fireEvent.click(chevronOf("A"));
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
 
     await act(async () => {
-      editor.tf.insertNodes(p("top"), { at: [0] });
+      editor.tf.insertNodes(p("top", "top"), { at: [0] });
     });
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
     expect(chevronOf("A").getAttribute("aria-expanded")).toBe("false");
@@ -125,21 +82,87 @@ describe("folds over a live document", () => {
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
 
     await act(async () => {
-      editor.tf.insertNodes(h2("C"), { at: [3] });
+      editor.tf.insertNodes(h2("c", "C"), { at: [3] });
     });
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
     expect(chevronCount()).toBe(3);
     expect(chevronOf("C").getAttribute("aria-expanded")).toBe("true");
 
     await act(async () => {
-      editor.tf.insertNodes(p("inside"), { at: [2] });
+      editor.tf.insertNodes(p("inside", "inside"), { at: [2] });
     });
     expect(hiddenBlocks()).toStrictEqual(["inside", "a body"]);
   });
 
+  it("keeps a fold on its heading when a heading of the same words lands above it", async () => {
+    const editor = mountNote("fold-twin", [h2("first", "Notes"), p("body", "a body")]);
+
+    fireEvent.click(chevronOf("Notes"));
+    await act(async () => {
+      editor.tf.insertNodes([h2("twin", "Notes"), p("open", "stays open")], { at: [0] });
+    });
+
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
+  });
+
+  it("keeps the fold when the heading's text changes, since its id is its key", async () => {
+    const editor = mountNote("fold-rename", [h2("a", "A"), p("a-body", "a body")]);
+
+    fireEvent.click(chevronOf("A"));
+    await act(async () => {
+      editor.tf.insertText("!", { at: { offset: 1, path: [0, 0] } });
+    });
+
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
+    expect(chevronOf("A!").getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("lets a deleted heading's fold go on the next toggle", async () => {
+    const editor = mountNote("fold-prune", [
+      h2("a", "A"),
+      p("a-body", "a body"),
+      h2("b", "B"),
+      p("b-body", "b body"),
+    ]);
+
+    fireEvent.click(chevronOf("A"));
+    await act(async () => {
+      editor.tf.removeNodes({ at: [0] });
+    });
+    fireEvent.click(chevronOf("B"));
+
+    expect(storedFolds()).toMatchObject({ "fold-prune": ["b"] });
+  });
+
+  it("folds under the item that was toggled and no other", () => {
+    mountNote("fold-one", [h2("one", "One"), p("one-body", "one body")]);
+    mountNote("fold-two", [h2("one", "Two"), p("two-body", "two body")]);
+
+    fireEvent.click(chevronOf("One"));
+
+    expect(hiddenBlocks()).toStrictEqual(["one body"]);
+    expect(storedFolds()).toMatchObject({ "fold-one": ["one"] });
+    expect(storedFolds()).not.toHaveProperty("fold-two");
+  });
+
+  it("follows another tab's folds, and keeps them when it folds one of its own", async () => {
+    mountNote("fold-here", [h2("here", "Here"), p("here-body", "here body")]);
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ state: { "fold-here": ["here"], "fold-there": ["there"] }, version: 0 }),
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    expect(hiddenBlocks()).toStrictEqual(["here body"]);
+
+    fireEvent.click(chevronOf("Here"));
+    expect(storedFolds()).toStrictEqual({ "fold-there": ["there"] });
+  });
+
   it("opens the open item's folds when the account leaves, memory and storage alike", () => {
-    mountNote("notes/fold-forgotten.md", [h2("A"), p("a body")]);
-    const written = stubStorage();
+    mountNote("fold-forgotten", [h2("a", "A"), p("a-body", "a body")]);
 
     fireEvent.click(chevronOf("A"));
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
@@ -148,30 +171,14 @@ describe("folds over a live document", () => {
       forgetHeadingFolds();
     });
     expect(hiddenBlocks()).toStrictEqual([]);
-    expect([...headingCollapseKeys("notes/fold-forgotten.md")]).toStrictEqual([]);
-    expect(written.size).toBe(0);
+    expect(storedFolds()).toStrictEqual({});
   });
 
   it("keeps none of a heading's words in the page's storage", () => {
-    mountNote("notes/fold-private.md", [h2("Termination plan for Dana"), p("a body")]);
-    const written = stubStorage();
+    mountNote("fold-private", [h2("plan", "Termination plan for Dana"), p("body", "a body")]);
 
     fireEvent.click(chevronOf("Termination plan for Dana"));
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
-    expect(written.size).toBe(1);
-    expect([...written.values()].join("\n")).not.toMatch(/Termination/u);
-  });
-
-  it("drops the fold when the heading's text changes, since the text is its key", async () => {
-    const editor = mountNote("notes/fold-rename.md", [h2("A"), p("a body")]);
-
-    fireEvent.click(chevronOf("A"));
-    expect(hiddenBlocks()).toStrictEqual(["a body"]);
-
-    await act(async () => {
-      editor.tf.insertText("!", { at: { offset: 1, path: [0, 0] } });
-    });
-    expect(hiddenBlocks()).toStrictEqual([]);
-    expect(chevronOf("A!").getAttribute("aria-expanded")).toBe("true");
+    expect(localStorage.getItem(STORAGE_KEY)).not.toMatch(/Termination/u);
   });
 });
