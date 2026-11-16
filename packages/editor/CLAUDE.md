@@ -157,9 +157,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **Markdown written into a body is read by `readBody` at every door.** A new note, a save's note,
   an edit's new text and a fill's page read the same text as the same blocks, and only a file's
   import reads frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
-- **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
-  the codec read them into the item's fields through `readItemFacts`, the filename the title.
-  `packages/editor/src/items/item-frontmatter.ts`.
+- **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import's plan
+  and its landing both read through `readFrontmatter`, each key one row and the filename the title,
+  since a second reader plans a title or an address the landing reads otherwise.
+  `packages/editor/src/codec/item-fields.ts`.
 - **The `[[` picker is Plate's mention input, over the library's titles.** A pick is a mention by
   the item's id, so no rename breaks it, and the popup is Base UI's Combobox, since a trigger and
   input of our own respell what Plate's mention does. `packages/editor/src/kits/mention-kit.tsx`.

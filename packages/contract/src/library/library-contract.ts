@@ -9,7 +9,7 @@
 import { z } from "zod";
 
 import { propertyOpSchema } from "./field-ops";
-import { libraryItemFieldsSchema } from "./library-item";
+import { importedFieldsSchema, libraryItemFieldsSchema } from "./library-item";
 import { storableBlockSchema } from "./library-nodes";
 
 import {
@@ -446,7 +446,7 @@ export const importedItemSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     blocks: z.array(newBodyBlockSchema).max(WRITE_OPS_MAX),
     cover: FIELDS.url,
-    fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
+    fields: importedFieldsSchema,
     folder: folderPathSchema.nullable(),
     id: idSchema,
     kind: z.literal("new"),

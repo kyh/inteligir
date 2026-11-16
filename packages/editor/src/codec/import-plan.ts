@@ -13,6 +13,7 @@
 
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
+import type { ImportedFields } from "@repo/contract/library/library-item";
 import { idSchema } from "@repo/contract/library/library-wire";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/contract/knowledge/asset-name";
 import {
@@ -36,9 +37,9 @@ import { lfOnly } from "@repo/editor/markdown/md-read";
 import type { MarkdownRefusal } from "@repo/editor/markdown/md-read";
 import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
-import { readFrontmatter } from "./item-fields";
+import { factsOf, readFrontmatter, titleOf } from "./item-fields";
 import { importItem } from "./item-markdown";
-import type { FoundFile, ImportedFields, ImportedItem } from "./item-markdown";
+import type { FoundFile, ImportedItem } from "./item-markdown";
 import type { LinkedItem } from "./read-blocks";
 
 // what a path in the folder is to an import
@@ -134,13 +135,12 @@ interface DocFront {
 }
 
 const docFront = (path: string, text: string): DocFront => {
-  const yaml = frontmatterYaml(lfOnly(text));
-  const read = readFrontmatter(yaml, docStem(path), 0);
+  const facts = factsOf(readFrontmatter(frontmatterYaml(lfOnly(text))));
   return {
-    aliases: read.fields.aliases,
-    fileId: read.id,
-    title: read.fields.title,
-    url: read.fields.url,
+    aliases: facts.fields.aliases,
+    fileId: facts.id,
+    title: titleOf(facts, docStem(path)),
+    url: facts.fields.url,
   };
 };
 

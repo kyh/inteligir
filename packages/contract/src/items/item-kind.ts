@@ -14,21 +14,6 @@ export const isItemKind = (value: string): value is ItemKind =>
 // the kinds whose identity is a url, so the only kinds a stub can be
 export const URL_ITEM_KINDS = ["link", "video", "audio"] as const satisfies readonly ItemKind[];
 
-// the frontmatter keys an item's facts live in, in the order a writer puts them (`id` before
-// them, `tags` and `pinned` after); spelled here so a parser-free reader can name them
-const ITEM_KEYS = [
-  "kind",
-  "url",
-  "site",
-  "author",
-  "published",
-  "saved",
-  "fetched",
-  "fetch-error",
-  "description",
-] as const;
-export type ItemKey = (typeof ITEM_KEYS)[number];
-
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
 // what kind of file a type uploaded as is; a type no viewer reads is a plain file

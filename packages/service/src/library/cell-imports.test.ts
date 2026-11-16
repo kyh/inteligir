@@ -3,8 +3,7 @@
 // one change set, an item a rule refuses counted while the rest land, and a full library refusing
 // the batch.
 
-import { blankItemFields } from "@repo/contract/library/item-makes";
-import type { ImportedFields } from "@repo/editor/codec/item-markdown";
+import { blankItemFields, importedFields } from "@repo/contract/library/item-makes";
 import { paragraph } from "@repo/contract/test-support/library-items";
 import { describe, expect, it } from "vitest";
 
@@ -23,30 +22,8 @@ const inLibrary = async <T>(
     return await run({ ...cell, state });
   });
 
-const fieldsOf = (title: string, url: string | null = null): ImportedFields => {
-  const blank = blankItemFields(Date.UTC(2026, 9, 1));
-  return {
-    aliases: blank.aliases,
-    author: blank.author,
-    coverSha: blank.coverSha,
-    description: blank.description,
-    fetchError: blank.fetchError,
-    fetchState: blank.fetchState,
-    fetchedAt: blank.fetchedAt,
-    kind: blank.kind,
-    lang: blank.lang,
-    originalName: blank.originalName,
-    originalSha: blank.originalSha,
-    pinnedAt: blank.pinnedAt,
-    properties: blank.properties,
-    published: blank.published,
-    savedAt: blank.savedAt,
-    site: blank.site,
-    tags: blank.tags,
-    title,
-    url,
-  };
-};
+const fieldsOf = (title: string, url: string | null = null) =>
+  importedFields({ ...blankItemFields(Date.UTC(2026, 9, 1)), title, url });
 
 const note = (
   cell: Cell,

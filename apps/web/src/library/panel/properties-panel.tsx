@@ -1,6 +1,5 @@
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { PropertyValue } from "@repo/contract/library/library-item";
-import type { TypedProperty } from "@repo/editor/markdown/frontmatter";
 import { Button } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
@@ -11,7 +10,7 @@ import { useRef, useState } from "react";
 import type { ComponentProps, KeyboardEvent } from "react";
 
 import { nameRefusal, propertyOp, rowsOf } from "./item-properties";
-import type { Properties } from "./item-properties";
+import type { Properties, TypedProperty } from "./item-properties";
 import { CheckboxField, HELD, LineField, TagsField, UnsupportedField } from "./property-fields";
 import type { PropertyKind } from "./property-fields";
 

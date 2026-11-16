@@ -11,8 +11,8 @@ import { cleanUrl, isWebUrl, kindForUrl, urlKey } from "@repo/contract/items/ite
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
 import { readingFields } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import type { ImportedFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { ImportedFields } from "@repo/editor/codec/item-markdown";
 import { parseItemTime } from "@repo/editor/items/item-time";
 import Papa from "papaparse";
 

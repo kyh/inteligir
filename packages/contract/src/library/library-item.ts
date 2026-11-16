@@ -99,5 +99,13 @@ export const libraryItemFieldsSchema = z.strictObject({
     .nullable(),
 });
 export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
+
+// the fields an import sends of an item: all but whether it is deleted and where it sits, which
+// the cell sets as it lands the item in the folder the import names by its path
+export const importedFieldsSchema = libraryItemFieldsSchema.omit({
+  deletedAt: true,
+  folderId: true,
+});
+export type ImportedFields = z.infer<typeof importedFieldsSchema>;
 export type LibraryItemField = keyof LibraryItemFields;
 export type PropertyValue = LibraryItemFields["properties"][string];

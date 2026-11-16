@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import { importedFieldsSchema, ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
+import type { ImportedFields } from "@repo/contract/library/library-item";
 import { collectFileShas } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
@@ -16,7 +17,6 @@ import {
   unwrapExport,
 } from "./import-plan";
 import type { ImportEntry, PlanIds } from "./import-plan";
-import type { ImportedFields } from "./item-markdown";
 
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
@@ -358,6 +358,31 @@ describe("an Obsidian vault read into the library", () => {
       kind: "pdf",
       originalSha: shaOf("orphan.pdf"),
     });
+  });
+
+  it("makes a picture no note shows an item that is its own cover", () => {
+    const sha = shaOf("Photos/shot.png");
+    const { items } = readFolder({}, new Map([["Photos/shot.png", sha]]));
+    expect(items).toMatchObject([
+      {
+        fields: {
+          coverSha: sha,
+          fetchState: "none",
+          kind: "image",
+          originalName: "shot.png",
+          originalSha: sha,
+          savedAt: CODEC_NOW,
+          title: "shot",
+        },
+        folderPath: "Photos",
+      },
+    ]);
+  });
+
+  it("makes every item's fields ones the cell's row takes", () => {
+    for (const { fields } of library.items) {
+      expect(importedFieldsSchema.safeParse(fields).error?.issues, fields.title).toBeUndefined();
+    }
   });
 
   it.each(["a%20b.png", "100%.png", "a b.png"])("embeds %s as the bytes it names", (name) => {
