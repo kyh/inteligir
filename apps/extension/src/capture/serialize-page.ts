@@ -5,9 +5,12 @@
 // and a base so its relative links resolve where the page did. The page is read by the service
 // worker, over this clone; nothing is read here.
 
-// types alone: zod has no place in the script injected into every saved page, so the worker
-// hands it the caps
-import type { CaptureOptions, CapturedPage } from "./captured-page";
+// types alone: zod has no place in the script injected into every saved page
+import type { CapturedPage } from "./captured-page";
+
+// the rendered page's html past which the capture answers none and the save is the page's link,
+// which the cloud reads; in UTF-16 units, as a string's length counts
+export const CAPTURE_HTML_MAX_CHARS = 2 * 1024 * 1024;
 
 // structured data describes the page (its author, its date) and runs nothing
 const KEPT_SCRIPT_TYPE = "application/ld+json";
@@ -81,7 +84,7 @@ const setBase = (clone: Element, baseUri: string): void => {
   }
 };
 
-export const serializePage = (source: Document, options: CaptureOptions): CapturedPage => {
+export const serializePage = (source: Document): CapturedPage => {
   const cloneNode = source.documentElement.cloneNode(true);
   const clone = cloneNode instanceof Element ? cloneNode : null;
   let html: string | null = null;
@@ -92,11 +95,7 @@ export const serializePage = (source: Document, options: CaptureOptions): Captur
     dropFormValues(clone);
     setBase(clone, source.baseURI);
     const serialized = `<!doctype html>\n${clone.outerHTML}`;
-    html = serialized.length > options.htmlMaxChars ? null : serialized;
+    html = serialized.length > CAPTURE_HTML_MAX_CHARS ? null : serialized;
   }
-  return {
-    html,
-    title: source.title.trim().slice(0, options.titleMaxChars),
-    url: source.URL,
-  };
+  return { html, title: source.title, url: source.URL };
 };
