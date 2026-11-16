@@ -243,6 +243,8 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
   });
 });
 
+const pillEditors = (): number => screen.queryAllByRole("textbox", { name: "Edit formula" }).length;
+
 describe("a locked block's controls", () => {
   beforeEach(() => {
     installFakeEditorHost();
@@ -324,6 +326,37 @@ describe("a locked block's controls", () => {
     for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
+  });
+
+  // a pill's editor writes the pill, which the lock refuses where a column or a tab holds it
+  it.each([
+    ["touch", false],
+    ["desktop", true],
+  ] as const)("the %s kit opens the editor of a pill a column holds: %s", (profile, opens) => {
+    const note = [
+      'outside :formula[4]{source="2+2"}',
+      "",
+      "::::columns",
+      ":::column",
+      'inside :formula[6]{source="3+3"}',
+      ":::",
+      "",
+      ":::column",
+      "right column",
+      ":::",
+      "::::",
+      "",
+    ].join("\n");
+    render(<EditorHarness profile={profile} value={valueOf(note)} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "6" }));
+    });
+    expect(pillEditors() > 0).toBe(opens);
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "4" }));
+    });
+    expect(pillEditors()).toBeGreaterThan(0);
   });
 
   // A tap lands the caret in a locked block's text, and slate-react defers a plain character's

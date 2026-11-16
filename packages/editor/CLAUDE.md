@@ -82,8 +82,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   name and a slow runner never does. `packages/editor/src/typing-budget.test.tsx`.
 - **The phone runs the desktop's editor through a touch kit, and its rich blocks are read-only in
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
-  whole-block op lands, since hiding the buttons lets a paste or key in.
-  `packages/editor/src/kits/rich-block-lock-kit.ts`.
+  whole-block op lands, and a pill's, date's, link's or equation's popover stays shut there, since
+  hiding the buttons lets a paste or key in. `packages/editor/src/kits/rich-block-lock-kit.ts`.
 - **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
   structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
   check, since a lifecycle copied per block drifts.
