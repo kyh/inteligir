@@ -23,7 +23,17 @@ carries, and updates.
   `apps/desktop/src-tauri/src/menu.rs`.
 - **The .app is signed with the hardened runtime and no entitlement.** The shell runs no JavaScript
   of its own, loads no unsigned code and is not sandboxed, so it asks for no JIT, unsigned memory or
-  network grant, which the owner's Mac smoke checks. `apps/desktop/scripts/package.ts`.
+  network grant, which the owner's Mac smoke checks. `apps/desktop/src-tauri/tauri.package.conf.json`.
+- **A pack is `tauri build` on a committed config, and is a release or fails.** Tauri stops one with
+  no updater key and the assets step one with no notarization ticket, since a half-release differs
+  from a release only by a log line. `apps/desktop/scripts/release-assets.ts`.
+- **What only a release has is the pack's config, never `tauri.conf.json`.** tauri-build copies
+  `bundle.resources` on every cargo build, so a checkout that never packed would fail its typecheck
+  for want of the notices, and a build with no update feed reports its updates off.
+  `apps/desktop/src-tauri/tauri.package.conf.json`.
+- **The .app asks for macOS 13.5, the oldest the owner's smoke opens it on.** Its WebKit runs the
+  page's ES2023, and a floor nobody opened the app on is a promise nobody checked.
+  `apps/desktop/src-tauri/tauri.package.conf.json`.
 - **An update waits for a click to download and another to restart** (owner decision). Rust drives
   Tauri's updater behind three commands and one event, its session one phase moved by one pure step,
   so an ask that does not fit the phase is a no-op. `apps/desktop/src-tauri/src/updater.rs`.

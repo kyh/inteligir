@@ -32,7 +32,7 @@ pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPor
                         #   the library tab at /library off vite's dev server, and the scripted
                         #   Messages API on :5177 its built-in agent talks to
 pnpm dev:extension      # apps/extension: WXT's dev loop, rebuilding and reloading on change; it connects from pnpm dev:web's Worker
-pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
+pnpm package:desktop    # The Mac app's release: the .app and dmg, signed and notarized, and its update (owner; docs/releasing.md)
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
 pnpm build              # Build all
@@ -75,9 +75,10 @@ policy a deploy runs (`apps/web/src/routes/library.tsx`,
 `apps/web/src/start.ts`); sign in at `/app/sign-in`. Only the updater needs the
 shell; a tab's Settings says updates come with the Mac app.
 
-`pnpm package:desktop` builds the .app, the shell alone, around the site's
-URL, signed when the keychain holds a Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
-§ Packaging).
+`pnpm package:desktop` is the owner's release of the .app, the shell alone
+around the site's URL, and fails without the release's keys;
+`pnpm --filter @repo/desktop tauri build` builds one for this Mac
+(`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, every
 device's sign-in, `/v1`, every library cell and the account's socket, each

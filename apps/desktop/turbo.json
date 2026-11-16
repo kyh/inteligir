@@ -6,12 +6,8 @@
     "package": {
       "outputs": [".output/bin/**"],
       // Not a pure function of the source: the signature comes from the keychain and the
-      // notarization ticket from Apple, and a cache hit would replay an unsigned artifact over a
-      // signing key that has since appeared.
-      "cache": false,
-      // how the pack signs: strict env mode strips anything unnamed before scripts/package.ts reads
-      // it. The notary's and the updater's keys are .release's alone
-      "passThroughEnv": ["APPLE_SIGNING_IDENTITY", "INTELIGIR_PACK_UNSIGNED"]
+      // notarization ticket from Apple.
+      "cache": false
     }
   }
 }
