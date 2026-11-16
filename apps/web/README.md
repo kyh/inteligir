@@ -79,10 +79,11 @@ pnpm -F @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
 
 `pnpm dev:web` runs this Worker on miniflare with the scripted Messages API
 beside it (`docs/development.md`). The cloud's suites are `@repo/service`'s
-(`packages/service/README.md` § Testing). This app's are two vitest projects
+(`packages/service/README.md` § Testing). This app's are three vitest projects
 (`vitest.config.ts`): `site`, under node, rendering its routes as the Worker's
-SSR does, and `library`, the tab under jsdom, compiled by the React Compiler as
-it ships; `typecheck` runs the app, Worker and scripts programs.
+SSR does, and the tab's `library` (node, `*.test.ts`) and `library-dom` (jsdom,
+`*.test.tsx`), compiled by the React Compiler as it ships; `typecheck` runs the
+app, Worker and scripts programs.
 
 ## Build & deploy (owner-only)
 

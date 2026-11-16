@@ -1,10 +1,8 @@
-// @vitest-environment jsdom
-
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/v1";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createLibraryRouter } from "./test-support/library-router";
@@ -28,7 +26,6 @@ const openedAt = async (entry: string): Promise<void> => {
 };
 
 afterEach(() => {
-  cleanup();
   vi.unstubAllGlobals();
 });
 

@@ -1,10 +1,8 @@
-// @vitest-environment jsdom
-
 import { createORPCErrorFromJson } from "@orpc/client";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -15,7 +13,6 @@ import { CommandPalette } from "./command-palette";
 import type { PaletteActions } from "./command-palette";
 
 afterEach(() => {
-  cleanup();
   onlineManager.setOnline(true);
 });
 

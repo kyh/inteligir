@@ -1,6 +1,6 @@
 // One Worker per Playwright worker: apps/web's build output under an in-process Miniflare, the
-// scripted Claude beside it, and every outbound fetch answered from `cloud.pages` or failing the
-// test. One account per test, signed in on the test's context and reachable through `/v1`.
+// scripted Claude beside it, and every outbound fetch answered from a test's `web.pages` or failing
+// it. One account per test, signed in on the test's context and reachable through `/v1`.
 
 /* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- miniflare types its D1 binding with @cloudflare/workers-types, which this node program does not load, so the type-aware pass reads the database as an unresolved type */
 import { execFileSync } from "node:child_process";
@@ -29,8 +29,6 @@ import { z } from "zod";
 
 const REPO = path.resolve(import.meta.dirname, "../../..");
 const OUTPUT = path.join(REPO, "apps/web/.cloudflare/output/v0/workers/default");
-// a `.test` name no resolver answers (RFC 6761), which the fill's guard judges as any site's
-const PAGE_ORIGIN = "http://pages.inteligir.test";
 const PASSWORD = "e2e-password-1234";
 // the system networking stack's user agent, which the account's devices list names an iPhone by
 const PHONE_USER_AGENT = "inteligir/1 CFNetwork/3826.500.111 Darwin/25.0.0";
@@ -50,20 +48,29 @@ interface CloudOptions {
 }
 
 // a page by its body (text/html unless `type` says otherwise), or a status with no page
-export type PageAnswer =
+type PageAnswer =
   | { readonly body: string | Uint8Array<ArrayBuffer>; readonly type?: string }
   | { readonly status: number };
+
+// A page host of a test's own: the Worker's fetches under it are answered from the test's pages
+// and logged with it, so a fill that outlives its test is never the next one's.
+interface Web {
+  // how the Worker's fetch of a path under the host is answered
+  readonly pages: Map<string, PageAnswer>;
+  readonly pageUrl: (pathname: string) => string;
+  // every path under the host the Worker asked for, in order
+  readonly fetched: string[];
+  // those no page answered, which fail the test
+  readonly strays: string[];
+}
 
 export interface Cloud {
   readonly origin: string;
   // an unspent invite code
   readonly mint: () => Promise<string>;
-  // how the Worker's fetch of a path under the page host is answered
-  readonly pages: Map<string, PageAnswer>;
-  readonly pageUrl: (pathname: string) => string;
-  // every path under the page host the Worker asked for, in order
-  readonly fetched: readonly string[];
-  // every other address it asked for, which fails the test that was running
+  // a page host no other test has
+  readonly pageHost: () => Web;
+  // every address under no page host the Worker asked for, which fails the test that was running
   readonly strays: readonly string[];
   // the oldest build the Worker takes, which every client here names
   readonly build: string;
@@ -91,7 +98,8 @@ interface TestFixtures {
   secondContext: BrowserContext;
   // the console errors a test causes on purpose, which the watch lets by
   allowedErrors: RegExp | null;
-  strayWatch: null;
+  // the web as the Worker's fills reach it, which fails the test on a fetch no page answered
+  web: Web;
 }
 
 interface WorkerFixtures {
@@ -217,20 +225,19 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     async ({ cloudOptions }, use) => {
       const statements = exportSchema();
       const fake = await serveMessagesFake(0);
-      const pages = new Map<string, PageAnswer>();
-      const fetched: string[] = [];
+      // never emptied: a test that ended keeps its host for the fetches it left running
+      const hosts = new Map<string, Web>();
       const strays: string[] = [];
       const outbound = async (request: Request): Promise<Response> => {
         const url = new URL(request.url);
         if (url.origin === fake.origin) {
           return await fetch(request);
         }
-        const page = url.origin === PAGE_ORIGIN ? pages.get(url.pathname) : undefined;
-        if (url.origin === PAGE_ORIGIN) {
-          fetched.push(url.pathname);
-        }
+        const host = hosts.get(url.origin);
+        host?.fetched.push(url.pathname);
+        const page = host?.pages.get(url.pathname);
         if (page === undefined) {
-          strays.push(url.href);
+          (host?.strays ?? strays).push(url.href);
           return new Response("no page answers here", { status: 502 });
         }
         return "status" in page
@@ -268,15 +275,24 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await db.batch(statements.map((statement) => db.prepare(statement)));
       await use({
         build,
-        fetched,
         mint: async () => {
           const code = `E2E-${crypto.randomUUID()}`;
           await db.prepare("INSERT INTO invite_code (code) VALUES (?)").bind(code).run();
           return code;
         },
         origin,
-        pageUrl: (pathname) => `${PAGE_ORIGIN}${pathname}`,
-        pages,
+        pageHost: () => {
+          // a `.test` name no resolver answers (RFC 6761), any site's to the fill's guard
+          const host = `http://${crypto.randomUUID()}.pages.inteligir.test`;
+          const web: Web = {
+            fetched: [],
+            pageUrl: (pathname) => `${host}${pathname}`,
+            pages: new Map(),
+            strays: [],
+          };
+          hosts.set(host, web);
+          return web;
+        },
         strays,
       });
       await miniflare.dispose();
@@ -286,11 +302,15 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     },
     { scope: "worker", timeout: 120_000 },
   ],
-  strayWatch: [
+  web: [
     async ({ cloud }, use) => {
+      const web = cloud.pageHost();
       const before = cloud.strays.length;
-      await use(null);
-      expect(cloud.strays.slice(before), "the Worker's fetches no page answered").toEqual([]);
+      await use(web);
+      expect(
+        [...web.strays, ...cloud.strays.slice(before)],
+        "the Worker's fetches no page answered",
+      ).toEqual([]);
     },
     { auto: true },
   ],

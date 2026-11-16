@@ -1,6 +1,4 @@
-// @vitest-environment jsdom
-
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -35,7 +33,6 @@ beforeAll(() => {
 /* oxlint-enable anti-slop/no-runtime-typeof */
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
 });
 

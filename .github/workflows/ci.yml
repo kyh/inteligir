@@ -59,20 +59,15 @@ jobs:
         run: pnpm e2e
 
   # the app ships only as a macOS arm64 .app: the shell's macOS code (its menu, its window)
-  # compiles and runs only here, so its clippy, fmt and tests are this job's alone; the rest of
-  # typecheck, lint, knip, format and build read no platform, so the check job runs them
+  # compiles and runs only here, so its tests, clippy and fmt are this job's alone; every other
+  # suite and gate reads no platform, so the check job runs them
   test-macos:
     runs-on: macos-latest
-    # a backstop: the suites carry no deadline of their own, and a cold build of the shell is
-    # several minutes of it
-    timeout-minutes: 50
+    # a backstop: cargo carries no deadline of its own, and a cold build of the shell is several
+    # minutes of it
+    timeout-minutes: 30
     env:
       TURBO_TELEMETRY_DISABLED: 1
-      # three cores and 7 GB: four suites at once, the editor's 4 GB budget among them, push
-      # every timing-bound test past its limit on a slow runner
-      TEST_CONCURRENCY: 2
-      # the editor's typing budget measures swap on a 7 GB runner; the check job holds it
-      SKIP_TYPING_BUDGET: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -83,7 +78,6 @@ jobs:
           install: false
 
       - name: Install
-        id: install
         run: pnpm install --frozen-lockfile
 
       # the toolchain apps/desktop/rust-toolchain.toml pins, with its clippy and rustfmt
@@ -96,10 +90,7 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
 
-      - name: Test
-        run: pnpm test
-
-      # the shell's clippy and the release scripts' tsc, and its cargo fmt check
-      - name: Desktop typecheck and format
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm turbo run typecheck format --filter=@repo/desktop
+      # the shell's cargo test, its clippy and the release scripts' tsc, and its cargo fmt check;
+      # turbo continues past a failure, so one run reports every red task
+      - name: Desktop test, typecheck and format
+        run: pnpm turbo run test typecheck format --filter=@repo/desktop --continue=dependencies-successful

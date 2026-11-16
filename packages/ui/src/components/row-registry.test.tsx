@@ -1,6 +1,4 @@
-// @vitest-environment jsdom
-
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Activity, Profiler } from "react";
 import type { ProfilerOnRenderCallback, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -108,7 +106,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });

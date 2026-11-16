@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 // The item surface as a host mounts it: one connection and one editor per item, drawn only once
 // the note's document has synced, over notes' objects held in memory behind a fake socket.
 

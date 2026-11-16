@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { setTimeout as delay } from "node:timers/promises";
 
 import { act, fireEvent, render, within } from "@testing-library/react";

@@ -9,6 +9,6 @@ import { afterEach } from "vitest";
 
 afterEach(cleanup);
 
-// a three-core CI runner running four suites at once misses testing-library's one-second default
-// on work a laptop finishes in a tenth of it.
+// a CI runner running four suites at once misses testing-library's one-second default on work a
+// laptop finishes in a tenth of it.
 configure({ asyncUtilTimeout: 5000 });

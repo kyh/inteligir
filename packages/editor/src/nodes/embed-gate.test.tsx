@@ -1,11 +1,9 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { KEYS } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
-
-afterEach(cleanup);
 
 const renderNode = (type: string, url: string) => {
   const editor = createPlateEditor({

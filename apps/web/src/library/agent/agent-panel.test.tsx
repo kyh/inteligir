@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
@@ -8,7 +6,7 @@ import { deferred } from "@repo/contract/deferred";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -21,7 +19,6 @@ import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
 afterEach(() => {
-  cleanup();
   vi.restoreAllMocks();
   vi.useRealTimers();
   onlineManager.setOnline(true);

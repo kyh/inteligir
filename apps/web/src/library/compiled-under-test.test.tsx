@@ -1,7 +1,6 @@
-// @vitest-environment jsdom
 // a component the compiler memoizes wrongly passes every unit test and fails only in the
-// built app. jsdom on purpose: the compiler's preset runs in the client environment alone, never a
-// node suite's server transform.
+// built app. a .tsx suite on purpose: the compiler runs under jsdom alone, never in a node suite's
+// server transform.
 
 import { expect, test } from "vitest";
 
@@ -10,6 +9,6 @@ import { RenderCrash } from "./render-crash";
 test("holds the React Compiler's output for the page's components", () => {
   expect(
     RenderCrash.toString(),
-    "the desktop vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",
+    "the library-dom vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",
   ).toContain("react.memo_cache_sentinel");
 });

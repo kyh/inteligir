@@ -3,15 +3,13 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { cleanup, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { EditorHarness } from "./test-support/editor-harness";
-
-afterEach(cleanup);
 
 const STYLES = path.join(import.meta.dirname, "styles.css");
 

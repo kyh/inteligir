@@ -41,6 +41,7 @@ rules.
 
 ## Testing
 
-`pnpm --filter @repo/ui test` runs the suites, the jsdom ones compiled by the
-React Compiler as the shipped page is (`components/compiled-under-test.test.tsx`
-pins it); an export nothing imports is knip's to find.
+`pnpm --filter @repo/ui test` runs two vitest projects: `ui` (node,
+`*.test.ts`) and `ui-dom` (jsdom, `*.test.tsx`), compiled by the React Compiler
+as the shipped page is (`components/compiled-under-test.test.tsx` pins it); an
+export nothing imports is knip's to find.

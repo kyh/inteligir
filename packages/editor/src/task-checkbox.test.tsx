@@ -2,15 +2,13 @@
 // <label>s pointing at it on every render, a walk of the whole note per task, which made a long
 // note with many tasks slow to open (block-list.tsx).
 
-import { cleanup, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import type { Value } from "platejs";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 import { EditorHarness } from "./test-support/editor-harness";
-
-afterEach(cleanup);
 
 const valueOf = (md: string): Value => {
   const parsed = parseMarkdown(md);

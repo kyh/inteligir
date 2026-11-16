@@ -1,12 +1,8 @@
-// @vitest-environment jsdom
-
-import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { DesktopBridge, DesktopUpdateState } from "./shell/desktop-bridge";
 import { createUpdatesStore } from "./desktop-updates";
-
-afterEach(cleanup);
 
 const AVAILABLE: DesktopUpdateState = { status: "available", version: "1.2.3" };
 

@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { Value } from "platejs";

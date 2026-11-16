@@ -32,17 +32,18 @@ test("a link pasted on the grid is read by the Worker's own fill, and saved agai
   cloud,
   library,
   page: tab,
+  web,
 }) => {
   const cover = coverOf(640, 400);
-  cloud.pages.set("/cover.png", { body: cover, type: "image/png" });
-  cloud.pages.set("/essay", {
+  web.pages.set("/cover.png", { body: cover, type: "image/png" });
+  web.pages.set("/essay", {
     body: page(
       "Keeping notes in plain files",
       '<meta property="og:site_name" content="The Example Journal"><meta name="description" content="Why a folder of text files outlasts every app."><meta name="author" content="Ada Example"><meta property="og:image" content="/cover.png">',
       "<p>A folder of text files outlasts every app that reads it. The files are yours, on your own disk.</p><h2>What lasts</h2><p>Plain text has been readable for fifty years, and nothing suggests that will change.</p>",
     ),
   });
-  const url = cloud.pageUrl("/essay");
+  const url = web.pageUrl("/essay");
   await openLibrary(tab, cloud);
   await tab.evaluate((pasted) => {
     const data = new DataTransfer();
@@ -75,7 +76,7 @@ test("a link pasted on the grid is read by the Worker's own fill, and saved agai
   expect(read.view.markdown).toContain("## What lasts");
   expect(read.view.markdown).not.toContain("Written on a quiet afternoon.");
   expect(await download(cloud, account, await coverShaOf(library, id))).toEqual(Buffer.from(cover));
-  expect(cloud.fetched).toEqual(expect.arrayContaining(["/essay", "/cover.png"]));
+  expect(web.fetched).toEqual(expect.arrayContaining(["/essay", "/cover.png"]));
 
   const again = await library.items.saveLink({ url: `${url}?utm_source=feed` });
   expect([again.created, again.item.id]).toEqual([false, id]);
@@ -86,12 +87,13 @@ test("a Raindrop export imported from Settings files its links, fills them and a
   cloud,
   library,
   page: tab,
+  web,
 }) => {
   const [liveCover, deadCover] = [coverOf(400, 300), coverOf(300, 400)];
-  cloud.pages.set("/covers/live.png", { body: liveCover, type: "image/png" });
-  cloud.pages.set("/covers/dead.png", { body: deadCover, type: "image/png" });
-  cloud.pages.set("/essays/gone", { status: 404 });
-  cloud.pages.set("/essays/file-over-app", {
+  web.pages.set("/covers/live.png", { body: liveCover, type: "image/png" });
+  web.pages.set("/covers/dead.png", { body: deadCover, type: "image/png" });
+  web.pages.set("/essays/gone", { status: 404 });
+  web.pages.set("/essays/file-over-app", {
     body: page(
       "File over app",
       '<meta property="og:site_name" content="Steph Ango">',
@@ -100,11 +102,11 @@ test("a Raindrop export imported from Settings files its links, fills them and a
   });
   // as Raindrop's export writes it
   const csv = `id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite
-1,File over app,For Tuesday.,,${cloud.pageUrl("/essays/file-over-app?utm_source=raindrop")},Reading,files,2023-07-01T09:12:30.000Z,${cloud.pageUrl("/covers/live.png")},"Highlight: Files last.
+1,File over app,For Tuesday.,,${web.pageUrl("/essays/file-over-app?utm_source=raindrop")},Reading,files,2023-07-01T09:12:30.000Z,${web.pageUrl("/covers/live.png")},"Highlight: Files last.
 Note: The point.
 
 Highlight: Apps are ephemeral.",false
-2,A page that is gone,,,${cloud.pageUrl("/essays/gone")},Reading / Old,,2023-07-02T09:12:30.000Z,${cloud.pageUrl("/covers/dead.png")},Highlight: Words the page no longer holds.,false
+2,A page that is gone,,,${web.pageUrl("/essays/gone")},Reading / Old,,2023-07-02T09:12:30.000Z,${web.pageUrl("/covers/dead.png")},Highlight: Words the page no longer holds.,false
 `;
   const importCsv = async () => {
     await tab.getByLabel("The file to import").setInputFiles({
@@ -156,8 +158,8 @@ Highlight: Apps are ephemeral.",false
   });
   expect(deadRead.view.markdown).toContain("> Words the page no longer holds.");
   // no cover is fetched for a page the fill could not read
-  expect(cloud.fetched).toContain("/essays/gone");
-  expect(cloud.fetched).not.toContain("/covers/dead.png");
+  expect(web.fetched).toContain("/essays/gone");
+  expect(web.fetched).not.toContain("/covers/dead.png");
 
   await importCsv();
   await expect(tab.getByText("Added 0, 2 already in the library.")).toBeVisible();

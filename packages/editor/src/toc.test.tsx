@@ -1,10 +1,8 @@
-// @vitest-environment jsdom
-
-import { cleanup, render } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   activeHeadingAt,
@@ -14,8 +12,6 @@ import {
   TOC_RAIL_CAP,
 } from "@repo/editor/toc";
 import { EditorHarness } from "./test-support/editor-harness";
-
-afterEach(cleanup);
 
 const h = (type: "h1" | "h2" | "h3", text: string) => ({ children: [{ text }], type });
 const p = (text: string) => ({ children: [{ text }], type: "p" });
