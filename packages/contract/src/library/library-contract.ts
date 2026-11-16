@@ -36,7 +36,8 @@ import {
   folderPathNames,
   isoDate,
   idSchema,
-  importJobSchema,
+  IMPORT_SOURCES,
+  IMPORT_STANDINGS,
   itemReadSchema,
   itemSummarySchema,
   liveItemRowSchema,
@@ -437,31 +438,64 @@ const historyContract = {
     ),
 };
 
-// an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
-// zip of markdown, an Obsidian vault included. The cell runs it as a job, a page at a time, every
-// item it adds in one change set
+// an item an import lands: one the device read (`new`), filed under the folder path it stood in,
+// with the picture its source named for the cloud's reading to try after the page's; or one in
+// Deleted it brings back (`restore`). A device parses each through this before it sends a batch,
+// since one the row refuses refuses the batch
+export const importedItemSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    blocks: z.array(newBodyBlockSchema).max(WRITE_OPS_MAX),
+    cover: FIELDS.url,
+    fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
+    folder: folderPathSchema.nullable(),
+    id: idSchema,
+    kind: z.literal("new"),
+  }),
+  z.strictObject({ id: idSchema, kind: z.literal("restore") }),
+]);
+
+// an import the device reads itself, a Raindrop export or a zip of notes, Obsidian's included:
+// it asks how the notes it planned stand, lands its items a batch at a time and asks what the
+// landed items name of its files. An item's id is the device's, made from where it stood in the
+// file, so a batch sent again, or the same file picked again, lands nothing twice
 const importsContract = {
-  start: signedBase
-    .errors({
-      [BlobMissingError.code]: BlobMissingError,
-      [PayloadTooLargeError.code]: PayloadTooLargeError,
-    })
-    .input(z.strictObject({ opId, sha: shaSchema, source: importJobSchema.shape.source }))
-    .output(z.object({ job: importJobSchema })),
+  // each note in the order asked: `held` by an item the library holds by its id or its address,
+  // whose id it answers; `deleted`, its item in Deleted; `new`, to land, under a fresh id when a
+  // purged item kept the one planned
+  settle: signedBase
+    .input(
+      z.strictObject({
+        notes: z
+          .array(z.strictObject({ id: idSchema, url: FIELDS.url }))
+          .min(1)
+          .max(BULK_ITEMS_MAX),
+      }),
+    )
+    .output(
+      z.object({
+        notes: z.array(z.object({ id: idSchema, standing: z.enum(IMPORT_STANDINGS) })),
+      }),
+    ),
 
-  get: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
-    .input(z.strictObject({ id: idSchema }))
-    .output(z.object({ job: importJobSchema })),
+  // which of these files a live item names, and which of them an item holds as its own original
+  named: signedBase
+    .input(z.strictObject({ shas: z.array(shaSchema).min(1).max(BULK_ITEMS_MAX) }))
+    .output(z.object({ named: z.array(shaSchema), originals: z.array(shaSchema) })),
 
-  // the newest import, null when the library never imported
-  latest: signedBase.output(z.object({ job: importJobSchema.nullable() })),
-
-  // stops after the page it is on; what it added stays, and its change set closes
-  cancel: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
-    .input(z.strictObject({ id: idSchema, opId }))
-    .output(z.object({ job: importJobSchema })),
+  // a batch in the import's own change set, which `importId` names: an item the library holds
+  // already is counted, one a rule refuses is counted unreadable while the rest land, and a
+  // library too full for the batch takes none of it
+  land: signedBase
+    .errors({ [QuotaError.code]: QuotaError })
+    .input(
+      z.strictObject({
+        importId: idSchema,
+        items: z.array(importedItemSchema).min(1).max(BULK_ITEMS_MAX),
+        opId,
+        source: z.enum(IMPORT_SOURCES),
+      }),
+    )
+    .output(z.object({ added: count, alreadySaved: count, unreadable: count })),
 };
 
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });

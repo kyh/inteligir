@@ -80,9 +80,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   write forgets, and an alarm set after an await is lost with the isolate.
   `packages/service/src/library/library-engine.ts`.
 - **An alarm's run tells the sockets once, its writes' frames merged on a cell
-  of its own.** An import's page would tell a frame an item, and a flag on the
-  wake's cell would hold a call's frame for the run's ten seconds.
-  `packages/service/src/library/library-do.ts`.
+  of its own.** Each job commits alone, so a frame a commit would wake every
+  device once a job, and a flag on the wake's cell would hold a call's frame for
+  the whole run. `packages/service/src/library/library-do.ts`.
 - **A library write changes fields alone, only on the bases it names, in one
   transaction.** Last write wins loses an edit unseen, and a whole-item base
   makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.
@@ -126,12 +126,13 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A save of a url the library holds answers that item as it stands.** One url,
   one item: merging the save makes two writers of its tags, folder and note.
   `packages/service/src/library/cell-saves.ts`.
-- **An import is a cell job run a batch at a time, its plan in rows.** An alarm
-  has 30 s of CPU, so each run lands one batch and moves the cursor with it.
+- **An import is read on the device, and the cell only settles and lands its
+  batches, each item whole or not at all.** An alarm has 30 s of CPU and a zip
+  in R2 is a second copy, so the device that holds the file reads it.
   `packages/service/src/library/cell-imports.ts`.
-- **A file is let go once nothing names it or will.** An item, a change set or a
-  running import's plan keeps it, so releasing by `refs` alone drops a file only
-  a change set holds. `packages/service/src/library/change-set-prune.ts`.
+- **A file is let go once nothing names it.** An item or a change set keeps it,
+  so releasing by `refs` alone drops a file only a change set holds.
+  `packages/service/src/library/change-set-prune.ts`.
 - **Filing rules are the person's own words, and only the person writes them.**
   They reach the agent above anything a saved page says, so an import reads an
   `AGENTS.md` as a note. `packages/service/src/library/library-rules.ts`.

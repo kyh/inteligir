@@ -326,33 +326,10 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
 
 // ---- imports ----
 
-// what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
-// a job stands, and the phase a running one is in: reading the file into its plan, landing its
-// items a page at a time, then the files no item embedded as items of their own
+// what a device reads into the library: a Raindrop export, or a folder of markdown zipped,
+// Obsidian's included
 export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
-export const IMPORT_STATES = ["running", "done", "failed", "cancelled"] as const;
-export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
 
-const count = z.number().int().nonnegative();
-
-// an import as it runs and once it ended: what it found, what it added, what the library already
-// held by its address, what it left out and why, and the change set it landed in
-export const importJobSchema = z.object({
-  added: count,
-  alreadySaved: count,
-  changeSetId: idSchema.nullable(),
-  finishedAt: instant.nullable(),
-  id: idSchema,
-  // why a job failed, in a sentence the person reads
-  message: z.string().nullable(),
-  // what the import leaves out by its rules: a bookmark with no web address or one in the bin, and
-  // a path no item is made of (Obsidian's settings, another dot-folder's)
-  skipped: count,
-  source: z.enum(IMPORT_SOURCES),
-  startedAt: instant,
-  state: z.enum(IMPORT_STATES),
-  total: count,
-  // what could not be read into an item: a note nested past what the editor reads or past what an
-  // item holds, a zip entry that would not open, an item the library refused
-  unreadable: count,
-});
+// how a note an import planned stands in the library: an item it holds by the note's id or
+// address, one in Deleted, or one still to land
+export const IMPORT_STANDINGS = ["held", "deleted", "new"] as const;

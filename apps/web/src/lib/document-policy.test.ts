@@ -19,6 +19,10 @@ describe("the page's policy", () => {
     expect(policy).toContain("frame-ancestors 'none'");
   });
 
+  it("runs a worker only from the site's own scripts, as an import reads its file", () => {
+    expect(directiveOf(pagePolicy(SITE, "n"), "worker-src")).toBe("worker-src 'self'");
+  });
+
   it("draws an item from this origin and the bytes the page holds, never a web address", () => {
     const policy = pagePolicy(SITE, "n");
     expect(directiveOf(policy, "default-src")).toBe("default-src 'self'");

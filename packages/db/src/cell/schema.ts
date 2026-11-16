@@ -18,12 +18,7 @@ import {
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { FETCH_STATES } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
-import {
-  CHANGE_SET_ACTORS,
-  IMPORT_PHASES,
-  IMPORT_SOURCES,
-  IMPORT_STATES,
-} from "@repo/contract/library/library-wire";
+import { CHANGE_SET_ACTORS } from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
@@ -370,44 +365,6 @@ export const agentUsage = sqliteTable("agent_usage", {
   day: text().primaryKey(),
   turns: integer().notNull(),
 });
-
-export const importJobs = sqliteTable(
-  "import_jobs",
-  {
-    id: text().primaryKey(),
-    source: text({ enum: IMPORT_SOURCES }).notNull(),
-    sha: text().notNull(),
-    state: text({ enum: IMPORT_STATES }).notNull(),
-    phase: text({ enum: IMPORT_PHASES }).notNull(),
-    cursor: integer().notNull(),
-    total: integer().notNull(),
-    added: integer().notNull(),
-    alreadySaved: integer("already_saved").notNull(),
-    skipped: integer().notNull(),
-    unreadable: integer().notNull(),
-    changeSetId: text("change_set_id"),
-    message: text(),
-    startedAt: integer("started_at").notNull(),
-    finishedAt: integer("finished_at"),
-  },
-  (t) => [
-    check("import_jobs_source", sql`${t.source} IN (${oneOf(IMPORT_SOURCES)})`),
-    check("import_jobs_state", sql`${t.state} IN (${oneOf(IMPORT_STATES)})`),
-    check("import_jobs_phase", sql`${t.phase} IN (${oneOf(IMPORT_PHASES)})`),
-  ],
-);
-
-// a running import's plan, a row per thing it lands, so a page reads only its own rows
-export const importRows = sqliteTable(
-  "import_rows",
-  {
-    jobId: text("job_id").notNull(),
-    kind: text().notNull(),
-    idx: integer().notNull(),
-    json: text().notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.jobId, t.kind, t.idx] })],
-);
 
 export const jobs = sqliteTable(
   "jobs",

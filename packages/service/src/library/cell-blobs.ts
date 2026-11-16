@@ -4,10 +4,9 @@
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
 // go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file stays
 // while an item names it or any change set does (`change_set_blobs`), and once nothing does or
-// will it is let go: when the import that kept it ends, at the alarm's next run after the reading
-// that kept it lands nowhere or the last change set naming it went, and by the alarm a day after
-// it landed or an item stopped naming it otherwise, but never while an import runs, whose plan may
-// name it.
+// will it is let go: at the alarm's next run after the reading that kept it lands nowhere or the
+// last change set naming it went, and by the alarm a day after it landed or an item stopped naming
+// it otherwise.
 
 import { and, eq, exists, inArray, sql } from "drizzle-orm";
 
@@ -99,10 +98,9 @@ const awaitName = (db: CellDb, sha: string, now: number): void => {
   scheduleJob(db, unnamedJob(sha), now + UNNAMED_HOLD_MS);
 };
 
-// the alarm asks about a file at `at`: now once its last name went, later while something may
-// still name it
-export const awaitNameAgain = (db: CellDb, sha: string, at: number): void => {
-  scheduleJob(db, unnamedJob(sha), at);
+// a file whose last name went is asked about at the alarm's next run
+const awaitNameAgain = (db: CellDb, sha: string, now: number): void => {
+  scheduleJob(db, unnamedJob(sha), now);
 };
 
 // parts and block versions of the item no change set names any more: the alarm's next run asks
@@ -173,8 +171,7 @@ export const storeItemBlobs = (
   }
 };
 
-// a purged item: the files it and its change sets named are asked about at the alarm's next run,
-// which an import may put off
+// a purged item: the files it and its change sets named are asked about at the alarm's next run
 export const dropItemBlobs = (db: CellDb, itemId: string, now: number): void => {
   const shas = deleteItemBlobs(db, itemId);
   const kept = db

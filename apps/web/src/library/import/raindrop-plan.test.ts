@@ -7,9 +7,9 @@ import {
   parseRaindropHighlights,
   planRaindropImport,
   toTagName,
-} from "./raindrop";
-import type { RaindropRow } from "./raindrop";
-import { RAINDROP_EXPORT as FIXTURE } from "./test-support/raindrop-export";
+} from "./raindrop-plan";
+import type { RaindropRow } from "./raindrop-plan";
+import { RAINDROP_EXPORT as FIXTURE } from "../test-support/raindrop-export";
 
 const NOW = Date.UTC(2026, 9, 17, 9, 0, 0);
 
@@ -67,6 +67,12 @@ describe(parseRaindropCsv, () => {
     });
     expect(parseRaindropCsv("title,url\n")).toStrictEqual({ ok: false, reason: "empty" });
     expect(parseRaindropCsv("")).toStrictEqual({ ok: false, reason: "empty" });
+  });
+
+  it("skips a byte-order mark and blank lines, and reads a stray quote as the character it is", () => {
+    expect(rowsOf('\uFEFFurl,title\r\n\r\nhttps://a.example/,Say "hi"\r\n')).toMatchObject([
+      { title: 'Say "hi"', url: "https://a.example/" },
+    ]);
   });
 });
 

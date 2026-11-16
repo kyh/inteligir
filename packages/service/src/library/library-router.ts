@@ -6,11 +6,7 @@
 // declares (`./library-orpc`). The built-in agent's rows are `../agent/agent-router`'s.
 
 import { NotFoundError } from "@repo/contract/v1/errors";
-import {
-  folderRowSchema,
-  importJobSchema,
-  liveItemRowSchema,
-} from "@repo/contract/library/library-wire";
+import { folderRowSchema, liveItemRowSchema } from "@repo/contract/library/library-wire";
 import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
@@ -23,8 +19,7 @@ import { cellCodec } from "./cell-codec";
 import { editByNote } from "./cell-edits";
 import { askFill, askFillAfterTurn } from "./cell-fills";
 import { writeFolders } from "./cell-folders";
-import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
-import { cancelImport, startImport } from "./cell-imports";
+import { importActor, landImported, namedFiles, settleNote } from "./cell-imports";
 import {
   createFile,
   createNote,
@@ -59,7 +54,8 @@ const changedSchema = z.object({
   missing: z.array(z.string()),
 });
 const foldersWrittenSchema = z.object({ folders: z.array(folderRowSchema), seq: z.number() });
-const importAnswer = z.object({ job: importJobSchema });
+const count = z.number().int().nonnegative();
+const importLandedSchema = z.object({ added: count, alreadySaved: count, unreadable: count });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
@@ -117,27 +113,26 @@ export const libraryRouter = os.router({
     }),
   },
   imports: {
-    cancel: os.imports.cancel.handler(({ context, input }) =>
-      context.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
-        job: importJobView(cancelImport(scope, input.id)),
-      })),
-    ),
-    get: os.imports.get.handler(({ context, input }) => {
-      const job = context.read((db) => readImportJob(db, input.id));
-      if (job === null) {
-        throw new NotFoundError();
-      }
-      return { job: importJobView(job) };
+    // the import's own set, never the caller's, so Undo takes back what one import added
+    land: os.imports.land.handler(({ context, input }) => {
+      const { library } = context;
+      return answer(
+        library.land(
+          importActor(input),
+          { answer: importLandedSchema, opId: input.opId },
+          (scope) => landImported(scope, library.ids, input.items),
+        ),
+      );
     }),
-    latest: os.imports.latest.handler(({ context }) => {
-      const job = context.read(latestImportJob);
-      return { job: job === null ? null : importJobView(job) };
-    }),
-    start: os.imports.start.handler(({ context, input }) =>
-      context.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
-        job: importJobView(startImport(scope, context.library.ids, input)),
-      })),
+    named: os.imports.named.handler(({ context, input }) =>
+      context.read((db) => namedFiles(db, input.shas)),
     ),
+    settle: os.imports.settle.handler(({ context, input }) => {
+      const { ids } = context.library;
+      return {
+        notes: context.read((db) => input.notes.map((note) => settleNote(db, note, ids.item))),
+      };
+    }),
   },
   items: {
     create: os.items.create.handler(({ context, input }) =>

@@ -11,7 +11,12 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
-      "entry": ["cloudflare.config.ts", "src/worker/*.test-d.ts"],
+      // a module worker is reached by `new URL(…, import.meta.url)`, which knip does not follow
+      "entry": [
+        "cloudflare.config.ts",
+        "src/worker/*.test-d.ts",
+        "src/library/import/import-worker.ts"
+      ],
       "ignoreDependencies": ["tailwindcss"]
     },
     "packages/db": {

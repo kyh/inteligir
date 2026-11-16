@@ -1,153 +1,129 @@
-// An import, run by the cell as a job: `library.imports.start` names a file the device uploaded
-// (`/v1/blobs`) and what it is, and the alarm runs the job a page at a time
-// (`./cell-import-raindrop`, `./cell-import-markdown`), each run ending well inside an alarm's
-// limits and asking for the next, so a large import never holds the cell and resumes where it
-// stood after an eviction. Every item it adds joins one change set, closed when the job ends; the
-// file it read, and every file it kept that no item came to name, are let go then.
+// An import as the cell takes it: the device reads the file (`apps/web/src/library/import`) and asks
+// how each note it planned stands, which of the files it uploaded the landed items name, and lands
+// its items a batch at a time. Each item lands whole or not at all inside its batch, so one a rule
+// refuses leaves the rest, and every item one import adds joins its own change set.
 
-import { readBlobRow, releaseUnnamed } from "./cell-blobs";
-import { apart } from "./cell-import-host";
-import type { ImportHost, StepOutcome } from "./cell-import-host";
-import {
-  dropImportRuns,
-  importsRunning,
-  insertImportJob,
-  readImportJob,
-  runImportNext,
-  stopImport,
-} from "./cell-import-jobs";
-import type { ImportJob, ImportSource } from "./cell-import-jobs";
-import { keptFileShas, stepMarkdown } from "./cell-import-markdown";
-import { RAINDROP_MAX_BYTES, stepRaindrop } from "./cell-import-raindrop";
+import type { IMPORT_SOURCES, IMPORT_STANDINGS } from "@repo/contract/library/library-wire";
+import type { importedItemSchema } from "@repo/contract/library/library-contract";
+import { urlKey } from "@repo/contract/items/item-url";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import type { z } from "zod";
+
+import { itemBlobs, items } from "@repo/db/cell/schema";
+import type { CellActor } from "./cell-actor";
+import { listChunks } from "./cell-db";
+import type { CellDb } from "./cell-db";
+import { askFill } from "./cell-fills";
+import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
-import { dueJobs, retryJob } from "./cell-jobs";
+import { landNew, setDeleted } from "./cell-items";
+import { urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
-import { logJobFailure } from "./cell-library";
 import { refuse } from "./cell-refusal";
+import { readItem } from "./library-queries";
 
-// a run that fails (it throws, or the platform ends it) is tried again, later each time, and the
-// job stops once this many runs in a row moved it on by nothing
-const ATTEMPTS_MAX = 5;
+type ImportSource = (typeof IMPORT_SOURCES)[number];
+type ImportedItem = z.infer<typeof importedItemSchema>;
 
-const STOPPED =
-  "The import stopped because something went wrong reading the file. Try importing it again.";
+interface NoteStanding {
+  readonly id: string;
+  readonly standing: (typeof IMPORT_STANDINGS)[number];
+}
 
-// a job for the file the device uploaded, its first run at once
-export const startImport = (
-  scope: LandingScope,
-  ids: CellIds,
-  input: { readonly sha: string; readonly source: ImportSource },
-): ImportJob => {
-  const file = readBlobRow(scope.db, input.sha);
-  if (file === null) {
-    return refuse({ kind: "blob-missing", shas: [input.sha] });
-  }
-  if (input.source === "raindrop" && file.bytes > RAINDROP_MAX_BYTES) {
-    return refuse({ kind: "too-large" });
-  }
-  return insertImportJob(scope.db, { id: ids.item(), ...input }, scope.now);
+const LABELS = {
+  markdown: "Imported from Markdown",
+  raindrop: "Imported from Raindrop",
+} as const satisfies Record<ImportSource, string>;
+
+export const importActor = (input: {
+  readonly importId: string;
+  readonly source: ImportSource;
+}): CellActor => ({ importId: input.importId, kind: "import", label: LABELS[input.source] });
+
+const heldByUrl = (db: CellDb, url: string | null): { readonly id: string } | null => {
+  const key = url === null ? null : urlKey(url);
+  return key === null ? null : urlHolder(db, key, null);
 };
 
-// stops after the page it is on; what it added stays, and its change set closes on the next run
-export const cancelImport = (scope: LandingScope, id: string): ImportJob => {
-  const job = readImportJob(scope.db, id);
-  if (job === null) {
-    return refuse({ kind: "not-found" });
+// A note as it stands: one whose id or address a live item holds is that item (`held`); one whose
+// id an item in Deleted holds is that item, to come back as it stands (`deleted`), since one id
+// names one item and a fresh copy would leave its twin in Deleted; and one whose id a purged item
+// kept takes a fresh id (`new`), since the library never makes an id again
+export const settleNote = (
+  db: CellDb,
+  note: { readonly id: string; readonly url: string | null },
+  newId: () => string,
+): NoteStanding => {
+  const item = readItem(db, note.id);
+  if (item?.kind === "live" && item.fields.deletedAt === null) {
+    return { id: note.id, standing: "held" };
   }
-  if (job.state === "running") {
-    stopImport(scope.db, id, { message: null, state: "cancelled" }, scope.now);
-    runImportNext(scope.db, id, scope.now);
+  const holder = heldByUrl(db, note.url);
+  if (holder !== null) {
+    return { id: holder.id, standing: "held" };
   }
-  return readImportJob(scope.db, id) ?? job;
+  if (item?.kind === "live") {
+    return { id: note.id, standing: "deleted" };
+  }
+  return { id: item === null ? note.id : newId(), standing: "new" };
 };
 
-const readJob = (host: ImportHost, id: string): ImportJob | null => {
-  const read = host.library.read((db) => readImportJob(db, id));
-  return read.ok ? read.value : null;
+// which of the files a live item names, and which of them an item holds as its own original
+export const namedFiles = (db: CellDb, shas: readonly string[]) => {
+  const rows = listChunks(shas, 1).flatMap((chunk) =>
+    db
+      .selectDistinct({ originalSha: items.originalSha, sha256: itemBlobs.sha256 })
+      .from(itemBlobs)
+      .innerJoin(items, eq(items.id, itemBlobs.itemId))
+      .where(and(isNull(items.deletedAt), eq(items.purged, 0), inArray(itemBlobs.sha256, chunk)))
+      .all(),
+  );
+  return {
+    named: [...new Set(rows.map((row) => row.sha256))],
+    originals: [
+      ...new Set(rows.flatMap((row) => (row.originalSha === row.sha256 ? [row.sha256] : []))),
+    ],
+  };
 };
 
-// an ended job's set closed, its plan let go, and with it the file it read and every file its first
-// pass kept that no item names, however it ended (done, cancelled, the library full, failed); while
-// another import runs, whose plan may name one, they wait for the alarm instead (`./cell-blobs`)
-const finish = (host: ImportHost, id: string): void => {
-  const job = readJob(host, id);
-  const setId = job?.changeSetId ?? null;
-  if (setId !== null) {
-    host.library.closeChangeSet(setId);
-  }
-  apart(host.library, (scope) => {
-    const { db } = scope;
-    const kept =
-      job === null ? [] : [job.sha, ...(job.source === "markdown" ? keptFileShas(db, id) : [])];
-    dropImportRuns(db, id);
-    if (!importsRunning(db)) {
-      releaseUnnamed(db, kept, scope.now);
+const landItem = (scope: LandingScope, ids: CellIds, item: ImportedItem): "added" | "held" => {
+  if (item.kind === "restore") {
+    const restored = setDeleted(scope, { deleted: false, ids: [item.id] });
+    for (const landed of restored.landed) {
+      askFill(scope, landed);
     }
+    return restored.landed.length > 0 ? "added" : "held";
+  }
+  if (
+    readItem(scope.db, item.id)?.kind === "live" ||
+    heldByUrl(scope.db, item.fields.url) !== null
+  ) {
+    return "held";
+  }
+  const folderId =
+    item.folder === null ? null : folderOfTarget(scope, { path: item.folder }, ids.item);
+  const landed = landNew(scope, {
+    blocks: item.blocks,
+    fields: { ...item.fields, deletedAt: null, folderId: folderId ?? null },
+    id: item.id,
   });
+  askFill(scope, landed, item.cover);
+  return "added";
 };
 
-const settle = (host: ImportHost, job: ImportJob, outcome: StepOutcome): void => {
-  if (outcome.kind === "more") {
-    apart(host.library, (scope) => {
-      runImportNext(scope.db, job.id, scope.now);
-    });
-    return;
-  }
-  apart(host.library, (scope) => {
-    stopImport(
-      scope.db,
-      job.id,
-      outcome.kind === "done"
-        ? { message: null, state: "done" }
-        : { message: outcome.message, state: "failed" },
-      scope.now,
-    );
-  });
-  finish(host, job.id);
-};
-
-const runOne = async (host: ImportHost, id: string): Promise<void> => {
-  const job = readJob(host, id);
-  if (job === null) {
-    apart(host.library, (scope) => {
-      dropImportRuns(scope.db, id);
-    });
-    return;
-  }
-  if (job.state !== "running") {
-    finish(host, id);
-    return;
-  }
-  const outcome =
-    job.source === "raindrop" ? await stepRaindrop(host, job) : await stepMarkdown(host, job);
-  settle(host, job, outcome);
-};
-
-// every import due: one run each, counted before it starts, so a run that throws or that the
-// platform ends is tried again later, and a job whose runs keep moving it on by nothing is stopped
-// with the reason said
-export const runImports = async (host: ImportHost): Promise<void> => {
-  const due = host.library.read((db) => dueJobs(db, host.now(), ["import"]));
-  if (!due.ok) {
-    return;
-  }
-  for (const alarmJob of due.value) {
-    const id = alarmJob.payload.jobId;
-    if (alarmJob.attempts >= ATTEMPTS_MAX) {
-      apart(host.library, (scope) => {
-        stopImport(scope.db, id, { message: STOPPED, state: "failed" }, scope.now);
-      });
-      finish(host, id);
-      continue;
-    }
-    apart(host.library, (scope) => {
-      retryJob(scope.db, alarmJob, scope.now);
-    });
-    await host.durable();
-    try {
-      await runOne(host, id);
-    } catch (error) {
-      logJobFailure(alarmJob, error);
+// a batch, each item apart: a library too full for one refuses the whole batch, since the import
+// stops there, and any other refusal leaves that item out as unreadable
+export const landImported = (scope: LandingScope, ids: CellIds, batch: readonly ImportedItem[]) => {
+  const counts = { added: 0, alreadySaved: 0, unreadable: 0 };
+  for (const item of batch) {
+    const landed = scope.attempt(() => landItem(scope, ids, item));
+    if (landed.ok) {
+      counts[landed.value === "added" ? "added" : "alreadySaved"] += 1;
+    } else if (landed.refusal.kind === "quota") {
+      refuse(landed.refusal);
+    } else {
+      counts.unreadable += 1;
     }
   }
+  return counts;
 };

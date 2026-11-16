@@ -60,7 +60,7 @@ const keysOf = (actor: CellActor): ActorKeys => {
       return { ...NO_KEYS, threadId: actor.threadId, turn: actor.turn };
     }
     case "import": {
-      return { ...NO_KEYS, actorId: actor.jobId };
+      return { ...NO_KEYS, actorId: actor.importId };
     }
     case "fill": {
       return NO_KEYS;

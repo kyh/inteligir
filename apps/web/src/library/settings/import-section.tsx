@@ -1,53 +1,44 @@
-// Bringing a library in, the cell's job (`library.imports.*`): a Raindrop export or a zip of
-// markdown, an Obsidian vault among them, goes up to the library's files by its SHA-256 and is read
-// a page at a time, every item it adds in one change set, and Stop ends it after the
-// page it is on, keeping what it added. It waits for a connection, and reaches `/v1` under the
-// page's session cookie.
+// Bringing a library in: a Raindrop export or a zip of markdown, an Obsidian vault among them, read
+// on this device and landed a batch at a time (`../import/import-run`), every item it adds in one
+// change set. Stop ends it where it stands, keeping what it added; so does closing the tab, and
+// choosing the file again carries on. It needs a connection.
 
-import type { importJobSchema } from "@repo/contract/library/library-wire";
-import { keptFileType } from "@repo/contract/items/item-kind";
-import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import type { z } from "zod";
-
-import { usePageLibrary } from "../cloud/library-context";
-import { FileRefusedError, uploadFile } from "../cloud/library-files";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
+import { Button } from "@repo/ui/components/button";
+import { useRef, useState } from "react";
+
+import { useOnline } from "../cloud/needs-connection";
+import { usePageLibrary } from "../cloud/library-context";
+import { startImport, stopImport, useImportRun } from "../import/import-run";
+import type { ImportRun } from "../import/import-run";
+import type { ImportSource } from "../import/import-news";
 import { formatCount } from "../library/item-labels";
 import { Row, SectionHeading } from "./settings-chrome";
 
-type ImportJob = z.infer<typeof importJobSchema>;
-type ImportSource = ImportJob["source"];
-
-// a running job is asked again this often, until it ends
-const JOB_POLL_MS = 1500;
-
 // what an import says once it ran, or as it runs
-export const importSentence = (job: ImportJob): string => {
-  switch (job.state) {
-    case "running": {
-      return job.total === 0
-        ? "Reading the file…"
-        : `Added ${formatCount(job.added)} of ${formatCount(job.total)}…`;
+export const importSentence = (run: Exclude<ImportRun, { kind: "idle" }>): string => {
+  switch (run.kind) {
+    case "reading": {
+      return "Reading the file…";
+    }
+    case "landing": {
+      return `Added ${formatCount(run.counts.added)} of ${formatCount(run.total)}…`;
     }
     case "done": {
-      const parts = [`Added ${formatCount(job.added)}`];
-      if (job.alreadySaved > 0) {
-        parts.push(`${formatCount(job.alreadySaved)} already in the library`);
+      const parts = [`Added ${formatCount(run.counts.added)}`];
+      if (run.counts.alreadySaved > 0) {
+        parts.push(`${formatCount(run.counts.alreadySaved)} already in the library`);
       }
-      if (job.unreadable > 0) {
-        parts.push(`${formatCount(job.unreadable)} couldn't be read`);
+      if (run.counts.unreadable > 0) {
+        parts.push(`${formatCount(run.counts.unreadable)} couldn't be read`);
       }
       return `${parts.join(", ")}.`;
     }
     case "failed": {
-      return job.message ?? "The import stopped.";
+      return run.message;
     }
-    case "cancelled": {
-      return `Stopped after adding ${formatCount(job.added)}.`;
+    case "stopped": {
+      return `Stopped after adding ${formatCount(run.counts.added)}.`;
     }
     // no default
   }
@@ -59,43 +50,12 @@ const SOURCES: readonly { source: ImportSource; label: string; accept: string }[
 ];
 
 const ImportRow = () => {
-  const { cloud, wire } = usePageLibrary();
-  const { client, orpc } = wire;
-  const queryClient = useQueryClient();
+  const { cloud } = usePageLibrary();
+  const online = useOnline();
+  const run = useImportRun();
   const pickerRef = useRef<HTMLInputElement | null>(null);
   const [source, setSource] = useState<ImportSource>("raindrop");
-  const latest = useQuery({
-    ...orpc.library.imports.latest.queryOptions(),
-    refetchInterval: (query) => (query.state.data?.job?.state === "running" ? JOB_POLL_MS : false),
-  });
-  const start = useMutation({
-    mutationFn: async ({ file, from }: { file: File; from: ImportSource }) => {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const sha = await uploadFile(cloud, bytes, keptFileType(file.type));
-      return await client.library.imports.start({ sha, source: from });
-    },
-    onError: (cause) => {
-      toast.error(
-        cause instanceof FileRefusedError
-          ? cause.message
-          : refusalText(cause, "The import couldn't start."),
-      );
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: orpc.library.imports.key() });
-    },
-  });
-  const stop = useMutation(
-    orpc.library.imports.cancel.mutationOptions({
-      onError: (cause) => {
-        toast.error(refusalText(cause, "The import couldn't be stopped."));
-      },
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: orpc.library.imports.key() });
-      },
-    }),
-  );
-  const job = latest.data?.job ?? null;
+  const running = run.kind === "reading" || run.kind === "landing";
   return (
     <Row label="Import">
       <div className="flex flex-col gap-1.5">
@@ -105,7 +65,7 @@ const ImportRow = () => {
               key={option.source}
               size="compact"
               variant="secondary"
-              disabled={start.isPending || job?.state === "running"}
+              disabled={running || !online}
               onClick={() => {
                 setSource(option.source);
                 if (pickerRef.current !== null) {
@@ -127,27 +87,18 @@ const ImportRow = () => {
             const [file] = event.currentTarget.files ?? [];
             event.currentTarget.value = "";
             if (file !== undefined) {
-              start.mutate({ file, from: source });
+              startImport({ file, source }, cloud.onSessionEnd);
             }
           }}
         />
-        {latest.fetchStatus === "paused" ? (
-          <p className="m-0 text-body text-muted-foreground">{NEEDS_CONNECTION}</p>
-        ) : null}
-        {job === null ? null : (
+        {online ? null : <p className="m-0 text-body text-muted-foreground">{NEEDS_CONNECTION}</p>}
+        {run.kind === "idle" ? null : (
           <div className="flex items-center gap-2">
-            <p className="m-0 text-body text-muted-foreground" data-import-state={job.state}>
-              {importSentence(job)}
+            <p className="m-0 text-body text-muted-foreground" data-import-state={run.kind}>
+              {importSentence(run)}
             </p>
-            {job.state === "running" ? (
-              <Button
-                size="compact"
-                variant="ghost"
-                disabled={stop.isPending}
-                onClick={() => {
-                  stop.mutate({ id: job.id });
-                }}
-              >
+            {running ? (
+              <Button size="compact" variant="ghost" onClick={stopImport}>
                 Stop
               </Button>
             ) : null}

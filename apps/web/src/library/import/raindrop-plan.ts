@@ -1,23 +1,25 @@
 // A Raindrop.io CSV export read into library items: the header by name in any order and case,
 // a row per bookmark, folded by url key, every cell treated as hostile text. A bookmark's highlights
 // land in its note as blocks, each passage a quote with its own note under it, built here and never
-// written as markdown, so no word of one reads as syntax. Pure: the library cell's import job does
-// the writing (packages/service/src/library/cell-import-raindrop.ts).
+// written as markdown, so no word of one reads as syntax. Pure: `./raindrop-import` lands them.
 //
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
-import { z } from "zod";
-
-import { parseItemTime } from "@repo/editor/items/item-time";
-import { cleanUrl, isWebUrl, urlKey } from "@repo/contract/items/item-url";
+import { itemNameFromUrl } from "@repo/contract/items/item-name";
+import { cleanUrl, isWebUrl, kindForUrl, urlKey } from "@repo/contract/items/item-url";
 import { isTagName } from "@repo/contract/knowledge/tag-grammar";
+import { readingFields } from "@repo/contract/library/item-reading";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { parseCsv } from "./csv";
+import type { ImportedFields } from "@repo/editor/codec/item-markdown";
+import { parseItemTime } from "@repo/editor/items/item-time";
+import Papa from "papaparse";
 
-const highlightSchema = z.object({ note: z.string(), quote: z.string() });
-type RaindropHighlight = z.infer<typeof highlightSchema>;
+interface RaindropHighlight {
+  readonly note: string;
+  readonly quote: string;
+}
 
 export interface RaindropRow {
   url: string;
@@ -90,12 +92,19 @@ const folderSegments = (cell: string): string[] =>
 
 const isTrue = (cell: string): boolean => ["true", "1", "yes"].includes(cell.trim().toLowerCase());
 
+// RFC 4180 as exports in the wild write it; a quote that never closes is no CSV, and a quote inside
+// an unquoted field is the character it is
+const csvRecords = (text: string): string[][] | null => {
+  const parsed = Papa.parse<string[]>(text, { delimiter: ",", skipEmptyLines: true });
+  return parsed.errors.some((error) => error.code === "MissingQuotes") ? null : parsed.data;
+};
+
 export const parseRaindropCsv = (text: string): RaindropParse => {
-  const parsed = parseCsv(text);
-  if (!parsed.ok) {
+  const records = csvRecords(text);
+  if (records === null) {
     return { ok: false, reason: "not-csv" };
   }
-  const [header, ...data] = parsed.records;
+  const [header, ...data] = records;
   if (header === undefined) {
     return { ok: false, reason: "empty" };
   }
@@ -146,26 +155,24 @@ export const parseRaindropCsv = (text: string): RaindropParse => {
   return { ok: true, rows, skipped };
 };
 
-// what one row becomes: an item of the library, keyed once, as the import job keeps it
-export const plannedItemSchema = z.object({
+// what one row becomes: an item of the library, keyed once by its address
+export interface PlannedItem {
   // Raindrop's own picture, a hint the fill tries after the page's
-  cover: z.string().nullable(),
-  description: z.string().nullable(),
+  readonly cover: string | null;
+  readonly description: string | null;
   // its folder's path, null when Raindrop filed it in none
-  folder: z.string().nullable(),
+  readonly folder: string | null;
   // each passage the person marked, with its own note, in Raindrop's order
-  highlights: z.array(highlightSchema),
-  key: z.string(),
+  readonly highlights: RaindropHighlight[];
   // the person's note on the bookmark, as markdown
-  note: z.string(),
-  pinned: z.boolean(),
-  savedMs: z.number(),
-  tags: z.array(z.string()),
+  readonly note: string;
+  readonly pinned: boolean;
+  readonly savedMs: number;
+  readonly tags: string[];
   // the row's own title, null when it gave none
-  title: z.string().nullable(),
-  url: z.string(),
-});
-export type PlannedItem = z.infer<typeof plannedItemSchema>;
+  readonly title: string | null;
+  readonly url: string;
+}
 
 export interface ImportPlan {
   items: PlannedItem[];
@@ -284,7 +291,6 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       description: oneLine(row.excerpt),
       folder: folderOf(row.folder),
       highlights: [...row.highlights],
-      key,
       note: row.note.trim(),
       pinned: row.favorite,
       savedMs: savedMsOf(row.created, now),
@@ -295,3 +301,24 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
   }
   return { duplicates, items: [...byKey.values()] };
 };
+
+// a bookmark as an unread link, its page read by the cloud once it lands
+export const bookmarkFields = (item: PlannedItem): ImportedFields => ({
+  aliases: [],
+  author: null,
+  coverSha: null,
+  description: item.description,
+  ...readingFields({ at: null, state: "pending" }),
+  kind: kindForUrl(item.url),
+  lang: null,
+  originalName: null,
+  originalSha: null,
+  pinnedAt: item.pinned ? item.savedMs : null,
+  properties: {},
+  published: null,
+  savedAt: item.savedMs,
+  site: null,
+  tags: item.tags,
+  title: (item.title ?? itemNameFromUrl(item.url)).slice(0, ITEM_FIELD_CAPS.line),
+  url: item.url,
+});
