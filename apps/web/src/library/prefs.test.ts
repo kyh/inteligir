@@ -3,7 +3,7 @@
 // The keys and bytes are spelled out rather than read off the table: they are what a window's
 // storage already holds, and a row that stops reading them loses the user's choice.
 
-import { SIDEBAR_MAX_WIDTH } from "@repo/ui/components/sidebar-core";
+import { SIDEBAR_MAX_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { afterEach, describe, expect, it } from "vitest";
 import { APPEARANCE_DEFAULTS } from "./appearance-options";
 import { forgetPref, PREFS, readPref, writePref } from "./prefs";
