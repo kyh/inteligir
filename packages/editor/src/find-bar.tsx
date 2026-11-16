@@ -41,7 +41,7 @@ export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replac
 const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
   action: "replace-all",
   hotkey: "mod+enter",
-  label: "Replace all (from the replace field)",
+  label: "Replace all",
 };
 
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
@@ -455,11 +455,11 @@ const OpenFindBar = () => {
             </button>
           </Tooltip>
           <Tooltip
-            content={`Replace all (${spellHotkey(REPLACE_ALL_SHORTCUT.hotkey, platformShortcutModifier())})`}
+            content={`${REPLACE_ALL_SHORTCUT.label} (${spellHotkey(REPLACE_ALL_SHORTCUT.hotkey, platformShortcutModifier())})`}
           >
             <button
               type="button"
-              aria-label="Replace all"
+              aria-label={REPLACE_ALL_SHORTCUT.label}
               disabled={!canReplace}
               onClick={() => {
                 replaceAllMatches(editor);

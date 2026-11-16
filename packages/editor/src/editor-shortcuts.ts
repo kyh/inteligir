@@ -44,11 +44,24 @@ export const CODE_MARK_SHORTCUT: EditorShortcut<"toggle-code-mark"> = {
   label: "Inline code",
 };
 
+const LIST_FOR_ACTION = {
+  "toggle-bulleted-list": "bulleted-list",
+  "toggle-numbered-list": "numbered-list",
+  "toggle-todo-list": "todo-list",
+} satisfies Partial<Record<EditorShortcutAction, TurnIntoId>>;
+
+// a list's chord is named as the turn-into menu names the list
+const listShortcut = (action: keyof typeof LIST_FOR_ACTION, hotkey: string): EditorShortcut => ({
+  action,
+  hotkey,
+  label: turnIntoOption(LIST_FOR_ACTION[action]).label,
+});
+
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   CODE_MARK_SHORTCUT,
-  { action: "toggle-todo-list", hotkey: "mod+shift+c", label: "To-do list" },
-  { action: "toggle-numbered-list", hotkey: "mod+shift+l", label: "Numbered list" },
-  { action: "toggle-bulleted-list", hotkey: "mod+l", label: "Bulleted list" },
+  listShortcut("toggle-todo-list", "mod+shift+c"),
+  listShortcut("toggle-numbered-list", "mod+shift+l"),
+  listShortcut("toggle-bulleted-list", "mod+l"),
 ];
 
 export const matchesHotkey = (hotkey: string, event: ShortcutKeyEvent): boolean =>
@@ -68,12 +81,6 @@ const toggleList = (editor: PlateEditor, id: TurnIntoId): void => {
   const active = entry !== null && turnIntoOptionFor(entry[0]).id === id;
   turnIntoSelection(editor, turnIntoOption(active ? "text" : id));
 };
-
-const LIST_FOR_ACTION = {
-  "toggle-bulleted-list": "bulleted-list",
-  "toggle-numbered-list": "numbered-list",
-  "toggle-todo-list": "todo-list",
-} satisfies Partial<Record<EditorShortcutAction, TurnIntoId>>;
 
 // false when the action does not apply where the caret is, so a key it did not take still types;
 // a surface with no key (the touch toolbar) runs the same rows through here

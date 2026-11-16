@@ -46,10 +46,6 @@ import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 
-const turnInto = (editor: PlateEditor, id: TurnIntoId): void => {
-  turnIntoSelection(editor, turnIntoOption(id));
-};
-
 export interface SlashItem {
   icon: React.ReactNode;
   label: string;
@@ -61,80 +57,65 @@ export interface SlashItem {
   onSelect: (editor: PlateEditor) => void;
 }
 
+// a row that turns the block into a turn-into target, named as the toolbar and the block menu
+// name it
+const turnIntoRow = (
+  id: TurnIntoId,
+  row: Pick<SlashItem, "description" | "icon" | "keywords" | "value">,
+): SlashItem => ({
+  ...row,
+  label: turnIntoOption(id).label,
+  onSelect: (editor) => {
+    turnIntoSelection(editor, turnIntoOption(id));
+  },
+});
+
 export const GROUPS: { group: string; items: SlashItem[] }[] = [
   {
     group: "Basic blocks",
     items: [
-      {
+      turnIntoRow("text", {
         description: "Plain paragraph.",
         icon: <PilcrowIcon />,
         keywords: ["paragraph", "text"],
-        label: "Text",
-        onSelect: (editor) => {
-          turnInto(editor, "text");
-        },
         value: "p",
-      },
-      {
+      }),
+      turnIntoRow("heading-1", {
         description: "Large section heading.",
         icon: <Heading1Icon />,
         keywords: ["title", "h1", "#"],
-        label: "Heading 1",
-        onSelect: (editor) => {
-          turnInto(editor, "heading-1");
-        },
         value: "h1",
-      },
-      {
+      }),
+      turnIntoRow("heading-2", {
         description: "Medium section heading.",
         icon: <Heading2Icon />,
         keywords: ["subtitle", "h2", "##"],
-        label: "Heading 2",
-        onSelect: (editor) => {
-          turnInto(editor, "heading-2");
-        },
         value: "h2",
-      },
-      {
+      }),
+      turnIntoRow("heading-3", {
         description: "Small section heading.",
         icon: <Heading3Icon />,
         keywords: ["subtitle", "h3", "###"],
-        label: "Heading 3",
-        onSelect: (editor) => {
-          turnInto(editor, "heading-3");
-        },
         value: "h3",
-      },
-      {
+      }),
+      turnIntoRow("bulleted-list", {
         description: "Create a bulleted list.",
         icon: <ListIcon />,
         keywords: ["unordered", "ul", "-"],
-        label: "Bulleted list",
-        onSelect: (editor) => {
-          turnInto(editor, "bulleted-list");
-        },
         value: "ul",
-      },
-      {
+      }),
+      turnIntoRow("numbered-list", {
         description: "Create a numbered list.",
         icon: <ListOrderedIcon />,
         keywords: ["ordered", "ol", "1."],
-        label: "Numbered list",
-        onSelect: (editor) => {
-          turnInto(editor, "numbered-list");
-        },
         value: "ol",
-      },
-      {
+      }),
+      turnIntoRow("todo-list", {
         description: "Track tasks with checkboxes.",
         icon: <SquareCheckIcon />,
         keywords: ["checklist", "task", "checkbox", "[]"],
-        label: "To-do list",
-        onSelect: (editor) => {
-          turnInto(editor, "todo-list");
-        },
         value: "todo",
-      },
+      }),
       {
         description: "Collapsible block.",
         icon: <ChevronRightIcon />,
@@ -145,36 +126,24 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         },
         value: "toggle",
       },
-      {
+      turnIntoRow("quote", {
         description: "Capture a quote.",
         icon: <QuoteIcon />,
         keywords: ["citation", "quote", ">"],
-        label: "Blockquote",
-        onSelect: (editor) => {
-          turnInto(editor, "quote");
-        },
         value: "blockquote",
-      },
-      {
+      }),
+      turnIntoRow("callout", {
         description: "Highlighted note (info, warning, priority).",
         icon: <InfoIcon />,
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
-        label: "Callout",
-        onSelect: (editor) => {
-          turnInto(editor, "callout");
-        },
         value: "callout",
-      },
-      {
+      }),
+      turnIntoRow("code-block", {
         description: "Capture a code snippet.",
         icon: <Code2Icon />,
         keywords: ["```", "fenced"],
-        label: "Code block",
-        onSelect: (editor) => {
-          turnInto(editor, "code-block");
-        },
         value: "code",
-      },
+      }),
       {
         description: "Add a table with a header row.",
         icon: <Table2Icon />,
