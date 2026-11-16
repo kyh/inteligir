@@ -34,7 +34,6 @@ import { Route as SiteAppForgotPasswordRouteImport } from './routes/_site/app/fo
 import { Route as SiteAppResetPasswordRouteImport } from './routes/_site/app/reset-password'
 import { Route as SiteAppSignInRouteImport } from './routes/_site/app/sign-in'
 import { Route as SiteAppSignUpRouteImport } from './routes/_site/app/sign-up'
-import { Route as SiteConnectExtensionRouteImport } from './routes/_site/connect/extension'
 
 const SiteRoute = SiteRouteImport.update({
   id: '/_site',
@@ -160,11 +159,6 @@ const SiteAppSignUpRoute = SiteAppSignUpRouteImport.update({
   path: '/sign-up',
   getParentRoute: () => SiteAppRoute,
 } as any)
-const SiteConnectExtensionRoute = SiteConnectExtensionRouteImport.update({
-  id: '/connect/extension',
-  path: '/connect/extension',
-  getParentRoute: () => SiteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SiteIndexRoute
@@ -190,7 +184,6 @@ export interface FileRoutesByFullPath {
   '/app/reset-password': typeof SiteAppResetPasswordRoute
   '/app/sign-in': typeof SiteAppSignInRoute
   '/app/sign-up': typeof SiteAppSignUpRoute
-  '/connect/extension': typeof SiteConnectExtensionRoute
   '/app/': typeof SiteAppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -215,7 +208,6 @@ export interface FileRoutesByTo {
   '/app/reset-password': typeof SiteAppResetPasswordRoute
   '/app/sign-in': typeof SiteAppSignInRoute
   '/app/sign-up': typeof SiteAppSignUpRoute
-  '/connect/extension': typeof SiteConnectExtensionRoute
   '/app': typeof SiteAppIndexRoute
 }
 export interface FileRoutesById {
@@ -244,7 +236,6 @@ export interface FileRoutesById {
   '/_site/app/reset-password': typeof SiteAppResetPasswordRoute
   '/_site/app/sign-in': typeof SiteAppSignInRoute
   '/_site/app/sign-up': typeof SiteAppSignUpRoute
-  '/_site/connect/extension': typeof SiteConnectExtensionRoute
   '/_site/app/': typeof SiteAppIndexRoute
 }
 export interface FileRouteTypes {
@@ -273,7 +264,6 @@ export interface FileRouteTypes {
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
-    | '/connect/extension'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -298,7 +288,6 @@ export interface FileRouteTypes {
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
-    | '/connect/extension'
     | '/app'
   id:
     | '__root__'
@@ -326,7 +315,6 @@ export interface FileRouteTypes {
     | '/_site/app/reset-password'
     | '/_site/app/sign-in'
     | '/_site/app/sign-up'
-    | '/_site/connect/extension'
     | '/_site/app/'
   fileRoutesById: FileRoutesById
 }
@@ -521,13 +509,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteAppSignUpRouteImport
       parentRoute: typeof SiteAppRoute
     }
-    '/_site/connect/extension': {
-      id: '/_site/connect/extension'
-      path: '/connect/extension'
-      fullPath: '/connect/extension'
-      preLoaderRoute: typeof SiteConnectExtensionRouteImport
-      parentRoute: typeof SiteRoute
-    }
   }
 }
 
@@ -558,7 +539,6 @@ interface SiteRouteChildren {
   SitePrivacyRoute: typeof SitePrivacyRoute
   SiteTermsRoute: typeof SiteTermsRoute
   SiteIndexRoute: typeof SiteIndexRoute
-  SiteConnectExtensionRoute: typeof SiteConnectExtensionRoute
 }
 
 const SiteRouteChildren: SiteRouteChildren = {
@@ -569,7 +549,6 @@ const SiteRouteChildren: SiteRouteChildren = {
   SitePrivacyRoute: SitePrivacyRoute,
   SiteTermsRoute: SiteTermsRoute,
   SiteIndexRoute: SiteIndexRoute,
-  SiteConnectExtensionRoute: SiteConnectExtensionRoute,
 }
 
 const SiteRouteWithChildren = SiteRoute._addFileChildren(SiteRouteChildren)

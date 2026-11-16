@@ -42,9 +42,6 @@ library tab's `apps/web/src/library/CLAUDE.md`'s.
 - **An account form's submit is one value, and done is never idle again.** A
   sign-in that went through is still loading the next document, and a form
   live meanwhile posts twice. `apps/web/src/components/auth-shell.tsx`.
-- **The connect page tells the extension where the site is, and hands it
-  nothing.** The extension rides the browser's own sign-in, so no credential
-  crosses the page. `apps/web/src/routes/_site/connect/extension.tsx`.
 - **A PR gets no deploy, and the config refuses a Preview.** Its bindings are
   production's, and a preview copy of the cloud is upkeep nobody uses yet.
   `apps/web/cloudflare.config.ts`.

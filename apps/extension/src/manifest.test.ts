@@ -1,7 +1,7 @@
 import { EXTENSION_PUBLIC_KEY } from "@repo/contract/extension/extension-identity";
 import { describe, expect, it } from "vitest";
 
-import { connectPagePattern, extensionManifest, flavorOfMode } from "./manifest";
+import { extensionManifest, flavorOfMode } from "./manifest";
 
 describe("the manifest", () => {
   it("carries the key, a local Worker's site and the fixture pages' host in the dev build", () => {
@@ -46,15 +46,12 @@ describe("the manifest", () => {
     }
   });
 
-  it("lets only the site's connect page message it, the production site's in a store build", () => {
-    expect(extensionManifest("store", "0.6.0").externally_connectable).toStrictEqual({
-      matches: ["https://inteligir.com/connect/extension"],
-    });
-    expect(connectPagePattern("store-unpacked")).toBe("https://inteligir.com/connect/extension");
-    // a pattern with no port matches every port, as a local Worker's may be
-    expect(extensionManifest("dev", "0.6.0").externally_connectable).toStrictEqual({
-      matches: ["http://localhost/connect/extension"],
-    });
+  it("names no page that may message it, in any build", () => {
+    for (const flavor of ["dev", "store", "store-unpacked"] as const) {
+      expect(extensionManifest(flavor, "0.6.0"), flavor).not.toHaveProperty(
+        "externally_connectable",
+      );
+    }
   });
 });
 

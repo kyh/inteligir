@@ -10,7 +10,6 @@
     "./client-build": "./src/client-build.ts",
     "./connector": "./src/connector.ts",
     "./deferred": "./src/deferred.ts",
-    "./extension/extension-connect": "./src/extension/extension-connect.ts",
     "./extension/extension-identity": "./src/extension/extension-identity.ts",
     "./iso-date": "./src/iso-date.ts",
     "./items/host-names": "./src/items/host-names.ts",

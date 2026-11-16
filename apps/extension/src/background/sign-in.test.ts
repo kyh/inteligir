@@ -3,10 +3,14 @@ import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { keepConnection, readConnection } from "./connection";
-import { askedSignIn, heldSignIn, saveSignIn } from "./sign-in";
+import { cloudSignIn, heldSignIn, saveSignIn } from "./sign-in";
 
+// the cloud a store build rides, and the dev build's
 const SITE = "https://inteligir.com";
 const LOCAL = "http://localhost:5174";
+const storeBuild = (): void => {
+  vi.stubEnv("MODE", "store");
+};
 const COOKIE = "session-token.c2lnbmF0dXJl%3D";
 const EMAIL = "reader@example.test";
 
@@ -56,13 +60,15 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("the browser's sign-in, asked of the cloud", () => {
   it("sends the jar's session cookie as get-session's bearer, with the browser's credentials, and keeps the account it names", async () => {
+    storeBuild();
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: COOKIE });
     const asked = cloudAnswers(async () => sessionOf(EMAIL));
-    await expect(askedSignIn(SITE)).resolves.toStrictEqual({
+    await expect(cloudSignIn()).resolves.toStrictEqual({
       kind: "signed-in",
       session: { bearer: COOKIE, email: EMAIL, origin: SITE },
     });
@@ -70,7 +76,7 @@ describe("the browser's sign-in, asked of the cloud", () => {
     expect(request?.url).toBe(`${SITE}/api/auth/get-session`);
     expect(request?.headers.get("authorization")).toBe(`Bearer ${COOKIE}`);
     expect(request?.credentials).toBe("include");
-    await expect(readConnection()).resolves.toStrictEqual({ email: EMAIL, origin: SITE });
+    await expect(readConnection()).resolves.toStrictEqual({ email: EMAIL });
   });
 
   it("reads the cookie Better Auth names on plain http, a local Worker's", async () => {
@@ -79,44 +85,47 @@ describe("the browser's sign-in, asked of the cloud", () => {
       [`${LOCAL} better-auth.session_token`]: COOKIE,
     });
     const asked = cloudAnswers(async () => sessionOf(EMAIL));
-    await expect(askedSignIn(LOCAL)).resolves.toMatchObject({ kind: "signed-in" });
+    await expect(cloudSignIn()).resolves.toMatchObject({ kind: "signed-in" });
     expect(asked[0]?.headers.get("authorization")).toBe(`Bearer ${COOKIE}`);
   });
 
   it("is signed out, as the account last signed in, once the site signed out or the cloud ended the session", async () => {
-    await keepConnection({ email: EMAIL, origin: SITE });
+    storeBuild();
+    await keepConnection({ email: EMAIL });
     jarHolds({});
     const asked = cloudAnswers(async () => sessionOf(EMAIL));
-    await expect(askedSignIn(SITE)).resolves.toStrictEqual({ email: EMAIL, kind: "signed-out" });
+    await expect(cloudSignIn()).resolves.toStrictEqual({ email: EMAIL, kind: "signed-out" });
     expect(asked).toStrictEqual([]);
     vi.restoreAllMocks();
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: COOKIE });
     cloudAnswers(async () => Response.json(null));
-    await expect(askedSignIn(SITE)).resolves.toStrictEqual({ email: EMAIL, kind: "signed-out" });
-    await expect(readConnection()).resolves.toStrictEqual({ email: EMAIL, origin: SITE });
+    await expect(cloudSignIn()).resolves.toStrictEqual({ email: EMAIL, kind: "signed-out" });
+    await expect(readConnection()).resolves.toStrictEqual({ email: EMAIL });
   });
 
   it("names no account where none was ever signed in", async () => {
     jarHolds({});
-    await expect(askedSignIn(SITE)).resolves.toStrictEqual({ kind: "none" });
+    await expect(cloudSignIn()).resolves.toStrictEqual({ kind: "none" });
   });
 
   it("says nothing of the session when the cloud did not answer, or answered a fault of its own", async () => {
+    storeBuild();
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: COOKIE });
     cloudAnswers(async () => {
       throw new TypeError("Failed to fetch");
     });
-    await expect(askedSignIn(SITE)).resolves.toBeNull();
+    await expect(cloudSignIn()).resolves.toBeNull();
     vi.unstubAllGlobals();
     cloudAnswers(async () => new Response("down", { status: 503 }));
-    await expect(askedSignIn(SITE)).resolves.toBeNull();
+    await expect(cloudSignIn()).resolves.toBeNull();
     await expect(readConnection()).resolves.toBeNull();
   });
 });
 
 describe("the sign-in a save goes under", () => {
   it("is the jar's cookie for the account last signed in, asked of nobody", async () => {
-    await keepConnection({ email: EMAIL, origin: SITE });
+    storeBuild();
+    await keepConnection({ email: EMAIL });
     jarHolds({ [`${SITE} __Secure-better-auth.session_token`]: COOKIE });
     const asked = cloudAnswers(async () => sessionOf("someone-else@example.test"));
     await expect(saveSignIn()).resolves.toStrictEqual({
@@ -127,7 +136,7 @@ describe("the sign-in a save goes under", () => {
   });
 
   it("is signed out when the jar holds no cookie, as the site's sign-out leaves it", async () => {
-    await keepConnection({ email: EMAIL, origin: SITE });
+    await keepConnection({ email: EMAIL });
     jarHolds({});
     await expect(heldSignIn()).resolves.toStrictEqual({ email: EMAIL, kind: "signed-out" });
   });

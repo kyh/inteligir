@@ -227,10 +227,10 @@ const sendPass = async (deps: SendDeps): Promise<void> => {
   await ensureSendAlarm();
 };
 
-// One pass over the queue at a time: a save landed, the connect page's answer, the alarm and the
-// browser's start each ask for one, and an ask while a pass runs asks for one more after it, so a
-// save kept mid-pass is sent without waiting for the alarm and no two passes send one save. The
-// pass lives as long as the worker, which loses nothing it needs later with it.
+// One pass over the queue at a time: a save landed, the alarm and the browser's start each ask for
+// one, and an ask while a pass runs asks for one more after it, so a save kept mid-pass is sent
+// without waiting for the alarm and no two passes send one save. The pass lives as long as the
+// worker, which loses nothing it needs later with it.
 type Pass = { readonly kind: "idle" } | { readonly kind: "running"; readonly again: boolean };
 
 const passAfter = (pass: Pass, event: "asked" | "finished" | "failed"): Pass => {

@@ -5,7 +5,6 @@ import { expect } from "@playwright/test";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { clientBuildHeaders } from "@repo/contract/client-build";
 import { CONNECTOR_PATH } from "@repo/contract/connector";
-import { CONNECT_EXTENSION_PATH } from "@repo/contract/extension/extension-connect";
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
@@ -155,7 +154,6 @@ test("the Worker answers for the session before a page loads: with no cookie a s
   for (const [asked, cookie, status, location] of [
     [LIBRARY_PAGE_PATH, "", 307, `/app/sign-in${wayBack(LIBRARY_PAGE_PATH)}`],
     [settings, "", 307, `/app/sign-in${wayBack(settings)}`],
-    [CONNECT_EXTENSION_PATH, "", 307, `/app/sign-in${wayBack(CONNECT_EXTENSION_PATH)}`],
     ["/app/sign-in", signedIn, 307, LIBRARY_PAGE_PATH],
     [`/app/sign-up${wayBack(settings)}`, signedIn, 307, settings],
     // a cookie whose session ended is no sign-in, so the form is served and nothing loops

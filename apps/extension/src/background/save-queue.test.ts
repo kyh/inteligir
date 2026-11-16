@@ -22,7 +22,7 @@ import {
   SIGNED_OUT,
 } from "./test-support/fake-cloud";
 
-const KEPT = { email: SESSION.email, origin: SESSION.origin };
+const KEPT = { email: SESSION.email };
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -303,7 +303,7 @@ describe("a save that waits", () => {
 
   it("keeps the account a sign-in as another replaced while the call was on its way", async () => {
     await keepSave(waiting());
-    const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
+    const replaced = { email: OTHER_SESSION.email };
     const cloud = fakeCloud({
       saveLink: async () => {
         await keepConnection(replaced);

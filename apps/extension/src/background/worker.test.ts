@@ -71,10 +71,9 @@ beforeEach(async () => {
     name: "Inteligir",
     version: "0.6.0",
   });
-  vi.spyOn(browser.runtime.onMessageExternal, "addListener").mockImplementation(() => {});
   vi.spyOn(browser.contextMenus.onClicked, "addListener").mockImplementation(() => {});
   vi.spyOn(browser.storage.local, "setAccessLevel").mockResolvedValue();
-  await keepConnection({ email: SESSION.email, origin: SESSION.origin });
+  await keepConnection({ email: SESSION.email });
 });
 
 afterEach(() => {
@@ -124,7 +123,7 @@ describe("the worker", () => {
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
       account: { email: SESSION.email, libraryUrl: `${SESSION.origin}/library` },
-      signInUrl: `${SESSION.origin}/connect/extension`,
+      signInUrl: `${SESSION.origin}/app/sign-in`,
     });
   });
 
@@ -134,19 +133,19 @@ describe("the worker", () => {
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
       account: null,
-      signInUrl: `${SESSION.origin}/connect/extension`,
+      signInUrl: `${SESSION.origin}/app/sign-in`,
     });
     expect(asked).toStrictEqual([]);
   });
 
-  it("sends a store build to the site's own sign-in", async () => {
+  it("sends a store build to the production site's sign-in", async () => {
     vi.stubEnv("MODE", "store");
     jarHolds(null);
     cloudAnswers();
     worker.main();
     await expect(ask({ type: "status" })).resolves.toStrictEqual({
       account: null,
-      signInUrl: `${SESSION.origin}/app/sign-in`,
+      signInUrl: "https://inteligir.com/app/sign-in",
     });
   });
 

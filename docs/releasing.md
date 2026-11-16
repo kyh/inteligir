@@ -63,8 +63,8 @@ The committed extension key (`EXTENSION_PUBLIC_KEY` in
 `packages/contract/src/extension/extension-identity.ts`) is one this repo
 generated and threw the private half of away, so the dev build and the unpacked
 store build have a stable id before any listing. The Web Store signs the real
-item with a key of its own, and the id the cloud's sign-in trusts and the site's
-connect page messages must be that item's. Once:
+item with a key of its own, and the id the cloud's sign-in trusts must be that
+item's. Once:
 
 1. A Chrome Web Store developer account (the one-time registration fee) on the
    owner's Google account.

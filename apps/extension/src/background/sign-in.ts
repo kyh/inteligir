@@ -41,16 +41,17 @@ const signedOut = async (): Promise<SignIn> => {
 };
 
 // what the browser holds, with no call: the account last read signed in and the jar's cookie for
-// its cloud, which the cloud may since have ended
+// the cloud, which the cloud may since have ended
 export const heldSignIn = async (): Promise<SignIn> => {
   const connection = await readConnection();
   if (connection === null) {
     return { kind: "none" };
   }
-  const bearer = await sessionCookie(connection.origin);
+  const origin = await cloudOrigin();
+  const bearer = await sessionCookie(origin);
   return bearer === null
     ? { email: connection.email, kind: "signed-out" }
-    : { kind: "signed-in", session: { ...connection, bearer } };
+    : { kind: "signed-in", session: { bearer, email: connection.email, origin } };
 };
 
 type SessionAnswer =
@@ -77,9 +78,10 @@ const askSession = async (origin: string, bearer: string): Promise<SessionAnswer
   }
 };
 
-// the cloud at `origin` asked whose session the jar's cookie names, the account it names kept as
-// this browser's; null when the cloud did not answer
-export const askedSignIn = async (origin: string): Promise<SignIn | null> => {
+// the cloud asked whose session the jar's cookie names, the account it names kept as this
+// browser's; null when the cloud did not answer
+export const cloudSignIn = async (): Promise<SignIn | null> => {
+  const origin = await cloudOrigin();
   const bearer = await sessionCookie(origin);
   if (bearer === null) {
     return await signedOut();
@@ -93,16 +95,12 @@ export const askedSignIn = async (origin: string): Promise<SignIn | null> => {
       return await signedOut();
     }
     case "account": {
-      await keepConnection({ email: answer.email, origin });
+      await keepConnection({ email: answer.email });
       return { kind: "signed-in", session: { bearer, email: answer.email, origin } };
     }
     // no default
   }
 };
-
-// the cloud this browser saves to, asked
-export const cloudSignIn = async (): Promise<SignIn | null> =>
-  await askedSignIn(cloudOrigin(await readConnection()));
 
 // the sign-in a save goes under, with no call while this browser holds an account, since the
 // cloud's answer to the save says whether its session still stands; a browser never read signed in

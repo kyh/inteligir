@@ -23,7 +23,7 @@ import {
 } from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
 
-const KEPT = { email: SESSION.email, origin: SESSION.origin };
+const KEPT = { email: SESSION.email };
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -325,7 +325,7 @@ describe("a tab saved", () => {
   });
 
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
-    const replaced = { email: OTHER_SESSION.email, origin: OTHER_SESSION.origin };
+    const replaced = { email: OTHER_SESSION.email };
     const cloud = fakeCloud({
       save: async () => {
         await keepConnection(replaced);

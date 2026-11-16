@@ -10,7 +10,7 @@ import { Popup } from "./app";
 
 afterEach(cleanup);
 
-const SIGN_IN_URL = "https://inteligir.com/connect/extension";
+const SIGN_IN_URL = "https://inteligir.com/app/sign-in";
 const LIBRARY_URL = "https://inteligir.com/library";
 
 const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });

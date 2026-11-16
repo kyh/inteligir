@@ -115,14 +115,15 @@ THE DEV BUILD SAVES TO `pnpm dev:web`'S WORKER, AS WHOEVER IS SIGNED IN THERE:
 it reads that browser's `better-auth.session_token` cookie for
 `http://localhost:5174` (its host permission names `http://localhost/*`, any
 port) and sends it as its bearer. Its welcome page's Sign in to Inteligir
-opens `http://localhost:5174/connect/extension`, which signs you in; Connect
-there tells the extension which site to save to, and nothing is handed over.
-Any local Worker on `localhost`, on whatever port, may name itself that way,
-which is how the e2e points the dev build at the Worker it boots
-(`tools/e2e/src/extension.spec.ts`). The store builds
+opens `http://localhost:5174/app/sign-in`, and signing in there is the whole of
+it. A dev build saves to a local Worker on another port once its storage names
+it, `chrome.storage.local.set({ "cloud-origin": "http://localhost:<port>" })`
+in the welcome page's console, which is how the e2e points the dev build at the
+Worker it boots (`tools/e2e/src/extension.spec.ts`). The store builds
 (`pnpm package:extension`: the Web Store zip and
 `.output/chrome-mv3-store-unpacked`, the same files with the key) name
-`https://inteligir.com/*` as their one host and save there alone.
+`https://inteligir.com/*` as their one host and save there alone, whatever
+their storage holds.
 
 ## Where state lives
 

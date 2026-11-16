@@ -36,7 +36,7 @@ const shippedFiles = (dir: string): string[] =>
 
 // what the store signs: no file naming a checkout's cloud, and the zip holding exactly the build's
 // files. Its manifest is extensionManifest("store"), held there by build:manifestGenerated, whose
-// key, host and connect page src/manifest.test.ts pins
+// key and host src/manifest.test.ts pins
 const checkStoreZip = (outDir: string, zipPath: string): void => {
   const files = shippedFiles(outDir);
   for (const file of NAMED_FILES.filter((named) => !files.includes(named))) {

@@ -5,10 +5,12 @@ what it may reach, and how it builds.
 
 ## Browser extension
 
-- **The extension rides the browser's own sign-in to the site, and the site's connect page names the
-  site.** The worker sends the site's signed session cookie as `/v1`'s bearer, and the connect page
-  hands it only the site's origin, since a credential of its own outlives the browser's sign-out.
+- **The extension rides the browser's own sign-in to the site.** The worker sends the site's signed
+  session cookie as `/v1`'s bearer, since a credential of its own outlives the browser's sign-out.
   `apps/extension/src/background/sign-in.ts`.
+- **A build knows its site, and no page messages the extension.** A store build's cloud is a literal
+  in its bundle and only a dev build's storage names another local Worker, since a page that names
+  the site hands a store build what it already holds. `apps/extension/src/background/connection.ts`.
 - **The extension has no sign-out of its own: the site's signs it out.** The popup and the welcome
   page say who is signed in and link the site, since a Disconnect of its own leaves the browser signed in on the
   site. `apps/extension/src/entrypoints/welcome/app.tsx`.
