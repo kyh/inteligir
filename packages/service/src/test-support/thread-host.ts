@@ -126,7 +126,6 @@ export const inSteppedThread = async <T>(
             return await listening(request);
           }),
         definition: options.definition ?? deployedDefinition,
-        isolate: crypto.randomUUID(),
         jobs: {
           approvalAt: async (toolUseId, at) => {
             asked.approvals.set(toolUseId, await Promise.resolve(at));

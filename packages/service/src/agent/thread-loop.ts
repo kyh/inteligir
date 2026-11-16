@@ -4,13 +4,16 @@
 // - the transcript is append-only and holds what was sent and returned
 //   (`@repo/db/thread/schema`);
 // - a reply lands only once its stream ends, so a call cut short is sent again whole, never
-//   continued: a call stamped by an instance that died is cut, and its step re-sent byte for byte;
+//   continued: the next step is read off the transcript, which holds no part of it, and the turn
+//   keeps only how many tries failed since its last reply;
 // - every tool call of a reply is journaled before any runs, and each is run by the cell under an
 //   op id of its own, so one run again lands once;
 // - every call asks the same cap, so a step sent again is the same bytes; a turn ends `budget`
 //   before a call past its twentieth reply;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once;
+// - a step that throws spends the turn's tries as a failed call does, and a push this build cannot
+//   read ends its turn, so no turn stays running on a row nothing can read;
 // - a turn is sent under the definition in force when it was delivered, the filing rules it
 //   brought part of it: one a deploy or the person's edit of their rules changed is taken up as
 //   the next turn is delivered, never mid-turn, and from then on no request carries a thinking
@@ -23,9 +26,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
 import { agentEventSchema, TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/library/agent-events";
-import { sha256Hex } from "@repo/contract/bytes";
 import {
-  modelCalls,
   threadDefinitions,
   threadMeta,
   threadOutbox,
@@ -37,6 +38,8 @@ import { and, asc, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { SQLiteUpdateSetSource } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
+import { jsonTextSchema } from "../library/sql-value";
+import { errorFields } from "../log";
 import { callStart } from "./agent-tools";
 import { callFailureFields, isApiError, isSpendLimitRefusal } from "./anthropic-client";
 import { AGENT_MAX_STEPS } from "./library-agent";
@@ -111,8 +114,6 @@ export interface ThreadHost {
   readonly db: ThreadDb;
   // one synchronous transaction, the Durable Object's own `transactionSync`
   readonly transaction: <T>(work: () => T) => T;
-  // this instance's stamp: a call stamped by another was made by an instance that died
-  readonly isolate: string;
   readonly now: () => number;
   readonly client: () => Anthropic | null;
   // the cell, by a fresh stub each time, since a stub that saw a reset stays broken
@@ -181,6 +182,8 @@ interface OpenTurn {
   readonly turn: number;
   // stopped by the person, and not yet settled
   readonly stopping: boolean;
+  // the tries that failed since its last reply landed
+  readonly failures: number;
 }
 
 const openTurnOf = (db: ThreadDb): OpenTurn | null => {
@@ -191,7 +194,9 @@ const openTurnOf = (db: ThreadDb): OpenTurn | null => {
     .orderBy(asc(threadTurns.turn))
     .limit(1)
     .get();
-  return row === undefined ? null : { stopping: row.state === "stopping", turn: row.turn };
+  return row === undefined
+    ? null
+    : { failures: row.failures, stopping: row.state === "stopping", turn: row.turn };
 };
 
 const META_ID = 1;
@@ -242,7 +247,7 @@ const enqueue = (db: ThreadDb, turn: number, events: readonly AgentEvent[]): voi
   const seq = metaOf(db).pushSeq + 1;
   setMeta(db, { pushSeq: seq });
   db.insert(threadOutbox)
-    .values({ json: JSON.stringify({ events, turn }), seq })
+    .values({ events: JSON.stringify(events), seq, turn })
     .run();
 };
 
@@ -264,25 +269,36 @@ const endTurn = (db: ThreadDb, turn: number, ending: TurnEnding): void => {
 
 // ---- the outbox ----
 
-const outboxBodySchema = z.object({ events: z.array(agentEventSchema), turn: z.number() });
+const outboxEvents = jsonTextSchema.pipe(z.array(agentEventSchema));
 
 // every push the cell has not acknowledged, in order; one it could not take waits for the outbox
 // job, and a thread its cell no longer holds purges itself. A push for a turn the cell no longer
-// holds open lands nothing there, and goes
+// holds open lands nothing there, and goes. One this build cannot read would hold every push
+// behind it, so it goes and its turn ends failed, told afresh: the cell closes a turn whose own
+// ending was in it
 export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later" | "purged"> => {
+  const { db } = host;
   for (;;) {
-    const row = host.db.select().from(threadOutbox).orderBy(asc(threadOutbox.seq)).limit(1).get();
+    const row = db.select().from(threadOutbox).orderBy(asc(threadOutbox.seq)).limit(1).get();
     if (row === undefined) {
       return "drained";
     }
-    const body = outboxBodySchema.parse(JSON.parse(row.json));
+    const events = outboxEvents.safeParse(row.events);
+    if (!events.success) {
+      console.error({ event: "agent-push-unreadable", threadId: host.threadId, turn: row.turn });
+      host.transaction(() => {
+        db.delete(threadOutbox).where(eq(threadOutbox.seq, row.seq)).run();
+        endTurn(db, row.turn, { detail: "a push this build cannot read", reason: "failed" });
+      });
+      continue;
+    }
     let answer: CellAnswer<null>;
     try {
       answer = await host.cell().agentPush({
-        events: body.events,
+        events: events.data,
         seq: row.seq,
         threadId: host.threadId,
-        turn: body.turn,
+        turn: row.turn,
       });
     } catch (error) {
       console.warn({
@@ -297,7 +313,7 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
       await host.purge();
       return "purged";
     }
-    host.db.delete(threadOutbox).where(eq(threadOutbox.seq, row.seq)).run();
+    db.delete(threadOutbox).where(eq(threadOutbox.seq, row.seq)).run();
   }
 };
 
@@ -382,29 +398,6 @@ export const acceptDelivery = (host: ThreadHost, request: DeliveryRequest): void
 
 // ---- one model call ----
 
-// the calls before this one at the same step: every try, and those that failed reaching Claude
-const triesAt = (db: ThreadDb, turn: number, step: number) => {
-  const statuses = db
-    .select({ status: modelCalls.status })
-    .from(modelCalls)
-    .where(and(eq(modelCalls.turn, turn), eq(modelCalls.step, step)))
-    .all();
-  return {
-    failed: statuses.filter((row) => row.status === "failed").length,
-    tries: statuses.length,
-  };
-};
-
-// every call an instance that died left streaming, cut, its step sent again whole by the next step
-// that reaches it; no usage reports what it cost, which the gateway's per-account limit bounds. Run
-// once as an instance starts, since no other instance writes while one lives
-export const cutDeadCalls = (db: ThreadDb, isolate: string): void => {
-  db.update(modelCalls)
-    .set({ status: "cut" })
-    .where(and(eq(modelCalls.status, "streaming"), ne(modelCalls.isolate, isolate)))
-    .run();
-};
-
 // what a stop reason ends a turn with; `tool_use` ends none
 const endingOf = (message: BetaMessage): TurnEnding => {
   switch (message.stop_reason) {
@@ -460,16 +453,11 @@ const resultEvent = (toolUseId: string, content: string, isError: boolean): Agen
 
 // the reply landed whole in one transaction: its blocks as returned, and the turn ended unless it
 // asks for tools
-const landReply = (
-  host: ThreadHost,
-  turn: OpenTurn,
-  call: { readonly callId: string; readonly message: BetaMessage },
-): void => {
-  const { message } = call;
+const landReply = (host: ThreadHost, turn: OpenTurn, message: BetaMessage): void => {
   const { db } = host;
   const blocks = replyBlocksOf(message.content);
   host.transaction(() => {
-    db.update(modelCalls).set({ status: "done" }).where(eq(modelCalls.callId, call.callId)).run();
+    db.update(threadTurns).set({ failures: 0 }).where(eq(threadTurns.turn, turn.turn)).run();
     const events: AgentEvent[] = [];
     if (blocks === null) {
       endTurn(db, turn.turn, {
@@ -526,62 +514,58 @@ const retryAfterMs = (error: APIError): number => {
 const isRetryable = (status: number | undefined): boolean =>
   status === undefined || status === 408 || status === 409 || status === 429 || status >= 500;
 
-// a call that did not land: stopped by the person, refused by the API or the gateway's spend limit
-// (the turn ends), or Claude unreachable or silent (sent again, three times, then the turn ends). A call the API answered
-// with an error cost nothing; one cut short may have, which no usage reports and the gateway's
-// per-account limit bounds
-const failedCall = async (
+// the turn tried again after its next wait, or `atLeast` when longer, the failure counted on its
+// row; with its tries spent it ends `spent`
+const tryAgain = async (
   host: ThreadHost,
   turn: OpenTurn,
-  call: {
-    readonly callId: string;
-    readonly failedBefore: number;
-    readonly error: Error;
-    readonly stopped: boolean;
-  },
+  spent: TurnEnding,
+  atLeast = 0,
 ): Promise<StepResult> => {
-  const { error } = call;
   const { db } = host;
-  const status = isApiError(error) ? error.status : undefined;
-  const settle = (state: "cancelled" | "failed", ending: TurnEndReason | null): void => {
+  const wait = RETRY_MS[turn.failures];
+  if (wait === undefined) {
     host.transaction(() => {
-      db.update(modelCalls).set({ status: state }).where(eq(modelCalls.callId, call.callId)).run();
-      if (ending !== null) {
-        endTurn(db, turn.turn, {
-          detail: status === undefined ? null : `status ${String(status)}`,
-          reason: ending,
-        });
-      }
+      endTurn(db, turn.turn, spent);
     });
-  };
-  if (call.stopped) {
-    // the next step settles the cancel
-    settle("cancelled", null);
     return "continue";
   }
+  db.update(threadTurns)
+    .set({ failures: turn.failures + 1 })
+    .where(eq(threadTurns.turn, turn.turn))
+    .run();
+  await host.jobs.driveAt(host.now() + Math.min(RETRY_AFTER_MAX_MS, Math.max(wait, atLeast)));
+  return "later";
+};
+
+// a call that did not land: refused by the API or the gateway's spend limit (the turn ends), or
+// Claude unreachable or silent (sent again, three times, then the turn ends). A call the API
+// answered with an error cost nothing; one cut short may have, which no usage reports and the
+// gateway's per-account limit bounds
+const failedCall = async (host: ThreadHost, turn: OpenTurn, error: Error): Promise<StepResult> => {
+  const status = isApiError(error) ? error.status : undefined;
+  const detail = status === undefined ? null : `status ${String(status)}`;
   console.error({
     event: "agent-call-failed",
     threadId: host.threadId,
     turn: turn.turn,
     ...callFailureFields(error),
   });
-  if (isSpendLimitRefusal(error)) {
-    settle("failed", "allowance");
+  if (isSpendLimitRefusal(error) || !isRetryable(status)) {
+    host.transaction(() => {
+      endTurn(host.db, turn.turn, {
+        detail,
+        reason: isSpendLimitRefusal(error) ? "allowance" : "failed",
+      });
+    });
     return "continue";
   }
-  if (!isRetryable(status)) {
-    settle("failed", "failed");
-    return "continue";
-  }
-  const wait = RETRY_MS[call.failedBefore];
-  if (wait === undefined) {
-    settle("failed", "unavailable");
-    return "continue";
-  }
-  settle("failed", null);
-  const after = isApiError(error) ? retryAfterMs(error) : 0;
-  await host.jobs.driveAt(host.now() + Math.min(RETRY_AFTER_MAX_MS, Math.max(wait, after)));
-  return "later";
+  return await tryAgain(
+    host,
+    turn,
+    { detail, reason: "unavailable" },
+    isApiError(error) ? retryAfterMs(error) : 0,
+  );
 };
 
 const errorOf = (cause: unknown): Error =>
@@ -594,35 +578,6 @@ const sendPreview = async (host: ThreadHost, turn: number, text: string): Promis
   } catch (error) {
     console.warn({ event: "agent-preview-failed", ...callFailureFields(error) });
   }
-};
-
-// which try of its step a call is
-interface CallTry {
-  readonly callId: string;
-  readonly turn: number;
-  readonly step: number;
-  readonly attempt: number;
-}
-
-// a try that never went out, counted so the next one takes an id of its own
-const recordUnsent = (host: ThreadHost, call: CallTry, status: "cancelled" | "failed"): void => {
-  host.db
-    .insert(modelCalls)
-    .values({
-      attempt: call.attempt,
-      callId: call.callId,
-      isolate: host.isolate,
-      status,
-      step: call.step,
-      turn: call.turn,
-    })
-    .run();
-};
-
-// a call stopped before it went out: nothing sent, and the stop settled by the next step
-const unsentCall = (host: ThreadHost, call: CallTry): StepResult => {
-  recordUnsent(host, call, "cancelled");
-  return "continue";
 };
 
 const sendCall = async (
@@ -641,36 +596,15 @@ const sendCall = async (
     });
     return "continue";
   }
-  const { definition, sinceSeq } = definitionInForce(db);
-  const tries = triesAt(db, turn.turn, step);
-  const callId = `${host.threadId}:${String(turn.turn)}:${String(step)}:${String(tries.tries)}`;
-  const callTry: CallTry = { attempt: tries.tries, callId, step, turn: turn.turn };
-  const body = agentRequest(definition, requestMessages(transcript, sinceSeq));
-  const requestSha = await sha256Hex(JSON.stringify(body));
-  // the last await before the request goes: a stop that landed while its request was hashed sends
-  // nothing, and a purge writes nothing over the tables it is deleting
-  if (signal.aborted) {
-    return cutOf(signal) === "purged" ? "purged" : unsentCall(host, callTry);
-  }
   const client = host.client();
   if (client === null) {
     host.transaction(() => {
-      recordUnsent(host, callTry, "failed");
       endTurn(db, turn.turn, { detail: null, reason: "unavailable" });
     });
     return "continue";
   }
-  db.insert(modelCalls)
-    .values({
-      attempt: tries.tries,
-      callId,
-      isolate: host.isolate,
-      requestSha,
-      status: "streaming",
-      step,
-      turn: turn.turn,
-    })
-    .run();
+  const { definition, sinceSeq } = definitionInForce(db);
+  const body = agentRequest(definition, requestMessages(transcript, sinceSeq));
   let message: BetaMessage;
   try {
     const stream = client.beta.messages.stream(body, { signal });
@@ -691,20 +625,16 @@ const sendCall = async (
     if (cut === "purged") {
       return "purged";
     }
-    return await failedCall(host, turn, {
-      callId,
-      error: errorOf(error),
-      failedBefore: tries.failed,
-      stopped: cut === "stopped",
-    });
+    // a stop is settled by the next step
+    return cut === "stopped" ? "continue" : await failedCall(host, turn, errorOf(error));
   }
   logDroppedThinking(host.threadId, message);
-  landReply(host, turn, { callId, message });
+  landReply(host, turn, message);
   return "continue";
 };
 
-// one model call under an abort registered before its first await, so a stop that lands while the
-// call is hashed or streamed cuts it
+// one model call under an abort registered before its request goes, with no await between them,
+// so a stop that lands while the call streams cuts it
 const modelCall = async (
   host: ThreadHost,
   turn: OpenTurn,
@@ -966,8 +896,12 @@ const turnStep = async (host: ThreadHost, turn: OpenTurn): Promise<StepResult> =
   return await modelCall(host, turn, transcript);
 };
 
+const STEP_FAILED: TurnEnding = { detail: "a step that kept failing", reason: "failed" };
+
 // one step, the outbox drained before it and after it, so what it did reaches the cell before the
-// thread rests on the person or on nothing
+// thread rests on the person or on nothing. A step that throws is tried again on the turn's tries,
+// as a failed call is, and ends the turn once they are spent: a row this build cannot read fails
+// every try
 export const step = async (host: ThreadHost): Promise<StepResult> => {
   const before = await drainOutbox(host);
   if (before === "purged") {
@@ -977,7 +911,20 @@ export const step = async (host: ThreadHost): Promise<StepResult> => {
   if (turn === null) {
     return before === "later" ? "later" : "idle";
   }
-  const result = await turnStep(host, turn);
+  let result: StepResult;
+  try {
+    result = await turnStep(host, turn);
+  } catch (error) {
+    // counted before it is logged, so a step that threw over a purge's deleted tables throws
+    // again here and says nothing
+    result = await tryAgain(host, turn, STEP_FAILED);
+    console.error({
+      event: "agent-step-failed",
+      threadId: host.threadId,
+      turn: turn.turn,
+      ...errorFields(error),
+    });
+  }
   if (result === "purged") {
     return result;
   }

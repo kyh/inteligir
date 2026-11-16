@@ -2,14 +2,14 @@
 // driven by its account's real cell: a turn's model calls and tool calls replayed as Claude
 // returned them, its progress notes, its transcript kept across a second wake, its recovery when
 // its instance dies mid-call or mid-tool, its approvals, its cancel, a denial then a stop, two
-// conversations at once, Claude refusing or failing, a turn ended at its last step, a compaction
-// on the server, a delete mid-reply, and a deploy's definition or the person's changed filing
-// rules taken up between turns. Every case ends with the fake having dropped no replayed thinking
+// conversations at once, Claude refusing or failing, a turn ended at its last step or on a row
+// nothing can read, a compaction on the server, a delete mid-reply, and a deploy's definition or
+// the person's changed filing rules taken up between turns. Every case ends with the fake having dropped no replayed thinking
 // block, the proof that what the thread replays is what Claude sent.
 // The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
 // stepped by hand (`../test-support/thread-host`).
 
-import { toolCalls } from "@repo/db/thread/schema";
+import { threadMeta, threadOutbox, threadTranscript, toolCalls } from "@repo/db/thread/schema";
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -36,7 +36,6 @@ import { inSteppedThread } from "../test-support/thread-host";
 import type { AgentThreadDO } from "./agent-thread";
 import { AGENT_MAX_STEPS } from "./library-agent";
 import { cutSilentCalls, decideCall, requestCancel } from "./thread-loop";
-import type { ThreadHost } from "./thread-loop";
 import {
   agentRequest,
   deployedDefinition,
@@ -48,23 +47,6 @@ import type { ThreadDefinition } from "./thread-request";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;
-
-const callSchema = z.object({
-  call_id: z.string(),
-  request_sha: z.string().nullable(),
-  status: z.string(),
-  step: z.number(),
-  turn: z.number(),
-});
-
-const callsOf = async (account: AgentAccount, threadId: string) => {
-  const rows = await threadRows(
-    account.accountId,
-    threadId,
-    "SELECT call_id, turn, step, status, request_sha FROM model_calls ORDER BY turn, step, attempt",
-  );
-  return rows.map((row) => callSchema.parse(row));
-};
 
 const eventSchema = z.object({ event_id: z.string(), json: z.string(), type: z.string() });
 
@@ -130,12 +112,6 @@ const abortThread = async (accountId: string, threadId: string): Promise<void> =
   ).rejects.toThrow("the object was reset");
 };
 
-const hex = (bytes: ArrayBuffer): string =>
-  [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-
-const sha256 = async (text: string): Promise<string> =>
-  hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
-
 const transcriptRowSchema = z.object({
   content: z.string(),
   role: z.string(),
@@ -170,9 +146,14 @@ const definitionsOf = async (account: AgentAccount, threadId: string) => {
   return rows.map((row) => definitionRowSchema.parse(row));
 };
 
-// every reply's call was asked under the definition in force at its turn with what a request
-// carries of every message kept before the reply, byte for byte as the thread keeps them
-const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string) => {
+// every reply was asked for, in `sent`, the bodies a stepped loop sent with none sent twice, under
+// the definition in force at its turn with what a request carries of every message kept before the
+// reply, as the thread keeps them
+const expectRepliesAskedAsKept = async (
+  account: AgentAccount,
+  threadId: string,
+  sent: readonly string[],
+) => {
   const definitions = await definitionsOf(account, threadId);
   const rows = await transcriptOf(account, threadId);
   const messages = rows.map((row) => ({
@@ -180,23 +161,22 @@ const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string)
     seq: row.seq,
   }));
   const replies = rows.flatMap((row, index) => (row.role === "assistant" ? [index] : []));
-  const calls = await callsOf(account, threadId);
-  const landed = calls.filter((call) => call.status === "done");
-  expect(landed).toHaveLength(replies.length);
-  for (const [index, call] of landed.entries()) {
-    const at = replies[index] ?? 0;
+  expect(sent).toHaveLength(replies.length);
+  for (const [index, at] of replies.entries()) {
     const seq = rows[at]?.seq ?? 0;
     const inForce = definitions.findLast((definition) => definition.since_seq < seq);
     if (inForce === undefined) {
       throw new Error(`reply ${String(index)} came before any definition`);
     }
-    const body = agentRequest(
+    // the client sends the betas as a header, and asks for the stream
+    const { betas: _betas, ...body } = agentRequest(
       storedDefinition(inForce),
       requestMessages(messages.slice(0, at), inForce.since_seq),
     );
-    await expect(sha256(JSON.stringify(body)), `reply ${String(index)}`).resolves.toBe(
-      call.request_sha,
-    );
+    expect(
+      z.json().parse(JSON.parse(sent[index] ?? "null")),
+      `reply ${String(index)}`,
+    ).toStrictEqual({ ...body, stream: true });
   }
 };
 
@@ -262,12 +242,6 @@ describe("a conversation's object", () => {
         "user",
         "assistant",
       ]);
-      const calls = await callsOf(account, sent.threadId);
-      expect(calls.map((call) => [call.step, call.status])).toStrictEqual([
-        [0, "done"],
-        [1, "done"],
-      ]);
-      await expectRepliesAskedAsKept(account, sent.threadId);
     },
   );
 
@@ -308,7 +282,6 @@ describe("a conversation's object", () => {
           : [],
       );
       expect(thoughts.filter((thought) => thought !== "")).toHaveLength(notes.length);
-      await expectRepliesAskedAsKept(account, sent.threadId);
     },
   );
 
@@ -335,7 +308,6 @@ describe("a conversation's object", () => {
         [2, "user"],
         [2, "assistant"],
       ]);
-      await expectRepliesAskedAsKept(account, sent.threadId);
     },
   );
 
@@ -366,6 +338,8 @@ describe("a conversation's object", () => {
           for (const body of sent) {
             expect(unmarkedOf(body).system.at(-1)).toStrictEqual({ text: rules, type: "text" });
           }
+          // every call after the compaction asked from it on, as kept
+          await expectRepliesAskedAsKept(account, threadId, sent);
         },
       );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
@@ -392,8 +366,6 @@ describe("a conversation's object", () => {
         "user",
         "assistant",
       ]);
-      // every call after the compaction asked from it on, byte for byte as kept
-      await expectRepliesAskedAsKept(account, threadId);
     },
   );
 
@@ -436,9 +408,8 @@ describe("a conversation's object", () => {
         ["File trips under Journeys.", starts[2]],
         [null, starts[3]],
       ]);
-      // every call went under its turn's rules, with no thinking from before they were taken up,
-      // and the fake dropped none (afterEach)
-      await expectRepliesAskedAsKept(account, threadId);
+      // no call carried thinking from before its rules were taken up: the fake checks each block
+      // against the system it is replayed under, and dropped none (afterEach)
     },
   );
 
@@ -454,29 +425,28 @@ describe("a conversation's object", () => {
     { timeout: TURN_MS },
     async ({ lines }) => {
       const account = agentAccount();
-      const before = await heldSoFar();
+      const before = await fakeStats();
       const sent = await send(account, script(...lines));
-      await heldMidReply(account, [sent.threadId], before);
+      await heldMidReply(before.held);
       await abortThread(account.accountId, sent.threadId);
-      // no event at all: the alarm the watchdog left wakes a fresh instance, which finds the cut
+      // no event at all: the alarm the watchdog left wakes a fresh instance, whose step reads off
+      // the transcript that the call never landed
       await expect(runDurableObjectAlarm(threadOf(account.accountId, sent.threadId))).resolves.toBe(
         true,
       );
       await settled(account, sent.threadId);
-      const calls = await callsOf(account, sent.threadId);
-      const cut = calls.filter((call) => call.status === "cut");
-      expect(cut).toHaveLength(1);
-      const [cutCall] = cut;
-      const again = calls.filter((call) => call.step === cutCall?.step && call.status === "done");
-      expect(again).toHaveLength(1);
-      expect(again[0]?.request_sha).toBe(cutCall?.request_sha);
       await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
       const replies = await threadRows(
         account.accountId,
         sent.threadId,
         "SELECT seq FROM transcript WHERE role = 'assistant'",
       );
-      expect(replies).toHaveLength(calls.filter((call) => call.status === "done").length);
+      expect(replies).toHaveLength(2);
+      // one request more than the replies, and no second stall: the fake holds each body's stall
+      // once, so other bytes would have been held again
+      const after = await fakeStats();
+      expect(after.requests - before.requests).toBe(replies.length + 1);
+      expect(after.held - before.held).toBe(1);
       const listed = await asLaptop(account, async (client) => await client.items.list({}));
       expect(listed.items).toHaveLength(1);
     },
@@ -616,7 +586,7 @@ describe("a conversation's object", () => {
       const account = agentAccount();
       const before = await heldSoFar();
       const sent = await send(account, script("stall"));
-      await heldMidReply(account, [sent.threadId], before);
+      await heldMidReply(before);
       await asLaptop(
         account,
         async (client) => await client.agent.cancel({ threadId: sent.threadId }),
@@ -675,7 +645,7 @@ describe("a conversation's object", () => {
       const before = await heldSoFar();
       const first = await sendAs(script("stall"));
       const second = await sendAs(script("stall"));
-      await heldMidReply(account, [first.threadId, second.threadId], before);
+      await heldMidReply(before, 2);
       // both held open at once, each in its own object
       for (const threadId of [first.threadId, second.threadId]) {
         const inspection = await threadOf(account.accountId, threadId).inspect();
@@ -754,17 +724,21 @@ describe("a conversation's loop, stepped", () => {
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
-      await inSteppedThread(account, threadId, script("fail 529 2"), async ({ asked, run }) => {
-        await expect(run()).resolves.toStrictEqual(["later"]);
-        await expect(run()).resolves.toStrictEqual(["later"]);
-        // after 2 s, then 10 s, each a retry the drive job was timed for
-        const [first = 0, second = 0] = asked.drives;
-        expect(second - first).toBeGreaterThanOrEqual(8000);
-        await expect(restsAt(run)).resolves.toBe("idle");
-      });
-      const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toStrictEqual(["failed", "failed", "done"]);
-      expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
+      await inSteppedThread(
+        account,
+        threadId,
+        script("fail 529 2"),
+        async ({ asked, run, sent }) => {
+          await expect(run()).resolves.toStrictEqual(["later"]);
+          await expect(run()).resolves.toStrictEqual(["later"]);
+          // after 2 s, then 10 s, each a retry the drive job was timed for
+          const [first = 0, second = 0] = asked.drives;
+          expect(second - first).toBeGreaterThanOrEqual(8000);
+          await expect(restsAt(run)).resolves.toBe("idle");
+          expect(sent).toHaveLength(3);
+          expect(new Set(sent).size).toBe(1);
+        },
+      );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
     },
   );
@@ -819,30 +793,16 @@ describe("a conversation's loop, stepped", () => {
   );
 
   it(
-    "sends nothing for a turn stopped before its request goes, and still counts the turn",
+    "sends nothing for a turn stopped before its first call, and still counts the turn",
     { timeout: TURN_MS },
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       const before = await fakeStats();
-      let stepped: ThreadHost | null = null;
-      const digest = crypto.subtle.digest.bind(crypto.subtle);
-      // the stop lands while the call's request is hashed, its abort registered, no stream open
-      const hashing = vi.spyOn(crypto.subtle, "digest").mockImplementation(async (...args) => {
-        if (stepped?.calls.has(1) === true) {
-          requestCancel(stepped, 1);
-        }
-        return await digest(...args);
-      });
       await inSteppedThread(account, threadId, script("Never sent."), async ({ host, run }) => {
-        stepped = host;
-        await expect(restsAt(run)).resolves.toBe("idle");
+        requestCancel(host, 1);
+        await expect(run()).resolves.toStrictEqual(["continue", "idle"]);
       });
-      hashing.mockRestore();
-      const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => [call.status, call.request_sha])).toStrictEqual([
-        ["cancelled", null],
-      ]);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
       const roles = await threadRows(account.accountId, threadId, "SELECT role FROM transcript");
       expect(roles).toStrictEqual([{ role: "user" }]);
@@ -850,6 +810,51 @@ describe("a conversation's loop, stepped", () => {
       expect(after.requests).toBe(before.requests);
       const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
       expect(usage).toStrictEqual({ turns: 1 });
+    },
+  );
+
+  it(
+    "ends a turn whose step keeps throwing, once its tries are spent, rather than leave it running",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      const before = await fakeStats();
+      await inSteppedThread(account, threadId, script("Unread."), async ({ asked, host, run }) => {
+        // a row an earlier build wrote, which this one cannot replay
+        host.db.update(threadTranscript).set({ content: "[]" }).run();
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          await expect(run()).resolves.toStrictEqual(["later"]);
+        }
+        await expect(run()).resolves.toStrictEqual(["continue", "idle"]);
+        expect(asked.drives).toHaveLength(3);
+      });
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { detail: "a step that kept failing", reason: "failed" },
+      ]);
+      await expect(threadStatus(account, threadId)).resolves.toBe("idle");
+      const after = await fakeStats();
+      expect(after.requests).toBe(before.requests);
+    },
+  );
+
+  it(
+    "ends a turn on a push this build cannot read, and tells the cell so afresh",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await inSteppedThread(account, threadId, script("Unpushed."), async ({ host, run }) => {
+        // a push an earlier build wrote, its turn's ending perhaps in it
+        host.db.update(threadMeta).set({ pushSeq: 1 }).run();
+        host.db.insert(threadOutbox).values({ events: '[{"type":"gone"}]', seq: 1, turn: 1 }).run();
+        await expect(run()).resolves.toStrictEqual(["idle"]);
+        expect(host.db.select().from(threadOutbox).all()).toStrictEqual([]);
+      });
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { detail: "a push this build cannot read", reason: "failed" },
+      ]);
+      await expect(threadStatus(account, threadId)).resolves.toBe("idle");
     },
   );
 
@@ -865,13 +870,19 @@ describe("a conversation's loop, stepped", () => {
         (_, index) => `call search_library {"query":"step ${String(index)}"}`,
       );
       const before = await fakeStats();
-      await inSteppedThread(account, threadId, script(...searches), async ({ deliver, run }) => {
-        await expect(restsAt(async () => await run(4 * AGENT_MAX_STEPS))).resolves.toBe("idle");
-        const asked = await fakeStats();
-        expect(asked.requests - before.requests).toBe(AGENT_MAX_STEPS);
-        await deliver(script("Go on."));
-        await expect(restsAt(run)).resolves.toBe("idle");
-      });
+      await inSteppedThread(
+        account,
+        threadId,
+        script(...searches),
+        async ({ deliver, run, sent }) => {
+          await expect(restsAt(async () => await run(4 * AGENT_MAX_STEPS))).resolves.toBe("idle");
+          const asked = await fakeStats();
+          expect(asked.requests - before.requests).toBe(AGENT_MAX_STEPS);
+          await deliver(script("Go on."));
+          await expect(restsAt(run)).resolves.toBe("idle");
+          await expectRepliesAskedAsKept(account, threadId, sent);
+        },
+      );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { reason: "budget" },
         { reason: "done" },
@@ -881,7 +892,6 @@ describe("a conversation's loop, stepped", () => {
       expect(replies).toHaveLength(AGENT_MAX_STEPS);
       // every call the turn made answered, so the next request is valid
       expect(transcript.findLast((row) => row.turn === 1)?.role).toBe("user");
-      await expectRepliesAskedAsKept(account, threadId);
     },
   );
 
@@ -892,16 +902,10 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       const before = await heldSoFar();
-      await inSteppedThread(account, threadId, script("stall"), async ({ host, run }) => {
+      await inSteppedThread(account, threadId, script("stall"), async ({ host, run, sent }) => {
         const resting = run();
         // the fake holds the reply mid-stream and sends nothing more
-        await vi.waitFor(
-          async () => {
-            const { held } = await fakeStats();
-            expect(held).toBe(before + 1);
-          },
-          { interval: 50, timeout: 10_000 },
-        );
+        await heldMidReply(before);
         const heardAt = host.calls.get(1)?.heardAt ?? 0;
         cutSilentCalls(host.calls, heardAt + 2 * MINUTE_MS);
         expect(host.calls.get(1)?.abort.signal.aborted).toBe(false);
@@ -909,10 +913,9 @@ describe("a conversation's loop, stepped", () => {
         // a lost connection: sent again after the first retry's wait, not a stop
         await expect(resting).resolves.toStrictEqual(["later"]);
         await expect(restsAt(run)).resolves.toBe("idle");
+        expect(sent).toHaveLength(2);
+        expect(new Set(sent).size).toBe(1);
       });
-      const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toStrictEqual(["failed", "done"]);
-      expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
     },
   );
@@ -926,13 +929,7 @@ describe("a conversation's loop, stepped", () => {
       const before = await fakeStats();
       await inSteppedThread(account, threadId, script("stall"), async ({ asked, host, run }) => {
         const resting = run();
-        await vi.waitFor(
-          async () => {
-            const { held } = await fakeStats();
-            expect(held).toBe(before.held + 1);
-          },
-          { interval: 50, timeout: 10_000 },
-        );
+        await heldMidReply(before.held);
         await host.purge();
         await expect(resting).resolves.toStrictEqual(["purged"]);
         await expect(run()).resolves.toStrictEqual([]);
@@ -951,7 +948,7 @@ describe("a conversation's loop, stepped", () => {
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
-      await inSteppedThread(account, threadId, script("long 4000"), async ({ host, run }) => {
+      await inSteppedThread(account, threadId, script("long 4000"), async ({ host, run, sent }) => {
         const resting = run();
         let first: number | null = null;
         await vi.waitFor(
@@ -963,9 +960,8 @@ describe("a conversation's loop, stepped", () => {
           { interval: 25, timeout: 10_000 },
         );
         await expect(resting).resolves.toStrictEqual(["continue", "idle"]);
+        expect(sent).toHaveLength(1);
       });
-      const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toStrictEqual(["done"]);
     },
   );
 
@@ -1038,6 +1034,7 @@ describe("a conversation's loop, stepped", () => {
             expect(definitionSent(body)).toStrictEqual(sentAs(third));
             expect(blockTypesOf(unmarkedOf(body)).flat()).not.toContain("thinking");
           }
+          await expectRepliesAskedAsKept(account, threadId, sent);
         },
         { definition: (rules) => ({ ...deployed, rules }) },
       );
@@ -1056,7 +1053,6 @@ describe("a conversation's loop, stepped", () => {
         starts[1],
         starts[3],
       ]);
-      await expectRepliesAskedAsKept(account, threadId);
     },
   );
 

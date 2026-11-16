@@ -9,9 +9,9 @@
 // `outbox` job. Where the work stands is one value, moved by `./thread-drive`, and a purged
 // conversation runs nothing more. Every job is pushed to run once, its outcome returned rather
 // than thrown, since Lifecycle retries a job three times in process by default. A fresh instance
-// holds no work, so every `drive` job it finds is an orphan, woken at once, and every call left
-// streaming a dead instance's, cut. Each RPC starts the lifecycle, as native RPC needs, and is safe
-// to repeat. A cell that answers that it holds no such thread has the object purge itself. Its
+// holds no work, so every `drive` job it finds is an orphan, woken at once, whose step sends again
+// whole the call a dead instance left. Each RPC starts the lifecycle, as native RPC needs, and is
+// safe to repeat. A cell that answers that it holds no such thread has the object purge itself. Its
 // schema is applied in the constructor, before Lifecycle's first job makes its own table.
 
 import type Anthropic from "@anthropic-ai/sdk";
@@ -29,7 +29,6 @@ import { cutCall, nextDrive, RESTING } from "./thread-drive";
 import type { Drive, DriveEffect, DriveEvent } from "./thread-drive";
 import {
   acceptDelivery,
-  cutDeadCalls,
   cutSilentCalls,
   decideCall,
   drainOutbox,
@@ -76,8 +75,6 @@ export class AgentThreadDO extends DurableObject<Env> {
   // while `Env` is being made, and the checker settles that with an `Env` short of its bindings
   readonly lifecycle: Lifecycle<Env> = Lifecycle.install(this);
 
-  // this instance: a model call stamped with another was made by an instance that died
-  readonly #isolate = crypto.randomUUID();
   readonly #calls = new Map<number, CallInFlight>();
   #drive: Drive = RESTING;
   // undefined until a call first asks for it; null where the deployment names no gateway
@@ -107,7 +104,6 @@ export class AgentThreadDO extends DurableObject<Env> {
         return this.#client;
       },
       definition: deployedDefinition,
-      isolate: this.#isolate,
       jobs: {
         approvalAt: async (toolUseId, at) => {
           await jobs.push({
@@ -140,7 +136,6 @@ export class AgentThreadDO extends DurableObject<Env> {
   // ---- Lifecycle's hooks ----
 
   async onStart(): Promise<void> {
-    cutDeadCalls(this.#db, this.#isolate);
     for (const job of this.lifecycle.jobs.list()) {
       if (job.fn === DRIVE_JOB) {
         await this.lifecycle.jobs.reschedule(job.id, Date.now());

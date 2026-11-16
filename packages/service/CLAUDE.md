@@ -280,6 +280,13 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   union's kind, as a turn's row holds its one state.** A column a concern stores
   pairs no state means, and reading them at each site loses the person's no on a
   stop. `packages/service/src/agent/tool-call.ts`.
+- **A model call keeps no journal: the transcript says what is sent next, and
+  the turn's row counts the tries that failed.** A table of calls was read by
+  the suites alone and cost every send an await.
+  `packages/service/src/agent/thread-loop.ts`.
+- **A step that throws spends the turn's tries, and a push this build cannot
+  read ends its turn.** A row nothing can read would fail every 30 seconds with
+  the turn shown running. `packages/service/src/agent/thread-loop.ts`.
 - **A thread's status is what its open turn and queued sends say, written in one
   place.** Six writers choosing a status let it contradict the rows.
   `packages/service/src/agent/turn-rows.ts`.
