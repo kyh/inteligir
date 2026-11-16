@@ -38,8 +38,7 @@ import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
-import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
-import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
+import { askFolder, askName, askTags } from "./library/ask";
 import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
@@ -85,9 +84,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const [tab, setTab] = useState<PanelTab>("info");
   const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
-  const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
-  const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
@@ -275,15 +271,33 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   });
 
   const askSaveLink = (): void => {
-    setNameRequest({
-      confirm: "Save",
-      initial: "",
-      label: "The page's address",
-      onSubmit: saveLink,
-      refuse: (address) =>
-        isWebUrl(address) ? null : "Type the whole address, starting with https://",
-      title: "Save a link",
-    });
+    void (async () => {
+      const address = await askName({
+        confirm: "Save",
+        initial: "",
+        label: "The page's address",
+        refuse: (typed) =>
+          isWebUrl(typed) ? null : "Type the whole address, starting with https://",
+        title: "Save a link",
+      });
+      if (address !== null) {
+        saveLink(address);
+      }
+    })();
+  };
+
+  const newFolder = (parentId: string | null): void => {
+    void (async () => {
+      const name = await askName({
+        confirm: "Create",
+        initial: "",
+        label: "Folder name",
+        title: "New folder",
+      });
+      if (name !== null) {
+        verbs.createFolder(name, parentId);
+      }
+    })();
   };
 
   const removeItems = (ids: readonly string[]): void => {
@@ -339,12 +353,12 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   };
 
   const askMove = (ids: readonly string[]): void => {
-    setMoveRequest({
-      count: ids.length,
-      onMove: (folderId) => {
-        void verbs.move(ids, folderId);
-      },
-    });
+    void (async () => {
+      const picked = await askFolder({ count: ids.length });
+      if (picked !== null) {
+        await verbs.move(ids, picked.folderId);
+      }
+    })();
   };
 
   const askTag = (subjects: readonly TagSubject[]): void => {
@@ -353,14 +367,15 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
     for (const subject of subjects.slice(1)) {
       held = held.filter((tag) => subject.tags.includes(tag));
     }
-    const ids = subjects.map((subject) => subject.id);
-    setTagRequest({
-      count: subjects.length,
-      held,
-      onChange: (change) => {
-        void verbs.tag(ids, change);
-      },
-    });
+    void (async () => {
+      const change = await askTags({ count: subjects.length, held });
+      if (change !== null) {
+        await verbs.tag(
+          subjects.map((subject) => subject.id),
+          change,
+        );
+      }
+    })();
   };
 
   const actions: LibraryGridActions = {
@@ -427,17 +442,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
               }}
               onOpenSettings={openSettings}
               folders={{
-                create: (parentId) => {
-                  setNameRequest({
-                    confirm: "Create",
-                    initial: "",
-                    label: "Folder name",
-                    onSubmit: (name) => {
-                      verbs.createFolder(name, parentId);
-                    },
-                    title: "New folder",
-                  });
-                },
+                create: newFolder,
                 remove: (folderId, name) => {
                   void (async () => {
                     if (
@@ -453,15 +458,17 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                   })();
                 },
                 rename: (folderId, name) => {
-                  setNameRequest({
-                    confirm: "Rename",
-                    initial: name,
-                    label: "Folder name",
-                    onSubmit: (next) => {
+                  void (async () => {
+                    const next = await askName({
+                      confirm: "Rename",
+                      initial: name,
+                      label: "Folder name",
+                      title: "Rename folder",
+                    });
+                    if (next !== null) {
                       verbs.renameFolder(folderId, next);
-                    },
-                    title: "Rename folder",
-                  });
+                    }
+                  })();
                 },
               }}
             />
@@ -503,15 +510,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                         filesRef.current?.click();
                       },
                       newFolder: () => {
-                        setNameRequest({
-                          confirm: "Create",
-                          initial: "",
-                          label: "Folder name",
-                          onSubmit: (name) => {
-                            verbs.createFolder(name, saveFolderOf(scope));
-                          },
-                          title: "New folder",
-                        });
+                        newFolder(saveFolderOf(scope));
                       },
                       newNote,
                       saveLink: askSaveLink,
@@ -602,25 +601,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
           if (files.length > 0) {
             savePayload(filesPayload(files));
           }
-        }}
-      />
-      <MoveDialog
-        request={moveRequest}
-        folders={folders}
-        onClose={() => {
-          setMoveRequest(null);
-        }}
-      />
-      <TagDialog
-        request={tagRequest}
-        onClose={() => {
-          setTagRequest(null);
-        }}
-      />
-      <NameDialog
-        request={nameRequest}
-        onClose={() => {
-          setNameRequest(null);
         }}
       />
     </>

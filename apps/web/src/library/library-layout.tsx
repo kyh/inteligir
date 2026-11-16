@@ -1,10 +1,10 @@
 // The library route's layout, above every library route, so Settings and back keeps one theme, one
-// toaster, one confirm host, one notice of writes waiting for a connection and one of the Mac app's
-// update (CLAUDE.md § Window-level hosts mount in the library's layout), over the QueryClient and
-// the library the tab opened once (`library-tab.ts`). The covering child draws in a full-window
-// layer here rather than in its own component, so its crash boundary lands in the layer too instead
-// of below a workspace it left inert (CLAUDE.md § Where the tab is rides the URL, and Settings covers
-// a workspace that stays mounted).
+// toaster, one confirm host, one host of a command's asks, one notice of writes waiting for a
+// connection and one of the Mac app's update (CLAUDE.md § Window-level hosts mount in the library's
+// layout), over the QueryClient and the library the tab opened once (`library-tab.ts`). The covering
+// child draws in a full-window layer here rather than in its own component, so its crash boundary
+// lands in the layer too instead of below a workspace it left inert (CLAUDE.md § Where the tab is
+// rides the URL, and Settings covers a workspace that stays mounted).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
@@ -21,6 +21,7 @@ import { libraryQueries } from "./cloud/library-queries";
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
 import { DesktopUpdateBanner } from "./desktop-update-banner";
+import { AskDialogHost } from "./library/ask-dialog-host";
 import { seedReads } from "./library-tab";
 import type { TabOpening } from "./library-tab";
 import { Workspace } from "./workspace";
@@ -68,6 +69,7 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
             <TooltipProvider>
               <WorkspaceLayout />
               <ConfirmDialogHost />
+              <AskDialogHost />
               <Toaster position="bottom-right" />
               <PausedWrites />
               <DesktopUpdateBanner />

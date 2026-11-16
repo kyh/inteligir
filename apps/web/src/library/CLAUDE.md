@@ -51,9 +51,13 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 
 ## Surfaces
 
-- **Window-level hosts mount in the library's layout.** The dialog host, the toaster, the tooltip
-  provider, the theme and the notices sit above every library route, since a host one route mounts
-  leaves another's `confirm()` parked. `apps/web/src/library/library-layout.tsx`.
+- **Window-level hosts mount in the library's layout.** The confirm and ask hosts, the toaster, the
+  tooltip provider, the theme and the notices sit above every library route, since a host one route
+  mounts leaves another's `confirm()` parked. `apps/web/src/library/library-layout.tsx`.
+- **A command asks through one host, and one ask stands at a time.** A name, a folder and a tag
+  change each answer a promise as `confirm()` does, the form mounted with its ask, since a dialog
+  state per verb lets two stand at once and a draft outlive the ask it was typed for.
+  `apps/web/src/library/library/ask.ts`.
 - **The rail chooses the library's scope.** Library, Folders, Tags and Deleted, each row a scope
   with the cell's count, and a waiting call is the layout's one notice, since an online tab has
   nothing queued to report. `apps/web/src/library/sidebar/rail.tsx`.
