@@ -2,10 +2,13 @@
 // the script's, a thrown error included, and a file's bytes meet the status the script answers, so
 // a case says how the cloud met a save; and the browser's sign-in as a case sets it
 
+import { createHash } from "node:crypto";
+
 import { createORPCErrorFromJson } from "@orpc/client";
 import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 
 import type { Cloud, FileCreate, LinkSave, PageSave, Saved } from "../cloud";
+import type { Connection } from "../connection";
 import type { Session, SignIn } from "../sign-in";
 
 export const SESSION: Session = {
@@ -17,8 +20,19 @@ export const SESSION: Session = {
 export const SIGNED_IN: SignIn = { kind: "signed-in", session: SESSION };
 export const SIGNED_OUT: SignIn = { email: SESSION.email, kind: "signed-out" };
 
-// another account, signed in on the same site
-export const OTHER_SESSION: Session = { ...SESSION, email: "other@example.test" };
+// another account, signed in on the same site under a cookie of its own
+export const OTHER_SESSION: Session = {
+  ...SESSION,
+  bearer: "other-token.signature",
+  email: "other@example.test",
+};
+
+// what a browser keeps of the account the cloud read a cookie as
+export const keptAs = (email: string, cookie: string): Connection => ({
+  cookie: createHash("sha256").update(cookie).digest("hex"),
+  email,
+});
+export const KEPT = keptAs(SESSION.email, SESSION.bearer);
 
 export const savedAs = (title: string, created = true): Saved => ({
   created,

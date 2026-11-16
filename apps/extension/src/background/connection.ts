@@ -11,8 +11,10 @@ import { DEV_CLOUD_ORIGIN } from "../manifest";
 
 const CONNECTION_KEY = "connection";
 
-// the account a save made signed out waits for
-const connectionSchema = z.strictObject({ email: z.string().min(1) });
+// the account a save made signed out waits for, and the SHA-256 of the session cookie the cloud
+// read it under, which names that cookie without being it: the jar's cookie is this account's only
+// while it is the same one
+const connectionSchema = z.strictObject({ cookie: z.hash("sha256"), email: z.string().min(1) });
 export type Connection = z.infer<typeof connectionSchema>;
 
 // a record that does not parse reads as no connection

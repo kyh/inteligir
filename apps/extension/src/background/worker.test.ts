@@ -7,7 +7,7 @@ import worker from "../entrypoints/background";
 import type { ExtensionRequest, WorkerAnswer } from "../messages";
 import { keepConnection } from "./connection";
 import { keepSave, queuedSaves, SEND_ALARM } from "./save-queue";
-import { SESSION } from "./test-support/fake-cloud";
+import { KEPT, SESSION } from "./test-support/fake-cloud";
 
 const WAITING = {
   email: SESSION.email,
@@ -72,7 +72,7 @@ beforeEach(async () => {
   });
   vi.spyOn(browser.contextMenus.onClicked, "addListener").mockImplementation(() => {});
   vi.spyOn(browser.storage.local, "setAccessLevel").mockResolvedValue();
-  await keepConnection({ email: SESSION.email });
+  await keepConnection(KEPT);
 });
 
 afterEach(() => {

@@ -2,16 +2,19 @@
 // read from the browser's jar (the `cookies` permission over the cloud's one host) and sent as each
 // call's bearer, which the cloud's bearer plugin takes only signed, as the cookie's value is.
 // Nothing of it is kept: each read meets the jar, so a sign-out on the site signs the extension
-// out with it. What is kept is the account last read signed in (./connection), which a save made
-// signed out waits for.
+// out with it. What is kept is the account last read signed in and the digest of the cookie the
+// cloud read it under (./connection): a save made signed out waits for that account, and only that
+// cookie is its session.
 
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { createAuthClient } from "better-auth/client";
 import { browser } from "wxt/browser";
 
 import { CALL_DEADLINE_MS } from "./cloud";
 import { cloudOrigin, keepConnection, readConnection } from "./connection";
 
-// what a call goes under: where, as whom, and the cookie it sends as its bearer
+// what a call goes under: where, as whom, and the cookie it sends as its bearer, which the cloud
+// read as that account
 export interface Session {
   readonly bearer: string;
   readonly email: string;
@@ -23,7 +26,7 @@ export type SignIn =
   | { readonly kind: "signed-in"; readonly session: Session }
   // the jar holds none, or the cloud said its session ended: `email` is the account last signed in
   | { readonly kind: "signed-out"; readonly email: string }
-  // no account was ever read signed in here
+  // no account was read signed in here, or none under the cookie the jar holds now
   | { readonly kind: "none" };
 
 // Better Auth's own name for it, which its `__Secure-` prefix marks on https
@@ -40,8 +43,14 @@ const signedOut = async (): Promise<SignIn> => {
   return connection === null ? { kind: "none" } : { email: connection.email, kind: "signed-out" };
 };
 
-// what the browser holds, with no call: the account last read signed in and the jar's cookie for
-// the cloud, which the cloud may since have ended
+const digestOf = async (cookie: string): Promise<string> =>
+  bytesToHex(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cookie))),
+  );
+
+// what the browser holds, with no call: the account last read signed in, signed in while the jar
+// holds the cookie it was read under, which the cloud may since have ended. Any other cookie is a
+// sign-in the cloud has yet to name, so it is nobody's, never the last account's
 export const heldSignIn = async (): Promise<SignIn> => {
   const connection = await readConnection();
   if (connection === null) {
@@ -49,9 +58,12 @@ export const heldSignIn = async (): Promise<SignIn> => {
   }
   const origin = await cloudOrigin();
   const bearer = await sessionCookie(origin);
-  return bearer === null
-    ? { email: connection.email, kind: "signed-out" }
-    : { kind: "signed-in", session: { bearer, email: connection.email, origin } };
+  if (bearer === null) {
+    return { email: connection.email, kind: "signed-out" };
+  }
+  return (await digestOf(bearer)) === connection.cookie
+    ? { kind: "signed-in", session: { bearer, email: connection.email, origin } }
+    : { kind: "none" };
 };
 
 type SessionAnswer =
@@ -79,7 +91,7 @@ const askSession = async (origin: string, bearer: string): Promise<SessionAnswer
 };
 
 // the cloud asked whose session the jar's cookie names, the account it names kept as this
-// browser's; null when the cloud did not answer
+// browser's with that cookie's digest; null when the cloud did not answer
 export const cloudSignIn = async (): Promise<SignIn | null> => {
   const origin = await cloudOrigin();
   const bearer = await sessionCookie(origin);
@@ -95,16 +107,17 @@ export const cloudSignIn = async (): Promise<SignIn | null> => {
       return await signedOut();
     }
     case "account": {
-      await keepConnection({ email: answer.email });
+      await keepConnection({ cookie: await digestOf(bearer), email: answer.email });
       return { kind: "signed-in", session: { bearer, email: answer.email, origin } };
     }
     // no default
   }
 };
 
-// the sign-in a save goes under, with no call while this browser holds an account, since the
-// cloud's answer to the save says whether its session still stands; a browser never read signed in
-// asks once, so one already signed in on the site saves at its first click
+// the sign-in a save goes under, with no call while the jar holds the cookie this browser's account
+// was read under, since the cloud's answer to the save says whether its session still stands; a
+// cookie no account was read under asks once, so a browser signed in on the site saves at its first
+// click, as the account the cloud names
 export const saveSignIn = async (): Promise<SignIn> => {
   const held = await heldSignIn();
   return held.kind === "none" ? ((await cloudSignIn()) ?? held) : held;

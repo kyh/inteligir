@@ -8,6 +8,10 @@ what it may reach, and how it builds.
 - **The extension rides the browser's own sign-in to the site.** The worker sends the site's signed
   session cookie as `/v1`'s bearer, since a credential of its own outlives the browser's sign-out.
   `apps/extension/src/background/sign-in.ts`.
+- **The account kept is the one the cloud read the jar's cookie as, or nobody's.** It is kept with
+  that cookie's SHA-256 and signed in only under the same cookie, since an email paired with
+  whatever cookie the jar holds sends one account's save under another's session.
+  `apps/extension/src/background/connection.ts`.
 - **A build knows its site, and no page messages the extension.** A store build's cloud is a literal
   in its bundle and only a dev build's storage names another local Worker, since a page that names
   the site hands a store build what it already holds. `apps/extension/src/background/connection.ts`.

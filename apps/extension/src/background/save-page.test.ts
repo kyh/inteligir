@@ -14,6 +14,8 @@ import { queuedSaves, SEND_ALARM } from "./save-queue";
 import type { SignIn } from "./sign-in";
 import {
   fakeCloud,
+  KEPT,
+  keptAs,
   OTHER_SESSION,
   refusal,
   savedAs,
@@ -22,8 +24,6 @@ import {
   SIGNED_OUT,
 } from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
-
-const KEPT = { email: SESSION.email };
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -323,7 +323,7 @@ describe("a tab saved", () => {
   });
 
   it("keeps the account a sign-in as another replaced while its call was on its way", async () => {
-    const replaced = { email: OTHER_SESSION.email };
+    const replaced = keptAs(OTHER_SESSION.email, OTHER_SESSION.bearer);
     const cloud = fakeCloud({
       save: async () => {
         await keepConnection(replaced);
