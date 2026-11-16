@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 
-import { ISO_DATE_PATTERN } from "../iso-date";
+import { isIsoDate } from "../iso-date";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import { SHA256_HEX_RE } from "./library-item";
 
@@ -64,7 +64,7 @@ export const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
 export const alertVariantSchema = z.enum(ALERT_VARIANTS);
 export type AlertVariant = z.infer<typeof alertVariantSchema>;
 
-const isoDate = z.string().regex(new RegExp(`^${ISO_DATE_PATTERN}$`, "u"));
+const isoDate = z.string().refine(isIsoDate, { error: "is not a calendar day" });
 const sha256Hex = z.string().regex(SHA256_HEX_RE);
 
 // a file the library holds by its bytes, or a web resource by its address: exactly one

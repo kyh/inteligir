@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ISO_DATE_PATTERN, formatIsoDate, parseIsoDate } from "./iso-date";
+import { formatIsoDate, isIsoDate, parseIsoDate } from "./iso-date";
 
 describe(formatIsoDate, () => {
   it("zero-pads iso date components (local time)", () => {
@@ -41,22 +41,32 @@ describe(parseIsoDate, () => {
 
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
-describe(ISO_DATE_PATTERN, () => {
-  const pattern = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
-
-  it("matches exactly what parseIsoDate reads, across the years that bend the calendar", () => {
+describe(isIsoDate, () => {
+  it("admits exactly the days the date chip reads and writes back, across the years that bend the calendar", () => {
     const years = [99, 999, 1000, 1004, 1100, 1200, 1900, 2000, 2023, 2024, 2100, 2400, 9996, 9999];
     const mismatches: string[] = [];
     for (const year of years) {
       for (let month = 0; month <= 13; month += 1) {
         for (let day = 0; day <= 32; day += 1) {
           const value = `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
-          if (pattern.test(value) !== (parseIsoDate(value) !== null)) {
+          const date = parseIsoDate(value);
+          const roundTrips = date !== null && formatIsoDate(date) === value;
+          if (isIsoDate(value) !== roundTrips) {
             mismatches.push(value);
           }
         }
       }
     }
     expect(mismatches).toStrictEqual([]);
+  });
+
+  it.each([
+    ["2000-02-29", true],
+    ["2024-02-29", true],
+    ["1900-02-29", false],
+    ["2100-02-29", false],
+    ["0999-12-31", false],
+  ])("%s → %s", (value, expected) => {
+    expect(isIsoDate(value)).toBe(expected);
   });
 });

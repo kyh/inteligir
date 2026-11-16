@@ -6,6 +6,8 @@
 
 import { z } from "zod";
 
+import { isIsoDate } from "@repo/contract/iso-date";
+
 import type { PageFacts } from "./page-facts";
 import { resolveWebUrl } from "./web-url";
 
@@ -57,16 +59,8 @@ const publishedOf = (raw: string | null): string | null => {
     return null;
   }
   const date = DATE_PREFIX.exec(text)?.groups?.date;
-  if (date !== undefined) {
-    const [year = 0, month = 0, day = 0] = date.split("-").map(Number);
-    const check = new Date(Date.UTC(year, month - 1, day));
-    if (
-      check.getUTCFullYear() === year &&
-      check.getUTCMonth() === month - 1 &&
-      check.getUTCDate() === day
-    ) {
-      return date;
-    }
+  if (date !== undefined && isIsoDate(date)) {
+    return date;
   }
   return oneLine(text, PUBLISHED_MAX);
 };

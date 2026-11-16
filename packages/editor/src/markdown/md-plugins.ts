@@ -36,7 +36,7 @@ import { CONTINUE, SKIP, visit } from "unist-util-visit";
 
 import { z } from "zod";
 
-import { ISO_DATE_PATTERN } from "@repo/contract/iso-date";
+import { isIsoDate } from "@repo/contract/iso-date";
 import { ALERT_VARIANTS, alertVariantSchema } from "@repo/contract/library/library-nodes";
 import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
@@ -51,8 +51,6 @@ declare module "mdast" {
   }
 }
 
-const ISO_DATE_RE = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
-
 type TextDirective = Extract<PhrasingContent, { type: "textDirective" }>;
 type ContainerDirective = Extract<RootContent, { type: "containerDirective" }>;
 
@@ -65,7 +63,7 @@ const readableText = (node: TextDirective): boolean => {
   const attributes = node.attributes ?? {};
   switch (textDirectiveSchema.safeParse(node.name).data) {
     case "date": {
-      return Object.keys(attributes).length === 0 && ISO_DATE_RE.test(labelText(node));
+      return Object.keys(attributes).length === 0 && isIsoDate(labelText(node));
     }
     case "formula": {
       return z.string().safeParse(attributes.source).success;
