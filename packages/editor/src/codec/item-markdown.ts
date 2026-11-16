@@ -10,6 +10,7 @@ import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { settledAlone } from "@repo/editor/formulas/pill-nodes";
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
 import { frontmatterEnd, frontmatterYaml } from "@repo/editor/markdown/frontmatter";
@@ -131,8 +132,10 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     return read;
   }
   const front = readFrontmatter(yaml, source.name, ports.now);
-  const note = [...read.sections.note];
-  const article = [...(read.sections.article ?? [])];
+  // a file's pills read each other across its note and its page, and no editor normalizes them
+  const settled = settledAlone([...read.sections.note, ...(read.sections.article ?? [])]);
+  const note = settled.slice(0, read.sections.note.length);
+  const article = settled.slice(read.sections.note.length);
   const held = takeHeldFiles(
     { all: [note, article], first: note.length > 0 ? note : article },
     front.fields.kind,

@@ -206,6 +206,32 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     expect(NodeApi.get(editor, [1, 0, 0])).toMatchObject({ children: [{ text: "" }] });
   });
 
+  // the pill's own source is held, and what it shows is derived from one that is not
+  it("a pill a column holds shows what a pill outside it now gives", () => {
+    const editor = touchEditor(
+      [
+        'rate :formula[2]{name="rate" source="2"}',
+        "",
+        "::::columns",
+        ":::column",
+        'cost :formula[20]{name="cost" source="rate*10"}',
+        ":::",
+        "",
+        ":::column",
+        "right column",
+        ":::",
+        "::::",
+        "",
+      ].join("\n"),
+    );
+
+    editor.tf.setNodes({ source: "rate*100" }, { at: [1, 0, 0, 1] });
+    expect(serializeNote(editor)).toContain(':formula[20]{name="cost" source="rate*10"}');
+
+    editor.tf.setNodes({ source: "3" }, { at: [0, 1] });
+    expect(serializeNote(editor)).toContain(':formula[30]{name="cost" source="rate*10"}');
+  });
+
   it("a re-seed replaces the whole note, locked blocks and all", () => {
     const editor = touchEditor();
     const next = NOTE.replace('"value":3', '"value":9').replace("left column", "moved left");

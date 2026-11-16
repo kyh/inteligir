@@ -60,11 +60,9 @@ export const setLibraryTitles = (targets: readonly LinkTarget[]): void => {
 export interface EditorHostIo {
   // shows the item a link, an embed or a chip names
   readonly openItem: (itemId: string) => void;
-  // another item's blocks in reading order, as the library holds them now: an embed's, or a pill's
-  // a formula names; null for an item the library holds none of
+  // an item's blocks in reading order, as the library holds them now; null for an item the library
+  // holds none of
   readonly readItemBlocks: (itemId: string) => Promise<readonly LibraryBlock[] | null>;
-  // these items moved, or `null`: any of them may have
-  readonly onItemsChanged: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
   // a file of the library by its sha, from where this device draws its files, its type the one the
   // file was kept as; rejects while the device can reach no copy of it
   readonly readFile: (sha: string) => Promise<Blob>;

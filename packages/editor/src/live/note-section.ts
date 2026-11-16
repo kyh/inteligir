@@ -7,7 +7,7 @@ import type { Descendant, Path, SlateEditor, SplitNodeOperation, TElement } from
 import { librarySectionSchema } from "@repo/contract/library/library-nodes";
 import type { LibrarySection } from "@repo/contract/library/library-nodes";
 
-import { appliesRemoteChange } from "./yjs-binding";
+import { appliesOwnEdit } from "./yjs-binding";
 
 const SECTION_KEY = "section";
 
@@ -64,12 +64,12 @@ export const NoteSectionPlugin = createSlatePlugin({ key: "noteSection" }).overr
   ({ editor, tf: { apply } }) => ({
     transforms: {
       apply(op) {
-        const keeps = appliesRemoteChange(editor) || editor.api.isSaving() === false;
-        if (!keeps && op.type === "insert_node" && op.path.length === 1) {
+        const own = appliesOwnEdit(editor);
+        if (own && op.type === "insert_node" && op.path.length === 1) {
           apply({ ...op, node: withoutSection(op.node) });
           return;
         }
-        if (!keeps && op.type === "split_node" && op.path.length === 1) {
+        if (own && op.type === "split_node" && op.path.length === 1) {
           const { [SECTION_KEY]: section, ...properties } = op.properties;
           if (section !== undefined && splitsAtStart(editor, op)) {
             apply(op);

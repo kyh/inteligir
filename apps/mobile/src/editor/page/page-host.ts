@@ -100,7 +100,6 @@ export const installPageHost = (first: PageProps): PageHost => {
   let stopNote = nothingToDo;
   let reported: NoteState | null = null;
   const offlineListeners = new Set<() => void>();
-  const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
 
   const readTargets = oneReadAtATime(async () => {
     setLibraryTitles(await props.linkTargets());
@@ -143,12 +142,6 @@ export const installPageHost = (first: PageProps): PageHost => {
         socketOrigin: first.cloudOrigin,
         socketTicket: async () => await props.socketTicket(),
       },
-      onItemsChanged: (listener) => {
-        itemListeners.add(listener);
-        return () => {
-          itemListeners.delete(listener);
-        };
-      },
       openItem: (itemId) => {
         props.openItem(itemId);
       },
@@ -183,9 +176,6 @@ export const installPageHost = (first: PageProps): PageHost => {
           next.moved.seq === before.moved.seq + 1 && next.moved.ids !== null
             ? new Set(next.moved.ids)
             : null;
-        for (const listener of itemListeners) {
-          listener(ids);
-        }
         if (ids === null || [...ids].some((id) => id !== next.itemId)) {
           void readTargets();
         }

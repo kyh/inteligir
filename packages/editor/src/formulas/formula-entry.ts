@@ -1,131 +1,46 @@
-// Entry forms: `=2+2` / `2+2` anonymous executable; `sum=2+2` named executable
-// (fresh id); `time=9am` symbolic (the name is the source, the value the display, fresh id).
+// What a person types for a pill, in `{{…}}` or in its editor: a formula (`2+2`, `=2+2`,
+// `price*qty`), or `name=…` to name one, whose source is a formula or any text (`time=9am`).
 
-import { ElementApi } from "platejs";
-import type { Path, SlateEditor, TElement, TNode } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
 
-import { parseExpression, evaluateExpression } from "@repo/editor/formulas/expression";
-import { formatResult } from "@repo/editor/formulas/format-result";
-import { parseFormulaMeta, serializeFormulaMeta } from "@repo/editor/formulas/formula-meta";
-import type { FormulaMeta } from "@repo/editor/formulas/formula-meta";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import { stringProp } from "@repo/editor/node-props";
+import type { Pill } from "@repo/editor/formulas/displays";
+import { isPillName, namesIn, parseExpression } from "@repo/editor/formulas/expression";
+import { pillEntries, pillOf } from "@repo/editor/formulas/pill-nodes";
 
-const NAME_RE = /^(?<name>[A-Za-z][A-Za-z0-9_-]*)=(?<rest>.+)$/u;
-
-// `meta` is "" for a pill that names no id: the node then holds none
-export interface FormulaNodeProps {
-  source: string;
-  display: string;
-  meta: string;
-}
-
-export const isFormulaPill = (node: TNode): node is TElement =>
-  ElementApi.isElement(node) && node.type === FORMULA_PILL_KEY;
-
-const mintFormulaId = (): string => crypto.randomUUID();
-
-const propsFrom = (source: string, display: string, meta: FormulaMeta): FormulaNodeProps => ({
-  display,
-  meta: serializeFormulaMeta(meta) ?? "",
-  source,
-});
-
-// `existing` keeps the edited pill's id so linked instances stay linked.
-export const formulaPropsFromEntry = (
-  entry: string,
-  existing?: { meta: string },
-): FormulaNodeProps | null => {
-  const trimmed = entry.trim().replace(/^=/u, "");
-  if (trimmed === "") {
-    return null;
+// The pill an entry spells, or null for one that spells none and stays the text it is. A bare
+// formula is one only when a pill holds every name it reads, since any word is a name; a named
+// pill takes any source, so it can be written ahead of what it reads.
+export const pillFromEntry = (entry: string, names: ReadonlySet<string>): Pill | null => {
+  const typed = entry.trim().replace(/^=/u, "");
+  const equals = typed.indexOf("=");
+  const name = typed.slice(0, Math.max(equals, 0)).trim();
+  const source = typed.slice(equals + 1).trim();
+  if (isPillName(name) && source !== "") {
+    return { name, source };
   }
-  const prior = parseFormulaMeta(existing?.meta);
-  const named = NAME_RE.exec(trimmed);
-  if (named === null) {
-    const expression = parseExpression(trimmed);
-    if (expression === null) {
-      return null;
-    }
-    const outcome = evaluateExpression(expression, () => null);
-    const display = outcome.ok ? formatResult(outcome.value) : "";
-    const { name: _dropName, ...anonymous } = prior;
-    return propsFrom(trimmed, display, { ...anonymous, stale: false });
-  }
-  const { name, rest } = named.groups ?? {};
-  if (name === undefined || rest === undefined) {
-    return null;
-  }
-  const expression = parseExpression(rest);
-  if (expression !== null) {
-    const outcome = evaluateExpression(expression, () => null);
-    const display = outcome.ok ? formatResult(outcome.value) : "";
-    return propsFrom(rest, display, {
-      ...prior,
-      id: prior.id ?? mintFormulaId(),
-      name,
-      stale: false,
-    });
-  }
-  const { name: _symbolicName, ...symbolic } = prior;
-  return propsFrom(name, rest, {
-    ...symbolic,
-    id: prior.id ?? mintFormulaId(),
-    stale: false,
-  });
+  const expression = parseExpression(typed);
+  return expression !== null && namesIn(expression).every((read) => names.has(read))
+    ? { source: typed }
+    : null;
 };
 
-export const entryTextOf = (element: TElement): string => {
-  const source = stringProp(element, "source") ?? "";
-  const display = stringProp(element, "display") ?? "";
-  const meta = parseFormulaMeta(stringProp(element, "meta"));
-  if (meta.name !== undefined && meta.name !== "") {
-    return `${meta.name}=${source}`;
-  }
-  if (parseExpression(source) !== null) {
-    return source;
-  }
-  return `${source}=${display}`;
-};
+export const entryTextOf = ({ name, source }: Pill): string =>
+  name === undefined ? source : `${name}=${source}`;
 
-// a pill's parts set on the pill at `at`; a meta of "" names no id, so the node holds none
-export const setFormulaPill = (
-  editor: SlateEditor,
-  at: Path,
-  props: Pick<FormulaNodeProps, "display" | "meta"> & Partial<Pick<FormulaNodeProps, "source">>,
-): void => {
-  const { meta, ...parts } = props;
-  editor.tf.setNodes(meta === "" ? parts : { ...parts, meta }, { at });
-  if (meta === "") {
-    editor.tf.unsetNodes("meta", { at });
-  }
-};
+// the pill an entry typed into `editor` spells, read against the names its note holds
+export const pillFromEntryIn = (editor: SlateEditor, entry: string): Pill | null =>
+  pillFromEntry(
+    entry,
+    new Set(pillEntries(editor.children).flatMap(({ node }) => pillOf(node).name ?? [])),
+  );
 
-// the pill as the library holds it: its bytes are derived from these parts when it is written
-export const formulaNodeFrom = (props: FormulaNodeProps): TElement => {
-  const pill: TElement = {
-    children: [{ text: "" }],
-    display: props.display,
-    source: props.source,
-    type: FORMULA_PILL_KEY,
-  };
-  if (props.meta !== "") {
-    pill.meta = props.meta;
+// the pill as a node, its display left for the normalizer every editor of a note runs
+// (`kits/headless/inline-constructs-base.ts`)
+export const pillNode = ({ name, source }: Pill): TElement => {
+  const node: TElement = { children: [{ text: "" }], display: "", source, type: FORMULA_PILL_KEY };
+  if (name !== undefined) {
+    node.name = name;
   }
-  return pill;
-};
-
-// a typed `{{source|display|meta}}`: the display after the first pipe, the meta after the second
-const formulaPartsOf = (raw: string): FormulaNodeProps => {
-  const [source = "", display = "", ...meta] = raw.split("|");
-  return { display, meta: meta.join("|"), source };
-};
-
-// A body with pipes completes verbatim; a pipeless body runs the entry grammar.
-export const formulaNodeFromTyped = (body: string): TElement | null => {
-  if (body.includes("|")) {
-    return formulaNodeFrom(formulaPartsOf(body));
-  }
-  const props = formulaPropsFromEntry(body);
-  return props === null ? null : formulaNodeFrom(props);
+  return node;
 };

@@ -9,7 +9,7 @@ import type { PlateEditor } from "platejs/react";
 import { YjsEditor } from "@slate-yjs/core";
 import * as Y from "yjs";
 
-import { recomputeFormulas } from "@repo/editor/formulas/formula-recompute";
+import { pillEntries } from "@repo/editor/formulas/pill-nodes";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { blockOfElement } from "@repo/editor/live/element-block";
@@ -102,7 +102,7 @@ describe.each(KITS)("the %s kit bound to a note's live document", (_, kit) => {
     expect(net.sent(deviceDoc)).toBe(0);
   });
 
-  it("writes what a person types, pastes and undoes, and a recompute stays out of the undo", async () => {
+  it("writes what a person types, pastes and undoes, a pill's display with its source", () => {
     const { agree, device, editable } = mounted(kit);
 
     device.tf.select(device.api.end([0]));
@@ -122,23 +122,26 @@ describe.each(KITS)("the %s kit bound to a note's live document", (_, kit) => {
     agree();
     expect(device.children.some((node) => node.type === "table")).toBe(true);
 
-    await recomputeFormulas(device, { read: async () => null, selfId: "note" });
+    device.tf.setNodes({ source: "1 + 3" }, { at: pillEntries(device.children)[0]?.at });
     agree();
-    const shown = device.api.string(device.children.find((node) => node.id === "sum") ?? []);
+    expect(JSON.stringify(device.children)).toContain('"display":"4"');
 
+    device.tf.undo();
+    agree();
+    expect(JSON.stringify(device.children)).toContain('"display":"3","source":"1 + 2"');
     device.tf.undo();
     agree();
     expect(device.children.some((node) => node.type === "table")).toBe(false);
     device.tf.undo();
     agree();
     expect(device.api.string([0])).toBe("hello");
-    expect(JSON.stringify(device.children)).toContain('"display":"3"');
 
+    device.tf.redo();
     device.tf.redo();
     device.tf.redo();
     agree();
     expect(device.api.string([0])).toBe("hello there");
     expect(device.children.some((node) => node.type === "table")).toBe(true);
-    expect(device.api.string(device.children.find((node) => node.id === "sum") ?? [])).toBe(shown);
+    expect(JSON.stringify(device.children)).toContain('"display":"4","source":"1 + 3"');
   });
 });

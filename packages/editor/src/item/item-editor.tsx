@@ -4,8 +4,7 @@
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
 // but takes no edit and says why above the text, and a note whose opening stalled shows what the
-// host holds of it until it opens. A formula's display follows the pills it names, and the desktop
-// draws the outline beside the text.
+// host holds of it until it opens. The desktop draws the outline beside the text.
 
 import {
   useEffect,
@@ -17,7 +16,7 @@ import {
 } from "react";
 import { nanoid } from "platejs";
 import type { SlateEditor } from "platejs";
-import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
+import { Plate, usePlateEditor } from "platejs/react";
 import { YjsEditor } from "@slate-yjs/core";
 import type * as Y from "yjs";
 
@@ -31,10 +30,6 @@ import { closeOwnPickers } from "@repo/editor/combobox-input";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import { watchFileKeeps } from "@repo/editor/file-keeps";
-import {
-  followItemFormulas,
-  scheduleFormulaRecompute,
-} from "@repo/editor/formulas/formula-recompute";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { NoteHost } from "@repo/editor/host-io";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
@@ -166,14 +161,6 @@ const followNote = (itemId: string, host: NoteHost): FollowedNote => {
   };
 };
 
-// the item's pills recomputed once it opens, after each change and when another item changes,
-// since a pill may name one (`followItemFormulas`)
-const FormulaRecompute = ({ itemId }: { itemId: string }) => {
-  const editor = useEditorRef();
-  useEffect(() => followItemFormulas(editor, itemId, getEditorHostIo()), [editor, itemId]);
-  return null;
-};
-
 // A connect hands the editor fresh nodes in place of the ones it held, so the surface draws the
 // editor anew over each connect, and not before the first: a component kept from before would
 // render a node the editor no longer holds.
@@ -243,18 +230,10 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
   return (
     <OpenItemProvider itemId={itemId}>
       {notice === null ? null : <Notice profile={profile} text={notice} />}
-      <Plate
-        key={connects}
-        editor={editor}
-        onValueChange={() => {
-          scheduleFormulaRecompute(editor);
-        }}
-        readOnly={notice !== null}
-      >
+      <Plate key={connects} editor={editor} readOnly={notice !== null}>
         <EditorContainer>
           <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
         </EditorContainer>
-        {notice === null ? <FormulaRecompute itemId={itemId} /> : null}
         {profile === "desktop" ? <TableOfContents /> : null}
       </Plate>
     </OpenItemProvider>

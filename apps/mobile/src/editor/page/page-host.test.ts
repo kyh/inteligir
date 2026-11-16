@@ -161,22 +161,6 @@ describe("the note page's host", () => {
     expect(heard).toHaveBeenCalledOnce();
   });
 
-  it("names the items that moved, or any once it missed a signal or native could not say", () => {
-    const { first, host } = pageOver();
-    const heard: (ReadonlySet<string> | null)[] = [];
-    getEditorHostIo().onItemsChanged((ids) => {
-      heard.push(ids);
-    });
-
-    host.follow(first);
-    host.follow({ ...first, moved: { ids: [OTHER], seq: 1 } });
-    host.follow({ ...first, moved: { ids: [OTHER], seq: 1 } });
-    host.follow({ ...first, moved: { ids: [OTHER], seq: 3 } });
-    host.follow({ ...first, moved: { ids: null, seq: 4 } });
-
-    expect(heard).toStrictEqual([new Set([OTHER]), null, null]);
-  });
-
   it("reads the library's titles once it draws, and again when another item moves", async () => {
     const { first, host, reads, retitle } = pageOver();
     host.follow(first);
@@ -192,6 +176,21 @@ describe("the note page's host", () => {
     await nextTask();
     expect(reads()).toBe(2);
     expect(libraryTitles.getState().targets).toMatchObject([{ id: OTHER, title: "Later" }]);
+  });
+
+  it("reads the titles again once it missed a signal or native could not say which items moved", async () => {
+    const { first, host, reads } = pageOver();
+    host.follow(first);
+    await nextTask();
+
+    host.follow({ ...first, moved: { ids: [NOTE], seq: 2 } });
+    await nextTask();
+    expect(reads()).toBe(2);
+
+    host.follow({ ...first, moved: { ids: [NOTE], seq: 2 } });
+    host.follow({ ...first, moved: { ids: null, seq: 3 } });
+    await nextTask();
+    expect(reads()).toBe(3);
   });
 
   it("tells native its note is being edited only while an edit may not be held, once each time that turns", () => {

@@ -39,7 +39,7 @@ const UNSPELLED: TElement[] = [
       {
         children: [{ text: "" }],
         display: "3",
-        meta: "number",
+        name: "sum",
         source: "1 + 2",
         type: "formulaPill",
       },

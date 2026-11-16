@@ -66,9 +66,11 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **An extract is one undo step, and its note is an item of its own.** The host makes the note of
   the very blocks first, then the removal and the link land as their own undo step, since
   create-or-reuse by title loses the blocks. `packages/editor/src/extract-note.ts`.
-- **A formula recompute is not an edit, and a bound ref's item is found by id.** A pass reads only
-  the items its pills name, and its display lands outside the note's undo (`withoutSaving`), so one
-  undo reaches the person's own edit. `packages/editor/src/formulas/formula-recompute.ts`.
+- **A pill's display is derived where its source lands, and a source reads its own item's pills by
+  name.** Every editor of a note settles it inside the change that touches a pill, outside undo
+  when the change is someone else's, and a whole body is settled as it is read, since a display
+  only an open editor refreshed is stale to every reader of a closed note.
+  `packages/editor/src/kits/headless/inline-constructs-base.ts`.
 - **A block overlay names its block by node id and subscribes to the document.** A path goes stale
   after an insert above, and Plate turns ids off under NODE_ENV=test, so such a suite mounts with
   ids on. `packages/editor/src/block-draggable.tsx`.
@@ -101,8 +103,8 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
   table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
-  `readItemBlocks`, `onItemsChanged` and `notes` take ids and `readFile` a sha, since paths a host
-  mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
+  `readItemBlocks` and `notes` take ids and `readFile` a sha, since paths a host mapped to items
+  let two titles share one. `packages/editor/src/host-io.ts`.
 - **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.
@@ -158,8 +160,9 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   it touches.** An empty old text adds after the note and one that reaches the article is refused,
   since a refresh replaces the article; the blocks read again keep their ids by content.
   `packages/editor/src/codec/item-edit.ts`.
-- **Markdown written into a body is read by `readBody` at every door.** A new note, a save's note,
-  an edit's new text and a fill's page read the same text as the same blocks, and only a file's
+- **Markdown written into a body is read by `readBody` at every door, and an edit's new text as
+  part of one.** A new note, a save's note, an edit's text and a fill's page read the same text as
+  the same blocks, but for a pill's display, which only a whole body can settle, and only a file's
   import reads frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
   the codec read them into the item's fields through `readItemFacts`, the filename the title.

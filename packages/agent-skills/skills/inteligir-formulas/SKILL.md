@@ -1,81 +1,63 @@
 # inteligir Formulas And Variables
 
-A pill holds a computed or reusable value inline. Two fields are enough for a
-one-off calculation; a name and an id make it something other pills can point at.
+A pill holds a computed or reusable value inline. A source is enough for a one-off
+calculation; a name makes it something other pills in the same item can read.
 
 ## The Grammar
 
 ```text
 :formula[display]{source="source"}
-:formula[display]{meta="key=value;key=value" source="source"}
+:formula[display]{name="name" source="source"}
 ```
 
-`display` sits in the brackets, `source` and the optional semicolon-separated
-`meta` in quoted attributes. A `"` inside `source` or `meta` is written `&#x22;`.
+`display` sits in the brackets, `source` and the optional `name` in quoted
+attributes, and no other attribute. A `"` inside `source` is written `&#x22;`.
 `read_item` writes a backslash before a mark in the display that markdown would
 read as formatting (`` ` ``, `*`, `_`, `~`, `$`, `&`, `<`, `[`, `]`, `:`, `|`,
 `\`), so `:formula[1,000]{source="1000"}` reads as it is written.
 
-`display` is what the reader sees. Keep it consistent with `source` — the app
-recomputes executable pills, but a stale display you wrote by hand is a lie
-until something recomputes it.
+`display` is what the reader sees, and the app derives it from `source` wherever a
+pill is written: what you put in the brackets is replaced by what the source
+gives. Write the value you expect, and read the item again when the number matters.
 
-| Kind                | Written as                                                  |
-| ------------------- | ----------------------------------------------------------- |
-| One-off calculation | `:formula[4]{source="2+2"}`                                 |
-| Named value         | `:formula[16]{meta="id=<uuid>;name=base_size" source="16"}` |
-| Symbolic label      | `:formula[6 weeks]{meta="id=<uuid>" source="timeline"}`     |
+| Kind                | Written as                                            |
+| ------------------- | ----------------------------------------------------- |
+| One-off calculation | `:formula[4]{source="2+2"}`                           |
+| Named value         | `:formula[16]{name="base_size" source="16"}`          |
+| Derived value       | `:formula[32]{source="base_size*2"}`                  |
+| Named text          | `:formula[6 weeks]{name="timeline" source="6 weeks"}` |
 
-## What Executes
+## What Computes
 
-Arithmetic only: `+ - * / ( )`, decimals, `$`, thousands commas, `%`, and
-`k`/`m`/`b` magnitude suffixes in either case. No functions, no exponentiation.
-Anything else is symbolic — it displays and can be referenced, but nothing
-recomputes it.
+Arithmetic only: `+ - * / ( )`, decimals, `$`, thousands commas, `%`, `k`/`m`/`b`
+magnitude suffixes in either case, and the names of other pills. No functions, no
+exponentiation. Any other source is text, and the pill shows it as written.
 
 Results carry thousands separators and at most two decimals. `$` and `%` shape
 the parse; they do not decorate the result.
 
-## Identity And References
+## Names
 
-A pill's identity is `(item id, pill id)`. Names live in `name=`, and a name is
-only meaningful next to an `id`.
-
-A bound reference points at an exact pill:
-
-```text
-@(name#note-id#pill-id)
-```
+A name starts with a letter and holds letters, digits and `_`, never `-`, which a
+source reads as minus. A source reads a pill by its name, in the same item only:
 
 ```markdown
-:formula[16]{meta="id=3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5;name=base_size" source="16"}
+:formula[16]{name="base_size" source="16"}
 
-:formula[32]{meta="id=9b8c7d6e-5f4a-4321-a098-76543210fedc;name=double_size" source="@(base_size#1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44#3f2a9d10-6c1e-4b7a-8e52-0aa1b2c3d4e5)*2"}
+:formula[32]{name="double_size" source="base_size*2"}
 ```
 
 That is the whole point of named pills: define an anchor once, derive from it,
 and changing the anchor moves everything downstream.
 
-**Only write a bound reference when you have both real ids** — the item's `id`
-as `read_item` answered it and the target pill's `id=`. An invented id resolves
-to nothing and the pill goes stale. When you lack them, write a plain value.
-
-Duplicating a pill inside one note keeps the id, and the copies stay linked.
-An independent value needs a fresh uuid.
-
-## Metadata
-
-| Key       | Meaning                                                                               |
-| --------- | ------------------------------------------------------------------------------------- |
-| `id`      | This pill's identity within its note                                                  |
-| `name`    | The name other pills reference                                                        |
-| `stale=1` | The last recompute could not resolve a reference; the display is the last known value |
-
-`stale` is the app's to set and clear. Never add it by hand, and never strip it
-from a pill you are not rebuilding — it is the app telling the reader the number
-may be out of date.
-
-Unknown keys are preserved.
+- A pill whose source is only a name shows what that pill shows, so a named text
+  can be repeated: `:formula[6 weeks]{source="timeline"}`.
+- A source that reads a name no pill in the item holds, that reads itself, or
+  that divides by zero has no value, and its pill shows the source instead.
+- Give each name to one pill. Where two share a name, a source reads the first.
+- Renaming a pill does not rename what reads it: rewrite every source that used
+  the old name in the same edit.
+- No pill reads a pill of another item. Write the value there instead.
 
 ## In Tables
 
@@ -88,11 +70,11 @@ A pill can sit in a table cell as it is written anywhere else:
 ```
 
 A pipe ends the cell, so one inside a pill there is `\|` in its display and
-`&#x7C;` in its source or meta.
+`&#x7C;` in its source.
 
 ## Before You Finish
 
-- Every new independent pill has a fresh uuid.
-- Bound references use real note and pill ids, never examples from this page.
-- `stale` was left exactly as found.
+- Every name a source reads is the name of a pill in the same item.
+- No two pills share a name.
+- Each display is what its source gives.
 - Literal syntax examples are inside backticks, so they stay text.

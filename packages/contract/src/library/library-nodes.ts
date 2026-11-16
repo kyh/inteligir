@@ -345,13 +345,13 @@ const mention = z.strictObject({
 
 const date = z.strictObject({ children: voidChildren, date: isoDate, type: z.literal("date") });
 
-// `meta` keeps the dialect's `id=…;name=…` (`@repo/editor/formulas/formula-meta`), which names a
-// formula another one reads
+// `display` is what `source` gives among its item's pills, written wherever a source lands
+// (`@repo/editor/formulas/displays`); `name` is what another pill's source in the item reads it by
 const formulaPill = z.strictObject({
   children: voidChildren,
   display: z.string(),
-  meta: z.string().min(1).optional(),
-  source: z.string(),
+  name: z.string().min(1).optional(),
+  source: z.string().min(1),
   type: z.literal("formulaPill"),
 });
 

@@ -68,7 +68,7 @@ interface TagSubject {
 }
 
 export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
-  const { cloud, socket, wire } = usePageLibrary();
+  const { cloud, wire } = usePageLibrary();
   const queries = useLibraryQueries();
   const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
@@ -164,7 +164,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   // installed as the workspace first renders: an open item's editor reads the host as it renders,
   // and the workspace's effects run after its children's first render
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
+  const [host] = useState(() => installPageEditorHost({ cloud, wire }));
   useEffect(() => {
     host.bind({
       askAgent: hostAsksAgent,

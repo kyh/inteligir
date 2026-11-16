@@ -1,13 +1,13 @@
 # Inteligir inline constructs
 
-A one-off formula {{2+2|4}} and a symbolic one {{time|9am|id=6ff0a3b9-16b8-4394-bc11-bc9c1ba2d3f8}}.
+A one-off formula :formula[4]{source="2+2"} and a text one :formula[9am]{name="time" source="9am"}.
 
-A named executable {{5000|5,000|id=ff796681-9dd9-49de-bd28-85a116d07236;name=budget}} in prose.
+A named formula :formula[5,000]{name="budget" source="5000"} in prose.
 
-A bound reference {{@(h1_size#9e64c3df-c1e2-4a4d-8c07-91528f422413#b371c6db-70db-48f1-99e2-9ea1ef6f1151)-6|22|id=c520e764-a784-48c5-81ca-f93ac6f4ad37;name=h2_size}} derived.
+A formula over a name :formula[2,500]{name="half" source="budget/2"} derived, and the text by its name :formula[9am]{source="time"}.
 
-Inside `a code span {{2+2|4}} stays literal` and fences too:
+Inside `a code span :formula[4]{source="2+2"} stays literal` and fences too:
 
 ```
-{{2+2|4}} literal
+:formula[4]{source="2+2"} literal
 ```

@@ -17,7 +17,7 @@ import { itemView } from "./item-view";
 import type { ItemView } from "./item-view";
 import { libraryLinks } from "./library-links";
 import type { LibraryLinks, LibraryLookup } from "./library-links";
-import { readBody } from "./read-body";
+import { readBodyPart } from "./read-body";
 import type { ReadPorts } from "./read-blocks";
 import type { BodyChange } from "../live/body-change";
 
@@ -256,7 +256,7 @@ const changesOf = (pieces: readonly Piece[], ports: EditPorts): EditOutcome => {
     if (piece.kind !== "edited") {
       continue;
     }
-    const read = readBody(piece.text, {
+    const read = readBodyPart(piece.text, {
       links: readPortsFor(piece.blocks, ports, links),
       newBlockId: ports.newBlockId,
       wiki: links.wiki,

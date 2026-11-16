@@ -11,7 +11,7 @@ import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-hos
 
 import { EditorHarness } from "../test-support/editor-harness";
 
-const BUDGET = { display: "5", meta: "id=abc;name=budget", source: "5" };
+const BUDGET = { display: "5", name: "budget", source: "5" };
 
 // the editor with `see {` typed after what `before` holds, and the picker the second `{` opened
 const openPicker = (before: Value[number]["children"] = [{ text: "" }]) => {
@@ -60,14 +60,21 @@ describe("the {{ picker", () => {
     expect(markdown()).toBe("see {\n");
   });
 
-  it("picking a named variable inserts its linked instance once", async () => {
+  it("picking a name inserts a pill that reads it", async () => {
     const { markdown } = openPicker([
       { text: "" },
       { children: [{ text: "" }], type: FORMULA_PILL_KEY, ...BUDGET },
       { text: " " },
     ]);
     fireEvent.click(await screen.findByRole("option", { name: /budget/u }));
-    const pill = ':formula[5]{meta="id=abc;name=budget" source="5"}';
-    expect(markdown()).toBe(`${pill} see ${pill}\n`);
+    expect(markdown()).toBe(
+      ':formula[5]{name="budget" source="5"} see :formula[5]{source="budget"}\n',
+    );
+  });
+
+  it("typing a word no pill is named stays the text it is", () => {
+    const { markdown } = openPicker();
+    typeQuery("draft}}");
+    expect(markdown()).toBe("see {{draft}}\n");
   });
 });

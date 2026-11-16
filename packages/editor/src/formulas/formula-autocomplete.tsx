@@ -1,10 +1,9 @@
-// Picking a variable inserts a linked instance (same id); bound cross-note
-// references stay an authoring act, the picker never guesses identity.
+// Picking a name inserts a pill that reads it, as typing the name would.
 
 import { useMemo } from "react";
 import { SigmaIcon } from "lucide-react";
-import { ElementApi, KEYS, createTSlatePlugin } from "platejs";
-import type { Descendant, PluginConfig, TElement } from "platejs";
+import { KEYS, createTSlatePlugin } from "platejs";
+import type { PluginConfig, TElement } from "platejs";
 import { PlateElement, useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { withTriggerCombobox } from "@platejs/combobox";
@@ -12,56 +11,34 @@ import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
 import { InlineCombobox, matchesWords } from "@repo/editor/inline-combobox";
 import type { PickerRow } from "@repo/editor/inline-combobox";
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { formulaInputBasePlugin } from "../kits/headless/picker-input-base";
 import { stringProp } from "@repo/editor/node-props";
-import {
-  completeFormulaFromPicker,
-  insertFormulaFromPicker,
-} from "@repo/editor/formulas/formula-insert";
-import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
-import { parseFormulaMeta } from "@repo/editor/formulas/formula-meta";
+import { completeFormulaFromPicker } from "@repo/editor/formulas/formula-insert";
+import { pillEntries, pillOf } from "@repo/editor/formulas/pill-nodes";
 
-// a variable the note names, once each
+// a name the note's pills hold, once each, with what the pill it reads shows
 interface VariableRow extends PickerRow {
   readonly name: string;
   readonly display: string;
 }
 
 const variableRows = (editorChildren: readonly TElement[]): VariableRow[] => {
-  const seen = new Set<string>();
-  const out: VariableRow[] = [];
-  const walk = (nodes: readonly Descendant[]): void => {
-    for (const node of nodes) {
-      if (!ElementApi.isElement(node)) {
-        continue;
-      }
-      if (node.type === FORMULA_PILL_KEY) {
-        const meta = stringProp(node, "meta") ?? "";
-        const parsed = parseFormulaMeta(meta);
-        const source = stringProp(node, "source") ?? "";
-        const display = stringProp(node, "display") ?? "";
-        // symbolic variables are named by their source
-        const name = parsed.name ?? (parsed.id === undefined ? undefined : source);
-        const key = parsed.id ?? name;
-        if (name !== undefined && name !== "" && key !== undefined && !seen.has(key)) {
-          seen.add(key);
-          out.push({
-            display,
-            name,
-            onSelect: (editor) => {
-              insertFormulaFromPicker(editor, formulaNodeFrom({ display, meta, source }));
-            },
-            value: key,
-          });
-        }
-      }
-      walk(node.children);
+  const rows = new Map<string, VariableRow>();
+  for (const { node } of pillEntries(editorChildren)) {
+    const { name } = pillOf(node);
+    if (name !== undefined && !rows.has(name)) {
+      rows.set(name, {
+        display: stringProp(node, "display") ?? "",
+        name,
+        onSelect: (editor) => {
+          completeFormulaFromPicker(editor, name);
+        },
+        value: name,
+      });
     }
-  };
-  walk(editorChildren);
-  return out;
+  }
+  return [...rows.values()];
 };
 
 const variableMatches = (variable: VariableRow, query: string): boolean =>

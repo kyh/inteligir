@@ -129,6 +129,35 @@ const cellsOf = (blocks: readonly BodyBlock[]) => {
 
 const withoutIds = (cells: string): string => cells.replaceAll(/"id":"[^"]*",?/gu, "");
 
+describe("an edit beside a pill", () => {
+  const ORDER = [
+    'Each :formula[5]{name="price" source="5"}.',
+    "",
+    "- three of them",
+    '- in all :formula[15]{name="total" source="price*3"}',
+    "",
+  ].join("\n");
+
+  // read alone the list's pill would show its source, and every block of the list would change
+  it("leaves the pill a block of its group holds as it reads among the whole note's", () => {
+    const blocks = storedOf(ORDER);
+    const edited = editItemView(
+      blocks,
+      [{ newText: "- four of them", oldText: "- three of them" }],
+      portsWith(),
+    );
+    expect(edited).toMatchObject({
+      changes: [{ block: { children: [{ text: "four of them" }] }, kind: "put" }],
+      kind: "changed",
+    });
+  });
+
+  it("lands a pill's new source with the label it was written under, for the note to settle", () => {
+    const edited = editedTo(storedOf(ORDER), 'source="price*3"', 'source="price*4"');
+    expect(JSON.stringify(edited)).toContain('"display":"15","name":"total","source":"price*4"');
+  });
+});
+
 describe("the agent's view of an item", () => {
   it("writes a link with its item's live title and id", () => {
     expect(textOf(storedOf(NOTE))).toContain(`[Other note](mention:${OTHER_ID})`);

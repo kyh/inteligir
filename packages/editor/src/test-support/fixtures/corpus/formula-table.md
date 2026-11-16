@@ -1,6 +1,7 @@
 # Formula in a table
 
-| Metric | Value                                                                |
-| ------ | -------------------------------------------------------------------- |
-| Budget | {{1000*12\|12,000}}                                                  |
-| Named  | {{5000\|5,000\|id=ff796681-9dd9-49de-bd28-85a116d07236;name=budget}} |
+| Metric | Value                                           |
+| ------ | ----------------------------------------------- |
+| Budget | :formula[12,000]{source="1000*12"}              |
+| Named  | :formula[5,000]{name="monthly" source="5000"}   |
+| Text   | :formula[a\|b]{name="either" source="a&#x7C;b"} |

@@ -26,6 +26,21 @@ type NewNote = Parameters<ItemActions["createNote"]>[0];
 const h2 = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "h2" });
 const p = (id: string, text: string): TElement => ({ children: [{ text }], id, type: "p" });
 
+const pill = (name: string, source: string, display: string): TElement => ({
+  children: [{ text: "" }],
+  display,
+  name,
+  source,
+  type: "formulaPill",
+});
+
+// a paragraph of pills, a space after each
+const line = (id: string, ...pills: TElement[]): TElement => ({
+  children: [{ text: `${id} ` }, ...pills.flatMap((node) => [node, { text: " " }])],
+  id,
+  type: "p",
+});
+
 // an item's editor, answering for the item by its id as the item editor does
 const editorOver = (value: Value, itemId: string | null = "item-1") => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
@@ -88,6 +103,28 @@ describe("the extract", () => {
     });
     expect(texts(editor)).toStrictEqual(["Plan", ""]);
     expect(linkAt(editor, [1])).toMatchObject({ key: "note-1", type: KEYS.mention, value: "one" });
+  });
+
+  it("leaves each note's pills showing what its own sources give", async () => {
+    const made: NewNote[] = [];
+    installFakeEditorHost({
+      createNote: async (note) => {
+        made.push(note);
+        return await Promise.resolve("note-1");
+      },
+    });
+    const editor = editorOver([
+      line("kept", pill("price", "5", "5"), pill("cost", "qty*2", "6")),
+      line("leaves", pill("qty", "3", "3"), pill("total", "price*qty", "15")),
+    ]);
+
+    await extractBlocksToNote(editor, [[1]]);
+
+    expect(JSON.stringify(made[0]?.blocks)).toContain('"display":"price*qty","name":"total"');
+    expect(JSON.stringify(made[0]?.blocks)).toContain('"display":"3","name":"qty"');
+    expect(JSON.stringify(editor.children[0])).toContain('"display":"qty*2","name":"cost"');
+    editor.undo();
+    expect(JSON.stringify(editor.children[0])).toContain('"display":"6","name":"cost"');
   });
 
   it("makes a note with no title of blocks with no words, and links it by id", async () => {

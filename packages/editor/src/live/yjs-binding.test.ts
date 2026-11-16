@@ -184,9 +184,9 @@ describe("an editor bound to a note's live document", () => {
     const { a, net } = twoDevices([p("one", "one")]);
     expect(() => {
       a.tf.withoutSaving(() => {
-        throw new Error("recompute failed");
+        throw new Error("the write failed");
       });
-    }).toThrow("recompute failed");
+    }).toThrow("the write failed");
     a.tf.insertText("!", { at: { offset: 3, path: [0, 0] } });
     settle(net, [a]);
     a.tf.undo();
