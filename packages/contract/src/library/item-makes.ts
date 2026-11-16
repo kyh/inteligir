@@ -1,6 +1,6 @@
-// What a make's fields are, spelled once: the cell lands an item by them, and a device lays the
-// same fields over its screens before the cell answers, so a card reads alike on both sides of its
-// landing.
+// What a make's fields are, spelled once: the cell lands an item by them, a device lays the same
+// fields over its screens before the cell answers, so a card reads alike on both sides of its
+// landing, and an import builds each item it read from them.
 
 import { fileKindOf, fileKindOfMime } from "../items/item-kind";
 import { itemNameFromUrl } from "../items/item-name";

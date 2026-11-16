@@ -11,8 +11,15 @@
 // its writer finds it says what the library's rules say: filing rules reach the agent as the
 // person's own instructions, so only the person writes them, and a zip is anyone's text.
 
-import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/contract/items/item-kind";
+import {
+  COVERS_DIR,
+  fileKindOfMime,
+  isBytesFolderPath,
+  mediaTypeOfName,
+  UNKNOWN_FILE_TYPE,
+} from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
+import { fileFields, importedFields } from "@repo/contract/library/item-makes";
 import type { ImportedFields } from "@repo/contract/library/library-item";
 import { idSchema } from "@repo/contract/library/library-wire";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/contract/knowledge/asset-name";
@@ -144,6 +151,10 @@ const docFront = (path: string, text: string): DocFront => {
   };
 };
 
+// the type an import keeps a file's bytes under, its name's, which the file's item takes its kind
+// from as an upload's does
+export const fileTypeOf = (path: string): string => mediaTypeOfName(path) ?? UNKNOWN_FILE_TYPE;
+
 // pass one: every path planned, an item id minted for each doc (its own uuid kept when it has an
 // unused one), and the resolver every doc's links are read through
 export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): ImportPlan => {
@@ -154,9 +165,7 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
     const path = normalizePath(entry.path);
     switch (entry.kind) {
       case "file": {
-        // a name's leading dot hides it, and says nothing of what the file is
-        const name = basenamePath(path).replace(/^\.+/u, "");
-        files.push({ kind: fileKindOf(name) ?? "file", path, sha: entry.sha });
+        files.push({ kind: fileKindOfMime(fileTypeOf(path)), path, sha: entry.sha });
         break;
       }
       case "doc": {
@@ -295,31 +304,17 @@ export interface ReadFiles {
 // a cover, where an export puts one
 const isCoverPath = (path: string): boolean => path.startsWith(`${COVERS_DIR}/`);
 
-const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
-  const extension = extnamePath(file.path);
-  const name = basenamePath(file.path);
-  return {
-    aliases: [],
-    author: null,
-    coverSha: file.kind === "image" ? file.sha : null,
-    description: null,
-    fetchError: null,
-    fetchState: "none",
-    fetchedAt: null,
-    kind: file.kind,
-    lang: null,
-    originalName: name,
-    originalSha: file.sha,
-    pinnedAt: null,
-    properties: {},
-    published: null,
-    savedAt: now,
-    site: null,
-    tags: [],
-    title: name.slice(0, name.length - extension.length),
-    url: null,
-  };
-};
+const fileItemFields = (file: PlannedFile, now: number): ImportedFields =>
+  importedFields(
+    fileFields({
+      folderId: null,
+      mime: fileTypeOf(file.path),
+      name: basenamePath(file.path),
+      savedAt: now,
+      sha: file.sha,
+      tags: [],
+    }),
+  );
 
 // the folder a file's item stands in: a folder of a file's bytes is named for no person to read,
 // so its file stands in the folder above

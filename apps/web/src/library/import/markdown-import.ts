@@ -4,11 +4,11 @@
 // new note whole and lands it; last, every file no item names becomes an item of its own. An item's
 // id comes from the zip's listing and its path, so reading the same zip again lands nothing twice.
 
-import { mediaTypeOfName, UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { dirnamePath } from "@repo/contract/knowledge/folder-path";
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
 import { fileSha } from "@repo/contract/library/file-sha";
 import {
+  fileTypeOf,
   importPathKind,
   importPlannedDoc,
   openPlan,
@@ -104,8 +104,7 @@ const readListed = async (
     }
     case "file": {
       const bytes = entry.uncompressedSize > BLOB_MAX_BYTES ? null : await bytesOf(entry);
-      const sha =
-        bytes === null ? null : await cell.keep(bytes, mediaTypeOfName(path) ?? UNKNOWN_FILE_TYPE);
+      const sha = bytes === null ? null : await cell.keep(bytes, fileTypeOf(path));
       return sha === null ? "unreadable" : { kind, path, sha };
     }
     // no default

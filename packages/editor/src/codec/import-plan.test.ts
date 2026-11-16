@@ -430,6 +430,19 @@ describe("a path in a folder of bytes", () => {
       expect(importPathKind(`assets/0123456789abcdef/${name}`)).toBe("file");
     },
   );
+
+  it.each([
+    [".hidden.png", "image"],
+    ["scan.PDF", "pdf"],
+    ["notes.md", "file"],
+    [".env", "file"],
+  ])("plans %s as the %s its name's type says", (name, kind) => {
+    const plan = planImport(
+      [{ kind: "file", path: `assets/0123456789abcdef/${name}`, sha: shaOf(name) }],
+      counters(),
+    );
+    expect(plan.files.map((file) => file.kind)).toStrictEqual([kind]);
+  });
 });
 
 describe("a folder an export was unpacked to", () => {
