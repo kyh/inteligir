@@ -7,7 +7,7 @@ import { DECLINED, STOPPED, toolCallColumns, toolCallNext, toolCallOf } from "./
 import type { ToolCall, ToolCallEvent } from "./tool-call";
 
 const ASKED: ToolCall = { kind: "asked" };
-const AWAITING: ToolCall = { kind: "awaiting" };
+const AWAITING: ToolCall = { kind: "awaiting", until: 600_000 };
 const APPROVED: ToolCall = { kind: "approved" };
 const DENIED: ToolCall = { kind: "denied" };
 const RUNNING: ToolCall = { kind: "running" };
@@ -21,12 +21,20 @@ const DENY: ToolCallEvent = { approved: false, kind: "decide" };
 
 describe("a tool call's row", () => {
   it("holds every call as the state it is in, and reads back as that call", () => {
-    for (const call of [ASKED, AWAITING, APPROVED, DENIED, RUNNING]) {
-      expect(toolCallColumns(call)).toStrictEqual({ isError: 0, result: null, state: call.kind });
+    const empty = { isError: 0, result: null, until: null };
+    for (const call of [ASKED, APPROVED, DENIED, RUNNING]) {
+      expect(toolCallColumns(call)).toStrictEqual({ ...empty, state: call.kind });
       expect(toolCallOf(toolCallColumns(call))).toStrictEqual(call);
     }
+    expect(toolCallColumns(AWAITING)).toStrictEqual({
+      ...empty,
+      state: "awaiting",
+      until: 600_000,
+    });
+    expect(toolCallOf(toolCallColumns(AWAITING))).toStrictEqual(AWAITING);
     const failed: ToolCall = { answer: { content: "Failed.", isError: true }, kind: "answered" };
     expect(toolCallColumns(failed)).toStrictEqual({
+      ...empty,
       isError: 1,
       result: "Failed.",
       state: "answered",

@@ -3,8 +3,9 @@
 // thread has the cell run every tool call (`agentTool`), shows the reply as it is written
 // (`agentPreview`), and pushes what the turn did (`agentPush`): its events. Each push goes by the
 // thread's own sequence, so one sent again lands once, and every delivery says the last push the
-// cell landed, so an object that started over on empty tables goes on past it. The cell refuses a thread it does not hold, which
-// purges itself, and a turn that is not open, whose call lands nothing.
+// cell landed, so an object that started over on empty tables goes on past it. The cell refuses a
+// thread it does not hold, which purges itself, and a turn that is not open, whose call lands
+// nothing.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
 import { z } from "zod";

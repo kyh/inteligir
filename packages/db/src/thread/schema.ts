@@ -1,11 +1,11 @@
 // A conversation's SQLite, one per conversation's Durable Object: the transcript as Claude returned
 // it, the definitions its turns are sent under, the turns its cell delivered, each reply's tool
 // calls, and the outbox to its cell. A turn's row and a tool call's each store the one state they
-// are in, never a column a concern. drizzle-kit exports its DDL (ddl.sql), which
-// the conversation applies in its constructor. The transcript is append-only by its one insert
-// site, never a trigger, which the exported DDL cannot spell, and each row holds one message's
-// content as the text that was sent, so a replay is byte for byte what went before: a replayed
-// thinking block is checked against everything before it.
+// are in, never a column a concern. drizzle-kit exports its DDL (ddl.sql), which the conversation
+// applies in its constructor. The transcript is append-only by its one insert site, never a
+// trigger, which the exported DDL cannot spell, and each row holds one message's content as the
+// text that was sent, so a replay is byte for byte what went before: a replayed thinking block is
+// checked against everything before it.
 
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
@@ -15,8 +15,8 @@ import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-cor
 export const THREAD_TURN_STATES = ["running", "stopping", "ended"] as const;
 
 // where one tool call stands, the kinds of the loop's own union
-// (packages/service/src/agent/tool-call.ts): journaled to run, waiting on the person, allowed or
-// declined by them, handed to the cell, or answered
+// (packages/service/src/agent/tool-call.ts): journaled to run, waiting on the person until its
+// row's `until`, allowed or declined by them, handed to the cell, or answered
 export const TOOL_CALL_STATES = [
   "asked",
   "awaiting",
@@ -90,12 +90,14 @@ export const toolCalls = sqliteTable(
     name: text().notNull(),
     input: text().notNull(),
     state: text({ enum: TOOL_CALL_STATES }).notNull(),
+    until: integer(),
     result: text(),
     isError: integer("is_error").notNull().default(0),
   },
   (t) => [
     index("tool_calls_message").on(t.msgSeq, t.idx),
     check("tool_calls_state", sql`${t.state} IN (${oneOf(TOOL_CALL_STATES)})`),
+    check("tool_calls_until", sql`(${t.state} = 'awaiting') = (${t.until} IS NOT NULL)`),
     check("tool_calls_answer", sql`(${t.state} = 'answered') = (${t.result} IS NOT NULL)`),
     check("tool_calls_is_error", sql`${t.isError} IN (0, 1)`),
   ],

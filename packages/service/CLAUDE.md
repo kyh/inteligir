@@ -234,9 +234,13 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **The built-in agent's results fit in 40,000 characters.** A result is
   replayed into every later call of its conversation.
   `packages/service/src/agent/agent-tools.ts`.
-- **An approval waits on the person ten minutes in the thread's own rows, and a
-  cancel denies before it stops.** A tool that waits in memory dies with an
-  eviction. `packages/service/src/agent/thread-loop.ts`.
+- **An approval waits on the person ten minutes in the thread's own rows, its
+  deadline on the call that waits, and a cancel denies before it stops.** A tool
+  that waits in memory dies with an eviction, and a deadline kept as a job of
+  its own is lost between two writes. `packages/service/src/agent/thread-loop.ts`.
+- **A conversation has one job, its drive, timed at rest by what its rows wait
+  on.** A job a wait is a second record of it, which every move must keep in
+  step across an await. `packages/service/src/agent/thread-loop.ts`.
 - **Every turn is counted before it starts and every step capped; the dollars
   are the gateway's spend limit alone, which ends the turn it refuses** (owner
   decision: a daily allowance per account, $5 a day per account behind it). A
@@ -281,9 +285,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   pairs no state means, and reading them at each site loses the person's no on a
   stop. `packages/service/src/agent/tool-call.ts`.
 - **A model call keeps no journal: the transcript says what is sent next, and
-  the turn's row counts the tries that failed.** A table of calls was read by
-  the suites alone and cost every send an await.
-  `packages/service/src/agent/thread-loop.ts`.
+  the turn's row counts the tries that failed.** A table of calls is one only
+  the suites read, and hashing each request for it puts an await between a
+  call's abort and its send. `packages/service/src/agent/thread-loop.ts`.
 - **A step that throws spends the turn's tries, and a push this build cannot
   read ends its turn.** A row nothing can read would fail every 30 seconds with
   the turn shown running. `packages/service/src/agent/thread-loop.ts`.

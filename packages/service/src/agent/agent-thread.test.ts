@@ -4,10 +4,10 @@
 // its instance dies mid-call or mid-tool, its approvals, its cancel, a denial then a stop, two
 // conversations at once, Claude refusing or failing, a turn ended at its last step or on a row
 // nothing can read, a compaction on the server, a delete mid-reply, and a deploy's definition or
-// the person's changed filing rules taken up between turns. Every case ends with the fake having dropped no replayed thinking
-// block, the proof that what the thread replays is what Claude sent.
-// The loop's retries, which a deployed thread waits seconds for, and a deploy's new definition are
-// stepped by hand (`../test-support/thread-host`).
+// the person's changed filing rules taken up between turns. Every case ends with the fake having
+// dropped no replayed thinking block, the proof that what the thread replays is what Claude sent.
+// The loop's retries and its wakes, which a deployed thread waits seconds or minutes for, and a
+// deploy's new definition are stepped by hand (`../test-support/thread-host`).
 
 import { threadMeta, threadOutbox, threadTranscript, toolCalls } from "@repo/db/thread/schema";
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
@@ -561,13 +561,21 @@ describe("a conversation's object", () => {
         { interval: 50, timeout: 10_000 },
       );
       const [asked] = await eventsOf(account, sent.threadId, "approval.asked");
-      const { toolUseId } = z.object({ toolUseId: z.string() }).parse(asked?.event);
+      const { until } = z.object({ until: z.number() }).parse(asked?.event);
       const thread = threadOf(account.accountId, sent.threadId);
-      // the ten minutes, passed: the job due now, and the alarm run
-      await runInDurableObject(thread, async (object: AgentThreadDO) => {
-        await expect(
-          object.lifecycle.jobs.reschedule(`approval:${toolUseId}`, Date.now()),
-        ).resolves.toBe(true);
+      // resting on the person, the thread's one job waits at the call's own deadline
+      await vi.waitFor(
+        async () => {
+          await runInDurableObject(thread, (object: AgentThreadDO) => {
+            expect(object.lifecycle.jobs.get("drive")?.time).toBe(until);
+          });
+        },
+        { interval: 50, timeout: 10_000 },
+      );
+      // the ten minutes, passed: the deadline behind it, the job due now, and the alarm run
+      await runInDurableObject(thread, async (object: AgentThreadDO, state) => {
+        state.storage.sql.exec("UPDATE tool_calls SET until = 0");
+        await expect(object.lifecycle.jobs.reschedule("drive", Date.now())).resolves.toBe(true);
       });
       await runDurableObjectAlarm(thread);
       await settled(account, sent.threadId);
@@ -728,11 +736,11 @@ describe("a conversation's loop, stepped", () => {
         account,
         threadId,
         script("fail 529 2"),
-        async ({ asked, run, sent }) => {
+        async ({ run, sent, wakes }) => {
           await expect(run()).resolves.toStrictEqual(["later"]);
           await expect(run()).resolves.toStrictEqual(["later"]);
           // after 2 s, then 10 s, each a retry the drive job was timed for
-          const [first = 0, second = 0] = asked.drives;
+          const [first = 0, second = 0] = wakes;
           expect(second - first).toBeGreaterThanOrEqual(8000);
           await expect(restsAt(run)).resolves.toBe("idle");
           expect(sent).toHaveLength(3);
@@ -749,12 +757,12 @@ describe("a conversation's loop, stepped", () => {
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
-      await inSteppedThread(account, threadId, script("fail 529 9"), async ({ asked, run }) => {
+      await inSteppedThread(account, threadId, script("fail 529 9"), async ({ run, wakes }) => {
         for (let attempt = 0; attempt < 3; attempt += 1) {
           await expect(restsAt(run)).resolves.toBe("later");
         }
         await expect(restsAt(run)).resolves.toBe("idle");
-        expect(asked.drives).toHaveLength(3);
+        expect(wakes).toHaveLength(3);
       });
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { detail: "status 529", reason: "unavailable" },
@@ -774,19 +782,19 @@ describe("a conversation's loop, stepped", () => {
         account,
         threadId,
         script("fail 429 9 gateway"),
-        async ({ asked, run }) => {
+        async ({ run, wakes }) => {
           await expect(restsAt(run)).resolves.toBe("idle");
-          expect(asked.drives).toHaveLength(0);
+          expect(wakes).toHaveLength(0);
         },
       );
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { detail: "status 429", reason: "allowance" },
       ]);
       const limited = crypto.randomUUID();
-      await inSteppedThread(account, limited, script("fail 429 1"), async ({ asked, run }) => {
+      await inSteppedThread(account, limited, script("fail 429 1"), async ({ run, wakes }) => {
         await expect(restsAt(run)).resolves.toBe("later");
         await expect(restsAt(run)).resolves.toBe("idle");
-        expect(asked.drives).toHaveLength(1);
+        expect(wakes).toHaveLength(1);
       });
       await expect(endingsOf(account, limited)).resolves.toStrictEqual([{ reason: "done" }]);
     },
@@ -820,14 +828,14 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       const before = await fakeStats();
-      await inSteppedThread(account, threadId, script("Unread."), async ({ asked, host, run }) => {
+      await inSteppedThread(account, threadId, script("Unread."), async ({ host, run, wakes }) => {
         // a row an earlier build wrote, which this one cannot replay
         host.db.update(threadTranscript).set({ content: "[]" }).run();
         for (let attempt = 0; attempt < 3; attempt += 1) {
           await expect(run()).resolves.toStrictEqual(["later"]);
         }
         await expect(run()).resolves.toStrictEqual(["continue", "idle"]);
-        expect(asked.drives).toHaveLength(3);
+        expect(wakes).toHaveLength(3);
       });
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { detail: "a step that kept failing", reason: "failed" },
@@ -927,13 +935,13 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       const before = await fakeStats();
-      await inSteppedThread(account, threadId, script("stall"), async ({ asked, host, run }) => {
+      await inSteppedThread(account, threadId, script("stall"), async ({ host, run, wakes }) => {
         const resting = run();
         await heldMidReply(before.held);
         await host.purge();
         await expect(resting).resolves.toStrictEqual(["purged"]);
         await expect(run()).resolves.toStrictEqual([]);
-        expect(asked.drives).toStrictEqual([]);
+        expect(wakes).toStrictEqual([]);
       });
       const after = await fakeStats();
       expect(after.requests).toBe(before.requests + 1);
@@ -1094,6 +1102,43 @@ describe("a conversation's loop, stepped", () => {
     await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
   });
 
+  it("tries a push the cell could not take again at its next wake, read off the outbox", async () => {
+    const account = agentAccount();
+    const threadId = crypto.randomUUID();
+    let down = true;
+    await inSteppedThread(
+      account,
+      threadId,
+      script("Unheard."),
+      async ({ host, run, wakes }) => {
+        const before = Date.now();
+        // the turn ended in the thread, its pushes still in the outbox: the cell took none
+        await expect(run()).resolves.toStrictEqual(["continue", "idle"]);
+        expect(host.db.select().from(threadOutbox).all()).not.toHaveLength(0);
+        expect(wakes).toHaveLength(1);
+        expect(wakes[0]).toBeGreaterThanOrEqual(before + 30_000);
+        down = false;
+        await expect(run()).resolves.toStrictEqual(["idle"]);
+        expect(host.db.select().from(threadOutbox).all()).toStrictEqual([]);
+        expect(wakes).toHaveLength(1);
+      },
+      {
+        cell: (real) => ({
+          agentPreview: real.agentPreview,
+          agentPush: async (request) => {
+            if (down) {
+              throw new Error("the cell could not be reached");
+            }
+            return await real.agentPush(request);
+          },
+          agentTool: real.agentTool,
+        }),
+      },
+    );
+    await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+    await expect(threadStatus(account, threadId)).resolves.toBe("idle");
+  });
+
   it("tells Claude the person's no for a call they denied, then stopped", async () => {
     const account = agentAccount();
     const threadId = crypto.randomUUID();
@@ -1103,20 +1148,15 @@ describe("a conversation's loop, stepped", () => {
       account,
       threadId,
       script(`call delete_items {"ids":["${itemId}"]}`),
-      async ({ host, run }) => {
+      async ({ host, run, wakes }) => {
         await expect(restsAt(run)).resolves.toBe("paused");
-        const [toolUseId] = host.db
-          .select({ toolUseId: toolCalls.toolUseId })
+        const [call] = host.db
+          .select({ toolUseId: toolCalls.toolUseId, until: toolCalls.until })
           .from(toolCalls)
-          .all()
-          .map((row) => row.toolUseId);
-        await expect(
-          decideCall(host, {
-            approved: false,
-            by: "person",
-            toolUseId: toolUseId ?? "",
-          }),
-        ).resolves.toBe(true);
+          .all();
+        // resting on the person, its next wake is the call's deadline
+        expect(wakes).toStrictEqual([call?.until]);
+        expect(decideCall(host, { approved: false, toolUseId: call?.toolUseId ?? "" })).toBe(true);
         // stopped before the round that would have answered the denial ran
         requestCancel(host, 1);
         await run();

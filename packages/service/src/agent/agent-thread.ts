@@ -2,21 +2,22 @@
 // `agent-thread:<accountId>:<threadId>` by its account's cell (`./thread-stub`), which alone
 // reaches it, and reaching that cell alone back, by the account its own name holds. Its loop
 // (`./thread-loop`) runs on the Agents SDK's Lifecycle, its durable job queue and its one alarm,
-// and on nothing else of the SDK: a `drive` job starts the work detached from the alarm's dispatch
-// unless this instance runs it already, and stays, re-timed every 30 seconds, as the watchdog that
-// brings a dead instance's work back and cuts a reply gone silent in a live one; an approval waits
-// under a job that denies it at ten minutes; a push the cell could not take waits under the
-// `outbox` job. Where the work stands is one value, moved by `./thread-drive`, and a purged
-// conversation runs nothing more. Every job is pushed to run once, its outcome returned rather
-// than thrown, since Lifecycle retries a job three times in process by default. A fresh instance
-// holds no work, so every `drive` job it finds is an orphan, woken at once, whose step sends again
-// whole the call a dead instance left. Each RPC starts the lifecycle, as native RPC needs, and is
-// safe to repeat. A cell that answers that it holds no such thread has the object purge itself. Its
-// schema is applied in the constructor, before Lifecycle's first job makes its own table.
+// and on nothing else of the SDK, under one job, `drive`: it starts the work detached from the
+// alarm's dispatch unless this instance runs it already, and stays, re-timed every 30 seconds, as
+// the watchdog that brings a dead instance's work back and cuts a reply gone silent in a live one;
+// once the work rests it waits at what the thread's rows wait on (`nextWake`), an approval's
+// deadline or a push the cell could not take, and goes when they wait on nothing. Where the work
+// stands is one value, moved by `./thread-drive`, and a purged conversation runs nothing more. The
+// job is pushed to run once, its outcome returned rather than thrown, since Lifecycle retries a
+// job three times in process by default. A fresh instance holds no work, so the `drive` job it
+// finds is woken at once: its step sends again whole the call a dead instance left, or rests again
+// where the rows say. Each RPC starts the lifecycle, as native RPC needs, and is safe to repeat. A
+// cell that answers that it holds no such thread has the object purge itself. Its schema is
+// applied in the constructor, before Lifecycle's first job makes its own table.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { Lifecycle } from "agents/lifecycle";
-import type { LifecycleJobContext, LifecycleJobOutcome } from "agents/lifecycle";
+import type { LifecycleJobOutcome } from "agents/lifecycle";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
@@ -31,9 +32,9 @@ import {
   acceptDelivery,
   cutSilentCalls,
   decideCall,
-  drainOutbox,
   inspectThread,
   listeningFetch,
+  nextWake,
   requestCancel,
   step,
 } from "./thread-loop";
@@ -50,13 +51,9 @@ const WATCHDOG_MS = 30_000;
 const AGAIN_MS = 30_000;
 
 const DRIVE_JOB = "drive";
-const OUTBOX_JOB = "outbox";
-const approvalJob = (toolUseId: string): string => `approval:${toolUseId}`;
 
-// every job runs once a dispatch: the loop answers its own failures
+// the job runs once a dispatch: the loop answers its own failures
 const ONCE = { maxAttempts: 1 } as const;
-
-const approvalPayloadSchema = z.object({ toolUseId: z.string().min(1) });
 
 // the account and the thread an object's name holds; an object reached by any other name is a bug
 const threadNameOf = (name: string | undefined) => {
@@ -88,7 +85,6 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   #host(): ThreadHost {
     const { accountId, threadId } = threadNameOf(this.ctx.id.name);
-    const { jobs } = this.lifecycle;
     return {
       calls: this.#calls,
       cell: () => libraryCell(this.ctx.exports, accountId),
@@ -104,25 +100,8 @@ export class AgentThreadDO extends DurableObject<Env> {
         return this.#client;
       },
       definition: deployedDefinition,
-      jobs: {
-        approvalAt: async (toolUseId, at) => {
-          await jobs.push({
-            fn: "approval",
-            id: approvalJob(toolUseId),
-            payload: { toolUseId },
-            retry: ONCE,
-            time: at,
-          });
-        },
-        driveAt: async (at) => {
-          await jobs.push({ fn: DRIVE_JOB, id: DRIVE_JOB, retry: ONCE, time: at });
-        },
-        dropApproval: async (toolUseId) => {
-          await jobs.cancel(approvalJob(toolUseId));
-        },
-        outboxAt: async (at) => {
-          await jobs.push({ fn: OUTBOX_JOB, id: OUTBOX_JOB, retry: ONCE, time: at });
-        },
+      driveAt: async (at) => {
+        await this.#driveAt(at);
       },
       now: Date.now,
       purge: async () => {
@@ -136,59 +115,15 @@ export class AgentThreadDO extends DurableObject<Env> {
   // ---- Lifecycle's hooks ----
 
   async onStart(): Promise<void> {
-    for (const job of this.lifecycle.jobs.list()) {
-      if (job.fn === DRIVE_JOB) {
-        await this.lifecycle.jobs.reschedule(job.id, Date.now());
-      }
-    }
+    await this.lifecycle.jobs.reschedule(DRIVE_JOB, Date.now());
   }
 
-  async onJob({ job }: LifecycleJobContext): Promise<LifecycleJobOutcome> {
-    if (this.#drive.kind === "purged") {
-      return undefined;
-    }
-    try {
-      switch (job.fn) {
-        case DRIVE_JOB: {
-          return this.#kick();
-        }
-        case OUTBOX_JOB: {
-          await drainOutbox(this.#host());
-          return undefined;
-        }
-        case "approval": {
-          const { toolUseId } = approvalPayloadSchema.parse(job.payload);
-          const host = this.#host();
-          if (await decideCall(host, { approved: false, by: "timeout", toolUseId })) {
-            await this.#wake();
-          }
-          return undefined;
-        }
-        default: {
-          return undefined;
-        }
-      }
-    } catch (error) {
-      console.error({ event: "agent-thread-job-failed", job: job.fn, ...errorFields(error) });
-      return { rescheduleAt: Date.now() + AGAIN_MS };
-    }
-  }
-
-  // ---- the loop ----
-
-  #move(event: DriveEvent): DriveEffect {
-    const next = nextDrive(this.#drive, event);
-    this.#drive = next.drive;
-    return next.effect;
-  }
-
-  // the work started, unless this instance runs it already, where a reply gone silent is cut for
-  // the loop to send again; the job stays as the watchdog
-  #kick(): LifecycleJobOutcome {
-    const host = this.#host();
+  // the drive job come due: the work started, unless this instance runs it already, where a reply
+  // gone silent is cut for the loop to send again; the job stays as the watchdog
+  onJob(): LifecycleJobOutcome {
     switch (this.#move({ kind: "kick" })) {
       case "start": {
-        this.lifecycle.trackAlarmWork(this.#stepFrom(host));
+        this.lifecycle.trackAlarmWork(this.#stepFrom(this.#host()));
         break;
       }
       case "watch": {
@@ -202,8 +137,21 @@ export class AgentThreadDO extends DurableObject<Env> {
     return { rescheduleAt: Date.now() + WATCHDOG_MS };
   }
 
-  // the loop stepped while the drive says so: resting, the drive job goes, since only something
-  // new pushes it again; after a step that threw, it is timed for a retry
+  // ---- the loop ----
+
+  #move(event: DriveEvent): DriveEffect {
+    const next = nextDrive(this.#drive, event);
+    this.#drive = next.drive;
+    return next.effect;
+  }
+
+  async #driveAt(at: number): Promise<void> {
+    await this.lifecycle.jobs.push({ fn: DRIVE_JOB, id: DRIVE_JOB, retry: ONCE, time: at });
+  }
+
+  // the loop stepped while the drive says so. Resting, the job waits at the thread's next wake, or
+  // goes where its rows wait on nothing, written in the block that moved the drive, so nothing
+  // new lands between the two; after a step that threw, it is timed for a retry
   async #stepFrom(host: ThreadHost): Promise<void> {
     let effect: DriveEffect = "step";
     while (effect === "step") {
@@ -216,22 +164,18 @@ export class AgentThreadDO extends DurableObject<Env> {
         }
       }
     }
-    if (effect === "rest") {
-      await this.lifecycle.jobs.cancel(DRIVE_JOB);
-    } else if (effect === "retry") {
-      await host.jobs.driveAt(Date.now() + AGAIN_MS);
+    if (effect === "retry") {
+      await this.#driveAt(Date.now() + AGAIN_MS);
+    } else if (effect === "rest") {
+      const at = nextWake(this.#db, Date.now());
+      await (at === null ? this.lifecycle.jobs.cancel(DRIVE_JOB) : this.#driveAt(at));
     }
   }
 
   // durable intent first: the drive job is the record that this thread has work
   async #wake(): Promise<void> {
     if (this.#move({ kind: "wake" }) === "push") {
-      await this.lifecycle.jobs.push({
-        fn: DRIVE_JOB,
-        id: DRIVE_JOB,
-        retry: ONCE,
-        time: Date.now(),
-      });
+      await this.#driveAt(Date.now());
     }
   }
 
@@ -268,13 +212,9 @@ export class AgentThreadDO extends DurableObject<Env> {
     if (this.#drive.kind === "purged") {
       return;
     }
-    const answer = respondRequestSchema.parse(request);
-    const decided = await decideCall(this.#host(), {
-      approved: answer.approved,
-      by: "person",
-      toolUseId: answer.toolUseId,
-    });
-    if (decided) {
+    // decided and woken in one block: an answer kept with no job to run it would wait out its
+    // deadline
+    if (decideCall(this.#host(), respondRequestSchema.parse(request))) {
       await this.#wake();
     }
   }

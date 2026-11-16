@@ -1,14 +1,14 @@
 // A conversation's loop stepped by hand (`../agent/thread-loop`), over the object's own storage,
 // its real cell and the scripted Messages API, its drive moved as the object moves its own
-// (`../agent/thread-drive`), with the jobs it asks for kept in place of Lifecycle's queue: a retry
-// it times for later, an approval's ten minutes, are each run at once by the suite, so what a
-// deployed thread waits seconds or minutes for is a step away; a purge cuts the call in flight and
-// deletes what the thread keeps, as the object's does. The cell
-// holds the thread and its open turn as a send leaves them; the delivery is the one the cell would
-// hand over, the library's filing rules and the last push the cell landed of the thread with it,
-// and the next turn is handed over the same way once the last has sealed. A suite may
-// stand in for the deployment's definition, to swap it between steps as a deploy would, and reads
-// every request body the loop sent.
+// (`../agent/thread-drive`), with each time its drive job would wait at kept in place of
+// Lifecycle's queue: a retry a step times, the wake a rest reads off the thread's rows, are each
+// run at once by the suite, so what a deployed thread waits seconds or minutes for is a step away;
+// a purge cuts the call in flight and deletes what the thread keeps, as the object's does. The
+// cell holds the thread and its open turn as a send leaves them; the delivery is the one the cell
+// would hand over, the library's filing rules and the last push the cell landed of the thread with
+// it, and the next turn is handed over the same way once the last has sealed. A suite may stand in
+// for the deployment's definition, to swap it between steps as a deploy would, and reads every
+// request body the loop sent.
 
 import { threadTurns } from "@repo/db/thread/schema";
 import { runInDurableObject } from "cloudflare:test";
@@ -21,7 +21,7 @@ import { anthropicClient } from "../agent/anthropic-client";
 import { threadDbOf } from "../agent/thread-db";
 import { cutCall, nextDrive, RESTING } from "../agent/thread-drive";
 import type { Drive, DriveEffect, DriveEvent, StepResult } from "../agent/thread-drive";
-import { acceptDelivery, listeningFetch, step } from "../agent/thread-loop";
+import { acceptDelivery, listeningFetch, nextWake, step } from "../agent/thread-loop";
 import type { CallInFlight, ThreadCell, ThreadHost } from "../agent/thread-loop";
 import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
@@ -34,16 +34,11 @@ import type { AgentAccount } from "./agent-turns";
 import { threadOf, valueOf } from "./agent-turns";
 import { cellIn, cellOf, inCell } from "./library-cell";
 
-// what the loop asked of Lifecycle's queue, kept for the suite to run
-interface AskedJobs {
-  readonly drives: number[];
-  readonly approvals: Map<string, number>;
-  readonly outbox: number[];
-}
-
 export interface SteppedThread {
   readonly host: ThreadHost;
-  readonly asked: AskedJobs;
+  // each time the drive job was timed for: a retry a step asked for, or the wake a rest read off
+  // the thread's rows
+  readonly wakes: readonly number[];
   // every request body the loop sent, in order
   readonly sent: readonly string[];
   // the loop stepped until it rests, waits on the person, or times a retry, every step's result,
@@ -105,7 +100,7 @@ export const inSteppedThread = async <T>(
     threadOf(account.accountId, threadId),
     async (_thread: AgentThreadDO, state) => {
       const db = threadDbOf(state.storage);
-      const asked: AskedJobs = { approvals: new Map(), drives: [], outbox: [] };
+      const wakes: number[] = [];
       const calls = new Map<number, CallInFlight>();
       const sent: string[] = [];
       const listening = listeningFetch(calls, Date.now);
@@ -126,19 +121,8 @@ export const inSteppedThread = async <T>(
             return await listening(request);
           }),
         definition: options.definition ?? deployedDefinition,
-        jobs: {
-          approvalAt: async (toolUseId, at) => {
-            asked.approvals.set(toolUseId, await Promise.resolve(at));
-          },
-          driveAt: async (at) => {
-            asked.drives.push(await Promise.resolve(at));
-          },
-          dropApproval: async (toolUseId) => {
-            asked.approvals.delete(await Promise.resolve(toolUseId));
-          },
-          outboxAt: async (at) => {
-            asked.outbox.push(await Promise.resolve(at));
-          },
+        driveAt: async (at) => {
+          wakes.push(await Promise.resolve(at));
         },
         now: Date.now,
         purge: async () => {
@@ -195,9 +179,13 @@ export const inSteppedThread = async <T>(
           // stopped at `most`, the suite runs it again as a timed retry would
           move({ kind: "stepped", result: "later" });
         }
+        const wake = effect === "rest" ? nextWake(db, Date.now()) : null;
+        if (wake !== null) {
+          wakes.push(wake);
+        }
         return results;
       };
-      return await work({ asked, deliver, host, run, sent });
+      return await work({ deliver, host, run, sent, wakes });
     },
   );
 };

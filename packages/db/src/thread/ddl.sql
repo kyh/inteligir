@@ -47,9 +47,11 @@ CREATE TABLE `tool_calls` (
 	`name` text NOT NULL,
 	`input` text NOT NULL,
 	`state` text NOT NULL,
+	`until` integer,
 	`result` text,
 	`is_error` integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "tool_calls_state" CHECK("state" IN ('asked', 'awaiting', 'approved', 'denied', 'running', 'answered')),
+	CONSTRAINT "tool_calls_until" CHECK(("state" = 'awaiting') = ("until" IS NOT NULL)),
 	CONSTRAINT "tool_calls_answer" CHECK(("state" = 'answered') = ("result" IS NOT NULL)),
 	CONSTRAINT "tool_calls_is_error" CHECK("is_error" IN (0, 1))
 );
