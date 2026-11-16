@@ -34,7 +34,8 @@ import { YServer } from "y-partyserver";
 import * as Y from "yjs";
 import { z } from "zod";
 
-import { UNDO_REACH_MS, PRUNE_EVERY_MS } from "../library/change-set-prune";
+import { UNDO_REACH_MS } from "../library/change-set-prune";
+import { PRUNE_EVERY_MS } from "../library/change-sets";
 import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { plainText } from "../plain-http";

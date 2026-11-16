@@ -194,7 +194,6 @@ const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
     case "too-large":
     case "blob-missing":
     case "url-held":
-    case "already-undone":
     case "edit-refused":
     case "bad-cursor":
     case "agent-unavailable":

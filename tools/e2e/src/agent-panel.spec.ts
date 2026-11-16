@@ -16,10 +16,6 @@ test("the built-in agent writes, asks before deleting, undoes its conversation a
     const { fields } = await library.items.read({ id });
     return fields;
   };
-  const agentSets = async () => {
-    const { changeSets } = await library.history.list({});
-    return changeSets;
-  };
   const card = (id: string) => page.locator(`[role="gridcell"][data-item-id="${id}"]`);
   await openLibrary(page, cloud);
   await expect(card(bin.item.id)).toBeVisible();
@@ -47,8 +43,9 @@ test("the built-in agent writes, asks before deleting, undoes its conversation a
   await expect(reply.jsonValue()).resolves.toStrictEqual({ gone: false });
   // the conversation followed the reply to its end
   await expect(undoTurn).toBeInViewport();
-  const [made] = await agentSets();
-  await expect(card(made?.items[0]?.id ?? "")).toBeVisible();
+  const { hits } = await library.search({ query: "Paris" });
+  const made = hits[0]?.id ?? "";
+  await expect(card(made)).toBeVisible();
 
   await composer.fill(
     [bin, keep].map(({ item }) => `call delete_items {"ids":["${item.id}"]}`).join("\n"),
@@ -66,13 +63,18 @@ test("the built-in agent writes, asks before deleting, undoes its conversation a
   await expect(page.locator("[data-turn-ended]")).toHaveCount(2);
   await expect(fieldsOf(keep.item.id)).resolves.toMatchObject({ deletedAt: null });
 
-  await expect.poll(async () => await agentSets()).toHaveLength(2);
-  await page.getByRole("button", { name: "Undo this conversation" }).click();
+  // each turn that changed something offers its own undo once it ended
+  await expect(undoTurn).toHaveCount(2);
+  const undoConversation = page.getByRole("button", { name: "Undo this conversation" });
+  await undoConversation.click();
   await expect.poll(async () => await fieldsOf(bin.item.id)).toMatchObject({ deletedAt: null });
   await expect
-    .poll(async () => await fieldsOf(made?.items[0]?.id ?? ""))
+    .poll(async () => await fieldsOf(made))
     .toMatchObject({ deletedAt: expect.any(String) });
   await expect(card(bin.item.id)).toBeVisible();
+  // nothing is left to take back, so no Undo is offered
+  await expect(undoTurn).toHaveCount(0);
+  await expect(undoConversation).toHaveCount(0);
 
   await composer.fill("One more.");
   await composer.press("Enter");

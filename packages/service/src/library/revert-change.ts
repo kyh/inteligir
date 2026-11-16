@@ -104,17 +104,15 @@ interface KeptChange {
 export interface ChangeSetsRevert {
   // each item the undo moves, as it leaves it
   readonly items: ReadonlyMap<string, ItemNow>;
-  // an item a set changed that someone changed since: left as it is, and named
+  // an item a set changed that someone changed since: left as it is, and named, its entry the
+  // set's to undo again
   readonly kept: readonly KeptChange[];
-  // the sets of which something was kept and nothing goes back
-  readonly leftWhole: ReadonlySet<string>;
 }
 
 // several sets undone as one, newest first, each against the item as the newer ones left it
 export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert => {
   const items = new Map<string, ItemNow>();
   const kept: KeptChange[] = [];
-  const takenBack = new Set<string>();
   for (const set of input.sets) {
     for (const [itemId, entry] of set.items) {
       const now = items.get(itemId) ?? input.now.get(itemId) ?? null;
@@ -122,11 +120,9 @@ export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert
       if (verdict.kind === "keep") {
         kept.push({ itemId, reason: verdict.reason, setId: set.id });
       } else if (verdict.kind === "revert" && now !== null) {
-        takenBack.add(set.id);
         items.set(itemId, { bodyEdited: now.bodyEdited, fields: verdict.fields });
       }
     }
   }
-  const leftWhole = new Set(kept.map(({ setId }) => setId).filter((id) => !takenBack.has(id)));
-  return { items, kept, leftWhole };
+  return { items, kept };
 };

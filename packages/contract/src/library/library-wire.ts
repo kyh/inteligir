@@ -267,26 +267,6 @@ export const itemReadSchema = z.object({
   }),
 });
 
-// what one turn of the built-in agent changed, which its Undo takes back
-export const changeSetSchema = z.object({
-  closedAt: isoInstant.nullable(),
-  id: idSchema,
-  // how many items the set changed; `items` names the first of them, at most a page
-  itemCount: z.number().int().nonnegative(),
-  items: z.array(
-    z.object({
-      created: z.boolean(),
-      deleted: z.boolean(),
-      id: idSchema,
-      title: z.string(),
-    }),
-  ),
-  openedAt: isoInstant,
-  threadId: idSchema,
-  turn: z.number().int().positive(),
-  undoneAt: isoInstant.nullable(),
-});
-
 // ---- what the built-in agent is asked from ----
 
 // the screen a message left from, by id: an open item and what was selected in it, or the library

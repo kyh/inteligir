@@ -65,12 +65,6 @@ export const EditRefusedError = error("UNPROCESSABLE_CONTENT", {
   message: "That edit doesn't match the item's text.",
 });
 
-// an undo names a change set already undone: undoing it again would redo it
-export const AlreadyUndoneError = error("ALREADY_UNDONE", {
-  data: z.object({ changeSetId: z.string().min(1) }),
-  message: "That change was already undone.",
-});
-
 // ---- the built-in agent's ----
 
 export const AgentBudgetError = error("AGENT_BUDGET", {
@@ -107,7 +101,6 @@ export const signedBase = oc.errors({
 // the codes oRPC does not know; one with no status here would default to 400 unnoticed
 export const V1_CUSTOM_ERROR_STATUS = {
   [AgentBudgetError.code]: 429,
-  [AlreadyUndoneError.code]: 409,
   [BlobMissingError.code]: 409,
   [ClientOutdatedError.code]: 426,
   [InvalidCredentialsError.code]: 401,

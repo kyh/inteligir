@@ -133,22 +133,13 @@ describe(revertChangeSets, () => {
     ]);
   });
 
-  describe("a set nothing of which goes back", () => {
+  describe("an entry someone changed since", () => {
     const made = retitle(x, "two");
     const since = retitle(made, "three");
     const change = changeOf(x, made);
+    const KEPT = { itemId: "kept", reason: "edited-since", setId: "set" };
 
-    it("is left whole when what it changed was changed since", () => {
-      const undone = revertChangeSets({
-        at: AT,
-        now: new Map([["item", nowOf(since)]]),
-        sets: [{ id: "set", items: new Map([["item", change]]) }],
-      });
-      expect(undone.items.size).toBe(0);
-      expect([...undone.leftWhole]).toStrictEqual(["set"]);
-    });
-
-    it("is not left whole once anything of it went back, or when nothing was kept", () => {
+    it("is kept beside one of its set that goes back, and none is once the item is back", () => {
       const partly = revertChangeSets({
         at: AT,
         now: new Map([
@@ -165,32 +156,28 @@ describe(revertChangeSets, () => {
           },
         ],
       });
-      expect(partly.kept.map((one) => one.itemId)).toStrictEqual(["kept"]);
-      expect([...partly.leftWhole]).toStrictEqual([]);
+      expect(partly.kept).toStrictEqual([KEPT]);
+      expect([...partly.items.keys()]).toStrictEqual(["back"]);
       const alreadyBack = revertChangeSets({
         at: AT,
-        now: new Map([["item", nowOf(x)]]),
-        sets: [{ id: "set", items: new Map([["item", change]]) }],
+        now: new Map([["kept", nowOf(x)]]),
+        sets: [{ id: "set", items: new Map([["kept", change]]) }],
       });
-      expect(alreadyBack.kept).toStrictEqual([]);
-      expect([...alreadyBack.leftWhole]).toStrictEqual([]);
+      expect(alreadyBack).toStrictEqual({ items: new Map(), kept: [] });
     });
 
-    it("is left whole beside a newer set that took back the same item", () => {
+    it("is kept beside a newer set that took back the same item", () => {
       const newest = retitle(since, "four");
       const undone = revertChangeSets({
         at: AT,
-        now: new Map([["item", nowOf(newest)]]),
+        now: new Map([["kept", nowOf(newest)]]),
         sets: [
-          { id: "newer", items: new Map([["item", changeOf(since, newest)]]) },
-          { id: "older", items: new Map([["item", change]]) },
+          { id: "newer", items: new Map([["kept", changeOf(since, newest)]]) },
+          { id: "set", items: new Map([["kept", change]]) },
         ],
       });
-      expect(undone.items.get("item")?.fields).toStrictEqual(since);
-      expect(undone.kept).toStrictEqual([
-        { itemId: "item", reason: "edited-since", setId: "older" },
-      ]);
-      expect([...undone.leftWhole]).toStrictEqual(["older"]);
+      expect(undone.items.get("kept")?.fields).toStrictEqual(since);
+      expect(undone.kept).toStrictEqual([KEPT]);
     });
   });
 });

@@ -13,10 +13,8 @@ import { readItem, readLiveItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { changeSets } from "@repo/db/cell/schema";
 import { landPush } from "../agent/agent-turns";
 import { createThread, insertTurn, restatus } from "../agent/turn-rows";
 import type { CellActor, TurnActor } from "../library/cell-actor";
@@ -25,6 +23,8 @@ import type { NewItem } from "../library/cell-items";
 import { tellSockets } from "../library/cell-sockets";
 import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
+import { planUndo, undoableTurns, undoChangeSets, undoneSchema } from "../library/cell-undo";
+import type { UndoTarget } from "../library/cell-undo";
 import { landFields } from "../library/cell-writes";
 import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
@@ -129,9 +129,11 @@ export const setFields = (
     };
   });
 
-// an undo of sets that wrote no note's body, so no note has anything to answer first
-export const undoFields = (library: LibraryEngine, changeSetIds: readonly string[]) =>
-  library.undo({ changeSetIds }, new Map());
+// an undo of turns that wrote no note's body, so no note has anything to answer first
+export const undoFields = (library: LibraryEngine, target: UndoTarget) =>
+  library.landApart({ answer: undoneSchema, opId: undefined }, (scope) =>
+    undoChangeSets(scope, planUndo(scope.db, target), new Map()),
+  );
 
 // blocks in the order given, in one section
 export const placed = (
@@ -157,17 +159,24 @@ export const refusalOf = <T>(result: CellResult<T>) => {
   return result.refusal;
 };
 
+// the thread's turns Undo can still take back
+export const undoableOf = (library: LibraryEngine, threadId: string): number[] =>
+  landedValue(library.read((db) => undoableTurns(db, threadId)));
+
 const TURN_TEXT = "A turn under test.";
 
-// A turn of the built-in agent in a thread of its own, opened in the cell as a send opens one: whom
-// its writes are by, the library's procedures as its tool calls reach them, the push that ends it
-// landed as its conversation's object sends it, and the change set its writes joined.
-export const openTurn = (cell: Cell) => {
-  const threadId = crypto.randomUUID();
-  const actor: TurnActor = { kind: "agent", threadId, turn: 1 };
+// A turn of the built-in agent, opened in the cell as a send opens one, in a thread of its own or
+// as the next turn of the thread `after` ended one in: whom its writes are by, the library's
+// procedures as its tool calls reach them, and the push that ends it landed as its conversation's
+// object sends it.
+export const openTurn = (cell: Cell, after?: { readonly actor: TurnActor }) => {
+  const threadId = after?.actor.threadId ?? crypto.randomUUID();
+  const actor: TurnActor = { kind: "agent", threadId, turn: (after?.actor.turn ?? 0) + 1 };
   landedValue(
     cell.library.landApart({ answer: z.object({}), opId: undefined }, (scope) => {
-      createThread(scope, threadId, TURN_TEXT);
+      if (after === undefined) {
+        createThread(scope, threadId, TURN_TEXT);
+      }
       insertTurn(scope.db, {
         at: scope.now,
         message: { text: TURN_TEXT, viewContext: null },
@@ -186,7 +195,7 @@ export const openTurn = (cell: Cell) => {
     end: (): void => {
       const ended = landPush(cell, {
         events: [{ reason: "done", turn: actor.turn, type: "turn.ended" }],
-        seq: 1,
+        seq: actor.turn,
         threadId,
         turn: actor.turn,
       });
@@ -194,21 +203,6 @@ export const openTurn = (cell: Cell) => {
         throw new Error(`the cell landed no end of the turn: ${ended.refusal}`);
       }
     },
-    setId: (): string =>
-      z
-        .string()
-        .parse(
-          landedValue(
-            cell.library.read(
-              (db) =>
-                db
-                  .select({ id: changeSets.id })
-                  .from(changeSets)
-                  .where(eq(changeSets.threadId, threadId))
-                  .get()?.id,
-            ),
-          ),
-        ),
   };
 };
 

@@ -27,13 +27,7 @@ import { appliedOps, changeSetItems } from "@repo/db/cell/schema";
 
 import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanding } from "../fill/fill-landing";
-import type {
-  NoteOpening,
-  NoteProjection,
-  ProjectAnswer,
-  SeedAnswer,
-  TurnUndone,
-} from "../note/note-wire";
+import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import type { CellActor, TurnActor } from "./cell-actor";
 import {
   awaitNameAgain,
@@ -77,11 +71,10 @@ import {
 } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
-import { undoChangeSets } from "./cell-undo";
 import { landPropertyOps } from "./cell-writes";
 import type { PropertyWrite } from "./cell-writes";
-import { joinTurnSet, PRUNE_JOB } from "./change-sets";
-import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
+import { joinTurnSet, PRUNE_EVERY_MS, PRUNE_JOB } from "./change-sets";
+import { pruneChangeSets } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
   readonly db: CellDb;
@@ -121,11 +114,6 @@ export interface PurgeItemsInput {
   readonly opId?: string | undefined;
 }
 
-export interface UndoInput {
-  readonly changeSetIds: readonly string[];
-  readonly opId?: string | undefined;
-}
-
 // a purged item's note, emptied by the alarm between two transactions
 export interface NotePurge {
   readonly job: DueJob<"note-purge">;
@@ -144,12 +132,6 @@ export interface StrayRemoval {
 
 export const landedSchema = z.object({ item: liveItemRowSchema });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
-const undoSchema = z.object({
-  kept: z.array(z.string()),
-  lostText: z.array(z.string()),
-  refused: z.array(z.string()),
-  reverted: z.array(z.string()),
-});
 const projectAnswerSchema = z.enum(["landed", "stale", "gone"]);
 
 // the last sequence number a write took, 0 before the first
@@ -227,7 +209,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             if (turn === null) {
               return null;
             }
-            taken.set ??= joinTurnSet(db, turn, now, ids.changeSet);
+            taken.set ??= joinTurnSet(db, turn, ids.changeSet);
             return taken.set;
           },
           db,
@@ -257,7 +239,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   ): CellResult<z.output<S>> =>
     transact({ ...request, turn: actor.kind === "agent" ? actor : null }, work);
 
-  // a write no turn made, so no change set keeps: a folder, a thread, a purge, a file's room
+  // a write no turn made, so no change set keeps: a folder, a thread, a purge, an undo, a file's
+  // room
   const landApart = <S extends z.ZodType>(
     request: WriteRequest<S>,
     work: (scope: LandingScope) => Built<z.input<S>>,
@@ -302,12 +285,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       return { missing, purged };
     });
-
-  // what each note the sets wrote in answered first lands beside the fields
-  const undo = (input: UndoInput, notes: ReadonlyMap<string, TurnUndone>) =>
-    landApart({ answer: undoSchema, opId: input.opId }, (scope) =>
-      undoChangeSets(scope, input.changeSetIds, notes),
-    );
 
   // room for a file a device is about to upload
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
@@ -536,7 +513,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     sessionNotes,
     settle,
     tombstone,
-    undo,
     write,
   };
 };

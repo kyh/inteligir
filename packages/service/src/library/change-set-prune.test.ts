@@ -78,12 +78,12 @@ describe("the change-set prune", () => {
       // the first three turns' sets went; the describing and the last renaming stay
       expect(
         state.storage.sql
-          .exec("SELECT thread_id FROM change_sets ORDER BY opened_at")
+          .exec("SELECT thread_id FROM change_sets ORDER BY sealed_at")
           .toArray()
           .map((row) => row.thread_id),
       ).toStrictEqual([describing.actor.threadId, renaming.actor.threadId]);
       expect(entries()).toBe(2);
-      const answer = landedValue(undoFields(library, [describing.setId()]));
+      const answer = landedValue(undoFields(library, describing.actor));
       expect(answer.reverted).toStrictEqual([itemId]);
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { description: null, title: "typed later" },

@@ -97,6 +97,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   snapshots of an item take back an edit made between two of the set's writes;
   Yjs's UndoManager lives in memory, which an eviction ends.
   `packages/service/src/library/revert-change.ts`.
+- **Undo names a thread and its turns, and a change set holds only what is left
+  to take back.** A set's id on the wire has every device page and join them,
+  and a set marked undone is a state the press another device already made has
+  to be refused by. `packages/service/src/library/cell-undo.ts`.
 - **Each note's body is a live document in an object of its own, which the cell
   seeds and reads back** (owner decision). No keystroke goes through the
   account's one object; `NoteDO` pushes its projection on a debounced save.

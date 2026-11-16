@@ -232,16 +232,13 @@ describe("what the apps read of the library", () => {
       await turn.client.items.organize({ addTags: ["fruit"], ids: [apple.item.id] });
       await expect(titles()).resolves.toStrictEqual(["Apple", "Banana"]);
       turn.end();
-      const history = await library.history.list({});
-      const [sealed] = history.changeSets;
-      expect(sealed?.closedAt).not.toBeNull();
       await expect(titles()).resolves.toStrictEqual(["Apple", "Banana"]);
       await expect(library.listing.scopes()).resolves.toMatchObject({
         tags: [{ items: 1, tag: "fruit" }],
         total: 2,
       });
 
-      await library.history.undo({ changeSetIds: [sealed?.id ?? ""] });
+      await library.agent.undo({ threadId: turn.actor.threadId, turn: 1 });
       await expect(titles()).resolves.toStrictEqual(["Apple"]);
       // the listing this cell kept answers as one read whole from its rows
       await expect(library.listing.scopes()).resolves.toStrictEqual(

@@ -309,12 +309,13 @@ describe("a turn's seal", () => {
         script('call create_note {"markdown":"Paris."}', 'call create_note {"markdown":"Rome."}'),
       );
       await settled(account, sent.threadId);
+      await expect(cellRows(account, "SELECT turn FROM change_sets")).resolves.toStrictEqual([
+        { turn: 1 },
+      ]);
       await asLaptop(account, async (client) => {
         const listed = await client.items.list({});
         expect(listed.items).toHaveLength(2);
-        const { changeSets } = await client.history.list({});
-        expect(changeSets).toHaveLength(1);
-        await client.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] });
+        await client.agent.undo({ threadId: sent.threadId, turn: 1 });
         const undone = await client.items.list({});
         expect(undone.items).toStrictEqual([]);
       });
@@ -322,7 +323,7 @@ describe("a turn's seal", () => {
   );
 
   it(
-    "lists one conversation's sets, by the turn that made each",
+    "names each conversation's own turns to undo, and undoes one conversation alone",
     { timeout: TURN_MS },
     async () => {
       // the day's allowance in the suites is two turns: one a conversation
@@ -332,12 +333,14 @@ describe("a turn's seal", () => {
       const other = await send(account, script('call create_note {"markdown":"Oslo."}'));
       await settled(account, other.threadId);
       await asLaptop(account, async (client) => {
-        const everything = await client.history.list({});
-        expect(everything.changeSets).toHaveLength(2);
-        const { changeSets } = await client.history.list({ threadId: first.threadId });
-        expect(changeSets.map((set) => [set.threadId, set.turn])).toStrictEqual([
-          [first.threadId, 1],
-        ]);
+        const undoable = async (threadId: string) => await client.agent.undoable({ threadId });
+        await expect(undoable(first.threadId)).resolves.toStrictEqual({ turns: [1] });
+        await expect(undoable(other.threadId)).resolves.toStrictEqual({ turns: [1] });
+        await client.agent.undo({ threadId: first.threadId });
+        await expect(undoable(first.threadId)).resolves.toStrictEqual({ turns: [] });
+        await expect(undoable(other.threadId)).resolves.toStrictEqual({ turns: [1] });
+        const left = await client.items.list({});
+        expect(left.items).toHaveLength(1);
       });
     },
   );

@@ -515,18 +515,15 @@ describe("a note's door", () => {
     const { accountId, itemId, library, ticket } = await signedIn(email);
     const open = await openClient(itemId, ticket, "undone-open");
     // the built-in agent's turn deletes it, so its change set holds the delete alone
-    await inCell(cellOf(accountId), async (state) => {
+    const threadId = await inCell(cellOf(accountId), async (state) => {
       const turn = openTurn(cellIn(state));
       await turn.client.items.delete({ ids: [itemId] });
       turn.end();
+      return turn.actor.threadId;
     });
     await until(() => opens.get("undone-open") === 2 && open.provider.synced);
 
-    const { changeSets } = await library.history.list({});
-    const deleting = changeSets.find((set) =>
-      set.items.some((item) => item.id === itemId && item.deleted),
-    );
-    await library.history.undo({ changeSetIds: deleting === undefined ? [] : [deleting.id] });
+    await library.agent.undo({ threadId, turn: 1 });
     await until(() => opens.get("undone-open") === 3 && open.provider.synced);
     typeInto(open, 0, 0, "back ");
     await until(async () => (await serverLine(accountId, itemId, 0)) === "back Above the fox.");

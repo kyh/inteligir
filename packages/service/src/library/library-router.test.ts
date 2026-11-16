@@ -44,6 +44,9 @@ const refusalOf = async (call: Promise<unknown>) => {
   throw new Error("the call landed what the test expected it to refuse");
 };
 
+// an undo's answer when nothing of what it named is left to take back
+const NOTHING_LEFT = { kept: [], lostText: [], next: null, refused: [], reverted: [] };
+
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
 const pageSave = (url: string, overrides: { article?: LibraryBlock[]; tags?: string[] } = {}) => ({
@@ -566,46 +569,29 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("lists the agent's turns' change sets, keeps none of the person's, and undoes a sealed set once", async () => {
+  it("names the turns Undo can take back, the person's writes in none, and undoes an ended turn once", async () => {
     await inCell(cellOf(), async (state) => {
       const cell = cellIn(state, { clock: clockAt() });
       const { client: library } = cell;
       await library.items.createNote({ markdown: "The person's." });
-      await expect(library.history.list({})).resolves.toStrictEqual({
-        changeSets: [],
-        cursor: null,
-      });
       const turn = openTurn(cell);
+      const { threadId } = turn.actor;
       const { item } = await turn.client.items.createNote({ markdown: "Before." });
-      const { changeSets } = await library.history.list({});
-      expect(changeSets).toStrictEqual([
-        expect.objectContaining({
-          closedAt: null,
-          itemCount: 1,
-          items: [expect.objectContaining({ created: true, id: item.id })],
-          threadId: turn.actor.threadId,
-          turn: 1,
-          undoneAt: null,
-        }),
-      ]);
-      const [made] = changeSets;
-      if (made === undefined) {
-        throw new Error("no change set");
-      }
-      // a set whose turn is still open is refused before any note is asked to undo
-      await expect(
-        refusalOf(library.history.undo({ changeSetIds: [made.id] })),
-      ).resolves.toMatchObject({ code: "CONFLICT" });
+      // a turn still open is not yet one to undo, and an undo of it takes nothing back
+      await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+      await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual(NOTHING_LEFT);
       turn.end();
-      const undone = await library.history.undo({ changeSetIds: [made.id] });
-      expect(undone.reverted).toStrictEqual([item.id]);
+      await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [1] });
+      const undone = await library.agent.undo({ threadId, turn: 1 });
+      expect(undone).toStrictEqual({ ...NOTHING_LEFT, reverted: [item.id] });
+      await expect(library.agent.undoable({ threadId })).resolves.toStrictEqual({ turns: [] });
+      // a second press, or another device's, finds nothing left, and is refused nothing
+      await expect(library.agent.undo({ threadId, turn: 1 })).resolves.toStrictEqual(NOTHING_LEFT);
+      await expect(library.agent.undo({ threadId })).resolves.toStrictEqual(NOTHING_LEFT);
+      // one turn, or the conversation from a turn down, never both
       await expect(
-        refusalOf(library.history.undo({ changeSetIds: [made.id] })),
-      ).resolves.toStrictEqual({
-        code: "ALREADY_UNDONE",
-        data: { changeSetId: made.id },
-        defined: true,
-      });
+        refusalOf(library.agent.undo({ before: 2, threadId, turn: 1 })),
+      ).resolves.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 
@@ -700,10 +686,9 @@ describe("the library's procedures", () => {
       const turn = openTurn(cell);
       await turn.client.items.delete({ ids: [item.id] });
       turn.end();
-      const { changeSets } = await library.history.list({});
       await library.items.saveLink({ url });
       await expect(
-        library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] }),
+        library.agent.undo({ threadId: turn.actor.threadId, turn: 1 }),
       ).rejects.toMatchObject({
         code: "CONFLICT",
         defined: true,

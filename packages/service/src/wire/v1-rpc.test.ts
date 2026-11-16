@@ -29,7 +29,7 @@ import {
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
-import { cellIn, cellOf, clockAt, inCell, openTurn } from "../test-support/library-cell";
+import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
 
 const DAY_MS = 86_400_000;
 
@@ -235,22 +235,12 @@ describe("the one wire's door", () => {
 
 describe("every refusal's status", () => {
   it("answers the library's refusals under the statuses the wire declares", async () => {
-    const { accountId, phone } = await signedUp("rpc-statuses@example.test");
-    // a turn of the built-in agent's, the one writer whose writes Undo takes back
-    await inCell(cellOf(accountId), async (state) => {
-      const turn = openTurn(cellIn(state));
-      await turn.client.items.createNote({ markdown: "The agent's." });
-      turn.end();
-    });
+    const { phone } = await signedUp("rpc-statuses@example.test");
     const { item } = await phone.library.items.createNote({ markdown: "One.\n\nTwo." });
     await phone.library.items.edit({
       edits: [{ newText: "Two, edited.", oldText: "Two." }],
       id: item.id,
     });
-    const undoAll = async () => {
-      const { changeSets } = await phone.library.history.list({});
-      return await phone.library.history.undo({ changeSetIds: changeSets.map((set) => set.id) });
-    };
 
     // each call made only when its turn comes, so every status is its own call's
     const refusals = [
@@ -284,14 +274,6 @@ describe("every refusal's status", () => {
             tags: [],
           }),
         "BLOB_MISSING",
-        409,
-      ],
-      [
-        async () => {
-          await undoAll();
-          return await undoAll();
-        },
-        "ALREADY_UNDONE",
         409,
       ],
       [

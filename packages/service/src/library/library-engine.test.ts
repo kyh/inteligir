@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
   blocksOf,
@@ -17,29 +18,32 @@ import {
   refusalOf,
   setFields,
   storedItemOf,
+  undoableOf,
   undoFields,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
+import { UNDO_TURNS_MAX } from "./cell-undo";
 import type { LibraryEngine } from "./library-engine";
-import { z } from "zod";
 
 const A = paragraph("a", "the first line");
 const TITLE = "A note";
 
 const newItemId = (): string => crypto.randomUUID();
 
-const undoneAt = (state: DurableObjectState, id: string): number | null =>
-  z
-    .number()
-    .nullable()
-    .parse(
-      state.storage.sql.exec("SELECT undone_at FROM change_sets WHERE id = ?", id).one().undone_at,
-    );
+// an undo's answer when nothing of what it named is left to take back
+const NOTHING_LEFT = { kept: [], lostText: [], next: null, refused: [], reverted: [] };
 
 const setCount = (state: DurableObjectState): number =>
   state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
+
+// the items the change sets still hold an entry for
+const entryItems = (state: DurableObjectState): unknown[] =>
+  state.storage.sql
+    .exec("SELECT item_id FROM change_set_items")
+    .toArray()
+    .map((row) => row.item_id);
 
 const retitle = (library: LibraryEngine, actor: CellActor, itemId: string, title: string) => {
   landedValue(setFields(library, actor, itemId, { title }));
@@ -53,6 +57,19 @@ const titleOf = (library: LibraryEngine, itemId: string): string | null => {
 const propertiesOf = (library: LibraryEngine, itemId: string) => {
   const item = storedItemOf(library, itemId);
   return item?.kind === "live" ? item.fields.properties : null;
+};
+
+// a conversation a turn past one undo's lot, each turn renaming the one item: its thread
+const longConversation = (cell: Parameters<typeof openTurn>[0], itemId: string): string => {
+  let turn = openTurn(cell);
+  for (let last = 1; ; last += 1) {
+    retitle(cell.library, turn.actor, itemId, `Turn ${String(last)}`);
+    turn.end();
+    if (last > UNDO_TURNS_MAX) {
+      return turn.actor.threadId;
+    }
+    turn = openTurn(cell, turn);
+  }
 };
 
 // what R2 holds of an image upload
@@ -412,10 +429,11 @@ describe("change sets and undo", () => {
     });
   });
 
-  it("undoes sets newest first, keeps an item edited since, and refuses a second undo", async () => {
+  it("undoes a turn, keeps an item edited since to undo again, and finds nothing left of what went back", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const cell = cellIn(state, { clock });
+      const frames: LibrarySocketFrame[] = [];
+      const cell = cellIn(state, { clock, frames });
       const { library } = cell;
       const kept = newItemId();
       const undone = newItemId();
@@ -425,32 +443,39 @@ describe("change sets and undo", () => {
         );
       }
       const turn = openTurn(cell);
+      const { threadId } = turn.actor;
       for (const itemId of [kept, undone]) {
         retitle(library, turn.actor, itemId, "The agent's title");
       }
       turn.end();
-      const setId = turn.setId();
+      expect(undoableOf(library, threadId)).toStrictEqual([1]);
       // the person changes one of the two again since
       clock.now += 120_000;
       retitle(library, PERSON, kept, "The person's title");
-      const answer = landedValue(undoFields(library, [setId]));
-      expect(answer.kept).toStrictEqual([kept]);
-      expect(answer.reverted).toStrictEqual([undone]);
+      const answer = landedValue(undoFields(library, turn.actor));
+      expect(answer).toStrictEqual({ ...NOTHING_LEFT, kept: [kept], reverted: [undone] });
       expect(titleOf(library, undone)).toBe(TITLE);
       expect(titleOf(library, kept)).toBe("The person's title");
-      expect(undoneAt(state, setId)).toBe(clock.now);
-      expect(setCount(state)).toBe(1);
-      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({
-        changeSetId: setId,
-        kind: "already-undone",
+      // every device hears the thread moved, so each reads its undoable turns again
+      expect(frames.at(-1)).toMatchObject({ threads: [threadId] });
+      expect(entryItems(state)).toStrictEqual([kept]);
+      expect(undoableOf(library, threadId)).toStrictEqual([1]);
+      // the entry that went back is gone, so a second press takes back only what was kept
+      const told = frames.length;
+      expect(landedValue(undoFields(library, turn.actor))).toStrictEqual({
+        ...NOTHING_LEFT,
+        kept: [kept],
       });
-      expect(refusalOf(undoFields(library, [crypto.randomUUID()]))).toStrictEqual({
-        kind: "not-found",
-      });
+      expect(titleOf(library, undone)).toBe(TITLE);
+      expect(frames).toHaveLength(told);
+      expect(landedValue(undoFields(library, { threadId, turn: 2 }))).toStrictEqual(NOTHING_LEFT);
+      expect(landedValue(undoFields(library, { threadId: crypto.randomUUID() }))).toStrictEqual(
+        NOTHING_LEFT,
+      );
     });
   });
 
-  it("refuses to undo a turn still open, since what it did is not yet fixed", async () => {
+  it("takes nothing back of a turn still open, since what it did is not yet fixed", async () => {
     await inCell(cellOf(), (state) => {
       const cell = cellIn(state, { clock: clockAt() });
       const { library } = cell;
@@ -460,16 +485,16 @@ describe("change sets and undo", () => {
       );
       const turn = openTurn(cell);
       retitle(library, turn.actor, itemId, "The agent's title");
-      const setId = turn.setId();
-      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "conflict" });
+      expect(undoableOf(library, turn.actor.threadId)).toStrictEqual([]);
+      expect(landedValue(undoFields(library, turn.actor))).toStrictEqual(NOTHING_LEFT);
       expect(titleOf(library, itemId)).toBe("The agent's title");
       turn.end();
-      expect(landedValue(undoFields(library, [setId]))).toMatchObject({ reverted: [itemId] });
+      expect(landedValue(undoFields(library, turn.actor))).toMatchObject({ reverted: [itemId] });
     });
   });
 
   describe("an undo that takes nothing back", () => {
-    it("leaves the set undoable, and lands once the edit since is gone", async () => {
+    it("leaves the turn undoable, and lands once the edit since is gone", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
         const cell = cellIn(state, { clock });
@@ -481,22 +506,21 @@ describe("change sets and undo", () => {
         const turn = openTurn(cell);
         retitle(library, turn.actor, itemId, "The agent's title");
         turn.end();
-        const setId = turn.setId();
         clock.now += 120_000;
         retitle(library, PERSON, itemId, "The person's title");
 
-        const answer = landedValue(undoFields(library, [setId]));
-        expect(answer).toStrictEqual({ kept: [itemId], lostText: [], refused: [], reverted: [] });
-        expect(undoneAt(state, setId)).toBeNull();
+        const answer = landedValue(undoFields(library, turn.actor));
+        expect(answer).toStrictEqual({ ...NOTHING_LEFT, kept: [itemId] });
+        expect(undoableOf(library, turn.actor.threadId)).toStrictEqual([1]);
 
         retitle(library, PERSON, itemId, "The agent's title");
-        const again = landedValue(undoFields(library, [setId]));
+        const again = landedValue(undoFields(library, turn.actor));
         expect(again).toMatchObject({ kept: [], reverted: [itemId] });
-        expect(undoneAt(state, setId)).toBe(clock.now);
+        expect(undoableOf(library, turn.actor.threadId)).toStrictEqual([]);
       });
     });
 
-    it("marks only the sets that took something back when one undo names several", async () => {
+    it("leaves undoable only the turns that kept something when one undo takes the conversation", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
         const cell = cellIn(state, { clock });
@@ -508,18 +532,58 @@ describe("change sets and undo", () => {
           );
         }
         const first = openTurn(cell);
+        const { threadId } = first.actor;
         retitle(library, first.actor, held, "An edit");
         first.end();
         clock.now += 120_000;
         retitle(library, PERSON, held, "Edited again");
-        const second = openTurn(cell);
+        const second = openTurn(cell, first);
         retitle(library, second.actor, back, "An edit");
         second.end();
-        const [heldSet, backSet] = [first.setId(), second.setId()];
-        const answer = landedValue(undoFields(library, [heldSet, backSet]));
-        expect(answer).toMatchObject({ kept: [held], refused: [], reverted: [back] });
-        expect(undoneAt(state, backSet)).toBe(clock.now);
-        expect(undoneAt(state, heldSet)).toBeNull();
+        expect(undoableOf(library, threadId)).toStrictEqual([1, 2]);
+        const answer = landedValue(undoFields(library, { threadId }));
+        expect(answer).toStrictEqual({ ...NOTHING_LEFT, kept: [held], reverted: [back] });
+        expect(undoableOf(library, threadId)).toStrictEqual([1]);
+      });
+    });
+  });
+
+  describe("an undo of a conversation of more turns than one call takes back", () => {
+    it("goes newest first, a lot a call, each naming where the next starts", async () => {
+      await inCell(cellOf(), (state) => {
+        const cell = cellIn(state, { clock: clockAt() });
+        const { library } = cell;
+        const itemId = newItemId();
+        landedValue(
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        );
+        const threadId = longConversation(cell, itemId);
+        const first = landedValue(undoFields(library, { threadId }));
+        expect(first).toStrictEqual({ ...NOTHING_LEFT, next: 2, reverted: [itemId] });
+        expect(titleOf(library, itemId)).toBe("Turn 1");
+        expect(undoableOf(library, threadId)).toStrictEqual([1]);
+        const rest = landedValue(undoFields(library, { before: 2, threadId }));
+        expect(rest).toStrictEqual({ ...NOTHING_LEFT, reverted: [itemId] });
+        expect(titleOf(library, itemId)).toBe(TITLE);
+        expect(undoableOf(library, threadId)).toStrictEqual([]);
+      });
+    });
+
+    it("moves past a lot that kept everything, which stays to undo again", async () => {
+      await inCell(cellOf(), (state) => {
+        const cell = cellIn(state, { clock: clockAt() });
+        const { library } = cell;
+        const itemId = newItemId();
+        landedValue(
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
+        );
+        const threadId = longConversation(cell, itemId);
+        retitle(library, PERSON, itemId, "The person's title");
+        const first = landedValue(undoFields(library, { threadId }));
+        expect(first).toStrictEqual({ ...NOTHING_LEFT, kept: [itemId], next: 2 });
+        const rest = landedValue(undoFields(library, { before: 2, threadId }));
+        expect(rest).toStrictEqual({ ...NOTHING_LEFT, kept: [itemId] });
+        expect(undoableOf(library, threadId)).toHaveLength(UNDO_TURNS_MAX + 1);
       });
     });
   });
@@ -542,7 +606,6 @@ describe("change sets and undo", () => {
       const turn = openTurn(cell);
       landedValue(setFields(library, turn.actor, gone, { deletedAt: clock.now }));
       turn.end();
-      const setId = turn.setId();
       landedValue(
         createItem(library, PERSON, {
           blocks: placed([]),
@@ -550,10 +613,10 @@ describe("change sets and undo", () => {
           id: holder,
         }),
       );
-      expect(refusalOf(undoFields(library, [setId]))).toStrictEqual({ kind: "url-held" });
-      expect(undoneAt(state, setId)).toBeNull();
+      expect(refusalOf(undoFields(library, turn.actor))).toStrictEqual({ kind: "url-held" });
+      expect(undoableOf(library, turn.actor.threadId)).toStrictEqual([1]);
       landedValue(setFields(library, PERSON, holder, { deletedAt: clock.now }));
-      expect(landedValue(undoFields(library, [setId]))).toMatchObject({
+      expect(landedValue(undoFields(library, turn.actor))).toMatchObject({
         refused: [],
         reverted: [gone],
       });
@@ -580,7 +643,7 @@ describe("change sets and undo", () => {
       retitle(library, turn.actor, pinned, "The agent again");
       retitle(library, turn.actor, renamed, "The agent again");
       turn.end();
-      const answer = landedValue(undoFields(library, [turn.setId()]));
+      const answer = landedValue(undoFields(library, turn.actor));
       expect(answer).toMatchObject({ kept: [], reverted: [pinned, renamed].toSorted() });
       expect(storedItemOf(library, pinned)).toMatchObject({
         fields: { pinnedAt: clock.now, title: TITLE },
@@ -600,7 +663,7 @@ describe("change sets and undo", () => {
         createItem(library, turn.actor, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       turn.end();
-      landedValue(undoFields(library, [turn.setId()]));
+      landedValue(undoFields(library, turn.actor));
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { deletedAt: clock.now },
         kind: "live",

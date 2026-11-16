@@ -21,11 +21,15 @@ import {
   openTurn,
 } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
+import type { TurnActor } from "./cell-actor";
 import { readBlobRow } from "./cell-blobs";
 import { sendFills } from "./cell-library";
 import { heldBody } from "./cell-body";
 import { cellDbOf } from "./cell-db";
 import { readLiveItem } from "./library-queries";
+
+const undoTurn = async (library: ReturnType<typeof cellIn>["client"], turn: TurnActor) =>
+  await library.agent.undo({ threadId: turn.threadId, turn: turn.turn });
 
 const read = (
   landing: Pick<FillLanding, "itemId" | "url">,
@@ -196,11 +200,7 @@ describe("a page's reading, landed", () => {
       const turn = openTurn(cell);
       await turn.client.items.delete({ ids: [saved.item.id] });
       turn.end();
-      const { changeSets } = await library.history.list({});
-      const deleted = changeSets.find((set) =>
-        set.items.some((item) => item.id === saved.item.id && item.deleted),
-      );
-      await library.history.undo({ changeSetIds: [deleted?.id ?? ""] });
+      await undoTurn(library, turn.actor);
       expect(stateOf(state, saved.item.id)?.fields.deletedAt).toBeNull();
       expect(fillJobs(state)).toStrictEqual([
         expect.objectContaining({ id: `fill:${saved.item.id}` }),
@@ -358,26 +358,12 @@ describe("a page's reading, landed", () => {
   });
 });
 
-const madeSetOf = async (library: ReturnType<typeof cellIn>["client"], itemId: string) => {
-  const { changeSets } = await library.history.list({});
-  const made = changeSets.find((set) =>
-    set.items.some((item) => item.id === itemId && item.created),
-  );
-  if (made === undefined) {
-    throw new Error("no change set made the item");
-  }
-  return made.id;
-};
-
-const undoSave = async (library: ReturnType<typeof cellIn>["client"], itemId: string) =>
-  await library.history.undo({ changeSetIds: [await madeSetOf(library, itemId)] });
-
 // a link the built-in agent saved in a turn that then ended, so the reading it held is let go
 const savedByTurn = async (cell: ReturnType<typeof cellIn>, url: string) => {
   const turn = openTurn(cell);
   const { item } = await turn.client.items.saveLink({ url });
   turn.end();
-  return item;
+  return { item, turn: turn.actor };
 };
 
 describe("Undo of a link the agent saved, once its page is read", () => {
@@ -389,10 +375,10 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const cell = cellIn(state);
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/named";
-      const item = await savedByTurn(cell, url);
+      const { item, turn } = await savedByTurn(cell, url);
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       expect(stateOf(state, item.id)?.fields.title).toBe("The page's own title");
-      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+      await expect(undoTurn(library, turn)).resolves.toMatchObject({
         kept: [],
         reverted: [item.id],
       });
@@ -410,7 +396,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const { item } = await turn.client.items.saveLink({ url });
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       turn.end();
-      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+      await expect(undoTurn(library, turn.actor)).resolves.toMatchObject({
         kept: [],
         reverted: [item.id],
       });
@@ -427,7 +413,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
         bytes: pngOf(800, 600),
         mime: "image/png",
       });
-      const item = await savedByTurn(cell, url);
+      const { item, turn } = await savedByTurn(cell, url);
       engine.landReading(
         {
           fileKind: "image",
@@ -440,7 +426,7 @@ describe("Undo of a link the agent saved, once its page is read", () => {
         null,
       );
       expect(stateOf(state, item.id)?.fields.originalSha).toBe(originalSha);
-      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+      await expect(undoTurn(library, turn)).resolves.toMatchObject({
         kept: [],
         reverted: [item.id],
       });
@@ -454,10 +440,10 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const cell = cellIn(state);
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/renamed";
-      const item = await savedByTurn(cell, url);
+      const { item, turn } = await savedByTurn(cell, url);
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
       await library.items.organize({ ids: [item.id], title: "Mine" });
-      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+      await expect(undoTurn(library, turn)).resolves.toMatchObject({
         kept: [item.id],
         reverted: [],
       });
@@ -471,10 +457,10 @@ describe("Undo of a link the agent saved, once its page is read", () => {
       const cell = cellIn(state);
       const { client: library, library: engine } = cell;
       const url = "https://pages.example/waited";
-      const item = await savedByTurn(cell, url);
+      const { item, turn } = await savedByTurn(cell, url);
       await library.items.organize({ ids: [item.id], title: "Mine" });
       engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]), null);
-      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+      await expect(undoTurn(library, turn)).resolves.toMatchObject({
         kept: [item.id],
         reverted: [],
       });
@@ -502,13 +488,13 @@ describe("Undo of a link the agent saved, once its page is read", () => {
         const cell = cellIn(state, { clock });
         const { client: library, library: engine } = cell;
         const url = "https://pages.example/final";
-        const holder = await savedByTurn(cell, url);
+        const { item: holder, turn } = await savedByTurn(cell, url);
         engine.landReading(read({ itemId: holder.id, url }, [paragraph("h", "Held.")]), null);
         clock.now += HOUR;
         const again = await library.items.saveLink({ ...carried, url });
         expect(again).toMatchObject({ created: false, item: { id: holder.id } });
         expect(stateOf(state, holder.id)?.fields).toMatchObject({ folderId: null, tags: [] });
-        await expect(undoSave(library, holder.id)).resolves.toMatchObject({
+        await expect(undoTurn(library, turn)).resolves.toMatchObject({
           kept: [],
           reverted: [holder.id],
         });

@@ -16,7 +16,6 @@ import { z } from "zod";
 
 import { agentRouter } from "../agent/agent-router";
 import { noteBlocksSchema } from "../note/note-wire";
-import type { TurnUndone } from "../note/note-wire";
 import { landArticle } from "./article-landing";
 import { heldBody } from "./cell-body";
 import { cellCodec } from "./cell-codec";
@@ -36,16 +35,8 @@ import {
 import { landProjection } from "./cell-notes";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { itemRow, itemWhole, listingPage } from "./cell-listing";
-import {
-  listChangeSets,
-  listItems,
-  outlineOf,
-  readItemView,
-  searchItems,
-  summaryOf,
-} from "./cell-reads";
+import { listItems, outlineOf, readItemView, searchItems, summaryOf } from "./cell-reads";
 import { saveLink, savePage } from "./cell-saves";
-import { mergeTurnUndos, planUndo } from "./cell-undo";
 import type { CellActor } from "./cell-actor";
 import { landedSchema, libraryHead } from "./library-engine";
 import { answer, os, PAGE_DEFAULT } from "./library-orpc";
@@ -96,21 +87,6 @@ export const libraryRouter = os.router({
         seq: libraryHead(scope.db),
       })),
     ),
-  },
-  history: {
-    list: os.history.list.handler(({ context, input }) =>
-      context.read((db) => listChangeSets(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
-    ),
-    // the notes the sets wrote in undo first, outside any transaction; the write then lands what
-    // they answered beside the fields
-    undo: os.history.undo.handler(async ({ context, input }) => {
-      const plan = context.read((db) => planUndo(db, input.changeSetIds));
-      const answers: { itemId: string; undone: TurnUndone }[] = [];
-      for (const { itemId, setId } of plan) {
-        answers.push({ itemId, undone: await context.notes(itemId).undoTurn(setId) });
-      }
-      return answer(context.library.undo(input, mergeTurnUndos(answers)));
-    }),
   },
   imports: {
     cancel: os.imports.cancel.handler(({ context, input }) =>

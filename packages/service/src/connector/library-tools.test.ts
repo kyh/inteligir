@@ -61,12 +61,10 @@ const router = os.router({
     setEnabled: os.agent.setEnabled.handler(unimplemented),
     setRules: os.agent.setRules.handler(unimplemented),
     status: os.agent.status.handler(unimplemented),
+    undo: os.agent.undo.handler(unimplemented),
+    undoable: os.agent.undoable.handler(unimplemented),
   },
   folders: { write: os.folders.write.handler(unimplemented) },
-  history: {
-    list: os.history.list.handler(unimplemented),
-    undo: os.history.undo.handler(unimplemented),
-  },
   imports: {
     cancel: os.imports.cancel.handler(unimplemented),
     get: os.imports.get.handler(unimplemented),

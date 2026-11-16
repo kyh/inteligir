@@ -5,8 +5,8 @@
 import { and, eq, inArray, isNotNull, lt, notExists } from "drizzle-orm";
 
 import { appliedOps, changeSetItems, changeSets } from "@repo/db/cell/schema";
-import { holdSetFiles } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
+import { dropEntry } from "./change-sets";
 
 const DAY_MS = 24 * 60 * 60_000;
 export const UNDO_REACH_MS = 7 * DAY_MS;
@@ -14,8 +14,6 @@ export const UNDO_REACH_MS = 7 * DAY_MS;
 const OP_ANSWER_MS = 30 * DAY_MS;
 // the entries one run drops, well inside an alarm's 30 s of CPU
 const ENTRIES_PER_RUN = 100;
-
-export const PRUNE_EVERY_MS = DAY_MS;
 
 // one run's page; whether more wait for the next
 export const pruneChangeSets = (db: CellDb, now: number): boolean => {
@@ -30,15 +28,7 @@ export const pruneChangeSets = (db: CellDb, now: number): boolean => {
     .limit(ENTRIES_PER_RUN)
     .all();
   for (const entry of entries) {
-    db.delete(changeSetItems)
-      .where(
-        and(
-          eq(changeSetItems.changeSetId, entry.changeSetId),
-          eq(changeSetItems.itemId, entry.itemId),
-        ),
-      )
-      .run();
-    holdSetFiles(db, entry, [], now);
+    dropEntry(db, entry, now);
   }
   // a closed set with nothing left to take back, however recent, is nothing to undo
   db.delete(changeSets)

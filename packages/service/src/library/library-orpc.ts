@@ -10,7 +10,6 @@ import {
   AccountGoneError,
   AgentBudgetError,
   AgentUnavailableError,
-  AlreadyUndoneError,
   BlobMissingError,
   ConflictError,
   EditRefusedError,
@@ -30,7 +29,7 @@ import type { CellRefusal, CellResult } from "./cell-refusal";
 import type { Built, LibraryEngine, WriteRequest } from "./library-engine";
 
 export interface CellContext {
-  // the engine itself, for a write no verb shapes: an undo, a purge, one that waits on a note
+  // the engine itself, for a write no verb shapes: a purge, one that waits on a note
   readonly library: LibraryEngine;
   // the built-in agent's turns, which `library.agent.*` asks of
   readonly agent: AgentCell;
@@ -47,7 +46,7 @@ export interface CellContext {
     request: WriteRequest<S>,
     work: (scope: LandingScope, actor: CellActor) => Built<z.input<S>>,
   ) => z.output<S>;
-  // a write that touches no item, so joins no set: a folder, an import's job, the filing rules
+  // a write no turn made, so joins no set: a folder, an import's job, the filing rules, an undo
   readonly landApart: <S extends z.ZodType>(
     request: WriteRequest<S>,
     work: (scope: LandingScope) => Built<z.input<S>>,
@@ -94,9 +93,6 @@ const refusalError = (refusal: CellRefusal): Error => {
     }
     case "blob-missing": {
       return new BlobMissingError({ data: { shas: [...refusal.shas] } });
-    }
-    case "already-undone": {
-      return new AlreadyUndoneError({ data: { changeSetId: refusal.changeSetId } });
     }
     case "edit-refused": {
       return new EditRefusedError({

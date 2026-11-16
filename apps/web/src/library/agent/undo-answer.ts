@@ -10,6 +10,8 @@ interface UndoAnswer {
   readonly reverted: readonly string[];
 }
 
+// another device, or a press before this one, already took it all back
+const NOTHING_LEFT = "There's nothing left to undo.";
 const NOTHING_UNDONE =
   "Nothing was undone. Changes made since were kept where they overlapped, so you can undo this again.";
 
@@ -23,7 +25,7 @@ export const undoSentence = (answer: Omit<UndoAnswer, "lostText">) => {
     return "Partly undone. Some items couldn't come back yet, so you can undo this again.";
   }
   if (answer.kept.length === 0) {
-    return "Undone.";
+    return answer.reverted.length === 0 ? NOTHING_LEFT : "Undone.";
   }
   return answer.reverted.length === 0
     ? NOTHING_UNDONE
@@ -49,7 +51,7 @@ export const announceUndo = (answer: UndoAnswer, titleOf: (itemId: string) => st
   const lost = lostTextSentence(answer.lostText.map(titleOf));
   if (lost !== null) {
     toast.warning(sentence, { description: lost });
-  } else if (sentence === NOTHING_UNDONE) {
+  } else if (sentence === NOTHING_UNDONE || sentence === NOTHING_LEFT) {
     toast.info(sentence);
   } else {
     toast.success(sentence);
