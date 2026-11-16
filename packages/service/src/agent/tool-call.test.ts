@@ -1,9 +1,9 @@
-// A tool call as its row reads, and every move it can and cannot take; `./agent-thread.test.ts`
+// A tool call as its row reads and is written, and every move it can and cannot take; `./agent-thread.test.ts`
 // drives the loop's round, the person's answer and a stop over them.
 
 import { describe, expect, it } from "vitest";
 
-import { DECLINED, STOPPED, toolCallNext, toolCallOf } from "./tool-call";
+import { DECLINED, STOPPED, toolCallColumns, toolCallNext, toolCallOf } from "./tool-call";
 import type { ToolCall, ToolCallEvent } from "./tool-call";
 
 const ASKED: ToolCall = { kind: "asked" };
@@ -19,23 +19,19 @@ const RESULT: ToolCallEvent = { answer: { content: "Found 3.", isError: false },
 const ALLOW: ToolCallEvent = { approved: true, kind: "decide" };
 const DENY: ToolCallEvent = { approved: false, kind: "decide" };
 
-const ROW = { decision: null, isError: 0, result: null } as const;
-
 describe("a tool call's row", () => {
-  it("reads as the one state its status and decision mean", () => {
-    expect(toolCallOf({ ...ROW, status: "pending" })).toStrictEqual(ASKED);
-    expect(toolCallOf({ ...ROW, status: "awaiting_approval" })).toStrictEqual(AWAITING);
-    expect(toolCallOf({ ...ROW, decision: "approved", status: "awaiting_approval" })).toStrictEqual(
-      APPROVED,
-    );
-    expect(toolCallOf({ ...ROW, decision: "denied", status: "awaiting_approval" })).toStrictEqual(
-      DENIED,
-    );
-    expect(toolCallOf({ ...ROW, status: "running" })).toStrictEqual(RUNNING);
-    expect(toolCallOf({ ...ROW, isError: 1, result: "Failed.", status: "done" })).toStrictEqual({
-      answer: { content: "Failed.", isError: true },
-      kind: "answered",
+  it("holds every call as the state it is in, and reads back as that call", () => {
+    for (const call of [ASKED, AWAITING, APPROVED, DENIED, RUNNING]) {
+      expect(toolCallColumns(call)).toStrictEqual({ isError: 0, result: null, state: call.kind });
+      expect(toolCallOf(toolCallColumns(call))).toStrictEqual(call);
+    }
+    const failed: ToolCall = { answer: { content: "Failed.", isError: true }, kind: "answered" };
+    expect(toolCallColumns(failed)).toStrictEqual({
+      isError: 1,
+      result: "Failed.",
+      state: "answered",
     });
+    expect(toolCallOf(toolCallColumns(failed))).toStrictEqual(failed);
   });
 });
 

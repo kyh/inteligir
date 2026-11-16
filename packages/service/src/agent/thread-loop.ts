@@ -11,11 +11,11 @@
 //   before a call past its twentieth reply;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once;
-// - a turn is sent under the definition in force when it started, the filing rules it brought
-//   part of it: one a deploy or the person's edit of their rules changed is taken up at the next
-//   turn's start, never mid-turn, and from then on no request carries a thinking block from before
-//   that turn (`./thread-request`); a tool call the older definition named still runs against the
-//   cell's procedures as they stand, one they no longer take answered as an error
+// - a turn is sent under the definition in force when it was delivered, the filing rules it
+//   brought part of it: one a deploy or the person's edit of their rules changed is taken up as
+//   the next turn is delivered, never mid-turn, and from then on no request carries a thinking
+//   block from before that turn (`./thread-request`); a tool call the older definition named still
+//   runs against the cell's procedures as they stand, one they no longer take answered as an error
 //   (`./agent-tools`).
 
 import type { APIError } from "@anthropic-ai/sdk";
@@ -58,7 +58,7 @@ import type {
   ToolResultBlock,
   TranscriptMessage,
 } from "./thread-request";
-import { toolCallNext, toolCallOf } from "./tool-call";
+import { toolCallColumns, toolCallNext, toolCallOf } from "./tool-call";
 import type { ToolCall, ToolCallEvent } from "./tool-call";
 import type {
   CellAnswer,
@@ -179,32 +179,19 @@ export const cutSilentCalls = (calls: ReadonlyMap<number, CallInFlight>, now: nu
 
 interface OpenTurn {
   readonly turn: number;
-  readonly content: string;
-  readonly rules: string | null;
-  readonly started: boolean;
-  readonly cancelRequested: boolean;
-  readonly waiting: boolean;
+  // stopped by the person, and not yet settled
+  readonly stopping: boolean;
 }
 
 const openTurnOf = (db: ThreadDb): OpenTurn | null => {
   const row = db
     .select()
     .from(threadTurns)
-    .where(ne(threadTurns.status, "ended"))
+    .where(ne(threadTurns.state, "ended"))
     .orderBy(asc(threadTurns.turn))
     .limit(1)
     .get();
-  if (row === undefined) {
-    return null;
-  }
-  return {
-    cancelRequested: row.cancelRequested === 1,
-    content: row.content,
-    rules: row.rules,
-    started: row.started === 1,
-    turn: row.turn,
-    waiting: row.status === "awaiting_approval",
-  };
+  return row === undefined ? null : { stopping: row.state === "stopping", turn: row.turn };
 };
 
 const META_ID = 1;
@@ -267,10 +254,7 @@ interface TurnEnding {
 
 // the turn over: its row ended and the cell told why, which seals it there
 const endTurn = (db: ThreadDb, turn: number, ending: TurnEnding): void => {
-  db.update(threadTurns)
-    .set({ status: "ended" })
-    .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
-    .run();
+  db.update(threadTurns).set({ state: "ended" }).where(eq(threadTurns.turn, turn)).run();
   const ended: AgentEvent = { reason: ending.reason, turn, type: "turn.ended" };
   if (ending.detail !== null) {
     ended.detail = ending.detail.slice(0, 200);
@@ -317,27 +301,6 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
   }
 };
 
-// ---- a turn handed in ----
-
-// the turn the cell delivered, kept once by its op id, and the push sequence taken past the last
-// push the cell landed, which an object that started over on empty tables would otherwise reuse
-export const acceptDelivery = (host: ThreadHost, request: DeliveryRequest): void => {
-  const { db } = host;
-  host.transaction(() => {
-    db.insert(threadTurns)
-      .values({
-        content: JSON.stringify(request.content),
-        opId: request.opId,
-        rules: request.rules,
-        status: "running",
-        turn: request.turn,
-      })
-      .onConflictDoNothing()
-      .run();
-    setMeta(db, { pushSeq: sql`max(${threadMeta.pushSeq}, ${request.pushedThrough})` });
-  });
-};
-
 // ---- the definition ----
 
 // the definition the thread's turns are sent under, and the transcript row it is in force from
@@ -360,23 +323,37 @@ const definitionOf = (db: ThreadDb): DefinitionInForce | null => {
   return { definition: storedDefinition(row), hash: row.hash, sinceSeq: row.sinceSeq };
 };
 
-// the definition a started turn is sent under, which its start wrote
+// the definition a turn is sent under, which its delivery wrote
 const definitionInForce = (db: ThreadDb): DefinitionInForce => {
   const held = definitionOf(db);
   if (held === null) {
-    throw new Error("a started turn has a definition");
+    throw new Error("a delivered turn has a definition");
   }
   return held;
 };
 
-// the turn's first rows: the definition this deployment starts turns under with the filing rules
-// the turn brought, when it is not the one in force, from the person's message on, then that
+// ---- a turn handed in ----
+
+// the turn the cell delivered, kept once by its number, and the push sequence taken past the last
+// push the cell landed, which an object that started over on empty tables would otherwise reuse.
+// Its first rows land with it: the definition this deployment starts turns under with the filing
+// rules the turn brought, when it is not the one in force, from the person's message on, then that
 // message. A thread takes up a definition only here, so a turn is sent under one from its first
 // call to its last
-const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
-  const deployed = await frozenDefinition(host.definition(turn.rules));
+export const acceptDelivery = (host: ThreadHost, request: DeliveryRequest): void => {
   const { db } = host;
+  const deployed = frozenDefinition(host.definition(request.rules));
   host.transaction(() => {
+    setMeta(db, { pushSeq: sql`max(${threadMeta.pushSeq}, ${request.pushedThrough})` });
+    const kept = db
+      .insert(threadTurns)
+      .values({ state: "running", turn: request.turn })
+      .onConflictDoNothing()
+      .returning({ turn: threadTurns.turn })
+      .all();
+    if (kept.length === 0) {
+      return;
+    }
     const held = definitionOf(db);
     if (held?.hash !== deployed.hash) {
       db.insert(threadDefinitions)
@@ -395,12 +372,11 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
         console.info({
           event: "agent-definition-taken-up",
           threadId: host.threadId,
-          turn: turn.turn,
+          turn: request.turn,
         });
       }
     }
-    append(db, { content: turn.content, role: "user", turn: turn.turn });
-    db.update(threadTurns).set({ started: 1 }).where(eq(threadTurns.turn, turn.turn)).run();
+    append(db, { content: JSON.stringify(request.content), role: "user", turn: request.turn });
   });
 };
 
@@ -753,29 +729,23 @@ const toolRowsOf = (db: ThreadDb, msgSeq: number): ToolRow[] =>
 const RUN: ToolCallEvent = { kind: "run" };
 const STOP: ToolCallEvent = { kind: "stop" };
 
-const keepAnswer = (db: ThreadDb, toolUseId: string, answer: ToolAnswer): void => {
-  db.update(toolCalls)
-    .set({ isError: answer.isError ? 1 : 0, result: answer.content, status: "done" })
-    .where(eq(toolCalls.toolUseId, toolUseId))
-    .run();
-};
-
-// the call moved by `event` in one transaction, its answer kept and pushed where the move answers
-// it; a move the call cannot take writes nothing
-const answerCall = (
-  host: ThreadHost,
-  turn: number,
-  toolUseId: string,
-  event: ToolCallEvent,
+// a call as its move left it: kept, and its answer told where the move answered it; a move the
+// call could not take leaves nothing
+const keepCall = (
+  db: ThreadDb,
+  call: Pick<ToolRow, "toolUseId" | "turn">,
+  next: ToolCall | null,
 ): void => {
-  host.transaction(() => {
-    const row = host.db.select().from(toolCalls).where(eq(toolCalls.toolUseId, toolUseId)).get();
-    const next = row === undefined ? null : toolCallNext(toolCallOf(row), event);
-    if (next?.kind === "answered") {
-      keepAnswer(host.db, toolUseId, next.answer);
-      enqueue(host.db, turn, [resultEvent(toolUseId, next.answer.content, next.answer.isError)]);
-    }
-  });
+  if (next === null) {
+    return;
+  }
+  db.update(toolCalls)
+    .set(toolCallColumns(next))
+    .where(eq(toolCalls.toolUseId, call.toolUseId))
+    .run();
+  if (next.kind === "answered") {
+    enqueue(db, call.turn, [resultEvent(call.toolUseId, next.answer.content, next.answer.isError)]);
+  }
 };
 
 const resultBlock = (toolUseId: string, answer: ToolAnswer): ToolResultBlock => {
@@ -803,25 +773,21 @@ const toolRound = async (
   const asked: string[] = [];
   const until = host.now() + APPROVAL_LIMIT_MS;
   host.transaction(() => {
+    const journaled = new Set(toolRowsOf(db, reply.seq).map((row) => row.toolUseId));
     for (const [index, use] of uses.entries()) {
-      const journaled = db
-        .select({ toolUseId: toolCalls.toolUseId })
-        .from(toolCalls)
-        .where(eq(toolCalls.toolUseId, use.id))
-        .get();
-      if (journaled !== undefined) {
+      if (journaled.has(use.id)) {
         continue;
       }
       const start = callStart(use.name, use.input);
+      const call = { toolUseId: use.id, turn: turn.turn };
       db.insert(toolCalls)
         .values({
+          ...call,
+          ...toolCallColumns({ kind: start.kind === "ask" ? "awaiting" : "asked" }),
           idx: index,
           input: JSON.stringify(use.input),
           msgSeq: reply.seq,
           name: use.name,
-          status: start.kind === "ask" ? "awaiting_approval" : "pending",
-          toolUseId: use.id,
-          turn: turn.turn,
         })
         .run();
       if (start.kind === "ask") {
@@ -831,8 +797,7 @@ const toolRound = async (
         ]);
       }
       if (start.kind === "refused") {
-        keepAnswer(db, use.id, start.answer);
-        enqueue(db, turn.turn, [resultEvent(use.id, start.answer.content, start.answer.isError)]);
+        keepCall(db, call, { answer: start.answer, kind: "answered" });
       }
     }
   });
@@ -845,17 +810,16 @@ const toolRound = async (
       continue;
     }
     if (next.kind === "answered") {
-      answerCall(host, turn.turn, row.toolUseId, RUN);
+      host.transaction(() => {
+        keepCall(db, row, next);
+      });
       continue;
     }
-    if (openTurnOf(db)?.cancelRequested !== false) {
+    if (openTurnOf(db)?.stopping !== false) {
       // stopped meanwhile: the next step answers what is left
       return "continue";
     }
-    db.update(toolCalls)
-      .set({ attempts: sql`${toolCalls.attempts} + 1`, status: "running" })
-      .where(eq(toolCalls.toolUseId, row.toolUseId))
-      .run();
+    keepCall(db, row, next);
     let answer: CellAnswer<ToolAnswer>;
     try {
       answer = await host.cell().agentTool({
@@ -874,9 +838,12 @@ const toolRound = async (
       await host.purge();
       return "purged";
     }
-    answerCall(host, turn.turn, row.toolUseId, {
+    const result: ToolCallEvent = {
       answer: answer.ok ? answer.value : TURN_CLOSED,
       kind: "result",
+    };
+    host.transaction(() => {
+      keepCall(db, row, toolCallNext(next, result));
     });
   }
   const rows = toolRowsOf(db, reply.seq);
@@ -885,19 +852,9 @@ const toolRound = async (
     return call.kind === "answered" ? [resultBlock(row.toolUseId, call.answer)] : [];
   });
   if (results.length < rows.length) {
-    db.update(threadTurns)
-      .set({ status: "awaiting_approval" })
-      .where(eq(threadTurns.turn, turn.turn))
-      .run();
     return "paused";
   }
-  host.transaction(() => {
-    append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
-    db.update(threadTurns)
-      .set({ status: "running" })
-      .where(and(eq(threadTurns.turn, turn.turn), ne(threadTurns.status, "ended")))
-      .run();
-  });
+  append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
   return "continue";
 };
 
@@ -916,18 +873,14 @@ export const decideCall = async (
   const { db } = host;
   const decided = host.transaction(() => {
     const row = db.select().from(toolCalls).where(eq(toolCalls.toolUseId, answer.toolUseId)).get();
-    const decide: ToolCallEvent = { approved: answer.approved, kind: "decide" };
-    if (row === undefined || toolCallNext(toolCallOf(row), decide) === null) {
+    const next =
+      row === undefined
+        ? null
+        : toolCallNext(toolCallOf(row), { approved: answer.approved, kind: "decide" });
+    if (row === undefined || next === null) {
       return false;
     }
-    db.update(toolCalls)
-      .set({ decision: answer.approved ? "approved" : "denied" })
-      .where(eq(toolCalls.toolUseId, answer.toolUseId))
-      .run();
-    db.update(threadTurns)
-      .set({ status: "running" })
-      .where(and(eq(threadTurns.turn, row.turn), eq(threadTurns.status, "awaiting_approval")))
-      .run();
+    keepCall(db, row, next);
     enqueue(db, row.turn, [
       {
         by: answer.by,
@@ -948,8 +901,8 @@ export const decideCall = async (
 export const requestCancel = (host: ThreadHost, turn: number): void => {
   host.db
     .update(threadTurns)
-    .set({ cancelRequested: 1 })
-    .where(and(eq(threadTurns.turn, turn), ne(threadTurns.status, "ended")))
+    .set({ state: "stopping" })
+    .where(and(eq(threadTurns.turn, turn), eq(threadTurns.state, "running")))
     .run();
   const call = host.calls.get(turn);
   if (call !== undefined) {
@@ -970,7 +923,6 @@ const settleCancel = async (
     if (last?.role === "assistant" && last.turn === turn.turn) {
       const uses = last.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
       const rows = new Map(toolRowsOf(db, last.seq).map((row) => [row.toolUseId, row]));
-      const events: AgentEvent[] = [];
       const results: ToolResultBlock[] = [];
       for (const use of uses) {
         const row = rows.get(use.id);
@@ -978,25 +930,18 @@ const settleCancel = async (
         const call: ToolCall = row === undefined ? { kind: "asked" } : toolCallOf(row);
         if (call.kind === "awaiting") {
           waited.push(use.id);
-          events.push({
-            by: "cancel",
-            result: "deny",
-            toolUseId: use.id,
-            type: "approval.answered",
-          });
+          enqueue(db, turn.turn, [
+            { by: "cancel", result: "deny", toolUseId: use.id, type: "approval.answered" },
+          ]);
         }
         const next = toolCallNext(call, STOP);
-        if (next?.kind === "answered") {
-          keepAnswer(db, use.id, next.answer);
-          events.push(resultEvent(use.id, next.answer.content, next.answer.isError));
-        }
+        keepCall(db, { toolUseId: use.id, turn: turn.turn }, next);
         const settled = next ?? call;
         if (settled.kind === "answered") {
           results.push(resultBlock(use.id, settled.answer));
         }
       }
       append(db, { content: JSON.stringify(results), role: "user", turn: turn.turn });
-      enqueue(db, turn.turn, events);
     }
     endTurn(db, turn.turn, { detail: null, reason: "cancelled" });
   });
@@ -1007,16 +952,11 @@ const settleCancel = async (
 
 // ---- the step ----
 
-// the open turn's next step: its first rows, its cancel settled, a round of tool calls, or a model
-// call
+// the open turn's next step: its cancel settled, a round of tool calls, or a model call
 const turnStep = async (host: ThreadHost, turn: OpenTurn): Promise<StepResult> => {
-  if (!turn.started) {
-    await startTurn(host, turn);
-    return "continue";
-  }
   const transcript = transcriptOf(host.db);
   const last = transcript.at(-1);
-  if (turn.cancelRequested) {
+  if (turn.stopping) {
     await settleCancel(host, turn, last);
     return "continue";
   }
@@ -1049,14 +989,5 @@ export const step = async (host: ThreadHost): Promise<StepResult> => {
 export const inspectThread = (host: ThreadHost, driving: boolean): ThreadInspection => {
   const turn = openTurnOf(host.db);
   const outbox = host.db.select({ count: count() }).from(threadOutbox).get()?.count ?? 0;
-  let status: ThreadInspection["status"] = "idle";
-  if (turn !== null) {
-    status = turn.waiting ? "awaiting_approval" : "running";
-  }
-  return {
-    driving,
-    outbox,
-    status,
-    turn: turn?.turn ?? null,
-  };
+  return { driving, outbox, turn: turn?.turn ?? null };
 };

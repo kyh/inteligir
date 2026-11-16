@@ -1,10 +1,10 @@
 // One tool call of the agent's as its row in the conversation's `tool_calls` holds it
-// (`@repo/db/thread/schema`): the `status` and `decision` columns read together as the one state
-// they mean, and the one way a call moves (`toolCallNext`), which the loop's round, the person's
-// answer and a stop each go through (`./thread-loop`). A call the reply asked for runs unless it
-// asks the person first, and one that would ask over input its row refuses is journaled answered
-// (`./agent-tools`); a denied one is answered that the person declined it whatever answers it, its
-// round or a stop; a result lands only on a call that runs.
+// (`@repo/db/thread/schema`): the row's `state` is this union's kind, read by `toolCallOf` and
+// written by `toolCallColumns`, and the one way a call moves is `toolCallNext`, which the loop's
+// round, the person's answer and a stop each go through (`./thread-loop`). A call the reply asked
+// for runs unless it asks the person first, and one that would ask over input its row refuses is
+// journaled answered (`./agent-tools`); a denied one is answered that the person declined it
+// whatever answers it, its round or a stop; a result lands only on a call that runs.
 
 import type { toolCalls } from "@repo/db/thread/schema";
 
@@ -29,34 +29,19 @@ export type ToolCallEvent =
   | { readonly kind: "result"; readonly answer: ToolAnswer }
   | { readonly kind: "stop" };
 
-type ToolCallRow = Pick<
-  typeof toolCalls.$inferSelect,
-  "decision" | "isError" | "result" | "status"
->;
+type ToolCallColumns = Pick<typeof toolCalls.$inferSelect, "isError" | "result" | "state">;
 
-export const toolCallOf = (row: ToolCallRow): ToolCall => {
-  switch (row.status) {
-    case "pending": {
-      return { kind: "asked" };
-    }
-    case "awaiting_approval": {
-      if (row.decision === "approved") {
-        return { kind: "approved" };
-      }
-      return { kind: row.decision === "denied" ? "denied" : "awaiting" };
-    }
-    case "running": {
-      return { kind: "running" };
-    }
-    case "done": {
-      return {
-        answer: { content: row.result ?? "", isError: row.isError === 1 },
-        kind: "answered",
-      };
-    }
-    // no default
-  }
-};
+// the row's CHECK holds an answered call to its result
+export const toolCallOf = (row: ToolCallColumns): ToolCall =>
+  row.state === "answered"
+    ? { answer: { content: row.result ?? "", isError: row.isError === 1 }, kind: "answered" }
+    : { kind: row.state };
+
+export const toolCallColumns = (call: ToolCall): ToolCallColumns => ({
+  isError: call.kind === "answered" && call.answer.isError ? 1 : 0,
+  result: call.kind === "answered" ? call.answer.content : null,
+  state: call.kind,
+});
 
 const DECLINED_CALL: ToolCall = { answer: { content: DECLINED, isError: true }, kind: "answered" };
 

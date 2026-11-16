@@ -512,20 +512,19 @@ describe("a conversation's object", () => {
       expect(answered.map(({ event }) => event)).toStrictEqual([
         expect.objectContaining({ by: "person", result: "allow" }),
       ]);
-      const [tool] = await threadRows(
-        account.accountId,
-        sent.threadId,
-        "SELECT attempts, is_error FROM tool_calls",
-      );
-      expect(tool).toStrictEqual({ attempts: 1, is_error: 0 });
+      const answeredOnce = [{ is_error: 0, state: "answered" }];
+      await expect(
+        threadRows(account.accountId, sent.threadId, "SELECT state, is_error FROM tool_calls"),
+      ).resolves.toStrictEqual(answeredOnce);
       // a second answer decides nothing
       await threadOf(account.accountId, sent.threadId).respond({
         approved: false,
         toolUseId: z.object({ toolUseId: z.string() }).parse(asked?.event).toolUseId,
       });
       await expect(
-        threadRows(account.accountId, sent.threadId, "SELECT decision FROM tool_calls"),
-      ).resolves.toStrictEqual([{ decision: "approved" }]);
+        threadRows(account.accountId, sent.threadId, "SELECT state, is_error FROM tool_calls"),
+      ).resolves.toStrictEqual(answeredOnce);
+      await expect(eventsOf(account, sent.threadId, "approval.answered")).resolves.toHaveLength(1);
     },
   );
 
@@ -680,7 +679,7 @@ describe("a conversation's object", () => {
       // both held open at once, each in its own object
       for (const threadId of [first.threadId, second.threadId]) {
         const inspection = await threadOf(account.accountId, threadId).inspect();
-        expect(inspection).toMatchObject({ driving: true, status: "running", turn: 1 });
+        expect(inspection).toMatchObject({ driving: true, turn: 1 });
       }
       await expect(sendAs(script("Wait for me."), first.threadId)).resolves.toStrictEqual({
         status: "queued",
@@ -756,7 +755,7 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       await inSteppedThread(account, threadId, script("fail 529 2"), async ({ asked, run }) => {
-        await expect(run()).resolves.toStrictEqual(["continue", "later"]);
+        await expect(run()).resolves.toStrictEqual(["later"]);
         await expect(run()).resolves.toStrictEqual(["later"]);
         // after 2 s, then 10 s, each a retry the drive job was timed for
         const [first = 0, second = 0] = asked.drives;
@@ -908,7 +907,7 @@ describe("a conversation's loop, stepped", () => {
         expect(host.calls.get(1)?.abort.signal.aborted).toBe(false);
         cutSilentCalls(host.calls, heardAt + 3 * MINUTE_MS);
         // a lost connection: sent again after the first retry's wait, not a stop
-        await expect(resting).resolves.toStrictEqual(["continue", "later"]);
+        await expect(resting).resolves.toStrictEqual(["later"]);
         await expect(restsAt(run)).resolves.toBe("idle");
       });
       const calls = await callsOf(account, threadId);
@@ -935,7 +934,7 @@ describe("a conversation's loop, stepped", () => {
           { interval: 50, timeout: 10_000 },
         );
         await host.purge();
-        await expect(resting).resolves.toStrictEqual(["continue", "purged"]);
+        await expect(resting).resolves.toStrictEqual(["purged"]);
         await expect(run()).resolves.toStrictEqual([]);
         expect(asked.drives).toStrictEqual([]);
       });
@@ -963,7 +962,7 @@ describe("a conversation's loop, stepped", () => {
           },
           { interval: 25, timeout: 10_000 },
         );
-        await expect(resting).resolves.toStrictEqual(["continue", "continue", "idle"]);
+        await expect(resting).resolves.toStrictEqual(["continue", "idle"]);
       });
       const calls = await callsOf(account, threadId);
       expect(calls.map((call) => call.status)).toStrictEqual(["done"]);
@@ -1064,7 +1063,7 @@ describe("a conversation's loop, stepped", () => {
   it("runs a tool cut mid-run again, under the op id it first ran by, landing once", async () => {
     const account = agentAccount();
     const threadId = crypto.randomUUID();
-    let cut = false;
+    let runs = 0;
     await inSteppedThread(
       account,
       threadId,
@@ -1081,8 +1080,8 @@ describe("a conversation's loop, stepped", () => {
           agentPush: real.agentPush,
           agentTool: async (request) => {
             const answer = await real.agentTool(request);
-            if (!cut) {
-              cut = true;
+            runs += 1;
+            if (runs === 1) {
               throw new Error("the instance died before it heard the answer");
             }
             return answer;
@@ -1090,12 +1089,10 @@ describe("a conversation's loop, stepped", () => {
         }),
       },
     );
-    const [tool] = await threadRows(
-      account.accountId,
-      threadId,
-      "SELECT attempts, status, is_error FROM tool_calls",
-    );
-    expect(tool).toStrictEqual({ attempts: 2, is_error: 0, status: "done" });
+    expect(runs).toBe(2);
+    await expect(
+      threadRows(account.accountId, threadId, "SELECT state, is_error FROM tool_calls"),
+    ).resolves.toStrictEqual([{ is_error: 0, state: "answered" }]);
     const listed = await asLaptop(account, async (client) => await client.items.list({}));
     expect(listed.items).toHaveLength(1);
     await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);

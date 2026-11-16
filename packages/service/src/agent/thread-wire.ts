@@ -2,9 +2,8 @@
 // say to each other, each way by Durable Object RPC, parsed at the side that receives it. The
 // thread has the cell run every tool call (`agentTool`), shows the reply as it is written
 // (`agentPreview`), and pushes what the turn did (`agentPush`): its events. Each push goes by the
-// thread's own sequence, so one sent
-// again lands once, and every delivery says the last push the cell landed, so an object that
-// started over on empty tables goes on past it. The cell refuses a thread it does not hold, which
+// thread's own sequence, so one sent again lands once, and every delivery says the last push the
+// cell landed, so an object that started over on empty tables goes on past it. The cell refuses a thread it does not hold, which
 // purges itself, and a turn that is not open, whose call lands nothing.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
@@ -54,11 +53,10 @@ export type PreviewRequest = z.infer<typeof previewRequestSchema>;
 const textBlockSchema = z.strictObject({ text: z.string(), type: z.literal("text") });
 
 // a turn handed to its thread: the person's message as the text blocks it sends, the filing rules
-// the library keeps, or null, and the last push the cell landed of this thread; `opId` is the
-// cell's own, so a delivery sent again lands once
+// the library keeps, or null, and the last push the cell landed of this thread; a delivery sent
+// again lands once, by its turn
 export const deliveryRequestSchema = z.strictObject({
   content: z.array(textBlockSchema).min(1),
-  opId: z.string().min(1).max(256),
   pushedThrough: z.number().int().nonnegative(),
   rules: z.string().nullable(),
   threadId: idSchema,
@@ -74,9 +72,8 @@ export type RespondRequest = z.infer<typeof respondRequestSchema>;
 
 // where a thread stands, for the cell's watch and the suites
 export interface ThreadInspection {
-  // the turn it works on, and where that stands
+  // the turn it works on
   readonly turn: number | null;
-  readonly status: "idle" | "running" | "awaiting_approval";
   // whether this instance runs its work now
   readonly driving: boolean;
   readonly outbox: number;

@@ -161,7 +161,6 @@ export const inSteppedThread = async <T>(
         const content = turnUserMessage({ text: turn.text, viewContext: null });
         acceptDelivery(host, {
           content,
-          opId: `${threadId}:${String(turn.turn)}`,
           pushedThrough: turn.handed.pushedThrough,
           rules: turn.handed.rules,
           threadId,

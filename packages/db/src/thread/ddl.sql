@@ -44,15 +44,8 @@ CREATE TABLE `transcript` (
 
 CREATE TABLE `turns` (
 	`turn` integer PRIMARY KEY,
-	`op_id` text NOT NULL UNIQUE,
-	`content` text NOT NULL,
-	`rules` text,
-	`status` text NOT NULL,
-	`started` integer DEFAULT 0 NOT NULL,
-	`cancel_requested` integer DEFAULT 0 NOT NULL,
-	CONSTRAINT "turns_status" CHECK("status" IN ('running', 'awaiting_approval', 'ended')),
-	CONSTRAINT "turns_started" CHECK("started" IN (0, 1)),
-	CONSTRAINT "turns_cancel_requested" CHECK("cancel_requested" IN (0, 1))
+	`state` text NOT NULL,
+	CONSTRAINT "turns_state" CHECK("state" IN ('running', 'stopping', 'ended'))
 );
 
 CREATE TABLE `tool_calls` (
@@ -62,13 +55,11 @@ CREATE TABLE `tool_calls` (
 	`idx` integer NOT NULL,
 	`name` text NOT NULL,
 	`input` text NOT NULL,
-	`status` text NOT NULL,
-	`decision` text,
-	`attempts` integer DEFAULT 0 NOT NULL,
+	`state` text NOT NULL,
 	`result` text,
 	`is_error` integer DEFAULT 0 NOT NULL,
-	CONSTRAINT "tool_calls_status" CHECK("status" IN ('pending', 'awaiting_approval', 'running', 'done')),
-	CONSTRAINT "tool_calls_decision" CHECK("decision" IN ('approved', 'denied')),
+	CONSTRAINT "tool_calls_state" CHECK("state" IN ('asked', 'awaiting', 'approved', 'denied', 'running', 'answered')),
+	CONSTRAINT "tool_calls_answer" CHECK(("state" = 'answered') = ("result" IS NOT NULL)),
 	CONSTRAINT "tool_calls_is_error" CHECK("is_error" IN (0, 1))
 );
 

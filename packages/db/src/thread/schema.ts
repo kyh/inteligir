@@ -1,6 +1,7 @@
 // A conversation's SQLite, one per conversation's Durable Object: the transcript as Claude returned
 // it, the definitions its turns are sent under, the turns its cell delivered, each step's model
-// calls and tool calls, and the outbox to its cell. drizzle-kit exports its DDL (ddl.sql), which
+// calls and tool calls, and the outbox to its cell. A turn's row and a tool call's each store the
+// one state they are in, never a column a concern. drizzle-kit exports its DDL (ddl.sql), which
 // the conversation applies in its constructor. The transcript is append-only by its one insert
 // site, never a trigger, which the exported DDL cannot spell, and each row holds one message's
 // content as the text that was sent, so a replay is byte for byte what went before: a replayed
@@ -9,19 +10,27 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-// where a turn stands in the conversation: running, waiting on the person, or ended
-export const THREAD_TURN_STATUSES = ["running", "awaiting_approval", "ended"] as const;
+// where a turn stands in the conversation: running, stopped by the person and not yet settled, or
+// ended
+export const THREAD_TURN_STATES = ["running", "stopping", "ended"] as const;
 
 // where one model call stands: streaming while this instance reads it; done once its reply landed;
 // cut when an instance died reading it; failed or cancelled, whether it went out or not
 export const MODEL_CALL_STATUSES = ["streaming", "done", "cut", "failed", "cancelled"] as const;
 
-// where one tool call stands: journaled, waiting on the person, running, or answered
-export const TOOL_CALL_STATUSES = ["pending", "awaiting_approval", "running", "done"] as const;
+// where one tool call stands, the kinds of the loop's own union
+// (packages/service/src/agent/tool-call.ts): journaled to run, waiting on the person, allowed or
+// declined by them, handed to the cell, or answered
+export const TOOL_CALL_STATES = [
+  "asked",
+  "awaiting",
+  "approved",
+  "denied",
+  "running",
+  "answered",
+] as const;
 
 const TRANSCRIPT_ROLES = ["user", "assistant"] as const;
-
-const TOOL_DECISIONS = ["approved", "denied"] as const;
 
 // a CHECK's list, spelled from the vocabulary it holds a column to
 const oneOf = (values: readonly string[]) =>
@@ -62,24 +71,15 @@ export const threadTranscript = sqliteTable(
   (t) => [check("transcript_role", sql`${t.role} IN (${oneOf(TRANSCRIPT_ROLES)})`)],
 );
 
-// each turn the cell delivered, by the id it delivered it under: the person's message and the
-// filing rules it came with, and whether its first rows are in the transcript yet
+// each turn the cell delivered, by the number it delivered it under; its message and the definition
+// it is sent under are written with it
 export const threadTurns = sqliteTable(
   "turns",
   {
     turn: integer().primaryKey(),
-    opId: text("op_id").notNull().unique(),
-    content: text().notNull(),
-    rules: text(),
-    status: text({ enum: THREAD_TURN_STATUSES }).notNull(),
-    started: integer().notNull().default(0),
-    cancelRequested: integer("cancel_requested").notNull().default(0),
+    state: text({ enum: THREAD_TURN_STATES }).notNull(),
   },
-  (t) => [
-    check("turns_status", sql`${t.status} IN (${oneOf(THREAD_TURN_STATUSES)})`),
-    check("turns_started", sql`${t.started} IN (0, 1)`),
-    check("turns_cancel_requested", sql`${t.cancelRequested} IN (0, 1)`),
-  ],
+  (t) => [check("turns_state", sql`${t.state} IN (${oneOf(THREAD_TURN_STATES)})`)],
 );
 
 // each send of a step, the isolate that read it, and the hash of what it asked, none for a call
@@ -110,16 +110,14 @@ export const toolCalls = sqliteTable(
     idx: integer().notNull(),
     name: text().notNull(),
     input: text().notNull(),
-    status: text({ enum: TOOL_CALL_STATUSES }).notNull(),
-    decision: text({ enum: TOOL_DECISIONS }),
-    attempts: integer().notNull().default(0),
+    state: text({ enum: TOOL_CALL_STATES }).notNull(),
     result: text(),
     isError: integer("is_error").notNull().default(0),
   },
   (t) => [
     index("tool_calls_message").on(t.msgSeq, t.idx),
-    check("tool_calls_status", sql`${t.status} IN (${oneOf(TOOL_CALL_STATUSES)})`),
-    check("tool_calls_decision", sql`${t.decision} IN (${oneOf(TOOL_DECISIONS)})`),
+    check("tool_calls_state", sql`${t.state} IN (${oneOf(TOOL_CALL_STATES)})`),
+    check("tool_calls_answer", sql`(${t.state} = 'answered') = (${t.result} IS NOT NULL)`),
     check("tool_calls_is_error", sql`${t.isError} IN (0, 1)`),
   ],
 );

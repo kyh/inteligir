@@ -237,7 +237,6 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
   try {
     await stub.send({
       content: turnUserMessage(turn.message),
-      opId: `${threadId}:${String(turn.turn)}`,
       pushedThrough,
       rules,
       threadId,

@@ -253,7 +253,7 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   // ---- what the cell asks ----
 
-  // a turn handed in: kept once by its op id, and the work woken
+  // a turn handed in: kept once by its number, and the work woken
   async send(request: DeliveryRequest): Promise<void> {
     await this.lifecycle.start();
     const delivery = deliveryRequestSchema.parse(request);
@@ -304,7 +304,7 @@ export class AgentThreadDO extends DurableObject<Env> {
   async inspect(): Promise<ThreadInspection> {
     await this.lifecycle.start();
     if (this.#drive.kind === "purged") {
-      return { driving: false, outbox: 0, status: "idle", turn: null };
+      return { driving: false, outbox: 0, turn: null };
     }
     const inspection = inspectThread(this.#host(), this.#drive.kind === "driving");
     if ((inspection.turn !== null && !inspection.driving) || inspection.outbox > 0) {
