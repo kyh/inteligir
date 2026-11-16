@@ -4,8 +4,8 @@ import { applyFieldOps } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
-import { revertChangeSets, revertItemChange } from "./revert-change";
-import type { ItemChange, ItemNow, ItemRevert } from "./revert-change";
+import { nextEntry, revertChangeSets, revertItemChange } from "./revert-change";
+import type { ItemNow, ItemRevert, SetEntry } from "./revert-change";
 import { noteFixture } from "@repo/contract/test-support/library-items";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
 
@@ -19,15 +19,14 @@ const landed = (fields: LibraryItemFields, ops: readonly FieldOp[]): LibraryItem
   return outcome.fields;
 };
 
-const changeOf = (before: LibraryItemFields | null, after: LibraryItemFields): ItemChange => ({
-  after,
-  before,
-});
+// the entry of a set whose one landing took the item from `before` to `after`
+const changeOf = (before: LibraryItemFields | null, after: LibraryItemFields): SetEntry =>
+  nextEntry(null, before, after);
 
 const nowOf = (fields: LibraryItemFields, bodyEdited = false): ItemNow => ({ bodyEdited, fields });
 
-const revert = (change: ItemChange, now: ItemNow | null): ItemRevert =>
-  revertItemChange({ at: AT, change, now });
+const revert = (entry: SetEntry, now: ItemNow | null): ItemRevert =>
+  revertItemChange({ at: AT, entry, now });
 
 const fieldsOf = (verdict: ItemRevert): LibraryItemFields => {
   if (verdict.kind !== "revert") {
@@ -86,6 +85,9 @@ describe(revertItemChange, () => {
     expect(revert(change, nowOf(retitled))).toStrictEqual(EDITED);
     expect(revert(change, nowOf(made, true))).toStrictEqual(EDITED);
     expect(revert(change, null)).toStrictEqual({ kind: "unchanged" });
+    // a later landing of the set's takes the item as it then stands
+    const touched = nextEntry(change, retitled, retitled);
+    expect(fieldsOf(revert(touched, nowOf(retitled))).deletedAt).toBe(AT);
   });
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {

@@ -23,7 +23,7 @@ import { jsonTextSchema } from "./sql-value";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { appliedOps, changeSetItems, snapshotParts } from "@repo/db/cell/schema";
+import { appliedOps, changeSetItems } from "@repo/db/cell/schema";
 
 import { fillLandedSchema } from "../fill/fill-landing";
 import type { FillLanding } from "../fill/fill-landing";
@@ -287,7 +287,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           seq,
           updatedAt: scope.now,
         });
-        db.delete(snapshotParts).where(eq(snapshotParts.itemId, id)).run();
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
         dropItemBlobs(db, id, scope.now);
         forgetNoteSockets(db, id);

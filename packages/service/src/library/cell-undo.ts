@@ -1,6 +1,6 @@
-// Undo takes sealed turns' change sets back in one write: newest set first, each item's fields run
-// backwards by `./revert-change` against the item as the newer sets' undo left it, so an item
-// someone changed since stays whole and is named. What a set did to a note's body its note undoes
+// Undo takes sealed turns' change sets back in one write: newest set first, each set's entry for an
+// item landed by `./revert-change` on the item as the newer sets' undo left it, so an item someone
+// changed since stays whole and is named. What a set did to a note's body its note undoes
 // first, outside any transaction (`planUndo` names those notes), and the write lands what each note
 // answered: its body after, whether the undo took someone's text, whether anyone but an agent wrote
 // there. An item whose way back a rule refuses (its url now another live item's, a file gone) is
@@ -21,12 +21,12 @@ import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
-import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
+import { ENTRY_COLUMNS, entryOf } from "./change-sets";
 import { readLiveItem } from "./library-queries";
 import { revertChangeSets } from "./revert-change";
-import type { ItemChange, ItemNow } from "./revert-change";
+import type { ItemNow, SetEntry } from "./revert-change";
 
 export interface UndoAnswer {
   readonly kept: readonly string[];
@@ -68,28 +68,13 @@ const undoableSets = (db: CellDb, ids: readonly string[]) => {
 
 const setItems = (db: CellDb, setId: string) =>
   db
-    .select({
-      afterFields: changeSetItems.afterFields,
-      beforeFields: changeSetItems.beforeFields,
-      itemId: changeSetItems.itemId,
-    })
+    .select({ ...ENTRY_COLUMNS, itemId: changeSetItems.itemId })
     .from(changeSetItems)
     .where(eq(changeSetItems.changeSetId, setId))
     .all();
 
-const changesOf = (db: CellDb, setId: string): Map<string, ItemChange> => {
-  const changes = new Map<string, ItemChange>();
-  for (const { afterFields, beforeFields, itemId } of setItems(db, setId)) {
-    if (afterFields === null) {
-      continue;
-    }
-    changes.set(itemId, {
-      after: readFieldsPart(db, itemId, afterFields),
-      before: beforeFields === null ? null : readFieldsPart(db, itemId, beforeFields),
-    });
-  }
-  return changes;
-};
+const entriesOf = (db: CellDb, setId: string): Map<string, SetEntry> =>
+  new Map(setItems(db, setId).map(({ itemId, ...row }) => [itemId, entryOf(row)]));
 
 // a note a set wrote in, which the undo asks to take that set's edits back
 export interface NoteToUndo {
@@ -134,7 +119,7 @@ export const undoChangeSets = (
   const { db, now } = scope;
   const ordered = undoableSets(db, changeSetIds).map((set) => ({
     id: set.id,
-    items: changesOf(db, set.id),
+    items: entriesOf(db, set.id),
   }));
   const items = new Map<string, ItemNow | null>();
   for (const set of ordered) {

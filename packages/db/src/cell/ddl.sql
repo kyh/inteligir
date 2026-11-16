@@ -65,20 +65,18 @@ CREATE TABLE `body_texts` (
 
 CREATE TABLE `change_set_blobs` (
 	`item_id` text NOT NULL,
-	`hash` text NOT NULL,
+	`change_set_id` text NOT NULL,
 	`sha256` text NOT NULL,
-	CONSTRAINT `change_set_blobs_pk` PRIMARY KEY(`item_id`, `hash`, `sha256`)
+	CONSTRAINT `change_set_blobs_pk` PRIMARY KEY(`item_id`, `change_set_id`, `sha256`)
 );
 
 CREATE TABLE `change_set_items` (
 	`change_set_id` text NOT NULL,
 	`item_id` text NOT NULL,
-	`created` integer NOT NULL,
-	`before_fields` text,
-	`after_fields` text,
+	`made` text,
+	`inverse` text,
 	CONSTRAINT `change_set_items_pk` PRIMARY KEY(`change_set_id`, `item_id`),
-	CONSTRAINT "change_set_items_created" CHECK("created" IN (0, 1)),
-	CONSTRAINT "change_set_items_made" CHECK(("created" = 1) = ("before_fields" IS NULL))
+	CONSTRAINT "change_set_items_entry" CHECK(("made" IS NULL) <> ("inverse" IS NULL))
 );
 
 CREATE TABLE `change_sets` (
@@ -219,13 +217,6 @@ CREATE TABLE `seed_blocks` (
 	`json` text NOT NULL,
 	CONSTRAINT `seed_blocks_pk` PRIMARY KEY(`item_id`, `pos`),
 	CONSTRAINT "seed_blocks_section" CHECK("section" IN ('note', 'article'))
-);
-
-CREATE TABLE `snapshot_parts` (
-	`item_id` text NOT NULL,
-	`hash` text NOT NULL,
-	`json` text NOT NULL,
-	CONSTRAINT `snapshot_parts_pk` PRIMARY KEY(`item_id`, `hash`)
 );
 
 CREATE TABLE `thread_events` (

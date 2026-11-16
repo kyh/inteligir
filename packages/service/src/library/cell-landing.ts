@@ -18,7 +18,7 @@ import type { CellDb } from "./cell-db";
 import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
-import { touchItem } from "./change-sets";
+import { recordLanding } from "./change-sets";
 import { storeSearchRow } from "../search/search-index";
 import { storeItemRow, storeLinks, storeTags } from "./library-queries";
 import type { ItemBody, LiveStoredItem } from "./library-queries";
@@ -199,7 +199,11 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const { before, fields, itemId } = landing;
   const { derived, landed, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
-  touchItem(db, { before: before?.fields ?? null, itemId, setId: scope.set() });
+  recordLanding(
+    db,
+    { after: fields, before: before?.fields ?? null, itemId, setId: scope.set() },
+    scope.now,
+  );
   const stored = storeItemRow(db, {
     body: landed.body,
     card: derived.card,

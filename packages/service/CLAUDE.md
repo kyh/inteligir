@@ -90,9 +90,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   the turn, and Undo reaches back seven days** (owner decision). Undo takes
   back only the agent's turns, so a set for any other writer is history nobody
   reads. `packages/service/src/library/change-sets.ts`.
-- **Undo runs a change set's fields backwards three ways, and each note takes
-  its turn back first.** Every later edit stays; Yjs's UndoManager lives in
-  memory, which an eviction ends. `packages/service/src/library/cell-undo.ts`.
+- **A change set keeps each item's way back, the guarded ops its landings
+  compose, and Undo lands them once each note takes its turn back.** Two
+  snapshots of an item take back an edit made between two of the set's writes;
+  Yjs's UndoManager lives in memory, which an eviction ends.
+  `packages/service/src/library/revert-change.ts`.
 - **Each note's body is a live document in an object of its own, which the cell
   seeds and reads back** (owner decision). No keystroke goes through the
   account's one object; `NoteDO` pushes its projection on a debounced save.

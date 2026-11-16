@@ -12,6 +12,7 @@
 import { and, eq, exists, inArray, sql } from "drizzle-orm";
 
 import { blobs, blobUploads, changeSetBlobs, itemBlobs, jobs } from "@repo/db/cell/schema";
+import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readCount, writeMeta } from "./library-queries";
 
@@ -26,8 +27,16 @@ export const blobKey = (accountId: string, sha: string): string => `acct/${accou
 // everything R2 holds for one account, which its deletion empties
 export const accountBlobPrefix = (accountId: string): string => `acct/${accountId}/`;
 
-export const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): string[] =>
+const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): string[] =>
   [originalSha, coverSha].filter((sha) => sha !== null);
+
+// the files ops would name: an original or a cover they set
+export const opFilesOf = (ops: readonly FieldOp[]): string[] =>
+  ops.flatMap((op) =>
+    op.op === "set" && (op.field === "originalSha" || op.field === "coverSha") && op.value !== null
+      ? [op.value]
+      : [],
+  );
 
 // every file an item names: its original and cover by field, and each image, video or file its
 // body embeds, as its digest last read the body
@@ -66,21 +75,6 @@ const recountRefs = (db: CellDb, shas: readonly string[]): void => {
   }
 };
 
-// ---- files change sets name ----
-
-// what a fields part or a block version of the item names, kept with it
-export const keepSetFiles = (
-  db: CellDb,
-  itemId: string,
-  hash: string,
-  shas: readonly string[],
-): void => {
-  const rows = [...new Set(shas)].map((sha256) => ({ hash, itemId, sha256 }));
-  for (const chunk of insertChunks(changeSetBlobs, rows)) {
-    db.insert(changeSetBlobs).values(chunk).onConflictDoNothing().run();
-  }
-};
-
 // ---- files nothing names ----
 
 // how long a file no item names waits for one, longer than any device's upload and its write
@@ -105,23 +99,30 @@ export const awaitNameAgain = (db: CellDb, sha: string, at: number): void => {
   scheduleJob(db, unnamedJob(sha), at);
 };
 
-// parts and block versions of the item no change set names any more: the alarm's next run asks
-// about what they named
-export const dropSetFiles = (
+// the files a change set's entry for the item would name again, held while it does; one it no
+// longer names is asked about at the alarm's next run
+export const holdSetFiles = (
   db: CellDb,
-  itemId: string,
-  hashes: readonly string[],
+  entry: { readonly changeSetId: string; readonly itemId: string },
+  shas: readonly string[],
   now: number,
 ): void => {
-  const shas = listChunks(hashes, 1).flatMap((chunk) =>
-    db
-      .delete(changeSetBlobs)
-      .where(and(eq(changeSetBlobs.itemId, itemId), inArray(changeSetBlobs.hash, chunk)))
-      .returning({ sha256: changeSetBlobs.sha256 })
-      .all(),
-  );
-  for (const sha of new Set(shas.map((row) => row.sha256))) {
-    awaitNameAgain(db, sha, now);
+  const { changeSetId, itemId } = entry;
+  const held = db
+    .delete(changeSetBlobs)
+    .where(and(eq(changeSetBlobs.itemId, itemId), eq(changeSetBlobs.changeSetId, changeSetId)))
+    .returning({ sha256: changeSetBlobs.sha256 })
+    .all();
+  const kept = [...new Set(shas)];
+  if (kept.length > 0) {
+    db.insert(changeSetBlobs)
+      .values(kept.map((sha256) => ({ changeSetId, itemId, sha256 })))
+      .run();
+  }
+  for (const { sha256 } of held) {
+    if (!kept.includes(sha256)) {
+      awaitNameAgain(db, sha256, now);
+    }
   }
 };
 

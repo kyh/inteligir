@@ -222,11 +222,7 @@ export const itemBlobs = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
 );
 
-// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one. Its
-// item names its fields before and after by part, each kept once per item under its content hash
-// (`snapshot_parts`), so no row nears a Durable Object's 2 MB. A set's after is null while the set
-// is open and the item is as it left it; it is written when the set seals, or when anyone else is
-// about to change the item. A body is no part: the turn's edits to it are its note's turn log
+// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one
 export const changeSets = sqliteTable(
   "change_sets",
   {
@@ -243,44 +239,36 @@ export const changeSets = sqliteTable(
   ],
 );
 
+// What a set did to one item, as JSON: the fields of an item it made, as it last left them, or the
+// ops that take its changes back (`packages/service/src/library/revert-change.ts`). Either is at
+// most twice an item's fields, so no row nears a Durable Object's 2 MB. A body is neither: the
+// turn's edits to it are its note's turn log
 export const changeSetItems = sqliteTable(
   "change_set_items",
   {
     changeSetId: text("change_set_id").notNull(),
     itemId: text("item_id").notNull(),
-    created: integer().notNull(),
-    beforeFields: text("before_fields"),
-    afterFields: text("after_fields"),
+    made: text(),
+    inverse: text(),
   },
   (t) => [
     primaryKey({ columns: [t.changeSetId, t.itemId] }),
     index("change_set_items_item").on(t.itemId),
-    check("change_set_items_created", sql`${t.created} IN (0, 1)`),
-    check("change_set_items_made", sql`(${t.created} = 1) = (${t.beforeFields} IS NULL)`),
+    check("change_set_items_entry", sql`(${t.made} IS NULL) <> (${t.inverse} IS NULL)`),
   ],
 );
 
-export const snapshotParts = sqliteTable(
-  "snapshot_parts",
-  {
-    itemId: text("item_id").notNull(),
-    hash: text().notNull(),
-    json: text().notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.itemId, t.hash] })],
-);
-
-// the files each fields part names, so whether any change set still holds a file is one lookup,
-// never a read of the parts themselves
+// the files each entry's ops would name again, so whether any change set still holds a file is one
+// lookup, never a read of the ops themselves
 export const changeSetBlobs = sqliteTable(
   "change_set_blobs",
   {
     itemId: text("item_id").notNull(),
-    hash: text().notNull(),
+    changeSetId: text("change_set_id").notNull(),
     sha256: text().notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.itemId, t.hash, t.sha256] }),
+    primaryKey({ columns: [t.itemId, t.changeSetId, t.sha256] }),
     index("change_set_blobs_sha").on(t.sha256),
   ],
 );

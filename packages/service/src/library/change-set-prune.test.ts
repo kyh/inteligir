@@ -34,7 +34,7 @@ const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: Field
 };
 
 describe("the change-set prune", () => {
-  it("drops a set seven days after its turn ended, with what only it named, and the set after it still undoes", async () => {
+  it("drops a set seven days after its turn ended, with its entries, and the set after it still undoes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
       const cell = cellIn(state, { clock });
@@ -75,11 +75,10 @@ describe("the change-set prune", () => {
         value: "typed later",
       });
       renaming.end();
-      const parts = (): number =>
-        count(state, "SELECT count(*) AS n FROM snapshot_parts WHERE item_id = ?", itemId);
+      const entries = (): number =>
+        count(state, "SELECT count(*) AS n FROM change_set_items WHERE item_id = ?", itemId);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(5);
-      // every state of the fields a set began or left
-      expect(parts()).toBe(6);
+      expect(entries()).toBe(5);
       clock.now = START + 8 * DAY;
       library.runDueJobs(failOn);
       // the first three turns' sets went; the describing and the last renaming stay
@@ -89,9 +88,7 @@ describe("the change-set prune", () => {
           .toArray()
           .map((row) => row.thread_id),
       ).toStrictEqual([describing.actor.threadId, renaming.actor.threadId]);
-      // what only the dropped sets named went: the fields the describing found, left, and the last
-      // renaming left
-      expect(parts()).toBe(3);
+      expect(entries()).toBe(2);
       const answer = landedValue(undoFields(library, [describing.setId()]));
       expect(answer.reverted).toStrictEqual([itemId]);
       expect(storedItemOf(library, itemId)).toMatchObject({

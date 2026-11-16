@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { applyFieldOps, fieldOpSchema, mergeListField, SCALAR_FIELDS } from "./field-ops";
+import {
+  applyFieldOps,
+  composeInverse,
+  fieldOpSchema,
+  mergeListField,
+  SCALAR_FIELDS,
+} from "./field-ops";
 import type { FieldOp } from "./field-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import { noteFixture } from "../test-support/library-items";
+import { mulberry32, pick } from "../test-support/seeded-random";
 
 describe(mergeListField, () => {
   it("merges two writers' tags as a set, case folded, so both land", () => {
@@ -155,5 +162,120 @@ describe("the op grammar", () => {
         value: 1,
       }),
     ).toBe(false);
+  });
+});
+
+// one landing of a writer's on the fields as they stand, and its way back with the landing in
+const land = (inverse: readonly FieldOp[], fields: LibraryItemFields, ops: readonly FieldOp[]) => {
+  const after = applied(fields, ops);
+  return { after, inverse: composeInverse(inverse, fields, after) };
+};
+
+const randomLanding = (rand: () => number, fields: LibraryItemFields): FieldOp[] => {
+  const ops: FieldOp[] = [];
+  if (rand() < 0.5) {
+    ops.push({ base: fields.title, field: "title", op: "set", value: `T${String(rand())}` });
+  }
+  if (rand() < 0.4) {
+    ops.push({
+      base: fields.tags,
+      op: "tags",
+      value: [...fields.tags, `${pick(rand, ["x", "y", "z"])}${String(fields.tags.length)}`],
+    });
+  }
+  if (rand() < 0.3) {
+    const key = pick(rand, ["a", "b"]);
+    ops.push({
+      base: Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined,
+      key,
+      op: "property",
+      value: rand() < 0.3 ? undefined : Math.floor(rand() * 9),
+    });
+  }
+  if (rand() < 0.2) {
+    ops.push({
+      base: fields.pinnedAt,
+      field: "pinnedAt",
+      op: "set",
+      value: fields.pinnedAt === null ? 1 : null,
+    });
+  }
+  return ops;
+};
+
+describe(composeInverse, () => {
+  it("takes several landings back to the fields before the first, one op a slot", () => {
+    const x = noteFixture({ tags: ["keep"] });
+    const one = land([], x, [
+      { base: "A note", field: "title", op: "set", value: "B" },
+      { base: ["keep"], op: "tags", value: ["keep", "one"] },
+    ]);
+    const two = land(one.inverse, one.after, [
+      { base: "B", field: "title", op: "set", value: "C" },
+      { base: ["keep", "one"], op: "tags", value: ["keep", "two"] },
+      { key: "rating", op: "property", value: 5 },
+    ]);
+    expect(two.inverse).toHaveLength(3);
+    expect(applied(two.after, two.inverse)).toStrictEqual(x);
+  });
+
+  it("drops a slot a later landing put back as it was", () => {
+    const one = land([], noteFixture(), [{ base: null, field: "pinnedAt", op: "set", value: 1 }]);
+    expect(
+      land(one.inverse, one.after, [{ base: 1, field: "pinnedAt", op: "set", value: null }])
+        .inverse,
+    ).toStrictEqual([]);
+  });
+
+  it("never takes back an edit someone made between two landings", () => {
+    const one = land([], noteFixture({ tags: ["keep"] }), [
+      { base: "A note", field: "title", op: "set", value: "The writer's" },
+      { base: ["keep"], op: "tags", value: ["keep", "first"] },
+    ]);
+    const between = applied(one.after, [
+      { base: null, field: "pinnedAt", op: "set", value: 1 },
+      { base: "The writer's", field: "title", op: "set", value: "Someone's" },
+      { base: [], op: "tags", value: ["theirs"] },
+    ]);
+    const two = land(one.inverse, between, [
+      { base: "Someone's", field: "title", op: "set", value: "The writer's again" },
+      { base: [], op: "tags", value: ["second"] },
+    ]);
+    expect(applied(two.after, two.inverse)).toStrictEqual({ ...between, tags: ["keep", "theirs"] });
+  });
+
+  it("meets a slot someone changed after the last landing that wrote it", () => {
+    const one = land([], noteFixture(), [
+      { base: "A note", field: "title", op: "set", value: "The writer's" },
+    ]);
+    const two = land(one.inverse, one.after, [
+      { base: null, field: "description", op: "set", value: "The writer's" },
+    ]);
+    const since = applied(two.after, [
+      { base: "The writer's", field: "title", op: "set", value: "Someone's" },
+    ]);
+    expect(applyFieldOps(since, two.inverse)).toStrictEqual({ kind: "conflict" });
+  });
+
+  it("takes a tag's new spelling back across landings", () => {
+    const one = land([], noteFixture({ tags: ["Foo"] }), [
+      { base: ["Foo"], op: "tags", value: ["foo"] },
+    ]);
+    const two = land(one.inverse, one.after, [
+      { base: ["foo"], op: "tags", value: ["foo", "bar"] },
+    ]);
+    expect(applied(two.after, two.inverse).tags).toStrictEqual(["Foo"]);
+  });
+
+  it("takes any run of one writer's landings back to where it began (seeded)", () => {
+    const rand = mulberry32(0x0c_0e_05);
+    for (let trial = 0; trial < 300; trial += 1) {
+      const start = applied(noteFixture(), randomLanding(rand, noteFixture()));
+      let { after, inverse } = land([], start, randomLanding(rand, start));
+      for (let step = 0; step < 3; step += 1) {
+        ({ after, inverse } = land(inverse, after, randomLanding(rand, after)));
+      }
+      expect(applied(after, inverse)).toStrictEqual(start);
+    }
   });
 });

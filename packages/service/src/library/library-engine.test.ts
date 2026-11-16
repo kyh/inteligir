@@ -369,7 +369,7 @@ describe("a write to the library cell", () => {
 });
 
 describe("change sets and undo", () => {
-  it("keeps each turn of the built-in agent as one change set, sealed with its after as the turn ends, and nobody else's writes", async () => {
+  it("keeps each turn of the built-in agent as one change set, its writes joined into one way back, sealed as the turn ends, and nobody else's writes", async () => {
     await inCell(cellOf(), (state) => {
       const cell = cellIn(state, { clock: clockAt() });
       const { library } = cell;
@@ -384,15 +384,19 @@ describe("change sets and undo", () => {
       retitle(library, turn.actor, itemId, "A reading", "The agent's title");
       retitle(library, turn.actor, itemId, "The agent's title", "The agent's second title");
       const sets = () => state.storage.sql.exec("SELECT sealed_at FROM change_sets").toArray();
-      const after = () =>
+      expect(
         state.storage.sql
-          .exec("SELECT after_fields FROM change_set_items WHERE item_id = ?", itemId)
-          .one().after_fields;
+          .exec("SELECT made, inverse FROM change_set_items WHERE item_id = ?", itemId)
+          .one(),
+      ).toStrictEqual({
+        inverse: JSON.stringify([
+          { base: "The agent's second title", field: "title", op: "set", value: "A reading" },
+        ]),
+        made: null,
+      });
       expect(sets()).toStrictEqual([{ sealed_at: null }]);
-      expect(after()).toBeNull();
       turn.end();
       expect(sets()[0]?.sealed_at).not.toBeNull();
-      expect(after()).not.toBeNull();
       expect(
         refusalOf(
           library.write(turn.actor, {
@@ -562,37 +566,37 @@ describe("change sets and undo", () => {
     });
   });
 
-  it("writes an open set's after when someone else writes the item, and takes it back when the turn writes again", async () => {
+  it("keeps an edit the person made between two of the turn's writes of an item", async () => {
     await inCell(cellOf(), (state) => {
-      const cell = cellIn(state, { clock: clockAt() });
+      const clock = clockAt();
+      const cell = cellIn(state, { clock });
       const { library } = cell;
-      const itemId = newItemId();
-      landedValue(
-        createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
-      );
-      const titleSchema = z.object({ title: z.string() });
-      const afterTitle = () => {
-        const { fields } = state.storage.sql
-          .exec(
-            `SELECT parts.json AS fields FROM change_set_items items
-             LEFT JOIN snapshot_parts parts ON parts.item_id = items.item_id
-               AND parts.hash = items.after_fields
-             WHERE items.item_id = ?`,
-            itemId,
-          )
-          .one();
-        return fields === null
-          ? null
-          : titleSchema.parse(JSON.parse(z.string().parse(fields))).title;
-      };
+      const [pinned, renamed] = [newItemId(), newItemId()];
+      for (const id of [pinned, renamed]) {
+        landedValue(
+          createItem(library, PERSON, { blocks: placed([A]), fields: noteFixture(), id }),
+        );
+      }
       const turn = openTurn(cell);
-      retitle(library, turn.actor, itemId, TITLE, "Typed by the agent");
-      retitle(library, PERSON, itemId, "Typed by the agent", "Typed by the person");
-      expect(afterTitle()).toBe("Typed by the agent");
-      retitle(library, turn.actor, itemId, "Typed by the person", "The agent again");
-      expect(afterTitle()).toBeNull();
+      for (const id of [pinned, renamed]) {
+        retitle(library, turn.actor, id, TITLE, "Typed by the agent");
+      }
+      landedValue(
+        library.write(PERSON, {
+          itemId: pinned,
+          ops: [{ base: null, field: "pinnedAt", op: "set", value: clock.now }],
+        }),
+      );
+      retitle(library, PERSON, renamed, "Typed by the agent", "Typed by the person");
+      retitle(library, turn.actor, pinned, "Typed by the agent", "The agent again");
+      retitle(library, turn.actor, renamed, "Typed by the person", "The agent again");
       turn.end();
-      expect(afterTitle()).toBe("The agent again");
+      const answer = landedValue(undoFields(library, [turn.setId()]));
+      expect(answer).toMatchObject({ kept: [], reverted: [pinned, renamed].toSorted() });
+      expect(storedItemOf(library, pinned)).toMatchObject({
+        fields: { pinnedAt: clock.now, title: TITLE },
+      });
+      expect(titleOf(library, renamed)).toBe("Typed by the person");
     });
   });
 
@@ -636,7 +640,7 @@ describe("change sets and undo", () => {
         itemId,
       ]);
       expect(storedItemOf(library, itemId)).toMatchObject({ kind: "purged" });
-      for (const table of ["snapshot_parts", "change_set_items", "seed_blocks"]) {
+      for (const table of ["change_set_items", "change_set_blobs", "seed_blocks"]) {
         expect(
           state.storage.sql
             .exec(`SELECT count(*) AS n FROM ${table} WHERE item_id = ?`, itemId)

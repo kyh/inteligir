@@ -41,8 +41,9 @@ rate limits and the socket's **ticket** key on it. Not a credential: the cell
 never sees one.
 
 **change set** — the unit of undo: what one **turn** of the **built-in agent**
-changed, each item it touched before and after, keyed by the turn and sealed
-as the turn ends. No other writer keeps one: a person's, a connected
+changed, each item it touched kept as the ops that take its changes back, or
+as the turn last left one it made, keyed by the turn and sealed as the turn
+ends. No other writer keeps one: a person's, a connected
 assistant's, an import's and a page's reading land with nothing to undo, and a
 reading of a link the turn saved folds into the turn's set. The cell keeps each
 for the undo window (`packages/service/src/library/change-sets.ts`). Not a

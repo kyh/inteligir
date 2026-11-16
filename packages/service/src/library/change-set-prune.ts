@@ -1,13 +1,11 @@
-// How far back Undo reaches: a change set goes seven days after it closed, its hold on every item
-// it changed with it, and then whatever fields part of those items no set still names, with the
-// files only they held. The job drops a page of entries per alarm run, again at once while
+// How far back Undo reaches: a change set goes seven days after it closed, its entries with it, and
+// then the files only they held. The job drops a page of entries per alarm run, again at once while
 // more wait, and otherwise once a day.
 
 import { and, eq, inArray, isNotNull, lt, notExists } from "drizzle-orm";
 
-import { appliedOps, changeSetItems, changeSets, snapshotParts } from "@repo/db/cell/schema";
-import { dropSetFiles } from "./cell-blobs";
-import { listChunks } from "./cell-db";
+import { appliedOps, changeSetItems, changeSets } from "@repo/db/cell/schema";
+import { holdSetFiles } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -18,35 +16,6 @@ const OP_ANSWER_MS = 30 * DAY_MS;
 const ENTRIES_PER_RUN = 100;
 
 export const PRUNE_EVERY_MS = DAY_MS;
-
-// the parts of the item no change set still names, and what they alone held of the library's files
-const collectGarbage = (db: CellDb, itemId: string, now: number): void => {
-  const named = new Set<string>();
-  for (const entry of db
-    .select({ afterFields: changeSetItems.afterFields, beforeFields: changeSetItems.beforeFields })
-    .from(changeSetItems)
-    .where(eq(changeSetItems.itemId, itemId))
-    .all()) {
-    for (const hash of [entry.beforeFields, entry.afterFields]) {
-      if (hash !== null) {
-        named.add(hash);
-      }
-    }
-  }
-  const parts = db
-    .select({ hash: snapshotParts.hash })
-    .from(snapshotParts)
-    .where(eq(snapshotParts.itemId, itemId))
-    .all()
-    .map((part) => part.hash)
-    .filter((hash) => !named.has(hash));
-  for (const chunk of listChunks(parts, 1)) {
-    db.delete(snapshotParts)
-      .where(and(eq(snapshotParts.itemId, itemId), inArray(snapshotParts.hash, chunk)))
-      .run();
-  }
-  dropSetFiles(db, itemId, parts, now);
-};
 
 // one run's page; whether more wait for the next
 export const pruneChangeSets = (db: CellDb, now: number): boolean => {
@@ -69,9 +38,7 @@ export const pruneChangeSets = (db: CellDb, now: number): boolean => {
         ),
       )
       .run();
-  }
-  for (const itemId of new Set(entries.map((entry) => entry.itemId))) {
-    collectGarbage(db, itemId, now);
+    holdSetFiles(db, entry, [], now);
   }
   // a closed set with nothing left to take back, however recent, is nothing to undo
   db.delete(changeSets)

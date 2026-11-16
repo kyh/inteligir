@@ -18,7 +18,7 @@ import { cellCodec, logReadFailure } from "./cell-codec";
 import { landProjection } from "./cell-notes";
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import { refuse } from "./cell-refusal";
-import { touchItem } from "./change-sets";
+import { recordLanding } from "./change-sets";
 import type { LibraryEngine } from "./library-engine";
 import { readLiveItem } from "./library-queries";
 
@@ -76,7 +76,11 @@ const logSetOf = (
       return refuse({ kind: "not-found" });
     }
     const changeSetId = scope.set();
-    touchItem(scope.db, { before: item.fields, itemId, setId: changeSetId });
+    recordLanding(
+      scope.db,
+      { after: item.fields, before: item.fields, itemId, setId: changeSetId },
+      scope.now,
+    );
     return { changeSetId };
   });
   return entered.ok ? { ...entered, value: entered.value.changeSetId } : entered;
