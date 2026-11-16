@@ -13,7 +13,7 @@ import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "../library-scope";
 import { ITEM_KINDS } from "../items/item-kind";
 import { ordSchema } from "./order-key";
 import { itemCardSchema } from "./derive-item";
-import { libraryItemFieldsSchema, propertyKeySchema, SHA256_HEX_RE } from "./library-item";
+import { libraryItemFieldsSchema, SHA256_HEX_RE } from "./library-item";
 import { libraryBlockSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
 
 // ---- ids, times and counters ----
@@ -67,7 +67,6 @@ export const liveItemRowSchema = z.object({
   card: itemCardSchema,
   fields: itemFieldsRowSchema,
   id: idSchema,
-  kind: z.literal("live"),
   seq: seqSchema,
   updatedAt: instant,
 });
@@ -163,25 +162,6 @@ export const folderOpSchema = z.discriminatedUnion("op", [
 ]);
 
 // ---- what a refusal carries ----
-
-// what a write's base met instead, one entry per guarded thing: a field's value, a property
-// (absent when unset), a folder, or an item that already holds the id a write would make
-export const conflictCurrentSchema = z.discriminatedUnion("kind", [
-  z.object({
-    current: z.json(),
-    field: libraryItemFieldsSchema.keyof(),
-    itemId: idSchema,
-    kind: z.literal("field"),
-  }),
-  z.object({
-    current: z.json().optional(),
-    itemId: idSchema,
-    key: propertyKeySchema,
-    kind: z.literal("property"),
-  }),
-  z.object({ current: folderRowSchema.nullable(), id: idSchema, kind: z.literal("folder") }),
-  z.object({ itemId: idSchema, kind: z.literal("item"), seq: seqSchema }),
-]);
 
 // why an agent's edit cannot land: an `old_text` that is empty, stands nowhere or stands more than
 // once, a change to the lines the article opens and closes on, nesting deeper than the editor

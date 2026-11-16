@@ -3,7 +3,7 @@
 // a listing's pages, the rail's counts and every title), and `/v1/blobs/<sha>`, each device
 // reaching it through a transport of its own whose network a suite can take down or whose next
 // answers it can lose after the cell acted. It keeps the rules a client leans on: a write lands
-// only on the bases it names (`@repo/contract/library/field-ops`) and answers CONFLICT with what
+// only on the bases it names (`@repo/contract/library/field-ops`) and answers CONFLICT where one
 // moved, an op id is answered once, a file must be uploaded before a write names it, every write
 // takes the library's next sequence, and a read answers through the cell's own derivation and
 // listing (`@repo/contract/library/derive-item`, `@repo/contract/library/library-index`). A suite
@@ -15,11 +15,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_BLOBS_PATH } from "../library/library-blobs";
-import type {
-  conflictCurrentSchema,
-  folderOpSchema,
-  listedItemSchema,
-} from "../library/library-wire";
+import type { folderOpSchema, listedItemSchema } from "../library/library-wire";
 import { folderRowSchema, itemSummarySchema, liveItemRowSchema } from "../library/library-wire";
 import { v1Contract, V1_RPC_PATH } from "../v1-contract";
 import type { V1Client } from "../v1-contract";
@@ -37,7 +33,7 @@ import { folderOpLanding, folderOpRefusal, organizeOps } from "../library/cell-r
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyFieldOps } from "../library/field-ops";
 import { readingOps } from "../library/item-reading";
-import type { FieldConflict, FieldOp } from "../library/field-ops";
+import type { FieldOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
 import type { BodyBlock } from "../library/derive-item";
@@ -67,7 +63,6 @@ import type { V1Transport } from "../library/call-outcome";
 
 type LiveRow = z.infer<typeof liveItemRowSchema>;
 type ListedItem = z.infer<typeof listedItemSchema>;
-type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type FolderRow = z.infer<typeof folderRowSchema>;
 type HeldItem = LiveRow & { readonly blocks: BodyBlock[] };
@@ -147,37 +142,6 @@ const summaryOf = ({ card, fields, id }: LiveRow) => ({
   url: fields.url,
 });
 
-const throwConflicts = (current: readonly ConflictCurrent[]): void => {
-  const [first, ...rest] = current;
-  if (first !== undefined) {
-    throw new ConflictError({ data: { current: [first, ...rest] } });
-  }
-};
-
-const currentOf = (itemId: string, conflict: FieldConflict): ConflictCurrent => {
-  switch (conflict.kind) {
-    case "field": {
-      return {
-        current: z.json().parse(conflict.current),
-        field: conflict.field,
-        itemId,
-        kind: "field",
-      };
-    }
-    case "property": {
-      return conflict.current === undefined
-        ? { itemId, key: conflict.key, kind: "property" }
-        : {
-            current: z.json().parse(conflict.current),
-            itemId,
-            key: conflict.key,
-            kind: "property",
-          };
-    }
-    // no default
-  }
-};
-
 export const createFakeCell = (): FakeCell => {
   let head = 0;
   let signedOut = false;
@@ -209,7 +173,6 @@ export const createFakeCell = (): FakeCell => {
       card: answerCard(card),
       fields: item.fields,
       id,
-      kind: "live",
       seq: item.seq,
       updatedAt: item.updatedAt,
     };
@@ -293,37 +256,18 @@ export const createFakeCell = (): FakeCell => {
     return null;
   };
 
-  // a write refused for leaving its item live at an address another live item holds
-  const refuseHeldAddress = (itemId: string, fields: LibraryItemFields): void => {
-    const holder = fields.url === null || fields.deletedAt !== null ? null : holderOf(fields.url);
-    const item = holder === null || holder === itemId ? undefined : items.get(holder);
-    if (holder !== null && item !== undefined) {
-      throw new ConflictError({
-        data: { current: [{ itemId: holder, kind: "item", seq: item.seq }] },
-        message: "Another item in your library already holds this link.",
-      });
-    }
-  };
-
   const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
     const item = items.get(input.itemId);
     if (item === undefined) {
       throw new NotFoundError();
     }
-    needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyFieldOps(item.fields, input.ops);
-    throwConflicts(
-      outcome.kind === "conflict"
-        ? outcome.conflicts.map((conflict) => currentOf(input.itemId, conflict))
-        : [],
-    );
+    if (outcome.kind === "conflict") {
+      throw new ConflictError();
+    }
     if (outcome.kind === "invalid") {
       throw new PayloadTooLargeError();
     }
-    if (outcome.kind !== "applied") {
-      throw new Error("a write met a conflict it did not answer");
-    }
-    refuseHeldAddress(input.itemId, outcome.fields);
     // every op already true, a resend's after its answer was let go: the item as it stands
     if (!outcome.changed) {
       return { item: liveRow(input.itemId, item) };
@@ -345,9 +289,8 @@ export const createFakeCell = (): FakeCell => {
   };
 
   const made = (id: string): void => {
-    const item = items.get(id);
-    if (item !== undefined) {
-      throw new ConflictError({ data: { current: [{ itemId: id, kind: "item", seq: item.seq }] } });
+    if (items.has(id)) {
+      throw new ConflictError();
     }
   };
 
@@ -394,23 +337,18 @@ export const createFakeCell = (): FakeCell => {
         ),
       folder: (id) => draft.get(id) ?? null,
     };
-    const conflicts: ConflictCurrent[] = [];
     const landed = new Map<string, FolderRow>();
     for (const op of ops) {
       const refusal = folderOpRefusal(reader, op);
-      if (refusal === null) {
-        for (const row of folderOpLanding(reader, op, NOW)) {
-          const folder = { ...row, seq: head + 1 };
-          draft.set(folder.id, folder);
-          landed.set(folder.id, folder);
-        }
-      } else if (refusal.kind === "not-found") {
-        throw new NotFoundError();
-      } else {
-        conflicts.push({ current: refusal.current, id: refusal.id, kind: "folder" });
+      if (refusal !== null) {
+        throw refusal === "conflict" ? new ConflictError() : new NotFoundError();
+      }
+      for (const row of folderOpLanding(reader, op, NOW)) {
+        const folder = { ...row, seq: head + 1 };
+        draft.set(folder.id, folder);
+        landed.set(folder.id, folder);
       }
     }
-    throwConflicts(conflicts);
     head += 1;
     for (const folder of landed.values()) {
       folders.set(folder.id, folder);

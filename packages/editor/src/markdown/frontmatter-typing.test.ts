@@ -58,6 +58,9 @@ describe("parseProperties — typing rules", () => {
     expect(props('a: "2026-07-01"\n')).toStrictEqual([
       { key: "a", type: "date", value: "2026-07-01" },
     ]);
+    expect(props("a: 2026-13-45\n")).toStrictEqual([
+      { key: "a", type: "text", value: "2026-13-45" },
+    ]);
   });
 
   it("numbers → number", () => {

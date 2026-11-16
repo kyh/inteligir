@@ -181,7 +181,7 @@ the url kinds, the only ones a **fill** reads.
 chip). A saved page, a picture or a PDF is an item, never a note.
 
 **property** — one of an item's own fields as Info's panel draws it, each
-edit one property op (`packages/editor/src/item/item-properties.ts`): the
+edit one property op (`apps/web/src/library/panel/item-properties.ts`): the
 fields stand where a file's frontmatter would. Not an imported file's
 frontmatter, which an import reads into the item's fields once
 (`@repo/editor/items/item-frontmatter`): an item has no frontmatter of its own.

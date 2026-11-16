@@ -53,10 +53,7 @@ describe("field patches", () => {
     ).toStrictEqual({ changed: false, fields: renamed, kind: "applied" });
     expect(
       applyFieldOps(renamed, [{ base: "A note", field: "title", op: "set", value: "C" }]),
-    ).toStrictEqual({
-      conflicts: [{ current: "B", field: "title", kind: "field" }],
-      kind: "conflict",
-    });
+    ).toStrictEqual({ kind: "conflict" });
   });
 
   it("merges two writers' tags as a set, so both land", () => {
@@ -84,10 +81,7 @@ describe("field patches", () => {
     expect(removed.properties).toStrictEqual({ due: "2026-11-01" });
     expect(
       applyFieldOps(removed, [{ base: 9, key: "due", op: "property", value: 1 }]),
-    ).toStrictEqual({
-      conflicts: [{ current: "2026-11-01", key: "due", kind: "property" }],
-      kind: "conflict",
-    });
+    ).toStrictEqual({ kind: "conflict" });
   });
 });
 

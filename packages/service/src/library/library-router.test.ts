@@ -649,11 +649,7 @@ describe("the library's procedures", () => {
 
       await expect(
         refusalOf(library.items.saveLink({ id: item.id, url: "https://example.com/else" })),
-      ).resolves.toStrictEqual({
-        code: "CONFLICT",
-        data: { current: [{ itemId: item.id, kind: "item", seq: item.seq }] },
-        defined: true,
-      });
+      ).resolves.toStrictEqual({ code: "CONFLICT", data: undefined, defined: true });
 
       // a full library still takes words in an item it holds, and refuses only a new one
       addFileBytes(cellStorageOf(state.storage).db, GiB);
@@ -678,12 +674,11 @@ describe("the library's procedures", () => {
       await library.items.delete({ ids: [item.id] });
       clock.now += 120_000;
       const { changeSets } = await library.history.list({});
-      const holder = await library.items.saveLink({ url });
+      await library.items.saveLink({ url });
       await expect(
         library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] }),
       ).rejects.toMatchObject({
         code: "CONFLICT",
-        data: { current: [{ itemId: holder.item.id, kind: "item" }] },
         defined: true,
         message: "Another item in your library already holds this link.",
       });

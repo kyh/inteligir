@@ -8,7 +8,7 @@ import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
-import { conflictCurrentSchema, editRefusalSchema, shaSchema } from "./library/library-wire";
+import { editRefusalSchema, shaSchema } from "./library/library-wire";
 
 // a refusal an oRPC client threw, its code and data typed as the wire carries them, where
 // `instanceof` alone types both `any`
@@ -37,12 +37,9 @@ export const AccountGoneError = error("GONE", { message: "This account was delet
 
 // ---- the library's ----
 
-// what a write's bases met instead: each block, place, field or folder as it is now,
-// so the device merges against it and resends
-export const ConflictError = error("CONFLICT", {
-  data: z.object({ current: z.array(conflictCurrentSchema).min(1) }),
-  message: "This changed since it was read.",
-});
+// a base the write named no longer holds; the screen puts back what it showed and reads again, so
+// the refusal carries nothing to merge
+export const ConflictError = error("CONFLICT", { message: "This changed since it was read." });
 
 export const NotFoundError = error("NOT_FOUND", { message: "That isn't in the library." });
 

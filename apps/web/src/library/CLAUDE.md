@@ -91,6 +91,15 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **An item's Info is its fields, and a write shows before it lands.** Info reads `items.row`, which
   wakes no note, and each write shows in the listings at once and rolls back on a refusal, since a
   pin must not lag the press by a round trip. `apps/web/src/library/panel/info-tab.tsx`.
+- **Info's properties are props in and an op out.** The panel draws the properties Info read and
+  hands back one property op over the value a row showed, which the cell refuses once that value
+  moved, since a second reading of the item's query is a second truth.
+  `apps/web/src/library/panel/item-properties.ts`.
+- **A property's value is typed by its control, never read out of what was typed.** Add property
+  takes a name, a type and that type's control, a row is the control of the value it holds, and a
+  name the item already has is refused in the form, since a value read as YAML drops
+  `Meeting: Q3 review` and turns `02139` into a number.
+  `apps/web/src/library/panel/property-fields.tsx`.
 - **A pin is the item's `pinnedAt` field, and the cell sets it.** Every device and the agent agree,
   a pinned item leads the grid, and a press asks `items.organize` for what was asked, so nothing
   merges. `apps/web/src/library/library/library-verbs.ts`.

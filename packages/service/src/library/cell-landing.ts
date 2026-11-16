@@ -33,7 +33,6 @@ export interface LiveItemRow {
   readonly card: ItemCard;
   readonly fields: LibraryItemFields;
   readonly id: string;
-  readonly kind: "live";
   readonly seq: number;
   readonly updatedAt: number;
 }
@@ -102,9 +101,9 @@ export const urlHolder = (
   db: CellDb,
   urlKey: string,
   itemId: string | null,
-): { readonly id: string; readonly seq: number } | null =>
+): { readonly id: string } | null =>
   db
-    .select({ id: items.id, seq: items.seq })
+    .select({ id: items.id })
     .from(items)
     .where(
       and(
@@ -172,11 +171,12 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   }
   const landed = landedBody(landing);
   const derived = deriveItem(fields, landed.body.digest);
-  if (derived.urlKey !== null && fields.deletedAt === null) {
-    const holder = urlHolder(storage.db, derived.urlKey, itemId);
-    if (holder !== null) {
-      refuse({ itemId: holder.id, kind: "url-held", seq: holder.seq });
-    }
+  if (
+    derived.urlKey !== null &&
+    fields.deletedAt === null &&
+    urlHolder(storage.db, derived.urlKey, itemId) !== null
+  ) {
+    refuse({ kind: "url-held" });
   }
   const shas = itemFilesOf(fields, landed.body.digest.files);
   const priorShas = before === null ? [] : itemFilesOf(before.fields, before.body.digest.files);
@@ -237,5 +237,5 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     storeItemBlobs(storage.db, itemId, shas, scope.now);
   }
   scope.moved.item(itemId, seq);
-  return { card: derived.card, fields, id: itemId, kind: "live", seq, updatedAt: scope.now };
+  return { card: derived.card, fields, id: itemId, seq, updatedAt: scope.now };
 };

@@ -1,7 +1,7 @@
 // What a write does to an item's fields, apart from its body: each op names the base it was computed
 // from and lands only where that base holds, a scalar set whole, a list merged as a set and a
-// property by its key. A batch lands whole or answers every conflict, an op already true is
-// satisfied, and a batch whose fields break a cap lands none.
+// property by its key. A batch lands whole or not at all, an op already true is satisfied, and a
+// batch whose fields break a cap lands none.
 
 import { z } from "zod";
 
@@ -105,12 +105,13 @@ const aliasesOpSchema = z.strictObject({
 
 // one property by its key; a missing base or value is the property absent. The value's size is
 // the item's to hold: the fields are checked whole once a batch lands
-const propertyOpSchema = z.strictObject({
+export const propertyOpSchema = z.strictObject({
   base: z.json().optional(),
   key: propertyKeySchema,
   op: z.literal("property"),
   value: z.json().optional(),
 });
+export type PropertyOp = z.infer<typeof propertyOpSchema>;
 
 export const fieldOpSchema = z.discriminatedUnion("op", [
   setOpSchema,
@@ -120,20 +121,10 @@ export const fieldOpSchema = z.discriminatedUnion("op", [
 ]);
 export type FieldOp = z.infer<typeof fieldOpSchema>;
 
-// what an op met instead of its base; a conflict on a list field cannot happen
-export type FieldConflict =
-  | { readonly kind: "field"; readonly field: ScalarField; readonly current: JsonValue }
-  | { readonly kind: "property"; readonly key: string; readonly current: JsonValue | undefined };
-
 // `satisfied`: what the op would make is already there (a resend after a lost answer, or two
-// writers doing the same thing), so landing it changes nothing
-type FieldVerdict =
-  | { readonly kind: "apply" }
-  | { readonly kind: "satisfied" }
-  | { readonly kind: "conflict"; readonly conflict: FieldConflict };
-
-const APPLY: FieldVerdict = { kind: "apply" };
-const SATISFIED: FieldVerdict = { kind: "satisfied" };
+// writers doing the same thing), so landing it changes nothing. `conflict`: the op met neither its
+// base nor its value, which a list field never does
+type FieldVerdict = "apply" | "satisfied" | "conflict";
 
 const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
@@ -143,27 +134,23 @@ const fieldVerdict = (fields: LibraryItemFields, op: FieldOp): FieldVerdict => {
     case "set": {
       const current = fields[op.field];
       if (current === op.base) {
-        return APPLY;
+        return "apply";
       }
-      return current === op.value
-        ? SATISFIED
-        : { conflict: { current, field: op.field, kind: "field" }, kind: "conflict" };
+      return current === op.value ? "satisfied" : "conflict";
     }
     case "tags":
     case "aliases": {
       const current = fields[op.op];
       return sameList(mergeListField(op.op, current, op.base, op.value), current)
-        ? SATISFIED
-        : APPLY;
+        ? "satisfied"
+        : "apply";
     }
     case "property": {
       const current = propertyAt(fields, op.key);
       if (sameOptionalJson(current, op.base)) {
-        return APPLY;
+        return "apply";
       }
-      return sameOptionalJson(current, op.value)
-        ? SATISFIED
-        : { conflict: { current, key: op.key, kind: "property" }, kind: "conflict" };
+      return sameOptionalJson(current, op.value) ? "satisfied" : "conflict";
     }
     // no default
   }
@@ -229,26 +216,23 @@ const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
 // it names those fields, and the cell answers it as too large
 export type FieldOutcome =
   | { readonly kind: "applied"; readonly fields: LibraryItemFields; readonly changed: boolean }
-  | { readonly kind: "conflict"; readonly conflicts: readonly FieldConflict[] }
+  | { readonly kind: "conflict" }
   | { readonly kind: "invalid"; readonly fields: readonly LibraryItemField[] };
 
 // every op in order, each against the fields as the ones before it left them; one conflict lands
-// none, and the answer names every op that met one
+// none
 export const applyFieldOps = (fields: LibraryItemFields, ops: readonly FieldOp[]): FieldOutcome => {
   let next = fields;
   let changed = false;
-  const conflicts: FieldConflict[] = [];
   for (const op of ops) {
     const verdict = fieldVerdict(next, op);
-    if (verdict.kind === "conflict") {
-      conflicts.push(verdict.conflict);
-    } else if (verdict.kind === "apply") {
+    if (verdict === "conflict") {
+      return { kind: "conflict" };
+    }
+    if (verdict === "apply") {
       next = landFieldOp(next, op);
       changed = true;
     }
-  }
-  if (conflicts.length > 0) {
-    return { conflicts, kind: "conflict" };
   }
   const refused = changed ? refusedFields(next) : [];
   return refused.length > 0

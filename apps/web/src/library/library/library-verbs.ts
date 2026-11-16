@@ -10,7 +10,7 @@ import { BULK_ITEMS_MAX, LISTING_PAGE_MAX } from "@repo/contract/library/library
 import type { V1Client } from "@repo/contract/v1";
 import { keptFileType } from "@repo/contract/items/item-kind";
 import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops";
-import type { FieldOp } from "@repo/contract/library/field-ops";
+import type { PropertyOp } from "@repo/contract/library/field-ops";
 import { ordBetween } from "@repo/contract/library/order-key";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
@@ -125,9 +125,9 @@ export const organizedOverlay = (input: OrganizeInput): Overlay => {
   };
 };
 
-// an item's field ops as the cell lands them, over the fields the screen holds; a batch that would
-// not land leaves them as they are, for the read after the refusal to settle
-const fieldsOverlay = (ops: readonly FieldOp[]): Overlay => {
+// an item's property ops as the cell lands them, over the fields the screen holds; a batch that
+// would not land leaves them as they are, for the read after the refusal to settle
+const fieldsOverlay = (ops: readonly PropertyOp[]): Overlay => {
   const landed = (fields: LibraryItemFields): LibraryItemFields => {
     const outcome = applyFieldOps(fields, ops);
     return outcome.kind === "applied" ? outcome.fields : fields;
@@ -457,8 +457,8 @@ export const useLibraryVerbs = () => {
       );
       return { created, id: item.id };
     },
-    // field ops on one item, each over the value the screen showed (an Info property's edit)
-    writeFields: (itemId: string, ops: readonly FieldOp[]): void => {
+    // property ops on one item, each over the value the screen showed (an Info property's edit)
+    writeFields: (itemId: string, ops: readonly PropertyOp[]): void => {
       writeFields.mutate({ itemId, opId: crypto.randomUUID(), ops: [...ops] });
     },
     tag: async (ids: readonly string[], change: TagChange): Promise<void> => {

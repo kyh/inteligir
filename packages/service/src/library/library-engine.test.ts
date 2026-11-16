@@ -89,10 +89,7 @@ describe("a write to the library cell", () => {
           { base: TITLE, field: "title", op: "set", value: "A lost edit" },
         ],
       });
-      expect(refusalOf(stale)).toStrictEqual({
-        current: [{ current: "Edited", field: "title", itemId, kind: "field" }],
-        kind: "conflict",
-      });
+      expect(refusalOf(stale)).toStrictEqual({ kind: "conflict" });
       // the whole write landed nothing: the head did not move, and the description is as it was
       expect(library.head()).toBe(2);
       expect(storedItemOf(library, itemId)).toMatchObject({
@@ -559,8 +556,7 @@ describe("change sets and undo", () => {
           id: holder,
         }),
       );
-      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toMatchObject({
-        itemId: holder,
+      expect(refusalOf(undoFields(library, person("laptop"), [setId]))).toStrictEqual({
         kind: "url-held",
       });
       expect(undoneBy(state, setId)).toBeNull();

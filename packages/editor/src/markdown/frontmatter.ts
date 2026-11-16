@@ -1,6 +1,6 @@
 // yaml the typed ADT cannot represent is preserved byte-exactly, never coerced or dropped.
 
-import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 import { z } from "zod";
 
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
@@ -43,11 +43,11 @@ export type ParsedProperties =
   | { kind: "invalid" }
   | { kind: "none" };
 
-// no month/day range check: an out-of-range date still edits as a date field rather than being reclassified.
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
+// a day no calendar holds (`2026-13-45`) is text: a date control would draw it empty
+const calendarDate = z.iso.date();
 
 // branch order is the precedence; z.number() already rejects NaN/±Infinity.
-const classify = (key: string, value: YamlValue, raw: string): TypedProperty => {
+export const classify = (key: string, value: YamlValue, raw: string): TypedProperty => {
   const checkbox = z.boolean().safeParse(value);
   if (checkbox.success) {
     return { key, type: "checkbox", value: checkbox.data };
@@ -59,7 +59,7 @@ const classify = (key: string, value: YamlValue, raw: string): TypedProperty => 
   const text = z.string().safeParse(value);
   if (text.success) {
     const parsed = text.data;
-    return DATE_RE.test(parsed)
+    return calendarDate.safeParse(parsed).success
       ? { key, type: "date", value: parsed }
       : { key, type: "text", value: parsed };
   }
@@ -150,18 +150,4 @@ export const yamlStringEntries = (yamlText: string, key: string): string[] => {
     }
   }
   return entries;
-};
-
-export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {
-  if (rawValue.trim() === "") {
-    return { key, type: "text", value: "" };
-  }
-  try {
-    const parsed = yamlValue.safeParse(parseYaml(rawValue));
-    return parsed.success
-      ? classify(key, parsed.data, rawValue)
-      : { key, raw: rawValue, type: "unsupported" };
-  } catch {
-    return classify(key, rawValue, rawValue);
-  }
 };

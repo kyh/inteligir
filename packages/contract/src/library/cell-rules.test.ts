@@ -54,13 +54,13 @@ describe("a folder op against the tree its writer read", () => {
         parentId: UNDER,
         sort: "a1",
       }),
-    ).toStrictEqual({ current: plans, id: UNDER, kind: "conflict" });
+    ).toBe("conflict");
     expect(
       folderOpRefusal(reader, { id: NEW, name: "New", op: "create", parentId: GONE, sort: "a1" }),
-    ).toStrictEqual({ kind: "not-found" });
+    ).toBe("not-found");
     expect(
       folderOpRefusal(reader, { id: NEW, name: "work", op: "create", parentId: null, sort: "a1" }),
-    ).toStrictEqual({ current: work, id: TOP, kind: "conflict" });
+    ).toBe("conflict");
   });
 
   it("deletes the folders under the one it deletes", () => {

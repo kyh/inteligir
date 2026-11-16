@@ -8,6 +8,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import type { FieldOp } from "./library/field-ops";
 import { liveItemRowSchema } from "./library/library-wire";
 import { V1_RPC_PATH, v1Contract } from "./v1-contract";
 import type { V1Client } from "./v1-contract";
@@ -66,6 +67,14 @@ const LIBRARY_READS = new Set([
 const UUID_V7 = "01890a5d-ac96-774b-bcce-b302099a8057";
 const UUID_V4 = "4c0b1f2a-8d3e-4f6a-9b1c-2d3e4f5a6b7c";
 const SHA = "a".repeat(64);
+const FILE = {
+  folderId: null,
+  id: UUID_V7,
+  name: "report.pdf",
+  savedAt: 1_700_000_000_000,
+  sha: SHA,
+  tags: [],
+};
 
 interface ErrorCase {
   readonly code: keyof typeof V1_CUSTOM_ERROR_STATUS;
@@ -163,18 +172,14 @@ describe("/v1's error statuses", () => {
     {
       code: "BLOB_MISSING",
       data: { shas: [SHA] },
-      refusal: async (client) =>
-        await refusalOf(
-          client.library.write({
-            itemId: UUID_V7,
-            ops: [{ base: null, field: "coverSha", op: "set", value: SHA }],
-          }),
-        ),
+      refusal: async (client) => await refusalOf(client.library.items.createFile(FILE)),
       router: {
         library: {
-          write: os.library.write.handler(({ errors }) => {
-            throw errors.BLOB_MISSING({ data: { shas: [SHA] } });
-          }),
+          items: {
+            createFile: os.library.items.createFile.handler(({ errors }) => {
+              throw errors.BLOB_MISSING({ data: { shas: [SHA] } });
+            }),
+          },
         },
       },
     },
@@ -207,17 +212,7 @@ describe("/v1's error statuses", () => {
     {
       code: "QUOTA",
       data: { bytesCap: 1024 ** 3, bytesUsed: 1024 ** 3 },
-      refusal: async (client) =>
-        await refusalOf(
-          client.library.items.createFile({
-            folderId: null,
-            id: UUID_V7,
-            name: "report.pdf",
-            savedAt: 1_700_000_000_000,
-            sha: SHA,
-            tags: [],
-          }),
-        ),
+      refusal: async (client) => await refusalOf(client.library.items.createFile(FILE)),
       router: {
         library: {
           items: {
@@ -243,27 +238,6 @@ describe("/v1's error statuses", () => {
       data: sample.data,
     });
     expect(statuses).toStrictEqual([V1_CUSTOM_ERROR_STATUS[sample.code]]);
-  });
-
-  it("carries a conflict's current state back to the writer, typed", async () => {
-    const current = { field: "title" as const, itemId: UUID_V7, kind: "field" as const };
-    const { client, statuses } = served({
-      library: {
-        write: os.library.write.handler(({ errors }) => {
-          throw errors.CONFLICT({ data: { current: [{ ...current, current: "Theirs" }] } });
-        }),
-      },
-    });
-    const { error } = await safe(
-      client.library.write({
-        itemId: UUID_V7,
-        ops: [{ base: "Mine before", field: "title", op: "set", value: "Mine" }],
-      }),
-    );
-    expect(
-      isDefinedError(error) && error.code === "CONFLICT" ? error.data.current : null,
-    ).toStrictEqual([{ ...current, current: "Theirs" }]);
-    expect(statuses).toStrictEqual([409]);
   });
 });
 
@@ -337,7 +311,6 @@ describe("the library's wire", () => {
         url: null,
       },
       id: UUID_V7,
-      kind: "live",
       seq: 3,
       updatedAt: 1,
     };
@@ -356,5 +329,14 @@ describe("the library's wire", () => {
     expect(schema?.validate({ ids: [UUID_V7, UUID_V4], title: "Both" })).toBe(false);
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
     expect(write?.validate({ itemId: UUID_V7, ops: [] })).toBe(false);
+  });
+
+  it("takes a property's op alone on a write, so no device sets a field the cell's verbs move", () => {
+    const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
+    const taken = (op: FieldOp) => write?.validate({ itemId: UUID_V7, ops: [op] });
+    expect(taken({ key: "status", op: "property", value: "draft" })).toBe(true);
+    expect(taken({ base: "none", field: "fetchState", op: "set", value: "pending" })).toBe(false);
+    expect(taken({ base: 1, field: "deletedAt", op: "set", value: null })).toBe(false);
+    expect(taken({ base: [], op: "tags", value: ["later"] })).toBe(false);
   });
 });

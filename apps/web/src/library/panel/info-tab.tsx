@@ -4,22 +4,20 @@
 // tag or a property reads as done before it lands. Every part of it is the cell's, so it waits for
 // a connection.
 
-import { itemProperties } from "@repo/editor/item/item-properties";
-import type { ItemFields } from "@repo/editor/item/item-properties";
-import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import { KIND_LABELS } from "@repo/client/library-labels";
 import { readingOf } from "@repo/contract/library/item-reading";
 import type { Reading } from "@repo/contract/library/item-reading";
 import type { PropertyValue } from "@repo/contract/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { Switch } from "@repo/ui/components/switch";
-import { useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { CellAnswer, cellStanding } from "../cloud/needs-connection";
 import { formatCount, isUrlItem } from "../library/item-labels";
 import { useLibraryVerbs } from "../library/library-verbs";
+import { PropertiesPanel } from "./properties-panel";
 
 export interface InfoActions {
   readonly move: (itemId: string) => void;
@@ -55,29 +53,11 @@ const propertyText = (value: PropertyValue): string => {
   return words.success ? words.data : JSON.stringify(value);
 };
 
-// the item's fields as the page's query holds them, and a property's edit written over them
-const useItemFields = (itemId: string): ItemFields => {
-  const queryClient = useQueryClient();
-  const verbs = useLibraryVerbs();
-  const { queryKey } = useLibraryQueries().item(itemId);
-  return {
-    fields: () => queryClient.getQueryData(queryKey)?.fields ?? null,
-    subscribe: (listener) =>
-      queryClient.getQueryCache().subscribe(() => {
-        listener();
-      }),
-    write: (op) => {
-      verbs.writeFields(itemId, [op]);
-    },
-  };
-};
-
 export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActions }) => {
   const queries = useLibraryQueries();
   const verbs = useLibraryVerbs();
   const { orpc } = usePageLibrary().wire;
   const item = useQuery(queries.item(itemId));
-  const itemFields = useItemFields(itemId);
   const folders = useQuery(queries.scopes()).data?.folders ?? [];
   // a read again asked from here or from the grid's menu, which a second press would only repeat
   const refreshing = useIsMutating({ mutationKey: orpc.library.items.refresh.mutationKey() }) > 0;
@@ -146,7 +126,12 @@ export const InfoTab = ({ itemId, actions }: { itemId: string; actions: InfoActi
                 ))}
           </dl>
           {fields.deletedAt === null ? (
-            <PropertiesPanel source={itemProperties(itemFields)} />
+            <PropertiesPanel
+              properties={fields.properties}
+              onWrite={(op) => {
+                verbs.writeFields(id, [op]);
+              }}
+            />
           ) : null}
           <Switch
             label="Pinned"

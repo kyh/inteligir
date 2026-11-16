@@ -19,6 +19,12 @@ clock, random bytes and fresh ids are injected.
 - **A field is guarded by its value, and a body is no op.** A body is its note's
   live document, so block ops beside it would be two writers of one body.
   `packages/contract/src/library/field-ops.ts`.
+- **`/v1`'s write takes a property's op alone.** Every other field moves by a
+  verb of the cell's, which asks the reading or tells the note with it.
+  `packages/contract/src/library/library-contract.ts`.
+- **A conflict is a code and a sentence.** A screen that meets one puts back
+  what it showed and reads again, so a payload to merge against has no reader.
+  `packages/contract/src/v1-errors.ts`.
 - **A folder's place is a fractional key.** An integer position renumbers on
   insert, and two renumberings conflict. `packages/contract/src/library/order-key.ts`.
 - **The listing is in memory over what it filters and orders by, and pinned

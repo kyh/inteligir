@@ -22,11 +22,8 @@ export interface FolderReader {
   readonly children: (parentId: string | null) => readonly FolderRow[];
 }
 
-// what an op met instead of its base: the folder it names as it now stands, or a parent no longer
-// live
-export type FolderRefusal =
-  | { readonly kind: "conflict"; readonly id: string; readonly current: FolderRow | null }
-  | { readonly kind: "not-found" };
+// why an op cannot land: the tree is no longer the one its writer read, or its parent is not live
+export type FolderRefusal = "conflict" | "not-found";
 
 // where an item is filed: a folder by id, by its path of names from the top, or none
 export type FolderTarget = { readonly id: string } | { readonly path: string } | null;
@@ -44,23 +41,17 @@ type Op<K extends FolderOp["op"]> = Extract<FolderOp, { op: K }>;
 
 const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === null ? row : null);
 
-const conflictOf = (id: string, current: FolderRow | null): FolderRefusal => ({
-  current,
-  id,
-  kind: "conflict",
-});
-
-// the live sibling another folder would share a name with, as a conflict naming it
+// a conflict where a live sibling would share the folder's name
 const namesake = (
   reader: FolderReader,
   folder: { readonly id: string; readonly parentId: string | null; readonly name: string },
 ): FolderRefusal | null => {
-  const clash = reader
+  const shared = reader
     .children(folder.parentId)
-    .find(
+    .some(
       (sibling) => sibling.id !== folder.id && titleKey(sibling.name) === titleKey(folder.name),
     );
-  return clash === undefined ? null : conflictOf(clash.id, clash);
+  return shared ? "conflict" : null;
 };
 
 // whether `ancestor` is `folderId` or a folder above it
@@ -79,43 +70,40 @@ const createRefusal = (reader: FolderReader, op: Op<"create">): FolderRefusal | 
   const held = reader.folder(op.id);
   if (held !== null) {
     const same = held.deletedAt === null && held.name === op.name && held.parentId === op.parentId;
-    return same ? null : conflictOf(op.id, held);
+    return same ? null : "conflict";
   }
   if (op.parentId !== null && live(reader.folder(op.parentId)) === null) {
-    return { kind: "not-found" };
+    return "not-found";
   }
   return namesake(reader, op);
 };
 
 const renameRefusal = (reader: FolderReader, op: Op<"rename">): FolderRefusal | null => {
-  const held = reader.folder(op.id);
-  const current = live(held);
+  const current = live(reader.folder(op.id));
   if (current === null || (current.name !== op.base && current.name !== op.name)) {
-    return conflictOf(op.id, held);
+    return "conflict";
   }
   return namesake(reader, { ...current, name: op.name });
 };
 
 const moveRefusal = (reader: FolderReader, op: Op<"move">): FolderRefusal | null => {
-  const held = reader.folder(op.id);
-  const current = live(held);
+  const current = live(reader.folder(op.id));
   if (current === null || current.parentId !== op.baseParentId) {
-    return current?.parentId === op.parentId ? null : conflictOf(op.id, held);
+    return current?.parentId === op.parentId ? null : "conflict";
   }
   if (op.parentId !== null) {
-    const parent = live(reader.folder(op.parentId));
-    if (parent === null) {
-      return { kind: "not-found" };
+    if (live(reader.folder(op.parentId)) === null) {
+      return "not-found";
     }
     // a folder cannot go under itself: the tree the writer read did not hold it there
     if (isAtOrAbove(reader, op.id, op.parentId)) {
-      return conflictOf(parent.id, parent);
+      return "conflict";
     }
   }
   return namesake(reader, { ...current, parentId: op.parentId });
 };
 
-// what an op met instead of its base, or null when it may land
+// why an op cannot land, or null when it may
 export const folderOpRefusal = (reader: FolderReader, op: FolderOp): FolderRefusal | null => {
   switch (op.op) {
     case "create": {

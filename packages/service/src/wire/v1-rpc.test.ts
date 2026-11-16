@@ -258,7 +258,7 @@ describe("every refusal's status", () => {
         async () =>
           await phone.library.write({
             itemId: item.id,
-            ops: [{ base: "Not its title", field: "title", op: "set", value: "Uno" }],
+            ops: [{ base: "Not its status", key: "status", op: "property", value: "done" }],
           }),
         "CONFLICT",
         409,
