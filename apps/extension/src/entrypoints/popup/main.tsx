@@ -24,6 +24,6 @@ const opened = saveOpenedTab(activeTabId, askWorker);
 
 createRoot(container).render(
   <StrictMode>
-    <Popup opened={opened} />
+    <Popup ask={askWorker} opened={opened} />
   </StrictMode>,
 );

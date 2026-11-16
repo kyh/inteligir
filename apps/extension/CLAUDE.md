@@ -29,10 +29,14 @@ what it may reach, and how it builds.
   the worker dies 30 s after its last event, and the site's session cookie or the worker's start
   for a save that waits on a sign-in or an update, which no timer brings.
   `apps/extension/src/background/save-queue.ts`.
-- **A save's try settles it one way, the first and every resend alike, and one pass sends the queue
-  at a time.** `settle` reads the contract's `CallOutcome`, the one reading the phone's saves
-  share, since a pass per trigger sends each save twice.
-  `apps/extension/src/background/save-queue.ts`.
+- **The queue is `@repo/client`'s waiting saves, the phone's too, and the extension keeps only what
+  is its own.** The send under a save's own account, a first try outside a pass and the alarm are
+  here; the record, the pass and what a call's outcome does to a save are shared, since two queues
+  answer one refusal two ways. `apps/extension/src/background/save-queue.ts`.
+- **A save the library refused is listed in the popup, in the library's words, to try again or let
+  go.** Only the saves of the account signed in, read with no call, since a refusal a resend meets
+  has no tab to badge and a save dropped unseen is lost.
+  `apps/extension/src/entrypoints/popup/app.tsx`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
   only what stops with it.** A pass and a first try under way are memory's, since a mark of either
   on disk outlives the worker that made it; `storage.local` is open to trusted contexts alone, and

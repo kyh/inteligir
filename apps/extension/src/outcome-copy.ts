@@ -1,5 +1,6 @@
-// what the popup and the toolbar's badge say of how a save went, in one place. A refusal says what
-// the person can do about it, and links where that is done.
+// what the popup and the toolbar's badge say of how a save went, in one place. A refusal of the
+// extension's own says what the person can do about it, and links where that is done; one the
+// library made is said in the library's words.
 
 import type { WaitsFor } from "@repo/contract/library/call-outcome";
 
@@ -16,7 +17,6 @@ const REFUSAL_COPY = {
   "signed-out": { signIn: true, text: "Sign in to Inteligir again to save" },
   "unsupported-page": { signIn: false, text: "Inteligir can't save this kind of page" },
   "update-extension": { signIn: false, text: "Update this extension to save" },
-  "library-full": { signIn: false, text: "Your library is full. Free some room to save" },
   "too-large": { signIn: false, text: "This is too large to save" },
   "needs-connection": { signIn: false, text: "Saving this picture needs a connection" },
   failed: { signIn: false, text: "Couldn't save this page" },
@@ -39,7 +39,9 @@ export const outcomeLine = (outcome: Outcome): OutcomeLine => {
       return WAITING_COPY[outcome.waitsFor];
     }
     case "refused": {
-      return REFUSAL_COPY[outcome.reason];
+      return outcome.reason === "library"
+        ? { signIn: false, text: outcome.message }
+        : REFUSAL_COPY[outcome.reason];
     }
     // no default
   }

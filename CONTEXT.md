@@ -117,12 +117,13 @@ A device asks again for what it shows of those
 row, so one missed loses nothing.
 
 **waiting save** — a save a device keeps before its first call and sends until
-the cloud answers it, through a relaunch too: the iPhone's **share outbox**
+the cloud answers it, through a relaunch too. One queue
+(`packages/client/src/waiting-saves.ts`) under the iPhone's **share outbox**
 (`apps/mobile/src/items/share-outbox.ts`) and the browser extension's **save
-queue** (`apps/extension/src/background/save-queue.ts`). The iPhone parks a
-share the cloud refuses, with its words, for Try again or Let it go. The only
-writes a device keeps offline. Not a queue of edits: a save typed into an app,
-a photo and a delete each need a connection.
+queue** (`apps/extension/src/background/save-queue.ts`). One the library
+refuses is parked with the library's words, for Try again or Let it go. The
+only writes a device keeps offline. Not a queue of edits: a save typed into an
+app, a photo and a delete each need a connection.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
 (`packages/service/src/connector/connector-route.ts`), the library's procedures

@@ -1,9 +1,16 @@
 import { deferred } from "@repo/contract/deferred";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
 import { OUTCOME_REASONS } from "../../messages";
-import type { ExtensionRequest, Outcome, OutcomeReason, Status, WorkerAsks } from "../../messages";
+import type {
+  ExtensionRequest,
+  Outcome,
+  OutcomeReason,
+  RefusedSave,
+  Status,
+  WorkerAsks,
+} from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 import { Welcome } from "../welcome/app";
 import { Popup, saveOpenedTab } from "./app";
@@ -12,6 +19,7 @@ afterEach(cleanup);
 
 const SIGN_IN_URL = "https://inteligir.com/app/sign-in";
 const LIBRARY_URL = "https://inteligir.com/library";
+const FULL = "Your library is full.";
 
 const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });
 const refused = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
@@ -21,11 +29,35 @@ const signedIn: Status = {
 };
 const signedOut: Status = { account: null, signInUrl: SIGN_IN_URL };
 
+const LATER: RefusedSave = { message: FULL, name: "Read it later", opId: "later" };
+const OVER: RefusedSave = { message: FULL, name: "File over app", opId: "over" };
+
 // a worker that answers a save from the script and a status as the case says, null being none it
-// could read, and records what it was asked
-const worker = (status: Status | null, ...answers: Outcome[]) => {
+// could read, holds the saves the library refused, and records what it was asked. A refused save
+// tried again lands, unless the case says the library still refuses
+const worker = (
+  status: Status | null,
+  answers: Outcome[] = [],
+  held: { refused?: readonly RefusedSave[]; stillRefused?: boolean } = {},
+) => {
   const asked: ExtensionRequest[] = [];
+  let parked = held.refused ?? [];
+  const without = (opId: string) => parked.filter((save) => save.opId !== opId);
   const ask: WorkerAsks = {
+    discard: async (opId) => {
+      asked.push({ opId, type: "discard" });
+      parked = without(opId);
+      return parked;
+    },
+    refused: async () => {
+      asked.push({ type: "refused" });
+      return parked;
+    },
+    retry: async (opId) => {
+      asked.push({ opId, type: "retry" });
+      parked = held.stillRefused === true ? parked : without(opId);
+      return parked;
+    },
     save: async (tabId) => {
       asked.push({ tabId, type: "save" });
       return answers.shift() ?? refused("failed");
@@ -48,35 +80,47 @@ const openPopup = async (
 ): Promise<void> => {
   const opened = saveOpenedTab(activeTabId, ask);
   await act(async () => {
-    render(<Popup opened={opened} />);
+    render(<Popup ask={ask} opened={opened} />);
+  });
+};
+
+// a press whose ask the worker answers before the test reads the popup again
+const press = async (name: string, row: HTMLElement): Promise<void> => {
+  await act(async () => {
+    fireEvent.click(within(row).getByRole("button", { name }));
   });
 };
 
 describe("the popup", () => {
   it("saves the tab it opened over, says it landed in Unsorted with its title, and links the library", async () => {
-    const { ask, asked } = worker(signedIn, saved(true));
+    const { ask, asked } = worker(signedIn, [saved(true)]);
     await openPopup(ask);
     await expect(screen.findByText("Saved to Unsorted")).resolves.toBeTruthy();
     expect(screen.getByText("File over app")).toBeTruthy();
     expect(screen.getByText("Open your library").closest("a")?.getAttribute("href")).toBe(
       LIBRARY_URL,
     );
-    expect(asked).toStrictEqual([{ tabId: 7, type: "save" }, { type: "status" }]);
+    // the refused saves are asked for once the save has settled
+    expect(asked).toStrictEqual([
+      { tabId: 7, type: "save" },
+      { type: "status" },
+      { type: "refused" },
+    ]);
   });
 
   it("says who the browser is signed in as, and offers no sign-out of its own", async () => {
-    await openPopup(worker(signedIn, saved(true)).ask);
+    await openPopup(worker(signedIn, [saved(true)]).ask);
     await expect(screen.findByText("Signed in as reader@example.test")).resolves.toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
     cleanup();
-    await openPopup(worker(signedOut, refused("not-connected")).ask);
+    await openPopup(worker(signedOut, [refused("not-connected")]).ask);
     await screen.findByText(outcomeLine(refused("not-connected")).text);
     expect(screen.queryByText(/Signed in as/u)).toBeNull();
   });
 
   it("says it is saving until the worker answers", async () => {
     const held = deferred();
-    const { ask } = worker(signedIn, saved(true));
+    const { ask } = worker(signedIn, [saved(true)]);
     await openPopup({
       ...ask,
       save: async (tabId) => {
@@ -91,26 +135,26 @@ describe("the popup", () => {
   });
 
   it("says a page already saved is already in the library, and one that waits when it goes", async () => {
-    await openPopup(worker(signedIn, saved(false)).ask);
+    await openPopup(worker(signedIn, [saved(false)]).ask);
     await expect(screen.findByText("Already in your library")).resolves.toBeTruthy();
     cleanup();
-    await openPopup(worker(signedIn, { kind: "queued", waitsFor: "connection" }).ask);
+    await openPopup(worker(signedIn, [{ kind: "queued", waitsFor: "connection" }]).ask);
     await expect(screen.findByText("Saved when you're back online")).resolves.toBeTruthy();
     cleanup();
-    await openPopup(worker(signedIn, { kind: "queued", waitsFor: "update" }).ask);
+    await openPopup(worker(signedIn, [{ kind: "queued", waitsFor: "update" }]).ask);
     const update = await screen.findByText("Saved once this extension updates");
     expect(update.getAttribute("role")).toBe("status");
   });
 
   it("says a save made signed out waits for the sign-in, and links where to sign in", async () => {
-    await openPopup(worker(signedOut, { kind: "queued", waitsFor: "sign-in" }).ask);
+    await openPopup(worker(signedOut, [{ kind: "queued", waitsFor: "sign-in" }]).ask);
     const line = await screen.findByText("Saved once you sign in to Inteligir again");
     expect(line.closest("a")?.getAttribute("href")).toBe(SIGN_IN_URL);
   });
 
-  it("says every refusal in its own sentence, and links the sign-in page where signing in helps", async () => {
+  it("says every refusal of its own in its own sentence, and links the sign-in page where signing in helps", async () => {
     for (const reason of OUTCOME_REASONS) {
-      await openPopup(worker(signedOut, refused(reason)).ask);
+      await openPopup(worker(signedOut, [refused(reason)]).ask);
       const line = outcomeLine(refused(reason));
       const shown = await screen.findByText(line.text);
       // a line that links the sign-in page is that link; any other is an alert
@@ -123,20 +167,70 @@ describe("the popup", () => {
     }
   });
 
-  it("says what to do about a full library", async () => {
-    await openPopup(worker(signedOut, refused("library-full")).ask);
-    await expect(
-      screen.findByText("Your library is full. Free some room to save"),
-    ).resolves.toBeDefined();
-  });
-
   it("says a tab it cannot save is not one it saves", async () => {
     const { ask, asked } = worker(signedIn);
     await openPopup(ask, async () => null);
     await expect(
       screen.findByText(outcomeLine(refused("unsupported-page")).text),
     ).resolves.toBeTruthy();
-    expect(asked).toStrictEqual([{ type: "status" }]);
+    expect(asked).toStrictEqual([{ type: "status" }, { type: "refused" }]);
+  });
+});
+
+describe("the popup's refused saves", () => {
+  it("says a save the library refused in the library's words, and lists it with every other it holds", async () => {
+    const { ask } = worker(signedIn, [{ kind: "refused", message: FULL, reason: "library" }], {
+      refused: [LATER, OVER],
+    });
+    await openPopup(ask);
+    const headline = await screen.findByRole("alert");
+    expect(headline.textContent).toBe(FULL);
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toStrictEqual([
+      `Read it later${FULL}Try againLet it go`,
+      `File over app${FULL}Try againLet it go`,
+    ]);
+  });
+
+  it("lists nothing while the library refused nothing", async () => {
+    await openPopup(worker(signedIn, [saved(true)]).ask);
+    await screen.findByText("Saved to Unsorted");
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("sends one again as Try again is pressed, and shows what the library still refuses", async () => {
+    const landing = worker(signedIn, [saved(true)], { refused: [LATER, OVER] });
+    await openPopup(landing.ask);
+    const [later] = await screen.findAllByRole("listitem");
+    if (later === undefined) {
+      throw new Error("the popup listed no refused save");
+    }
+    await press("Try again", later);
+    expect(landing.asked.at(-1)).toStrictEqual({ opId: "later", type: "retry" });
+    expect(screen.getAllByRole("listitem").map((row) => row.textContent)).toStrictEqual([
+      `File over app${FULL}Try againLet it go`,
+    ]);
+
+    cleanup();
+    const refusing = worker(signedIn, [saved(true)], { refused: [LATER], stillRefused: true });
+    await openPopup(refusing.ask);
+    await press("Try again", await screen.findByRole("listitem"));
+    expect(screen.getByRole("listitem").textContent).toContain("Read it later");
+  });
+
+  it("lets one go as Let it go is pressed", async () => {
+    const { ask, asked } = worker(signedIn, [saved(true)], { refused: [LATER] });
+    await openPopup(ask);
+    await press("Let it go", await screen.findByRole("listitem"));
+    expect(asked.at(-1)).toStrictEqual({ opId: "later", type: "discard" });
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("keeps the list as shown when the worker's answer could not be read", async () => {
+    const { ask } = worker(signedIn, [saved(true)], { refused: [LATER] });
+    await openPopup({ ...ask, discard: async () => null });
+    await press("Let it go", await screen.findByRole("listitem"));
+    expect(screen.getByRole("listitem").textContent).toContain("Read it later");
   });
 });
 

@@ -41,11 +41,12 @@ export const savedAs = (title: string, created = true): Saved => ({
 
 type Answer<T> = () => Promise<T>;
 
-// a refusal as `/v1/rpc` answers one: a code a row declares arrives defined, any other not
+// a refusal as `/v1/rpc` answers one: a code a row declares arrives defined, any other not, and its
+// words are its code where the case names none
 export const refusal =
-  (code: string, defined = true): Answer<never> =>
+  (code: string, defined = true, message = code): Answer<never> =>
   async () => {
-    throw createORPCErrorFromJson({ code, data: undefined, defined, message: code });
+    throw createORPCErrorFromJson({ code, data: undefined, defined, message });
   };
 
 export interface FakeCloud {

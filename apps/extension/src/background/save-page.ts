@@ -6,7 +6,8 @@
 // read, and a page with no web address is refused. Every save is queued before its first call
 // (./save-queue), and one the cloud did not answer is sent again as its link, as is one made while
 // its account is signed out, once it signs in again, and one met as too old a build, once the
-// browser updates the extension. A link or a picture a right-click names is
+// browser updates the extension; one the library refuses stays queued, with the library's words,
+// for the popup's Try again or Let it go. A link or a picture a right-click names is
 // saved by its address, and a picture a page drew from its own bytes as a file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/library/library-blobs";
@@ -19,7 +20,7 @@ import { sniffMedia } from "@repo/contract/items/sniff-media";
 import { outcomeOf } from "@repo/contract/library/call-outcome";
 import type { CallOutcome, WaitsFor } from "@repo/contract/library/call-outcome";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
-import { PayloadTooLargeError, QuotaError } from "@repo/contract/v1/errors";
+import { QuotaError } from "@repo/contract/v1/errors";
 import { readHtml } from "@repo/page-reader/read-html";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-facts";
 
@@ -51,16 +52,13 @@ export interface TabFacts {
   readonly url: string | undefined;
 }
 
-const refused = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outcome => ({
-  kind: "refused",
-  reason,
-});
+const refused = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
 
-// the refusals of the cloud's own a person can act on; any other no resend passes
-const REFUSALS: ReadonlyMap<string, OutcomeReason> = new Map([
-  [PayloadTooLargeError.code, "too-large"],
-  [QuotaError.code, "library-full"],
-]);
+const refusedByLibrary = (message: string): Outcome => ({
+  kind: "refused",
+  message,
+  reason: "library",
+});
 
 // how a kept save's try left it, said to the person
 const said = (outcome: CallOutcome<Saved>): Outcome => {
@@ -76,7 +74,7 @@ const said = (outcome: CallOutcome<Saved>): Outcome => {
       return { kind: "queued", waitsFor: outcome.for };
     }
     case "refused": {
-      return refused(REFUSALS.get(outcome.code) ?? "failed");
+      return refusedByLibrary(outcome.message);
     }
     case "gone": {
       return refused("not-connected");
@@ -136,17 +134,18 @@ const keepCover = async (
   return NO_COVER;
 };
 
+// a save as the queue keeps it, its ids minted here, once, for every try
 const queuedFor = (
   deps: SaveDeps,
   email: string,
-  save: Pick<QueuedSave, "title" | "url">,
+  page: Omit<QueuedSave["payload"], "email">,
 ): QueuedSave => {
   const now = deps.now();
   return {
-    ...save,
-    email,
     id: uuidV7(now, deps.randomBytes(16)),
     opId: uuidV7(now, deps.randomBytes(16)),
+    payload: { ...page, email },
+    refused: null,
     savedAt: now,
   };
 };
@@ -203,7 +202,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
     if (read === null) {
       return await saveLink();
     }
-    const cover = await keepCover(deps, cloud, queued.url, read.facts.images);
+    const cover = await keepCover(deps, cloud, url, read.facts.images);
     if (cover.kind !== "landed") {
       return cover;
     }
@@ -218,8 +217,8 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
           opId: queued.opId,
           savedAt: queued.savedAt,
           tags: [],
-          title: fieldLine(read.facts.title) ?? queued.title,
-          url: queued.url,
+          title: fieldLine(read.facts.title) ?? queued.payload.title,
+          url,
         }),
     );
     return refusesReading(reading) ? await saveLink() : reading;
@@ -307,7 +306,7 @@ export const savePicture = async (
       return refused(PICTURE_WAITS[made.for]);
     }
     case "refused": {
-      return refused(REFUSALS.get(made.code) ?? "failed");
+      return refusedByLibrary(made.message);
     }
     case "gone": {
       await accountGone(session.email);

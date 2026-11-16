@@ -10,7 +10,7 @@ import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
-import type { ExtensionRequest, Outcome, Status, WorkerAnswer } from "../messages";
+import type { ExtensionRequest, Outcome, RefusedSave, Status, WorkerAnswer } from "../messages";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
@@ -20,7 +20,13 @@ import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { SEND_ALARM, sendQueued } from "../background/save-queue";
+import {
+  discardSave,
+  refusedSaves,
+  retrySave,
+  SEND_ALARM,
+  sendQueued,
+} from "../background/save-queue";
 import type { SendDeps } from "../background/save-queue";
 import { cloudSignIn, heldSignIn, saveSignIn, setsSession } from "../background/sign-in";
 import type { Session } from "../background/sign-in";
@@ -70,6 +76,13 @@ const status = async (): Promise<Status> => {
   };
 };
 
+// the saves the library of the account signed in refused, as the browser holds that sign-in, with
+// no call: another account's wait unseen for that account
+const refused = async (): Promise<readonly RefusedSave[]> => {
+  const signIn = await heldSignIn();
+  return signIn.kind === "signed-in" ? await refusedSaves(signIn.session.email) : [];
+};
+
 const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
   switch (request.type) {
     case "save": {
@@ -87,6 +100,18 @@ const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
     }
     case "status": {
       return await status();
+    }
+    case "refused": {
+      return await refused();
+    }
+    case "retry": {
+      await retrySave(request.opId);
+      await sendQueued(sendDeps);
+      return await refused();
+    }
+    case "discard": {
+      await discardSave(request.opId);
+      return await refused();
     }
     // no default
   }

@@ -4,7 +4,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 import { EXTENSION_ORIGIN } from "@repo/contract/extension/extension-identity";
 import { SIGN_IN_PATH } from "@repo/contract/library-page";
 import { z } from "zod";
-import { signInOnSite, test as base, watchErrors } from "./fixtures";
+import { newId, signInOnSite, test as base, watchErrors } from "./fixtures";
 import type { Account, Cloud } from "./fixtures";
 
 // WXT's output for the dev flavor, whose one cloud host is localhost and which may script a
@@ -21,7 +21,10 @@ const OutcomeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("refused"), reason: z.string() }),
 ]);
 const StatusSchema = z.object({ account: z.object({ email: z.string() }).nullable() });
-const QueuedSchema = z.array(z.looseObject({ email: z.string(), url: z.string() }));
+// a waiting save as `storage.local` keeps it (packages/client/src/waiting-saves.ts)
+const QueuedSchema = z.array(
+  z.looseObject({ payload: z.looseObject({ email: z.string(), url: z.string() }) }),
+);
 
 const pageOf = (title: string, script = ""): string =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title></head><body><article><h1>${title}</h1><p>If you want digital artifacts that last, they must be files you can control.</p><div id="later"></div><p>The file is the one thing every app agrees on.</p></article>${script}</body></html>`;
@@ -95,7 +98,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     await ask(
       QueuedSchema,
       `chrome.storage.local.get(null).then((stored) =>
-        Object.entries(stored).filter(([key]) => key.startsWith("save:")).map(([, save]) => save))`,
+        Object.entries(stored).filter(([key]) => key.startsWith("save:")).map(([, save]) => JSON.parse(save)))`,
     );
   const save = async (pathname: string) => {
     const url = `${PAGES}${pathname}`;
@@ -142,7 +145,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
     await route.abort();
   });
   expect(await save("/later")).toEqual({ kind: "queued", waitsFor: "connection" });
-  expect(await queued()).toMatchObject([{ url: `${PAGES}/later` }]);
+  expect(await queued()).toMatchObject([{ payload: { url: `${PAGES}/later` } }]);
   await extension.unroute(cut);
   await expect.poll(queued, byAlarm).toEqual([]);
   expect(await landed("/later")).toBeDefined();
@@ -153,7 +156,7 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   }
   expect(await save("/signed-out-elsewhere")).toEqual({ kind: "queued", waitsFor: "sign-in" });
   expect(await queued()).toMatchObject([
-    { email: account.email, url: `${PAGES}/signed-out-elsewhere` },
+    { payload: { email: account.email, url: `${PAGES}/signed-out-elsewhere` } },
   ]);
   expect(await signedInAs()).toBeNull();
   await signIn(site, cloud, account);
@@ -184,4 +187,34 @@ test("the extension rides the browser's sign-in, saves the page as shown, and ho
   await popup.goto(`${EXTENSION_ORIGIN}/popup.html`);
   await expect(popup.getByRole("alert")).toHaveText("Inteligir can't save this kind of page");
   await expect(popup.getByText(`Signed in as ${account.email}`)).toBeVisible();
+
+  // two saves as a full library leaves them, kept with its words: the popup lists them, sends one
+  // again, which the library now takes, and lets the other go
+  const refusedAt = (pathname: string) => {
+    const opId = newId();
+    return {
+      [`save:${opId}`]: JSON.stringify({
+        id: newId(),
+        opId,
+        payload: { email: account.email, title: "", url: `${PAGES}${pathname}` },
+        refused: "Your library is full.",
+        savedAt: Date.now(),
+      }),
+    };
+  };
+  await panel.evaluate(
+    `chrome.storage.local.set(${JSON.stringify({ ...refusedAt("/tried-again"), ...refusedAt("/let-go") })})`,
+  );
+  await popup.reload();
+  const refused = popup.getByRole("listitem");
+  await expect(refused).toHaveCount(2);
+  const triedAgain = refused.filter({ hasText: `${PAGES}/tried-again` });
+  await expect(triedAgain).toContainText("Your library is full.");
+  await triedAgain.getByRole("button", { name: "Try again" }).click();
+  await expect(refused).toHaveCount(1);
+  expect(await landed("/tried-again")).toBeDefined();
+  await refused.getByRole("button", { name: "Let it go" }).click();
+  await expect(refused).toHaveCount(0);
+  expect(await queued()).toEqual([]);
+  expect(await landed("/let-go")).toBeUndefined();
 });

@@ -5,7 +5,7 @@ import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
-import type { Outcome } from "../messages";
+import type { Outcome, OutcomeReason } from "../messages";
 import { CAPTURE_DEADLINE_MS } from "./capture-tab";
 import { keepConnection, readConnection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
@@ -73,10 +73,16 @@ const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
 
 const answering = (status: number) => async () => new Response(null, { status });
 
-const refusedFor = (reason: Extract<Outcome, { kind: "refused" }>["reason"]): Outcome => ({
+const refusedFor = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
+const refusedByLibrary = (message: string): Outcome => ({
   kind: "refused",
-  reason,
+  message,
+  reason: "library",
 });
+
+// a save as the queue keeps it
+const kept = (payload: { email?: string; title?: string; url: string }) =>
+  expect.objectContaining({ payload: expect.objectContaining(payload) });
 
 const NONE: SignIn = { kind: "none" };
 
@@ -172,9 +178,7 @@ describe("a tab saved", () => {
       waitsFor: "sign-in",
     });
     expect(ended.saves).toStrictEqual([]);
-    await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({ url: URL_SAVED }),
-    ]);
+    await expect(queuedSaves()).resolves.toStrictEqual([kept({ url: URL_SAVED })]);
   });
 
   it("is saved as its link when it cannot be scripted", async () => {
@@ -259,6 +263,19 @@ describe("a tab saved", () => {
     }
   });
 
+  it("stays in the queue, with the library's words, when the library refuses it", async () => {
+    const cloud = fakeCloud({ save: refusal("QUOTA", true, "Your library is full.") });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual(
+      refusedByLibrary("Your library is full."),
+    );
+    await expect(queuedSaves()).resolves.toStrictEqual([
+      expect.objectContaining({
+        payload: { email: SESSION.email, title: "File over app", url: URL_SAVED },
+        refused: "Your library is full.",
+      }),
+    ]);
+  });
+
   it("waits, as its address and title alone, when the cloud does not answer", async () => {
     const cloud = fakeCloud({
       save: async () => {
@@ -270,19 +287,11 @@ describe("a tab saved", () => {
       waitsFor: "connection",
     });
     const [queued] = await queuedSaves();
-    expect(queued).toMatchObject({
+    expect(queued?.payload).toStrictEqual({
       email: SESSION.email,
       title: "File over app",
       url: URL_SAVED,
     });
-    expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
-      "email",
-      "id",
-      "opId",
-      "savedAt",
-      "title",
-      "url",
-    ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
@@ -313,11 +322,7 @@ describe("a tab saved", () => {
     expect(cloud.saves).toStrictEqual([]);
     expect(cloud.links).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({
-        email: SESSION.email,
-        title: TAB.title,
-        url: URL_SAVED,
-      }),
+      kept({ email: SESSION.email, title: TAB.title, url: URL_SAVED }),
     ]);
     // the site's sign-in sends it, which no timer brings
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
@@ -373,7 +378,7 @@ describe("a right-click's address or picture", () => {
       saveAddress(depsWith(cloud, { signIn: SIGNED_OUT }).deps, url),
     ).resolves.toStrictEqual({ kind: "queued", waitsFor: "sign-in" });
     await expect(queuedSaves()).resolves.toStrictEqual([
-      expect.objectContaining({ email: SESSION.email, title: "", url }),
+      kept({ email: SESSION.email, title: "", url }),
     ]);
     await expect(saveAddress(depsWith(cloud, { signIn: NONE }).deps, url)).resolves.toStrictEqual({
       kind: "refused",
@@ -401,9 +406,18 @@ describe("a right-click's address or picture", () => {
       ["401", fakeCloud({ upload: answering(401) }), refusedFor("signed-out"), true],
       ["410", fakeCloud({ upload: answering(410) }), refusedFor("not-connected"), false],
       ["426", fakeCloud({ upload: answering(426) }), refusedFor("update-extension"), true],
-      ["413", fakeCloud({ upload: answering(413) }), refusedFor("too-large"), true],
-      ["507", fakeCloud({ upload: answering(507) }), refusedFor("library-full"), true],
-      ["400", fakeCloud({ upload: answering(400) }), refusedFor("failed"), true],
+      [
+        "413",
+        fakeCloud({ upload: answering(413) }),
+        refusedByLibrary("This file is larger than your library keeps."),
+        true,
+      ],
+      [
+        "507",
+        fakeCloud({ upload: answering(507) }),
+        refusedByLibrary("Your library is full."),
+        true,
+      ],
       ["429", fakeCloud({ upload: answering(429) }), refusedFor("needs-connection"), true],
       ["503", fakeCloud({ upload: answering(503) }), refusedFor("needs-connection"), true],
       [
@@ -418,8 +432,8 @@ describe("a right-click's address or picture", () => {
       ],
       [
         "the file's create refused",
-        fakeCloud({ createFile: refusal("QUOTA") }),
-        refusedFor("library-full"),
+        fakeCloud({ createFile: refusal("QUOTA", true, "Your library is full.") }),
+        refusedByLibrary("Your library is full."),
         true,
       ],
     ];

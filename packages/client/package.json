@@ -2,7 +2,7 @@
   "name": "@repo/client",
   "version": "0.1.0",
   "private": true,
-  "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, how each device keeps what it shows of the library, and the saves a device keeps until the cloud takes them.",
+  "description": "What the library tab and the phone share above the contract: a conversation as every device reads it, what a send asks, how each device keeps what it shows of the library, and the saves the phone and the extension keep until the cloud takes them.",
   "type": "module",
   "exports": {
     "./agent-send": "./src/agent-send.ts",

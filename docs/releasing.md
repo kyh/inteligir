@@ -289,6 +289,9 @@ The unpacked store build, against production, with no dev build loaded.
   the cloud can't reach saves as the extension read it.
 - **A waiting save**: one made offline or across a browser restart lands later
   with no click, and one made signed out lands as you sign in on the site.
+- **A refused save**: one a full library refuses says so in the library's
+  words and stays in the popup under Didn't reach your library, where Try again
+  lands it once there is room and Let it go drops it.
 
 ### The iPhone app, on the internal build
 
