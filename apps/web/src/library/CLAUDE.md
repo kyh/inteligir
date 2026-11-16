@@ -136,6 +136,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **A file in a note is read where the tab draws its files, and one pasted there goes up before its
   block.** The host reads `/v1/blobs/<sha>` and sends a pasted file up first, so the cell never
   meets a sha it does not hold. `apps/web/src/library/item/page-editor-host.ts`.
+- **The editor's host is whole the moment it is installed.** A link, a tag, Ask the agent and a
+  note the editor makes are answered by the router, the query client and the tab's store, handed
+  over once as the library first renders, since actions bound from a component's effect leave a
+  host that does nothing until they are. `apps/web/src/library/item/page-editor-host.ts`.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
   reserves no corner and asks its shell only for the update, since an overlay title bar costs a
   branch per host for a few pixels. `apps/web/src/library/top-bar.tsx`.

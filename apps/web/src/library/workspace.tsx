@@ -11,7 +11,6 @@ import { saveFolderOf, scopeTitle } from "@repo/client/library-labels";
 import { listingView } from "@repo/client/listing-view";
 import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
-import { setLibraryTitles } from "@repo/editor/host-io";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { isWebUrl } from "@repo/contract/items/item-url";
@@ -22,9 +21,9 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
@@ -33,7 +32,6 @@ import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
 import { useLeaveItem } from "./item/leave-item";
-import { installPageEditorHost } from "./item/page-editor-host";
 import { filesPayload } from "./library/capture/capture-payload";
 import type { CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
@@ -41,8 +39,8 @@ import { askFolder, askName, askTags } from "./library/ask";
 import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import { useLibraryVerbs } from "./library/library-verbs";
-import type { NoteMade } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
+import { libraryGoes } from "./library-place";
 import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
@@ -68,11 +66,11 @@ interface TagSubject {
 }
 
 export const Workspace = ({ scope: addressed, kind, openItem, covered }: WorkspaceProps) => {
-  const { cloud, socket, wire, workspace } = usePageLibrary();
+  const { workspace } = usePageLibrary();
   const queries = useLibraryQueries();
-  const queryClient = useQueryClient();
   const verbs = useLibraryVerbs();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const goes = libraryGoes(router);
   const modifier = platformShortcutModifier();
   const [sort, setSort] = usePref(windowLayout, "librarySort");
   const [panelOpen, setPanelOpen] = usePref(windowLayout, "panelOpen");
@@ -96,36 +94,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
-  const titles = useQuery(queries.titles()).data;
-
-  // on the current route, so an open that lands while Settings covers the workspace keeps it; the
-  // item already open is replaced, so a hit found in it adds no entry to go Back through
-  const open = (
-    itemId: string | null,
-    { find, ignoreBlocker }: { find?: string; ignoreBlocker?: boolean } = {},
-  ): void => {
-    void navigate({
-      ignoreBlocker,
-      replace: itemId === openItem,
-      search: (prior) => ({ ...prior, find, item: itemId ?? undefined }),
-      to: ".",
-    });
-  };
-
-  // a new entry with no kind and no item, so Back walks scopes and the leave guard asks once; All
-  // items is the bare address, which a fresh tab opens on
-  const showScope = (next: LibraryScope): void => {
-    void navigate({ search: { scope: next.kind === "all" ? undefined : next }, to: "/library" });
-  };
-
-  // a narrowing of the scope, not a place of its own, so it replaces the entry Back would return to
-  const showKind = (next: ItemKind | null): void => {
-    void navigate({
-      replace: true,
-      search: (prior) => ({ ...prior, kind: next ?? undefined }),
-      to: ".",
-    });
-  };
 
   const startTidy = (): void => {
     workspace.compose({ kind: "tidy" });
@@ -133,45 +101,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   };
   // offered while something waits to be filed or tagged
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
-
-  // the editor's host, made once for the page: links open items, a note the editor makes lands
-  // beside the item open now, and "Ask the agent" quotes the passage in the panel's composer
-  const hostAsksAgent = useEffectEvent((asked: string) => {
-    workspace.compose({ kind: "asked", passage: asked });
-    workspace.revealPanel("agent");
-  });
-  const hostOpens = useEffectEvent((itemId: string) => {
-    open(itemId);
-  });
-  const hostShowsTag = useEffectEvent((tag: string) => {
-    showScope({ kind: "tag", tag });
-  });
-  // in the folder of the item open now, whose row its view has read
-  const hostMakesNote = useEffectEvent(async (made: NoteMade): Promise<string> => {
-    const beside =
-      openItem === null ? undefined : queryClient.getQueryData(queries.item(openItem).queryKey);
-    return await verbs.createNote({ folderId: beside?.fields.folderId ?? null, tags: [] }, made);
-  });
-  // installed as the workspace first renders: an open item's editor reads the host as it renders,
-  // and the workspace's effects run after its children's first render
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [host] = useState(() => installPageEditorHost({ cloud, socket, wire }));
-  useEffect(() => {
-    host.bind({
-      askAgent: hostAsksAgent,
-      createNote: hostMakesNote,
-      openItem: hostOpens,
-      showTag: hostShowsTag,
-    });
-    return () => {
-      host.bind(null);
-    };
-  }, [host]);
-  useEffect(() => {
-    if (titles !== undefined) {
-      setLibraryTitles(titles.targets);
-    }
-  }, [titles]);
 
   // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since the
   // prune below waits for the scope's listing and keeps an id both scopes list
@@ -197,10 +126,6 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
     }
   }, [listed, selection]);
 
-  const openSettings = (): void => {
-    void navigate({ search: true, to: "/library/settings" });
-  };
-
   useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
@@ -212,7 +137,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
         break;
       }
       case "open-settings": {
-        openSettings();
+        goes.openSettings();
         break;
       }
       case "toggle-panel": {
@@ -232,7 +157,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const newNote = (): void => {
     void (async () => {
       try {
-        open(await verbs.createNote(into()));
+        goes.openItem(await verbs.createNote(into()));
       } catch (error) {
         toast.error(refusalText(error, "The note couldn't be made."));
       }
@@ -240,7 +165,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   };
 
   const saveLink = (url: string): void => {
-    void verbs.saveLinks([{ title: null, url }], into(), open);
+    void verbs.saveLinks([{ title: null, url }], into(), goes.openItem);
   };
 
   // what a paste, a drop or the file picker handed over: each file and each link saved where the
@@ -249,7 +174,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
     for (const sentence of payload.refused) {
       toast.error(sentence);
     }
-    void verbs.saveLinks(payload.urls, into(), open);
+    void verbs.saveLinks(payload.urls, into(), goes.openItem);
     void verbs.addFiles(payload.files, into());
   };
 
@@ -305,7 +230,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
       }
       // deleted on the person's word, so its leave asks nothing
       if (openItem !== null && ids.includes(openItem)) {
-        open(null, { ignoreBlocker: true });
+        goes.closeItem({ unasked: true });
       }
       await verbs.remove(ids);
     })();
@@ -377,7 +302,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
       askMove(rows.map((row) => row.id));
     },
     open: (row) => {
-      open(row.id);
+      goes.openItem(row.id);
     },
     pin: (rows, pinned) => {
       void verbs.pin(
@@ -426,11 +351,15 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
             <Rail
               scope={scope}
               itemOpen={openItem !== null}
-              onScope={showScope}
+              onScope={(next) => {
+                goes.showScope(next);
+              }}
               onOpenSearch={() => {
                 workspace.setPaletteOpen(true);
               }}
-              onOpenSettings={openSettings}
+              onOpenSettings={() => {
+                goes.openSettings();
+              }}
               folders={{
                 create: newFolder,
                 remove: (folderId, name) => {
@@ -490,7 +419,9 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                       }),
                     }}
                     kind={kind}
-                    onKindChange={showKind}
+                    onKindChange={(next) => {
+                      goes.showKind(next);
+                    }}
                     sort={sort}
                     onSortChange={setSort}
                     selection={selection}
@@ -512,7 +443,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                   <ItemView
                     itemId={openItem}
                     onBack={() => {
-                      open(null);
+                      goes.closeItem();
                     }}
                     onNote={(opened) => {
                       noteRef.current = opened;
@@ -556,10 +487,8 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
           },
           askSaveLink,
           newNote,
-          openHit: (itemId, find) => {
-            open(itemId, { find });
-          },
-          openSettings,
+          openHit: goes.openItem,
+          openSettings: goes.openSettings,
           saveLink,
           startTidy,
         }}

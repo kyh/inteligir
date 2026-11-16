@@ -15,6 +15,7 @@ import { keptFileType } from "@repo/contract/items/item-kind";
 import { applyFieldOps, mergeListField } from "@repo/contract/library/field-ops";
 import type { PropertyOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { LISTING_PAGE_MAX } from "@repo/contract/library/library-wire";
 import { refusalText } from "@repo/contract/refusal-text";
 import type { V1Client } from "@repo/contract/v1";
@@ -205,6 +206,15 @@ export interface SaveInto {
   readonly tags: readonly string[];
 }
 
+// a note's title and blocks as it is made: what the editor moved out of an item, or none of
+// either for New note
+interface NoteMade {
+  readonly title: string;
+  readonly blocks: readonly LibraryBlock[];
+}
+
+const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
+
 export const libraryWrites = ({
   cloud,
   wire: { client, orpc },
@@ -307,7 +317,28 @@ export const libraryWrites = ({
           toast.success("Reading the page again. Its text lands soon.");
         },
       }),
-    create: () => orpc.library.items.create.mutationOptions({ onSettled: readAgain }),
+    // a note made where `into` saves, answering its id
+    createNote: () =>
+      mutationOptions({
+        mutationFn: async ({
+          into,
+          note = EMPTY_NOTE,
+        }: {
+          into: SaveInto;
+          note?: NoteMade;
+        }): Promise<string> => {
+          const { item } = await client.library.items.create({
+            blocks: note.blocks.map((block) => ({ block, section: "note" })),
+            folderId: into.folderId,
+            id: newId(),
+            savedAt: Date.now(),
+            tags: [...into.tags],
+            title: note.title,
+          });
+          return item.id;
+        },
+        onSettled: readAgain,
+      }),
     saveLink: () => orpc.library.items.saveLink.mutationOptions({ onSettled: readAgain }),
     addFile: () =>
       mutationOptions({

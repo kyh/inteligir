@@ -1,10 +1,15 @@
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { getEditorHostActions, getEditorHostIo, libraryTitles } from "@repo/editor/host-io";
 import { fileSha } from "@repo/contract/library/file-sha";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ItemsMoved } from "@repo/client/library-cache";
+import { libraryQueries } from "../cloud/library-queries";
+import { createPageQueryClient } from "../cloud/v1";
+import type { LibraryGoes } from "../library-place";
+import { createWorkspaceStore } from "../workspace-store";
 import { installPageEditorHost } from "./page-editor-host";
 
 const PLANS = "0199a4c2-0000-7000-8000-0000000000c1";
@@ -13,30 +18,50 @@ const ORIGIN = "https://library.test";
 
 const paragraph = { children: [{ text: "Held by the cell." }], id: "p1", type: "p" };
 
-const { client } = createFakeCell().device("page");
+const cell = createFakeCell();
+const { client } = cell.device("page");
+const wire = { client, orpc: createTanstackQueryUtils(client) };
 
 const nothing = (): void => {
-  // the suite's page has no item view, panel or composer to answer with
+  // the suite's socket and session have nothing to stop
 };
 
-const install = (upload: (request: Request) => Promise<Response>) => {
+// the host over the cell alone: no layout, workspace or panel is mounted, and the tab is where
+// `openItem` says
+const install = (
+  upload: (request: Request) => Promise<Response>,
+  openItem: string | null = null,
+) => {
   const listeners: ((moved: ItemsMoved) => void)[] = [];
+  const queryClient = createPageQueryClient();
+  const workspace = createWorkspaceStore();
+  const goes = {
+    now: () => ({ kind: null, openItem, scope: { kind: "all" } }),
+    openItem: vi.fn<LibraryGoes["openItem"]>(),
+    showScope: vi.fn<LibraryGoes["showScope"]>(),
+  } satisfies Pick<LibraryGoes, "now" | "openItem" | "showScope">;
   installPageEditorHost({
     cloud: { fetch: upload, onSessionEnd: nothing, origin: ORIGIN },
+    goes,
+    queryClient,
     socket: {
       onItems: (listener) => {
         listeners.push(listener);
         return nothing;
       },
     },
-    wire: { client },
+    wire,
+    workspace,
   });
   return {
+    goes,
     moved: (moved: ItemsMoved) => {
       for (const listener of listeners) {
         listener(moved);
       }
     },
+    queryClient,
+    workspace,
   };
 };
 
@@ -103,5 +128,45 @@ describe("the page's editor host", () => {
     moved(null);
 
     expect(heard).toStrictEqual([new Set([PLANS]), null]);
+  });
+
+  it("opens the item a link names and shows the grid of a tag a note names", () => {
+    const { goes } = install(refused);
+
+    getEditorHostIo().openItem(PLANS);
+    getEditorHostActions().agent.showTag("field");
+
+    expect(goes.openItem).toHaveBeenCalledExactlyOnceWith(PLANS);
+    expect(goes.showScope).toHaveBeenCalledExactlyOnceWith({ kind: "tag", tag: "field" });
+  });
+
+  it("quotes a passage asked about in the tab's composer, on the panel's Agent tab", () => {
+    const { workspace } = install(refused);
+
+    getEditorHostActions().agent.askAboutSelection("the passage");
+
+    const { composer, panelTab } = workspace.store.getState();
+    expect(composer.text).toBe("> the passage\n\n");
+    expect(panelTab).toBe("agent");
+  });
+
+  it("makes a note in the folder of the item open now, as its view read it", async () => {
+    const folderId = cell.seed.folder("Reading");
+    const article = cell.seed.item({ folderId, title: "An article" });
+    const { queryClient } = install(refused, article);
+    await queryClient.query(libraryQueries(wire).item(article));
+
+    const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Cut" });
+
+    expect(cell.item(id)?.fields).toMatchObject({ folderId, title: "Cut" });
+  });
+
+  it("hands the editor the library's titles as the page's query of them answers", async () => {
+    const id = cell.seed.item({ title: "Quarterly plan" });
+    install(refused);
+
+    await vi.waitFor(() => {
+      expect(libraryTitles.getState().byId.get(id)).toBe("Quarterly plan");
+    });
   });
 });

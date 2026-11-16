@@ -4,7 +4,6 @@
 // its own refusal.
 
 import { BULK_ITEMS_MAX } from "@repo/contract/library/library-wire";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { ordBetween } from "@repo/contract/library/order-key";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
@@ -21,15 +20,6 @@ export interface TagChange {
   readonly remove: readonly string[];
 }
 
-// a note's title and blocks as it is made: none for New note, or what the editor moved out of an
-// item
-export interface NoteMade {
-  readonly title: string;
-  readonly blocks: readonly LibraryBlock[];
-}
-
-const EMPTY_NOTE: NoteMade = { blocks: [], title: "" };
-
 export const useLibraryVerbs = () => {
   const { orpc } = usePageLibrary().wire;
   const writes = useLibraryWrites();
@@ -40,7 +30,7 @@ export const useLibraryVerbs = () => {
   const purge = useMutation(writes.purge());
   const writeFolders = useMutation(writes.folders());
   const refresh = useMutation(writes.refresh());
-  const create = useMutation(writes.create());
+  const createNote = useMutation(writes.createNote());
   const saveLink = useMutation(writes.saveLink());
   const addFile = useMutation(writes.addFile());
   const readDeleted = useMutation(writes.deletedIds());
@@ -85,18 +75,8 @@ export const useLibraryVerbs = () => {
         verb: "Adding",
       });
     },
-    // a note made, answering its id
-    createNote: async (into: SaveInto, note: NoteMade = EMPTY_NOTE): Promise<string> => {
-      const { item } = await create.mutateAsync({
-        blocks: note.blocks.map((block) => ({ block, section: "note" })),
-        folderId: into.folderId,
-        id: newId(),
-        savedAt: Date.now(),
-        tags: [...into.tags],
-        title: note.title,
-      });
-      return item.id;
-    },
+    // an empty note made, answering its id
+    createNote: async (into: SaveInto): Promise<string> => await createNote.mutateAsync({ into }),
     deletedIds: async (): Promise<string[]> => await readDeleted.mutateAsync(),
     move: async (ids: readonly string[], folderId: string | null): Promise<void> => {
       await runBulk({
