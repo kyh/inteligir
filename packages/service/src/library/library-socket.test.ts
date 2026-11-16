@@ -6,7 +6,6 @@ import {
   V1_SOCKET_PATH,
 } from "@repo/contract/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
-import { RAINDROP_EXPORT } from "../imports/test-support/raindrop-export";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
@@ -33,7 +32,6 @@ import {
   connectorClient,
   workerFetch,
 } from "../test-support/connector-session";
-import { ended, runAlarmsUntil, startImport } from "../test-support/library-files";
 import { issueToken } from "../test-support/password-reset";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
@@ -503,31 +501,5 @@ describe("the moved frame", () => {
     const [, undone] = movedOf(opened);
     expect(undone).toMatchObject({ folders: false, threads: [], type: "moved" });
     expect(undone?.items).toStrictEqual([{ id: item.id, seq: expect.any(Number) }]);
-  });
-
-  it("names what an alarm's run moved in one frame, an import's page of items among them", async () => {
-    const { accountId, ticket } = await signedInPhone("moved-import@example.test");
-    const opened = await openWithTicket(ticket);
-    const started = await startImport(
-      accountId,
-      { bytes: new TextEncoder().encode(RAINDROP_EXPORT), mime: "text/csv" },
-      "raindrop",
-      "platform",
-    );
-    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
-    const landed = await inCell(cellOf(accountId), (state) =>
-      state.storage.sql.exec("SELECT id, seq FROM items ORDER BY seq").toArray(),
-    );
-    expect(landed.length).toBeGreaterThan(1);
-    await until(() => movedOf(opened).some((frame) => frame.items.length > 0));
-    // the page's items in the one frame its run told, and no thread, since none moved
-    expect(movedOf(opened).filter((frame) => frame.items.length > 0)).toStrictEqual([
-      {
-        folders: true,
-        items: landed.map((row) => itemRowSchema.parse(row)),
-        threads: [],
-        type: "moved",
-      },
-    ]);
   });
 });

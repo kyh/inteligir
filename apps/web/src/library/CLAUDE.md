@@ -11,8 +11,9 @@ session, the wire, the account's socket and the QueryClient) in the route's `bef
 `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
 queries and the socket; `workspace.tsx` the rail, the grid or the open item, the panel and the
 palette; `library/` the grid and its verbs; `item/` the open item; `panel/` Info; `agent/` the
-agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the
-sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
+agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `import/` an
+import's reading; `styles/` the sheet only this route links; `shell/desktop-bridge.ts` the Mac
+app's update.
 
 ## The tab over the cell
 
@@ -29,9 +30,14 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   device says, and a read's standing is one value, `cellStanding`.
   `apps/web/src/library/cloud/needs-connection.tsx`.
 - **The library is one chunk, and catches up as its connection returns.** A site page preloads none
-  of it, and a loaded tab fetches only calls and files, since a chunk first asked for offline fails;
-  the socket dials the moment the browser is online and reads every query again.
-  `apps/web/vite.config.ts`.
+  of it, and a loaded tab fetches only calls, files and an import's worker, which needs a connection
+  anyway, since a chunk first asked for offline fails; the socket dials the moment the browser is
+  online and reads every query again. `apps/web/vite.config.ts`.
+- **An import is read in the tab, on a module worker, and the cell only lands it.** The worker
+  unzips and plans, then asks how each note stands and lands a batch at a time, each id taken from
+  the file, so closing the tab stops it and choosing the file again carries on; read in the cell, a
+  zip waits in R2 as a second copy and each alarm's 30 s holds a page of it.
+  `apps/web/src/library/import/import-run.ts`.
 - **The account's socket says what moved, and the tab reads that again.** A frame names what moved
   and never carries it, since a dropped frame must not be a lost write.
   `packages/client/src/library-cache.ts`.

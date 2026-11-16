@@ -53,7 +53,7 @@ const originOf = (actor: CellActor): string => {
       return `assistant:${actor.grantId}`;
     }
     case "import": {
-      return `import:${actor.jobId}`;
+      return `import:${actor.importId}`;
     }
     case "fill": {
       return "fill";

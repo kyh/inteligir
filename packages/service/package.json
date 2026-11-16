@@ -58,7 +58,6 @@
     "@repo/messages-fake": "workspace:*",
     "@types/node": "catalog:",
     "cf": "catalog:",
-    "fflate": "^0.8.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

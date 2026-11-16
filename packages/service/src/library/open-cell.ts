@@ -17,7 +17,6 @@ import type { CellActor } from "./cell-actor";
 import { cellDbOf } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { cellIds } from "./cell-ids";
-import type { ImportHost } from "./cell-import-host";
 import { tellSockets } from "./cell-sockets";
 import { cellAccountId } from "./library-cell";
 import { openLibraryEngine } from "./library-engine";
@@ -49,8 +48,8 @@ interface CellPorts {
   readonly arm?: ((at: number | null) => void) | undefined;
 }
 
-// the cell as the agent's turns and an import's runs each need it, and what every door reads
-export interface Cell extends AgentCell, ImportHost {
+// the cell as the agent's turns need it, and what every door reads
+export interface Cell extends AgentCell {
   readonly db: CellDb;
   // each item's note, which this cell alone names for the items its rows hold
   readonly notes: NoteReach;
@@ -116,9 +115,6 @@ export const openCell = (ctx: DurableObjectState, env: Env, ports: CellPorts = {
     accountId,
     contextFor: (principal) => cellContext({ agent: cell, library, notes }, actorIn(principal)),
     db,
-    durable: async () => {
-      await ctx.storage.sync();
-    },
     env,
     exports: ctx.exports,
     library,

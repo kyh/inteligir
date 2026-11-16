@@ -17,6 +17,7 @@ import {
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { FILL_ACTOR } from "./cell-fills";
+import { sealChangeSet } from "./change-sets";
 import type { LibraryEngine } from "./library-engine";
 
 const DAY = 24 * 60 * 60_000;
@@ -70,7 +71,13 @@ describe("the change-set prune", () => {
         op: "set",
         value: "the agent's",
       });
-      library.closeChangeSet(agentSet(state));
+      // the turn ends, which seals its set
+      landedValue(
+        library.landApart({ answer: z.null(), opId: undefined }, (scope) => {
+          sealChangeSet(scope.db, agentSet(state), scope.now);
+          return null;
+        }),
+      );
       clock.now = START + 4 * DAY;
       set(library, person(), itemId, {
         base: title,

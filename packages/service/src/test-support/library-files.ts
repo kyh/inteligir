@@ -1,20 +1,14 @@
 // A file in an account's library as a device's upload leaves it, its room held, its bytes in R2
-// and its row settled; an import of it started and run, by the cell's alarm or a run at a time;
-// and a folder zipped, an Obsidian vault in small among them.
+// and its row settled, and the cell's alarm run until what it waits for is done.
 
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { zipSync } from "fflate";
-import type { Zippable } from "fflate";
 
-import { pngOf } from "../fill/test-support/fill-cell";
 import { blobKey } from "../library/cell-blobs";
-import { runImports } from "../library/cell-imports";
-import { sendFills, settleStored } from "../library/cell-library";
+import { settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
 import type { LibraryEngine } from "../library/library-engine";
-import { cellIn, cellOf, inCell } from "./library-cell";
 
 // what a put can meet that says nothing of its bytes, as the runtime throws it
 // (https://developers.cloudflare.com/r2/api/error-codes/), each with the name a test reads
@@ -65,84 +59,4 @@ export const runAlarmsUntil = async (
     await scheduler.wait(5);
   }
   throw new Error("the alarm ran its turns and the work never ended");
-};
-
-const encoder = new TextEncoder();
-
-// a folder zipped as another app zips one, each file's bytes by its path: its text deflated, its
-// other files stored
-export const zipOf = async (files: Readonly<Record<string, Uint8Array>>): Promise<Uint8Array> => {
-  const zippable: Zippable = {};
-  for (const [path, bytes] of Object.entries(files)) {
-    const level = /\.(?:md|json|txt)$/u.test(path) ? 6 : 0;
-    zippable[path] = [bytes, { level, mtime: new Date(Date.UTC(2026, 9, 1)) }];
-  }
-  return zipSync(zippable);
-};
-
-// an Obsidian vault in small: a note in a folder linking another and embedding a picture, a PDF
-// no note embeds, and Obsidian's settings
-export const OBSIDIAN_VAULT = {
-  ".obsidian/app.json": encoder.encode("{}"),
-  "Attachments/lone.pdf": encoder.encode("%PDF-1.7\n% a file no note embeds\n"),
-  "Beta.md": encoder.encode("Beta's own words.\n"),
-  "Notes/Alpha.md": encoder.encode(
-    "---\ntags: [project]\n---\n# Alpha\n\nSee [[Beta]] and ![[pic.png]].\n",
-  ),
-  "pic.png": pngOf(400, 300),
-} as const satisfies Readonly<Record<string, Uint8Array>>;
-
-export interface Started {
-  readonly jobId: string;
-  readonly sha: string;
-}
-
-export const importJobOf = async (accountId: string, id: string) =>
-  await inCell(cellOf(accountId), async (state) => {
-    const answer = await cellIn(state).client.imports.get({ id });
-    return answer.job;
-  });
-
-export const ended = (accountId: string, id: string) => async () => {
-  const job = await importJobOf(accountId, id);
-  return job.state !== "running";
-};
-
-// the file uploaded and its import started; `platform` sets the cell's alarm for it, and without
-// it the suite runs each of the job's runs itself
-export const startImport = async (
-  accountId: string,
-  file: { readonly bytes: Uint8Array; readonly mime: string },
-  source: "raindrop" | "markdown",
-  alarm?: "platform",
-): Promise<Started> =>
-  await inCell(cellOf(accountId), async (state) => {
-    const { client, library } = cellIn(state, { alarm });
-    const sha = await uploadedFile(library, accountId, file);
-    const { job } = await client.imports.start({ sha, source });
-    return { jobId: job.id, sha };
-  });
-
-// one run of every import due, and the readings it asked for sent, as the alarm's runs do
-export const runImportsOnce = async (accountId: string): Promise<void> => {
-  await inCell(cellOf(accountId), async (state) => {
-    const cell = cellIn(state);
-    await runImports(cell);
-    await sendFills(state, env, cell.library);
-  });
-};
-
-// runs until the job ends, at most `limit`; how many it took
-export const runImportToEnd = async (
-  accountId: string,
-  jobId: string,
-  limit = 50,
-): Promise<number> => {
-  for (let runs = 0; runs < limit; runs += 1) {
-    if (await ended(accountId, jobId)()) {
-      return runs;
-    }
-    await runImportsOnce(accountId);
-  }
-  throw new Error("the import never ended");
 };

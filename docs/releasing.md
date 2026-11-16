@@ -242,9 +242,7 @@ In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
   `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV namespace is its own.
 - **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
   as its dead-letter queue, and a link a connected assistant saves is read.
-- **Imports**: a Raindrop CSV and an Obsidian zip land, a 3 MB note in either
-  is counted unreadable while the rest lands, and a `PUT /v1/blobs/<sha>` of
-  bytes hashing to another sha answers 400.
+- **Files**: a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
 
 ### The Mac app
 
@@ -270,6 +268,9 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
   play in WebKit; Download lands in Downloads.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
+- **Import** from Settings › Import: a real Obsidian vault's zip and a Raindrop
+  CSV land, a 2 MB note in the zip is counted unreadable while the rest lands,
+  and closing the window midway then choosing the zip again adds nothing twice.
 
 ### The browser extension
 

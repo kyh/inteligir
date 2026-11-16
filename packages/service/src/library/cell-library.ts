@@ -41,8 +41,8 @@ export const sendFills = async (
 
 // a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's
 // record after this await, so nothing read before it is trusted but the count of stray removals,
-// which tells it whether one ran meanwhile. Every writer settles here, a device's upload, a page's
-// file the fill kept and an import's, so this is where bytes that took their room before the
+// which tells it whether one ran meanwhile. Every writer settles here, a device's upload and a
+// page's file the fill kept, so this is where bytes that took their room before the
 // account's tombstone and reached R2 after its files went are taken out again: nothing under a
 // deleted account's prefix stays (`./account-purge`)
 export const settleStored = async (

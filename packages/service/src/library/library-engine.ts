@@ -37,7 +37,6 @@ import type {
 } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
 import {
-  awaitNameAgain,
   beginRemoval,
   blobRemovals,
   dropItemBlobs,
@@ -55,7 +54,6 @@ import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } 
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { holdListing } from "./cell-listing";
-import { importsRunning } from "./cell-import-jobs";
 import {
   deferJob,
   dropJob,
@@ -172,8 +170,6 @@ const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 const PRUNE_AGAIN_MS = 1000;
 // a note's purge the alarm could not reach is asked again this long after
 const NOTE_PURGE_AGAIN_MS = 60_000;
-// a file no item names is asked about again this long after, while an import may yet name it
-const PLAN_AGAIN_MS = 10 * 60_000;
 
 // what a write took on its first landing: the library's next sequence number and its actor's set
 interface Taken {
@@ -230,6 +226,21 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         }
         const taken: Taken = { seq: null, set: null };
         const scope: LandingScope = {
+          // a nested transaction is a savepoint, so a refused part rolls back alone, and what it
+          // took of the write's sequence or set rolled back with it, to be taken again
+          attempt: (part) => {
+            const before = { ...taken };
+            try {
+              return { ok: true, value: db.$client.transactionSync(part) };
+            } catch (error) {
+              if (!(error instanceof RefusedWriteError)) {
+                throw error;
+              }
+              taken.seq = before.seq;
+              taken.set = before.set;
+              return { ok: false, refusal: error.refusal };
+            }
+          },
           bytesCap,
           moved,
           now,
@@ -331,13 +342,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       },
       (scope) => undoChangeSets(scope, input.changeSetIds, undone.notes),
     );
-
-  // an import closes its own set
-  const closeChangeSet = (changeSetId: string): void => {
-    commit(() => {
-      sealChangeSet(db, changeSetId, deps.now());
-    });
-  };
 
   // room for a file a device is about to upload
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
@@ -464,12 +468,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "unnamed": {
-        const { sha } = job.payload;
-        if (importsRunning(db)) {
-          awaitNameAgain(db, sha, now + PLAN_AGAIN_MS);
-        } else {
-          releaseUnnamed(db, [sha], now);
-        }
+        releaseUnnamed(db, [job.payload.sha], now);
         break;
       }
       case "prune": {
@@ -551,7 +550,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     blobRemovals: () => blobRemovals(db),
     claimDueFills,
     claimNotePurges,
-    closeChangeSet,
     deletedAt,
     endStrayRemovals,
     fillWanted,

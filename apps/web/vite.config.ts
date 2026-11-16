@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import type { Logger } from "babel-plugin-react-compiler";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import type { Rolldown } from "vite";
 
@@ -96,6 +97,19 @@ export default defineConfig({
   // deployed Worker answers none, so a page on another origin would read here what it never could
   // there
   server: { cors: false, port: 5174, strictPort: true },
+  // an import's module worker (src/library/import/import-run.ts) is split like the page, which an
+  // IIFE worker cannot be
+  worker: { format: "es" },
+  resolve: {
+    // micromark's entity decoder parses through a DOM element under the browser condition, and Vite
+    // resolves a worker's modules as the page's, so the import's worker would load with no
+    // document; the table it takes everywhere else costs the page about 12 kB gzipped
+    alias: {
+      "decode-named-character-reference": fileURLToPath(
+        import.meta.resolve("decode-named-character-reference"),
+      ),
+    },
+  },
   environments: {
     client: {
       build: {

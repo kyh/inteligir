@@ -144,7 +144,7 @@ const foldersOf = (items: readonly LibraryItem[]): Folder[] => {
   });
 };
 
-// the three passes over a folder's files, as an import job runs them
+// the three passes over a folder's files, as an import runs them
 const readFolder = (
   files: Readonly<Record<string, string>>,
   binaries: ReadonlyMap<string, string>,

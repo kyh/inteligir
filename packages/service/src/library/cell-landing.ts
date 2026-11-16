@@ -18,6 +18,7 @@ import type { CellDb } from "./cell-db";
 import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
+import type { CellResult } from "./cell-refusal";
 import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 import { storeSearchRow } from "../search/search-index";
@@ -62,6 +63,9 @@ export interface LandingScope {
   readonly seq: () => number;
   readonly set: () => OpenSet;
   readonly moved: MovedCollector;
+  // a part of the write that lands whole or not at all while the write goes on: what it wrote is
+  // taken back when a rule refuses it, and the refusal answered
+  readonly attempt: <T>(part: () => T) => CellResult<T>;
 }
 
 // the words a field holds, which grow the library as a block does. A stamp, a state, a place, a sha

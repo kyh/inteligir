@@ -8,10 +8,9 @@ import { describe, expect, it } from "vitest";
 import { pngOf } from "../fill/test-support/fill-cell";
 import { cellIn, cellOf, clockAt, inCell, landedValue, person } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
-import { uploadedFile, zipOf } from "../test-support/library-files";
+import { uploadedFile } from "../test-support/library-files";
 import { blobKey } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
-import { runImports } from "./cell-imports";
 import { removeStrays } from "./cell-library";
 
 const DAY = 24 * 60 * 60_000;
@@ -178,27 +177,6 @@ describe("a file nothing names any more", () => {
       expect(fileRows(cell, old)).toBe(0);
       expect(fileRows(cell, fresh)).toBe(1);
       await expect(inR2(cell, old)).resolves.toBe(false);
-    });
-  });
-
-  it("waits for an import's end, whose plan may name it", async () => {
-    await inLibrary(async (cell) => {
-      const { accountId, client, clock, library } = cell;
-      const sha = await uploadedFile(library, accountId, png(1200));
-      const itemId = await fileItem(cell, sha);
-      const zip = await uploadedFile(library, accountId, {
-        bytes: await zipOf({ "Note.md": new TextEncoder().encode("A note.\n") }),
-        mime: "application/zip",
-      });
-      const { job } = await client.imports.start({ sha: zip, source: "markdown" });
-      await purge(cell, itemId);
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(1);
-      await client.imports.cancel({ id: job.id });
-      await runImports(cell);
-      clock.now += DAY;
-      await runAlarm(cell);
-      expect(fileRows(cell, sha)).toBe(0);
     });
   });
 });

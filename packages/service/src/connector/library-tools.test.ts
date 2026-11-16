@@ -68,10 +68,9 @@ const router = os.router({
     undo: os.history.undo.handler(unimplemented),
   },
   imports: {
-    cancel: os.imports.cancel.handler(unimplemented),
-    get: os.imports.get.handler(unimplemented),
-    latest: os.imports.latest.handler(unimplemented),
-    start: os.imports.start.handler(unimplemented),
+    land: os.imports.land.handler(unimplemented),
+    named: os.imports.named.handler(unimplemented),
+    settle: os.imports.settle.handler(unimplemented),
   },
   items: {
     create: os.items.create.handler(unimplemented),

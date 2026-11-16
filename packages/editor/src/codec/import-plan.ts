@@ -1,5 +1,5 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
-// passes, so a job can run the second a page at a time and resume. Pass one plans from every path
+// passes, so no doc is held whole longer than its own reading. Pass one plans from every path
 // and every doc's frontmatter: each doc's item and id, and every file's bytes. Pass two reads one
 // doc at a time against the whole plan, resolving a `[[…]]` by the resolver's tiers (path, name,
 // alias, `@repo/editor/knowledge/link-resolve`) and a page link by the `id:` its target's file
@@ -13,7 +13,7 @@
 
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
-import { urlKey } from "@repo/contract/items/item-url";
+import { idSchema } from "@repo/contract/library/library-wire";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/contract/knowledge/asset-name";
 import {
   docStem,
@@ -78,7 +78,7 @@ const exportWrapper = (entries: readonly { readonly path: string }[]): string | 
 // A zip's whole listing with the folder an unpacked export was zipped under taken off, since a
 // Mac's Compress keeps that folder and every mark of an export is read from the root. A folder
 // holding no such mark stays, so an Obsidian vault's name is a folder in the library. It answers
-// from the listing alone, so every run of a job reading the same zip takes off the same folder.
+// from the listing alone, so every reading of the same zip takes off the same folder.
 export const unwrapExport = <Entry extends { readonly path: string }>(
   entries: readonly Entry[],
 ): readonly Entry[] => {
@@ -104,8 +104,8 @@ export interface PlannedDoc {
   // the `id:` its frontmatter carries, which other docs' page links key by
   readonly fileId: string | null;
   readonly aliases: readonly string[];
-  // the url key its frontmatter names, by which the cell folds two saves of one page into one item
-  readonly urlKey: string | null;
+  // the address its frontmatter names, by which the cell folds two saves of one page into one item
+  readonly url: string | null;
 }
 
 interface PlannedFile {
@@ -114,23 +114,23 @@ interface PlannedFile {
   readonly kind: FileKind;
 }
 
-// pass one's answer, plain data a resumable job keeps between its pages
+// pass one's answer, plain data
 export interface ImportPlan {
   readonly docs: readonly PlannedDoc[];
   readonly files: readonly PlannedFile[];
 }
 
+// the id of the item read from a path, which a reader that makes the same id for the same file
+// keeps from landing a second copy when it reads that file again
 export interface PlanIds {
-  readonly newItemId: () => string;
+  readonly newItemId: (path: string) => string;
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 interface DocFront {
   readonly fileId: string | null;
   readonly title: string;
   readonly aliases: readonly string[];
-  readonly urlKey: string | null;
+  readonly url: string | null;
 }
 
 const docFront = (path: string, text: string): DocFront => {
@@ -140,7 +140,7 @@ const docFront = (path: string, text: string): DocFront => {
     aliases: read.fields.aliases,
     fileId: read.id,
     title: read.fields.title,
-    urlKey: read.fields.url === null ? null : urlKey(read.fields.url),
+    url: read.fields.url,
   };
 };
 
@@ -162,8 +162,10 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
       case "doc": {
         const front = docFront(path, entry.text);
         const own =
-          front.fileId !== null && UUID_RE.test(front.fileId) ? front.fileId.toLowerCase() : null;
-        const itemId = own !== null && !usedIds.has(own) ? own : ids.newItemId();
+          front.fileId !== null && idSchema.safeParse(front.fileId).success
+            ? front.fileId.toLowerCase()
+            : null;
+        const itemId = own !== null && !usedIds.has(own) ? own : ids.newItemId(path);
         usedIds.add(itemId);
         docs.push({
           aliases: front.aliases,
@@ -171,7 +173,7 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
           itemId,
           path,
           title: front.title,
-          urlKey: front.urlKey,
+          url: front.url,
         });
         break;
       }
@@ -341,6 +343,6 @@ export const planFileItems = (
   return plan.files.filter(ownItem).map((file) => ({
     fields: fileItemFields(file, now),
     folderPath: fileItemFolder(file.path),
-    itemId: ids.newItemId(),
+    itemId: ids.newItemId(file.path),
   }));
 };

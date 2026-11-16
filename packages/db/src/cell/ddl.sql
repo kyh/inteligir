@@ -106,35 +106,6 @@ CREATE TABLE `folders` (
 	`seq` integer NOT NULL
 );
 
-CREATE TABLE `import_jobs` (
-	`id` text PRIMARY KEY,
-	`source` text NOT NULL,
-	`sha` text NOT NULL,
-	`state` text NOT NULL,
-	`phase` text NOT NULL,
-	`cursor` integer NOT NULL,
-	`total` integer NOT NULL,
-	`added` integer NOT NULL,
-	`already_saved` integer NOT NULL,
-	`skipped` integer NOT NULL,
-	`unreadable` integer NOT NULL,
-	`change_set_id` text,
-	`message` text,
-	`started_at` integer NOT NULL,
-	`finished_at` integer,
-	CONSTRAINT "import_jobs_source" CHECK("source" IN ('raindrop', 'markdown')),
-	CONSTRAINT "import_jobs_state" CHECK("state" IN ('running', 'done', 'failed', 'cancelled')),
-	CONSTRAINT "import_jobs_phase" CHECK("phase" IN ('reading', 'landing', 'files'))
-);
-
-CREATE TABLE `import_rows` (
-	`job_id` text NOT NULL,
-	`kind` text NOT NULL,
-	`idx` integer NOT NULL,
-	`json` text NOT NULL,
-	CONSTRAINT `import_rows_pk` PRIMARY KEY(`job_id`, `kind`, `idx`)
-);
-
 CREATE TABLE `item_blobs` (
 	`item_id` text NOT NULL,
 	`sha256` text NOT NULL,

@@ -47,7 +47,7 @@ export interface CellContext {
     request: WriteRequest<S>,
     work: (scope: LandingScope, actor: CellActor) => Built<z.input<S>>,
   ) => z.output<S>;
-  // a write that touches no item, so joins no set: a folder, an import's job, the filing rules
+  // a write that touches no item, so joins no set: a folder, the filing rules
   readonly landApart: <S extends z.ZodType>(
     request: WriteRequest<S>,
     work: (scope: LandingScope) => Built<z.input<S>>,

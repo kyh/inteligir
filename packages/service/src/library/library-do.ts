@@ -34,7 +34,6 @@ import { landArticle } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
 import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
-import { runImports } from "./cell-imports";
 import { collectMoved } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
 import { CELL_SCHEMA } from "./cell-db";
@@ -169,11 +168,11 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends: an
-  // import's page would tell the sockets a frame an item, and a call landing meanwhile tells its
-  // own at once, on the wake's cell. The storage's jobs first, the readings to send ahead of an
-  // import's page, which may run ten seconds, then what waits on R2 or another object. Every commit
-  // sets the alarm again, so the run leaves it at the earliest job still waiting
+  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends:
+  // each job lands in a transaction of its own, and a call landing meanwhile tells its own at once,
+  // on the wake's cell. The storage's jobs first, then the readings to send, then what waits on R2
+  // or another object. Every commit sets the alarm again, so the run leaves it at the earliest job
+  // still waiting
   override async alarm(): Promise<void> {
     const moved = collectMoved();
     const cell = openCell(this.ctx, this.env, { moved: moved.add });
@@ -181,7 +180,6 @@ export class LibraryDO extends DurableObject<Env> {
       cell.library.runDueJobs(logJobFailure);
       await sendFills(this.ctx, this.env, cell.library);
       await removeStrays(this.env, cell.accountId, cell.library);
-      await runImports(cell);
       await purgeNotes(cell);
       await runAgentJobs(cell);
     } catch (error) {

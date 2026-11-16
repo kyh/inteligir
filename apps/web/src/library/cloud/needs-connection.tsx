@@ -18,7 +18,7 @@ const subscribeOnline = (listener: () => void): (() => void) => onlineManager.su
 const readOnline = (): boolean => onlineManager.isOnline();
 
 // the browser's own word on its connection, which TanStack Query pauses its cell calls by
-const useOnline = (): boolean => useSyncExternalStore(subscribeOnline, readOnline);
+export const useOnline = (): boolean => useSyncExternalStore(subscribeOnline, readOnline);
 
 // a query's or an infinite query's state, as much of it as says where the answer stands
 type CellRead<T> = Pick<UseQueryResult<T>, "data" | "error" | "fetchStatus">;
