@@ -1,26 +1,7 @@
-// A url's one key, computed without the platform's URL: React Native's is not WHATWG, so the phone
-// and the Mac would key one link differently. The key is a row `deriveItem` writes with every write
-// of the item (`../library/derive-item.ts`).
+// A url's key is a row `deriveItem` writes with every write of the item
+// (`../library/derive-item.ts`).
 
 import { safeDecode } from "../text/safe-decode";
-
-// RFC 3986 appendix B, read as a web address: the scheme and authority are required below
-const URI_RE =
-  /^(?:(?<scheme>[^:/?#]+):)?(?:\/\/(?<authority>[^/?#]*))?(?<path>[^?#]*)(?:\?(?<query>[^#]*))?(?:#(?<fragment>.*))?$/su;
-
-const WEB_SCHEMES = new Set(["http", "https"]);
-
-interface WebUrl {
-  // as written
-  scheme: string;
-  // as written, IPv6 brackets kept
-  host: string;
-  // the digits as written; null when there are none
-  port: string | null;
-  path: string;
-  query: string | null;
-  fragment: string | null;
-}
 
 // a pasted address holds no whitespace or control character; a browser escapes them all
 const holdsSpaceOrControl = (value: string): boolean => {
@@ -33,77 +14,29 @@ const holdsSpaceOrControl = (value: string): boolean => {
   return false;
 };
 
-const DIGITS = /^\d*$/u;
+// URL alone also takes `https:example.com`, `https:///path` and `https:\\host`
+const WEB_PREFIX = /^https?:\/\/[^/?#\\]/iu;
 
-// past it a browser's URL refuses the address, and window.open throws on it
-const MAX_PORT = 65_535;
-
-const splitHostPort = (hostPort: string): { host: string; port: string | null } | null => {
-  if (hostPort.startsWith("[")) {
-    const close = hostPort.indexOf("]");
-    if (close === -1) {
-      return null;
-    }
-    const rest = hostPort.slice(close + 1);
-    if (rest !== "" && !rest.startsWith(":")) {
-      return null;
-    }
-    const port = rest.slice(1);
-    return DIGITS.test(port)
-      ? { host: hostPort.slice(0, close + 1), port: port === "" ? null : port }
-      : null;
-  }
-  const colon = hostPort.lastIndexOf(":");
-  const host = colon === -1 ? hostPort : hostPort.slice(0, colon);
-  const port = colon === -1 ? "" : hostPort.slice(colon + 1);
-  if (!DIGITS.test(port) || host.includes("[") || host.includes("]")) {
+const parseUrl = (value: string): URL | null => {
+  try {
+    return new URL(value);
+  } catch {
     return null;
   }
-  return { host, port: port === "" ? null : port };
 };
 
-const parseWebUrl = (value: string): WebUrl | null => {
+const parseWebUrl = (value: string): URL | null => {
   const trimmed = value.trim();
-  if (trimmed === "" || holdsSpaceOrControl(trimmed)) {
+  if (!WEB_PREFIX.test(trimmed) || holdsSpaceOrControl(trimmed)) {
     return null;
   }
-  const groups = URI_RE.exec(trimmed)?.groups;
-  const scheme = groups?.scheme;
-  const authority = groups?.authority;
-  if (
-    groups === undefined ||
-    scheme === undefined ||
-    authority === undefined ||
-    !WEB_SCHEMES.has(scheme.toLowerCase())
-  ) {
-    return null;
-  }
-  const hostPort = authority.slice(authority.lastIndexOf("@") + 1);
-  const split = splitHostPort(hostPort);
-  if (
-    split === null ||
-    split.host.replace(/\.$/u, "") === "" ||
-    Number(split.port ?? 0) > MAX_PORT
-  ) {
-    return null;
-  }
-  return {
-    fragment: groups.fragment ?? null,
-    host: split.host,
-    path: groups.path ?? "",
-    port: split.port,
-    query: groups.query ?? null,
-    scheme,
-  };
+  const url = parseUrl(trimmed);
+  return url === null || url.hostname.replace(/\.$/u, "") === "" ? null : url;
 };
 
 export const isWebUrl = (value: string): boolean => parseWebUrl(value) !== null;
 
-const bareHost = (url: WebUrl): string =>
-  url.host
-    .toLowerCase()
-    .replace(/\.$/u, "")
-    .replace(/^www\./u, "");
+const bareHost = (url: URL): string => url.hostname.replace(/\.$/u, "").replace(/^www\./u, "");
 
 // lowercased, no `www.`, no port
 export const urlHost = (value: string): string | null => {
@@ -123,7 +56,7 @@ const MOBILE_WIKIPEDIA = /^(?<lang>.+)\.m\.wikipedia\.org$/u;
 const SHORT_YOUTUBE_HOST = "youtu.be";
 
 // the host the key and the per-host rules see
-const aliasedHost = (url: WebUrl): string => {
+const aliasedHost = (url: URL): string => {
   const host = bareHost(url);
   if (host === SHORT_YOUTUBE_HOST) {
     return "youtube.com";
@@ -169,83 +102,20 @@ const HOST_TRACKING_PARAMS = new Map([
   ["youtube.com", new Set(["feature", "pp", "si"])],
 ]);
 
+const ESCAPE = /%[\dA-Fa-f]{2}/gu;
 const UNRESERVED = /^[\w.~-]$/u;
-const HEX_PAIR = /^[\dA-Fa-f]{2}$/u;
-const REPLACEMENT_CHAR = 0xff_fd;
-const MAX_BMP = 0xff_ff;
 
-const escapeByte = (byte: number): string => `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+// URL leaves an escape as written: its case is folded and an unreserved one decoded here
+const normalizeEscapes = (text: string): string =>
+  text.replaceAll(ESCAPE, (escape) => {
+    const hex = escape.slice(1).toUpperCase();
+    const decoded = String.fromCodePoint(Number.parseInt(hex, 16));
+    return UNRESERVED.test(decoded) ? decoded : `%${hex}`;
+  });
 
-// one code point's UTF-8 bytes as escapes; a lone surrogate is the replacement character's
-/* oxlint-disable no-bitwise -- UTF-8 is bit packing: the shifts and masks ARE the encoding */
-const utf8Escapes = (codePoint: number): string => {
-  const cp = codePoint >= 0xd8_00 && codePoint <= 0xdf_ff ? REPLACEMENT_CHAR : codePoint;
-  if (cp <= 0x7_ff) {
-    return escapeByte(0xc0 | (cp >> 6)) + escapeByte(0x80 | (cp & 0x3f));
-  }
-  if (cp <= MAX_BMP) {
-    return (
-      escapeByte(0xe0 | (cp >> 12)) +
-      escapeByte(0x80 | ((cp >> 6) & 0x3f)) +
-      escapeByte(0x80 | (cp & 0x3f))
-    );
-  }
-  return (
-    escapeByte(0xf0 | (cp >> 18)) +
-    escapeByte(0x80 | ((cp >> 12) & 0x3f)) +
-    escapeByte(0x80 | ((cp >> 6) & 0x3f)) +
-    escapeByte(0x80 | (cp & 0x3f))
-  );
-};
-/* oxlint-enable no-bitwise */
-
-// escapes uppercased, an unreserved one decoded, non-ASCII escaped as UTF-8
-const normalizeEscapes = (text: string): string => {
-  let out = "";
-  let i = 0;
-  while (i < text.length) {
-    const pair = text.slice(i + 1, i + 3);
-    if (text[i] === "%" && HEX_PAIR.test(pair)) {
-      const hex = pair.toUpperCase();
-      const decoded = String.fromCodePoint(Number.parseInt(hex, 16));
-      out += UNRESERVED.test(decoded) ? decoded : `%${hex}`;
-      i += 3;
-      continue;
-    }
-    const cp = text.codePointAt(i) ?? 0;
-    const width = cp > MAX_BMP ? 2 : 1;
-    out += cp > 0x7f ? utf8Escapes(cp) : text.slice(i, i + width);
-    i += width;
-  }
-  return out;
-};
-
-// RFC 3986 § 5.2.4 over a path that starts with `/` or is empty
-const removeDotSegments = (path: string): string => {
-  const segments = path.split("/");
-  const out: string[] = [];
-  for (const [i, segment] of segments.entries()) {
-    const last = i === segments.length - 1;
-    if (segment === "." || segment === "..") {
-      if (segment === ".." && out.length > 1) {
-        out.pop();
-      }
-      if (last) {
-        out.push("");
-      }
-      continue;
-    }
-    out.push(segment);
-  }
-  return out.join("/");
-};
-
-const keyPath = (path: string): string => {
-  const clean = removeDotSegments(normalizeEscapes(path));
-  if (clean === "" || clean === "/") {
-    return "/";
-  }
-  return clean.endsWith("/") ? clean.slice(0, -1) : clean;
+const keyPath = (pathname: string): string => {
+  const clean = normalizeEscapes(pathname);
+  return clean.length > 1 && clean.endsWith("/") ? clean.slice(0, -1) : clean;
 };
 
 const paramName = (piece: string): string => {
@@ -261,6 +131,10 @@ const isTrackingParam = (piece: string, host: string): boolean => {
     (HOST_TRACKING_PARAMS.get(host)?.has(name) ?? false)
   );
 };
+
+// split by hand: URLSearchParams writes a kept parameter back in its own spelling
+const queryPieces = (url: URL): string[] =>
+  url.search === "" ? [] : url.search.slice(1).split("&");
 
 const firstSegment = (path: string): string => path.split("/").find((s) => s !== "") ?? "";
 
@@ -289,8 +163,6 @@ const keyQuery = (pieces: readonly string[], host: string): string =>
     .map(({ name, value }) => (value === null ? name : `${name}=${value}`))
     .join("&");
 
-const DEFAULT_PORTS = new Set(["80", "443"]);
-
 // a route fragment (`#/inbox`, `#!/post`) addresses a different page; any other is a place in it
 const isRouteFragment = (fragment: string): boolean =>
   fragment.startsWith("/") || fragment.startsWith("!");
@@ -301,68 +173,48 @@ interface UrlKeyParts {
   query: string;
 }
 
-const keyPartsOf = (url: WebUrl): UrlKeyParts => {
+const keyPartsOf = (url: URL): UrlKeyParts => {
   const host = aliasedHost(url);
-  const pieces = url.query === null ? [] : url.query.split("&");
+  const pieces = queryPieces(url);
   if (bareHost(url) === SHORT_YOUTUBE_HOST) {
-    const id = normalizeEscapes(firstSegment(url.path));
+    const id = normalizeEscapes(firstSegment(url.pathname));
     return {
       host,
       path: id === "" ? "/" : "/watch",
       query: keyQuery(id === "" ? pieces : [...pieces, `v=${id}`], host),
     };
   }
-  return { host, path: keyPath(url.path), query: keyQuery(pieces, host) };
+  return { host, path: keyPath(url.pathname), query: keyQuery(pieces, host) };
 };
 
-// an address's last path segment, decoded ("" when it names none, or one that does not decode)
-export const urlLastSegment = (value: string): string => {
-  const url = parseWebUrl(value);
-  const segment = url?.path.split("/").findLast((part) => part !== "") ?? "";
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return "";
-  }
-};
+// an address's last path segment, decoded ("" when it names none)
+export const urlLastSegment = (value: string): string =>
+  safeDecode(
+    parseWebUrl(value)
+      ?.pathname.split("/")
+      .findLast((part) => part !== "") ?? "",
+  );
 
 const YOUTUBE_ID = /^[\w-]{6,20}$/u;
-const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/?#]+)/u;
+const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/]+)/u;
 
-const decodedOrNull = (text: string): string | null => {
-  try {
-    return decodeURIComponent(text.replaceAll("+", " "));
-  } catch {
+const youTubeIdOf = (url: URL): string | null => {
+  const host = bareHost(url);
+  if (host === SHORT_YOUTUBE_HOST) {
+    return safeDecode(firstSegment(url.pathname));
+  }
+  if (host !== "youtube.com" && !host.endsWith(".youtube.com")) {
     return null;
   }
-};
-
-// a query's first value for `name`, decoded; null when it has none
-const queryValue = (query: string | null, name: string): string | null => {
-  for (const piece of query?.split("&") ?? []) {
-    const eq = piece.indexOf("=");
-    if (eq !== -1 && decodedOrNull(piece.slice(0, eq)) === name) {
-      return decodedOrNull(piece.slice(eq + 1));
-    }
-  }
-  return null;
+  const fromPath = YOUTUBE_PATH_ID.exec(url.pathname)?.groups?.id;
+  return url.searchParams.get("v") ?? (fromPath === undefined ? null : safeDecode(fromPath));
 };
 
 // a YouTube video's id, from any of its addresses (a watch page, a short link, a short, a live, an
 // embed); null for any other address
 export const youTubeVideoId = (value: string): string | null => {
   const url = parseWebUrl(value);
-  if (url === null) {
-    return null;
-  }
-  const host = bareHost(url);
-  let id: string | null = null;
-  if (host === SHORT_YOUTUBE_HOST) {
-    id = decodedOrNull(firstSegment(url.path));
-  } else if (host === "youtube.com" || host.endsWith(".youtube.com")) {
-    const fromPath = YOUTUBE_PATH_ID.exec(url.path)?.groups?.id;
-    id = queryValue(url.query, "v") ?? (fromPath === undefined ? null : decodedOrNull(fromPath));
-  }
+  const id = url === null ? null : youTubeIdOf(url);
   return id !== null && YOUTUBE_ID.test(id) ? id : null;
 };
 
@@ -374,35 +226,21 @@ export const urlKey = (value: string): string | null => {
     return null;
   }
   const { host, path, query } = keyPartsOf(url);
-  const port = url.port === null ? null : String(Number(url.port));
-  const hostPort = port === null || DEFAULT_PORTS.has(port) ? host : `${host}:${port}`;
-  const fragment =
-    url.fragment !== null && isRouteFragment(url.fragment)
-      ? `#${normalizeEscapes(url.fragment)}`
-      : "";
-  return `${hostPort}${path}${query === "" ? "" : `?${query}`}${fragment}`;
+  const fragment = url.hash.slice(1);
+  return `${url.port === "" ? host : `${host}:${url.port}`}${path}${query === "" ? "" : `?${query}`}${isRouteFragment(fragment) ? `#${normalizeEscapes(fragment)}` : ""}`;
 };
 
-// what is written to `url:`: the address as given, less its userinfo and its tracking parameters
+// what is written to `url:`: the address as URL writes it, less its userinfo and its tracking
+// parameters
 export const cleanUrl = (value: string): string | null => {
   const url = parseWebUrl(value);
   if (url === null) {
     return null;
   }
-  let { query } = url;
-  if (query !== null) {
-    const host = aliasedHost(url);
-    const pieces = query.split("&");
-    const kept = pieces.filter((piece) => piece === "" || !isTrackingParam(piece, host));
-    if (kept.length !== pieces.length) {
-      const joined = kept.filter((piece) => piece !== "").join("&");
-      query = joined === "" ? null : joined;
-    }
-  }
-  return (
-    `${url.scheme}://${url.host}${url.port === null ? "" : `:${url.port}`}${url.path}` +
-    `${query === null ? "" : `?${query}`}${url.fragment === null ? "" : `#${url.fragment}`}`
-  );
+  const host = aliasedHost(url);
+  const kept = queryPieces(url).filter((piece) => piece !== "" && !isTrackingParam(piece, host));
+  const search = kept.length === 0 ? "" : `?${kept.join("&")}`;
+  return `${url.protocol}//${url.host}${url.pathname}${search}${url.hash}`;
 };
 
 // the host and the path's words, for the search index's meta column
@@ -411,7 +249,7 @@ export const urlSearchText = (value: string): string => {
   if (url === null) {
     return "";
   }
-  const words = safeDecode(url.path)
+  const words = safeDecode(url.pathname)
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word !== "");
   return [bareHost(url), ...words].join(" ");

@@ -3,7 +3,6 @@
 // writer, repaired rather than refused, so each name is one every disk takes and a link can name.
 
 import { utf8ByteLength } from "../library/canonical-json";
-import { safeDecode } from "../text/safe-decode";
 import { extensionsOfType } from "./item-kind";
 import type { SniffedMedia } from "./sniff-media";
 import { urlHost, urlLastSegment } from "./item-url";
@@ -93,16 +92,10 @@ export const itemNameFromTitle = (title: string): string | null => {
   return end === null ? room : `${room.slice(0, end)}${DEVICE_SUFFIX}${room.slice(end)}`;
 };
 
-// a path segment read as words: decoded, `-` and `_` as spaces, its extension dropped
+// a decoded path segment read as words: `-` and `_` as spaces, its extension dropped
 const humanizeSegment = (segment: string): string => {
-  const decoded = safeDecode(segment);
-  const dot = decoded.lastIndexOf(".");
-  return (dot > 0 ? decoded.slice(0, dot) : decoded).replaceAll(/[-_]+/gu, " ").trim();
-};
-
-const lastPathSegment = (url: string): string => {
-  const path = /^[^:]+:\/\/[^/?#]*(?<path>[^?#]*)/u.exec(url.trim())?.groups?.path ?? "";
-  return path.split("/").findLast((segment) => segment !== "") ?? "";
+  const dot = segment.lastIndexOf(".");
+  return (dot > 0 ? segment.slice(0, dot) : segment).replaceAll(/[-_]+/gu, " ").trim();
 };
 
 export const UNTITLED = "Untitled";
@@ -116,7 +109,7 @@ export const itemNameFromUrl = (url: string): string => {
   if (host === null) {
     return itemNameFromTitle(url) ?? UNTITLED;
   }
-  const words = humanizeSegment(lastPathSegment(url));
+  const words = humanizeSegment(urlLastSegment(url));
   const named = words === "" ? null : itemNameFromTitle(`${host} - ${words}`);
   return named ?? itemNameFromTitle(host) ?? UNTITLED;
 };

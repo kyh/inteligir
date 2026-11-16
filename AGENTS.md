@@ -137,7 +137,7 @@ CI runs `verify` and `e2e` (`docs/development.md` § Quality gates), so a green
 - **No `any`, no non-null `!`, no type assertions, no escape comment**: parse
   or narrow. Kebab-case filenames. Illegal states unrepresentable.
 - **`@repo/contract` is client-safe and platform-neutral**: no node, react,
-  server or drizzle import, and its model no `crypto` or `URL` global.
+  server or drizzle import, and its model no `crypto` global.
 - **knip is a CI gate, in one pass**: every file reachable, every export
   imported. Alone it is `pnpm turbo run //#knip`, after the extension's types.
 - **The record is the decision files and GitHub Issues**, never `plans/`.
