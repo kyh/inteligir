@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readTextFile, REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
+import { readTextFile, REPO_ROOT, shippedFiles, sourceOf, workspaces } from "./repo";
 
 // the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
 // site, @repo/service for the Worker's mail, consent page and refusals, @repo/contract for the
@@ -242,7 +242,7 @@ const rustHits = (file: string): Hit[] => {
 const surfaceFiles = (): string[] => {
   const scripts = workspaces()
     .filter((workspace) => SURFACES.some((name) => name === workspace.name))
-    .flatMap((workspace) => workspaceFiles(workspace).shipped);
+    .flatMap((workspace) => shippedFiles(workspace));
   const rust = fs
     .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
     .filter((name) => name.endsWith(".rs"))

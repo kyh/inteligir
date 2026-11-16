@@ -8,7 +8,7 @@ change.
   (`AGENTS.md` § Rules that matter), or the file is an `ALLOWED` row.
 
 `src/repo.ts` is the tree walk a guard reads through: pnpm's workspaces, a
-workspace's source files, and `sourceOf`, which drops full-line comments.
+workspace's shipped source files, and `sourceOf`, which drops full-line comments.
 
 ```sh
 pnpm --filter @repo/repo-guards test

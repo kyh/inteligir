@@ -63,15 +63,8 @@ const filesUnder = (dir: string): string[] => {
 const isTestFile = (relativePath: string): boolean =>
   /(?:^|\/)test-support\//u.test(relativePath) || /\.test\.[cm]?tsx?$/u.test(relativePath);
 
-interface WorkspaceFiles {
-  readonly shipped: string[];
-  readonly test: string[];
-}
-
-export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
-  const all = filesUnder(path.join(workspace.dir, "src"));
-  return { shipped: all.filter((file) => !isTestFile(file)), test: all.filter(isTestFile) };
-};
+export const shippedFiles = (workspace: Workspace): string[] =>
+  filesUnder(path.join(workspace.dir, "src")).filter((file) => !isTestFile(file));
 
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/u;
 
