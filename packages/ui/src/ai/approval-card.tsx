@@ -29,8 +29,9 @@ const ApprovalCard = <Value extends string>({
     ref={ref}
     data-slot="approval-card"
     aria-busy={picked !== null}
+    // its clip would let a scrolling flex column squash it to nothing
     className={cn(
-      "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
+      "w-full shrink-0 overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
       className,
     )}
     {...props}
