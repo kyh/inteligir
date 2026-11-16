@@ -3,11 +3,10 @@
 // read no block's content, and so leave no stack in the typing budget's watched block: the
 // budget's ratio alone would only catch them by timing. Here they are held off by name.
 
-import { TogglePlugin } from "@platejs/toggle/react";
+import { KEYS } from "platejs";
 import { createPlateEditor, NavigationFeedbackPlugin } from "platejs/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { indexNoToggles, wrapNoBlock } from "@repo/editor/kits/toggle-kit";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountNote } from "./test-support/memory-note";
 
@@ -33,8 +32,6 @@ describe("the per-block store work a keystroke would pay", () => {
     // a plugin switched off is never registered
     expect(Object.keys(editor.plugins)).not.toContain(NavigationFeedbackPlugin.key);
     expect(Object.keys(createPlateEditor().plugins)).toContain(NavigationFeedbackPlugin.key);
-    const toggle = editor.getPlugin(TogglePlugin);
-    expect(toggle.render.aboveNodes).toBe(wrapNoBlock);
-    expect(toggle.useHooks).toBe(indexNoToggles);
+    expect(editor.getPlugin({ key: KEYS.toggle }).render.aboveNodes).toBeUndefined();
   });
 });
