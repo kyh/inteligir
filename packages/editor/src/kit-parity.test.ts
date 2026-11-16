@@ -15,7 +15,6 @@ import { FindBarKit } from "@repo/editor/find-bar";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { BlockMenuKit } from "@repo/editor/kits/block-menu-kit";
 import { CONTENT_KIT, DESKTOP_CHROME_KIT } from "@repo/editor/kits/editor-kit";
-import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
 import { RichBlockLockKit } from "@repo/editor/kits/rich-block-lock-kit";
 import { blockOfElement } from "@repo/editor/live/element-block";
@@ -23,6 +22,8 @@ import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { readValue, rewrite } from "@repo/editor/test-support/markdown-meaning";
+import { SelectionToolbarKit } from "@repo/editor/selection-toolbar";
+import { TocKit } from "@repo/editor/toc";
 import { TouchToolbarKit } from "@repo/editor/touch-toolbar";
 
 const FIXTURES = fileURLToPath(new URL("test-support/fixtures/corpus/", import.meta.url));
@@ -219,7 +220,8 @@ describe("the kits' chrome", () => {
       ...FindBarKit,
       ...DragKit,
       ...BlockMenuKit,
-      ...FloatingToolbarKit,
+      ...SelectionToolbarKit,
+      ...TocKit,
     ]);
     expect(
       desktop.filter((key) => !touch.includes(key)).toSorted(),

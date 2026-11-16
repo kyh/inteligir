@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { KEYS, RangeApi } from "platejs";
 import {
+  createPlatePlugin,
   useEditorRef,
   useEditorSelection,
   useEventEditorValue,
@@ -192,7 +193,7 @@ const LinkInput = ({
   );
 };
 
-export const SelectionToolbar = () => {
+const SelectionToolbar = () => {
   const editor = useEditorRef();
 
   const [openMenu, setOpenMenu] = useState<null | "turn">(null);
@@ -349,3 +350,11 @@ export const SelectionToolbar = () => {
     </div>
   );
 };
+
+// drawn from the plugin tree, inside the positioning context @platejs/floating computes against
+export const SelectionToolbarKit = [
+  createPlatePlugin({
+    key: "selectionToolbar",
+    render: { afterEditable: () => <SelectionToolbar /> },
+  }),
+];

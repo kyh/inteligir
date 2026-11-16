@@ -4,8 +4,7 @@
 // each document an editor of its own, since a reopen replaces the document. An edit reaches the
 // note as it is typed; with no connection, or a note that holds its edits back, the surface reads
 // but takes no edit and says why above the text, and a note whose opening stalled shows what the
-// host holds of it until it opens. A formula's display follows the pills it names, and the desktop
-// draws the outline beside the text.
+// host holds of it until it opens. A formula's display follows the pills it names.
 
 import {
   useEffect,
@@ -44,7 +43,6 @@ import {
 } from "@repo/editor/live/yjs-binding";
 import { getLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenItemPlugin } from "@repo/editor/open-item";
-import { TableOfContents } from "@repo/editor/toc";
 
 import { HeldItem } from "./held-item";
 import { noteConnection } from "./note-connection";
@@ -244,7 +242,6 @@ const BoundSurface = ({ itemId, doc, note, notice }: BoundSurfaceProps) => {
         </EditorContainer>
         <AnswersForItem itemId={itemId} />
         {notice === null ? <FormulaRecompute itemId={itemId} /> : null}
-        {profile === "desktop" ? <TableOfContents /> : null}
       </Plate>
     </>
   );

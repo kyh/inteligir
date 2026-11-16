@@ -57,7 +57,6 @@
     "./kits/date-kit": "./src/kits/date-kit.tsx",
     "./kits/editor-kit": "./src/kits/editor-kit.ts",
     "./kits/embed-kit": "./src/kits/embed-kit.tsx",
-    "./kits/floating-toolbar-kit": "./src/kits/floating-toolbar-kit.tsx",
     "./kits/image-kit": "./src/kits/image-kit.tsx",
     "./kits/inline-constructs-kit": "./src/kits/inline-constructs-kit.tsx",
     "./kits/kit-utils": "./src/kits/kit-utils.tsx",

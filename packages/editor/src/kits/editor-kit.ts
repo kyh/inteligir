@@ -7,7 +7,6 @@ import { CodeBlockKit } from "@repo/editor/kits/code-block-kit";
 import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
-import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
 import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
@@ -23,7 +22,9 @@ import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
 import { InlineConstructsKit } from "@repo/editor/kits/inline-constructs-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
+import { SelectionToolbarKit } from "@repo/editor/selection-toolbar";
 import { SlashKit } from "@repo/editor/slash-menu";
+import { TocKit } from "@repo/editor/toc";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { PickerRaceKit } from "@repo/editor/combobox-input";
 import { ReadOnlyGuardPlugin } from "@repo/editor/live/edit-guard";
@@ -70,8 +71,9 @@ export const DESKTOP_CHROME_KIT = [
   ...FindBarKit,
   ...DragKit,
   ...BlockMenuKit,
-  ...FloatingToolbarKit,
+  ...SelectionToolbarKit,
   ...BlockPlaceholderKit,
+  ...TocKit,
 ];
 
 export const EDITOR_KIT = [...CONTENT_KIT, ...DESKTOP_CHROME_KIT];
