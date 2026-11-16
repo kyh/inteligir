@@ -1,8 +1,5 @@
 @import "@repo/ui/globals.css";
 @import "@repo/editor/styles.css";
-/* The editor package is outside this app's scan root, so an editor-only
-   utility silently never generates unless its sources are named here. */
-@source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
   /* The phone's own dials, one value each: the page offers no appearance

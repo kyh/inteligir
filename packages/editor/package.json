@@ -147,7 +147,7 @@
     "./text/line-diff": "./src/text/line-diff.ts",
     "./toc": "./src/toc.tsx",
     "./touch-toolbar": "./src/touch-toolbar.tsx",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles-entry.css"
   },
   "scripts": {
     "test": "vitest run",

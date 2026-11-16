@@ -1,0 +1,5 @@
+/* What a host imports. The editor sits outside every host's scan root, so a utility only its sources
+   name would never generate unless they are named here; the rules stay a flat sheet of their own,
+   which style-hooks.test.ts reads. */
+@import "./styles.css";
+@source "./**/*.{ts,tsx}";
