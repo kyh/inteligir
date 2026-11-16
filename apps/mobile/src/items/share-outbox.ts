@@ -145,9 +145,9 @@ export const createShareOutbox = (args: {
         return;
       }
       switch (outcome.kind) {
-        case "saved": {
+        case "landed": {
           await storage.removeItem(keyOf(current.opId));
-          landedIds.set(current.opId, outcome.id);
+          landedIds.set(current.opId, outcome.answer.id);
           drop(current.opId);
           args.landed();
           break;
@@ -158,8 +158,8 @@ export const createShareOutbox = (args: {
           replace(parked);
           break;
         }
-        case "unreachable":
-        case "ended": {
+        case "wait":
+        case "gone": {
           return;
         }
         // no default

@@ -70,13 +70,13 @@ const openRow = (row: ListedItem): void => {
 };
 
 // a save the cloud did not take, said; true for one it took
-const saidIfNotSaved = (saved: SaveOutcome): saved is Extract<SaveOutcome, { kind: "saved" }> => {
+const saidIfNotSaved = (saved: SaveOutcome): saved is Extract<SaveOutcome, { kind: "landed" }> => {
   if (saved.kind === "refused") {
     Alert.alert("Couldn't save", saved.message);
-  } else if (saved.kind !== "saved") {
+  } else if (saved.kind !== "landed") {
     Alert.alert("Couldn't save", NOT_SAVED);
   }
-  return saved.kind === "saved";
+  return saved.kind === "landed";
 };
 
 const SaveField = ({ scope }: { scope: LibraryScope }) => {
@@ -100,12 +100,12 @@ const SaveField = ({ scope }: { scope: LibraryScope }) => {
       }
       setDraft("");
       void queryClient.invalidateQueries({ queryKey: queries.library.listing.key() });
-      if (!saved.created) {
+      if (!saved.answer.created) {
         Alert.alert("Already in your library", undefined, [
           { style: "cancel", text: "OK" },
           {
             onPress: () => {
-              openItem(saved.id);
+              openItem(saved.answer.id);
             },
             text: "Open",
           },
@@ -253,7 +253,7 @@ const LibraryScreen = () => {
     const made = await saves.newNote({ folderId: saveFolderOf(scope) });
     if (saidIfNotSaved(made)) {
       void changedItems();
-      openItem(made.id, { focus: true });
+      openItem(made.answer.id, { focus: true });
     }
   };
 

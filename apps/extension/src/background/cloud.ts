@@ -6,14 +6,8 @@
 
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { clientBuildHeaders } from "@repo/contract/client-build";
-import {
-  sharedFailure,
-  UNREACHABLE,
-  uploadBlob,
-  v1Client,
-} from "@repo/contract/library/call-outcome";
-import type { CallFailure, V1Transport } from "@repo/contract/library/call-outcome";
-import { isOrpcError } from "@repo/contract/v1/errors";
+import { uploadBlob, uploaded, v1Client } from "@repo/contract/library/call-outcome";
+import type { CallOutcome, V1Transport } from "@repo/contract/library/call-outcome";
 import type { V1Client } from "@repo/contract/v1";
 
 import type { Session } from "./sign-in";
@@ -66,46 +60,12 @@ export const cloudOf = (session: Session, version: string): Cloud => {
   };
 };
 
-// what a call that did not land missed by: a failure every call shares, or a refusal the
-// procedure declares as its own, by its code
-type Miss = CallFailure | { readonly kind: "refused"; readonly code: string };
-
-// how a call went: its answer, or what it missed by
-export type Sent<T> = { readonly kind: "landed"; readonly answer: T } | Miss;
-
-// a call's answer, or what the error it threw says it missed by
-export const sent = async <T>(call: () => Promise<T>): Promise<Sent<T>> => {
-  try {
-    return { answer: await call(), kind: "landed" };
-  } catch (error) {
-    const shared = error instanceof Error ? sharedFailure(error) : null;
-    if (shared !== null) {
-      return shared;
-    }
-    return isOrpcError(error)
-      ? { code: error.code, kind: "refused" }
-      : { kind: "unreachable", message: UNREACHABLE };
-  }
-};
-
 // a file's bytes up by their SHA-256, which the answer names once the cloud keeps them
 export const sendFile = async (
   cloud: Cloud,
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
-): Promise<Sent<string>> => {
+): Promise<CallOutcome<string>> => {
   const sha = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-  const outcome = await uploadBlob(cloud.transport, { bytes, mime, sha });
-  switch (outcome.kind) {
-    case "stored": {
-      return { answer: sha, kind: "landed" };
-    }
-    case "refused": {
-      return { code: outcome.code, kind: "refused" };
-    }
-    case "failed": {
-      return outcome.failure;
-    }
-    // no default
-  }
+  return uploaded(await uploadBlob(cloud.transport, { bytes, mime, sha }), sha);
 };

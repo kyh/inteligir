@@ -60,12 +60,12 @@ export const noteActions = ({
     },
     keepFile: async ({ base64, mediaType }) => {
       const kept = await saves.keepFile({ bytes: bytesFromBase64(base64), mime: mediaType });
-      if (kept.kind !== "kept") {
+      if (kept.kind !== "landed") {
         throw new Error(
           kept.kind === "refused" ? kept.message : `the file was not sent: ${kept.kind}`,
         );
       }
-      return { sha: kept.sha };
+      return { sha: kept.answer };
     },
     linkTargets: async () => {
       const options = queries.library.listing.titles.queryOptions();

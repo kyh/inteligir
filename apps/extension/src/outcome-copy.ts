@@ -1,7 +1,9 @@
 // what the popup and the toolbar's badge say of how a save went, in one place. A refusal says what
 // the person can do about it, and links where that is done.
 
-import type { Outcome, OutcomeReason, WaitsFor } from "./messages";
+import type { WaitsFor } from "@repo/contract/library/call-outcome";
+
+import type { Outcome, OutcomeReason } from "./messages";
 
 export interface OutcomeLine {
   readonly text: string;

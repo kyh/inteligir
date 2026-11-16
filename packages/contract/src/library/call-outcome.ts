@@ -1,11 +1,13 @@
 // `/v1` as every client calls it, and what a call that did not land met, in a client's terms: a
 // refusal of the sign-in itself (the credential, the account, this build), a budget to wait out, or
 // no answer at all, beside each procedure's own refusals, which its caller reads. A file's upload
-// answers in statuses, the same refusals by number.
+// answers in statuses, the same refusals by number. What a call made of the save it carried is
+// one reading for every host that keeps a save (`CallOutcome`).
 
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
+import { refusalText } from "../refusal-text";
 import { V1_RPC_PATH } from "../v1-contract";
 import type { V1Client } from "../v1-contract";
 import { isOrpcError, PayloadTooLargeError, QuotaError } from "../v1-errors";
@@ -21,7 +23,7 @@ export interface V1Transport {
 // the sign-in is over until the host signs in again (`signed-out`, `gone`) or updates (`outdated`)
 export type SessionEnd = "signed-out" | "gone" | "outdated";
 
-export type CallFailure =
+type CallFailure =
   | { readonly kind: "session"; readonly end: SessionEnd }
   | { readonly kind: "busy" }
   | { readonly kind: "unreachable"; readonly message: string }
@@ -29,7 +31,7 @@ export type CallFailure =
   | { readonly kind: "malformed"; readonly message: string };
 
 export const UNREACHABLE = "Your library can't be reached right now.";
-export const CHANGE_REFUSED = "Your library couldn't take this change.";
+const CHANGE_REFUSED = "Your library couldn't take this change.";
 
 const SESSION_ENDS: ReadonlyMap<string, SessionEnd> = new Map([
   ["UNAUTHORIZED", "signed-out"],
@@ -138,4 +140,82 @@ export const uploadBlob = async (
     failure: UPLOAD_FAILURES.get(response.status) ?? { kind: "unreachable", message: UNREACHABLE },
     kind: "failed",
   };
+};
+
+// what brings a later try of the same call through: the cloud's answer, the host's next sign-in,
+// or its update
+export const WAITS = ["connection", "sign-in", "update"] as const;
+export type WaitsFor = (typeof WAITS)[number];
+
+// What a call made of the save it carried, read one way by every host that keeps a save: it
+// landed, a later try may land it, no resend lands it as it is, or its account is deleted and
+// nothing kept for it can land.
+export type CallOutcome<T> =
+  | { readonly kind: "landed"; readonly answer: T }
+  | { readonly kind: "wait"; readonly for: WaitsFor }
+  // the refusal's code, and its words for the person
+  | { readonly kind: "refused"; readonly code: string; readonly message: string }
+  | { readonly kind: "gone" };
+
+type Missed = Exclude<CallOutcome<never>, { readonly kind: "landed" }>;
+
+const UNANSWERED: Missed = { for: "connection", kind: "wait" };
+
+const SESSION_MISSES = {
+  gone: { kind: "gone" },
+  outdated: { for: "update", kind: "wait" },
+  "signed-out": { for: "sign-in", kind: "wait" },
+} as const satisfies Record<SessionEnd, Missed>;
+
+const missedFor = (failure: CallFailure): Missed => {
+  switch (failure.kind) {
+    case "session": {
+      return SESSION_MISSES[failure.end];
+    }
+    // the cloud's budget for a minute, or no answer: a later try may pass
+    case "busy":
+    case "unreachable": {
+      return UNANSWERED;
+    }
+    case "malformed": {
+      return { code: "BAD_REQUEST", kind: "refused", message: failure.message };
+    }
+    // no default
+  }
+};
+
+// a refusal the procedure declares as its own is said in its words
+const missedBy = (cause: unknown): Missed => {
+  if (!isOrpcError(cause)) {
+    return UNANSWERED;
+  }
+  const failure = sharedFailure(cause);
+  return failure === null
+    ? { code: cause.code, kind: "refused", message: refusalText(cause, CHANGE_REFUSED) }
+    : missedFor(failure);
+};
+
+// a call's answer, or what the error it threw says it missed by
+export const outcomeOf = async <T>(call: () => Promise<T>): Promise<CallOutcome<T>> => {
+  try {
+    return { answer: await call(), kind: "landed" };
+  } catch (error) {
+    return missedBy(error);
+  }
+};
+
+// a file's upload as the save it is part of reads it: its sha once the cloud keeps the bytes
+export const uploaded = (outcome: UploadOutcome, sha: string): CallOutcome<string> => {
+  switch (outcome.kind) {
+    case "stored": {
+      return { answer: sha, kind: "landed" };
+    }
+    case "refused": {
+      return { code: outcome.code, kind: "refused", message: outcome.reason };
+    }
+    case "failed": {
+      return missedFor(outcome.failure);
+    }
+    // no default
+  }
 };

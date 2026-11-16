@@ -158,7 +158,7 @@ describe("the note page's actions, as the page receives them", () => {
     const offline = await pageOver(createFakeCell());
     offline.network.setOffline(true);
     await expect(offline.actions.keepFile(file)).rejects.toThrow(
-      new Error("the file was not sent: unreachable"),
+      new Error("the file was not sent: wait"),
     );
   });
 

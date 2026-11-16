@@ -10,14 +10,12 @@
 // last event and a timer with it, and the browser's own events for a sign-in or an update
 // (../entrypoints/background).
 
-import type { SessionEnd } from "@repo/contract/library/call-outcome";
-import { PayloadTooLargeError, QuotaError } from "@repo/contract/v1/errors";
+import { outcomeOf } from "@repo/contract/library/call-outcome";
+import type { CallOutcome } from "@repo/contract/library/call-outcome";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
-import type { OutcomeReason, WaitsFor } from "../messages";
-import { sent } from "./cloud";
-import type { Cloud, LinkSave, Saved, Sent } from "./cloud";
+import type { Cloud, LinkSave } from "./cloud";
 import { forgetConnection, readConnection } from "./connection";
 import type { Session, SignIn } from "./sign-in";
 
@@ -86,53 +84,6 @@ export const linkOf = (save: QueuedSave): LinkSave => {
   return link;
 };
 
-type DropReason = Extract<OutcomeReason, "library-full" | "too-large" | "failed">;
-
-// how a try left its save: landed, waiting to be sent again, let go, or gone with its account
-export type Settled<T> =
-  | { readonly kind: "landed"; readonly answer: T }
-  | { readonly kind: "waiting"; readonly for: WaitsFor }
-  | { readonly kind: "dropped"; readonly reason: DropReason }
-  | { readonly kind: "gone" };
-
-// a session's end waits for the person to sign in again or the browser to update the extension,
-// which `storage.local` outlives, but nothing saved under a deleted account can land
-const SESSION_ENDS = {
-  gone: { kind: "gone" },
-  outdated: { for: "update", kind: "waiting" },
-  "signed-out": { for: "sign-in", kind: "waiting" },
-} as const satisfies Record<SessionEnd, Settled<never>>;
-
-// the refusals of the procedure's own a person can act on; any other no resend passes
-const REFUSALS: ReadonlyMap<string, DropReason> = new Map([
-  [PayloadTooLargeError.code, "too-large"],
-  [QuotaError.code, "library-full"],
-]);
-
-// what a try's answer means for the save that made it, whichever try met it
-export const settledBy = <T>(answer: Sent<T>): Settled<T> => {
-  switch (answer.kind) {
-    case "landed": {
-      return answer;
-    }
-    case "session": {
-      return SESSION_ENDS[answer.end];
-    }
-    // the cloud's budget for a minute, or no answer: a later try may pass
-    case "busy":
-    case "unreachable": {
-      return { for: "connection", kind: "waiting" };
-    }
-    case "malformed": {
-      return { kind: "dropped", reason: "failed" };
-    }
-    case "refused": {
-      return { kind: "dropped", reason: REFUSALS.get(answer.code) ?? "failed" };
-    }
-    // no default
-  }
-};
-
 // What the worker holds of the queue and loses nothing by stopping with. The saves whose first try
 // it still runs, which a pass leaves to them: a resend meanwhile could land the link under the
 // save's op id while the page was on its way, and a save whose worker stopped mid-try is sent at
@@ -143,11 +94,14 @@ let unanswered = 0;
 
 // a kept save's try, the first or a resend, and the one place its answer moves the save: one that
 // waits stays as it was kept
-const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promise<Settled<T>> => {
-  const settled = settledBy(await send());
-  switch (settled.kind) {
+const settle = async <T>(
+  save: QueuedSave,
+  send: () => Promise<CallOutcome<T>>,
+): Promise<CallOutcome<T>> => {
+  const outcome = await send();
+  switch (outcome.kind) {
     case "landed":
-    case "dropped": {
+    case "refused": {
       await dropSave(save);
       break;
     }
@@ -155,15 +109,15 @@ const settle = async <T>(save: QueuedSave, send: () => Promise<Sent<T>>): Promis
       await accountGone(save.email);
       break;
     }
-    case "waiting": {
-      if (settled.for === "connection") {
+    case "wait": {
+      if (outcome.for === "connection") {
         unanswered += 1;
       }
       break;
     }
     // no default
   }
-  return settled;
+  return outcome;
 };
 
 const holdAlarm = async (): Promise<void> => {
@@ -174,8 +128,8 @@ const holdAlarm = async (): Promise<void> => {
 // says nothing more of the save, then settled by the call's answer as every resend is
 export const sendKept = async <T>(
   save: QueuedSave,
-  send: () => Promise<Sent<T>>,
-): Promise<Settled<T>> => {
+  send: () => Promise<CallOutcome<T>>,
+): Promise<CallOutcome<T>> => {
   trying.add(save.opId);
   try {
     await keepSave(save);
@@ -199,11 +153,11 @@ const sendAs = async (cloud: Cloud, email: string, saves: readonly QueuedSave[])
     if (save.email !== email) {
       continue;
     }
-    const settled = await settle(
+    const outcome = await settle(
       save,
-      async (): Promise<Sent<Saved>> => await sent(async () => await cloud.saveLink(linkOf(save))),
+      async () => await outcomeOf(async () => await cloud.saveLink(linkOf(save))),
     );
-    if (settled.kind === "waiting" || settled.kind === "gone") {
+    if (outcome.kind === "wait" || outcome.kind === "gone") {
       break;
     }
   }

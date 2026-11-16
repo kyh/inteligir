@@ -2,6 +2,7 @@
 // pages send these (the worker refuses every other sender), but a message crosses as an untyped
 // value, so both ends parse it.
 
+import { WAITS } from "@repo/contract/library/call-outcome";
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
@@ -35,11 +36,10 @@ const outcomeSchema = z.discriminatedUnion("kind", [
   z.object({ created: z.boolean(), kind: z.literal("saved"), title: z.string() }),
   // the save waits and goes once the cloud answers, once its account signs in again, or once the
   // browser updates the extension
-  z.object({ kind: z.literal("queued"), waitsFor: z.enum(["connection", "sign-in", "update"]) }),
+  z.object({ kind: z.literal("queued"), waitsFor: z.enum(WAITS) }),
   z.object({ kind: z.literal("refused"), reason: z.enum(OUTCOME_REASONS) }),
 ]);
 export type Outcome = z.infer<typeof outcomeSchema>;
-export type WaitsFor = Extract<Outcome, { kind: "queued" }>["waitsFor"];
 
 const statusSchema = z.object({
   // the account this browser is signed in as and the library's address, or none

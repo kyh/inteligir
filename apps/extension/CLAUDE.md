@@ -30,8 +30,9 @@ what it may reach, and how it builds.
   for a save that waits on a sign-in or an update, which no timer brings.
   `apps/extension/src/background/save-queue.ts`.
 - **A save's try settles it one way, the first and every resend alike, and one pass sends the queue
-  at a time.** `settle` reads the contract's `sharedFailure` as the tab and the phone do, since a
-  pass per trigger sends each save twice. `apps/extension/src/background/cloud.ts`.
+  at a time.** `settle` reads the contract's `CallOutcome`, the one reading the phone's saves
+  share, since a pass per trigger sends each save twice.
+  `apps/extension/src/background/save-queue.ts`.
 - **The account and the queue are storage's, the session the browser's jar, and the worker holds
   only what stops with it.** A pass and a first try under way are memory's, since a mark of either
   on disk outlives the worker that made it; `storage.local` is open to trusted contexts alone, and

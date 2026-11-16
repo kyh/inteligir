@@ -120,14 +120,14 @@ export const ingestPhoto = async (
       { folderId },
     );
     switch (saved.kind) {
-      case "saved": {
-        return { itemId: saved.id, kind: "picked" };
+      case "landed": {
+        return { itemId: saved.answer.id, kind: "picked" };
       }
       case "refused": {
         return { kind: "refused", message: saved.message };
       }
-      case "unreachable":
-      case "ended": {
+      case "wait":
+      case "gone": {
         return { kind: "refused", message: NOT_SENT };
       }
       // no default
