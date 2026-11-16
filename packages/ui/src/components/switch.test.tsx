@@ -1,7 +1,5 @@
-// @vitest-environment jsdom
-
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Switch } from "./switch";
 
@@ -13,8 +11,6 @@ beforeAll(() => {
   }
 });
 /* oxlint-enable anti-slop/no-runtime-typeof */
-
-afterEach(cleanup);
 
 const mountSwitch = () => {
   const onCheckedChange = vi.fn<(checked: boolean) => void>();
