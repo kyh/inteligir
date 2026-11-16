@@ -48,7 +48,7 @@ interface CloudOptions {
 }
 
 // a page by its body (text/html unless `type` says otherwise), or a status with no page
-export type PageAnswer =
+type PageAnswer =
   | { readonly body: string | Uint8Array<ArrayBuffer>; readonly type?: string }
   | { readonly status: number };
 
