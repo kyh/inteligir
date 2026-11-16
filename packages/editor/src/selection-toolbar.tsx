@@ -7,7 +7,6 @@ import {
   useFloatingToolbar,
   useFloatingToolbarState,
 } from "@platejs/floating";
-import { wrapLink } from "@platejs/link";
 import { BlockSelectionPlugin } from "@platejs/selection/react";
 import {
   BoldIcon,
@@ -20,7 +19,9 @@ import {
   SparklesIcon,
 } from "lucide-react";
 import { KEYS, RangeApi } from "platejs";
+import type { RangeRef, TRange } from "platejs";
 import {
+  useEditorReadOnly,
   useEditorRef,
   useEditorSelection,
   useEventEditorValue,
@@ -55,6 +56,7 @@ import {
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { extractBlocksToNote, selectedTopLevelPaths } from "@repo/editor/extract-note";
+import { applyLink, holdSelection } from "@repo/editor/held-selection";
 
 const BAR_CLASS = cn(
   "z-50 flex items-center gap-0.5 rounded-lg p-1 text-popover-foreground animate-in fade-in-0 zoom-in-95",
@@ -192,21 +194,38 @@ const LinkInput = ({
   );
 };
 
+// The turn-into menu and the link field each act on the text selected when they opened, held
+// (held-selection.ts) by the press that opens them, since an effect races Slate's throttled
+// selection sync.
+type BarMode =
+  | { readonly kind: "bar" }
+  | { readonly kind: "turn-into"; readonly at: RangeRef }
+  | { readonly kind: "link"; readonly at: RangeRef };
+
+const BAR: BarMode = { kind: "bar" };
+
 export const SelectionToolbar = () => {
   const editor = useEditorRef();
+  const readOnly = useEditorReadOnly();
 
-  const [openMenu, setOpenMenu] = useState<null | "turn">(null);
-  const [linkMode, setLinkMode] = useState(false);
-  // base ui portals escape clickOutsideRef, so the hook's hide conditions (blur, collapsed
-  // selection) fire while a menu or the link input holds focus; `frozen` short-circuits them.
-  const frozen = openMenu !== null || linkMode;
-
-  // captured when the menu opens, not in an effect (which races Slate's throttled selection
-  // sync); state rather than a ref because the type indicator reads it while rendering.
-  const [savedSel, setSavedSel] = useState<typeof editor.selection>(null);
-  const remember = () => {
-    setSavedSel(editor.selection);
+  const [mode, setMode] = useState<BarMode>(BAR);
+  const enter = (next: BarMode): void => {
+    if (mode.kind !== "bar") {
+      mode.at.unref();
+    }
+    setMode(next);
   };
+  const hold = (kind: "turn-into" | "link"): void => {
+    const at = holdSelection(editor);
+    if (at !== null) {
+      enter({ at, kind });
+    }
+  };
+  const backToNote = (): void => {
+    enter(BAR);
+    editor.tf.focus();
+  };
+  const heldRange = (): TRange | null => (mode.kind === "bar" ? null : mode.at.current);
 
   const focusedEditorId = useEventEditorValue("focus");
   const isSelectingSome = Boolean(usePluginOption(BlockSelectionPlugin, "isSelectingSome"));
@@ -237,10 +256,13 @@ export const SelectionToolbar = () => {
   // platejs types useEditorSelection's return as `any`
   const rawSelection: unknown = useEditorSelection();
   const selection = RangeApi.isRange(rawSelection) ? rawSelection : null;
-  const entry = effectiveBlockEntry(editor, selection ?? savedSel ?? undefined);
+  const entry = effectiveBlockEntry(editor, selection ?? heldRange() ?? undefined);
   const typeLabel = entry ? turnIntoOptionFor(entry[0]).label : "Text";
 
-  if (hidden && !frozen) {
+  // base ui portals escape clickOutsideRef, so the hook hides the bar (blur, a collapsed
+  // selection) while a menu or the link field holds focus; a mode keeps it, and a note that turned
+  // read-only draws none, since it takes no edit the bar would make
+  if (readOnly || (hidden && mode.kind === "bar")) {
     return null;
   }
 
@@ -257,30 +279,27 @@ export const SelectionToolbar = () => {
         className={cn(BAR_CLASS, "absolute whitespace-nowrap print:hidden")}
         onMouseDown={keepSelection}
       >
-        {linkMode ? (
+        {mode.kind === "link" ? (
           <LinkInput
-            onCancel={() => {
-              setLinkMode(false);
-            }}
+            onCancel={backToNote}
             onSubmit={(url) => {
-              setLinkMode(false);
-              const at = savedSel;
-              if (url && at) {
-                wrapLink(editor, { at, split: true, url });
-                editor.tf.focus();
+              if (url !== "") {
+                applyLink(editor, mode.at, url);
               }
+              backToNote();
             }}
           />
         ) : (
           <>
             <AskAgentButton editor={editor} />
             <DropdownMenu
-              open={openMenu === "turn"}
-              onOpenChange={(o) => {
-                if (o) {
-                  remember();
+              open={mode.kind === "turn-into"}
+              onOpenChange={(open) => {
+                if (open) {
+                  hold("turn-into");
+                } else {
+                  enter(BAR);
                 }
-                setOpenMenu(o ? "turn" : null);
               }}
             >
               <TurnIntoTrigger>{typeLabel}</TurnIntoTrigger>
@@ -295,7 +314,10 @@ export const SelectionToolbar = () => {
                     <DropdownMenuItem
                       key={opt.id}
                       onClick={() => {
-                        turnIntoSelection(editor, opt, savedSel ?? undefined);
+                        const at = heldRange();
+                        if (at !== null) {
+                          turnIntoSelection(editor, opt, at);
+                        }
                         editor.tf.focus();
                       }}
                     >
@@ -325,8 +347,7 @@ export const SelectionToolbar = () => {
 
             <IconButton
               onClick={() => {
-                remember();
-                setLinkMode(true);
+                hold("link");
               }}
               title="Link"
             >
