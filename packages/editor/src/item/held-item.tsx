@@ -11,7 +11,7 @@ import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
-import { OpenItemProvider } from "@repo/editor/open-item";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 
 import { Notice } from "./notice";
 
@@ -27,17 +27,17 @@ export const HeldItem = ({ itemId, blocks, notice }: HeldItemProps) => {
   const editor = usePlateEditor({
     navigationFeedback: false,
     nodeId: true,
-    plugins: PROFILE_KITS[profile],
+    plugins: [...PROFILE_KITS[profile], OpenItemPlugin.configure({ options: { itemId } })],
     value: normalizeNodeId(value),
   });
   return (
-    <OpenItemProvider itemId={itemId}>
+    <>
       <Notice profile={profile} text={notice} />
       <Plate editor={editor} readOnly>
         <EditorContainer>
           <Editor spellCheck={false} />
         </EditorContainer>
       </Plate>
-    </OpenItemProvider>
+    </>
   );
 };

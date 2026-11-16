@@ -1,12 +1,7 @@
 import { createSlateEditor } from "platejs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  getLiveEditor,
-  liveEditorItemId,
-  onLiveEditor,
-  registerLiveEditor,
-} from "@repo/editor/live-editor";
+import { getLiveEditor, onLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
 
 const cleanups: (() => void)[] = [];
 
@@ -21,10 +16,8 @@ describe("the live editors, by the item each holds", () => {
     const editor = createSlateEditor();
     const off = registerLiveEditor("item-a", editor);
     expect(getLiveEditor("item-a")).toBe(editor);
-    expect(liveEditorItemId(editor)).toBe("item-a");
     off();
     expect(getLiveEditor("item-a")).toBeNull();
-    expect(liveEditorItemId(editor)).toBe("item-a");
   });
 
   it("keeps the incoming editor when the replaced one's disposer runs", () => {

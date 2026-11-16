@@ -84,20 +84,18 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onNote }: ItemViewProp
   const find = libraryRoute.useSearch({ select: (search) => search.find });
   const navigate = useNavigate();
 
-  // the find bar lands on a search's words a frame after the item's editor first answers, since it
-  // answers before Plate has drawn the text, and the address then drops them
+  // the find bar lands on a search's words once the item's editor answers, and the address then
+  // drops them
   useEffect(() => {
     if (find === undefined) {
       return;
     }
     return onLiveEditor(itemId, (editor) => {
-      requestAnimationFrame(() => {
-        jumpToFindMatch(editor, find, 0);
-        void navigate({
-          replace: true,
-          search: (prior) => ({ ...prior, find: undefined }),
-          to: ".",
-        });
+      jumpToFindMatch(editor, find, 0);
+      void navigate({
+        replace: true,
+        search: (prior) => ({ ...prior, find: undefined }),
+        to: ".",
       });
     });
   }, [find, itemId, navigate]);

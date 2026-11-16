@@ -9,7 +9,7 @@ import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
-import { createPlatePlugin, useEditorSelector } from "platejs/react";
+import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 import type { RenderNodeWrapper } from "platejs/react";
 import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
@@ -21,7 +21,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
-import { useOpenItemId } from "@repo/editor/open-item";
+import { OpenItemPlugin } from "@repo/editor/open-item";
 import { contentHash } from "@repo/contract/library/content-hash";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
@@ -188,7 +188,7 @@ const DerivedContext = createContext<Derived | null>(null);
 
 const CollapseProvider = ({ children }: { children: ReactNode }) => {
   // subscribed once here rather than per block, so the fold set and every chevron name the same item
-  const itemId = useOpenItemId();
+  const itemId = useEditorRef().getOption(OpenItemPlugin, "itemId");
   const folded = useStore(foldsStore, (folds) =>
     itemId === null ? NO_FOLDS : foldsFor(folds, itemId),
   );

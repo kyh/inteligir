@@ -1,11 +1,10 @@
 import { createRef } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Point, TRange, Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import { registerLiveEditor } from "@repo/editor/live-editor";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-items";
@@ -34,9 +33,6 @@ const TABLE_LABELS = new Set([
   ...Object.values(TOUCH_ACTIONS).map((row) => row.label),
 ]);
 
-const NOTE_PATH = "notes/touch.md";
-const unregisters: (() => void)[] = [];
-
 const parsedValue = (markdown: string): Value => {
   const parsed = parseMarkdown(markdown);
   if (!parsed.ok) {
@@ -60,7 +56,6 @@ const mount = (markdown: string, host: FakeEditorHostOptions = {}): PlateEditor 
   if (editor === null) {
     throw new Error("the harness did not hand over its editor");
   }
-  unregisters.push(registerLiveEditor(NOTE_PATH, editor));
   return editor;
 };
 
@@ -76,12 +71,6 @@ const press = (name: string): void => {
 describe("the touch toolbar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    for (const unregister of unregisters.splice(0)) {
-      unregister();
-    }
   });
 
   it("names every button by a table row, and draws every row it owns", () => {
@@ -175,12 +164,6 @@ const writeAddress = async (text: string, submit: string): Promise<void> => {
 };
 
 describe("a link from the touch toolbar", () => {
-  afterEach(() => {
-    for (const unregister of unregisters.splice(0)) {
-      unregister();
-    }
-  });
-
   it("links the selection the field was opened over", async () => {
     const editor = mount("one two\n");
     await selectOne(editor);

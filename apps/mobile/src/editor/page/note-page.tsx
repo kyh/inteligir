@@ -49,11 +49,8 @@ const NotePage = (props: NotePageProps) => {
     if (!focus) {
       return;
     }
-    // a frame after the editor first answers, since it answers before Plate has drawn the text
     return onLiveEditor(itemId, (editor) => {
-      requestAnimationFrame(() => {
-        editor.tf.focus({ edge: "endEditor" });
-      });
+      editor.tf.focus({ edge: "endEditor" });
     });
   }, [focus, itemId]);
   return (

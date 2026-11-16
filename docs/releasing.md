@@ -295,8 +295,8 @@ The unpacked store build, against production, with no dev build loaded.
   lock and a restart (Keychain); Safari's sign-in stays Safari's; no iCloud
   backup growth; a restored backup on another phone signs in as itself.
 - **The editor on real WebKit**: typing, autocorrect, the keyboard's mic, the
-  `[[` picker, a 20,000-word paste, and the Embed dialog covering the screen on
-  iOS 26.
+  `[[` picker, a 20,000-word paste, the Embed dialog covering the screen on
+  iOS 26, and New note opening with the caret at its end and the keyboard up.
 - **The editor's edges** on the oldest supported iPhone and on iOS 16.4: a cold
   open under a second, Inter and KaTeX faces, no zoom, the caret above the
   keyboard, Mermaid in dark mode.
