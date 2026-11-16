@@ -33,12 +33,11 @@ import type { SQL } from "drizzle-orm";
 import { items, itemTags } from "@repo/db/cell/schema";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
-import type { CellStorage } from "./cell-storage";
 import { refuse } from "./cell-refusal";
 
 // an item's row as the apps read it; one emptied from Deleted is no item
-export const itemRow = (storage: CellStorage, id: string) => {
-  const item = readItem(storage.db, id);
+export const itemRow = (db: CellDb, id: string) => {
+  const item = readItem(db, id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
@@ -53,8 +52,8 @@ export const itemRow = (storage: CellStorage, id: string) => {
 };
 
 // an item's row and its body's blocks, read from where the body lives
-export const itemWhole = (storage: CellStorage, id: string, blocks: readonly BodyBlock[]) => ({
-  ...itemRow(storage, id),
+export const itemWhole = (db: CellDb, id: string, blocks: readonly BodyBlock[]) => ({
+  ...itemRow(db, id),
   blocks: [...blocks],
 });
 
@@ -106,7 +105,7 @@ const catchUp = (db: CellDb, index: LibraryIndex<ListingRow>, since: number): vo
 // folder row it touches with the sequence its transaction takes, so the rows past the held head are
 // what moved since; a head behind it is a library wiped under it, read again whole. The cell keeps
 // one in its memory, so it goes when the object sleeps and the first read after the wake builds it.
-export type ListingHold = (db: CellDb, head: number) => LibraryIndex<ListingRow>;
+type ListingHold = (db: CellDb, head: number) => LibraryIndex<ListingRow>;
 
 export const holdListing = (): ListingHold => {
   let held: { readonly head: number; readonly index: LibraryIndex<ListingRow> } | null = null;
@@ -154,13 +153,9 @@ const lineExcerpt = (text: string, query: string): string | null => {
 // candidates are full, so a common needle reads no more of the library's text than those pages'
 // lines; only an ascii query on one
 // line has such a scan, since SQLite folds ascii case alone and a match lives in one line
-export const searchHits = (
-  storage: CellStorage,
-  query: string,
-  side: SearchSide,
-): Map<string, string> => {
+export const searchHits = (db: CellDb, query: string, side: SearchSide): Map<string, string> => {
   const hits = new Map<string, string>();
-  for (const hit of searchLibrary(storage, query, SEARCH_CANDIDATES, side)) {
+  for (const hit of searchLibrary(db, query, SEARCH_CANDIDATES, side)) {
     hits.set(hit.itemId, hit.snippet);
   }
   if (side === "deleted" || !isPrintableAscii(query)) {
@@ -168,7 +163,7 @@ export const searchHits = (
   }
   let after: string | null = null;
   while (hits.size < SEARCH_CANDIDATES) {
-    const page: LiteralMatch[] = literalMatches(storage, query, { after, limit: LITERAL_PAGE });
+    const page: LiteralMatch[] = literalMatches(db, query, { after, limit: LITERAL_PAGE });
     for (const match of page) {
       const excerpt = hits.has(match.itemId) ? null : lineExcerpt(match.text, query);
       if (excerpt !== null && hits.size < SEARCH_CANDIDATES) {
@@ -187,7 +182,7 @@ export const searchHits = (
 // ---- the apps' listing ----
 
 export const listingPage = (
-  storage: CellStorage,
+  db: CellDb,
   listing: LibraryIndex<ListingRow>,
   input: ListingPageInput & { readonly words?: string | undefined },
 ) =>
@@ -196,6 +191,6 @@ export const listingPage = (
     input,
     input.words === undefined
       ? null
-      : searchHits(storage, input.words, input.query.deleted ? "deleted" : "live"),
-    (row) => itemListing(listedWhole(storage.db, row.id), row.tags),
+      : searchHits(db, input.words, input.query.deleted ? "deleted" : "live"),
+    (row) => itemListing(listedWhole(db, row.id), row.tags),
   );

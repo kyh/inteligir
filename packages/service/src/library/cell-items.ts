@@ -31,7 +31,7 @@ export interface NewItem {
 
 // an item the write makes, with its body; an id the library holds already is a conflict
 export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
-  if (readItem(scope.storage.db, item.id) !== null) {
+  if (readItem(scope.db, item.id) !== null) {
     refuse({ kind: "conflict" });
   }
   return landItem(scope, { before: null, fields: item.fields, itemId: item.id, seed: item.blocks });
@@ -102,7 +102,7 @@ export interface CreateFileInput {
 
 // a file whose bytes the library holds
 export const createFile = (scope: LandingScope, input: CreateFileInput): LiveItemRow => {
-  const blob = readBlobRow(scope.storage.db, input.sha);
+  const blob = readBlobRow(scope.db, input.sha);
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
@@ -122,7 +122,7 @@ export const organizeItems = (
 ): LiveItemRow[] => {
   const folderId = folderOfTarget(scope, input.folder, ids.item);
   return [...new Set(input.ids)].map((itemId) => {
-    const item = readLiveItem(scope.storage.db, itemId);
+    const item = readLiveItem(scope.db, itemId);
     if (item === null) {
       return refuse({ kind: "not-found" });
     }
@@ -149,7 +149,7 @@ export const setDeleted = (
   const landed: LiveItemRow[] = [];
   const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
-    const item = readLiveItem(scope.storage.db, itemId);
+    const item = readLiveItem(scope.db, itemId);
     if (item === null) {
       missing.push(itemId);
       continue;
@@ -181,7 +181,7 @@ export const setDeleted = (
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no
 // address has no page to read
 export const refreshItem = (scope: LandingScope, itemId: string): LiveItemRow => {
-  const item = readLiveItem(scope.storage.db, itemId);
+  const item = readLiveItem(scope.db, itemId);
   if (item === null || item.fields.url === null) {
     return refuse({ kind: "not-found" });
   }

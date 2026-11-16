@@ -1,12 +1,13 @@
 // The library cell's engine: every rule over the account's library, as synchronous calls over the
-// cell's SQLite, each write one `transactionSync`. Its one state is the listing its opener hands
-// it (`./cell-listing`), so the Durable Object opens it per call over its storage and the listing
-// it keeps, and a test opens it over the same storage with its own clock. A write takes the
-// library's next sequence number once, stamps every row it touches with it, joins its actor's
-// change set, and keeps its answer under its `opId` for 30 days, so a client resending after a
-// lost answer is told what landed.
+// cell's SQLite, each write one `transactionSync`. Its one state is the listing it keeps
+// (`./cell-listing`), so the cell opens it once a wake (`./open-cell`). A write takes the library's
+// next sequence number once, stamps every row it touches with it, joins its actor's change set,
+// and keeps its answer under its `opId` for 30 days, so a client resending after a lost answer is
+// told what landed. What follows a commit is the engine's own, in the turn that committed it: the
+// sockets told what it moved and the alarm set to the earliest job, so no caller settles a write.
 
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
+import type { MovedFrame } from "@repo/contract/library/library-socket";
 import { liveItemRowSchema } from "@repo/contract/library/library-wire";
 import {
   nextHead,
@@ -52,7 +53,6 @@ import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } 
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { holdListing } from "./cell-listing";
-import type { ListingHold } from "./cell-listing";
 import { importsRunning } from "./cell-import-jobs";
 import {
   deferJob,
@@ -66,6 +66,7 @@ import {
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
+import type { MovedCollector } from "./cell-moved";
 import {
   bodyInNote,
   confirmSeed,
@@ -77,7 +78,6 @@ import {
 } from "./cell-notes";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellResult } from "./cell-refusal";
-import type { CellStorage } from "./cell-storage";
 import { undoChangeSets } from "./cell-undo";
 import { landWrite } from "./cell-writes";
 import type { ItemWrite } from "./cell-writes";
@@ -86,13 +86,14 @@ import type { OpenSet } from "./change-sets";
 import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
-  readonly storage: CellStorage;
+  readonly db: CellDb;
   readonly now: () => number;
   // every id the cell mints: items, blocks, change sets
   readonly ids: CellIds;
   readonly bytesCap: number;
-  // the listing its opener keeps between engines; one of the engine's own otherwise
-  readonly listing?: ListingHold | undefined;
+  // what follows every commit, in the turn that made it: what it moved, null for nothing a client
+  // reads, and when the earliest job waits, null for none
+  readonly committed: (moved: MovedFrame | null, nextJobAt: number | null) => void;
 }
 
 export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
@@ -181,11 +182,20 @@ const noSet = (): OpenSet => {
 };
 
 export const openLibraryEngine = (deps: LibraryEngineDeps) => {
-  const { bytesCap, ids, storage } = deps;
-  const { db } = storage;
-  const listing = deps.listing ?? holdListing();
+  const { bytesCap, db, ids } = deps;
+  const listing = holdListing();
 
   const deletedAt = (): number | null => readInstant(db, "deleted_at");
+
+  // Every transaction that may write, and what follows it with no await between: the sockets told
+  // what it moved, the alarm set to the earliest job. Once the deletion began no job runs, so one
+  // a failed step left sets no alarm; the deletion's retry wipes it
+  const commit = <T>(work: (moved: MovedCollector) => T): T => {
+    const moved = collectMoved();
+    const value = db.$client.transactionSync(() => work(moved));
+    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null);
+    return value;
+  };
 
   // what the op answered when it landed, or null while it has not
   const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {
@@ -204,17 +214,16 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => {
     try {
-      return storage.transaction((): CellResult<z.output<S>> => {
+      return commit((moved): CellResult<z.output<S>> => {
         if (deletedAt() !== null) {
           refuse({ kind: "gone" });
         }
         const now = deps.now();
         const prior = request.opId === undefined ? null : priorAnswer(request.opId, request.answer);
         if (prior !== null) {
-          return { moved: null, ok: true, value: prior };
+          return { ok: true, value: prior };
         }
         const taken: Taken = { seq: null, set: null };
-        const moved = collectMoved();
         const scope: LandingScope = {
           bytesCap,
           moved,
@@ -227,12 +236,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             taken.set ??= request.openSet(now);
             return taken.set;
           },
-          storage,
+          db,
         };
         const value = request.answer.parse(work(scope));
         const joined = taken.set;
         if (joined?.policy.kind === "commit") {
-          sealChangeSet(storage, joined.id, now);
+          sealChangeSet(db, joined.id, now);
         }
         if (request.opId !== undefined) {
           db.insert(appliedOps)
@@ -240,7 +249,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             .run();
           ensureJob(db, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
-        return { moved: moved.frame(), ok: true, value };
+        return { ok: true, value };
       });
     } catch (error) {
       if (error instanceof RefusedWriteError) {
@@ -251,7 +260,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   const joining = (actor: CellActor) => (now: number) =>
-    joinChangeSet(storage, actor, now, ids.changeSet);
+    joinChangeSet(db, actor, now, ids.changeSet);
 
   // a write by `actor`, joining its change set
   const land = <S extends z.ZodType>(
@@ -285,7 +294,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           continue;
         }
         const seq = scope.seq();
-        storeTombstone(storage, {
+        storeTombstone(db, {
           deletedAt: item.fields.deletedAt,
           id,
           seq,
@@ -293,7 +302,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         });
         db.delete(snapshotParts).where(eq(snapshotParts.itemId, id)).run();
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
-        dropItemBlobs(storage, id, scope.now);
+        dropItemBlobs(db, id, scope.now);
         forgetNoteSockets(db, id);
         if (bodyInNote(item)) {
           scheduleJob(
@@ -312,7 +321,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     transact(
       {
         answer: undoSchema,
-        openSet: (now) => openUndoSet(storage, requester, now, () => undone.undoSetId),
+        openSet: (now) => openUndoSet(db, requester, now, () => undone.undoSetId),
         opId: input.opId,
       },
       (scope) => undoChangeSets(scope, input.changeSetIds, undone.notes),
@@ -320,8 +329,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // an import closes its own set
   const closeChangeSet = (changeSetId: string): void => {
-    storage.transaction(() => {
-      sealChangeSet(storage, changeSetId, deps.now());
+    commit(() => {
+      sealChangeSet(db, changeSetId, deps.now());
     });
   };
 
@@ -329,7 +338,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
     transact(
       { answer: z.object({ held: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => reserveUpload(storage, bytesCap, request, scope.now),
+      (scope) => reserveUpload(db, bytesCap, request, scope.now),
     );
 
   // the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
@@ -342,11 +351,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
       (scope) => ({
-        settled: settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now),
+        settled: settleUpload(db, bytesCap, { removalsSeen, sha, stored }, scope.now),
       }),
     );
     if (!result.ok && result.refusal.kind === "quota") {
-      storage.transaction(() => {
+      commit(() => {
         refuseUpload(db, sha, deps.now());
       });
     }
@@ -356,7 +365,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the strays whose removal is due, each begun unless a file row or an upload's room holds its
   // sha again
   const beginStrayRemovals = (): StrayRemoval[] =>
-    storage.transaction(() =>
+    commit(() =>
       dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
         const { sha } = job.payload;
         return beginRemoval(db, sha) ? [{ job, sha }] : [];
@@ -366,7 +375,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // the removals R2 took, or the ones it failed, which wait their turn again
   const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
     const now = deps.now();
-    storage.transaction(() => {
+    commit(() => {
       for (const removal of removals) {
         if (removed) {
           endRemoval(db, removal.sha);
@@ -377,12 +386,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  // the readings committed writes asked for, each put off a minute until the queue takes it
-  const claimDueFills = (): ClaimedFill[] =>
-    storage.transaction(() => claimFills(storage, deps.now()));
+  // the readings committed writes asked for, each put off a minute: its send's own time to land
+  const claimDueFills = (): ClaimedFill[] => commit(() => claimFills(db, deps.now()));
 
   const fillsSent = (claimed: readonly ClaimedFill[]): void => {
-    storage.transaction(() => {
+    commit(() => {
       sentFills(db, claimed);
     });
   };
@@ -399,7 +407,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return filled;
     });
     if (!landed.ok && landed.refusal.kind !== "gone") {
-      storage.transaction(() => {
+      commit(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
       });
     }
@@ -413,7 +421,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { ok: false, refusal: { kind: "gone" } };
     }
     try {
-      return { moved: null, ok: true, value: storage.transaction(read) };
+      return { ok: true, value: db.$client.transactionSync(read) };
     } catch (error) {
       if (error instanceof RefusedWriteError) {
         return { ok: false, refusal: error.refusal };
@@ -422,12 +430,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }
   };
 
-  const read = <T>(work: (cell: CellStorage) => T): CellResult<T> => reading(() => work(storage));
+  const read = <T>(work: (cell: CellDb) => T): CellResult<T> => reading(() => work(db));
 
   // a read over the listing, caught up to the library's head
   const readListing = <T>(
-    work: (index: LibraryIndex<ListingRow>, cell: CellStorage) => T,
-  ): CellResult<T> => reading(() => work(listing(db, libraryHead(db)), storage));
+    work: (index: LibraryIndex<ListingRow>, cell: CellDb) => T,
+  ): CellResult<T> => reading(() => work(listing(db, libraryHead(db)), db));
 
   // what a write already answered under `opId`, or null while none has: a write whose work waits on
   // the network between its transactions asks first, and lands its op with its last one
@@ -438,12 +446,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     reading(() => (opId === undefined ? null : priorAnswer(opId, answer)));
 
   const fillWanted = (itemId: string, url: string): CellResult<boolean> =>
-    reading(() => fillWaits(storage, itemId, url));
+    reading(() => fillWaits(db, itemId, url));
 
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
-        sealChangeSet(storage, job.payload.changeSetId, now);
+        sealChangeSet(db, job.payload.changeSetId, now);
         break;
       }
       case "upload": {
@@ -460,7 +468,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         break;
       }
       case "prune": {
-        const more = pruneChangeSets(storage.db, now);
+        const more = pruneChangeSets(db, now);
         scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
         break;
       }
@@ -472,14 +480,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // again later and the rest still run
   const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
     const now = deps.now();
-    for (const job of storage.transaction(() => dueJobs(db, now, STORAGE_JOBS))) {
+    for (const job of commit(() => dueJobs(db, now, STORAGE_JOBS))) {
       try {
-        storage.transaction(() => {
+        commit(() => {
           runJob(job, now);
         });
       } catch (error) {
         onFailure(job, error);
-        storage.transaction(() => {
+        commit(() => {
           retryJob(db, job, now);
         });
       }
@@ -489,13 +497,13 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // ---- what each item's note asks (`./cell-notes`) ----
 
   const noteOpening = (sessionId: string, itemId: string): NoteOpening =>
-    storage.transaction(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
+    commit(() => (deletedAt() === null ? openNote(db, sessionId, itemId) : "missing"));
 
   const seedFor = (itemId: string): SeedAnswer =>
-    storage.transaction(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
+    commit(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
 
   const seedTaken = (itemId: string): void => {
-    storage.transaction(() => {
+    commit(() => {
       confirmSeed(db, itemId);
     });
   };
@@ -507,11 +515,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     );
 
   const sessionNotes = (sessionId: string): string[] =>
-    storage.transaction(() => takeSessionNotes(db, sessionId));
+    commit(() => takeSessionNotes(db, sessionId));
 
   // the purged items' notes due to be emptied, each put off until it is reported done
   const claimNotePurges = (): NotePurge[] =>
-    storage.transaction(() => {
+    commit(() => {
       const now = deps.now();
       return dueJobs(db, now, ["note-purge"]).map((job) => {
         deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
@@ -520,7 +528,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
 
   const notePurged = (purge: NotePurge, done: boolean): void => {
-    storage.transaction(() => {
+    commit(() => {
       if (done) {
         dropJob(db, purge.job.id);
       } else {
@@ -531,7 +539,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // the account's deletion has begun: every later write and read is refused
   const tombstone = (): void => {
-    storage.transaction(() => {
+    commit(() => {
       if (deletedAt() === null) {
         writeMeta(db, "deleted_at", deps.now());
       }
@@ -549,16 +557,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     endStrayRemovals,
     fillWanted,
     fillsSent,
-    head: () => libraryHead(db),
     ids,
     land,
     landApart,
     landReading,
     noteOpening,
     notePurged,
-    // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
-    // the deletion's retry wipes it
-    nextJobAt: () => (deletedAt() === null ? nextJobAt(db) : null),
     projectNote,
     purgeItems,
     read,

@@ -42,4 +42,21 @@ describe("what a write moved", () => {
     expect(frame?.items).toBe("all");
     expect(frame?.threads).toHaveLength(MOVED_IDS_MAX);
   });
+
+  it("takes other writes' frames in, each item at its latest sequence, and all once any said all", () => {
+    const moved = collectMoved();
+    const [item = "", other = "", thread = ""] = idsOf(3);
+    moved.add({ folders: false, items: [{ id: item, seq: 4 }], threads: [thread], type: "moved" });
+    moved.add({ folders: true, items: [{ id: item, seq: 6 }], threads: [], type: "moved" });
+    moved.add({ folders: false, items: [{ id: other, seq: 5 }], threads: "all", type: "moved" });
+    expect(moved.frame()).toStrictEqual({
+      folders: true,
+      items: [
+        { id: item, seq: 6 },
+        { id: other, seq: 5 },
+      ],
+      threads: "all",
+      type: "moved",
+    });
+  });
 });

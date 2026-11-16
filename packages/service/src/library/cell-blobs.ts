@@ -20,7 +20,6 @@ import type { CellDb } from "./cell-db";
 import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import type { JobRequest } from "./cell-jobs";
 import { addFileBytes, holdRoomFor } from "./cell-quota";
-import type { CellStorage } from "./cell-storage";
 
 export const blobKey = (accountId: string, sha: string): string => `acct/${accountId}/b/${sha}`;
 
@@ -176,8 +175,7 @@ export const storeItemBlobs = (
 
 // a purged item: the files it and its change sets named are asked about at the alarm's next run,
 // which an import may put off
-export const dropItemBlobs = (storage: CellStorage, itemId: string, now: number): void => {
-  const { db } = storage;
+export const dropItemBlobs = (db: CellDb, itemId: string, now: number): void => {
   const shas = deleteItemBlobs(db, itemId);
   const kept = db
     .delete(changeSetBlobs)
@@ -225,18 +223,17 @@ export interface UploadRoom {
 
 // room for a file a device is about to upload
 export const reserveUpload = (
-  storage: CellStorage,
+  db: CellDb,
   bytesCap: number,
   request: UploadRequest,
   now: number,
 ): UploadRoom => {
-  const { db } = storage;
   if (heldShas(db, [request.sha]).size > 0) {
     return { held: true };
   }
   const prior = heldUpload(db, request.sha);
   const growth = request.bytes - (prior?.bytes ?? 0);
-  holdRoomFor(storage, bytesCap, growth);
+  holdRoomFor(db, bytesCap, growth);
   db.insert(blobUploads)
     .values({ bytes: request.bytes, mime: request.mime, sha256: request.sha })
     .onConflictDoUpdate({
@@ -367,7 +364,7 @@ export interface StoredObject {
 // stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
 // uploads again into the room it holds. False when no file row holds the sha
 export const settleUpload = (
-  storage: CellStorage,
+  db: CellDb,
   bytesCap: number,
   upload: {
     readonly sha: string;
@@ -376,7 +373,6 @@ export const settleUpload = (
   },
   now: number,
 ): boolean => {
-  const { db } = storage;
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(db, [sha]).size > 0) {
     return true;
@@ -392,7 +388,7 @@ export const settleUpload = (
     return false;
   }
   const reserved = held?.bytes ?? 0;
-  holdRoomFor(storage, bytesCap, stored.bytes - reserved);
+  holdRoomFor(db, bytesCap, stored.bytes - reserved);
   if (held !== null) {
     releaseHeld(db, sha, reserved);
   }

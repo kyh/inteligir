@@ -18,7 +18,6 @@ import type { CellDb } from "./cell-db";
 import type { MovedCollector } from "./cell-moved";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
-import type { CellStorage } from "./cell-storage";
 import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 import { storeItemRow, storeLinks, storeSearchRow, storeTags } from "./library-queries";
@@ -56,7 +55,7 @@ export type Landing =
 // what a write lands under: its one sequence number and time, and its actor's set, each taken on
 // the first landing so a write that lands nothing moves nothing; and what it moved, for the sockets
 export interface LandingScope {
-  readonly storage: CellStorage;
+  readonly db: CellDb;
   readonly bytesCap: number;
   readonly now: number;
   readonly seq: () => number;
@@ -164,7 +163,7 @@ interface Checked {
 
 // every rule a landing meets, before anything is written: a refusal leaves nothing to roll back
 const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
-  const { storage } = scope;
+  const { db } = scope;
   const { before, fields, itemId } = landing;
   if (!libraryItemFieldsSchema.validate(fields)) {
     refuse({ kind: "too-large" });
@@ -174,38 +173,34 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   if (
     derived.urlKey !== null &&
     fields.deletedAt === null &&
-    urlHolder(storage.db, derived.urlKey, itemId) !== null
+    urlHolder(db, derived.urlKey, itemId) !== null
   ) {
     refuse({ kind: "url-held" });
   }
   const shas = itemFilesOf(fields, landed.body.digest.files);
   const priorShas = before === null ? [] : itemFilesOf(before.fields, before.body.digest.files);
   const missing = missingBlobs(
-    storage.db,
+    db,
     shas.filter((sha) => !priorShas.includes(sha)),
   );
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
   }
   if (before === null) {
-    holdRoomFor(
-      storage,
-      scope.bytesCap,
-      fieldBytes(fields) + utf8ByteLength(landed.seed?.text ?? ""),
-    );
+    holdRoomFor(db, scope.bytesCap, fieldBytes(fields) + utf8ByteLength(landed.seed?.text ?? ""));
   }
   return { derived, landed, priorShas, shas };
 };
 
 // the row the item lands as; refuses a change no rule admits, before anything is written
 export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => {
-  const { storage } = scope;
+  const { db } = scope;
   const { before, fields, itemId } = landing;
   const { derived, landed, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
   const set = scope.set();
-  touchItem(storage, { before: before?.fields ?? null, itemId, setId: set.id });
-  const stored = storeItemRow(storage.db, {
+  touchItem(db, { before: before?.fields ?? null, itemId, setId: set.id });
+  const stored = storeItemRow(db, {
     body: landed.body,
     card: derived.card,
     fields,
@@ -218,23 +213,23 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     throw new LibraryRowError(`the item ${itemId} holds a row newer than the library's head`);
   }
   if (landed.seed !== null) {
-    storeSeed(storage.db, itemId, landed.seed.blocks);
-    storeBodyText(storage.db, itemId, landed.seed.text);
-    storeLinks(storage.db, itemId, landed.seed.links);
+    storeSeed(db, itemId, landed.seed.blocks);
+    storeBodyText(db, itemId, landed.seed.text);
+    storeLinks(db, itemId, landed.seed.links);
   }
   if (
     landed.seed !== null ||
     before === null ||
     canonicalJson(before.fields) !== canonicalJson(fields)
   ) {
-    storeTags(storage.db, itemId, derived.tags);
-    storeSearchRow(storage, itemId, {
+    storeTags(db, itemId, derived.tags);
+    storeSearchRow(db, itemId, {
       ...derived.search,
-      body: landed.seed?.text ?? readBodyText(storage.db, itemId),
+      body: landed.seed?.text ?? readBodyText(db, itemId),
     });
   }
   if (before === null || !sameShas(priorShas, shas)) {
-    storeItemBlobs(storage.db, itemId, shas, scope.now);
+    storeItemBlobs(db, itemId, shas, scope.now);
   }
   scope.moved.item(itemId, seq);
   return { card: derived.card, fields, id: itemId, seq, updatedAt: scope.now };

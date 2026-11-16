@@ -4,7 +4,6 @@
 // write did so far rolls back; it is caught at the transaction's edge and never leaves the cell as
 // an exception.
 
-import type { MovedFrame } from "@repo/contract/library/library-socket";
 import type { editRefusalSchema } from "@repo/contract/library/library-wire";
 import type { z } from "zod";
 
@@ -33,14 +32,14 @@ export type CellRefusal =
   | { readonly kind: "agent-unavailable" }
   // the day's allowance of the built-in agent is spent, until `resetsAt`
   | { readonly kind: "agent-budget"; readonly resetsAt: number }
+  // the built-in agent's turn the call is one of is no longer open
+  | { readonly kind: "turn-ended" }
   // the write would have kept a body in the cell for an item whose note opened since it looked, so
   // it goes again by the note
   | { readonly kind: "note-opened"; readonly itemId: string };
 
-// `moved` is what the write moved, which the sockets are told once it commits, or null when it
-// moved nothing
 export type CellResult<T> =
-  | { readonly ok: true; readonly value: T; readonly moved: MovedFrame | null }
+  | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly refusal: CellRefusal };
 
 export class RefusedWriteError extends Error {

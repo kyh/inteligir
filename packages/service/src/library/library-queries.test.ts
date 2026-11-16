@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { items as itemRows } from "@repo/db/cell/schema";
@@ -29,41 +29,31 @@ import {
 } from "./library-queries";
 import { storableBlockSchema } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import type { SqlStatement } from "./library-sql";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 
 import { cellOf, inCell } from "../test-support/library-cell";
 import { readSeedBlocks, storeBodyText, storeSeed } from "./cell-body";
-import { cellStorageOf } from "./cell-storage";
-import type { CellStorage } from "./cell-storage";
+import { cellDbOf } from "./cell-db";
+import type { CellDb } from "./cell-db";
 
 const leaf: [{ text: "" }] = [{ text: "" }];
 
-// a fresh cell's storage, every raw statement its plans run recorded; drizzle's go to the cell
-// unrecorded, and the cell itself holds every statement to a Durable Object's limits
+// a fresh cell's handle, every statement it runs recorded as drizzle writes it; the cell itself
+// holds every statement to a Durable Object's limits
 interface Library {
-  readonly storage: CellStorage;
-  readonly statements: SqlStatement[];
+  readonly db: CellDb;
+  readonly statements: string[];
 }
 
 const inLibrary = async (work: (library: Library) => void): Promise<void> => {
   await inCell(cellOf(), (state) => {
-    const storage = cellStorageOf(state.storage);
-    const statements: SqlStatement[] = [];
-    work({
-      statements,
-      storage: {
-        ...storage,
-        all: (sql, params) => {
-          statements.push({ params, sql });
-          return storage.all(sql, params);
-        },
-        run: (sql, params) => {
-          statements.push({ params, sql });
-          storage.run(sql, params);
-        },
+    const statements: string[] = [];
+    const db = cellDbOf(state.storage, {
+      logQuery: (statement) => {
+        statements.push(statement);
       },
     });
+    work({ db, statements });
   });
 };
 
@@ -83,11 +73,11 @@ const itemOf = (
 
 // a row, then its seed and derived rows under it, as the cell lays an item; null when the row held
 // is as new or newer
-const offer = (storage: CellStorage, id: string, state: Laid, seq: number) =>
-  storage.transaction(() => {
+const offer = (db: CellDb, id: string, state: Laid, seq: number) =>
+  db.$client.transactionSync(() => {
     const body = deriveBody(state.blocks);
     const derived = deriveItem(state.fields, body.digest);
-    const landed = storeItemRow(storage.db, {
+    const landed = storeItemRow(db, {
       body: { bytes: 0, digest: body.digest, home: "seed", version: 0 },
       card: derived.card,
       fields: state.fields,
@@ -99,22 +89,22 @@ const offer = (storage: CellStorage, id: string, state: Laid, seq: number) =>
     if (!landed) {
       return null;
     }
-    storeSeed(storage.db, id, state.blocks);
-    storeBodyText(storage.db, id, body.text);
-    storeLinks(storage.db, id, body.links);
-    storeTags(storage.db, id, derived.tags);
-    storeSearchRow(storage, id, { ...derived.search, body: body.text });
+    storeSeed(db, id, state.blocks);
+    storeBodyText(db, id, body.text);
+    storeLinks(db, id, body.links);
+    storeTags(db, id, derived.tags);
+    storeSearchRow(db, id, { ...derived.search, body: body.text });
     return derived;
   });
 
 // an item's fields and seed as the cell holds them
-const laidOf = (storage: CellStorage, id: string): Laid | null => {
-  const item = readLiveItem(storage.db, id);
-  return item === null ? null : { blocks: readSeedBlocks(storage.db, id), fields: item.fields };
+const laidOf = (db: CellDb, id: string): Laid | null => {
+  const item = readLiveItem(db, id);
+  return item === null ? null : { blocks: readSeedBlocks(db, id), fields: item.fields };
 };
 
-const put = (storage: CellStorage, id: string, state: Laid, seq = 1) => {
-  const derived = offer(storage, id, state, seq);
+const put = (db: CellDb, id: string, state: Laid, seq = 1) => {
+  const derived = offer(db, id, state, seq);
   if (derived === null) {
     throw new Error(`the row of ${id} at ${String(seq)} did not land`);
   }
@@ -137,13 +127,13 @@ const linkTo = (itemId: string | null, title: string): LibraryBlock => ({
 
 describe("items", () => {
   it("stores an item whole and reads it back as written", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       const state = itemOf(
         [paragraph("a", "first"), paragraph("b", "second")],
         noteFixture({ aliases: ["Alt"], properties: { rating: 4 }, tags: ["work"] }),
       );
-      const derived = put(storage, "item-1", state);
-      expect(readItem(storage.db, "item-1")).toStrictEqual({
+      const derived = put(db, "item-1", state);
+      expect(readItem(db, "item-1")).toStrictEqual({
         body: {
           bytes: 0,
           digest: deriveBody(state.blocks).digest,
@@ -158,25 +148,25 @@ describe("items", () => {
         updatedAt: 1_700_000_000_001,
         urlKey: null,
       });
-      expect(laidOf(storage, "item-1")).toStrictEqual(state);
+      expect(laidOf(db, "item-1")).toStrictEqual(state);
     });
   });
 
   it("keeps the newer item whole when an older one arrives: row, body, links, tags and index", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       const newer = itemOf(
         [linkTo("target", "Target"), paragraph("a", "newer words")],
         noteFixture({ tags: ["fresh"], title: "Newer" }),
       );
-      put(storage, "item-1", newer, 5);
+      put(db, "item-1", newer, 5);
       const older = itemOf(
         [paragraph("a", "older words")],
         noteFixture({ tags: ["stale"], title: "Older" }),
       );
-      expect(offer(storage, "item-1", older, 3)).toBeNull();
-      expect(offer(storage, "item-1", older, 5)).toBeNull();
+      expect(offer(db, "item-1", older, 3)).toBeNull();
+      expect(offer(db, "item-1", older, 5)).toBeNull();
       expect(
-        storeItemRow(storage.db, {
+        storeItemRow(db, {
           body: { bytes: 0, digest: deriveBody(older.blocks).digest, home: "seed", version: 0 },
           card: deriveItem(older.fields, deriveBody(older.blocks).digest).card,
           fields: older.fields,
@@ -186,79 +176,67 @@ describe("items", () => {
           urlKey: null,
         }),
       ).toBe(false);
-      expect(laidOf(storage, "item-1")).toStrictEqual(newer);
-      expect(searchLibrary(storage, "older", 10)).toStrictEqual([]);
-      expect(searchLibrary(storage, "newer", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "item-1",
-      ]);
+      expect(laidOf(db, "item-1")).toStrictEqual(newer);
+      expect(searchLibrary(db, "older", 10)).toStrictEqual([]);
+      expect(searchLibrary(db, "newer", 10).map((hit) => hit.itemId)).toStrictEqual(["item-1"]);
       expect(
-        storage.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"]),
+        db.all(sql`SELECT tag, origin FROM item_tags WHERE item_id = ${"item-1"}`),
       ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
-      expect(linksTo(storage.db, "target")).toStrictEqual(["item-1"]);
+      expect(linksTo(db, "target")).toStrictEqual(["item-1"]);
     });
   });
 
   it("reads every item that is not purged, by id", async () => {
-    await inLibrary(({ storage }) => {
-      put(storage, "b", itemOf([], noteFixture({ title: "B" })));
-      put(storage, "a", itemOf([], noteFixture({ title: "A" })));
-      put(storage, "c", itemOf([], noteFixture({ title: "C" })));
-      storeTombstone(storage, { deletedAt: 7, id: "c", seq: 9, updatedAt: 8 });
-      expect(readListingRows(storage.db).map((row) => row.id)).toStrictEqual(["a", "b"]);
+    await inLibrary(({ db }) => {
+      put(db, "b", itemOf([], noteFixture({ title: "B" })));
+      put(db, "a", itemOf([], noteFixture({ title: "A" })));
+      put(db, "c", itemOf([], noteFixture({ title: "C" })));
+      storeTombstone(db, { deletedAt: 7, id: "c", seq: 9, updatedAt: 8 });
+      expect(readListingRows(db).map((row) => row.id)).toStrictEqual(["a", "b"]);
     });
   });
 
   it("holds one live item per address", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       const link = noteFixture({ kind: "link", url: "https://example.com/a" });
-      put(storage, "first", itemOf([], link));
+      put(db, "first", itemOf([], link));
       expect(() =>
-        put(storage, "second", itemOf([], { ...link, url: "https://www.example.com/a" })),
+        put(db, "second", itemOf([], { ...link, url: "https://www.example.com/a" })),
       ).toThrow(
         expect.objectContaining({
           cause: expect.objectContaining({ message: expect.stringMatching(/UNIQUE/u) }),
         }),
       );
-      put(storage, "first", itemOf([], { ...link, deletedAt: 9 }), 2);
-      expect(() => put(storage, "second", itemOf([], link))).not.toThrow();
+      put(db, "first", itemOf([], { ...link, deletedAt: 9 }), 2);
+      expect(() => put(db, "second", itemOf([], link))).not.toThrow();
     });
   });
 
   it("purges an item to a tombstone that keeps its id and drops everything it held", async () => {
-    await inLibrary(({ storage }) => {
-      put(
-        storage,
-        "gone",
-        itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] })),
-      );
-      storeTombstone(storage, { deletedAt: 7, id: "gone", seq: 2, updatedAt: 8 });
-      expect(readItem(storage.db, "gone")).toStrictEqual({
+    await inLibrary(({ db }) => {
+      put(db, "gone", itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] })));
+      storeTombstone(db, { deletedAt: 7, id: "gone", seq: 2, updatedAt: 8 });
+      expect(readItem(db, "gone")).toStrictEqual({
         deletedAt: 7,
         id: "gone",
         kind: "purged",
         seq: 2,
         updatedAt: 8,
       });
-      expect(readSeedBlocks(storage.db, "gone")).toStrictEqual([]);
-      expect(searchLibrary(storage, "findable", 10)).toStrictEqual([]);
-      expect(storage.all("SELECT count(*) AS n FROM item_tags", [])).toStrictEqual([{ n: 0 }]);
+      expect(readSeedBlocks(db, "gone")).toStrictEqual([]);
+      expect(searchLibrary(db, "findable", 10)).toStrictEqual([]);
+      expect(db.all(sql`SELECT count(*) AS n FROM item_tags`)).toStrictEqual([{ n: 0 }]);
     });
   });
 
   it("lays no tombstone over a newer row, which keeps everything it holds", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       const state = itemOf([paragraph("a", "findable words")], noteFixture({ tags: ["work"] }));
-      put(storage, "kept", state, 5);
-      expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(
-        false,
-      );
-      expect(laidOf(storage, "kept")).toStrictEqual(state);
-      expect(searchLibrary(storage, "findable", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "kept",
-      ]);
-      expect(storeTombstone(storage, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(
-        true,
-      );
+      put(db, "kept", state, 5);
+      expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(false);
+      expect(laidOf(db, "kept")).toStrictEqual(state);
+      expect(searchLibrary(db, "findable", 10).map((hit) => hit.itemId)).toStrictEqual(["kept"]);
+      expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(true);
     });
   });
 
@@ -322,9 +300,9 @@ describe("items", () => {
     ];
     expect(blocks.every((block) => storableBlockSchema.validate(block))).toBe(true);
     const id = "0190a3f2-7c4e-7d1a-9b2c-3e4f5a6b7c8d";
-    await inLibrary(({ storage }) => {
-      put(storage, id, itemOf(blocks, fields));
-      const row = storage.db.select().from(itemRows).where(eq(itemRows.id, id)).get();
+    await inLibrary(({ db }) => {
+      put(db, id, itemOf(blocks, fields));
+      const row = db.select().from(itemRows).where(eq(itemRows.id, id)).get();
       // each value as its text and eight bytes more: past what SQLite stores, a number in eight
       // bytes at most and a string as its UTF-8 behind a short header
       const rowBytes = Object.values(row ?? {}).reduce<number>(
@@ -339,43 +317,43 @@ describe("items", () => {
 
 describe("seeds", () => {
   it("keeps many blocks in statements a Durable Object takes, reads them in order, and replaces them whole", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       const blocks = Array.from({ length: 600 }, (_, index) =>
         paragraph(`b${String(index)}`, `text ${String(index)}`),
       );
       const state = itemOf(blocks);
-      put(storage, "long", state);
-      expect(readSeedBlocks(storage.db, "long")).toStrictEqual(state.blocks);
+      put(db, "long", state);
+      expect(readSeedBlocks(db, "long")).toStrictEqual(state.blocks);
       const shorter = itemOf(blocks.slice(40));
-      storeSeed(storage.db, "long", shorter.blocks);
-      expect(readSeedBlocks(storage.db, "long")).toStrictEqual(shorter.blocks);
+      storeSeed(db, "long", shorter.blocks);
+      expect(readSeedBlocks(db, "long")).toStrictEqual(shorter.blocks);
     });
   });
 });
 
 describe("search", () => {
   it("ranks a title above a body, finds a stem and a half-typed word, and skips Deleted", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       put(
-        storage,
+        db,
         "titled",
         itemOf([paragraph("a", "nothing here")], noteFixture({ title: "Gardening" })),
       );
       put(
-        storage,
+        db,
         "body",
         itemOf([paragraph("a", "notes on gardening tools")], noteFixture({ title: "Misc" })),
       );
       put(
-        storage,
+        db,
         "gone",
         itemOf([paragraph("a", "gardening")], noteFixture({ deletedAt: 1, title: "Old" })),
       );
-      expect(searchLibrary(storage, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
+      expect(searchLibrary(db, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
         "titled",
         "body",
       ]);
-      expect(searchLibrary(storage, "garden", 10).map((hit) => hit.itemId)).toStrictEqual([
+      expect(searchLibrary(db, "garden", 10).map((hit) => hit.itemId)).toStrictEqual([
         "titled",
         "body",
       ]);
@@ -390,9 +368,9 @@ describe("search", () => {
       const row = searchRowOf({ body: huge, headings: "", meta: "", title: "t" });
       expect(searchRowBytes(row)).toBeLessThanOrEqual(SEARCH_ROW_MAX_BYTES);
       expect(row.body.length).toBeGreaterThan(500_000);
-      await inLibrary(({ storage }) => {
+      await inLibrary(({ db }) => {
         put(
-          storage,
+          db,
           "huge",
           itemOf(
             Array.from({ length: 12 }, (_, index) =>
@@ -400,7 +378,7 @@ describe("search", () => {
             ),
           ),
         );
-        expect(searchLibrary(storage, "word", 1).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
+        expect(searchLibrary(db, "word", 1).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
       });
     },
   );
@@ -408,39 +386,39 @@ describe("search", () => {
 
 describe(literalMatches, () => {
   it("names each live item whose body holds the text, ascii case folded, with its first such line", async () => {
-    await inLibrary(({ statements, storage }) => {
+    await inLibrary(({ db, statements }) => {
       put(
-        storage,
+        db,
         "one",
         itemOf(
           [paragraph("z", "The Quick fox"), paragraph("b", "jumps"), paragraph("a", "quick again")],
           noteFixture({ title: "One" }),
         ),
       );
-      put(storage, "two", itemOf([paragraph("a", "slow")], noteFixture({ title: "Two" })));
-      put(storage, "gone", itemOf([paragraph("a", "quick")], noteFixture({ deletedAt: 1 })));
-      expect(literalMatches(storage, "QUICK", { after: null, limit: 10 })).toStrictEqual([
+      put(db, "two", itemOf([paragraph("a", "slow")], noteFixture({ title: "Two" })));
+      put(db, "gone", itemOf([paragraph("a", "quick")], noteFixture({ deletedAt: 1 })));
+      expect(literalMatches(db, "QUICK", { after: null, limit: 10 })).toStrictEqual([
         { itemId: "one", text: "The Quick fox" },
       ]);
       expect(
-        statements.some((statement) => /instr\(lower\(t\.text\), \?\)/u.test(statement.sql)),
+        statements.some((statement) => statement.includes(`instr(lower("body_texts"."text"), ?)`)),
       ).toBe(true);
     });
   });
 
   it("pages through the items in id order, reading no more of them than a page asks", async () => {
-    await inLibrary(({ statements, storage }) => {
+    await inLibrary(({ db, statements }) => {
       for (const id of ["c", "a", "d", "b"]) {
-        put(storage, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
+        put(db, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
       }
       const before = statements.length;
-      const first = literalMatches(storage, "xyzzy", { after: null, limit: 3 });
+      const first = literalMatches(db, "xyzzy", { after: null, limit: 3 });
       expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
       const reads = statements
         .slice(before)
-        .filter((statement) => statement.sql.startsWith("SELECT text FROM body_texts"));
+        .filter((statement) => statement.startsWith(`select "text" from "body_texts"`));
       expect(reads).toHaveLength(3);
-      expect(literalMatches(storage, "xyzzy", { after: "c", limit: 3 })).toStrictEqual([
+      expect(literalMatches(db, "xyzzy", { after: "c", limit: 3 })).toStrictEqual([
         { itemId: "d", text: "item d holds xyzzy" },
       ]);
     });
@@ -449,14 +427,14 @@ describe(literalMatches, () => {
 
 describe("links", () => {
   it("answers backlinks by id and Linked from by address, and holds no row for a link to no item", async () => {
-    await inLibrary(({ storage }) => {
+    await inLibrary(({ db }) => {
       put(
-        storage,
+        db,
         "target",
         itemOf([], noteFixture({ kind: "link", title: "Target", url: "https://example.com/t" })),
       );
       put(
-        storage,
+        db,
         "source",
         itemOf([
           linkTo("target", "Target"),
@@ -468,10 +446,10 @@ describe("links", () => {
           },
         ]),
       );
-      expect(linksTo(storage.db, "target")).toStrictEqual(["source"]);
-      expect(linksToUrl(storage.db, "example.com/t")).toStrictEqual(["source"]);
+      expect(linksTo(db, "target")).toStrictEqual(["source"]);
+      expect(linksToUrl(db, "example.com/t")).toStrictEqual(["source"]);
       expect(
-        storage.all("SELECT target_id, target_key FROM links ORDER BY target_key", []),
+        db.all(sql`SELECT target_id, target_key FROM links ORDER BY target_key`),
       ).toStrictEqual([
         { target_id: "target", target_key: null },
         { target_id: null, target_key: "example.com/t" },
@@ -482,14 +460,14 @@ describe("links", () => {
 
 describe("meta", () => {
   it("counts the head up one write at a time and keeps meta values as they were written", async () => {
-    await inLibrary(({ storage }) => {
-      expect(nextHead(storage.db)).toBe(1);
-      expect(nextHead(storage.db)).toBe(2);
-      writeMeta(storage.db, "deleted_at", 7);
-      writeMeta(storage.db, "rules", "42");
-      expect(readMeta(storage.db, "deleted_at")).toBe(7);
-      expect(readMeta(storage.db, "rules")).toBe("42");
-      expect(readMeta(storage.db, "missing")).toBeNull();
+    await inLibrary(({ db }) => {
+      expect(nextHead(db)).toBe(1);
+      expect(nextHead(db)).toBe(2);
+      writeMeta(db, "deleted_at", 7);
+      writeMeta(db, "rules", "42");
+      expect(readMeta(db, "deleted_at")).toBe(7);
+      expect(readMeta(db, "rules")).toBe("42");
+      expect(readMeta(db, "missing")).toBeNull();
     });
   });
 });

@@ -37,6 +37,7 @@ import { ended, runAlarmsUntil, startImport } from "../test-support/library-file
 import { issueToken } from "../test-support/password-reset";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
+  cellIn,
   cellOf,
   createItem,
   inCell,
@@ -45,7 +46,6 @@ import {
   placed,
 } from "../test-support/library-cell";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
-import { openCellLibrary, settleCommit } from "./cell-library";
 import { CELL_SOCKET_PATH } from "./cell-sockets";
 import { libraryCellName } from "./library-cell";
 import { forwardAsPrincipal, SOCKET_HOLDER_HEADER } from "./library-principal";
@@ -123,18 +123,16 @@ const signedInTab = async (email: string) => {
   return { cookie, opened: await openWithTicket(ticket) };
 };
 
-// a write through the cell's engine, followed by what follows every committed write: the item it
-// made, at the sequence it holds
+// a write through the cell's engine, which tells the sockets itself: the item it made, at the
+// sequence it holds
 const writeInCell = async (accountId: string): Promise<{ id: string; seq: number }> =>
-  await inCell(cellOf(accountId), async (state) => {
-    const library = openCellLibrary(state, env);
+  await inCell(cellOf(accountId), (state) => {
     const id = crypto.randomUUID();
-    const result = createItem(library, person(), {
+    const result = createItem(cellIn(state).library, person(), {
       blocks: placed([paragraph("a", "a new note")]),
       fields: noteFixture(),
       id,
     });
-    await settleCommit(state, env, library, result);
     return { id, seq: landedValue(result).item.seq };
   });
 
@@ -372,7 +370,11 @@ describe("the account's socket", () => {
     const opened = await openWithTicket(ticket);
     await inCell(cellOf(accountId), async (state) => {
       const tombstone = ACCOUNT_PURGE_STEPS.find((step) => step.name === "tombstone");
-      await tombstone?.run({ accountId, ctx: state, email: "socket-deleted@example.test", env });
+      await tombstone?.run({
+        cell: cellIn(state),
+        ctx: state,
+        email: "socket-deleted@example.test",
+      });
     });
     await expect(opened.closed).resolves.toBe(1001);
     const refused = await drained(
@@ -503,22 +505,29 @@ describe("the moved frame", () => {
     expect(undone?.items).toStrictEqual([{ id: item.id, seq: expect.any(Number) }]);
   });
 
-  it("says everything moved once the alarm's import landed its pages", async () => {
+  it("names what an alarm's run moved in one frame, an import's page of items among them", async () => {
     const { accountId, ticket } = await signedInPhone("moved-import@example.test");
     const opened = await openWithTicket(ticket);
     const started = await startImport(
       accountId,
       { bytes: new TextEncoder().encode(RAINDROP_EXPORT), mime: "text/csv" },
       "raindrop",
-      true,
+      "platform",
     );
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
-    await until(() => movedOf(opened).length > 0);
-    expect(movedOf(opened)).toContainEqual({
-      folders: true,
-      items: "all",
-      threads: "all",
-      type: "moved",
-    });
+    const landed = await inCell(cellOf(accountId), (state) =>
+      state.storage.sql.exec("SELECT id, seq FROM items ORDER BY seq").toArray(),
+    );
+    expect(landed.length).toBeGreaterThan(1);
+    await until(() => movedOf(opened).some((frame) => frame.items.length > 0));
+    // the page's items in the one frame its run told, and no thread, since none moved
+    expect(movedOf(opened).filter((frame) => frame.items.length > 0)).toStrictEqual([
+      {
+        folders: true,
+        items: landed.map((row) => itemRowSchema.parse(row)),
+        threads: [],
+        type: "moved",
+      },
+    ]);
   });
 });

@@ -23,6 +23,7 @@ import { urlKey } from "@repo/contract/items/item-url";
 import { withArticle } from "../note/article-body";
 import { readSeedBlocks } from "./cell-body";
 import type { CellCodec } from "./cell-codec";
+import type { CellDb } from "./cell-db";
 import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landItem, urlHolder } from "./cell-landing";
@@ -40,7 +41,7 @@ export interface SavedItem {
 // the live item a url's key names, if one does
 const heldItem = (scope: LandingScope, url: string): { readonly id: string } | null => {
   const key = urlKey(url);
-  return key === null ? null : urlHolder(scope.storage.db, key, null);
+  return key === null ? null : urlHolder(scope.db, key, null);
 };
 
 export interface SaveInput {
@@ -130,7 +131,7 @@ export const landRead = (
     before: item,
     fields: outcome.fields,
     itemId: item.id,
-    seed: withArticle(readSeedBlocks(scope.storage.db, item.id), page.article),
+    seed: withArticle(readSeedBlocks(scope.db, item.id), page.article),
   });
 };
 
@@ -142,13 +143,10 @@ const awaitsRead = (item: LiveStoredItem): boolean => {
 
 // the item a device's read of `url` would land on, its article bound for the item's note: one that
 // holds the address, waits for its page and has opened its note
-export const pageForNote = (
-  scope: Pick<LandingScope, "storage">,
-  url: string,
-): LiveStoredItem | null => {
+export const pageForNote = (db: CellDb, url: string): LiveStoredItem | null => {
   const key = urlKey(url);
-  const holder = key === null ? null : urlHolder(scope.storage.db, key, null);
-  const item = holder === null ? null : readLiveItem(scope.storage.db, holder.id);
+  const holder = key === null ? null : urlHolder(db, key, null);
+  const item = holder === null ? null : readLiveItem(db, holder.id);
   return item !== null && item.body.home === "note" && awaitsRead(item) ? item : null;
 };
 
@@ -164,7 +162,7 @@ export const savePage = (
   if (held === null) {
     return { created: true, item: newPage(scope, input, noteOf(scope, codec, input.note)) };
   }
-  const item = readLiveItem(scope.storage.db, held.id);
+  const item = readLiveItem(scope.db, held.id);
   return item !== null && input.article.length > 0 && awaitsRead(item)
     ? {
         created: false,

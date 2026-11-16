@@ -7,7 +7,8 @@ import {
   cellOf,
   clockAt,
   createItem,
-  engineIn,
+  cellIn,
+  headOf,
   inCell,
   landedValue,
   person,
@@ -68,7 +69,7 @@ const png = (bytes: number) => ({ bytes, mime: "image/png" });
 describe("a write to the library cell", () => {
   it("lands each field only over the value it was read at, and answers a stale one with the field as it is", async () => {
     await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const itemId = newItemId();
       const made = landedValue(
         createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -91,7 +92,7 @@ describe("a write to the library cell", () => {
       });
       expect(refusalOf(stale)).toStrictEqual({ kind: "conflict" });
       // the whole write landed nothing: the head did not move, and the description is as it was
-      expect(library.head()).toBe(2);
+      expect(headOf(library)).toBe(2);
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { description: null, title: "Edited" },
       });
@@ -100,7 +101,7 @@ describe("a write to the library cell", () => {
 
   it("merges two writers' edits to different fields with no conflict", async () => {
     await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const itemId = newItemId();
       landedValue(
         createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -120,7 +121,7 @@ describe("a write to the library cell", () => {
 
   it("answers a resend by its op id with what landed, and moves nothing", async () => {
     await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const itemId = newItemId();
       const opId = crypto.randomUUID();
       const first = createItem(library, person(), {
@@ -136,8 +137,8 @@ describe("a write to the library cell", () => {
         opId,
       });
       expect(landedValue(first).item.seq).toBe(1);
-      expect(again).toStrictEqual({ moved: null, ok: true, value: landedValue(first) });
-      expect(library.head()).toBe(1);
+      expect(again).toStrictEqual({ ok: true, value: landedValue(first) });
+      expect(headOf(library)).toBe(1);
     });
   });
 
@@ -154,7 +155,7 @@ describe("a write to the library cell", () => {
         "statement too long",
       );
 
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const itemId = newItemId();
       const blocks = Array.from({ length: 2000 }, (_, index) =>
         paragraph(`p${String(index)}`, `line ${String(index)}`),
@@ -173,7 +174,7 @@ describe("a write to the library cell", () => {
   // its text is past 8 MiB on purpose
   it("refuses an item's text past 8 MiB as too large", { timeout: 30_000 }, async () => {
     await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const line = "x".repeat(500 * 1024);
       const blocks = Array.from({ length: 17 }, (_, index) => paragraph(`p${String(index)}`, line));
       expect(17 * line.length).toBeGreaterThan(ITEM_TEXT_MAX_BYTES);
@@ -183,19 +184,19 @@ describe("a write to the library cell", () => {
         id: newItemId(),
       });
       expect(refusalOf(refused)).toStrictEqual({ kind: "too-large" });
-      expect(library.head()).toBe(0);
+      expect(headOf(library)).toBe(0);
     });
   });
 
   it("refuses only a new item past the account's cap, with what it holds", async () => {
     await inCell(cellOf(), (state) => {
-      const roomy = engineIn(state, clockAt());
+      const roomy = cellIn(state, { clock: clockAt() }).library;
       const itemId = newItemId();
       landedValue(
         createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
       );
       const bytesCap = state.storage.sql.databaseSize + 1024;
-      const library = engineIn(state, clockAt(), bytesCap);
+      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
       const long = "y".repeat(8 * 1024);
       // a person never loses words to the cap in an item already there
       landedValue(
@@ -231,7 +232,7 @@ describe("a write to the library cell", () => {
 
   it("keeps a full library tidy: stamps, places and a shorter field land past the cap", async () => {
     await inCell(cellOf(), (state) => {
-      const roomy = engineIn(state, clockAt());
+      const roomy = cellIn(state, { clock: clockAt() }).library;
       const itemId = newItemId();
       const title = "a title long enough to shorten";
       landedValue(
@@ -241,7 +242,7 @@ describe("a write to the library cell", () => {
           id: itemId,
         }),
       );
-      const library = engineIn(state, clockAt(), 1);
+      const { library } = cellIn(state, { bytesCap: 1, clock: clockAt() });
       const landing = (ops: readonly FieldOp[]) =>
         landedValue(library.write(FILL_ACTOR, { itemId, ops }));
       landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
@@ -258,7 +259,7 @@ describe("a write to the library cell", () => {
 
   it("refuses a write naming a file the library does not hold, and lands it once the file is in", async () => {
     await inCell(cellOf(), (state) => {
-      const library = engineIn(state, clockAt());
+      const { library } = cellIn(state, { clock: clockAt() });
       const itemId = newItemId();
       landedValue(
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -286,7 +287,7 @@ describe("a write to the library cell", () => {
   it("holds room for an upload against the cap, and lets it go when nothing landed", async () => {
     await inCell(cellOf(), (state) => {
       const bytesCap = state.storage.sql.databaseSize + 1000;
-      const library = engineIn(state, clockAt(), bytesCap);
+      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
       const sha = "b".repeat(64);
       expect(refusalOf(library.reserve({ bytes: 5000, mime: "image/png", sha }))).toMatchObject({
         bytesCap,
@@ -308,7 +309,7 @@ describe("a write to the library cell", () => {
   it("lets a refused upload's room go, takes its bytes out of R2, and lands the sha only once they are out", async () => {
     await inCell(cellOf(), (state) => {
       const bytesCap = state.storage.sql.databaseSize + 100_000;
-      const library = engineIn(state, clockAt(), bytesCap);
+      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
       const sha = "e".repeat(64);
       landedValue(library.reserve({ ...png(500), sha }));
       expect(refusalOf(library.settle(sha, png(200_000), library.blobRemovals()))).toMatchObject({
@@ -328,7 +329,6 @@ describe("a write to the library cell", () => {
       expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
       expect(settled).toStrictEqual({
-        moved: null,
         ok: true,
         value: { settled: true },
       });
@@ -338,7 +338,7 @@ describe("a write to the library cell", () => {
   it("takes out of R2 what an upload left once its room is let go, unless the sha is held again", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const [kept, retried] = ["f".repeat(64), "0".repeat(64)];
       for (const sha of [kept, retried]) {
         landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }));
@@ -371,7 +371,7 @@ describe("change sets and undo", () => {
   it("joins a person's writes into one set until 15 s of quiet, then seals it with its after", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { alarmAt, library } = cellIn(state, { clock });
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -389,7 +389,7 @@ describe("change sets and undo", () => {
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBeNull();
       expect(after()).toBeNull();
-      expect(library.nextJobAt()).toBe(start + 25_000);
+      expect(alarmAt()).toBe(start + 25_000);
       clock.now = start + 25_000;
       library.runDueJobs(() => {});
       expect(sets()[0]?.sealed_at).toBe(start + 25_000);
@@ -400,7 +400,7 @@ describe("change sets and undo", () => {
   it("seals a person's set a minute after its first write however busy, and opens the next", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { alarmAt, library } = cellIn(state, { clock });
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -413,7 +413,7 @@ describe("change sets and undo", () => {
         retitle(library, person(), itemId, title, next);
         title = next;
       }
-      expect(library.nextJobAt()).toBe(start + 60_000);
+      expect(alarmAt()).toBe(start + 60_000);
       clock.now = start + 60_000;
       library.runDueJobs(() => {});
       clock.now = start + 61_000;
@@ -431,7 +431,7 @@ describe("change sets and undo", () => {
   it("undoes sets newest first in one of its own, keeps an item edited since, and refuses a second undo", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const kept = newItemId();
       const undone = newItemId();
       for (const id of [kept, undone]) {
@@ -466,7 +466,7 @@ describe("change sets and undo", () => {
     it("leaves the set undoable, opens no set of its own, and lands once the edit since is gone", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
-        const library = engineIn(state, clock);
+        const { library } = cellIn(state, { clock });
         const itemId = newItemId();
         landedValue(
           createItem(library, FILL_ACTOR, {
@@ -502,7 +502,7 @@ describe("change sets and undo", () => {
     it("marks only the sets that took something back when one undo names several", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();
-        const library = engineIn(state, clock);
+        const { library } = cellIn(state, { clock });
         const [held, back] = [newItemId(), newItemId()];
         for (const id of [held, back]) {
           landedValue(
@@ -531,7 +531,7 @@ describe("change sets and undo", () => {
   it("waits while another item holds the address, and lands once it no longer does", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const url = "https://example.com/one";
       const gone = newItemId();
       const holder = newItemId();
@@ -576,7 +576,7 @@ describe("change sets and undo", () => {
   it("writes each set's after when its state stops being the item's, so each is the item as that set left it", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -620,7 +620,7 @@ describe("change sets and undo", () => {
   it("takes an item a set made to Deleted when its set is undone", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const itemId = newItemId();
       landedValue(
         createItem(library, person(), { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -637,7 +637,7 @@ describe("change sets and undo", () => {
   it("empties Deleted: the item stays a tombstone, and what its change sets kept goes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       const itemId = newItemId();
       landedValue(
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFixture(), id: itemId }),
@@ -667,7 +667,7 @@ describe("the cell's alarm", () => {
   it("drops a job whose payload its kind no longer reads, so no run fails on it again", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
-      const library = engineIn(state, clock);
+      const { library } = cellIn(state, { clock });
       for (const [id, kind] of [
         ["seal:unread", "seal"],
         ["stray:unread", "stray"],

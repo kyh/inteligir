@@ -44,7 +44,7 @@ const live = (row: FolderRow | null): FolderRow | null => (row?.deletedAt === nu
 
 const storeFolder = (scope: LandingScope, row: Omit<FolderRow, "seq">): FolderRow => {
   const folder = { ...row, seq: scope.seq() };
-  scope.storage.db
+  scope.db
     .insert(folders)
     .values(folder)
     .onConflictDoUpdate({
@@ -83,7 +83,7 @@ const readerOf = (db: CellDb): FolderReader => ({
 // answer is each folder the write changed, as it left it
 export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): FolderRow[] => {
   const landed = new Map<string, FolderRow>();
-  const reader = readerOf(scope.storage.db);
+  const reader = readerOf(scope.db);
   for (const op of ops) {
     const refusal = folderOpRefusal(reader, op);
     if (refusal !== null) {
@@ -107,7 +107,7 @@ export const folderOfTarget = (
   if (target === undefined || target === null) {
     return target;
   }
-  const { db } = scope.storage;
+  const { db } = scope;
   if ("id" in target) {
     return live(readFolder(db, target.id)) === null ? refuse({ kind: "not-found" }) : target.id;
   }

@@ -12,8 +12,8 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 
 import { logRpcFailure } from "../wire/rpc-log";
+import type { CellContext } from "./library-orpc";
 import { libraryRouter } from "./library-router";
-import type { CellContext } from "./library-router";
 
 export const V1_LIBRARY_RPC_PATH = `${V1_RPC_PATH}/library` as const;
 

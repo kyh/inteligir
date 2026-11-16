@@ -4,53 +4,31 @@
 
 import { BLOCK_MAX_BYTES } from "@repo/contract/library/library-nodes";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
-import { createRouterClient } from "@orpc/server";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
-  agentCellIn,
+  cellIn,
   cellOf,
   clockAt,
   createItem,
-  engineIn,
   inCell,
   landedValue,
-  notesIn,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { FILL_ACTOR } from "./cell-fills";
 import { addFileBytes } from "./cell-quota";
-import { cellStorageOf } from "./cell-storage";
-import { cellActorOf } from "./library-principal";
-import type { NamedPrincipal } from "./library-principal";
-import { libraryRouter } from "./library-router";
+import { cellDbOf } from "./cell-db";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;
 
-const laptop = (accountId: string): NamedPrincipal => ({
-  accountId,
-  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
-});
-
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
-const clientIn = (state: DurableObjectState, clock: Clock, principal = laptop("account")) => {
-  const library = engineIn(state, clock);
-  return createRouterClient(libraryRouter, {
-    context: {
-      agent: agentCellIn(state, library, { clock }),
-      library,
-      actor: () => cellActorOf(principal),
-      notes: notesIn(state),
-      settle: async (result) => result,
-    },
-  });
-};
+const clientIn = (state: DurableObjectState, clock: Clock) => cellIn(state, { clock }).client;
 
 // the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {
@@ -188,7 +166,7 @@ describe("the library's procedures", () => {
       const library = clientIn(state, clockAt());
       const url = "https://example.com/refuses";
       const { item: failed } = landedValue(
-        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
             fetchError: "The site refused the read.",
@@ -235,7 +213,7 @@ describe("the library's procedures", () => {
 
       // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
       const { item: failed } = landedValue(
-        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
+        createItem(cellIn(state, { clock: clockAt() }).library, FILL_ACTOR, {
           blocks: [],
           fields: noteFixture({
             fetchError: "The site refused the read.",
@@ -652,7 +630,7 @@ describe("the library's procedures", () => {
       ).resolves.toStrictEqual({ code: "CONFLICT", data: undefined, defined: true });
 
       // a full library still takes words in an item it holds, and refuses only a new one
-      addFileBytes(cellStorageOf(state.storage).db, GiB);
+      addFileBytes(cellDbOf(state.storage), GiB);
       await library.items.edit({
         edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
         id: item.id,
@@ -797,19 +775,12 @@ describe("the library's procedures", () => {
 
   it("refuses a send to an agent this deployment has no Claude for, charging nothing, and reads the account's threads", async () => {
     await inCell(cellOf(), async (state) => {
-      const clock = clockAt();
-      const library = engineIn(state, clock);
       // a deployment with neither the scripted API nor a gateway
       const unconfigured: Env = { ...env, AGENT_GATEWAY_URL: "", ANTHROPIC_FAKE_URL: undefined };
-      const { agent } = createRouterClient(libraryRouter, {
-        context: {
-          actor: () => cellActorOf(laptop("account")),
-          agent: agentCellIn(state, library, { clock, env: unconfigured }),
-          library,
-          notes: notesIn(state),
-          settle: async (result) => result,
-        },
-      });
+      const { agent } = cellIn(state, {
+        clock: clockAt(),
+        env: unconfigured,
+      }).client;
       const threadId = crypto.randomUUID();
       await expect(refusalOf(agent.send({ text: "Tidy my library." }))).resolves.toMatchObject({
         code: "SERVICE_UNAVAILABLE",

@@ -24,8 +24,8 @@ import {
 import type { AuthInfo, McpHttpHandler } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import type { CellContext } from "../library/library-orpc";
 import { libraryRouter } from "../library/library-router";
-import type { CellContext } from "../library/library-router";
 import {
   changesLibrary,
   isConnectorPrincipal,

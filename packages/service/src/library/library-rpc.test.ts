@@ -7,36 +7,15 @@ import type { V1Client } from "@repo/contract/v1";
 import { V1_RPC_PATH } from "@repo/contract/v1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  agentCellIn,
-  cellOf,
-  clockAt,
-  engineIn,
-  inCell,
-  notesIn,
-} from "../test-support/library-cell";
-import { cellActorOf } from "./library-principal";
-import type { NamedPrincipal } from "./library-principal";
+import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 import { isOrpcError } from "@repo/contract/v1/errors";
 
 const ORIGIN = "https://cell.test";
 
-const PRINCIPAL: NamedPrincipal = {
-  accountId: "account",
-  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
-};
-
 // the library's rows over the cell's handler, with a cap on what the library may hold
 const linkIn = (state: DurableObjectState, bytesCap: number) => {
-  const library = engineIn(state, clockAt(), bytesCap);
-  const context = {
-    agent: agentCellIn(state, library),
-    library,
-    actor: () => cellActorOf(PRINCIPAL),
-    notes: notesIn(state),
-    settle: async <T>(result: T) => await Promise.resolve(result),
-  };
+  const { context } = cellIn(state, { bytesCap, clock: clockAt() });
   const serve = async (request: Request): Promise<Response> =>
     (await serveLibraryRpc(request, context)) ?? new Response("not found", { status: 404 });
   // a client reads a refusal's code and data from its body, and the status only the response holds

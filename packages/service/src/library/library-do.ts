@@ -15,15 +15,7 @@ import { CONNECTOR_PATH } from "@repo/contract/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
-import { runAgentTool } from "../agent/agent-tools";
-import {
-  landPush,
-  runAgentJobs,
-  runTurnTool,
-  showPreview,
-  turnActorOf,
-} from "../agent/agent-turns";
-import type { AgentCell } from "../agent/agent-turns";
+import { landPush, runAgentJobs, runTurnTool, showPreview } from "../agent/agent-turns";
 import type {
   CellAnswer,
   PreviewRequest,
@@ -36,31 +28,15 @@ import { authInfoOf, createConnectorHandler } from "../connector/connector-serve
 import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
-import { noteStub } from "../note/note-stub";
-import type {
-  NoteOpening,
-  NoteProjection,
-  NoteReach,
-  ProjectAnswer,
-  SeedAnswer,
-} from "../note/note-wire";
+import type { NoteOpening, NoteProjection, ProjectAnswer, SeedAnswer } from "../note/note-wire";
 import { purgeAccount } from "./account-purge";
 import { articleThenLand } from "./article-landing";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
 import { fillForNote } from "./cell-fills";
-import {
-  logJobFailure,
-  openCellLibrary,
-  removeStrays,
-  scheduleAlarm,
-  sendFills,
-  settleCommit,
-  settleStored,
-} from "./cell-library";
+import { logJobFailure, removeStrays, sendFills, settleStored } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { runImports } from "./cell-imports";
-import { holdListing } from "./cell-listing";
-import { EVERYTHING_MOVED } from "./cell-moved";
+import { collectMoved } from "./cell-moved";
 import { openWithSchema } from "../object-schema";
 import { CELL_SCHEMA } from "./cell-db";
 import {
@@ -72,26 +48,34 @@ import {
   tellSockets,
 } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
-import type { CellActor } from "./cell-actor";
-import { cellAccountId } from "./library-cell";
 import {
-  agentPrincipal,
-  cellActorOf,
   isAppPrincipal,
   isConnectorPrincipal,
-  isNamedPrincipal,
   PRINCIPAL_HEADER,
   principalFromHeader,
   SOCKET_HOLDER_HEADER,
 } from "./library-principal";
-import type { NamedPrincipal, Principal } from "./library-principal";
-import { libraryRouter } from "./library-router";
-import type { CellContext } from "./library-router";
+import type { NamedPrincipal } from "./library-principal";
 import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
-import type { LibraryEngine, UploadSettlement } from "./library-engine";
+import type { UploadSettlement } from "./library-engine";
+import { openCell } from "./open-cell";
+import type { Cell } from "./open-cell";
 
 // an alarm whose run failed outright tries again after this; a job's own failure waits longer
 const ALARM_RETRY_MS = 60_000;
+
+// the purged items' notes, emptied between two transactions; one that fails waits its turn again
+const purgeNotes = async ({ library, notes }: Cell): Promise<void> => {
+  for (const purge of library.claimNotePurges()) {
+    try {
+      await notes(purge.itemId).purge();
+      library.notePurged(purge, true);
+    } catch (error) {
+      logJobFailure(purge.job, error);
+      library.notePurged(purge, false);
+    }
+  }
+};
 
 export class LibraryDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -103,19 +87,15 @@ export class LibraryDO extends DurableObject<Env> {
     openWithSchema(ctx, CELL_SCHEMA);
   }
 
-  get #accountId(): string {
-    return cellAccountId(this.ctx.id.name);
-  }
+  #opened: Cell | undefined;
 
-  // each item's note, which this cell alone names for the items its rows hold
-  readonly #notes: NoteReach = (itemId) =>
-    noteStub(this.ctx.exports, { accountId: this.#accountId, itemId });
-
-  readonly #listing = holdListing();
-
-  // the engine over this cell's storage, with the listing this wake holds
-  #library(): LibraryEngine {
-    return openCellLibrary(this.ctx, this.env, this.#listing);
+  // The cell this wake holds (`./open-cell`), opened by the first event that reads it and never
+  // in the constructor: its account is the name a caller's stub or a stored alarm carries
+  // (https://developers.cloudflare.com/durable-objects/api/id/), which a wake by a socket's frame
+  // is not documented to.
+  get #cell(): Cell {
+    this.#opened ??= openCell(this.ctx, this.env);
+    return this.#opened;
   }
 
   // the requests that stay HTTP: an app's library call on `/v1/rpc/library` and an assistant's on
@@ -140,50 +120,7 @@ export class LibraryDO extends DurableObject<Env> {
   // cell, and it names one only by the account it verified
   #principalOf(request: Request): NamedPrincipal | null {
     const principal = principalFromHeader(request.headers.get(PRINCIPAL_HEADER));
-    return principal?.accountId === this.#accountId ? principal : null;
-  }
-
-  // the built-in agent over the engine: its conversations' objects, the sockets, and every call
-  // it runs as one of its turns
-  #agentCell(library: LibraryEngine): AgentCell {
-    return {
-      accountId: this.#accountId,
-      env: this.env,
-      exports: this.ctx.exports,
-      library,
-      now: Date.now,
-      runTool: async (request) =>
-        await runAgentTool(
-          libraryRouter,
-          this.#cellContext(agentPrincipal(this.#accountId, request), library),
-          request,
-        ),
-      settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
-      tell: (frame) => {
-        tellSockets(this.ctx, frame);
-      },
-    };
-  }
-
-  // whom a call's writes are by: what its principal names, or for the built-in agent its turn,
-  // read again as each write lands, which a turn sealed meanwhile refuses
-  static #actorOf(principal: Principal, library: LibraryEngine): () => CellActor {
-    if (isNamedPrincipal(principal)) {
-      const actor = cellActorOf(principal);
-      return () => actor;
-    }
-    return turnActorOf(library, principal.actor);
-  }
-
-  // a call's cell: the engine over this cell's storage, and what follows its commit
-  #cellContext(principal: Principal, library = this.#library()): CellContext {
-    return {
-      actor: LibraryDO.#actorOf(principal, library),
-      agent: this.#agentCell(library),
-      library,
-      notes: this.#notes,
-      settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
-    };
+    return principal?.accountId === this.#cell.accountId ? principal : null;
   }
 
   async #serveRpc(request: Request): Promise<Response> {
@@ -191,7 +128,7 @@ export class LibraryDO extends DurableObject<Env> {
     if (principal === null || !isAppPrincipal(principal)) {
       return new Response("The cell takes only a call the Worker verified.", { status: 403 });
     }
-    const response = await serveLibraryRpc(request, this.#cellContext(principal));
+    const response = await serveLibraryRpc(request, this.#cell.contextFor(principal));
     return response ?? new Response("not found", { status: 404 });
   }
 
@@ -205,7 +142,7 @@ export class LibraryDO extends DurableObject<Env> {
     if (principal === null || !isConnectorPrincipal(principal)) {
       return new Response("The cell takes only a call the Worker verified.", { status: 403 });
     }
-    this.#connector ??= createConnectorHandler((caller) => this.#cellContext(caller));
+    this.#connector ??= createConnectorHandler((caller) => this.#cell.contextFor(caller));
     return await this.#connector.fetch(request, { authInfo: authInfoOf(principal) });
   }
 
@@ -214,7 +151,7 @@ export class LibraryDO extends DurableObject<Env> {
     if (holder === null || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return plainText(400, "The cell takes only a verified socket upgrade.");
     }
-    if (this.#library().deletedAt() !== null) {
+    if (this.#cell.library.deletedAt() !== null) {
       return plainText(410, "This account was deleted.");
     }
     return acceptSocket(this.ctx, holder);
@@ -233,58 +170,39 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // the jobs due: the storage's own, then those that wait on R2 (strays, imports), the
-  // readings to send, and the agent's turns to hand over or ask after; whatever moved the library
-  // is told to the sockets once. The agent's writes tell what they moved as each settles, and
-  // anything else that moved it, an import's pages above all, says everything moved
+  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends: an
+  // import's page would tell the sockets a frame an item, and a call landing meanwhile tells its
+  // own at once, on the wake's cell. The storage's jobs first, the readings to send ahead of an
+  // import's page, which may run ten seconds, then what waits on R2 or another object. Every commit
+  // sets the alarm again, so the run leaves it at the earliest job still waiting
   override async alarm(): Promise<void> {
-    const library = this.#library();
-    const head = library.head();
+    const moved = collectMoved();
+    const cell = openCell(this.ctx, this.env, { moved: moved.add });
     try {
-      library.runDueJobs(logJobFailure);
-      await removeStrays(this.env, this.#accountId, library);
-      await runImports({
-        accountId: this.#accountId,
-        durable: async () => {
-          await this.ctx.storage.sync();
-        },
-        env: this.env,
-        library,
-        now: Date.now,
-      });
-      await sendFills(this.ctx, this.env, library);
-      await this.#purgeNotes(library);
-      if (library.head() !== head) {
-        tellSockets(this.ctx, EVERYTHING_MOVED);
-      }
-      await runAgentJobs(this.#agentCell(library));
-      await scheduleAlarm(this.ctx, library);
+      cell.library.runDueJobs(logJobFailure);
+      await sendFills(this.ctx, this.env, cell.library);
+      await removeStrays(this.env, cell.accountId, cell.library);
+      await runImports(cell);
+      await purgeNotes(cell);
+      await runAgentJobs(cell);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
       await this.ctx.storage.setAlarm(Date.now() + ALARM_RETRY_MS);
     }
-  }
-
-  // the purged items' notes, emptied between two transactions; one that fails waits its turn again
-  async #purgeNotes(library: LibraryEngine): Promise<void> {
-    for (const purge of library.claimNotePurges()) {
-      try {
-        await this.#notes(purge.itemId).purge();
-        library.notePurged(purge, true);
-      } catch (error) {
-        logJobFailure(purge.job, error);
-        library.notePurged(purge, false);
-      }
+    const frame = moved.frame();
+    if (frame !== null) {
+      tellSockets(this.ctx, frame);
     }
   }
 
   // the sockets of a holder whose session ended after its upgrade, the account's and each note's
   // it opened; its next request meets the end itself (`./socket-routes`)
   async sever(holder: SocketHolder): Promise<void> {
+    const { library, notes } = this.#cell;
     severHolder(this.ctx, holder);
-    for (const itemId of this.#library().sessionNotes(holder.id)) {
+    for (const itemId of library.sessionNotes(holder.id)) {
       try {
-        await this.#notes(itemId).sever(holder.id);
+        await notes(itemId).sever(holder.id);
       } catch (error) {
         console.warn({ event: "note-sever-failed", ...errorFields(error) });
       }
@@ -295,71 +213,59 @@ export class LibraryDO extends DurableObject<Env> {
 
   // how a session's socket on an item's note opens, asked by the note's door
   openNote(sessionId: string, itemId: string): NoteOpening {
-    return this.#library().noteOpening(sessionId, itemId);
+    return this.#cell.library.noteOpening(sessionId, itemId);
   }
 
   readSeed(itemId: string): SeedAnswer {
-    return this.#library().seedFor(itemId);
+    return this.#cell.library.seedFor(itemId);
   }
 
   confirmSeed(itemId: string): void {
-    this.#library().seedTaken(itemId);
+    this.#cell.library.seedTaken(itemId);
   }
 
   // a note's save; `gone` once the account's deletion began, so the note stops pushing
-  async projectNote(itemId: string, projection: NoteProjection): Promise<ProjectAnswer> {
-    const library = this.#library();
-    const result = await settleCommit(
-      this.ctx,
-      this.env,
-      library,
-      library.projectNote(itemId, projection),
-    );
+  projectNote(itemId: string, projection: NoteProjection): ProjectAnswer {
+    const result = this.#cell.library.projectNote(itemId, projection);
     return result.ok ? result.value : "gone";
   }
 
   // the account's deletion, every step in order (`./account-purge`)
   async purge(email: string): Promise<void> {
-    await purgeAccount({ accountId: this.#accountId, ctx: this.ctx, email, env: this.env });
+    await purgeAccount({ cell: this.#cell, ctx: this.ctx, email });
   }
 
   // ---- what a conversation's object asks (`../agent/thread-loop`) ----
 
   // one tool call of an open turn, run as that turn's
   async agentTool(request: ToolRequest): Promise<CellAnswer<ToolAnswer>> {
-    return await runTurnTool(this.#agentCell(this.#library()), request);
+    return await runTurnTool(this.#cell, request);
   }
 
   // what a turn did, landed once by its sequence
-  async agentPush(request: PushRequest): Promise<CellAnswer<null>> {
-    return await landPush(this.#agentCell(this.#library()), request);
+  agentPush(request: PushRequest): CellAnswer<null> {
+    return landPush(this.#cell, request);
   }
 
   // the reply as it is written, on the sockets alone
   agentPreview(request: PreviewRequest): CellAnswer<null> {
-    return showPreview(this.#agentCell(this.#library()), request);
+    return showPreview(this.#cell, request);
   }
 
   // room for a file a device is about to upload to `/v1/blobs/<sha>`
-  async reserveBlob(request: UploadRequest): Promise<CellResult<UploadRoom>> {
-    const library = this.#library();
-    return await settleCommit(this.ctx, this.env, library, library.reserve(request));
+  reserveBlob(request: UploadRequest): CellResult<UploadRoom> {
+    return this.#cell.library.reserve(request);
   }
 
   // the file's row once its upload is in R2, at the size R2 holds (`settleStored`)
   async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
-    const library = this.#library();
-    return await settleCommit(
-      this.ctx,
-      this.env,
-      library,
-      await settleStored(this.env, this.#accountId, library, sha),
-    );
+    const { accountId, library } = this.#cell;
+    return await settleStored(this.env, accountId, library, sha);
   }
 
   // whether the item still waits for the cloud's reading of `url`, asked before the page is read
   fillWanted(itemId: string, url: string): CellResult<boolean> {
-    return this.#library().fillWanted(itemId, url);
+    return this.#cell.library.fillWanted(itemId, url);
   }
 
   // a page the fill queue's consumer read (`../fill/fill-consumer`), parsed again at this door,
@@ -368,17 +274,16 @@ export class LibraryDO extends DurableObject<Env> {
     const parsed = fillLandingSchema.safeParse(landing);
     if (!parsed.success) {
       console.error({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
-      return { moved: null, ok: true, value: { kind: "stale" } };
+      return { ok: true, value: { kind: "stale" } };
     }
-    const library = this.#library();
+    const { library, notes } = this.#cell;
     const reading = parsed.data;
-    const landed = await articleThenLand(this.#notes, {
+    return await articleThenLand(notes, {
       land: (inNote) => library.landReading(reading, inNote?.projection ?? null),
       target: () => {
-        const target = library.read((storage) => fillForNote(storage, reading));
+        const target = library.read((db) => fillForNote(db, reading));
         return target.ok ? target.value : null;
       },
     });
-    return await settleCommit(this.ctx, this.env, library, landed);
   }
 }

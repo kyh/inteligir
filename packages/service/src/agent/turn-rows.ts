@@ -72,7 +72,7 @@ const titleOf = (text: string): string => {
 };
 
 export const createThread = (scope: LandingScope, threadId: string, text: string): void => {
-  scope.storage.db
+  scope.db
     .insert(threads)
     .values({
       createdAt: scope.now,
@@ -238,7 +238,7 @@ export const threadStatusOf = (rows: {
 
 // the thread's status as its rows say it now, after any change to its turn or its queue
 export const restatus = (scope: LandingScope, threadId: string): void => {
-  const { db } = scope.storage;
+  const { db } = scope;
   const held = storedStatus(db, threadId);
   const status = threadStatusOf({
     open: openTurnOf(db, threadId),

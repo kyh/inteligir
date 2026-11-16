@@ -24,7 +24,6 @@ import { bodyInNote, landProjection } from "./cell-notes";
 import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
-import type { CellStorage } from "./cell-storage";
 import { sealChangeSet } from "./change-sets";
 import { readLiveItem } from "./library-queries";
 import { revertChangeSets } from "./revert-change";
@@ -122,12 +121,12 @@ export interface NoteToUndo {
 
 // What an undo asks of notes before its write, newest set first: each item an agent's set touched
 // whose body is its note's. A person's sets are field writes alone, so they ask nothing.
-export const planUndo = (storage: CellStorage, changeSetIds: readonly string[]): NoteToUndo[] =>
-  undoableSets(storage.db, changeSetIds)
+export const planUndo = (db: CellDb, changeSetIds: readonly string[]): NoteToUndo[] =>
+  undoableSets(db, changeSetIds)
     .filter((set) => set.actor === "agent")
     .flatMap((set) =>
-      setItems(storage.db, set.id).flatMap(({ itemId }) => {
-        const item = readLiveItem(storage.db, itemId);
+      setItems(db, set.id).flatMap(({ itemId }) => {
+        const item = readLiveItem(db, itemId);
         return item !== null && bodyInNote(item) ? [{ itemId, setId: set.id }] : [];
       }),
     );
@@ -153,7 +152,7 @@ export const mergeTurnUndos = (
 const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
   const undoSet = scope.set();
   for (const set of settled) {
-    scope.storage.db
+    scope.db
       .update(changeSets)
       .set({ undoneBy: undoSet.id })
       .where(eq(changeSets.id, set.id))
@@ -167,20 +166,20 @@ export const undoChangeSets = (
   changeSetIds: readonly string[],
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {
-  const { now, storage } = scope;
-  const sets = undoableSets(storage.db, changeSetIds);
+  const { db, now } = scope;
+  const sets = undoableSets(db, changeSetIds);
   // a set still open closes first, so what it did is fixed
   for (const set of sets) {
     if (set.sealedAt === null) {
-      sealChangeSet(storage, set.id, now);
+      sealChangeSet(db, set.id, now);
     }
   }
-  const ordered = sets.map((set) => ({ id: set.id, items: changesOf(storage.db, set.id) }));
+  const ordered = sets.map((set) => ({ id: set.id, items: changesOf(db, set.id) }));
   const items = new Map<string, ItemNow | null>();
   for (const set of ordered) {
     for (const itemId of set.items.keys()) {
       if (!items.has(itemId)) {
-        const item = readLiveItem(storage.db, itemId);
+        const item = readLiveItem(db, itemId);
         items.set(
           itemId,
           item === null
@@ -203,7 +202,7 @@ export const undoChangeSets = (
     }
   }
   for (const [itemId, undo] of verdict.items) {
-    const before = readLiveItem(storage.db, itemId);
+    const before = readLiveItem(db, itemId);
     if (before === null) {
       kept.add(itemId);
       continue;

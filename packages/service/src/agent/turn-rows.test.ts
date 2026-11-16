@@ -1,14 +1,12 @@
 // A thread's status as its rows say it: worked out from its open turn and its queued sends alone,
 // and written as each push of its object moves them.
 
-import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import type { AgentEvent } from "@repo/contract/library/agent-events";
-import { openCellLibrary } from "../library/cell-library";
 import { agentAccount, cellRows, threadStatus } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
-import { agentCellIn, inCell } from "../test-support/library-cell";
+import { cellIn, inCell } from "../test-support/library-cell";
 import { openTurnInCell } from "../test-support/thread-host";
 import { landPush } from "./agent-turns";
 import { threadStatusOf } from "./turn-rows";
@@ -38,14 +36,8 @@ const statusesAfter = async (
 ): Promise<(string | null)[]> => {
   const statuses: (string | null)[] = [];
   for (const [index, event] of events.entries()) {
-    await inCell(account.cell, async (state) => {
-      const cell = agentCellIn(state, openCellLibrary(state, env));
-      await landPush(cell, {
-        events: [event],
-        seq: index + 1,
-        threadId,
-        turn: 1,
-      });
+    await inCell(account.cell, (state) => {
+      landPush(cellIn(state), { events: [event], seq: index + 1, threadId, turn: 1 });
     });
     statuses.push(await threadStatus(account, threadId));
   }

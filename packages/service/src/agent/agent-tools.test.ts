@@ -6,24 +6,21 @@
 
 import { McpServer } from "@modelcontextprotocol/server";
 import { McpRegistrar } from "@orpc/mcp";
-import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { isLibraryTool } from "../connector/library-tools";
 import { FILL_ACTOR } from "../library/cell-fills";
-import { openCellLibrary } from "../library/cell-library";
 import { principalFromHeader } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
-  agentCellIn,
+  cellIn,
   cellOf,
   createItem,
+  headOf,
   inCell,
   landedValue,
-  notesIn,
-  person,
   placed,
 } from "../test-support/library-cell";
 import {
@@ -38,17 +35,9 @@ import { AGENT_TOOL_POLICIES } from "./library-agent";
 // the tools the connector's full registrar lists over the cell's router
 const registered = async (): Promise<string[]> =>
   await inCell(cellOf(), async (state) => {
-    const library = openCellLibrary(state, env);
-    const agent = agentCellIn(state, library);
     const registrar = new McpRegistrar(libraryRouter, { filter: isLibraryTool });
     const { tools } = await registrar.register(new McpServer({ name: "inteligir", version: "0" }), {
-      context: {
-        actor: () => person(),
-        agent,
-        library,
-        notes: notesIn(state),
-        settle: agent.settle,
-      },
+      context: cellIn(state).context,
     });
     return Object.keys(tools);
   });
@@ -90,7 +79,7 @@ describe("the built-in agent's tools", () => {
     { timeout: 60_000 },
     async () => {
       await inCell(cellOf(), async (state) => {
-        const library = openCellLibrary(state, env);
+        const { context, library } = cellIn(state);
         for (let index = 0; index < 60; index += 1) {
           landedValue(
             createItem(library, FILL_ACTOR, {
@@ -116,8 +105,6 @@ describe("the built-in agent's tools", () => {
             id: longId,
           }),
         );
-        const agent = agentCellIn(state, library);
-        const context = { actor: () => person(), agent, library, settle: agent.settle };
         const run = async (name: string, input: Readonly<Record<string, string | number>>) =>
           await runAgentTool(libraryRouter, context, {
             input,
@@ -158,9 +145,7 @@ describe("the built-in agent's tools", () => {
 
   it("answer a call they cannot run as an error the agent reads, never a failed turn", async () => {
     await inCell(cellOf(), async (state) => {
-      const library = openCellLibrary(state, env);
-      const agent = agentCellIn(state, library);
-      const context = { actor: () => person(), agent, library, settle: agent.settle };
+      const { context } = cellIn(state);
       const call = { threadId: "thread-1", toolUseId: "toolu_1" };
       await expect(
         runAgentTool(libraryRouter, context, { ...call, input: {}, name: "empty_library" }),
@@ -175,6 +160,22 @@ describe("the built-in agent's tools", () => {
       });
       expect(unread.isError).toBe(true);
       expect(unread.content).toMatch(/^Input validation failed\n/u);
+    });
+  });
+
+  it("refuse a write once its turn has ended, and land nothing", async () => {
+    await inCell(cellOf(), async (state) => {
+      const { library, runTool } = cellIn(state);
+      await expect(
+        runTool({
+          input: { markdown: "Too late." },
+          name: "create_note",
+          threadId: "thread-1",
+          toolUseId: "toolu_1",
+          turn: 1,
+        }),
+      ).resolves.toStrictEqual({ content: "This turn has ended.", isError: true });
+      expect(headOf(library)).toBe(0);
     });
   });
 });

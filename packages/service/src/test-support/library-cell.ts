@@ -1,103 +1,85 @@
-// A library cell under test: a fresh one per test, the engine opened inside it over its own
-// storage with a clock the test moves, and items built by hand. The cell is the real Durable
+// A library cell under test: a fresh one per test, opened inside it as its object opens it
+// (`../library/open-cell`) over the clock, the bindings and the cap a suite states, its alarm held
+// unless the suite asks for the platform's, and items built by hand. The cell is the real Durable
 // Object, so every statement meets a SQLite Durable Object's own limits.
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
+import { createRouterClient } from "@orpc/server";
 import { heldBody } from "../library/cell-body";
 import { readItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 
-import { runAgentTool } from "../agent/agent-tools";
-import { turnActorOf } from "../agent/agent-turns";
-import type { AgentCell } from "../agent/agent-turns";
 import type { CellActor } from "../library/cell-actor";
-import { cellIds } from "../library/cell-ids";
 import { landNew } from "../library/cell-items";
 import type { NewItem } from "../library/cell-items";
-import { settleCommit } from "../library/cell-library";
 import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
-import { cellStorageOf } from "../library/cell-storage";
-import { cellAccountId, libraryCellName } from "../library/library-cell";
+import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
-import { landedSchema, openLibraryEngine } from "../library/library-engine";
+import { landedSchema, libraryHead } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
-import { noteStub } from "../note/note-stub";
-import type { NoteReach } from "../note/note-wire";
 import { libraryRouter } from "../library/library-router";
-
-const GiB = 1024 * 1024 * 1024;
+import { openCell } from "../library/open-cell";
 
 export const newAccountId = (): string => crypto.randomUUID();
 
 export const cellOf = (accountId: string = newAccountId()): DurableObjectStub<LibraryDO> =>
   exports.LibraryDO.getByName(libraryCellName(accountId));
 
-// the time the engine reads, which a test moves by hand
+// the time the cell reads, which a test moves by hand
 export interface Clock {
   now: number;
 }
 
 export const clockAt = (now: number = Date.UTC(2026, 9, 1)): Clock => ({ now });
 
-export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB): LibraryEngine =>
-  openLibraryEngine({
+// what a suite states of its cell; left out, each but the alarm is the deployment's own
+export interface CellUnderTest {
+  readonly clock?: Clock;
+  readonly env?: Env;
+  // what the library may hold
+  readonly bytesCap?: number;
+  // hears every frame the cell tells the sockets
+  readonly frames?: LibrarySocketFrame[];
+  // `platform` sets the object's own alarm as each write commits. Left out, the cell holds it: a
+  // suite runs the cell's jobs itself, by its own clock, and `alarmAt` says when it would ring
+  readonly alarm?: "platform";
+}
+
+// the cell as its object opens it, and the library's procedures as the account's laptop calls them
+export const cellIn = (state: DurableObjectState, options: CellUnderTest = {}) => {
+  const { bytesCap, clock, frames } = options;
+  let alarmAt: number | null = null;
+  const cell = openCell(state, options.env ?? env, {
+    arm:
+      options.alarm === "platform"
+        ? undefined
+        : (at) => {
+            alarmAt = at;
+          },
     bytesCap,
-    ids: cellIds(() => clock.now),
-    now: () => clock.now,
-    storage: cellStorageOf(state.storage),
+    now: clock === undefined ? undefined : () => clock.now,
+    tell:
+      frames === undefined
+        ? undefined
+        : (frame) => {
+            frames.push(frame);
+            tellSockets(state, frame);
+          },
   });
-
-// each item's note as the cell under test reaches it
-export const notesIn =
-  (state: DurableObjectState): NoteReach =>
-  (itemId) =>
-    noteStub(state.exports, { accountId: cellAccountId(state.id.name), itemId });
-
-// the built-in agent in a cell under test, as the cell makes it (`../library/library-do`): its
-// conversations' objects reached through the cell's own `exports`, its sockets, which a test may
-// listen on, every tool call run through the library's procedures as the turn's, and the commit's
-// follow-up the cell's own. `env` stands in for the deployment's bindings, `clock` for its time
-export const agentCellIn = (
-  state: DurableObjectState,
-  library: LibraryEngine,
-  options: {
-    readonly clock?: Clock;
-    readonly env?: Env;
-    readonly frames?: LibrarySocketFrame[];
-  } = {},
-): AgentCell => {
-  const cellEnv = options.env ?? env;
-  const settle = async <T>(result: CellResult<T>): Promise<CellResult<T>> =>
-    await settleCommit(state, cellEnv, library, result);
-  const cell: AgentCell = {
-    accountId: cellAccountId(state.id.name),
-    env: cellEnv,
-    exports: state.exports,
-    library,
-    now: () => options.clock?.now ?? Date.now(),
-    runTool: async (request) =>
-      await runAgentTool(
-        libraryRouter,
-        {
-          actor: turnActorOf(library, request),
-          agent: cell,
-          library,
-          notes: notesIn(state),
-          settle,
-        },
-        request,
-      ),
-    settle,
-    tell: (frame) => {
-      options.frames?.push(frame);
-      tellSockets(state, frame);
-    },
+  const context = cell.contextFor({
+    accountId: cell.accountId,
+    actor: { door: "page", kind: "session", sessionId: "laptop-1" },
+  });
+  return {
+    ...cell,
+    alarmAt: () => alarmAt,
+    client: createRouterClient(libraryRouter, { context }),
+    context,
   };
-  return cell;
 };
 
 // the engine inside a fresh cell, its result handed back out
@@ -157,13 +139,16 @@ export const refusalOf = <T>(result: CellResult<T>) => {
 // an item's blocks as the cell's seed holds them, in order; an item whose body went to its note
 // holds none here
 export const blocksOf = (library: LibraryEngine, itemId: string): LibraryBlock[] => {
-  const held = landedValue(library.read((storage) => heldBody(storage.db, itemId)));
+  const held = landedValue(library.read((db) => heldBody(db, itemId)));
   if (held?.kind !== "seed") {
     throw new Error(`the cell holds no seed for ${itemId}`);
   }
   return held.blocks.map((stored) => stored.block);
 };
 
+// the last sequence number a write took
+export const headOf = (library: LibraryEngine): number => landedValue(library.read(libraryHead));
+
 // an item's row as the cell holds it, or null for none
 export const storedItemOf = (library: LibraryEngine, itemId: string): StoredItem | null =>
-  landedValue(library.read((sql) => readItem(sql.db, itemId)));
+  landedValue(library.read((db) => readItem(db, itemId)));

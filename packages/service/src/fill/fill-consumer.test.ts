@@ -17,7 +17,7 @@ import recipe from "@repo/page-reader/test-support/corpus/recipe.html?raw";
 import scriptHeavy from "@repo/page-reader/test-support/corpus/script-heavy.html?raw";
 import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw";
 import { blobKey } from "../library/cell-blobs";
-import { cellOf, inCell } from "../test-support/library-cell";
+import { cellIn, cellOf, inCell } from "../test-support/library-cell";
 import { FILL_FAILED_QUEUE } from "../../fill-queues";
 import {
   deliver,
@@ -25,7 +25,6 @@ import {
   htmlPage,
   fieldsIn,
   itemIn,
-  libraryIn,
   pngOf,
   savedLink,
   serveWeb,
@@ -406,7 +405,7 @@ describe("a message the consumer meets", () => {
 
     const deleted = await savedLink("https://pages.example/deleted");
     await inCell(cellOf(deleted.accountId), async (state) => {
-      await libraryIn(state, deleted.accountId).items.delete({ ids: [deleted.itemId] });
+      await cellIn(state).client.items.delete({ ids: [deleted.itemId] });
     });
     await expect(deliver(deleted.job)).resolves.toMatchObject({ acked: true });
     expect(web.asked).toHaveLength(asked);

@@ -275,7 +275,7 @@ const settledDoc = (db: CellDb, doc: PlannedDoc, newId: () => string): SettledDo
 };
 
 const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void => {
-  const { db } = scope.storage;
+  const { db } = scope;
   const entries = importRows(db, job.id, ROWS.entry, ALL, entrySchema).map((row) => row.value);
   const zips = new Map(
     entries.flatMap((entry) => (entry.kind === "doc" ? [[entry.path, entry.zip] as const] : [])),
@@ -342,11 +342,9 @@ const readPaths = async (
     }
     const moved = apart(host.library, (scope) => {
       if (read.kind === "row") {
-        putImportRows(scope.storage.db, job.id, ROWS.entry, [
-          { idx: entry.index, value: read.value },
-        ]);
+        putImportRows(scope.db, job.id, ROWS.entry, [{ idx: entry.index, value: read.value }]);
       }
-      advanceImport(scope.storage.db, job.id, {
+      advanceImport(scope.db, job.id, {
         counts: ENTRY_COUNTS[read.kind],
         cursor: entry.index + 1,
       });
@@ -400,7 +398,7 @@ const restoreDoc = (
     askFill(scope, item);
   }
   const back = restored.changed.length > 0;
-  advanceImport(scope.storage.db, job.id, {
+  advanceImport(scope.db, job.id, {
     changeSetId: back ? scope.set().id : undefined,
     counts: back ? { added: 1 } : { alreadySaved: 1 },
     cursor: idx + 1,
@@ -416,8 +414,8 @@ const landDoc = (
   const { item, doc } = read;
   const key = item.fields.url === null ? null : urlKey(item.fields.url);
   if (
-    readItem(scope.storage.db, doc.itemId)?.kind === "live" ||
-    (key !== null && urlHolder(scope.storage.db, key, null) !== null)
+    readItem(scope.db, doc.itemId)?.kind === "live" ||
+    (key !== null && urlHolder(scope.db, key, null) !== null)
   ) {
     return { held: true };
   }
@@ -489,7 +487,7 @@ const docOutcome = async (
     idx,
     library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
       const result = landDoc(scope, host, read.read);
-      advanceImport(scope.storage.db, job.id, {
+      advanceImport(scope.db, job.id, {
         changeSetId: result.held ? undefined : scope.set().id,
         counts: result.held
           ? { alreadySaved: 1 }
@@ -524,7 +522,7 @@ const namedFiles = (db: CellDb, jobId: string): ReadFiles => {
 
 // the files no item names, planned once every note has landed, each an item of its own
 const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded: LoadedPlan) => {
-  const { db } = scope.storage;
+  const { db } = scope;
   const fileItems = planFileItems(
     loaded.plan,
     namedFiles(db, job.id),
@@ -553,7 +551,7 @@ const landDocs = async (
   if (source === null) {
     return failed(FILE_GONE);
   }
-  const loaded = host.library.read((storage) => loadPlan(storage.db, job.id));
+  const loaded = host.library.read((db) => loadPlan(db, job.id));
   if (!loaded.ok) {
     return DONE;
   }
@@ -593,9 +591,9 @@ const LANDED_FILE = z.object({ held: z.boolean() });
 
 const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
   const { library } = host;
-  const page = library.read((storage) =>
+  const page = library.read((db) =>
     importRows(
-      storage.db,
+      db,
       job.id,
       ROWS.fileItem,
       { from: job.cursor, limit: PAGE_FILES },
@@ -610,7 +608,7 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
       importActor(job),
       { answer: LANDED_FILE, opId: undefined },
       (scope) => {
-        const held = readItem(scope.storage.db, value.itemId)?.kind === "live";
+        const held = readItem(scope.db, value.itemId)?.kind === "live";
         if (!held) {
           landNew(scope, {
             blocks: [],
@@ -622,7 +620,7 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
             id: value.itemId,
           });
         }
-        advanceImport(scope.storage.db, job.id, {
+        advanceImport(scope.db, job.id, {
           changeSetId: held ? undefined : scope.set().id,
           counts: held ? { alreadySaved: 1 } : { added: 1 },
           cursor: idx + 1,

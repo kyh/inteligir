@@ -40,7 +40,6 @@ import { liveFolders } from "./cell-folders";
 import { listedWhole, searchHits } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
-import type { CellStorage } from "./cell-storage";
 
 type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
@@ -151,13 +150,9 @@ export interface SearchInput {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const searchItems = (
-  storage: CellStorage,
-  listing: LibraryIndex<ListingRow>,
-  input: SearchInput,
-) => {
+export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: SearchInput) => {
   const offset = offsetOf(input.cursor);
-  const hits = searchHits(storage, input.query, "live");
+  const hits = searchHits(db, input.query, "live");
   const page = listing.items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
     deleted: false,
@@ -234,12 +229,11 @@ export interface ReadInput {
 
 // the item's markdown from its body's blocks, read from where the body lives
 export const readItemView = (
-  storage: CellStorage,
+  db: CellDb,
   codec: CellCodec,
   input: ReadInput,
   blocks: readonly BodyBlock[],
 ): ItemRead => {
-  const { db } = storage;
   const item = readItem(db, input.id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });

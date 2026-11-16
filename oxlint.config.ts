@@ -41,24 +41,20 @@ const THREAD_STUB = {
   regex: "(?:^|/)thread-stub(?:\\.ts)?$",
 };
 const NOTE_STUB = {
-  message: "only the cell, account-purge.ts and the note's own door and object name a note",
+  message: "only the cell (open-cell.ts) and the note's own door and object name a note",
   regex: "(?:^|/)note-stub(?:\\.ts)?$",
 };
 // a cold note asks its cell for the seed, so a cell blocked while it awaits a note deadlocks
 const NOTE_REENTRY = [
   { message: "the cell never blocks its own events", property: "blockConcurrencyWhile" },
-  {
-    message: "the cell writes in transactionSync alone (cell-storage.ts)",
-    property: "transaction",
-  },
+  { message: "the cell writes in transactionSync alone (cell-db.ts)", property: "transaction" },
 ];
 const THREAD_STUB_CALLERS = [
   "packages/service/src/library/library-do.ts",
   "packages/service/src/agent/agent-turns.ts",
 ];
 const NOTE_STUB_CALLERS = [
-  "packages/service/src/library/library-do.ts",
-  "packages/service/src/library/account-purge.ts",
+  "packages/service/src/library/open-cell.ts",
   "packages/service/src/note/note-routes.ts",
   "packages/service/src/note/note-do.ts",
 ];
@@ -250,10 +246,6 @@ export default defineConfig({
       rules: { "no-restricted-imports": serviceImports(THREAD_STUB, NOTE_STUB) },
     },
     {
-      files: ["packages/service/src/library/library-do.ts"],
-      rules: { "no-restricted-imports": serviceImports() },
-    },
-    {
       excludeFiles: NOTE_STUB_CALLERS,
       files: THREAD_STUB_CALLERS,
       rules: { "no-restricted-imports": serviceImports(NOTE_STUB) },
@@ -264,13 +256,9 @@ export default defineConfig({
       rules: { "no-restricted-imports": serviceImports(THREAD_STUB) },
     },
     {
-      excludeFiles: [...tests, "packages/service/src/library/library-engine.ts"],
+      excludeFiles: tests,
       files: ["packages/service/src/library/**"],
       rules: { "no-restricted-properties": ["error", ...NOTE_REENTRY] },
-    },
-    {
-      files: ["packages/service/src/library/library-engine.ts"],
-      rules: { "no-restricted-properties": ["error", NOTE_REENTRY[0]] },
     },
     {
       // the model ships to runtimes without crypto, and React Native's URL is not WHATWG

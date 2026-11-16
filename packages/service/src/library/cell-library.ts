@@ -1,75 +1,23 @@
-// The cell's engine as the Durable Object runs it: over its own storage, the platform's clock and
-// ids, and the account's cap; what follows a committed write, the socket's frames (held by the
-// output gate until the write is durable, never sent unconfirmed), the readings it asked for sent to the
-// fill queue and the alarm set to the earliest job; and the jobs that wait on a binding, a stray
-// file's removal from R2 and a reading's send. The router the cell serves and a test running
-// inside the cell open it the same way.
+// What the cell's alarm does around its engine's transactions, on the platform's bindings: the
+// jobs that wait on one, a reading's send to the fill queue and a stray file's removal from R2;
+// and a file's row settled once R2 holds its bytes.
 
 import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";
 import type { ClaimedFill } from "./cell-fills";
-import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
-import type { ListingHold } from "./cell-listing";
 import type { CellResult } from "./cell-refusal";
-import { tellSockets } from "./cell-sockets";
-import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
-import { openLibraryEngine } from "./library-engine";
 import type { LibraryEngine, UploadSettlement } from "./library-engine";
-
-const STORAGE_CAP = /^[1-9]\d*$/u;
-
-// what one account's library may hold, its change sets included: 1 GiB
-const libraryStorageCap = (env: Env): number => {
-  const cap = env.LIBRARY_STORAGE_CAP_BYTES;
-  if (!STORAGE_CAP.test(cap)) {
-    throw new Error(`LIBRARY_STORAGE_CAP_BYTES must be a whole number of bytes, not "${cap}"`);
-  }
-  return Number(cap);
-};
-
-const now = (): number => Date.now();
-
-export const openCellLibrary = (
-  ctx: DurableObjectState,
-  env: Env,
-  listing?: ListingHold,
-): LibraryEngine =>
-  openLibraryEngine({
-    bytesCap: libraryStorageCap(env),
-    ids: cellIds(now),
-    listing,
-    now,
-    storage: cellStorageOf(ctx.storage),
-  });
-
-// the one alarm at the earliest waiting job, and none while no job waits; an alarm already set
-// earlier stays, and finds nothing due or the job it was set for
-export const scheduleAlarm = async (
-  ctx: DurableObjectState,
-  library: LibraryEngine,
-): Promise<void> => {
-  const next = library.nextJobAt();
-  const current = await ctx.storage.getAlarm();
-  if (next === null) {
-    if (current !== null) {
-      await ctx.storage.deleteAlarm();
-    }
-    return;
-  }
-  if (current === null || next < current) {
-    await ctx.storage.setAlarm(next);
-  }
-};
 
 // a queue takes at most 100 messages a send (developers.cloudflare.com/queues/platform/limits/)
 const SEND_BATCH = 100;
 
-// the readings waiting to be sent, in sends of a hundred; a send that fails leaves its rows for the
-// alarm, a minute on, and the queue's consumer lands a reading met twice once
+// the readings waiting to be sent, in sends of a hundred, by the alarm alone: a reading due now
+// sets the alarm now, a send that fails leaves its rows for the alarm a minute on, and the queue's
+// consumer lands a reading met twice once
 export const sendFills = async (
   ctx: DurableObjectState,
   env: Env,
@@ -89,20 +37,6 @@ export const sendFills = async (
     }
     library.fillsSent(lot);
   }
-};
-
-export const settleCommit = async <T>(
-  ctx: DurableObjectState,
-  env: Env,
-  library: LibraryEngine,
-  result: CellResult<T>,
-): Promise<CellResult<T>> => {
-  if (result.ok && result.moved !== null) {
-    tellSockets(ctx, result.moved);
-    await sendFills(ctx, env, library);
-  }
-  await scheduleAlarm(ctx, library);
-  return result;
 };
 
 // a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's

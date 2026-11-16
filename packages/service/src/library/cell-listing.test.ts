@@ -3,40 +3,17 @@
 
 import { isOrpcError } from "@repo/contract/v1/errors";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
-import { createRouterClient } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 
-import {
-  agentCellIn,
-  cellOf,
-  clockAt,
-  engineIn,
-  inCell,
-  notesIn,
-} from "../test-support/library-cell";
-import { cellActorOf } from "./library-principal";
-import { libraryRouter } from "./library-router";
+import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
 // the cell's router as a laptop calls it, beside the engine and the clock it runs on
-const cellIn = (state: DurableObjectState) => {
+const laptopIn = (state: DurableObjectState) => {
   const clock = clockAt();
-  const engine = engineIn(state, clock);
-  const library = createRouterClient(libraryRouter, {
-    context: {
-      actor: () =>
-        cellActorOf({
-          accountId: "account",
-          actor: { door: "page", kind: "session", sessionId: "laptop-1" },
-        }),
-      agent: agentCellIn(state, engine, { clock }),
-      library: engine,
-      notes: notesIn(state),
-      settle: async (result) => result,
-    },
-  });
-  return { clock, engine, library };
+  const { client, library } = cellIn(state, { clock });
+  return { clock, engine: library, library: client };
 };
 
 const codeOf = async (call: Promise<unknown>): Promise<string> => {
@@ -56,7 +33,7 @@ const LIVE = { deleted: false, sort: "title" } as const;
 describe("what the apps read of the library", () => {
   it("answers an item whole, one in Deleted too, and none once it is purged", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const { item } = await library.items.createNote({
         markdown: "First line.\n\nSecond line.",
         title: "Two lines",
@@ -78,7 +55,7 @@ describe("what the apps read of the library", () => {
 
   it("answers an item's row without its body, and none once it is purged", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const { item } = await library.items.createNote({
         markdown: "# Plans\n\nFirst line.",
         title: "",
@@ -98,7 +75,7 @@ describe("what the apps read of the library", () => {
 
   it("pages a listing from where the last page ended, counting each kind", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       for (const title of ["Cherry", "Apple", "Banana"]) {
         await library.items.createNote({ markdown: `${title}.`, title });
       }
@@ -123,7 +100,7 @@ describe("what the apps read of the library", () => {
 
   it("lists a tag with the tags under it, a folder with its subfolders, and Unsorted", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const filed = await library.items.createNote({ markdown: "Filed.", title: "Filed" });
       const loose = await library.items.createNote({ markdown: "Loose.", title: "Loose" });
       await library.items.organize({
@@ -154,7 +131,7 @@ describe("what the apps read of the library", () => {
 
   it("searches the side its query lists, ranked, each item with the passage that matched", async () => {
     await inCell(cellOf(), async (state) => {
-      const { clock, engine, library } = cellIn(state);
+      const { clock, engine, library } = laptopIn(state);
       const gone = await library.items.createNote({ markdown: "A fox long gone." });
       clock.now += 60_000;
       engine.runDueJobs(() => {});
@@ -182,7 +159,7 @@ describe("what the apps read of the library", () => {
 
   it("counts the rail: folders in rail order, each tag once under its spelling", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const [early, late] = ["a0", "a1"];
       const projects = newId();
       const garden = newId();
@@ -225,7 +202,7 @@ describe("what the apps read of the library", () => {
 
   it("titles every item in the library, and none in Deleted", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const beta = await library.items.createNote({ markdown: "B.", title: "Beta" });
       const alpha = await library.items.createNote({ markdown: "A.", title: "alpha" });
       const gone = await library.items.createNote({ markdown: "G.", title: "Gone" });
@@ -241,7 +218,7 @@ describe("what the apps read of the library", () => {
 
   it("lists what a change set did as it lands, once it seals and once it is undone", async () => {
     await inCell(cellOf(), async (state) => {
-      const { clock, engine, library } = cellIn(state);
+      const { clock, engine, library } = laptopIn(state);
       const titles = async () => {
         const page = await library.listing.page({ limit: 10, query: LIVE });
         return page.items.map(({ card }) => card.title);
@@ -271,14 +248,14 @@ describe("what the apps read of the library", () => {
       await expect(titles()).resolves.toStrictEqual(["Apple"]);
       // the listing this cell kept answers as one read whole from its rows
       await expect(library.listing.scopes()).resolves.toStrictEqual(
-        await cellIn(state).library.listing.scopes(),
+        await laptopIn(state).library.listing.scopes(),
       );
     });
   });
 
   it("answers a folder write with each folder it changed, as the write left it", async () => {
     await inCell(cellOf(), async (state) => {
-      const { library } = cellIn(state);
+      const { library } = laptopIn(state);
       const first = "a0";
       const top = newId();
       const under = newId();

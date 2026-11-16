@@ -2,7 +2,6 @@
 // message for it, the web the consumer reads served by a stand-in for the platform's fetch, and
 // the item read back as the cell holds it.
 
-import { createRouterClient } from "@orpc/server";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
@@ -12,42 +11,10 @@ import { vi } from "vitest";
 import worker from "../../test-support/test-worker";
 import { heldBody } from "../../library/cell-body";
 import { cellDbOf } from "../../library/cell-db";
-import { openCellLibrary } from "../../library/cell-library";
 import { readLiveItem } from "../../library/library-queries";
-import type { LibraryEngine } from "../../library/library-engine";
-import { cellActorOf } from "../../library/library-principal";
-import type { NamedPrincipal } from "../../library/library-principal";
-import { libraryRouter } from "../../library/library-router";
-import {
-  agentCellIn,
-  cellOf,
-  inCell,
-  newAccountId,
-  notesIn,
-} from "../../test-support/library-cell";
+import { cellIn, cellOf, inCell, newAccountId } from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
 import { FILL_QUEUE } from "../../../fill-queues";
-
-const laptop = (accountId: string): NamedPrincipal => ({
-  accountId,
-  actor: { door: "page", kind: "session", sessionId: "laptop-1" },
-});
-
-// the account's library as the apps call it, over its own cell
-export const libraryIn = (
-  state: DurableObjectState,
-  accountId: string,
-  library: LibraryEngine = openCellLibrary(state, env),
-) =>
-  createRouterClient(libraryRouter, {
-    context: {
-      agent: agentCellIn(state, library),
-      library,
-      actor: () => cellActorOf(laptop(accountId)),
-      notes: notesIn(state),
-      settle: async (result) => await Promise.resolve(result),
-    },
-  });
 
 export interface SavedLink {
   readonly accountId: string;
@@ -60,7 +27,7 @@ export const savedLink = async (url: string): Promise<SavedLink> => {
   const accountId = newAccountId();
   const saved = await inCell(
     cellOf(accountId),
-    async (state) => await libraryIn(state, accountId).items.saveLink({ url }),
+    async (state) => await cellIn(state).client.items.saveLink({ url }),
   );
   return {
     accountId,

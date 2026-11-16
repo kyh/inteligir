@@ -199,6 +199,7 @@ const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
     case "bad-cursor":
     case "agent-unavailable":
     case "agent-budget":
+    case "turn-ended":
     case "note-opened": {
       throw new Error(`a file's room answered ${refusal.kind}, which no upload meets`);
     }

@@ -28,12 +28,11 @@ import type { ThreadDefinition } from "../agent/thread-request";
 import { turnUserMessage } from "../agent/turn-message";
 import { bookTurn, dayOf } from "../agent/agent-allowance";
 import { createThread, insertTurn, lastPush, restatus } from "../agent/turn-rows";
-import { openCellLibrary } from "../library/cell-library";
 import { libraryCellName } from "../library/library-cell";
 import { filingRules } from "../library/library-rules";
 import type { AgentAccount } from "./agent-turns";
 import { threadOf, valueOf } from "./agent-turns";
-import { cellOf, inCell } from "./library-cell";
+import { cellIn, cellOf, inCell } from "./library-cell";
 
 // what the loop asked of Lifecycle's queue, kept for the suite to run
 interface AskedJobs {
@@ -65,23 +64,23 @@ export const openTurnInCell = async (
   turn = 1,
 ): Promise<z.infer<typeof handedSchema>> =>
   await inCell(account.cell, (state) => {
-    const library = openCellLibrary(state, env);
+    const { library } = cellIn(state);
     return valueOf(
       library.landApart({ answer: handedSchema, opId: undefined }, (scope) => {
         if (turn === 1) {
           createThread(scope, threadId, text);
         }
-        insertTurn(scope.storage.db, {
+        insertTurn(scope.db, {
           at: scope.now,
           message: { text, viewContext: null },
           threadId,
           turn,
         });
-        bookTurn(scope.storage.db, dayOf(scope.now), 1);
+        bookTurn(scope.db, dayOf(scope.now), 1);
         restatus(scope, threadId);
         return {
-          pushedThrough: lastPush(scope.storage.db, threadId),
-          rules: filingRules(scope.storage.db),
+          pushedThrough: lastPush(scope.db, threadId),
+          rules: filingRules(scope.db),
         };
       }),
     );
