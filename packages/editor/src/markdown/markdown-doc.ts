@@ -88,23 +88,3 @@ export const lettersKept = (source: string, written: string): number => {
   }
   return total === 0 ? 1 : kept / total;
 };
-
-// an imported page (the fill's article) as the bytes its blocks write
-export interface ImportedDoc {
-  markdown: string;
-  kept: number;
-}
-
-// null when the read refuses the page: a page is hostile input, so no failure escapes the fill
-export const canonicalizeImported = (md: string): ImportedDoc | null => {
-  if (md.trim() === "") {
-    return { kept: 1, markdown: "" };
-  }
-  const editor = headlessEditor();
-  const read = parseMarkdown(md, editor);
-  if (!read.ok) {
-    return null;
-  }
-  const markdown = `${serializeNote(editor, read.value).trimEnd()}\n`;
-  return { kept: lettersKept(md, markdown), markdown };
-};

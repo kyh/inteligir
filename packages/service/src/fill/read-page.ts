@@ -200,7 +200,7 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
   const oembed = await askOEmbed(ports, job.url, landed, read.facts.oembed);
   const article = articleOf(readHtml, read, oembed, job.url);
   if (article.refused > 0) {
-    // the ladder kept these words, and the item goes without them
+    // the page held these words, and the item goes without them
     console.warn({ event: "fill-blocks-refused", refused: article.refused });
   }
   const coverSha = await keepCover(ports, coverCandidates(job, landed, read.facts.images, oembed));

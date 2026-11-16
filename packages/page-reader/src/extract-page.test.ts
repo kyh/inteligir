@@ -1,21 +1,21 @@
 // the reader over a committed corpus of synthetic pages: what a page says about itself, the
-// article rules, the dialect escapes, the body ladder's promise that every article is
-// already the editor's own fixpoint, and the words each page's item reads as (`*.article.txt`,
-// rewritten by `vitest -u`), over linkedom, the DOM the
-// Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in: defuddle picks
-// the whole body).
+// article rules, the page's text that stays text whatever the dialect would read it as, and the
+// words each page's item reads as (`*.article.txt`, rewritten by `vitest -u`), over linkedom, the
+// DOM the Worker's fill and the extension's worker parse with (jsdom's DOM is no stand-in:
+// defuddle picks the whole body).
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { canonicalizeImported, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { itemView } from "@repo/editor/codec/item-view";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 import { deriveBody } from "@repo/contract/library/derive-item";
-import type { LibraryBlock } from "@repo/contract/library/library-nodes";
+import type { LibraryBlock, LibraryNode } from "@repo/contract/library/library-nodes";
 
-import { extractPage, KEPT_MIN } from "./extract-page";
-import type { ExtractedPage } from "./page-facts";
+import { extractPage } from "./extract-page";
+import type { ExtractedPage } from "./extract-page";
+import type { ExtractedPageBlocks } from "./page-facts";
 import { readHtml } from "./read-html";
 import { longPage } from "./test-support/long-page";
 
@@ -27,35 +27,54 @@ const PAGE_URL = "https://pages.example/posts/item";
 
 const page = (name: string): string => readFileSync(path.join(CORPUS, `${name}.html`), "utf-8");
 
-const extracted = (name: string, prefer: "article" | "description" = "article"): ExtractedPage =>
-  extractPage({ html: page(name), prefer, url: PAGE_URL });
+const extracted = (name: string): ExtractedPage =>
+  extractPage({ html: page(name), prefer: "article", url: PAGE_URL });
 
-interface SlateNode {
-  type?: string;
-  text?: string;
-  children?: SlateNode[];
-}
-
-const nodesOf = (markdown: string): SlateNode[] => {
-  const parsed = parseMarkdown(markdown);
-  if (!parsed.ok) {
-    throw new Error(`the article did not parse: ${parsed.reason.kind}`);
-  }
-  const all: SlateNode[] = [];
-  const walk = (nodes: readonly SlateNode[]): void => {
-    for (const node of nodes) {
-      all.push(node);
-      walk(node.children ?? []);
-    }
+// block ids from a counter, as a host mints its own
+const counter = (): (() => string) => {
+  let next = 0;
+  return () => {
+    next += 1;
+    return `page${String(next)}`;
   };
-  walk(parsed.value);
-  return all;
 };
 
-const textOf = (markdown: string): string =>
-  nodesOf(markdown)
-    .map((node) => node.text ?? "")
-    .join("");
+const readOf = (html: string, prefer: "article" | "description" = "article"): ExtractedPageBlocks =>
+  readHtml({ html, prefer, url: PAGE_URL }, counter());
+
+const read = (name: string): ExtractedPageBlocks => readOf(page(name));
+
+// the article as an export writes it, inside its `:::article` lines
+const written = (blocks: readonly LibraryBlock[]): string =>
+  itemView(
+    blocks.map((block) => ({ block, section: "article" })),
+    { title: () => null },
+  ).markdown;
+
+// the text an item's article reads as, a block's lines after the last's
+const wordsOf = (blocks: readonly LibraryBlock[]): string => {
+  const { text } = deriveBody(blocks.map((block) => ({ block, section: "article" })));
+  return text === "" ? "" : `${text}\n`;
+};
+
+// every node type the blocks hold, a text leaf as "text"
+const typesIn = (blocks: readonly LibraryNode[]): Set<string> => {
+  const types = new Set<string>();
+  const pending = [...blocks];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if ("text" in node) {
+      types.add("text");
+    } else {
+      types.add(node.type);
+      pending.push(...node.children);
+    }
+  }
+  return types;
+};
+
+// a page whose article is the markup given, behind enough prose for the extractor to pick it
+const articlePage = (markup: string): string =>
+  `<html><body><article><h1>A page</h1><p>An opening paragraph of ordinary prose, long enough for the reader to take the article as the page's readable part.</p>${markup}<p>A closing paragraph of ordinary prose, as long as the first, so the article ends in words.</p></article></body></html>`;
 
 describe("page meta", () => {
   it("reads the extractor's facts and the head's covers, the secure image first", () => {
@@ -128,7 +147,7 @@ describe("page meta", () => {
 
 describe("the article", () => {
   it("keeps the prose, absolute links, a fenced code block and the picture, and none of the chrome", () => {
-    const { article } = extracted("blog-post");
+    const article = written(read("blog-post").article.blocks);
     expect(article).toContain("## What a file buys you");
     expect(article).toContain("[Unix philosophy](https://en.wikipedia.org/wiki/Unix_philosophy)");
     expect(article).toContain("(https://pages.example/posts/plain-text)");
@@ -143,32 +162,39 @@ describe("the article", () => {
   });
 
   it("spells a plain table as GFM and flattens one with spans or blocks", () => {
-    expect(extracted("news-article").article).toMatch(/^\| Year \| Event +\|$/mu);
-    const timetable = extracted("complex-table").article;
+    expect(written(read("news-article").article.blocks)).toMatch(/^\| Year \| Event +\|$/mu);
+    const timetable = written(read("complex-table").article.blocks);
     expect(timetable).not.toContain("|");
     expect(timetable).toContain("North Quay · 05:40 · 07:10");
   });
 
-  it("keeps code languages, nested lists and inline code", () => {
-    const { article } = extracted("docs-page");
+  it("keeps code languages, nested lists and inline code, in a table's cell too", () => {
+    const article = written(read("docs-page").article.blocks);
+    expect(article).toMatch(/^\| `interval` +\| 60 /mu);
     expect(article).toContain("```toml\ninterval = 30");
     expect(article).toContain("`~/.config/tidepool/sync.toml`");
     expect(article).toMatch(/- On macOS it lives under your home folder\./u);
   });
 
   it("never names one of the dialect's own fenced blocks as a code block's language", () => {
-    const { article } = extracted("docs-page");
+    const { blocks } = read("docs-page").article;
+    const article = written(blocks);
     expect(article).toContain("```\n<b>Synced</b> at noon\n```");
     expect(article).toContain('```\n{"type": "bar"}\n```');
     expect(article.toLowerCase()).not.toContain("```inteligir-");
-    const types = new Set(nodesOf(article).map((node) => node.type ?? "text"));
     expect(
-      [...types].filter((type) => type.endsWith("_block") && type !== "code_block"),
+      [...typesIn(blocks)].filter((type) => type.endsWith("_block") && type !== "code_block"),
     ).toStrictEqual([]);
   });
 
+  it("reads a definition list as a list, each term with its definition under it", () => {
+    expect(written(read("docs-page").article.blocks)).toContain(
+      "- The daemon exits at once\n\n  Check the file for a syntax error; the log names the line.",
+    );
+  });
+
   it("keeps nothing a script, a frame, an object or a form put there", () => {
-    const { article } = extracted("script-heavy");
+    const article = written(read("script-heavy").article.blocks);
     expect(article).toContain("offline mode");
     for (const hostile of [
       "injected",
@@ -181,32 +207,50 @@ describe("the article", () => {
     }
   });
 
-  it("writes a video's description as its article when asked to", () => {
-    expect(extracted("video-page", "description").article).toBe(
-      "A quick guide to a first loaf: starter, dough, fold, bake.\n",
-    );
+  it("reads a video's description as its article when asked to", () => {
+    const video = readOf(page("video-page"), "description");
+    expect(video.rung).toBe("text");
+    expect(video.article.blocks).toStrictEqual([
+      {
+        children: [{ text: "A quick guide to a first loaf: starter, dough, fold, bake." }],
+        id: "page1",
+        type: "p",
+      },
+    ]);
+  });
+
+  it("keeps an in-page link as its words", () => {
+    expect(
+      written(
+        readOf(
+          articlePage(
+            `<p>See <a href="#section-two">the second section</a> or <a href="/next">the next page</a>.</p>`,
+          ),
+        ).article.blocks,
+      ),
+    ).toContain("See the second section or [the next page](https://pages.example/next).");
   });
 });
 
 describe("the article's budget", () => {
-  // a page twice the article's budget on purpose, which takes seconds to read
+  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
   it(
     "keeps a long page's leading paragraphs, whole, within the budget",
     { timeout: 30_000 },
     () => {
       const long = longPage(FILL_LIMITS.articleBytes * 2);
-      const { article } = extractPage({ html: long.html, prefer: "article", url: PAGE_URL });
+      const article = wordsOf(readOf(long.html).article.blocks);
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
       // whole paragraphs: the last one kept ends its sentence
       expect(article.trimEnd().endsWith("ordinary prose.")).toBe(true);
-      // markdown is shorter than the markup it was read from, which the budget counts
+      // the words are shorter than the markup they were read from, which the budget counts
       expect(article.length).toBeLessThan(FILL_LIMITS.articleBytes);
       expect(article.length).toBeGreaterThan(FILL_LIMITS.articleBytes / 3);
     },
   );
 
-  // a page twice the article's budget on purpose, which takes seconds to read
+  // a page twice the article's budget on purpose, which a loaded machine reads in seconds
   it(
     "opens one wrapper past the budget rather than losing the whole page",
     { timeout: 30_000 },
@@ -215,7 +259,7 @@ describe("the article's budget", () => {
       const wrapped = long.html
         .replace("<article>", "<article><div><div>")
         .replace("</article>", "</div></div></article>");
-      const { article } = extractPage({ html: wrapped, prefer: "article", url: PAGE_URL });
+      const article = wordsOf(readOf(wrapped).article.blocks);
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
     },
@@ -223,15 +267,15 @@ describe("the article's budget", () => {
 
   it("leaves a page within the budget whole", () => {
     const short = longPage(FILL_LIMITS.articleBytes / 4);
-    const { article } = extractPage({ html: short.html, prefer: "article", url: PAGE_URL });
-    expect(article).toContain(`Paragraph ${String(short.paragraphs - 1)} opens`);
+    expect(wordsOf(readOf(short.html).article.blocks)).toContain(
+      `Paragraph ${String(short.paragraphs - 1)} opens`,
+    );
   });
 });
 
-describe("the dialect escapes", () => {
-  const { article } = extracted("dialect-hazards");
-  const text = textOf(article);
-  const types = new Set(nodesOf(article).map((node) => node.type ?? "text"));
+describe("a page's text the dialect would read as its own", () => {
+  const { blocks } = read("dialect-hazards").article;
+  const text = wordsOf(blocks);
 
   it.each([
     "{{x}}",
@@ -252,92 +296,60 @@ describe("the dialect escapes", () => {
   });
 
   it("reads as nothing but paragraphs of text", () => {
-    expect([...types].toSorted()).toStrictEqual(["p", "text"]);
+    expect([...typesIn(blocks)].toSorted()).toStrictEqual(["p", "text"]);
+  });
+});
+
+describe("a page the tree cannot hold", () => {
+  it("reads as its words when the page nests past any recursion", () => {
+    const depth = 3000;
+    const deep = readOf(
+      `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
+    );
+    expect(deep.rung).toBe("text");
+    expect(wordsOf(deep.article.blocks)).toBe("deep words here\nafter them\n");
+  });
+
+  it("reads as its words when the tree would lose them to a block no store takes", () => {
+    const depth = 40;
+    const quoted = readOf(
+      articlePage(
+        `${"<blockquote>".repeat(depth)}<p>Words quoted deeper than a block may nest, which the page still says and the article still keeps, every one of them.</p>${"</blockquote>".repeat(depth)}`,
+      ),
+    );
+    expect(quoted.rung).toBe("text");
+    expect(wordsOf(quoted.article.blocks)).toContain("Words quoted deeper than a block may nest");
+    expect([...typesIn(quoted.article.blocks)].toSorted()).toStrictEqual(["p", "text"]);
   });
 });
 
 describe("every corpus page", () => {
   const names = readdirSync(CORPUS)
-    .filter((name) => name.endsWith(".html"))
-    .map((name) => name.slice(0, -".html".length))
+    .filter((file) => file.endsWith(".html"))
+    .map((file) => file.slice(0, -".html".length))
     .toSorted();
 
-  it.each(names)("%s is the editor's fixpoint, kept whole or on a lower rung", (name) => {
-    const result = extracted(name);
-    expect(canonicalizeImported(result.article)).toStrictEqual({
-      kept: 1,
-      markdown: result.article,
-    });
-    expect(result.kept >= KEPT_MIN || result.rung !== "rich").toBe(true);
-  });
-});
-
-describe("the body ladder", () => {
-  it("falls to the plain text rung for a page nested past any recursion", () => {
-    const depth = 3000;
-    const result = extractPage({
-      html: `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
-      prefer: "article",
-      url: PAGE_URL,
-    });
-    expect(result.rung).toBe("text");
-    expect(result.article).toBe("deep words here\n\nafter them\n");
-    expect(canonicalizeImported(result.article)?.markdown).toBe(result.article);
-  });
-});
-
-// block ids from a counter, as a host mints its own
-const counter = (): (() => string) => {
-  let next = 0;
-  return () => {
-    next += 1;
-    return `page${String(next)}`;
-  };
-};
-
-// the text an item's article reads as, a block's lines after the last's
-const wordsOf = (blocks: readonly LibraryBlock[]): string => {
-  const { text } = deriveBody(blocks.map((block) => ({ block, section: "article" })));
-  return text === "" ? "" : `${text}\n`;
-};
-
-describe("the article as blocks", () => {
-  const names = readdirSync(CORPUS)
-    .filter((file) => file.endsWith(".html"))
-    .map((file) => file.slice(0, -".html".length));
-
-  it.each(names)("%s reads as its item's article section, every block stored", (name) => {
-    const html = page(name);
-    const read = readHtml({ html, prefer: "article", url: PAGE_URL }, counter());
-    const { article } = extractPage({ html, prefer: "article", url: PAGE_URL });
-    expect(read.article.blocks.map((block) => block.id)).toStrictEqual(
-      read.article.blocks.map((_, index) => `page${String(index + 1)}`),
-    );
-    // the blocks hold the article's words: each text the markdown read as, found in the blocks
-    const stored = JSON.stringify(read.article.blocks);
-    const words = nodesOf(article).flatMap((node) =>
-      (node.text ?? "").split(/\W+/u).filter((word) => word !== ""),
-    );
-    expect(words.filter((word) => !stored.includes(word))).toStrictEqual([]);
-  });
-
-  it.each(names)("%s reads as the words its snapshot holds", async (name) => {
-    const read = readHtml({ html: page(name), prefer: "article", url: PAGE_URL }, counter());
-    await expect(wordsOf(read.article.blocks)).toMatchFileSnapshot(
+  it.each(names)("%s reads as the words its snapshot holds, read as a tree", async (name) => {
+    const { article, rung } = read(name);
+    expect(rung).toBe("rich");
+    expect(article.refused).toBe(0);
+    await expect(wordsOf(article.blocks)).toMatchFileSnapshot(
       path.join(CORPUS, `${name}.article.txt`),
     );
   });
 
-  it("keeps a page's hashtag and highlight spelling as the page's text", () => {
-    const read = readHtml(
-      {
-        html: "<html><body><article><p>A post about #rust with ==marks== and a %%note%% in it, longer than a line.</p></article></body></html>",
-        prefer: "article",
-        url: PAGE_URL,
-      },
-      counter(),
+  it.each(names)("%s names every block with the host's ids, in order", (name) => {
+    const { blocks } = read(name).article;
+    expect(blocks.map((block) => block.id)).toStrictEqual(
+      blocks.map((_, index) => `page${String(index + 1)}`),
     );
-    const stored = JSON.stringify(read.article.blocks);
+  });
+
+  it("keeps a page's hashtag and highlight spelling as the page's text", () => {
+    const { blocks } = readOf(
+      "<html><body><article><p>A post about #rust with ==marks== and a %%note%% in it, longer than a line.</p></article></body></html>",
+    ).article;
+    const stored = JSON.stringify(blocks);
     expect(stored).not.toContain('"tag"');
     expect(stored).toContain("#rust");
   });

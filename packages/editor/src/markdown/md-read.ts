@@ -1,11 +1,12 @@
-// The one read of markdown into blocks: Plate's own deserialize over the dialect's plugins and
-// rules, with no MDX pre-pass, and a failure said as a refusal rather than a degraded model.
+// The one read into blocks: markdown through Plate's own deserialize over the dialect's plugins and
+// rules, with no MDX pre-pass, or a tree a reader already holds through those same rules, and a
+// failure said as a refusal rather than a degraded model.
 
-import type { Nodes } from "mdast";
-import { ElementApi, NodeApi } from "platejs";
-import type { SlateEditor, TElement } from "platejs";
+import type { Nodes, Root } from "mdast";
+import { ElementApi, KEYS, NodeApi } from "platejs";
+import type { Descendant, SlateEditor, TElement } from "platejs";
 import type { Plugin, Transformer } from "unified";
-import { MarkdownPlugin } from "@platejs/markdown";
+import { MarkdownPlugin, getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";
 
 import { BLOCK_MAX_DEPTH, LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 import { MD_REMARK_PLUGINS } from "@repo/editor/markdown/md-plugins";
@@ -36,33 +37,42 @@ class TooDeepError extends Error {
 // Measured before Plate builds nodes, whose recursion costs more than linear in depth and runs out
 // of stack where each platform's frames put it, so a refusal is cheap and the same everywhere. Walked
 // without recursion, so the tree a recursion overflows on cannot overflow this.
+const refuseTooDeep = (tree: Root): void => {
+  const pending: { depth: number; node: Nodes }[] = [{ depth: 0, node: tree }];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (next.depth > READ_MAX_DEPTH) {
+      throw new TooDeepError(`nests deeper than ${String(READ_MAX_DEPTH)} levels`);
+    }
+    if ("children" in next.node) {
+      for (const child of next.node.children) {
+        pending.push({ depth: next.depth + 1, node: child });
+      }
+    }
+  }
+};
+
 const remarkReadDepth: Plugin = function remarkReadDepth(): Transformer {
   return (tree) => {
-    const pending: { depth: number; node: Nodes }[] = isMdastRoot(tree)
-      ? [{ depth: 0, node: tree }]
-      : [];
-    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-      if (next.depth > READ_MAX_DEPTH) {
-        throw new TooDeepError(`nests deeper than ${String(READ_MAX_DEPTH)} levels`);
-      }
-      if ("children" in next.node) {
-        for (const child of next.node.children) {
-          pending.push({ depth: next.depth + 1, node: child });
-        }
-      }
+    if (isMdastRoot(tree)) {
+      refuseTooDeep(tree);
     }
   };
 };
 
-const isTooDeep = (error: Error): boolean =>
-  error instanceof TooDeepError || isStackOverflow(error);
+const TOO_DEEP: MarkdownRead = { ok: false, reason: { kind: "too-deep" } };
 
-const withinStack = <T>(run: () => T): T | null => {
+const refusal = (error: Error): MarkdownRead =>
+  error instanceof TooDeepError || isStackOverflow(error)
+    ? TOO_DEEP
+    : { ok: false, reason: { error, kind: "failed" } };
+
+// a read never throws: a stack that ran out under it is the refusal a tree measured too deep is
+const refusing = (read: () => MarkdownRead): MarkdownRead => {
   try {
-    return run();
+    return read();
   } catch (error) {
-    if (error instanceof Error && isStackOverflow(error)) {
-      return null;
+    if (error instanceof Error) {
+      return refusal(error);
     }
     throw error;
   }
@@ -86,15 +96,23 @@ export interface ReadOptions {
   readonly wiki?: WikiResolve | undefined;
 }
 
+// a text at the root is a paragraph of its own, as Plate's markdown read already wraps one
+const heldBlocks = (nodes: readonly Descendant[]): MarkdownRead => {
+  const value = nodes.map((node) =>
+    ElementApi.isElement(node) ? node : { children: [node], type: KEYS.p },
+  );
+  return nestsTooDeep(value) ? TOO_DEEP : { ok: true, value };
+};
+
 export const readMarkdown = (
   editor: SlateEditor,
   md: string,
   options: ReadOptions = {},
-): MarkdownRead => {
-  const failures: Error[] = [];
-  const { wiki } = options;
-  const nodes = withinStack(() =>
-    editor.getApi(MarkdownPlugin).markdown.deserialize(md, {
+): MarkdownRead =>
+  refusing(() => {
+    const failures: Error[] = [];
+    const { wiki } = options;
+    const nodes = editor.getApi(MarkdownPlugin).markdown.deserialize(md, {
       onError: (error: Error) => {
         failures.push(error);
       },
@@ -104,19 +122,16 @@ export const readMarkdown = (
         ...(wiki === undefined ? [] : [remarkWikiImport(wiki)]),
       ],
       withoutMdx: true,
-    }),
-  );
-  if (nodes === null) {
-    return { ok: false, reason: { kind: "too-deep" } };
-  }
-  const [failed] = failures;
-  if (failed !== undefined) {
-    return {
-      ok: false,
-      reason: isTooDeep(failed) ? { kind: "too-deep" } : { error: failed, kind: "failed" },
-    };
-  }
-  // Plate wraps a root text in a paragraph, so this only narrows the type
-  const value = nodes.filter((node) => ElementApi.isElement(node));
-  return nestsTooDeep(value) ? { ok: false, reason: { kind: "too-deep" } } : { ok: true, value };
-};
+    });
+    const [failed] = failures;
+    return failed === undefined ? heldBlocks(nodes) : refusal(failed);
+  });
+
+// A tree a reader built from something other than markdown (a saved page's html), read by the rule
+// table alone: no parser and no plugin runs over it, so a text node is the text it holds and
+// nothing in it reads as a construct the dialect spells.
+export const readMdast = (editor: SlateEditor, root: Root): MarkdownRead =>
+  refusing(() => {
+    refuseTooDeep(root);
+    return heldBlocks(mdastToSlate(root, getMergedOptionsDeserialize(editor)));
+  });

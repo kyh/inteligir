@@ -1,3 +1,4 @@
+import type { BlockContent, Root } from "mdast";
 import { describe, expect, it } from "vitest";
 import { MarkdownPlugin } from "@platejs/markdown";
 
@@ -5,7 +6,7 @@ import { LIST_MAX_INDENT } from "@repo/contract/library/library-nodes";
 
 import { meaningOf } from "../test-support/markdown-meaning";
 import { headlessEditor } from "./markdown-doc";
-import { lfOnly, readMarkdown } from "./md-read";
+import { lfOnly, readMarkdown, readMdast } from "./md-read";
 import { MD_RULES } from "./md-rules";
 
 const read = (md: string) => readMarkdown(headlessEditor(), md);
@@ -92,6 +93,106 @@ describe(readMarkdown, () => {
           ],
         },
       ],
+    });
+  });
+});
+
+const paragraph = (value: string): BlockContent => ({
+  children: [{ type: "text", value }],
+  type: "paragraph",
+});
+
+const tree = (...children: BlockContent[]): Root => ({ children, type: "root" });
+
+const quoted = (depth: number): BlockContent => {
+  let block = paragraph("x");
+  for (let level = 0; level < depth; level += 1) {
+    block = { children: [block], type: "blockquote" };
+  }
+  return block;
+};
+
+describe(readMdast, () => {
+  it("reads a tree into the editor's blocks by the rules a markdown read ends in", () => {
+    expect(
+      readMdast(
+        headlessEditor(),
+        tree(
+          { children: [{ type: "text", value: "Title" }], depth: 1, type: "heading" },
+          {
+            children: [
+              { type: "text", value: "Body with " },
+              {
+                children: [{ type: "text", value: "a link" }],
+                type: "link",
+                url: "https://a.example/",
+              },
+              { type: "text", value: "." },
+            ],
+            type: "paragraph",
+          },
+        ),
+      ),
+    ).toStrictEqual({
+      ok: true,
+      value: [
+        { children: [{ text: "Title" }], type: "h1" },
+        {
+          children: [
+            { text: "Body with " },
+            { children: [{ text: "a link" }], type: "a", url: "https://a.example/" },
+            { text: "." },
+          ],
+          type: "p",
+        },
+      ],
+    });
+  });
+
+  it.each([
+    '{{x}} and :date[2026-01-02] and :formula[2]{source="1+1"}',
+    ":::tabs",
+    "$$x$$ and [[Page]] and [Title](mention:abc)",
+    "# not a heading, > not a quote, - not a list, | not | a | table |",
+    "[!NOTE]",
+    "<div> &copy; \\ `ticks` **stars**",
+  ])("reads the text %s as that text, parsed by nothing", (value) => {
+    expect(readMdast(headlessEditor(), tree(paragraph(value)))).toStrictEqual({
+      ok: true,
+      value: [{ children: [{ text: value }], type: "p" }],
+    });
+  });
+
+  it("reads a text at the root as a paragraph of its own", () => {
+    expect(
+      readMdast(headlessEditor(), { children: [{ type: "text", value: "Loose." }], type: "root" }),
+    ).toStrictEqual({ ok: true, value: [{ children: [{ text: "Loose." }], type: "p" }] });
+  });
+
+  it("refuses a tree nested past what an item holds as too deep, wherever a stack would run out", () => {
+    expect(readMdast(headlessEditor(), tree(quoted(8))).ok).toBe(true);
+    for (const depth of [500, 12_000]) {
+      expect(readMdast(headlessEditor(), tree(quoted(depth)))).toStrictEqual({
+        ok: false,
+        reason: { kind: "too-deep" },
+      });
+    }
+  });
+
+  it("refuses a read a rule fails as failed, with the rule's error", () => {
+    const editor = headlessEditor();
+    const broken = new Error("the rule broke");
+    editor.setOption(MarkdownPlugin, "rules", {
+      ...MD_RULES,
+      p: {
+        deserialize: () => {
+          throw broken;
+        },
+      },
+    });
+    expect(readMdast(editor, tree(paragraph("Body.")))).toStrictEqual({
+      ok: false,
+      reason: { error: broken, kind: "failed" },
     });
   });
 });

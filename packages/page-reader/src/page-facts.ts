@@ -25,23 +25,14 @@ export interface PageFacts {
   readonly title: string | null;
 }
 
-// the body ladder's rungs, rich to plain
-export type Rung = "rich" | "plain" | "text";
+// how an article was read: as the page's tree, or as its words alone
+export type Rung = "rich" | "text";
 
-export interface ExtractedPage {
-  // the article as the editor's own fixpoint; "" when the page holds no text the editor could keep
-  readonly article: string;
-  readonly facts: PageFacts;
-  // the share of the converted letters the fixpoint kept
-  readonly kept: number;
-  readonly rung: Rung | null;
-}
-
-// the same reading, its article as the library's blocks
+// a page read: its facts and its article as the library's blocks
 export interface ExtractedPageBlocks {
   readonly facts: PageFacts;
-  // the article as its item's article section; no blocks when the page holds no text the editor
-  // could keep
+  // the article as its item's article section; no blocks when the page holds no text
   readonly article: ArticleBlocks;
+  // null when the editor refused every reading of the page's text
   readonly rung: Rung | null;
 }
