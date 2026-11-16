@@ -49,7 +49,7 @@ const worker = defineWorker({
 // the release after it raises this to its own version (docs/releasing.md § 1, step 3); every
 // checkout reports the last release's version, so the floor never passes one before then.
 // The next release owes the floor: this Worker's `library.write` takes property ops alone, a
-// CONFLICT carries no data and an item's row no `kind`.
+// CONFLICT carries no data, an item's row no `kind`, and a list's `cursor` is a number.
 const MIN_CLIENT_BUILD = "0.7.0";
 
 // the production AI Gateway, `inteligir`, on its provider-native Anthropic route

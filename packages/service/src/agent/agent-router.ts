@@ -4,7 +4,7 @@
 import { z } from "zod";
 
 import { listThreads, threadEvents } from "../library/cell-threads";
-import { answer, os, PAGE_DEFAULT } from "../library/library-orpc";
+import { answer, os } from "../library/library-orpc";
 import { readLibraryRules, writeLibraryRules } from "../library/library-rules";
 import { setAgentEnabled } from "./agent-switch";
 import {
@@ -25,13 +25,9 @@ export const agentRouter = {
     answer(await deleteAgentThread(context.agent, input)),
   ),
   events: os.agent.events.handler(({ context, input }) =>
-    context.read((db) => threadEvents(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
+    context.read((db) => threadEvents(db, input)),
   ),
-  list: os.agent.list.handler(({ context, input }) =>
-    context.read((db) =>
-      listThreads(db, { cursor: input.cursor, limit: input.limit ?? PAGE_DEFAULT }),
-    ),
-  ),
+  list: os.agent.list.handler(({ context, input }) => context.read((db) => listThreads(db, input))),
   respond: os.agent.respond.handler(async ({ context, input }) =>
     answer(await respondToAgent(context.agent, input)),
   ),

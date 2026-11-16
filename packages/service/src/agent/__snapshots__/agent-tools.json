@@ -135,28 +135,34 @@
       "additionalProperties": false,
       "properties": {
         "cursor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "folderId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "note",
-            "link",
-            "video",
-            "audio",
-            "image",
-            "pdf",
-            "file"
-          ]
+        "kinds": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "note",
+              "link",
+              "video",
+              "audio",
+              "image",
+              "pdf",
+              "file"
+            ]
+          }
         },
         "limit": {
+          "default": 50,
           "type": "integer",
           "minimum": 1,
           "maximum": 50
@@ -165,6 +171,7 @@
           "type": "boolean"
         },
         "responseFormat": {
+          "default": "concise",
           "type": "string",
           "enum": [
             "concise",
@@ -172,10 +179,11 @@
           ]
         },
         "sort": {
+          "default": "saved",
           "type": "string",
           "enum": [
             "saved",
-            "updated",
+            "modified",
             "title"
           ]
         },
@@ -288,11 +296,13 @@
       "additionalProperties": false,
       "properties": {
         "count": {
+          "default": 200,
           "type": "integer",
           "minimum": 1,
           "maximum": 500
         },
         "from": {
+          "default": 0,
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
@@ -303,6 +313,7 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "responseFormat": {
+          "default": "concise",
           "type": "string",
           "enum": [
             "concise",
@@ -404,9 +415,10 @@
       "additionalProperties": false,
       "properties": {
         "cursor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "folderId": {
           "type": "string",
@@ -430,6 +442,7 @@
           }
         },
         "limit": {
+          "default": 50,
           "type": "integer",
           "minimum": 1,
           "maximum": 50
@@ -440,6 +453,7 @@
           "maxLength": 500
         },
         "responseFormat": {
+          "default": "concise",
           "type": "string",
           "enum": [
             "concise",

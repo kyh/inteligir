@@ -32,7 +32,7 @@ export const everyChangeSet = async (
   signal?: AbortSignal,
 ) => {
   const pages = [];
-  let cursor: string | undefined;
+  let cursor: number | undefined;
   do {
     const page = await client.library.history.list({ ...filter, cursor }, { signal });
     pages.push(page);

@@ -372,9 +372,9 @@ describe("the agent panel's conversation", () => {
       // the conversation's sets come over two pages, the second asked once the first is in
       answer: ({ path, input }) => {
         if (path === "library.history.list") {
-          return JSON.stringify(input).includes('"cursor":"1"')
+          return JSON.stringify(input).includes('"cursor":1')
             ? { changeSets: [set("s1", 1)], cursor: null }
-            : { changeSets: [set("s2", 2)], cursor: "1" };
+            : { changeSets: [set("s2", 2)], cursor: 1 };
         }
         return { changeSetId: "u1", kept: [], lostText: [], refused: [], reverted: ["i1"] };
       },
@@ -416,8 +416,8 @@ describe("the agent panel's conversation", () => {
         if (path !== "library.history.list") {
           return UNDONE;
         }
-        if (!JSON.stringify(input).includes('"cursor":"1"')) {
-          return { changeSets: [set("s2", 2)], cursor: "1" };
+        if (!JSON.stringify(input).includes('"cursor":1')) {
+          return { changeSets: [set("s2", 2)], cursor: 1 };
         }
         await older.promise;
         return { changeSets: [set("s1", 1)], cursor: null };

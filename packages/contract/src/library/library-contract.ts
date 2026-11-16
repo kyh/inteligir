@@ -39,12 +39,14 @@ import {
   importJobSchema,
   itemReadSchema,
   itemSummarySchema,
+  kindsSchema,
   liveItemRowSchema,
   FILING_RULES_MAX,
   folderRowSchema,
   listedItemSchema,
   LISTING_PAGE_MAX,
   listingQuerySchema,
+  listingSortSchema,
   MARKDOWN_MAX,
   MESSAGE_MAX,
   newIdSchema,
@@ -64,9 +66,11 @@ import {
 
 const FIELDS = libraryItemFieldsSchema.shape;
 const opId = opIdSchema.optional();
-const limit = z.number().int().min(1).max(PAGE_MAX).optional();
-const cursor = cursorSchema.optional();
-const responseFormat = responseFormatSchema.optional();
+// a list's page: at most `limit` rows from `cursor`, its answer's `cursor` the next page's
+const limit = z.number().int().min(1).max(PAGE_MAX).default(PAGE_MAX);
+const cursor = cursorSchema.default(0);
+const nextCursor = cursorSchema.nullable();
+const responseFormat = responseFormatSchema.default("concise");
 const ids = z.array(idSchema).min(1).max(BULK_ITEMS_MAX);
 
 // a write that makes an item answers with its row as it landed
@@ -108,33 +112,53 @@ export const saveLinkInputSchema = z.strictObject({
 });
 export const deleteInputSchema = z.strictObject({ ids, opId });
 
+// the inputs of the rows that read for an agent, by name: the cell's reads take each as its
+// schema parsed it, every default in place (packages/service/src/library/cell-reads.ts)
+export const listInputSchema = z.strictObject({
+  cursor,
+  // a folder and every folder under it
+  folderId: idSchema.optional(),
+  kinds: kindsSchema.optional(),
+  limit,
+  pinned: z.boolean().optional(),
+  responseFormat,
+  sort: listingSortSchema.default("saved"),
+  // a tag and every tag under it
+  tag: FIELDS.tags.element.optional(),
+});
+// `from` and `count` are block positions, so a long item reads a page at a time
+export const readInputSchema = z.strictObject({
+  count: z.number().int().min(1).max(500).default(200),
+  from: z.number().int().nonnegative().default(0),
+  id: idSchema,
+  responseFormat,
+});
+export const searchInputSchema = z.strictObject({
+  cursor,
+  folderId: idSchema.optional(),
+  kinds: kindsSchema.optional(),
+  limit,
+  query: z.string().trim().min(1).max(500),
+  responseFormat,
+  savedAfter: isoDate.optional(),
+  savedBefore: isoDate.optional(),
+  tag: FIELDS.tags.element.optional(),
+});
+export const changeSetsInputSchema = z.strictObject({
+  cursor,
+  limit,
+  // the sets one conversation's turns opened, which its Undo takes back; else the library's newest
+  threadId: idSchema.optional(),
+});
+
 const itemsContract = {
   list: signedBase
-    .input(
-      z.strictObject({
-        cursor,
-        folderId: idSchema.optional(),
-        kind: FIELDS.kind.optional(),
-        limit,
-        pinned: z.boolean().optional(),
-        responseFormat,
-        sort: z.enum(["saved", "updated", "title"]).optional(),
-        tag: FIELDS.tags.element.optional(),
-      }),
-    )
-    .output(z.object({ cursor: cursorSchema.nullable(), items: z.array(itemSummarySchema) })),
+    .input(listInputSchema)
+    .output(z.object({ cursor: nextCursor, items: z.array(itemSummarySchema) })),
 
-  // `from` and `count` are block positions, so a long item reads a page at a time
   read: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
-    .input(
-      z.strictObject({
-        count: z.number().int().min(1).max(500).optional(),
-        from: z.number().int().nonnegative().optional(),
-        id: idSchema,
-        responseFormat,
-      }),
-    )
+    .input(readInputSchema)
     .output(itemReadSchema),
 
   // an item whole, its row and every block in reading order, for the apps; Deleted's items too
@@ -409,8 +433,8 @@ const organizeContract = {
 const historyContract = {
   // the sets one conversation's turns made, or the library's newest
   list: signedBase
-    .input(z.strictObject({ cursor, limit, threadId: idSchema.optional() }))
-    .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
+    .input(changeSetsInputSchema)
+    .output(z.object({ changeSets: z.array(changeSetSchema), cursor: nextCursor })),
 
   // newest first, in one change set of its own; an item a later edit overlaps is named under
   // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
@@ -513,7 +537,7 @@ const agentContract = {
 
   list: signedBase
     .input(z.strictObject({ cursor, limit }))
-    .output(z.object({ cursor: cursorSchema.nullable(), threads: z.array(threadRowSchema) })),
+    .output(z.object({ cursor: nextCursor, threads: z.array(threadRowSchema) })),
 
   // a thread's stored events after `after`, in order
   events: signedBase
@@ -521,7 +545,7 @@ const agentContract = {
     .input(
       z.strictObject({
         after: z.number().int().nonnegative().optional(),
-        limit: z.number().int().min(1).max(500).optional(),
+        limit: z.number().int().min(1).max(500).default(PAGE_MAX),
         threadId: idSchema,
       }),
     )
@@ -572,20 +596,8 @@ export const libraryContract = {
   // full-text search over titles, notes and saved articles, for agents; the apps search through
   // `listing.page`'s words
   search: signedBase
-    .input(
-      z.strictObject({
-        cursor,
-        folderId: idSchema.optional(),
-        kinds: z.array(FIELDS.kind).min(1).optional(),
-        limit,
-        query: z.string().trim().min(1).max(500),
-        responseFormat,
-        savedAfter: isoDate.optional(),
-        savedBefore: isoDate.optional(),
-        tag: FIELDS.tags.element.optional(),
-      }),
-    )
-    .output(z.object({ cursor: cursorSchema.nullable(), hits: z.array(searchHitSchema) })),
+    .input(searchInputSchema)
+    .output(z.object({ cursor: nextCursor, hits: z.array(searchHitSchema) })),
 
   // one item's property ops, each guarded by its base, landing whole or not at all. Every other
   // field moves by a verb of `items`, which asks the reading or tells the note with it, and a body

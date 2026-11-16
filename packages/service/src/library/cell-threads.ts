@@ -10,7 +10,6 @@ import { threadEvents as threadEventRows, threads } from "@repo/db/cell/schema";
 import { jsonTextSchema } from "./sql-value";
 import type { CellDb } from "./cell-db";
 import type { LandingScope } from "./cell-landing";
-import { offsetOf } from "./cell-reads";
 import { refuse } from "./cell-refusal";
 
 type ThreadRow = z.infer<typeof threadRowSchema>;
@@ -24,19 +23,18 @@ const threadExists = (db: CellDb, threadId: string): boolean =>
 // the newest-touched first
 export const listThreads = (
   db: CellDb,
-  input: { readonly cursor?: string | undefined; readonly limit: number },
+  input: { readonly cursor: number; readonly limit: number },
 ) => {
-  const offset = offsetOf(input.cursor);
   const rows = db
     .select()
     .from(threads)
     .orderBy(desc(threads.updatedAt), desc(threads.id))
     .limit(input.limit + 1)
-    .offset(offset)
+    .offset(input.cursor)
     .all()
     .map((row): ThreadRow => ({ ...row, status: statusSchema.parse(row.status) }));
   return {
-    cursor: rows.length > input.limit ? String(offset + input.limit) : null,
+    cursor: rows.length > input.limit ? input.cursor + input.limit : null,
     threads: rows.slice(0, input.limit),
   };
 };

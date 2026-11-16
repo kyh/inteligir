@@ -10,7 +10,7 @@ import { threadQueries } from "./thread-queries";
 
 const THREAD = "0199a4c2-0000-7000-8000-0000000000e1";
 
-const asked = z.object({ after: z.number().optional(), cursor: z.string().optional() });
+const asked = z.object({ after: z.number().optional(), cursor: z.number().optional() });
 
 // a device over a cloud that answers a page from what each call asked after
 const device = (answer: (input: z.infer<typeof asked>) => object) => {
@@ -43,7 +43,7 @@ describe("a conversation as every device reads it", () => {
   it("reads every thread of the account, a page after a page", async () => {
     const { queries, queryClient } = device(({ cursor }) =>
       cursor === undefined
-        ? { cursor: "next", threads: [{ id: "a" }] }
+        ? { cursor: 1, threads: [{ id: "a" }] }
         : { cursor: null, threads: [{ id: "b" }] },
     );
     const read = await queryClient.query(queries.threads());

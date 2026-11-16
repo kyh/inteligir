@@ -43,7 +43,7 @@ export const threadQueries = ({
       input: {},
       queryFn: async ({ signal }) => {
         const threads = [];
-        let cursor: string | undefined;
+        let cursor: number | undefined;
         do {
           const page = await client.library.agent.list({ cursor, limit: PAGE_MAX }, { signal });
           threads.push(...page.threads);

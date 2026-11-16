@@ -1,17 +1,24 @@
-// What the cell answers an agent's reads with, inside one read transaction: the listing and a
-// search's filters through the cell's listing (`./cell-listing`); an item as its markdown view,
-// paged by block position and cut to a page an agent's tool result can carry; the folder tree and
-// tags; and the change sets Undo takes back. Times an agent reads are ISO 8601.
+// What the cell answers an agent's reads with, inside one read transaction, each from its row's
+// input as the contract parsed it: the listing and a search's filters through the cell's listing
+// (`./cell-listing`); an item as its markdown view, paged by block position and cut to a page an
+// agent's tool result can carry; the folder tree and tags; and the change sets Undo takes back.
+// Times an agent reads are ISO 8601.
 
+import type {
+  changeSetsInputSchema,
+  listInputSchema,
+  readInputSchema,
+  searchInputSchema,
+} from "@repo/contract/library/library-contract";
 import type {
   changeSetSchema,
   itemReadSchema,
   itemSummarySchema,
+  responseFormatSchema,
   searchHitSchema,
 } from "@repo/contract/library/library-wire";
 import { viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage, ViewPorts } from "@repo/editor/codec/item-view";
-import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
 import type { BodyBlock, ItemCard } from "@repo/contract/library/derive-item";
@@ -46,25 +53,15 @@ type ItemSummary = z.infer<typeof itemSummarySchema>;
 type SearchHit = z.infer<typeof searchHitSchema>;
 type ItemRead = z.infer<typeof itemReadSchema>;
 type ChangeSet = z.infer<typeof changeSetSchema>;
-
-export type ResponseFormat = "concise" | "detailed";
+type ResponseFormat = z.infer<typeof responseFormatSchema>;
 
 const isoOf = (ms: number): string => new Date(ms).toISOString();
 
 // ---- pages ----
 
-// a page's place in an answer: the rows from `offset`, and the cursor the next page starts at
-const CURSOR = /^(?:0|[1-9]\d{0,8})$/u;
-
-export const offsetOf = (cursor: string | undefined): number => {
-  if (cursor === undefined) {
-    return 0;
-  }
-  return CURSOR.test(cursor) ? Number(cursor) : refuse({ kind: "bad-cursor" });
-};
-
-const nextCursor = (offset: number, shown: number, total: number): string | null =>
-  offset + shown < total ? String(offset + shown) : null;
+// where the next page starts, null when the `shown` rows from `offset` end the list
+const nextCursor = (offset: number, shown: number, total: number): number | null =>
+  offset + shown < total ? offset + shown : null;
 
 // ---- the listing ----
 
@@ -96,28 +93,18 @@ export const summaryOf = (
   };
 };
 
-const LIST_SORTS = { saved: "saved", title: "title", updated: "modified" } as const;
-
-export interface ListInput {
-  readonly cursor?: string | undefined;
-  readonly folderId?: string | undefined;
-  readonly kind?: ItemKind | undefined;
-  readonly limit: number;
-  readonly pinned?: boolean | undefined;
-  readonly responseFormat: ResponseFormat;
-  readonly sort?: keyof typeof LIST_SORTS | undefined;
-  readonly tag?: string | undefined;
-}
-
-export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: ListInput) => {
-  const offset = offsetOf(input.cursor);
+export const listItems = (
+  db: CellDb,
+  listing: LibraryIndex<ListingRow>,
+  input: z.output<typeof listInputSchema>,
+) => {
   const page = listing.items({
     deleted: false,
     folderId: input.folderId,
-    kinds: input.kind === undefined ? undefined : [input.kind],
+    kinds: input.kinds,
     limit: Number.MAX_SAFE_INTEGER,
     offset: 0,
-    sort: LIST_SORTS[input.sort ?? "saved"],
+    sort: input.sort,
     subfolders: true,
     tag: input.tag,
   });
@@ -125,9 +112,9 @@ export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: 
     input.pinned === undefined
       ? page.items
       : page.items.filter((row) => (row.pinnedAt !== null) === input.pinned);
-  const shown = rows.slice(offset, offset + input.limit);
+  const shown = rows.slice(input.cursor, input.cursor + input.limit);
   return {
-    cursor: nextCursor(offset, shown.length, rows.length),
+    cursor: nextCursor(input.cursor, shown.length, rows.length),
     items: shown.map((row) => summaryOf(listedWhole(db, row.id), input.responseFormat)),
   };
 };
@@ -137,22 +124,13 @@ export const listItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: 
 // how much of a hit's text a concise answer keeps
 const CONCISE_SNIPPET_CHARS = 160;
 
-export interface SearchInput {
-  readonly query: string;
-  readonly cursor?: string | undefined;
-  readonly folderId?: string | undefined;
-  readonly kinds?: readonly ItemKind[] | undefined;
-  readonly limit: number;
-  readonly responseFormat: ResponseFormat;
-  readonly savedAfter?: string | undefined;
-  readonly savedBefore?: string | undefined;
-  readonly tag?: string | undefined;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input: SearchInput) => {
-  const offset = offsetOf(input.cursor);
+export const searchItems = (
+  db: CellDb,
+  listing: LibraryIndex<ListingRow>,
+  input: z.output<typeof searchInputSchema>,
+) => {
   const hits = searchHits(db, input.query, "live");
   const page = listing.items({
     beforeMs: input.savedBefore === undefined ? undefined : Date.parse(input.savedBefore) + DAY_MS,
@@ -160,7 +138,7 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
     folderId: input.folderId,
     kinds: input.kinds,
     limit: input.limit,
-    offset,
+    offset: input.cursor,
     sinceMs: input.savedAfter === undefined ? undefined : Date.parse(input.savedAfter),
     sort: "relevance",
     subfolders: true,
@@ -168,7 +146,7 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
     within: hits.rank,
   });
   return {
-    cursor: nextCursor(offset, page.items.length, page.total),
+    cursor: nextCursor(input.cursor, page.items.length, page.total),
     hits: page.items.map((row): SearchHit => {
       const snippet = hits.passage(row.id) ?? row.title;
       return {
@@ -186,10 +164,8 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
 
 // ---- an item ----
 
-// the blocks a read takes unless it asks, and the most of the markdown one page carries: twice
-// over (as text and as structured content) a page stays well inside what an agent's tool result
-// may carry whole
-const READ_BLOCKS_DEFAULT = 200;
+// the most of the markdown one page of a read carries: twice over (as text and as structured
+// content) a page stays well inside what an agent's tool result may carry whole
 const READ_PAGE_MAX_CHARS = 16_000;
 // the items a read names as linking in or out, the first by title
 const READ_LINKS_MAX = 50;
@@ -226,25 +202,18 @@ const pageWithin = (
   return page;
 };
 
-export interface ReadInput {
-  readonly id: string;
-  readonly from?: number | undefined;
-  readonly count?: number | undefined;
-  readonly responseFormat: ResponseFormat;
-}
-
 // the item's markdown from its body's blocks, read from where the body lives
 export const readItemView = (
   db: CellDb,
   codec: CellCodec,
-  input: ReadInput,
+  input: z.output<typeof readInputSchema>,
   blocks: readonly BodyBlock[],
 ): ItemRead => {
   const item = readItem(db, input.id);
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
-  const page = pageWithin(blocks, codec.view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
+  const page = pageWithin(blocks, codec.view, input.from, input.count);
   const out = new Set(
     db
       .selectDistinct({ targetId: links.targetId })
@@ -345,15 +314,7 @@ const setItemOf = (db: CellDb, entry: SetItemRow) => {
   };
 };
 
-interface ChangeSetsInput {
-  readonly cursor?: string | undefined;
-  // the sets one conversation's turns opened, which its Undo takes back; else the library's newest
-  readonly threadId?: string | undefined;
-  readonly limit: number;
-}
-
-export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
-  const offset = offsetOf(input.cursor);
+export const listChangeSets = (db: CellDb, input: z.output<typeof changeSetsInputSchema>) => {
   const sets = db
     .select({
       ...getColumns(changeSets),
@@ -363,7 +324,7 @@ export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
     .where(input.threadId === undefined ? undefined : eq(changeSets.threadId, input.threadId))
     .orderBy(desc(changeSets.openedAt), desc(changeSets.id))
     .limit(input.limit + 1)
-    .offset(offset)
+    .offset(input.cursor)
     .all();
   const shown = sets.slice(0, input.limit);
   return {
@@ -389,6 +350,6 @@ export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
         undoneBy: set.undoneBy,
       };
     }),
-    cursor: sets.length > input.limit ? String(offset + input.limit) : null,
+    cursor: sets.length > input.limit ? input.cursor + input.limit : null,
   };
 };

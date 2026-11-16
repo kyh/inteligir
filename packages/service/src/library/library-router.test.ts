@@ -628,7 +628,7 @@ describe("the library's procedures", () => {
         });
       }
       const named = new Set<string>();
-      let cursor: string | undefined;
+      let cursor: number | undefined;
       do {
         const page = await library.search({ cursor, limit: 50, query: "xyzzy" });
         for (const hit of page.hits) {
@@ -732,7 +732,7 @@ describe("the library's procedures", () => {
 
       const first = await library.agent.list({ limit: 1 });
       expect(first.threads.map((thread) => thread.id)).toStrictEqual([newer]);
-      const rest = await library.agent.list({ cursor: first.cursor ?? "", limit: 1 });
+      const rest = await library.agent.list({ cursor: first.cursor ?? 0, limit: 1 });
       expect(rest).toMatchObject({ cursor: null, threads: [{ id: older, status: "idle" }] });
 
       const opening = await library.agent.events({ limit: 2, threadId: older });
@@ -755,7 +755,7 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("lists items a page at a time and refuses a cursor it never answered with", async () => {
+  it("lists items a page at a time in the order asked, and refuses a place no list has", async () => {
     await inCell(cellOf(), async (state) => {
       const clock = clockAt();
       const library = clientIn(state, clock);
@@ -764,17 +764,23 @@ describe("the library's procedures", () => {
         await library.items.createNote({ markdown: `Item ${String(n)}.`, tags: ["n"] });
       }
       const first = await library.items.list({ limit: 2 });
-      expect(first.items).toHaveLength(2);
-      expect(first.cursor).not.toBeNull();
-      const rest = await library.items.list({ cursor: first.cursor ?? "", limit: 2 });
-      expect(rest).toMatchObject({ cursor: null, items: [expect.any(Object)] });
-      await expect(
-        refusalOf(library.items.list({ cursor: "not-a-cursor" })),
-      ).resolves.toMatchObject({
+      expect(first.items.map(({ title }) => title)).toStrictEqual(["Item 3.", "Item 2."]);
+      expect(first.cursor).toBe(2);
+      const rest = await library.items.list({ cursor: first.cursor ?? 0, limit: 2 });
+      expect(rest).toMatchObject({ cursor: null, items: [{ title: "Item 1." }] });
+      await expect(refusalOf(library.items.list({ cursor: -1 }))).resolves.toMatchObject({
         code: "BAD_REQUEST",
       });
-      const tagged = await library.items.list({ tag: "n" });
-      expect(tagged.items).toHaveLength(3);
+      const byTitle = await library.items.list({ kinds: ["note"], sort: "title", tag: "n" });
+      expect(byTitle.items.map(({ title }) => title)).toStrictEqual([
+        "Item 1.",
+        "Item 2.",
+        "Item 3.",
+      ]);
+      await expect(library.items.list({ kinds: ["link"] })).resolves.toStrictEqual({
+        cursor: null,
+        items: [],
+      });
     });
   });
 

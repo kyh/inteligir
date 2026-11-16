@@ -48,7 +48,7 @@ import { saveLink, savePage } from "./cell-saves";
 import { mergeTurnUndos, planUndo } from "./cell-undo";
 import type { CellActor } from "./cell-actor";
 import { landedSchema, libraryHead } from "./library-engine";
-import { answer, os, PAGE_DEFAULT } from "./library-orpc";
+import { answer, os } from "./library-orpc";
 import type { CellContext } from "./library-orpc";
 
 const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
@@ -99,7 +99,7 @@ export const libraryRouter = os.router({
   },
   history: {
     list: os.history.list.handler(({ context, input }) =>
-      context.read((db) => listChangeSets(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
+      context.read((db) => listChangeSets(db, input)),
     ),
     // the notes an agent's sets wrote in undo first, outside any transaction, each under the
     // undo's own set; the write then lands what they answered beside the fields
@@ -171,13 +171,7 @@ export const libraryRouter = os.router({
       return context.read((db) => itemWhole(db, input.id, blocks));
     }),
     list: os.items.list.handler(({ context, input }) =>
-      context.readListing((listing, db) =>
-        listItems(db, listing, {
-          ...input,
-          limit: input.limit ?? PAGE_DEFAULT,
-          responseFormat: input.responseFormat ?? "concise",
-        }),
-      ),
+      context.readListing((listing, db) => listItems(db, listing, input)),
     ),
     organize: os.items.organize.handler(({ context, input }) => {
       const { items } = context.land({ answer: organizedSchema, opId: input.opId }, (scope) => ({
@@ -191,12 +185,7 @@ export const libraryRouter = os.router({
     read: os.items.read.handler(async ({ context, input }) => {
       const blocks = await bodyOf(context, input.id);
       return context.read((db) =>
-        readItemView(
-          db,
-          cellCodec(db, context.library.ids),
-          { ...input, responseFormat: input.responseFormat ?? "concise" },
-          blocks,
-        ),
+        readItemView(db, cellCodec(db, context.library.ids), input, blocks),
       );
     }),
     // the page is read again by the cloud: the item waits, pending, as a stub saved to read later
@@ -268,13 +257,7 @@ export const libraryRouter = os.router({
     ),
   },
   search: os.search.handler(({ context, input }) =>
-    context.readListing((listing, db) =>
-      searchItems(db, listing, {
-        ...input,
-        limit: input.limit ?? PAGE_DEFAULT,
-        responseFormat: input.responseFormat ?? "concise",
-      }),
-    ),
+    context.readListing((listing, db) => searchItems(db, listing, input)),
   ),
   write: os.write.handler(({ context, input }) =>
     answer(context.library.write(context.actor(), input)),

@@ -106,11 +106,6 @@ const refusalError = (refusal: CellRefusal): Error => {
         message: EDIT_REFUSED[refusal.refusal.kind],
       });
     }
-    case "bad-cursor": {
-      return new ORPCError("BAD_REQUEST", {
-        message: "That cursor isn't one this library answered with.",
-      });
-    }
     case "agent-unavailable": {
       return new AgentUnavailableError();
     }
@@ -158,8 +153,5 @@ export const cellContext = (
     readListing: (work) => answer(library.readListing(work)),
   };
 };
-
-// how a list or a read answers unless asked
-export const PAGE_DEFAULT = 50;
 
 export const os = implement(libraryTools).$context<CellContext>();

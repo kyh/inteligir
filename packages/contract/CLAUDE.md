@@ -30,6 +30,10 @@ clock, random bytes and fresh ids are injected.
 - **The listing is in memory over what it filters and orders by, and pinned
   leads it.** One assembly answers for the cell and the fake cell alike, and a
   host hands a batch's rows whole. `packages/contract/src/library/library-index.ts`.
+- **A row's input is whole once its schema parsed it: a default and a page's
+  place are the schema's.** A default the cell supplies is a parse a new row
+  forgets, and a cursor read past the schema needs a refusal of its own.
+  `packages/contract/src/library/library-contract.ts`.
 - **One fake cell answers every client's suites, over the cell's own folder and
   organize rules.** A fake per client, or rules spelled twice, drift from what
   the cell refuses. `packages/contract/src/library/cell-rules.ts`.

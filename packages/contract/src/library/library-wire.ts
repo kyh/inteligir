@@ -36,7 +36,9 @@ export const seqSchema = z.number().int().nonnegative();
 const isoInstant = z.iso.datetime();
 export const isoDate = z.iso.date();
 
-export const cursorSchema = z.string().min(1).max(512);
+// a list's place: a page starts at the position the last one ended at, and an answer's is where
+// the next page starts, null once the list ends
+export const cursorSchema = z.number().int().nonnegative();
 
 // ---- caps a device checks before it sends ----
 
@@ -177,6 +179,12 @@ export const editRefusalSchema = z.discriminatedUnion("kind", [
 
 // ---- what the apps list ----
 
+const itemKindSchema = z.enum(ITEM_KINDS);
+
+// the orders a list is browsed in: newest saved, last changed, or by title
+export const listingSortSchema = z.enum(["saved", "modified", "title"]);
+export const kindsSchema = z.array(itemKindSchema).min(1);
+
 // which items a listing shows, as `@repo/contract/library/library-index` answers it: the library or
 // Deleted, narrowed by kind, tag (and every tag under it), folder (or none, for Unsorted), site and
 // saved time
@@ -209,8 +217,6 @@ export const listedItemSchema = z.object({
 
 // concise answers carry ids and names; detailed ones every field a person would read
 export const responseFormatSchema = z.enum(["concise", "detailed"]);
-
-const itemKindSchema = z.enum(ITEM_KINDS);
 
 export const itemSummarySchema = z.object({
   folderId: idSchema.nullable(),
@@ -315,7 +321,7 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
   z.strictObject({
     // the first selected; [] when nothing is
     itemIds: z.array(idSchema).max(LIBRARY_SELECTION_MAX),
-    kinds: z.array(itemKindSchema).min(1).optional(),
+    kinds: kindsSchema.optional(),
     q: z.string().min(1).max(500).optional(),
     scope: itemScopeSchema,
     // how many are selected, which may exceed itemIds.length
