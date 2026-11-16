@@ -20,9 +20,7 @@ The page reaches the shell only for its update: three commands
 (`check_for_updates`, `download_update`, `install_update`) and one
 `update-state` event, which the window's one capability grants
 (`src-tauri/capabilities/web-app.json`) and the page parses
-(`apps/web/src/library/shell/desktop-bridge.ts`). `INTELIGIR_CLOUD_ORIGIN`, a
-loopback origin only, points any build at another Worker on this machine
-(`src-tauri/src/window.rs`).
+(`apps/web/src/library/shell/desktop-bridge.ts`).
 
 ## Testing and the dev loop
 
@@ -34,9 +32,8 @@ pnpm dev              # tauri dev: the shell compiled and launched on localhost:
 An edit to the page reaches the window once `pnpm dev:web` rebuilt it and the
 window reloads (⌘R); an edit to the Rust rebuilds and relaunches the shell. A
 debug build's window has WebKit's inspector. `cargo test`, this workspace's
-`pnpm test`, covers the origin pin, the local-site override and the update
-states' wire; the packaged app is the owner's Mac smoke (`docs/releasing.md`
-§ 5).
+`pnpm test`, covers the origin pin and the update states' wire; the packaged
+app is the owner's Mac smoke (`docs/releasing.md` § 5).
 
 ## Packaging
 

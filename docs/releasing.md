@@ -262,8 +262,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
 - **First run on a fresh macOS user**: the site's sign-in in the window, an
   invite sign-up, still signed in after Quit; a dev build keeps a store of its
   own; the Mac app shows in Settings › Account as This device.
-- **Window**: the system title bar, close hides it, offline it says so, and
-  View › Reload recovers.
+- **Window**: the system title bar, close hides it, a link to another site
+  opens in the browser, offline it says so, and View › Reload recovers.
 - **Dictation**: fn fn in a note lands the words once.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
   a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
