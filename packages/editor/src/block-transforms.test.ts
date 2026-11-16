@@ -59,22 +59,25 @@ describe("turnIntoAt round-trips", () => {
     expect(out(editor)).toBe("summary\n\nbody\n");
   });
 
-  it("paragraph → callout inserts the [!NOTE] marker line; → paragraph strips it", () => {
+  it("paragraph → callout is a Note alert; → paragraph is no alert", () => {
     const editor = makeEditor("hello\n");
     turnIntoAt(editor, [0], opt("callout"));
     expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
     turnIntoAt(editor, [0], opt("text"));
     expect(out(editor)).toBe("hello\n");
+    expect(editor.children[0]).not.toHaveProperty("alert");
   });
 
-  it("callout → quote drops the marker; quote → callout adds it once", () => {
+  it("callout → quote drops the alert; quote → callout is a Note; an alert keeps the one it is", () => {
     const editor = makeEditor("> [!NOTE] hello\n");
     turnIntoAt(editor, [0], opt("quote"));
     expect(out(editor)).toBe("> hello\n");
     turnIntoAt(editor, [0], opt("callout"));
     expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
-    turnIntoAt(editor, [0], opt("callout"));
-    expect(out(editor)).toBe("> [!NOTE]\n> hello\n");
+
+    const tip = makeEditor("> [!TIP]\n> hello\n");
+    turnIntoAt(tip, [0], opt("callout"));
+    expect(out(tip)).toBe("> [!TIP]\n> hello\n");
   });
 
   it.each<[TurnIntoId, string]>([
@@ -115,16 +118,6 @@ describe("turnIntoAt round-trips", () => {
     expect(out(editor)).toBe("## item\n");
   });
 
-  it("a lowercase alert reads as one, and → quote strips its marker", () => {
-    const inline = makeEditor("> [!note] hello\n");
-    turnIntoAt(inline, [0], opt("quote"));
-    expect(out(inline)).toBe("> hello\n");
-
-    const ownLine = makeEditor("> [!Tip]\n> body\n");
-    turnIntoAt(ownLine, [0], opt("quote"));
-    expect(out(ownLine)).toBe("> body\n");
-  });
-
   it("every conversion output stays canonical (round-trip stable)", () => {
     for (const target of TURN_INTO) {
       const editor = makeEditor("hello world\n");
@@ -144,16 +137,10 @@ describe("turnIntoOptionFor (toolbar type indicator)", () => {
     expect(turnIntoOptionFor({ children: [{ text: "plain" }], type: "blockquote" }).id).toBe(
       "quote",
     );
-    expect(turnIntoOptionFor({ children: [{ text: "[!NOTE] hi" }], type: "blockquote" }).id).toBe(
-      "callout",
-    );
+    expect(
+      turnIntoOptionFor({ alert: "TIP", children: [{ text: "hi" }], type: "blockquote" }).id,
+    ).toBe("callout");
     expect(turnIntoOptionFor({ children: [{ text: "" }], type: "toggle" }).id).toBe("toggle");
-  });
-
-  it("reads an alert in any case as a callout, as the renderer does", () => {
-    for (const text of ["[!note] hi", "[!Tip]\nbody", "[!warning]"]) {
-      expect(turnIntoOptionFor({ children: [{ text }], type: "blockquote" }).id).toBe("callout");
-    }
   });
 });
 

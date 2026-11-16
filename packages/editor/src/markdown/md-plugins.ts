@@ -5,6 +5,7 @@
 /// <reference types="remark-parse" />
 
 import type {
+  Blockquote,
   Definition,
   InlineCode,
   ListItem,
@@ -23,6 +24,7 @@ import type {
 import type { InlineMath } from "mdast-util-math";
 import { defaultHandlers } from "mdast-util-to-markdown";
 import type { Handle, Options as ToMarkdownOptions, Unsafe } from "mdast-util-to-markdown";
+import { ZERO_WIDTH_SPACE } from "platejs";
 import type { Plugin, Processor, Transformer } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
 import { mathFromMarkdown, mathToMarkdown } from "mdast-util-math";
@@ -35,13 +37,19 @@ import { CONTINUE, SKIP, visit } from "unist-util-visit";
 import { z } from "zod";
 
 import { ISO_DATE_PATTERN } from "@repo/contract/iso-date";
-import { nestInLists } from "@repo/editor/markdown/md-rules";
+import { ALERT_VARIANTS, alertVariantSchema } from "@repo/contract/library/library-nodes";
+import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
+import { containerDirectiveSchema, textDirectiveSchema } from "./directive-names";
+import { nestInLists } from "./mdast-lists";
 import { isMdastRoot } from "./mdast-nodes";
 
-// the directives the dialect reads; any other is the text it was written as
-const CONTAINER_DIRECTIVES = new Set(["article", "column", "columns", "tab", "tabs", "toggle"]);
-const TEXT_DIRECTIVES = ["date", "formula"] as const;
+declare module "mdast" {
+  interface BlockquoteData {
+    // the alert a quote's first line named, which the blockquote rule reads into the node
+    alert?: AlertVariant;
+  }
+}
 
 const ISO_DATE_RE = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
 
@@ -55,16 +63,17 @@ const labelText = (node: { children: readonly PhrasingContent[] }): string =>
 // source
 const readableText = (node: TextDirective): boolean => {
   const attributes = node.attributes ?? {};
-  switch (node.name) {
+  switch (textDirectiveSchema.safeParse(node.name).data) {
     case "date": {
       return Object.keys(attributes).length === 0 && ISO_DATE_RE.test(labelText(node));
     }
     case "formula": {
       return z.string().safeParse(attributes.source).success;
     }
-    default: {
+    case undefined: {
       return false;
     }
+    // no default
   }
 };
 
@@ -113,7 +122,10 @@ const restoreUnknownDirectives = (tree: Root, source: string): void => {
       parent.children.splice(index, 1, paragraphOf(sourceOf(node, source) ?? `::${node.name}`));
       return [SKIP, index + 1];
     }
-    if (node.type === "containerDirective" && !CONTAINER_DIRECTIVES.has(node.name)) {
+    if (
+      node.type === "containerDirective" &&
+      !containerDirectiveSchema.safeParse(node.name).success
+    ) {
       parent.children.splice(index, 1, ...containerAsText(node, source));
       return index;
     }
@@ -128,7 +140,7 @@ const isStockColonEntry = (entry: Unsafe): boolean =>
   entry.character === ":" && entry.before === "[^:]" && entry.atBreak !== true;
 
 const DIALECT_COLON: Unsafe = {
-  after: `(?:${TEXT_DIRECTIVES.join("|")})[\\[{]`,
+  after: `(?:${textDirectiveSchema.options.join("|")})[\\[{]`,
   before: "[^:]",
   character: ":",
   inConstruct: ["phrasing"],
@@ -163,6 +175,56 @@ const remarkDialectDirectives: Plugin = function remarkDialectDirectives(
   return (tree, file) => {
     if (isMdastRoot(tree)) {
       restoreUnknownDirectives(tree, String(file));
+    }
+  };
+};
+
+const ALERT_MARKER_RE = new RegExp(
+  String.raw`^(?<marker>\[!(?<variant>${ALERT_VARIANTS.join("|")})\])[\t ]*\n?`,
+  "iu",
+);
+
+// the marker a text opens with, and how much of the text its line takes. It is read where the
+// source spells it, so the `\[!NOTE]` a write escaped stays the words it is.
+const alertMarker = (
+  lead: Text,
+  source: string,
+): { alert: AlertVariant; length: number } | null => {
+  const found = ALERT_MARKER_RE.exec(lead.value);
+  const alert = alertVariantSchema.safeParse(found?.groups?.variant?.toUpperCase());
+  const marker = found?.groups?.marker;
+  const at = lead.position?.start.offset;
+  if (found === null || !alert.success || marker === undefined || at === undefined) {
+    return null;
+  }
+  return source.startsWith(marker, at) ? { alert: alert.data, length: found[0].length } : null;
+};
+
+// GitHub's alert is a quote whose first line opens `[!NOTE]`, in any case, alone or before words:
+// the quote takes the alert and loses the marker
+const liftAlert = (quote: Blockquote, source: string): void => {
+  const [first, ...others] = quote.children;
+  const [lead, ...rest] = first?.type === "paragraph" ? first.children : [];
+  const marker = lead?.type === "text" ? alertMarker(lead, source) : null;
+  if (first?.type !== "paragraph" || lead?.type !== "text" || marker === null) {
+    return;
+  }
+  const tail = lead.value.slice(marker.length);
+  const [after, ...below] = rest;
+  const line = tail === "" && after?.type === "break" ? below : rest;
+  const words: PhrasingContent[] = tail === "" ? line : [{ ...lead, value: tail }, ...line];
+  quote.data = { ...quote.data, alert: marker.alert };
+  quote.children =
+    words.length === 0 && others.length > 0 ? others : [{ ...first, children: words }, ...others];
+};
+
+const remarkAlerts: Plugin = function remarkAlerts(): Transformer {
+  return (tree, file) => {
+    if (isMdastRoot(tree)) {
+      const source = String(file);
+      visit(tree, "blockquote", (quote) => {
+        liftAlert(quote, source);
+      });
     }
   };
 };
@@ -243,7 +305,9 @@ const listItemEmptyTodo: Handle = (node: ListItem, parent, state, info) => {
     head?.type === "paragraph" &&
     head.children.every((child) => child.type === "text" && child.value === "");
   return gfmListItem(
-    empty ? { ...node, children: [{ ...head, children: [textNode("​")] }, ...rest] } : node,
+    empty
+      ? { ...node, children: [{ ...head, children: [textNode(ZERO_WIDTH_SPACE)] }, ...rest] }
+      : node,
     parent,
     state,
     info,
@@ -367,4 +431,5 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkGfm,
   remarkUnusedDefinitions,
   remarkDialectDirectives,
+  remarkAlerts,
 ];

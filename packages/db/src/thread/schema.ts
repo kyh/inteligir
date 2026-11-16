@@ -112,7 +112,6 @@ export const toolCalls = sqliteTable(
     input: text().notNull(),
     status: text({ enum: TOOL_CALL_STATUSES }).notNull(),
     decision: text({ enum: TOOL_DECISIONS }),
-    reason: text(),
     attempts: integer().notNull().default(0),
     result: text(),
     isError: integer("is_error").notNull().default(0),

@@ -33,6 +33,7 @@ import {
 } from "@repo/contract/knowledge/folder-path";
 import { frontmatterYaml } from "@repo/editor/markdown/frontmatter";
 import { lfOnly } from "@repo/editor/markdown/md-read";
+import type { MarkdownRefusal } from "@repo/editor/markdown/md-read";
 import type { WikiReach, WikiTarget } from "@repo/editor/markdown/remark-wiki-import";
 
 import { readFrontmatter } from "./item-fields";
@@ -220,7 +221,7 @@ interface ImportedDoc {
 
 export type DocImport =
   | { readonly ok: true; readonly read: ImportedDoc }
-  | { readonly ok: false; readonly path: string; readonly reason: "too-deep" };
+  | { readonly ok: false; readonly path: string; readonly reason: MarkdownRefusal };
 
 // pass two: one doc read against the whole plan
 export const importPlannedDoc = (

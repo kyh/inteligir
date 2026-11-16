@@ -1,17 +1,15 @@
 // An item as an agent reads it: the dialect markdown an export writes, with every link to an item
 // written `[Title](mention:<id>)` (its live title and its id) and every file the library holds
 // written `assets/<sha>`, so what the agent writes back names the same items and files. The
-// person's note comes first and the page a fill read after it inside an `article` fence. Each block
-// knows where it sits in the text, so an edit maps back to the blocks it touched; a run of list
-// items is written as one list, so its items share one place.
-
-import type { TElement } from "platejs";
+// person's note comes first and the page a fill read after it inside an `article` fence. The
+// blocks are written a group at a time (a list with what nests under it, any other block alone),
+// so each group's place in the text is the one it was written at.
 
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
-import type { FlowSpan } from "@repo/editor/markdown/flow-spans";
 
-import { headlessEditor, serializeNoteSpans } from "@repo/editor/markdown/markdown-doc";
+import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { writtenInList } from "@repo/editor/markdown/md-rules";
 
 import { writeBlocks } from "./write-blocks";
 import type { WritePorts, WrittenFile } from "./write-blocks";
@@ -21,31 +19,39 @@ export interface ViewPorts {
   readonly title: (itemId: string) => string | null;
 }
 
-// one block's place in the view: its own, or the list it is an item of
-export interface ViewBlock {
-  readonly block: LibraryBlock;
+// the blocks written together
+interface Group {
+  readonly blocks: readonly LibraryBlock[];
   readonly section: LibrarySection;
-  // the run of blocks it is written with, numbered from the view's first
-  readonly group: number;
+}
+
+interface WrittenGroup extends Group {
+  readonly text: string;
+}
+
+interface ViewGroup extends WrittenGroup {
+  // where its text starts in the view
   readonly start: number;
-  readonly end: number;
 }
 
 export interface ItemView {
   readonly markdown: string;
-  readonly blocks: readonly ViewBlock[];
-  // the lines that open and close the article section, when the item has one
-  readonly article: { readonly open: FlowSpan; readonly close: FlowSpan } | null;
+  // in reading order, the note's before the page's
+  readonly groups: readonly ViewGroup[];
+  // where the note's text ends: at the article's opening line, or with the view
+  readonly noteEnd: number;
 }
 
 const COLON_FENCE_RE = /^[\t >]*(?<colons>:{3,})/gmu;
 
 // the article's fence outgrows every container fence its page holds, as the writer's own fences
 // do, since a `:::` inside a `:::article` closes the article
-const articleFence = (page: string): string => {
+const articleFence = (page: readonly WrittenGroup[]): string => {
   let longest = 2;
-  for (const match of page.matchAll(COLON_FENCE_RE)) {
-    longest = Math.max(longest, match.groups?.colons?.length ?? 0);
+  for (const group of page) {
+    for (const match of group.text.matchAll(COLON_FENCE_RE)) {
+      longest = Math.max(longest, match.groups?.colons?.length ?? 0);
+    }
   }
   return ":".repeat(longest + 1);
 };
@@ -63,120 +69,71 @@ export const viewFileAt = (url: string): { sha: string; name: string | null } | 
   return sha === undefined ? null : { name: groups?.name ?? null, sha };
 };
 
-const isListItem = (element: TElement): boolean =>
-  element.type === "p" && element.listStyleType !== undefined;
-
-// the runs the rule table writes as one top-level node: each list run, as Plate's serializer
-// groups one (a run ends where the next item is no list item, or starts a list of another style
-// at the run's own depth), and every other element alone
-const runsOf = (elements: readonly TElement[]): number[][] => {
-  const runs: number[][] = [];
-  let run: number[] = [];
-  for (const [index, element] of elements.entries()) {
-    if (!isListItem(element)) {
-      runs.push([index]);
-      continue;
+// a section's blocks as the writer takes them: a run in a list is one node to it, which nests and
+// joins its blocks, and nothing it writes reaches past a block outside a list
+const sectionGroups = (stored: readonly BodyBlock[], section: LibrarySection): Group[] => {
+  const runs: LibraryBlock[][] = [];
+  let inList = false;
+  for (const { block } of stored.filter((one) => one.section === section)) {
+    const listed = writtenInList(block);
+    const run = runs.at(-1);
+    if (listed && inList && run !== undefined) {
+      run.push(block);
+    } else {
+      runs.push([block]);
     }
-    run.push(index);
-    const next = elements[index + 1];
-    const first = elements[run[0] ?? index];
-    const continues =
-      next !== undefined &&
-      isListItem(next) &&
-      !(next.listStyleType !== first?.listStyleType && next.indent === first?.indent);
-    if (!continues) {
-      runs.push(run);
-      run = [];
-    }
+    inList = listed;
   }
-  return runs;
+  return runs.map((blocks) => ({ blocks, section }));
 };
 
-interface WrittenSection {
-  readonly markdown: string;
-  // per stored block, its group's span in the section's text and the group's number
-  readonly places: readonly { readonly group: number; readonly span: FlowSpan }[];
-  readonly groups: number;
-}
+const groupsOf = (stored: readonly BodyBlock[]): Group[] => [
+  ...sectionGroups(stored, "note"),
+  ...sectionGroups(stored, "article"),
+];
 
-const writeSection = (blocks: readonly BodyBlock[], ports: WritePorts): WrittenSection => {
-  const elements: TElement[] = [];
-  const owners: number[] = [];
-  for (const [index, stored] of blocks.entries()) {
-    const written = writeBlocks([stored.block], ports);
-    elements.push(...written);
-    owners.push(...written.map(() => index));
-  }
-  if (elements.length === 0) {
-    return { groups: 0, markdown: "", places: [] };
-  }
-  const { markdown, spans } = serializeNoteSpans(headlessEditor(), elements);
-  const text = markdown.replace(/\n$/u, "");
-  const runs = runsOf(elements);
-  // a node the rules wrote nothing for (or two for one) leaves the runs uncounted: the section is
-  // then one run, which an edit re-reads whole
-  const whole: FlowSpan = { end: text.length, start: 0 };
-  const counted = runs.length === spans.length;
-  const groupOf = new Map<number, number>();
-  for (const [group, run] of runs.entries()) {
-    for (const element of run) {
-      groupOf.set(owners[element] ?? -1, counted ? group : 0);
+// two blocks stand a blank line apart, as the writer joins a root's children
+const BLANK_LINE = "\n\n";
+
+// groups as the text an agent reads, each where its text starts
+const laidOut = (written: readonly WrittenGroup[]): ItemView => {
+  const groups: ViewGroup[] = [];
+  let markdown = "";
+  const place = (section: readonly WrittenGroup[]): void => {
+    for (const [index, group] of section.entries()) {
+      markdown += index === 0 ? "" : BLANK_LINE;
+      groups.push({ ...group, start: markdown.length });
+      markdown += group.text;
     }
-  }
-  const places = blocks.map((_, index) => {
-    const group = groupOf.get(index) ?? 0;
-    return { group, span: counted ? (spans[group] ?? whole) : whole };
-  });
-  return { groups: counted ? runs.length : 1, markdown: text, places };
-};
-
-// a section's blocks at their places in the whole view
-const placed = (
-  stored: readonly BodyBlock[],
-  section: WrittenSection,
-  offset: number,
-  firstGroup: number,
-): ViewBlock[] =>
-  stored.map((one, index) => {
-    const place = section.places[index] ?? { group: 0, span: { end: 0, start: 0 } };
-    return {
-      ...one,
-      end: offset + place.span.end,
-      group: firstGroup + place.group,
-      start: offset + place.span.start,
-    };
-  });
-
-const viewPorts = (ports: ViewPorts): WritePorts => ({
-  path: viewFilePath,
-  target: ports.title,
-});
-
-// the item's markdown and where each of its blocks, in reading order, sits in it
-export const itemView = (blocks: readonly BodyBlock[], ports: ViewPorts): ItemView => {
-  const write = viewPorts(ports);
-  const notes = blocks.filter((body) => body.section === "note");
-  const pages = blocks.filter((body) => body.section === "article");
-  const note = writeSection(notes, write);
-  const page = writeSection(pages, write);
-  if (pages.length === 0) {
-    return { article: null, blocks: placed(notes, note, 0, 0), markdown: `${note.markdown}\n` };
-  }
-  const lead = note.markdown === "" ? "" : `${note.markdown}\n\n`;
-  const fence = articleFence(page.markdown);
-  const opening = `${fence}article`;
-  const open: FlowSpan = { end: lead.length + opening.length, start: lead.length };
-  const pageStart = open.end + 2;
-  const close: FlowSpan = {
-    end: pageStart + page.markdown.length + 2 + fence.length,
-    start: pageStart + page.markdown.length + 2,
   };
-  return {
-    article: { close, open },
-    blocks: [...placed(notes, note, 0, 0), ...placed(pages, page, pageStart, note.groups)],
-    markdown: `${lead}${opening}\n\n${page.markdown}\n\n${fence}\n`,
-  };
+  const page = written.filter((group) => group.section === "article");
+  place(written.filter((group) => group.section === "note"));
+  if (page.length === 0) {
+    markdown += markdown === "" ? "" : "\n";
+    return { groups, markdown, noteEnd: markdown.length };
+  }
+  markdown += markdown === "" ? "" : BLANK_LINE;
+  const noteEnd = markdown.length;
+  const fence = articleFence(page);
+  markdown += `${fence}article${BLANK_LINE}`;
+  place(page);
+  return { groups, markdown: `${markdown}${BLANK_LINE}${fence}\n`, noteEnd };
 };
+
+const writeView = (groups: readonly Group[], ports: ViewPorts): ItemView => {
+  const editor = headlessEditor();
+  const write: WritePorts = { path: viewFilePath, target: ports.title };
+  return laidOut(
+    groups.map((group) => ({
+      ...group,
+      text: serializeNote(editor, writeBlocks(group.blocks, write)).replace(/\n$/u, ""),
+    })),
+  );
+};
+
+// the item's markdown and where each group of its blocks, in reading order, sits in it
+export const itemView = (blocks: readonly BodyBlock[], ports: ViewPorts): ItemView =>
+  writeView(groupsOf(blocks), ports);
 
 export interface ViewPage {
   readonly markdown: string;
@@ -186,33 +143,28 @@ export interface ViewPage {
   readonly total: number;
 }
 
-// a run of the item's blocks as one page of its view, cut where a group starts and ends so a list
-// stays whole; a page inside the article carries the section's own lines, so it reads as the
-// page it is
-export const viewPage = (view: ItemView, from: number, count: number): ViewPage => {
-  const { blocks } = view;
-  const total = blocks.length;
-  let first = Math.min(Math.max(0, from), total);
-  while (first > 0 && first < total && blocks[first - 1]?.group === blocks[first]?.group) {
-    first -= 1;
+// a run of the item's blocks as one page of its view, of whole groups so a list stays whole, and
+// only they are written; a page inside the article carries the section's own lines, so it reads
+// as the page it is
+export const viewPage = (
+  blocks: readonly BodyBlock[],
+  ports: ViewPorts,
+  from: number,
+  count: number,
+): ViewPage => {
+  const asked = Math.min(Math.max(0, from), blocks.length);
+  const page: Group[] = [];
+  let first = asked;
+  let last = asked;
+  let at = 0;
+  for (const group of groupsOf(blocks)) {
+    const end = at + group.blocks.length;
+    if (end > asked && at < asked + Math.max(1, count)) {
+      first = page.length === 0 ? at : first;
+      last = end;
+      page.push(group);
+    }
+    at = end;
   }
-  let last = Math.min(total, first + Math.max(1, count));
-  while (last < total && blocks[last]?.group === blocks[last - 1]?.group) {
-    last += 1;
-  }
-  const head = blocks[first];
-  const tail = blocks[last - 1];
-  if (head === undefined || tail === undefined) {
-    return { from: first, markdown: "", to: first, total };
-  }
-  const text = view.markdown.slice(head.start, tail.end);
-  const lineOf = (span: FlowSpan | undefined): string =>
-    span === undefined ? "" : view.markdown.slice(span.start, span.end);
-  const opens = head.section === "article" ? `${lineOf(view.article?.open)}\n\n` : "";
-  const closes = tail.section === "article" ? `\n\n${lineOf(view.article?.close)}` : "";
-  const crosses = head.section === "note" && tail.section === "article";
-  const markdown = crosses
-    ? view.markdown.slice(head.start, tail.end) + closes
-    : `${opens}${text}${closes}`;
-  return { from: first, markdown: `${markdown}\n`, to: last, total };
+  return { from: first, markdown: writeView(page, ports).markdown, to: last, total: blocks.length };
 };

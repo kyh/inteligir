@@ -59,6 +59,11 @@ const listRestart = listNumber;
 const listRestartPolite = listNumber;
 const listStyleType = z.enum(["disc", "decimal", "todo"]).optional();
 
+// GitHub's five alerts, the only callout: a quote that is one names which
+export const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
+export const alertVariantSchema = z.enum(ALERT_VARIANTS);
+export type AlertVariant = z.infer<typeof alertVariantSchema>;
+
 const isoDate = z.string().regex(new RegExp(`^${ISO_DATE_PATTERN}$`, "u"));
 const sha256Hex = z.string().regex(SHA256_HEX_RE);
 
@@ -157,6 +162,7 @@ const heading6 = z.strictObject({
   listStyleType,
 });
 const blockquote = z.strictObject({
+  alert: alertVariantSchema.optional(),
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },

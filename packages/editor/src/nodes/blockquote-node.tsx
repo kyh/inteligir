@@ -1,6 +1,3 @@
-// Alerts stay plain blockquotes in the model; the marker is hidden by the calloutMarker
-// decoration and revealed while the caret is inside (Obsidian live-preview convention).
-
 import type { ComponentType } from "react";
 import {
   InfoIcon,
@@ -9,16 +6,22 @@ import {
   ShieldAlertIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
-import type { SlateEditor, TElement } from "platejs";
-import { PlateElement, useSelected } from "platejs/react";
+import { PlateElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
+import { ALERT_VARIANTS, alertVariantSchema } from "@repo/contract/library/library-nodes";
+import type { AlertVariant } from "@repo/contract/library/library-nodes";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
 import { cn } from "@repo/ui/lib/cn";
 
-import { alertMarkerPrefix, leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
-import type { AlertVariant } from "@repo/editor/markdown/alert-marker";
-import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
+import { alertProp } from "@repo/editor/node-props";
 
 interface AlertPresentation {
   Icon: ComponentType<{ className?: string }>;
@@ -60,70 +63,51 @@ const ALERTS = {
   },
 } satisfies Record<AlertVariant, AlertPresentation>;
 
-// the calloutMarker decoration runs the same alertMarkerPrefix, so badge and hiding cannot disagree.
-const alertQuoteMarker = (
-  editor: SlateEditor,
-  quote: TElement,
-): { hidden: number; variant: AlertVariant } | null => {
-  const [first] = quote.children;
-  if (!ElementApi.isElement(first) || first.type !== editor.getType(KEYS.p)) {
-    return null;
-  }
-  const [leaf] = first.children;
-  if (!TextApi.isText(leaf)) {
-    return null;
-  }
-  return alertMarkerPrefix(leaf.text);
-};
-
 export const BlockquoteElement = (props: PlateElementProps) => {
-  const selected = useSelected();
-  const marker = alertQuoteMarker(props.editor, props.element);
-  if (marker) {
-    const { Icon, accent, icon, label } = ALERTS[marker.variant];
-    // hidden while editing so the label never doubles up with its own bytes.
-    return (
-      <PlateElement
-        {...props}
-        as="blockquote"
-        className={cn(
-          CALLOUT_ALERT,
-          "rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
-          accent,
-          selected && CALLOUT_EDITING,
-        )}
-      >
-        <div
+  const readOnly = useReadOnly();
+  const { editor, element } = props;
+  const alert = alertProp(element);
+  if (alert === undefined) {
+    return <PlateElement {...props} as="blockquote" />;
+  }
+  const { Icon, accent, icon, label } = ALERTS[alert];
+  return (
+    <PlateElement
+      {...props}
+      as="blockquote"
+      className={cn("rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0", accent)}
+    >
+      <DropdownMenu disabled={readOnly}>
+        <DropdownMenuTrigger
           contentEditable={false}
           className={cn(
-            "flex items-center gap-1.5 py-[3px] text-subtitle leading-[1.3] font-semibold select-none",
+            "flex w-fit items-center gap-1.5 py-[3px] text-subtitle leading-[1.3] font-semibold select-none enabled:cursor-pointer",
             icon,
-            selected && "hidden",
           )}
         >
           <Icon className="size-4" />
           {label}
-        </div>
-        {props.children}
-      </PlateElement>
-    );
-  }
-  // the loose form keeps the marker visible: hiding non-marker bytes would lie.
-  const loose = leadingAlertMarker(NodeApi.string(props.element));
-  if (loose) {
-    const { Icon, accent, icon } = ALERTS[loose.variant];
-    return (
-      <PlateElement
-        {...props}
-        as="blockquote"
-        className={cn("relative rounded-md border-l-[3px] py-2 pr-3 pl-9 [&>*]:my-0", accent)}
-      >
-        <span contentEditable={false} className={cn("absolute top-[9px] left-3", icon)}>
-          <Icon className="size-4" />
-        </span>
-        {props.children}
-      </PlateElement>
-    );
-  }
-  return <PlateElement {...props} as="blockquote" />;
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuRadioGroup
+            value={alert}
+            onValueChange={(value) => {
+              const picked = alertVariantSchema.safeParse(value);
+              const at = editor.api.findPath(element);
+              if (picked.success && at) {
+                editor.tf.setNodes({ alert: picked.data }, { at });
+              }
+            }}
+          >
+            {ALERT_VARIANTS.map((variant) => (
+              <DropdownMenuRadioItem key={variant} value={variant}>
+                {ALERTS[variant].label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {props.children}
+    </PlateElement>
+  );
 };

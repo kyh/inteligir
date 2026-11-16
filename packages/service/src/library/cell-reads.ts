@@ -9,8 +9,8 @@ import type {
   itemSummarySchema,
   searchHitSchema,
 } from "@repo/contract/library/library-wire";
-import { itemView, viewPage } from "@repo/editor/codec/item-view";
-import type { ViewPage } from "@repo/editor/codec/item-view";
+import { viewPage } from "@repo/editor/codec/item-view";
+import type { ViewPage, ViewPorts } from "@repo/editor/codec/item-view";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import { compareText } from "@repo/contract/library/order-key";
 import { itemCardSchema } from "@repo/contract/library/derive-item";
@@ -212,11 +212,16 @@ const linkedItems = (db: CellDb, ids: ReadonlySet<string>) => {
 };
 
 // the page the read asks for, halved until it fits; one block alone is its own page however long
-const pageWithin = (view: ReturnType<typeof itemView>, from: number, count: number): ViewPage => {
-  let page = viewPage(view, from, count);
+const pageWithin = (
+  blocks: readonly BodyBlock[],
+  ports: ViewPorts,
+  from: number,
+  count: number,
+): ViewPage => {
+  let page = viewPage(blocks, ports, from, count);
   for (let asked = count; page.markdown.length > READ_PAGE_MAX_CHARS && asked > 1;) {
     asked = Math.max(1, Math.floor(asked / 2));
-    page = viewPage(view, from, asked);
+    page = viewPage(blocks, ports, from, asked);
   }
   return page;
 };
@@ -239,8 +244,7 @@ export const readItemView = (
   if (item?.kind !== "live") {
     return refuse({ kind: "not-found" });
   }
-  const view = itemView(blocks, codec.view);
-  const page = pageWithin(view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
+  const page = pageWithin(blocks, codec.view, input.from ?? 0, input.count ?? READ_BLOCKS_DEFAULT);
   const out = new Set(
     db
       .selectDistinct({ targetId: links.targetId })

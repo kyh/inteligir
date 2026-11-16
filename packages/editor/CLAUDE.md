@@ -40,12 +40,18 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **A directive the dialect does not name is its text, and typed text stays text.** An unknown
   directive is restored to the bytes that wrote it, and a `:` is escaped only before `date` or
   `formula`, so `10:30` stays as typed. `packages/editor/src/markdown/md-text-safety.test.ts`.
+- **A directive's name is spelled once, and the rules switch over the names with no default.** The
+  plugins restore what the list does not name and the rules read what it does, so a name added to
+  one alone fails typecheck, where a default lost the block's fence lines.
+  `packages/editor/src/markdown/directive-names.ts`.
 - **The dialect has no JSX, and raw HTML is its text.** Its blocks are remark-directive containers
   and a tag is the text it spells, since an MDX tokenizer or a raw html node is a second spelling
   the editor cannot edit. `packages/editor/src/markdown/md-plugins.ts`.
-- **The alert is the only callout** (owner decision). A quote led by `[!NOTE]` to `[!CAUTION]` is
-  that alert, and any other marker, an `inteligir-callout` fence or a `<callout>` tag stays text,
-  since five alerts need no second grammar. `packages/editor/src/markdown/md-alerts.test.ts`.
+- **The alert is the only callout, and the quote's `alert` prop is the whole of it** (owner
+  decision). A quote led by `[!NOTE]` to `[!CAUTION]` reads as that alert and writes its marker on a
+  line of its own; any other marker, one a write escaped, an `inteligir-callout` fence or a
+  `<callout>` tag stays text, since five alerts need no second grammar and a marker kept in the
+  words is read again by every surface. `packages/editor/src/markdown/md-alerts.test.ts`.
 - **An item's properties are its fields, and only a file has frontmatter.** Info edits them, and
   the title, tags, folder and pin are Info's, so no key has two editors; a `---` fence in a paste
   or an agent's text is a YAML code block. `packages/editor/src/markdown/md-rules.ts`.
@@ -133,9 +139,17 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
 - **A `[[…]]` names what the resolver answers to.** Obsidian's links are read only where markdown
   comes in from outside, and `.md` is the one extension a link leaves off, so a `.txt` note links
   as `[[todo.txt]]`. `packages/editor/src/knowledge/link-resolve.test.ts`.
-- **An agent's edit matches once and reads again only the blocks it spans.** The rest are matched
-  by content and keep their ids, since re-reading a whole item turns every block's id over.
+- **An agent's view is written a group at a time: a list with what nests under it, any other
+  block alone.** A group's place in the text is where it was written and a page writes only its own
+  groups, since finding a block's place after one write of the whole means replaying how the writer
+  nests and joins. `packages/editor/src/codec/item-view.ts`.
+- **An agent's edit writes in the note alone, matches once there, and reads again only the groups
+  it touches.** An empty old text adds after the note and one that reaches the article is refused,
+  since a refresh replaces the article; the blocks read again keep their ids by content.
   `packages/editor/src/codec/item-edit.ts`.
+- **Markdown written into a body is read by `readBody` at every door.** A new note, a save's note,
+  an edit's new text and a fill's page read the same text as the same blocks, and only a file's
+  import reads frontmatter, sections and held files. `packages/editor/src/codec/read-body.ts`.
 - **A markdown file's facts are its frontmatter keys, and one reader reads them.** An import and
   the codec read them into the item's fields through `readItemFacts`, the filename the title.
   `packages/editor/src/items/item-frontmatter.ts`.

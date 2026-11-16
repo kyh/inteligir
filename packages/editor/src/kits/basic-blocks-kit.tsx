@@ -9,18 +9,17 @@ import {
   H6Plugin,
   HorizontalRulePlugin,
 } from "@platejs/basic-nodes/react";
-import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
-import type { DecoratedRange, Path, SlateEditor, TElement } from "platejs";
-import { ParagraphPlugin, PlateElement, PlateLeaf } from "platejs/react";
-import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
+import { ElementApi, KEYS, createBlockStartInputRule } from "platejs";
+import type { TElement } from "platejs";
+import { ParagraphPlugin, PlateElement } from "platejs/react";
+import type { PlateEditor, PlateElementProps } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/cn";
+import { alertVariantSchema } from "@repo/contract/library/library-nodes";
+import type { AlertVariant } from "@repo/contract/library/library-nodes";
 
-import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
 import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
-import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
 
 // A `listStyleType` block hosts BlockList's <ul> inside it, which inside <p>/<h*> is invalid DOM
 // and React logs a nesting error.
@@ -38,76 +37,32 @@ const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
     );
   };
 
-// A first-child paragraph that is exactly an alert marker line collapses while the quote is
-// not being edited: the badge already shows every byte, so it would render as a stray blank line.
-const isAlertMarkerLine = (editor: SlateEditor, element: TElement, path: Path): boolean => {
-  if (element.children.length !== 1) {
-    return false;
-  }
-  const [leaf] = element.children;
-  if (!TextApi.isText(leaf) || !leaf.text.startsWith("[!")) {
-    return false;
-  }
-  const marker = alertMarkerPrefix(leaf.text);
-  if (!marker || marker.hidden < leaf.text.length) {
-    return false;
-  }
-  if (path.length === 0 || path.at(-1) !== 0) {
-    return false;
-  }
-  const parent = NodeApi.get(editor, path.slice(0, -1));
-  return ElementApi.isElement(parent) && parent.type === editor.getType(KEYS.blockquote);
-};
-
-const ParagraphElement = (props: PlateElementProps) => (
-  <PlateElement
-    {...props}
-    as={hostsBlockContent(props.element) ? "div" : "p"}
-    className={cn(
-      "px-0.5",
-      isAlertMarkerLine(props.editor, props.element, props.path) && CALLOUT_MARKER_LINE,
-    )}
-  />
-);
-
 const heading = (as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
   blockElement(as, "relative px-0.5");
 
-const CalloutMarkerLeaf = (props: PlateLeafProps) => (
-  <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />
-);
-
-// A decoration, so the marker bytes round-trip untouched; React-half only, so the serialization mirror never sees it.
-const CalloutMarkerPlugin = createSlatePlugin({
-  decorate: ({ editor, entry: [node, path] }) => {
-    if (!TextApi.isText(node) || !node.text.startsWith("[!")) {
-      return;
+// `[!NOTE]` typed where a quote opens names its alert, as the markdown read does
+const alertInputRule = createBlockStartInputRule<{ alert: AlertVariant }>({
+  apply: ({ editor, getBlockEntry }, match) => {
+    const line = getBlockEntry()?.[1];
+    const quote = line?.at(-1) === 0 ? editor.api.parent(line) : undefined;
+    if (
+      quote === undefined ||
+      !ElementApi.isElement(quote[0]) ||
+      quote[0].type !== editor.getType(KEYS.blockquote)
+    ) {
+      return false;
     }
-    if (path.length < 3 || path.at(-1) !== 0 || path.at(-2) !== 0) {
-      return;
-    }
-    const paragraph = NodeApi.get(editor, path.slice(0, -1));
-    const quote = NodeApi.get(editor, path.slice(0, -2));
-    if (!ElementApi.isElement(paragraph) || paragraph.type !== editor.getType(KEYS.p)) {
-      return;
-    }
-    if (!ElementApi.isElement(quote) || quote.type !== editor.getType(KEYS.blockquote)) {
-      return;
-    }
-    const marker = alertMarkerPrefix(node.text);
-    if (!marker) {
-      return;
-    }
-    const range: DecoratedRange & { calloutMarker: true } = {
-      anchor: { offset: 0, path },
-      calloutMarker: true,
-      focus: { offset: marker.hidden, path },
-    };
-    return [range];
+    editor.tf.delete({ at: match.range });
+    editor.tf.setNodes({ alert: match.alert }, { at: quote[1] });
+    return true;
   },
-  key: "calloutMarker",
-  node: { isLeaf: true },
-}).withComponent(CalloutMarkerLeaf);
+  match: /^\[!/u,
+  resolveMatch: ({ text }) => {
+    const alert = alertVariantSchema.safeParse(text.slice(2).toUpperCase());
+    return alert.success ? { alert: alert.data } : undefined;
+  },
+  trigger: "]",
+});
 
 // the trailing paragraph gives the caret a landing spot below the void
 export const insertHorizontalRule = (editor: PlateEditor): void => {
@@ -119,7 +74,7 @@ export const insertHorizontalRule = (editor: PlateEditor): void => {
 };
 
 export const BasicBlocksKit = [
-  ParagraphPlugin.withComponent(ParagraphElement),
+  ParagraphPlugin.withComponent(blockElement("p", "px-0.5")),
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),
@@ -127,11 +82,10 @@ export const BasicBlocksKit = [
   H4Plugin.withComponent(heading("h4")),
   H5Plugin.withComponent(heading("h5")),
   H6Plugin.withComponent(heading("h6")),
-  BlockquotePlugin.configure({ inputRules: [BlockquoteRules.markdown()] }).withComponent(
-    BlockquoteElement,
-  ),
+  BlockquotePlugin.configure({
+    inputRules: [BlockquoteRules.markdown(), alertInputRule],
+  }).withComponent(BlockquoteElement),
   HorizontalRulePlugin.configure({ inputRules: [HorizontalRuleRules.markdown()] }).withComponent(
     HrElement,
   ),
-  CalloutMarkerPlugin,
 ];

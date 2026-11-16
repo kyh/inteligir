@@ -158,7 +158,8 @@ const itemsContract = {
     .output(landed),
 
   // a note from markdown, as an agent writes one: a page link `[Title](mention:<id>)`, or
-  // `[[Title]]` for the one item so titled
+  // `[[Title]]` for the one item so titled; its title and tags are the request's alone, so a `---`
+  // block opening the markdown is a code block
   createNote: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,
@@ -255,8 +256,9 @@ const itemsContract = {
     )
     .output(saved),
 
-  // exact passages of the item's markdown view replaced in its body as it stands, typing around
-  // them kept; the new text names items as `createNote`'s does
+  // exact passages of the note in the item's markdown view replaced in its body as it stands,
+  // typing around them kept, and an empty `oldText`'s new text added after the note; the new text
+  // names items as `createNote`'s does
   edit: signedBase
     .errors({
       [EditRefusedError.code]: EditRefusedError,
@@ -266,7 +268,7 @@ const itemsContract = {
     .input(
       z.strictObject({
         edits: z
-          .array(z.strictObject({ newText: z.string(), oldText: z.string().min(1) }))
+          .array(z.strictObject({ newText: z.string(), oldText: z.string() }))
           .min(1)
           .max(50),
         id: idSchema,
@@ -488,7 +490,6 @@ const agentContract = {
     })
     .input(
       z.strictObject({
-        denyMessage: z.string().min(1).max(1000).optional(),
         eventId: eventIdSchema,
         opId,
         result: z.enum(["allow", "deny"]),

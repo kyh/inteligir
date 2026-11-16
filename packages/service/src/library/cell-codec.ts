@@ -5,10 +5,10 @@
 // those the call's transaction sees.
 
 import type { EditPorts } from "@repo/editor/codec/item-edit";
-import type { FoundFile, ImportPorts } from "@repo/editor/codec/item-markdown";
-import { viewFileAt } from "@repo/editor/codec/item-view";
 import type { ViewPorts } from "@repo/editor/codec/item-view";
 import { libraryLinks } from "@repo/editor/codec/library-links";
+import type { LibraryLookup } from "@repo/editor/codec/library-links";
+import type { BodyPorts } from "@repo/editor/codec/read-body";
 import { fileKindOfMime } from "@repo/contract/items/item-kind";
 import type { FileKind } from "@repo/contract/items/item-kind";
 import { itemCardSchema, titleKey } from "@repo/contract/library/derive-item";
@@ -17,6 +17,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { blobs, items } from "@repo/db/cell/schema";
+import { errorFields } from "../log";
 import type { CellDb } from "./cell-db";
 import type { CellIds } from "./cell-ids";
 
@@ -69,39 +70,30 @@ const titleIndex = (db: CellDb): Map<string, string | null> => {
 export interface CellCodec {
   readonly view: ViewPorts;
   readonly edit: EditPorts;
-  readonly importing: (now: number) => ImportPorts;
+  // how markdown written into a body reads as its blocks
+  readonly body: BodyPorts;
 }
 
 export const cellCodec = (db: CellDb, ids: CellIds): CellCodec => {
   let titles: Map<string, string | null> | null = null;
-  const itemByTitle = (title: string): string | null => {
-    titles ??= titleIndex(db);
-    return titles.get(titleKey(title)) ?? null;
-  };
-  const title = (itemId: string): string | null => titleOf(db, itemId);
-  const fileAt = (url: string): FoundFile | null => {
-    const file = viewFileAt(url);
-    const kind = file === null ? null : fileKindOf(db, file.sha);
-    return file === null || kind === null
-      ? null
-      : { kind, name: file.name ?? file.sha, path: url, place: url, sha: file.sha };
-  };
-  const fileKind = (sha: string): FileKind | null => fileKindOf(db, sha);
-  const links = libraryLinks({ fileKind, itemByTitle, title });
-  return {
-    edit: {
-      fileKind,
-      itemByTitle,
-      newBlockId: ids.block,
-      title,
+  const lookup: LibraryLookup = {
+    fileKind: (sha) => fileKindOf(db, sha),
+    itemByTitle: (title) => {
+      titles ??= titleIndex(db);
+      return titles.get(titleKey(title)) ?? null;
     },
-    importing: (now) => ({
-      file: fileAt,
-      item: links.item,
-      newBlockId: ids.block,
-      now,
-      wiki: links.wiki,
-    }),
-    view: { title },
+    title: (itemId) => titleOf(db, itemId),
   };
+  const links = libraryLinks(lookup);
+  return {
+    body: { links, newBlockId: ids.block, wiki: links.wiki },
+    edit: { ...lookup, newBlockId: ids.block },
+    view: lookup,
+  };
+};
+
+// a rule that failed reading text is the codec's fault and not the text's: the caller refuses the
+// text as it does text it cannot hold, and the failure is said here
+export const logReadFailure = (error: Error): void => {
+  console.error({ event: "markdown-read-failed", ...errorFields(error) });
 };

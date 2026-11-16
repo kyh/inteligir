@@ -100,7 +100,7 @@ const landBookmark = (scope: LandingScope, host: ImportHost, planned: PlannedIte
   }
   const { library } = host;
   const noted =
-    planned.note === "" ? [] : noteBlocksOf(scope, cellCodec(scope.db, library.ids), planned.note);
+    planned.note === "" ? [] : noteBlocksOf(cellCodec(scope.db, library.ids), planned.note);
   // a passage past what a block holds would land a block no device could write back
   const quoted = z
     .array(storableBlockSchema)

@@ -276,7 +276,7 @@ describe("the library's procedures", () => {
         ),
       ).resolves.toStrictEqual({
         code: "UNPROCESSABLE_CONTENT",
-        data: { edit: 0, reason: "missing" },
+        data: { edit: 0, kind: "missing" },
         defined: true,
       });
       // past the parse's own reach: a stack overflow nearer the conversion's reach surfaces in this
@@ -290,7 +290,7 @@ describe("the library's procedures", () => {
         ),
       ).resolves.toMatchObject({
         code: "UNPROCESSABLE_CONTENT",
-        data: { edit: 0, reason: "too-deep" },
+        data: { edit: 0, kind: "too-deep" },
       });
     });
   });
@@ -337,7 +337,7 @@ describe("the library's procedures", () => {
         });
       await expect(refusalOf(edit())).resolves.toMatchObject({
         code: "UNPROCESSABLE_CONTENT",
-        data: { edit: 0, reason: "unstorable" },
+        data: { edit: 0, kind: "unstorable" },
       });
       await expect(edit()).rejects.toThrow("That edit holds a block the library can't keep.");
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
@@ -349,7 +349,26 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("refuses an edit to the lines the article opens and closes on", async () => {
+  it("reads a `---` block opening a new note as a code block, which names no field", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const { item } = await library.items.createNote({
+        markdown: "---\ntitle: From the text\ntags: [yaml]\n---\n\nBody.",
+        tags: ["Asked"],
+      });
+      expect(item.fields).toMatchObject({
+        aliases: [],
+        properties: {},
+        tags: ["Asked"],
+        title: "",
+      });
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        view: { markdown: "```yaml\ntitle: From the text\ntags: [yaml]\n```\n\nBody.\n" },
+      });
+    });
+  });
+
+  it("takes an edit in the note alone, and adds an empty old text's new text after it", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const { item } = await library.items.create({
@@ -365,16 +384,16 @@ describe("the library's procedures", () => {
       });
       const read = await library.items.read({ id: item.id });
       expect(read.view.markdown).toBe("Note.\n\n:::article\n\nPage.\n\n:::\n");
-      await expect(
-        refusalOf(
-          library.items.edit({
-            edits: [{ newText: "Note. Page.", oldText: "Note.\n\n:::article\n\nPage." }],
-            id: item.id,
-          }),
-        ),
-      ).resolves.toMatchObject({
+      const inArticle = async () =>
+        await library.items.edit({ edits: [{ newText: "Page!", oldText: "Page." }], id: item.id });
+      await expect(refusalOf(inArticle())).resolves.toMatchObject({
         code: "UNPROCESSABLE_CONTENT",
-        data: { edit: 0, reason: "section" },
+        data: { edit: 0, kind: "section" },
+      });
+      await expect(inArticle()).rejects.toThrow("Write in the note");
+      await library.items.edit({ edits: [{ newText: "Added.", oldText: "" }], id: item.id });
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        view: { markdown: "Note.\n\nAdded.\n\n:::article\n\nPage.\n\n:::\n" },
       });
     });
   });

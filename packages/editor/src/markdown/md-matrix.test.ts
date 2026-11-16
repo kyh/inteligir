@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { Descendant, TElement, TText } from "platejs";
 
-import { storableBlockSchema } from "@repo/contract/library/library-nodes";
+import { ALERT_VARIANTS, storableBlockSchema } from "@repo/contract/library/library-nodes";
 
 import { schemaPairs, usedPairs } from "../test-support/library-node-pairs";
 import { meaningOf, readValue, writeValue } from "../test-support/markdown-meaning";
@@ -49,7 +49,6 @@ interface MarkdownRow {
   readonly expected: TElement[];
 }
 
-const ALERTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
 const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
 
 const deepList = (depth: number): TElement[] =>
@@ -86,13 +85,18 @@ const VALUE_ROWS: ValueRow[] = [
     node: "blockquote of two paragraphs",
     value: [el("blockquote", [p(t("one")), p(t("two"))])],
   },
-  ...ALERTS.map((variant): ValueRow => ({
-    node: `alert ${variant}`,
-    value: [el("blockquote", [p(t(`[!${variant}]\nfirst line\nsecond line`))])],
+  ...ALERT_VARIANTS.map((alert): ValueRow => ({
+    node: `alert ${alert}`,
+    value: [el("blockquote", [p(t("first line\nsecond line"))], { alert })],
   })),
+  { node: "alert, empty", value: [el("blockquote", [p()], { alert: "NOTE" })] },
   {
-    node: "alert with words on its marker's line",
-    value: [el("blockquote", [p(t("[!NOTE] Heads up\nbody"))])],
+    node: "alert opening with a list",
+    value: [el("blockquote", [li("item", bullet(1)), p(t("after"))], { alert: "TIP" })],
+  },
+  {
+    node: "alert whose words open like a marker",
+    value: [el("blockquote", [p(t("[!TIP]\ntyped"))], { alert: "NOTE" })],
   },
   { node: "toggle", value: [el("toggle", [p(t("Summary")), p(t("body"))])] },
   {
@@ -570,7 +574,7 @@ const MARKDOWN_ROWS: MarkdownRow[] = [
     node: "inline math holding a pipe in a row",
   },
   {
-    expected: [el("blockquote", [p(t("[!TIP]\none\ntwo"))])],
+    expected: [el("blockquote", [p(t("one\ntwo"))], { alert: "TIP" })],
     md: "> [!TIP]\n> one\\\n> two",
     node: "alert holding a hard break",
   },

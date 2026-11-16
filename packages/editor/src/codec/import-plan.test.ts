@@ -184,7 +184,7 @@ const readFolder = (
       now: CODEC_NOW,
     });
     if (!read.ok) {
-      throw new Error(`${read.path}: ${read.reason}`);
+      throw new Error(`${read.path}: ${read.reason.kind}`);
     }
     const { coverSha, originalSha } = read.read.item.fields;
     for (const sha of [coverSha, originalSha]) {

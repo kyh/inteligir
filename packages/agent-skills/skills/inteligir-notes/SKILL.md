@@ -40,8 +40,12 @@ File over app is a philosophy: if you want to create digital artifacts that last
 
 The article's fence is one colon longer than any tab, toggle or column fence inside it, so it may
 read `::::article` and close with `::::`. The note is the person's; the article is the page as it
-was read, and reading the page again replaces it. Write in the note, never in the article, and
-never move or remove either line.
+was read, and reading the page again replaces it.
+
+`edit_item` writes in the note alone. Each old text must stand exactly once in the note, whatever
+the article repeats, and one that reaches the article or either of its lines is refused. An empty
+old text adds its new text after the note: use it to add to a note without quoting it, and to
+write the first words of one, in a saved link the person has not written in, an image or a PDF.
 
 The text is written as the library spells it: a backslash before a character that would
 otherwise read as syntax (`\*`, `\[\[`), inside a date's, a pill's or a tab's brackets too
@@ -257,4 +261,3 @@ Each is a section of this prompt, after this one:
 - A new note's text opens with one H1, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
 - Formula identities and link ids you did not come to change are exactly as you read them.
-- A saved link's article is as you read it, and you wrote only in its note.

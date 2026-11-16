@@ -4,6 +4,9 @@
 import type { Descendant } from "platejs";
 import { z } from "zod";
 
+import { alertVariantSchema } from "@repo/contract/library/library-nodes";
+import type { AlertVariant } from "@repo/contract/library/library-nodes";
+
 const stringValue = z.string();
 const numberValue = z.number();
 
@@ -20,5 +23,11 @@ export const blockId = (node: Descendant): string | undefined => {
 
 export const numberProp = (node: Descendant, key: string): number | undefined => {
   const parsed = numberValue.safeParse(node[key]);
+  return parsed.success ? parsed.data : undefined;
+};
+
+// the alert a quote is, where it is one
+export const alertProp = (node: Descendant): AlertVariant | undefined => {
+  const parsed = alertVariantSchema.safeParse(node.alert);
   return parsed.success ? parsed.data : undefined;
 };

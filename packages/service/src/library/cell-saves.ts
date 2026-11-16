@@ -61,12 +61,8 @@ export interface SaveInput {
 type ReadPage = Pick<SaveInput, "article" | "coverSha" | "facts" | "title">;
 
 // the words a save brought, read into note blocks; blank words are none
-const noteOf = (
-  scope: LandingScope,
-  codec: CellCodec,
-  words: string | undefined,
-): readonly BodyBlock[] =>
-  words === undefined || words.trim() === "" ? [] : noteBlocksOf(scope, codec, words);
+const noteOf = (codec: CellCodec, words: string | undefined): readonly BodyBlock[] =>
+  words === undefined || words.trim() === "" ? [] : noteBlocksOf(codec, words);
 
 // a field op that changes something; one whose value is its base is left out
 export const changes = (op: FieldOp): boolean => op.op !== "set" || op.base !== op.value;
@@ -160,7 +156,7 @@ export const savePage = (
 ): SavedItem => {
   const held = heldItem(scope, input.url);
   if (held === null) {
-    return { created: true, item: newPage(scope, input, noteOf(scope, codec, input.note)) };
+    return { created: true, item: newPage(scope, input, noteOf(codec, input.note)) };
   }
   const item = readLiveItem(scope.db, held.id);
   return item !== null && input.article.length > 0 && awaitsRead(item)
@@ -214,6 +210,6 @@ export const saveLink = (
     return { created: false, item: liveRowOf(scope, held.id) };
   }
   const folderId = folderOfTarget(scope, input.folder, ids.item);
-  const note = noteOf(scope, codec, input.note);
+  const note = noteOf(codec, input.note);
   return { created: true, item: newStub(scope, ids, input, note, folderId ?? null) };
 };

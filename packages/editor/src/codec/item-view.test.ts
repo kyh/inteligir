@@ -109,8 +109,7 @@ describe("the article's fence", () => {
   });
 
   it("opens and closes a page of the article's blocks, so it reads as the page it is", () => {
-    const view = itemView(withPage(toggle("a1")), VIEW_PORTS);
-    const page = viewPage(view, 1, 1);
+    const page = viewPage(withPage(toggle("a1")), VIEW_PORTS, 1, 1);
     expect(page).toMatchObject({ from: 1, to: 2, total: 3 });
     expect(sectionsOf(page.markdown)).toStrictEqual({
       article: ["toggle:Summaryhidden"],
@@ -118,40 +117,61 @@ describe("the article's fence", () => {
     });
   });
 
-  it("lands an edit inside a container in the article on that block", () => {
-    const blocks = withPage(toggle("a1"));
-    const outcome = editItemView(
-      blocks,
-      [{ newText: "hidden, edited", oldText: "hidden" }],
-      editPorts(),
-    );
-    expect(outcome).toMatchObject({
-      kind: "changed",
-      changes: [{ block: { id: "a1", type: "toggle" }, kind: "put" }],
-    });
-    expect(JSON.stringify(outcome)).toContain("hidden, edited");
+  it("turns down an edit of the article, which is the page as it was read", () => {
+    expect(
+      editItemView(
+        withPage(toggle("a1")),
+        [{ newText: "hidden, edited", oldText: "hidden" }],
+        editPorts(),
+      ),
+    ).toStrictEqual({ kind: "refused", refusal: { edit: 0, kind: "section" } });
   });
 });
 
+// a list holding a code block under its first item, a paragraph on either side
+const nested = (indent: number): BodyBlock[] => [
+  stored(paragraph("p1", "before"), "note"),
+  stored(bullet("a1", "one"), "note"),
+  stored(
+    {
+      children: [{ children: [{ text: "x" }], type: "code_line" }],
+      id: "a2",
+      indent,
+      type: "code_block",
+    },
+    "note",
+  ),
+  stored(bullet("a3", "two"), "note"),
+  stored(paragraph("p2", "after"), "note"),
+];
+
 describe("a list run", () => {
   it.each([1, 2])("holds a block nested under it at indent %i as one group", (indent) => {
-    const view = itemView(
-      [
-        stored(bullet("a1", "one"), "note"),
-        stored(
-          {
-            children: [{ children: [{ text: "x" }], type: "code_line" }],
-            id: "a2",
-            indent,
-            type: "code_block",
-          },
-          "note",
-        ),
-        stored(bullet("a3", "two"), "note"),
-      ],
-      VIEW_PORTS,
-    );
-    expect(new Set(view.blocks.map((block) => block.group)).size).toBe(1);
-    expect(sectionsOf(view.markdown).note).toStrictEqual(["p:one", "code_block:x", "p:two"]);
+    const view = itemView(nested(indent), VIEW_PORTS);
+    expect(view.groups.map((group) => group.blocks.map((block) => block.id))).toStrictEqual([
+      ["p1"],
+      ["a1", "a2", "a3"],
+      ["p2"],
+    ]);
+    for (const group of view.groups) {
+      expect(view.markdown.slice(group.start, group.start + group.text.length)).toBe(group.text);
+    }
+    expect(sectionsOf(view.markdown).note).toStrictEqual([
+      "p:before",
+      "p:one",
+      "code_block:x",
+      "p:two",
+      "p:after",
+    ]);
+  });
+
+  it("pages a paragraph beside one on its own", () => {
+    expect(viewPage(nested(1), VIEW_PORTS, 4, 1)).toStrictEqual({
+      from: 4,
+      markdown: "after\n",
+      to: 5,
+      total: 5,
+    });
+    expect(viewPage(nested(1), VIEW_PORTS, 2, 1)).toMatchObject({ from: 1, to: 4 });
   });
 });

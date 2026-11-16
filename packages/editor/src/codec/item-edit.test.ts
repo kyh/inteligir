@@ -38,7 +38,7 @@ const storedOf = (text: string): BodyBlock[] => {
     { ...pretendLibrary().importPorts(), ...libraryLinks(portsWith()) },
   );
   if (!read.ok) {
-    throw new Error(read.reason);
+    throw new Error(read.reason.kind);
   }
   return [...read.item.blocks];
 };
@@ -90,9 +90,9 @@ const textOf = (blocks: readonly BodyBlock[]): string => itemView(blocks, portsW
 
 // each block's text, in reading order
 const textBlocks = (blocks: readonly BodyBlock[]): string[] =>
-  itemView(blocks, portsWith()).blocks.map(({ block }) =>
-    block.children.map((child) => ("text" in child ? child.text : "")).join(""),
-  );
+  itemView(blocks, portsWith())
+    .groups.flatMap((group) => group.blocks)
+    .map((block) => block.children.map((child) => ("text" in child ? child.text : "")).join(""));
 
 const NOTE = [
   "# Plan",
@@ -153,28 +153,28 @@ describe("the agent's view of an item", () => {
     for (const file of readdirSync(FIXTURES)) {
       const blocks = storedOf(readFileSync(`${FIXTURES}${file}`, "utf-8"));
       const view = itemView(blocks, portsWith());
-      for (const placed of view.blocks) {
-        expect(view.markdown.slice(placed.start, placed.end).trim(), file).not.toBe("");
+      for (const group of view.groups) {
+        expect(group.text.trim(), file).not.toBe("");
+        expect(view.markdown.slice(group.start, group.start + group.text.length), file).toBe(
+          group.text,
+        );
       }
-      // an edit that writes every group back as it was changes nothing
-      const whole = editItemView(
-        blocks,
-        [{ newText: view.markdown, oldText: view.markdown }],
-        portsWith(),
-      );
+      // an edit that writes every group of the note back as it was changes nothing
+      const note = view.markdown.slice(0, view.noteEnd);
+      const whole = editItemView(blocks, [{ newText: note, oldText: note }], portsWith());
       expect(whole.kind === "changed" ? whole.changes : whole, file).toStrictEqual([]);
     }
   });
 
   it("pages by block range, a list kept whole", () => {
-    const view = itemView(storedOf(NOTE), portsWith());
-    const page = viewPage(view, 0, 2);
+    const blocks = storedOf(NOTE);
+    const page = viewPage(blocks, portsWith(), 0, 2);
     expect(page).toMatchObject({ from: 0, to: 2, total: 7 });
     expect(page.markdown).toBe(
       `# Plan\n\nFirst paragraph links [Other note](mention:${OTHER_ID}) and stays.\n`,
     );
     // starting inside the list takes the whole of it
-    expect(viewPage(view, 4, 1)).toMatchObject({
+    expect(viewPage(blocks, portsWith(), 4, 1)).toMatchObject({
       from: 3,
       markdown: "- one\n- two\n- three\n",
       to: 6,
@@ -195,9 +195,9 @@ describe("the agent's view of an item", () => {
       ":::",
       "",
     ].join("\n");
-    const view = itemView(storedOf(text), portsWith());
-    expect(view.markdown).toBe("My note.\n\n:::article\n\nThe page.\n\n:::\n");
-    expect(viewPage(view, 1, 1).markdown).toBe(":::article\n\nThe page.\n\n:::\n");
+    const blocks = storedOf(text);
+    expect(textOf(blocks)).toBe("My note.\n\n:::article\n\nThe page.\n\n:::\n");
+    expect(viewPage(blocks, portsWith(), 1, 1).markdown).toBe(":::article\n\nThe page.\n\n:::\n");
   });
 });
 
@@ -229,7 +229,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(outcome.changes).toStrictEqual([
       expect.objectContaining({ afterId: blocks[1]?.block.id, kind: "insertAfter" }),
@@ -252,7 +252,7 @@ describe("an edit made on the view", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(blocks, [{ newText: "- TWO", oldText: "- two" }], portsWith());
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(outcome.changes).toHaveLength(1);
     expect(JSON.stringify(outcome.changes[0])).toContain("TWO");
@@ -291,7 +291,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     const written = outcome.changes.map((change) => ("block" in change ? change.block : null));
     const links = JSON.stringify(written).match(new RegExp(OTHER_ID, "gu")) ?? [];
@@ -312,7 +312,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(textBlocks(landed(blocks, outcome.changes))).toStrictEqual([
       "The area is r ^2 and x==1==y and 50%% or 60%%",
@@ -329,7 +329,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(JSON.stringify(outcome.changes)).toContain("==x== literal");
   });
@@ -342,7 +342,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(JSON.stringify(outcome.changes)).toContain('"url":"https://a.b/c.png"');
   });
@@ -361,7 +361,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(outcome.changes).toHaveLength(1);
     expect(JSON.stringify(outcome.changes[0])).toContain(
@@ -369,25 +369,8 @@ describe("an edit made on the view", () => {
     );
   });
 
-  it("keeps the spellings an edit writes in a page the text they are", () => {
-    const blocks = storedOf(`Note.\n\n:::article\n\nThe page says.\n\n:::\n`);
-    const outcome = editItemView(
-      blocks,
-      [{ newText: "The ==page== %%says%% so. ^x", oldText: "The page says." }],
-      portsWith(),
-    );
-    if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
-    }
-    expect(textBlocks(landed(blocks, outcome.changes)).at(-1)).toBe("The ==page== %%says%% so. ^x");
-  });
-
   it("refuses an old text it cannot place once", () => {
     const blocks = storedOf(NOTE);
-    expect(editItemView(blocks, [{ newText: "x", oldText: "" }], portsWith())).toStrictEqual({
-      kind: "refused",
-      refusal: { edit: 0, kind: "empty" },
-    });
     expect(editItemView(blocks, [{ newText: "x", oldText: "absent" }], portsWith())).toMatchObject({
       refusal: { kind: "missing" },
     });
@@ -404,7 +387,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(outcome.changes.map((change) => change.kind)).toStrictEqual(["put"]);
     expect(textOf(landed(blocks, outcome.changes))).toBe(
@@ -426,61 +409,68 @@ describe("an edit made on the view", () => {
 
   const WITH_NOTE = PAGE_ONLY.replace(":::article", "Note.\n\n:::article");
 
-  it("writes a note above a page the item holds alone", () => {
-    const blocks = storedOf(PAGE_ONLY);
-    const outcome = editItemView(
-      blocks,
-      [{ newText: "My summary.\n\n:::article", oldText: ":::article" }],
-      portsWith(),
-    );
-    if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
-    }
-    expect(outcome.changes).toStrictEqual([
-      expect.objectContaining({ kind: "insertAfter", section: "note" }),
-    ]);
-    expect(textOf(landed(blocks, outcome.changes))).toBe(
-      "My summary.\n\n:::article\n\nPage.\n\n:::\n",
-    );
-  });
-
-  it("reads an edit across the article's line in each section it reaches", () => {
+  it("adds the new text of an empty old text after the note, above the page", () => {
     const blocks = storedOf(WITH_NOTE);
     const outcome = editItemView(
       blocks,
       [
-        {
-          newText: "Note, edited.\n\n:::article\n\nPage, edited.",
-          oldText: "Note.\n\n:::article\n\nPage.",
-        },
+        { newText: "My summary.\n\n- a point", oldText: "" },
+        { newText: "A point", oldText: "a point" },
       ],
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
-    expect(outcome.changes.map((change) => change.kind)).toStrictEqual(["put", "put"]);
+    expect(outcome.changes.map((change) => change.kind)).toStrictEqual([
+      "insertAfter",
+      "insertAfter",
+    ]);
     expect(textOf(landed(blocks, outcome.changes))).toBe(
-      "Note, edited.\n\n:::article\n\nPage, edited.\n\n:::\n",
+      "Note.\n\nMy summary.\n\n- A point\n\n:::article\n\nPage.\n\n:::\n",
     );
   });
 
-  it("refuses an edit that changes the article section's own lines", () => {
-    const blocks = storedOf(WITH_NOTE);
-    expect(
-      editItemView(
-        blocks,
-        [{ newText: "Note. Page.", oldText: "Note.\n\n:::article\n\nPage." }],
-        portsWith(),
-      ),
-    ).toMatchObject({ refusal: { kind: "section" } });
-    expect(
-      editItemView(
-        blocks,
-        [{ newText: "Page.\n\n:::\n\nAfter it.", oldText: "Page.\n\n:::" }],
-        portsWith(),
-      ),
-    ).toMatchObject({ refusal: { kind: "section" } });
+  it.each([
+    ["a page the item holds alone", PAGE_ONLY, "My summary.\n\n:::article\n\nPage.\n\n:::\n"],
+    ["an item that holds nothing", "", "My summary.\n"],
+  ])("writes a note into %s", (_name, text, read) => {
+    const blocks = storedOf(text);
+    const outcome = editItemView(blocks, [{ newText: "My summary.", oldText: "" }], portsWith());
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.kind);
+    }
+    expect(outcome.changes).toStrictEqual([
+      expect.objectContaining({ afterId: null, kind: "insertAfter", section: "note" }),
+    ]);
+    expect(textOf(landed(blocks, outcome.changes))).toBe(read);
+  });
+
+  it("turns down an old text that reaches the article, and counts one only in the note", () => {
+    const blocks = storedOf(WITH_NOTE.replace("Page.", "Page. Note. Note."));
+    for (const oldText of ["Page.", ":::article", "Note.\n\n:::article\n\nPage.", "Note. Note."]) {
+      expect(editItemView(blocks, [{ newText: "x", oldText }], portsWith()), oldText).toStrictEqual(
+        { kind: "refused", refusal: { edit: 0, kind: "section" } },
+      );
+    }
+    expect(textOf(editedTo(blocks, "Note.", "Note, edited."))).toBe(
+      "Note, edited.\n\n:::article\n\nPage. Note. Note.\n\n:::\n",
+    );
+  });
+
+  it("reads again only the group an edit touches, beside a list that holds a block", () => {
+    const marked: BodyBlock = {
+      block: { children: [{ text: "Underlined.", underline: true }], id: "u", type: "p" },
+      section: "note",
+    };
+    const blocks = [marked, ...storedOf("- one\n\n  ```\n  code\n  ```\n\n- two\n\nLast line.\n")];
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "Last line, edited.", oldText: "Last line." }],
+      portsWith(),
+    );
+    expect(outcome).toMatchObject({ changes: [{ blockId: blocks.at(-1)?.block.id, kind: "put" }] });
+    expect(outcome.kind === "changed" ? outcome.changes : outcome).toHaveLength(1);
   });
 
   it("applies each edit to the text the ones before it left", () => {
@@ -494,7 +484,7 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     if (outcome.kind !== "changed") {
-      throw new Error(outcome.refusal.kind);
+      throw new Error(outcome.kind);
     }
     expect(textOf(landed(blocks, outcome.changes))).toContain("Final words.");
   });

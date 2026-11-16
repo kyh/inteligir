@@ -7,9 +7,11 @@
 // math hold their brackets; a `\[\[` the writer escaped stays text, which is how the agent's view
 // spells a person's own brackets.
 
-import type { Image, Link, Nodes, PhrasingContent, Root, Text } from "mdast";
+import type { Image, Nodes, PhrasingContent, Root, Text } from "mdast";
 import type { Plugin, Transformer } from "unified";
 import { CONTINUE, SKIP, visit } from "unist-util-visit";
+
+import { mentionLink } from "@repo/editor/markdown/md-rules";
 
 import { isMdastRoot } from "./mdast-nodes";
 
@@ -33,8 +35,6 @@ const WIKI_RE = /(?<bang>!?)\[\[(?<body>[^[\]\n]+)\]\]/gu;
 
 // Obsidian's image width, `300` or `300x200`
 const WIDTH_RE = /^\d{1,5}(?:x\d{1,5})?$/u;
-
-const MENTION_SCHEME = "mention:";
 
 const wikiTarget = (body: string): WikiTarget => {
   const pipe = body.indexOf("|");
@@ -84,12 +84,6 @@ const findInSource = (
   const embed = bang && source[match.index - 1] === "!" && !escapedAt(source, match.index - 1);
   return { end: match.index + match[0].length, escaped, found: { embed } };
 };
-
-const mentionLink = (itemId: string, title: string): Link => ({
-  children: [{ type: "text", value: title }],
-  type: "link",
-  url: `${MENTION_SCHEME}${encodeURIComponent(itemId)}`,
-});
 
 const fileImage = (url: string, alias: string | null): Image => ({
   alt: alias !== null && WIDTH_RE.test(alias) ? `|${alias}` : "",

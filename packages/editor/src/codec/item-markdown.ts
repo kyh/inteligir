@@ -13,19 +13,16 @@ import type { LibraryBlock, LibrarySection } from "@repo/contract/library/librar
 import type { WikiResolve } from "@repo/editor/markdown/remark-wiki-import";
 
 import { frontmatterEnd, frontmatterYaml } from "@repo/editor/markdown/frontmatter";
-import {
-  headlessEditor,
-  parseMarkdown,
-  parseMarkdownSections,
-} from "@repo/editor/markdown/markdown-doc";
+import { headlessEditor, parseMarkdownSections } from "@repo/editor/markdown/markdown-doc";
 import { lfOnly } from "@repo/editor/markdown/md-read";
+import type { MarkdownRead } from "@repo/editor/markdown/md-read";
 import { yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { stringProp } from "@repo/editor/node-props";
 
 import { readFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
-import { nameDrafts } from "./name-blocks";
-import { readBlocks } from "./read-blocks";
+import { readBody, storedBlocks } from "./read-body";
+import type { BodyPorts } from "./read-body";
 import type { LibraryFile, LinkedItem } from "./read-blocks";
 
 // a file an import found, and where in the folder it sits
@@ -63,7 +60,7 @@ export interface ImportedItem {
 
 export type ItemImport =
   | { readonly ok: true; readonly item: ImportedItem }
-  | { readonly ok: false; readonly reason: "too-deep" };
+  | Extract<MarkdownRead, { ok: false }>;
 
 // a lone image block's address: the parse lifts every markdown image into a block of its own
 const imageUrl = (block: TElement | undefined): string | null =>
@@ -131,7 +128,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   const body = text.slice(frontmatterEnd(text) ?? 0);
   const read = parseMarkdownSections(body, headlessEditor(), { wiki: ports.wiki });
   if (!read.ok) {
-    return { ok: false, reason: "too-deep" };
+    return read;
   }
   const front = readFrontmatter(yaml, source.name, ports.now);
   const note = [...read.sections.note];
@@ -144,12 +141,12 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   if (front.invalidYaml !== null) {
     note.unshift(yamlCodeBlock(front.invalidYaml));
   }
-  const readPorts = {
-    image: (url: string): LibraryFile | null => ports.file(url),
-    item: ports.item,
+  const reading: BodyPorts = {
+    links: { image: ports.file, item: ports.item },
+    newBlockId: ports.newBlockId,
   };
-  const noteBlocks = nameDrafts(readBlocks(note, readPorts), ports.newBlockId);
-  const pageBlocks = nameDrafts(readBlocks(article, readPorts), ports.newBlockId);
+  const noteBlocks = storedBlocks(note, reading);
+  const pageBlocks = storedBlocks(article, reading);
   return {
     item: {
       blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
@@ -172,6 +169,6 @@ export interface ArticleBlocks {
 
 // a page a fill read (the reader's canonical markdown) as its item's article section, in order
 export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
-  const converted = parseMarkdown(markdown);
-  return converted.ok ? nameDrafts(readBlocks(converted.value, PAGE_PORTS), newBlockId) : null;
+  const read = readBody(markdown, { links: PAGE_PORTS, newBlockId });
+  return read.ok ? { blocks: read.blocks, refused: read.refused } : null;
 };

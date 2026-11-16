@@ -164,7 +164,7 @@ export class AgentThreadDO extends DurableObject<Env> {
         case "approval": {
           const { toolUseId } = approvalPayloadSchema.parse(job.payload);
           const host = this.#host();
-          if (await decideCall(host, { approved: false, by: "timeout", reason: null, toolUseId })) {
+          if (await decideCall(host, { approved: false, by: "timeout", toolUseId })) {
             await this.#wake();
           }
           return undefined;
@@ -277,7 +277,6 @@ export class AgentThreadDO extends DurableObject<Env> {
     const decided = await decideCall(this.#host(), {
       approved: answer.approved,
       by: "person",
-      reason: answer.reason,
       toolUseId: answer.toolUseId,
     });
     if (decided) {

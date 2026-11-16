@@ -68,7 +68,6 @@ export type DeliveryRequest = z.infer<typeof deliveryRequestSchema>;
 
 export const respondRequestSchema = z.strictObject({
   approved: z.boolean(),
-  reason: z.string().max(1000).nullable(),
   toolUseId: idSchema,
 });
 export type RespondRequest = z.infer<typeof respondRequestSchema>;

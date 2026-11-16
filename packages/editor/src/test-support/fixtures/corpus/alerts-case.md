@@ -1,5 +1,5 @@
 > [!note]
-> A lowercase marker keeps its bytes.
+> A lowercase marker is the alert it names.
 
 > [!Tip]
 > So does a mixed-case one, with **bold** and [[Wiki Link]].

@@ -4,16 +4,17 @@
 // the codec (`@repo/editor/codec/*`) over the cell's own SQL (`./cell-codec`); its edit of a note's
 // body is the note's (`./cell-edits`).
 
-import { importItem } from "@repo/editor/codec/item-markdown";
+import { readBody } from "@repo/editor/codec/read-body";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { organizeOps } from "@repo/contract/library/cell-rules";
 import type { FolderTarget, OrganizeInput } from "@repo/contract/library/cell-rules";
-import { blankItemFields, fileFields } from "@repo/contract/library/item-makes";
+import { fileFields, noteFields } from "@repo/contract/library/item-makes";
 import { readingOps } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readItem, readLiveItem } from "./library-queries";
 
 import { readBlobRow } from "./cell-blobs";
+import { logReadFailure } from "./cell-codec";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
@@ -37,18 +38,16 @@ export const landNew = (scope: LandingScope, item: NewItem): LiveItemRow => {
   return landItem(scope, { before: null, fields: item.fields, itemId: item.id, seed: item.blocks });
 };
 
-// a person's markdown as note blocks; its frontmatter, if any, names nothing here, since the
-// caller sets the item's own fields
-export const noteBlocksOf = (
-  scope: LandingScope,
-  codec: CellCodec,
-  markdown: string,
-): readonly BodyBlock[] => {
-  const read = importItem({ name: "", text: markdown }, codec.importing(scope.now));
-  if (!read.ok || read.item.leftOut > 0) {
+// a person's or an agent's markdown as note blocks, every block of it or none
+export const noteBlocksOf = (codec: CellCodec, markdown: string): readonly BodyBlock[] => {
+  const read = readBody(markdown, codec.body);
+  if (!read.ok && read.reason.kind === "failed") {
+    logReadFailure(read.reason.error);
+  }
+  if (!read.ok || read.refused > 0) {
     return refuse({ kind: "too-large" });
   }
-  return read.item.blocks.filter((placed) => placed.section === "note");
+  return read.blocks.map((block) => ({ block, section: "note" }));
 };
 
 export interface CreateNoteInput {
@@ -58,8 +57,8 @@ export interface CreateNoteInput {
   readonly folder?: FolderTarget | undefined;
 }
 
-// a note from an agent's markdown: whatever kind or address its frontmatter names, it is a note,
-// titled as asked or as the frontmatter names it, its tags the frontmatter's and the request's
+// a note from an agent's markdown, titled, tagged and filed as the request asks: its text names
+// no field, so a `---` block opening it is a code block, as in an edit
 export const createNote = (
   scope: LandingScope,
   codec: CellCodec,
@@ -67,25 +66,14 @@ export const createNote = (
   input: CreateNoteInput,
 ): LiveItemRow => {
   const folderId = folderOfTarget(scope, input.folder, ids.item) ?? null;
-  const read = importItem(
-    { name: input.title ?? "", text: input.markdown },
-    codec.importing(scope.now),
-  );
-  if (!read.ok || read.item.leftOut > 0) {
-    return refuse({ kind: "too-large" });
-  }
-  const imported = read.item.fields;
-  const fields: LibraryItemFields = {
-    ...blankItemFields(scope.now),
-    aliases: imported.aliases,
-    properties: imported.properties,
-    tags: [...new Set([...imported.tags, ...(input.tags ?? [])])],
-    title: input.title ?? imported.title,
-    folderId,
-  };
   return landNew(scope, {
-    blocks: read.item.blocks,
-    fields,
+    blocks: noteBlocksOf(codec, input.markdown),
+    fields: noteFields({
+      folderId,
+      savedAt: scope.now,
+      tags: input.tags ?? [],
+      title: input.title ?? "",
+    }),
     id: ids.item(),
   });
 };

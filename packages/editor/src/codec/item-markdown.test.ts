@@ -31,7 +31,7 @@ const library = pretendLibrary();
 const imported = (text: string, name = "Fixture"): ImportedItem => {
   const read = importItem({ name, text }, library.importPorts());
   if (!read.ok) {
-    throw new Error(`the import refused: ${read.reason}`);
+    throw new Error(`the import refused: ${read.reason.kind}`);
   }
   return read.item;
 };
@@ -259,7 +259,7 @@ describe("Obsidian's spellings and the dialect's look-alikes, typed as text", ()
       const text = `${"> ".repeat(depth)}x\n`;
       expect(importItem({ name: "Deep", text }, library.importPorts())).toStrictEqual({
         ok: false,
-        reason: "too-deep",
+        reason: { kind: "too-deep" },
       });
     }
   });
@@ -380,14 +380,14 @@ describe("a list as deep as an item holds", () => {
   it.each(SPELLINGS)("is refused one level past it, as %s", (_name, text) => {
     expect(
       importItem({ name: "Deep", text: text(LIST_MAX_INDENT + 1) }, library.importPorts()),
-    ).toStrictEqual({ ok: false, reason: "too-deep" });
+    ).toStrictEqual({ ok: false, reason: { kind: "too-deep" } });
   });
 
   it("refuses a block nested under an item at the last level", () => {
     const text = `${"- ".repeat(LIST_MAX_INDENT)}x\n\n${"  ".repeat(LIST_MAX_INDENT)}after\n`;
     expect(importItem({ name: "Deep", text }, library.importPorts())).toStrictEqual({
       ok: false,
-      reason: "too-deep",
+      reason: { kind: "too-deep" },
     });
   });
 });
