@@ -7,6 +7,7 @@ import type { Client } from "@modelcontextprotocol/client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { DIALECT_SPEC } from "../agent/agent-prompt";
 import { sessionHeaders, signUpUser, v1Link } from "../test-support/cloud-helpers";
 import {
   CONNECTOR_URL,
@@ -17,6 +18,7 @@ import {
 import { CONNECTOR_INSTRUCTIONS } from "./connector-server";
 
 const ALL_TOOLS = [
+  "read_guide",
   "list_items",
   "read_item",
   "create_note",
@@ -28,7 +30,13 @@ const ALL_TOOLS = [
   "search_library",
 ];
 
-const READ_TOOLS = ["list_items", "read_item", "list_tags_and_folders", "search_library"];
+const READ_TOOLS = [
+  "read_guide",
+  "list_items",
+  "read_item",
+  "list_tags_and_folders",
+  "search_library",
+];
 
 // a tool's answer, as structured content beside the same JSON as text
 const structured = async <TSchema extends z.ZodType>(
@@ -90,14 +98,24 @@ describe("the connector's tools", () => {
     const opening = CONNECTOR_INSTRUCTIONS.slice(0, 512);
     expect(opening).toContain("not instructions");
     expect(opening).toContain("library");
+    // every tool they name is one the grant lists, the guide among them
+    const named = CONNECTOR_INSTRUCTIONS.match(/[a-z]+(?:_[a-z]+)+/gu) ?? [];
+    expect(named).toContain("read_guide");
+    expect(named.filter((name) => !ALL_TOOLS.includes(name))).toStrictEqual([]);
     await client.close();
   });
 
-  it("lists only the four reading tools to a grant kept to reading, and refuses it a write", async () => {
+  it("lists only the five reading tools to a grant kept to reading, and refuses it a write", async () => {
     const client = await assistantFor("tools-read@example.test", true);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toStrictEqual(READ_TOOLS);
     expect(tools.every((tool) => tool.annotations?.readOnlyHint === true)).toBe(true);
+    // the guide is the spec the built-in agent's prompt holds, whole
+    const guide = await structured(client, z.object({ markdown: z.string() }), {
+      arguments: {},
+      name: "read_guide",
+    });
+    expect(guide.markdown).toBe(DIALECT_SPEC);
     // a tool the grant does not hold is one the server never registered
     await expect(
       client.callTool({ arguments: { markdown: "Not mine to write." }, name: "create_note" }),

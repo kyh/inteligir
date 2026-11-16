@@ -218,6 +218,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **The connector is served in the account's cell, a fresh server a request over
   one of two registrars, its principal an assistant's.** A session object per
   client is state nothing needs. `packages/service/src/connector/connector-server.ts`.
+- **A connected assistant reads the dialect's spec by one tool, `read_guide`,
+  the text the built-in agent's prompt holds, and the agent is handed no such
+  tool.** A block spelled wrong lands as literal text with no error, and the
+  server's instructions ride every conversation, their first 512 characters all
+  ChatGPT shows. `packages/service/src/connector/library-tools.ts`.
 
 ## The built-in agent
 

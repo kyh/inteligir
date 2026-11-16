@@ -10,6 +10,7 @@ import { isLibraryTool, libraryTools } from "./library-tools";
 // the tools exactly as a client lists them, in the contract's own order: name, title and the
 // hints it reads before calling
 const TOOLS = [
+  ["read_guide", "Read the writing guide", { openWorldHint: false, readOnlyHint: true }],
   ["list_items", "List items", { openWorldHint: false, readOnlyHint: true }],
   ["read_item", "Read an item", { openWorldHint: false, readOnlyHint: true }],
   ["create_note", "Create a note", { destructiveHint: false, openWorldHint: false }],
@@ -63,6 +64,7 @@ const router = os.router({
     status: os.agent.status.handler(unimplemented),
   },
   folders: { write: os.folders.write.handler(unimplemented) },
+  guide: os.guide.handler(unimplemented),
   history: {
     list: os.history.list.handler(unimplemented),
     undo: os.history.undo.handler(unimplemented),
@@ -107,7 +109,7 @@ const registered = async () => {
 };
 
 describe("the library's tools", () => {
-  it("are the eleven tagged rows, in the router's order, titled and hinted", async () => {
+  it("are the tagged rows, in the contract's order, titled and hinted", async () => {
     const tools = await registered();
     expect(
       Object.entries(tools).map(([name, tool]) => [name, tool.title, tool.annotations]),
@@ -116,9 +118,12 @@ describe("the library's tools", () => {
 
   it("only read where the contract's table says so, which every device draws a call by", async () => {
     const tools = await registered();
-    expect(TOOLS.map(([name]) => [name, LIBRARY_TOOLS[name].reads])).toStrictEqual(
-      Object.entries(tools).map(([name, tool]) => [name, tool.annotations?.readOnlyHint === true]),
-    );
+    expect(
+      Object.keys(LIBRARY_TOOLS).map((name) => [
+        name,
+        tools[name]?.annotations?.readOnlyHint === true,
+      ]),
+    ).toStrictEqual(Object.entries(LIBRARY_TOOLS).map(([name, { reads }]) => [name, reads]));
   });
 
   it("each carry a short name, a title, a description and an explicit read-only or destructive hint", async () => {

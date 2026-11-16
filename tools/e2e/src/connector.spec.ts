@@ -21,6 +21,7 @@ const CLIENT_INFO = { name: "e2e-assistant", version: "1.0.0" } as const;
 // tools/list's rows: name, title, then the read-only, destructive and open-world hints, a hint a
 // tool leaves out read as null (packages/service/src/connector/library-tools.ts)
 const TOOLS = [
+  ["read_guide", "Read the writing guide", true, null, false],
   ["list_items", "List items", true, null, false],
   ["read_item", "Read an item", true, null, false],
   ["create_note", "Create a note", null, false, false],
@@ -191,6 +192,10 @@ test("an assistant signs in through the consent page and works the library, unti
     expect(result.isError, `${name}: ${JSON.stringify(result.content)}`).not.toBe(true);
     return result.structuredContent;
   };
+  // the spec is text the Worker's build bundles
+  expect(await call("read_guide", {})).toMatchObject({
+    markdown: expect.stringContaining("::::tabs"),
+  });
   const created = await call("create_note", {
     markdown: "The quick brown fox.\n\nIt jumped.",
     title: "Fox notes",

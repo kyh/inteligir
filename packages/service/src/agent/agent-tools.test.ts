@@ -47,10 +47,11 @@ const words = (count: number, seed: string): string =>
   Array.from({ length: count }, (_, index) => `${seed}${String(index)}`).join(" ");
 
 describe("the built-in agent's tools", () => {
-  it("are the connector's tools, each by its name, deleting and reaching the web on the person's word", async () => {
+  it("are the connector's tools but its guide, each by its name, deleting and reaching the web on the person's word", async () => {
     const listed = await registered();
     const names = AGENT_TOOL_DEFINITIONS.map((tool) => tool.name);
-    expect(names).toStrictEqual(listed.toSorted());
+    // the guide's text is the agent's prompt, so it is the one tool the agent is not handed
+    expect([...names, "read_guide"].toSorted()).toStrictEqual(listed.toSorted());
     expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toStrictEqual(names);
     expect(names.filter(asksFirst)).toStrictEqual(["delete_items", "save_link"]);
   });

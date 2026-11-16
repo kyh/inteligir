@@ -12,7 +12,7 @@ import { openapi } from "@orpc/openapi";
 import type { LibraryToolName } from "@repo/contract/library/agent-tools";
 import { libraryContract } from "@repo/contract/library/library-contract";
 
-const { items, organize, search } = libraryContract;
+const { guide, items, organize, search } = libraryContract;
 
 // a read implies its read-only hint by its verb; it is closed-world
 const read = mcp.tool({ annotations: { openWorldHint: false } });
@@ -24,6 +24,18 @@ const changes = mcp.tool({ annotations: { destructiveHint: true, openWorldHint: 
 
 export const libraryTools = {
   ...libraryContract,
+  // the one tool under no name of the contract's table: the built-in agent's prompt holds this
+  // text, so only a connected assistant lists it
+  guide: guide.meta(
+    openapi({
+      description:
+        "Answers how this library's notes are written, as markdown: the exact spelling of each block beyond plain markdown (links between items, dates, formulas, callouts, tabs, toggles, columns, charts, canvases and HTML), how an item's text reads, and how items are saved, filed and tagged. A block spelled wrong is kept as literal text with no error, so read this before create_note or edit_item writes one.",
+      method: "GET",
+      operationId: "read_guide",
+      summary: "Read the writing guide",
+    }),
+    read,
+  ),
   items: {
     ...items,
     createNote: items.createNote.meta(

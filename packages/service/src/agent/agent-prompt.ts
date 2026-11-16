@@ -15,7 +15,8 @@ import writing from "./prompt/writing.md?raw";
 
 const joined = (parts: readonly string[]): string => parts.map((part) => part.trim()).join("\n\n");
 
-// the one order the spec's sections are read in: the hub, whose words lean on the ones after it
-const DIALECT_SPEC = joined([notes, writing, items, fields, links, formulas, canvas, html]);
+// the one order the spec's sections are read in: the hub, whose words lean on the ones after it.
+// A connected assistant, which has no prompt of ours, reads it as the connector's guide
+export const DIALECT_SPEC = joined([notes, writing, items, fields, links, formulas, canvas, html]);
 
 export const AGENT_SYSTEM_PROMPT = joined([builtInAgent, DIALECT_SPEC]);

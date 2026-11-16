@@ -563,6 +563,11 @@ const agentContract = {
 export const libraryContract = {
   agent: agentContract,
   folders: foldersContract,
+
+  // how an item's text is written, as markdown, for an assistant that writes one: the library's
+  // own blocks beyond stock markdown and how items are saved, filed and tagged; no app calls it
+  guide: signedBase.output(z.object({ markdown: z.string() })),
+
   history: historyContract,
   imports: importsContract,
   items: itemsContract,

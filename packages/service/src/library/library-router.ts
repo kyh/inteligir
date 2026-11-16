@@ -14,6 +14,7 @@ import {
 import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
+import { DIALECT_SPEC } from "../agent/agent-prompt";
 import { agentRouter } from "../agent/agent-router";
 import { noteBlocksSchema } from "../note/note-wire";
 import type { TurnUndone } from "../note/note-wire";
@@ -97,6 +98,7 @@ export const libraryRouter = os.router({
       })),
     ),
   },
+  guide: os.guide.handler(() => ({ markdown: DIALECT_SPEC })),
   history: {
     list: os.history.list.handler(({ context, input }) =>
       context.read((db) => listChangeSets(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),

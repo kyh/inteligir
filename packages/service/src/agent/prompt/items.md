@@ -59,8 +59,8 @@ or more items, and tag by topic, never by kind.
 
 - Never rewrite a saved page's article to "clean it up": it is the page as it was read.
 - Never remove a file an item embeds (`assets/<sha>` in its text): the item would lose it.
-- Never move items to Deleted that the person did not ask you to remove; `delete_items` asks them
-  first, and Deleted is where they restore from.
+- Never move items to Deleted that the person did not ask you to remove; Deleted is where they
+  restore one from.
 
 ## Before You Finish
 
