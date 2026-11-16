@@ -32,7 +32,6 @@ src/            the doors, their routes and the build floor, the rate limits, th
                 cell's tools, allowance and switch
   fill/         the fill queue's consumer, the guarded fetch, and a page's charset, oEmbed and sentences
   search/       the one search query policy, the ranked index's rows, and a search's hits and excerpt
-  imports/, zip/   a Raindrop export, the zip reader
   types/        the DOM-free stubs the Worker's program reads
   test-support/ the suites' Worker and the harnesses a suite drives
 ```
