@@ -21,6 +21,9 @@ The shared component vocabulary, its type roles and its motion.
   12, subtitle 13, title 15, display 24, as `text-<role>` utilities, since a role says what a line
   is, and a size every root sets alike is a branch in each component; the note is not chrome, its
   prose in em off the appearance dials. `packages/ui/src/styles/globals.css`.
+- **Dark is the screen's, so every print is light.** The `dark` variant and both dark palettes sit
+  inside `@media not print`, since a printer skips backgrounds and dark's light ink would land on
+  white paper. `packages/ui/src/styles/globals.css`.
 - **The body face never swaps under the reader.** Inter's faces are Fontsource's with
   `font-display: optional` over an Arial fallback sized to Inter's metrics, and the site preloads
   the Latin file, because a swap reflows every line a few seconds into a slow first load.

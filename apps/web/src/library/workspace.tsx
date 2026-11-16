@@ -470,7 +470,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
           onOpenChange={setRailOpen}
           actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
-          width={`${String(readPref(PREFS.sidebarWidth))}px`}
+          defaultWidth={`${String(readPref(PREFS.sidebarWidth))}px`}
           onWidthCommitted={(px) => {
             writePref(PREFS.sidebarWidth, px);
           }}
@@ -530,7 +530,7 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
               open={panelOpen}
               onOpenChange={setPanelOpen}
               shortcut={bindingFor("toggle-panel", modifier)}
-              width={`${String(readPref(PREFS.panelWidth))}px`}
+              defaultWidth={`${String(readPref(PREFS.panelWidth))}px`}
               onWidthCommitted={(px) => {
                 writePref(PREFS.panelWidth, px);
               }}

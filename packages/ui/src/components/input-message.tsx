@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type {
   HTMLAttributes,
   KeyboardEvent as ReactKeyboardEvent,
@@ -51,29 +51,11 @@ const sendable = (trimmed: string, disabled: boolean, sendsEmpty: boolean | unde
 // `w-7` is how an icon-compact Button spells its width, so the toolbar can shrink it to a 6
 const TOOLBAR = "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-caption";
 
-// inline, not a tailwind shadow-* utility, which mangles multi-layer arbitrary values;
-// precedence focus > hover, else the className's shadow-surface-2 supplies the ring.
-const EDGE_DROP = "0 1px 1px -0.5px var(--shadow-color)";
-
-const edgeShadowFor = ({
-  clickToFocus,
-  disabled,
-  focusVisible,
-  hovered,
-}: {
-  clickToFocus: boolean;
-  disabled: boolean;
-  focusVisible: boolean;
-  hovered: boolean;
-}): string | undefined => {
-  if (focusVisible) {
-    return `0 0 0 1px color-mix(in oklab, var(--foreground) 20%, transparent), ${EDGE_DROP}`;
-  }
-  if (hovered && clickToFocus && !disabled) {
-    return `0 0 0 1px var(--border), ${EDGE_DROP}`;
-  }
-  return undefined;
-};
+// the composer's edge over the surface's own ring: the field's focus outranks the hover by
+// specificity, a `:has()` counting its argument
+const FOCUS_EDGE =
+  "has-[textarea:focus-visible]:shadow-[0_0_0_1px_color-mix(in_oklab,var(--foreground)_20%,transparent),0_1px_1px_-0.5px_var(--shadow-color)]";
+const HOVER_EDGE = "hover:shadow-[0_0_0_1px_var(--border),0_1px_1px_-0.5px_var(--shadow-color)]";
 
 const InputMessage = ({
   value,
@@ -92,17 +74,12 @@ const InputMessage = ({
   textareaRef: consumerTextareaRef,
   textareaProps,
   className,
-  style,
   ref,
   ...props
 }: InputMessageProps & RefAttributes<HTMLDivElement>) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [focusVisible, setFocusVisible] = useState(false);
-  const [hovered, setHovered] = useState(false);
 
   const {
-    onFocus: _textareaOnFocus,
-    onBlur: _textareaOnBlur,
     // runs before the composer's own handling and wins by preventDefault (a mention combobox
     // intercepts the keys the composer treats as submit)
     onKeyDown: consumerOnKeyDown,
@@ -161,8 +138,6 @@ const InputMessage = ({
   const trimmed = value.trim();
   const canSend = sendable(trimmed, disabled, sendsEmpty);
 
-  const edgeShadow = edgeShadowFor({ clickToFocus, disabled, focusVisible, hovered });
-
   const handleSend = () => {
     if (!canSend) {
       return;
@@ -203,18 +178,12 @@ const InputMessage = ({
       className={cn(
         "flex flex-col gap-1 p-2 transition-[box-shadow,color] duration-80",
         surfaceClasses(2, 2),
+        FOCUS_EDGE,
         radius.container,
-        clickToFocus && !disabled && "cursor-text",
+        clickToFocus && !disabled && `cursor-text ${HOVER_EDGE}`,
         disabled && "opacity-50 pointer-events-none",
         className,
       )}
-      style={edgeShadow === undefined ? style : { boxShadow: edgeShadow, ...style }}
-      onMouseEnter={() => {
-        setHovered(true);
-      }}
-      onMouseLeave={() => {
-        setHovered(false);
-      }}
       {...props}
     >
       <SurfaceProvider value={2}>
@@ -234,16 +203,6 @@ const InputMessage = ({
               return;
             }
             handleKeyDown(e);
-          }}
-          onFocus={(e) => {
-            if (e.target.matches(":focus-visible")) {
-              setFocusVisible(true);
-            }
-            textareaProps?.onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            setFocusVisible(false);
-            textareaProps?.onBlur?.(e);
           }}
           placeholder={placeholder}
           disabled={disabled}

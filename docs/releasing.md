@@ -341,7 +341,8 @@ The unpacked store build, against production, with no dev build loaded.
 - **Safari, Chrome and Firefox**: live edits, the offline notice, the leave
   prompt with unsent typing on Back and on closing the tab, popups fading, ⌘P,
   VoiceOver, a Docs or Word list paste, Info's Add property picking a date and
-  refusing an empty number, and a tab left open keeping its sign-in.
+  refusing an empty number, a dark window's note printing light, and a tab left
+  open keeping its sign-in.
 - **Safari on an iPhone with iOS 26**: a dialog's backdrop covers the screen,
   Page not read opens its popover on a tap, and the header fits a phone.
 

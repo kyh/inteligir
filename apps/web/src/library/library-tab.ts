@@ -26,7 +26,6 @@ import type {
 import type { FileCloud } from "./cloud/library-files";
 import { createCloudWire, createPageQueryClient } from "./cloud/v1";
 import type { CloudWire } from "./cloud/v1";
-import { installLightPrints } from "./light-prints";
 import { applyStoredSpellcheck } from "./spellcheck";
 
 type TabEnd =
@@ -123,7 +122,6 @@ export const createTabSession = ({ read, forget, location }: TabSessionArgs) => 
 const open = async (): Promise<TabOpening> => {
   // before the first paint: a stored "off" must not flash red underlines
   applyStoredSpellcheck();
-  installLightPrints();
   const { origin } = window.location;
   const session = await activeSession();
   // a fault of the site's says neither signed in nor out, so it never sends a signed-in person to

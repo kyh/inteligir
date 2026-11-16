@@ -103,12 +103,14 @@
   --syntax-title: oklch(0.5 0.12 300);
   --syntax-annotation: oklch(0.56 0.12 55);
 }
-.dark {
-  --syntax-keyword: oklch(0.78 0.1 20);
-  --syntax-string: oklch(0.8 0.09 155);
-  --syntax-constant: oklch(0.78 0.1 255);
-  --syntax-title: oklch(0.8 0.1 300);
-  --syntax-annotation: oklch(0.8 0.11 55);
+@media not print {
+  .dark {
+    --syntax-keyword: oklch(0.78 0.1 20);
+    --syntax-string: oklch(0.8 0.09 155);
+    --syntax-constant: oklch(0.78 0.1 255);
+    --syntax-title: oklch(0.8 0.1 300);
+    --syntax-annotation: oklch(0.8 0.11 55);
+  }
 }
 /* must come first: plate flattens ancestor scopes onto every leaf (`hljs-function hljs-keyword`),
    and at equal specificity source order wins, so a container rule placed last would uncolour

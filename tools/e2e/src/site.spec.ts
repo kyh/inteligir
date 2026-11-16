@@ -117,6 +117,21 @@ test("the site's pages render their docs, and the home page links the latest Mac
   expect(widths.header).toBeLessThanOrEqual(390);
 });
 
+test("a print is light under the dark theme, which stays on the screen", async ({
+  cloud,
+  page,
+}) => {
+  const background = async () =>
+    await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.goto(`${cloud.origin}/privacy`);
+  const light = await background();
+  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect.poll(background).not.toBe(light);
+  await page.emulateMedia({ media: "print" });
+  await expect.poll(background).toBe(light);
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/u);
+});
+
 test("the Worker answers for the session before a page loads: with no cookie a signed-in page goes to sign in and back, and sign-in is skipped for someone signed in", async ({
   account,
   cloud,

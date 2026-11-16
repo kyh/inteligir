@@ -10,7 +10,7 @@ import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/cn";
 
-interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
+interface SwitchProps extends HTMLAttributes<HTMLElement> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   label?: string;
@@ -38,14 +38,15 @@ const Switch = ({
   "aria-label": ariaLabel,
   ref,
   ...props
-}: SwitchProps & RefAttributes<HTMLDivElement>) => {
+}: SwitchProps & RefAttributes<HTMLElement>) => {
   const labelId = useId();
-  const hasMounted = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const thumbTravel = m.trackWidth - m.thumbSize - THUMB_OFFSET * 2;
 
   const dragging = useRef(false);
+  // a drag chooses by where it lets go, so the click the browser sends after it is no press: set
+  // on the release, cleared the frame after
   const didDrag = useRef(false);
   const pointerStart = useRef<{
     clientX: number;
@@ -53,10 +54,6 @@ const Switch = ({
   } | null>(null);
 
   const motionX = useMotionValue(checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET);
-
-  useEffect(() => {
-    hasMounted.current = true;
-  }, []);
 
   const checkedBackground = hovered
     ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
@@ -76,14 +73,10 @@ const Switch = ({
     if (dragging.current) {
       return;
     }
-    if (hasMounted.current) {
-      animate(motionX, thumbX, spring.moderate);
-    } else {
-      motionX.set(thumbX);
-    }
+    animate(motionX, thumbX, spring.moderate);
   }, [thumbX, motionX]);
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (disabled) {
       return;
     }
@@ -100,7 +93,7 @@ const Switch = ({
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
     if (!pointerStart.current) {
       return;
     }
@@ -169,11 +162,16 @@ const Switch = ({
   };
 
   return (
-    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the drag and hit area around the Base UI switch, which owns the keyboard path
-    <div
+    <SwitchPrimitive.Root
       ref={ref}
+      checked={checked}
+      onCheckedChange={onCheckedChange}
+      disabled={disabled}
+      aria-labelledby={label === undefined ? undefined : labelId}
+      aria-label={label === undefined ? ariaLabel : undefined}
+      tabIndex={0}
       className={cn(
-        "relative z-10 flex items-center gap-1 px-2.5 py-1 cursor-pointer select-none touch-none",
+        "group/switch relative z-10 flex items-center gap-1 px-2.5 py-1 cursor-pointer select-none touch-none outline-none",
         disabled && "opacity-50 pointer-events-none",
         className,
       )}
@@ -189,38 +187,23 @@ const Switch = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
-      onClick={() => {
-        if (disabled || didDrag.current) {
-          return;
+      onClick={(e) => {
+        if (didDrag.current) {
+          e.preventBaseUIHandler();
         }
-        onCheckedChange(!checked);
       }}
       {...props}
     >
-      <SwitchPrimitive.Root
-        checked={checked}
-        aria-labelledby={label === undefined ? undefined : labelId}
-        aria-label={label === undefined ? ariaLabel : undefined}
-        onCheckedChange={(next) => {
-          if (didDrag.current) {
-            return;
-          }
-          onCheckedChange(next);
-        }}
-        disabled={disabled}
-        tabIndex={0}
+      <span
         className={cn(
-          "relative shrink-0 rounded-full outline-none cursor-pointer",
+          "relative shrink-0 rounded-full",
           "transition-colors duration-80",
-          "focus-visible:ring-1 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "group-focus-visible/switch:ring-1 group-focus-visible/switch:ring-focus-ring group-focus-visible/switch:ring-offset-2 group-focus-visible/switch:ring-offset-background",
         )}
         style={{
           backgroundColor: trackBackground,
           height: m.trackHeight,
           width: m.trackWidth,
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
         }}
       >
         <SwitchPrimitive.Thumb
@@ -237,12 +220,12 @@ const Switch = ({
                   width: thumbWidth,
                   y: thumbY,
                 }}
-                transition={hasMounted.current ? spring.moderate : { duration: 0 }}
+                transition={spring.moderate}
               />
             );
           }}
         />
-      </SwitchPrimitive.Root>
+      </span>
 
       {label === undefined ? null : (
         <span
@@ -256,7 +239,7 @@ const Switch = ({
           {label}
         </span>
       )}
-    </div>
+    </SwitchPrimitive.Root>
   );
 };
 
