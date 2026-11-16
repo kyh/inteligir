@@ -2,16 +2,16 @@
 // library and the source every client reads. It holds the library's tables, its change sets
 // and jobs, and the account's live sockets; its rules are the engine's (`./library-engine`). The
 // Worker reaches it by `ctx.exports.LibraryDO`, under a name a verified credential or the cell
-// itself gave (`./library-cell`); fetch carries what stays a request and its response, a client's
-// library call and the socket upgrade, and every other call is RPC. Nothing a later event needs is
-// kept in memory but the listing, which the first read after a wake builds again from the rows
-// (`./cell-listing`), and the cell sets no timer: its one alarm runs the `jobs` table.
+// itself gave (`./library-cell`); every call is RPC, a client's library call and an assistant's
+// with the principal the Worker verified beside the request, and fetch carries only the socket
+// upgrade, which no RPC can. Nothing a later event needs is kept in memory but the listing, which
+// the first read after a wake builds again from the rows (`./cell-listing`), and the cell sets no
+// timer: its one alarm runs the `jobs` table.
 
 import {
   SOCKET_KEEPALIVE_PING,
   SOCKET_KEEPALIVE_PONG,
 } from "@repo/contract/library/library-socket";
-import { CONNECTOR_PATH } from "@repo/contract/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
@@ -39,22 +39,16 @@ import { openWithSchema } from "../object-schema";
 import { CELL_SCHEMA } from "./cell-db";
 import {
   acceptSocket,
-  CELL_SOCKET_PATH,
   holderFromHeader,
   severHolder,
+  SOCKET_HOLDER_HEADER,
   socketHolder,
   tellSockets,
 } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
-import {
-  isAppPrincipal,
-  isConnectorPrincipal,
-  PRINCIPAL_HEADER,
-  principalFromHeader,
-  SOCKET_HOLDER_HEADER,
-} from "./library-principal";
-import type { NamedPrincipal } from "./library-principal";
-import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
+import { appPrincipalSchema, connectorPrincipalSchema } from "./library-principal";
+import type { AppPrincipal, ConnectorPrincipal, NamedPrincipal } from "./library-principal";
+import { serveLibraryRpc } from "./library-rpc";
 import type { UploadSettlement } from "./library-engine";
 import { openCell } from "./open-cell";
 import type { Cell } from "./open-cell";
@@ -96,37 +90,21 @@ export class LibraryDO extends DurableObject<Env> {
     return this.#opened;
   }
 
-  // the requests that stay HTTP: an app's library call on `/v1/rpc/library` and an assistant's on
-  // the connector, each with its principal, and the socket upgrade with its holder, each stamped by
-  // the Worker that verified it (`../wire/v1-rpc`, `../connector/connector-route`,
-  // `./socket-routes`)
-  override async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-    if (pathname.startsWith(`${V1_LIBRARY_RPC_PATH}/`)) {
-      return await this.#serveRpc(request);
-    }
-    if (pathname === CONNECTOR_PATH) {
-      return await this.#serveConnector(request);
-    }
-    if (pathname === CELL_SOCKET_PATH) {
-      return this.#acceptSocket(request);
-    }
-    return plainText(404, "not found");
-  }
-
-  // the principal the Worker stamped, held to this cell's own account: only the Worker reaches a
+  // a principal the Worker handed in, held to this cell's own account: only the Worker reaches a
   // cell, and it names one only by the account it verified
-  #principalOf(request: Request): NamedPrincipal | null {
-    const principal = principalFromHeader(request.headers.get(PRINCIPAL_HEADER));
-    return principal?.accountId === this.#cell.accountId ? principal : null;
+  #own<P extends NamedPrincipal>(principal: P): P {
+    if (principal.accountId !== this.#cell.accountId) {
+      throw new Error("a library cell serves its own account alone");
+    }
+    return principal;
   }
 
-  async #serveRpc(request: Request): Promise<Response> {
-    const principal = this.#principalOf(request);
-    if (principal === null || !isAppPrincipal(principal)) {
-      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
-    }
-    const response = await serveLibraryRpc(request, this.#cell.contextFor(principal));
+  // an app's call on `/v1/rpc/library`, by the session the Worker admitted (`../wire/v1-rpc`); the
+  // principal is parsed again at this door, as `landFill` parses, since a Worker of another deploy
+  // may hand another shape
+  async serveLibrary(request: Request, principal: AppPrincipal): Promise<Response> {
+    const app = this.#own(appPrincipalSchema.parse(principal));
+    const response = await serveLibraryRpc(request, this.#cell.contextFor(app));
     return response ?? new Response("not found", { status: 404 });
   }
 
@@ -134,17 +112,17 @@ export class LibraryDO extends DurableObject<Env> {
   // its own server from the handler's factory
   #connector: McpHttpHandler | undefined;
 
-  // an assistant's call
-  async #serveConnector(request: Request): Promise<Response> {
-    const principal = this.#principalOf(request);
-    if (principal === null || !isConnectorPrincipal(principal)) {
-      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
-    }
+  // an assistant's call on the connector, by the grant the Worker verified
+  // (`../connector/connector-route`)
+  async serveConnector(request: Request, principal: ConnectorPrincipal): Promise<Response> {
+    const assistant = this.#own(connectorPrincipalSchema.parse(principal));
     this.#connector ??= createConnectorHandler((caller) => this.#cell.contextFor(caller));
-    return await this.#connector.fetch(request, { authInfo: authInfoOf(principal) });
+    return await this.#connector.fetch(request, { authInfo: authInfoOf(assistant) });
   }
 
-  #acceptSocket(request: Request): Response {
+  // the one request that stays HTTP, since a socket crosses no RPC: the account socket's upgrade,
+  // its holder stamped by the Worker that verified it (`./socket-routes`)
+  override fetch(request: Request): Response {
     const holder = holderFromHeader(request.headers.get(SOCKET_HOLDER_HEADER));
     if (holder === null || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return plainText(400, "The cell takes only a verified socket upgrade.");

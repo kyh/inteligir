@@ -3,9 +3,9 @@
 // check (modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http); then
 // the provider's resource server challenges any call without a token minted for this connector,
 // and publishes the metadata that challenge names. A call that passes is checked for the scope it
-// needs and its grant's budget, then forwarded whole into the account's cell, carrying the
-// principal the token verified, an assistant's grant, and nothing the caller sent in its place. No
-// session is taken here: the connector is an assistant's door alone.
+// needs and its grant's budget, then handed whole to the account's cell without its token, the
+// principal the token verified, an assistant's grant, an argument beside it. No session is taken
+// here: the connector is an assistant's door alone.
 
 import {
   hostHeaderValidationResponse,
@@ -14,7 +14,8 @@ import {
 import { insufficientScope } from "@cloudflare/workers-oauth-provider";
 import type { OAuthResourceHandler } from "@cloudflare/workers-oauth-provider";
 
-import { forwardAsPrincipal, LIBRARY_SCOPES } from "../library/library-principal";
+import { libraryCell } from "../library/library-cell";
+import { LIBRARY_SCOPES, withoutCredentials } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
 import { spendCallBudget } from "../rate-limit";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
@@ -30,7 +31,7 @@ const tooManyCalls = (): Response =>
     { headers: { "retry-after": "60" }, status: 429 },
   );
 
-const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
+const serveInCell: OAuthResourceHandler<Env, TokenProps> = {
   async fetch(request, env, ctx) {
     const { auth, props } = ctx;
     const scopes = auth.scope.filter(isLibraryScope);
@@ -55,7 +56,10 @@ const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
         scopes,
       },
     };
-    return await forwardAsPrincipal(ctx.exports, request, principal);
+    return await libraryCell(ctx.exports, principal.accountId).serveConnector(
+      withoutCredentials(request),
+      principal,
+    );
   },
 };
 
@@ -69,5 +73,5 @@ export const handleConnector = async (
   const refused =
     hostHeaderValidationResponse(request, [hostname]) ??
     originValidationResponse(request, [hostname]);
-  return refused ?? (await auth.resourceServer(forwardToCell).fetch(request, env, ctx));
+  return refused ?? (await auth.resourceServer(serveInCell).fetch(request, env, ctx));
 };

@@ -35,10 +35,9 @@ method of its paths.
 **principal** — who a library call is by, as the Worker verified it at its
 **door**: the account and the actor its writes are by (a **session**, or a
 **connected assistant** under one grant, the only actor with scopes). The
-Worker stamps it on the call it forwards to the cell and drops any copy the
-request brought (`packages/service/src/library/library-principal.ts`); the
-rate limits and the socket's **ticket** key on it. Not a credential: the cell
-never sees one.
+Worker hands it to the cell beside the call, an argument no request can name
+(`packages/service/src/library/library-principal.ts`); the rate limits and
+the socket's **ticket** key on it. Not a credential: the cell never sees one.
 
 **change set** — the unit of undo: what one **turn** of the **built-in agent**
 changed, each item it touched kept as the ops that take its changes back, or

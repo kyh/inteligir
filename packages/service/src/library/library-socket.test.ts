@@ -45,9 +45,8 @@ import {
   placed,
 } from "../test-support/library-cell";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
-import { CELL_SOCKET_PATH } from "./cell-sockets";
+import { SOCKET_HOLDER_HEADER } from "./cell-sockets";
 import { libraryCellName } from "./library-cell";
-import { forwardAsPrincipal, SOCKET_HOLDER_HEADER } from "./library-principal";
 import { mintSocketTicket } from "./socket-ticket";
 
 interface OpenSocket {
@@ -289,41 +288,21 @@ describe("the account's socket", () => {
     );
   });
 
-  it("is taken by the cell on its own path alone", async () => {
+  it("is taken by the cell only as an upgrade that names its holder", async () => {
     const accountId = crypto.randomUUID();
-    const headers = { [SOCKET_HOLDER_HEADER]: "session:laptop-1", upgrade: "websocket" };
-    for (const path of ["/connector/anything", "/socket/anything", "/"]) {
+    const upgrades: Record<string, string>[] = [
+      { upgrade: "websocket" },
+      { [SOCKET_HOLDER_HEADER]: "session:laptop-1" },
+    ];
+    for (const headers of upgrades) {
       const answer = await drained(
-        cellOf(accountId).fetch(`https://cell.test${path}`, { headers }),
+        cellOf(accountId).fetch("https://cell.test/socket", { headers }),
       );
-      expect(answer.status).toBe(404);
+      expect(answer.status).toBe(400);
     }
     await expect(inCell(cellOf(accountId), (state) => state.getWebSockets().length)).resolves.toBe(
       0,
     );
-  });
-
-  it("takes no holder from a call forwarded under a principal", async () => {
-    const accountId = crypto.randomUUID();
-    const answer = await drained(
-      forwardAsPrincipal(
-        exports,
-        new Request(`https://cell.test${CELL_SOCKET_PATH}`, {
-          headers: { [SOCKET_HOLDER_HEADER]: "session:laptop-1", upgrade: "websocket" },
-        }),
-        {
-          accountId,
-          actor: {
-            clientId: "client-1",
-            clientName: "Claude",
-            grantId: "grant-1",
-            kind: "assistant",
-            scopes: ["library:read"],
-          },
-        },
-      ),
-    );
-    expect(answer.status).toBe(400);
   });
 
   it("closes a phone's socket once another device ends its session", async () => {

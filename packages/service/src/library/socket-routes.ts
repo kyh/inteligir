@@ -1,7 +1,8 @@
 // The account's socket, `/v1/socket`, upgraded in the Worker and handed to the account's library
 // cell, which keeps it. It opens with a ticket (`./socket-ticket`) on every client, since a
 // browser's socket carries no header; the Worker names the cell from the account the ticket
-// verified, and stamps its holder over any copy the request carried. The ticket goes no further.
+// verified, and hands it a fresh upgrade carrying only the holder it verified, so nothing the
+// client sent reaches the cell.
 // The holder's standing is checked at the upgrade alone, before the cell accepts and again after,
 // so whatever ends its session later closes its sockets here (`severSockets`).
 
@@ -13,11 +14,10 @@ import { createDb } from "@repo/db/d1/client";
 import type { Db } from "@repo/db/d1/client";
 import { session } from "@repo/db/d1/schema";
 import { plainText } from "../plain-http";
-import { CELL_SOCKET_PATH, holderHeaderValue } from "./cell-sockets";
+import { holderHeaderValue, SOCKET_HOLDER_HEADER } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
 import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
-import { headersForCell, SOCKET_HOLDER_HEADER } from "./library-principal";
 import { plainRefusal } from "../wire/rpc-refusal";
 import { readSocketTicket } from "./socket-ticket";
 import type { SocketClaim } from "./socket-ticket";
@@ -27,19 +27,16 @@ export const NOT_AN_UPGRADE = "This route only upgrades to a WebSocket.";
 export const isUpgrade = (request: Request): boolean =>
   request.method === "GET" && request.headers.get("upgrade")?.toLowerCase() === "websocket";
 
-// the upgrade forwarded whole for its handshake headers, with the verified holder stamped
-const forwardToCell = async (
-  request: Request,
+const upgradeInCell = async (
   ctx: ExecutionContext,
   accountId: string,
   holder: SocketHolder,
-): Promise<Response> => {
-  const headers = headersForCell(request);
-  headers.set(SOCKET_HOLDER_HEADER, holderHeaderValue(holder));
-  return await libraryCell(ctx.exports, accountId).fetch(
-    new Request(`https://library-cell${CELL_SOCKET_PATH}`, { headers }),
+): Promise<Response> =>
+  await libraryCell(ctx.exports, accountId).fetch(
+    new Request("https://library-cell/socket", {
+      headers: { [SOCKET_HOLDER_HEADER]: holderHeaderValue(holder), upgrade: "websocket" },
+    }),
   );
-};
 
 // the ticket's session still stands: an end since it was minted shuts the socket out
 const holderStands = async (
@@ -115,6 +112,6 @@ export const handleLibrarySocket = async (
         env,
         ctx,
         url,
-        async ({ accountId, holder }) => await forwardToCell(request, ctx, accountId, holder),
+        async ({ accountId, holder }) => await upgradeInCell(ctx, accountId, holder),
       )
     : plainText(400, NOT_AN_UPGRADE);

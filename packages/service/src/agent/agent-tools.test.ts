@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { isLibraryTool } from "../connector/library-tools";
 import { FILL_ACTOR } from "../library/cell-fills";
-import { principalFromHeader } from "../library/library-principal";
+import { appPrincipalSchema, connectorPrincipalSchema } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
@@ -203,24 +203,12 @@ describe("the built-in agent's tools", () => {
 });
 
 describe("the built-in agent's principal", () => {
-  it("is no header's: the cell names it for one turn of one thread, and a request never does", () => {
+  it("is no argument's: the cell names it for one turn of one thread, and neither door takes one", () => {
     const claimed = {
       accountId: "account-1",
       actor: { kind: "agent", threadId: "thread-1", turn: 1 },
     };
-    expect(principalFromHeader(encodeURIComponent(JSON.stringify(claimed)))).toBeNull();
-    const assistant = {
-      ...claimed,
-      actor: {
-        clientId: "client-1",
-        clientName: "Claude",
-        grantId: "grant-1",
-        kind: "assistant",
-        scopes: ["library"],
-      },
-    };
-    expect(principalFromHeader(encodeURIComponent(JSON.stringify(assistant)))).toStrictEqual(
-      assistant,
-    );
+    expect(appPrincipalSchema.safeParse(claimed).success).toBe(false);
+    expect(connectorPrincipalSchema.safeParse(claimed).success).toBe(false);
   });
 });

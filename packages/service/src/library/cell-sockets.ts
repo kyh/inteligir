@@ -20,8 +20,8 @@ export const holderSchema = z.strictObject({
 });
 export type SocketHolder = z.infer<typeof holderSchema>;
 
-// the cell's own door for an upgrade, which only `./socket-routes` forwards to
-export const CELL_SOCKET_PATH = "/socket";
+// where the Worker stamps the holder on the upgrade it hands the cell (`./socket-routes`)
+export const SOCKET_HOLDER_HEADER = "x-library-socket-holder";
 
 export const holderHeaderValue = (holder: SocketHolder): string => `${holder.kind}:${holder.id}`;
 

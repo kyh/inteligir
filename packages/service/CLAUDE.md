@@ -52,10 +52,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once.** REST beside
   RPC is two serializers and two error vocabularies; only a file's bytes and the
   sockets stay plain HTTP. `packages/service/src/wire/rpc-refusal.ts`.
-- **A library call reaches its cell with the principal the Worker verified, and
-  nothing the caller sent in its place.** The Worker drops the caller's
-  principal, `authorization` and `cookie` headers, so the cell verifies no
-  session. `packages/service/src/wire/v1-rpc.ts`.
+- **A library call reaches its cell with the principal the Worker verified, an
+  argument of the cell's own method beside the request.** A principal on a
+  header rides beside headers the caller controls, so each must be dropped
+  first; the request crosses without its `authorization` and `cookie`, and the
+  cell verifies no session. `packages/service/src/library/library-do.ts`.
 - **Every page that calls `/v1` is one the Worker served, so it answers no
   CORS.** The extension reaches the site under its host permission, and an
   origin allowed to send `expo-origin` would hold the phone's door.
