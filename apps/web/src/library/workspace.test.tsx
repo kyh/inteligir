@@ -13,8 +13,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { forgetAccountStorage } from "./cloud/account-storage";
+import { accountPrefs, windowLayout } from "./prefs";
 import { createLibraryRouter, openedOver } from "./test-support/library-router";
-import { forgetPref, PREFS, readPref } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 import type { CellCall } from "./test-support/fake-page-library";
 
@@ -29,7 +30,7 @@ const NOTE = "Field notes";
 
 // the whole page at an address, over the fake cell, unless the suite answers a call itself
 const pageAt = (entry: string, cell: FakeCell, answer?: (call: CellCall) => object | undefined) => {
-  forgetPref(PREFS.libraryScope);
+  forgetAccountStorage();
   const { calls, library } = fakePageLibrary({ answer, cell });
   const router = createLibraryRouter(entry, openedOver(library));
   render(<RouterProvider router={router} />);
@@ -240,7 +241,7 @@ describe("an open item holding typing no connection carried", () => {
 
   it("asks before a leave: Stay keeps the item and the grid's scope, Discard edits goes", async () => {
     const { id, router, server } = await pageOverALiveNote();
-    const scope = readPref(PREFS.libraryScope);
+    const { libraryScope } = accountPrefs.getState();
     server.answer = "hang";
     await act(async () => {
       server.drop();
@@ -255,7 +256,7 @@ describe("an open item holding typing no connection carried", () => {
     fireEvent.click(screen.getByRole("button", { name: "Deleted" }));
     await answer("Stay");
     expect(openItem(router)).toBe(id);
-    expect(readPref(PREFS.libraryScope)).toStrictEqual(scope);
+    expect(accountPrefs.getState().libraryScope).toStrictEqual(libraryScope);
 
     fireEvent.click(screen.getByRole("button", { name: "Back to the library" }));
     await answer("Discard edits");
@@ -322,5 +323,24 @@ describe("what the editor asks of the page", () => {
       expect(field).toHaveProperty("value", "> the passage\n\n");
     });
     expect(document.activeElement).toBe(field);
+  });
+});
+
+const railState = (): string | undefined => {
+  const shell = document.querySelector('[data-slot="sidebar"][data-side="left"]');
+  return shell instanceof HTMLElement ? shell.dataset.state : undefined;
+};
+
+describe("the window's layout", () => {
+  it("opens the rail as the window last left it, and keeps its toggle for the next", async () => {
+    windowLayout.setState({ railOpen: false });
+    pageAt("/library", createFakeCell());
+    await screen.findByRole("button", { name: "Add to the library" });
+    expect(railState()).toBe("collapsed");
+
+    fireEvent.keyDown(window, { key: "[" });
+
+    expect(railState()).toBe("expanded");
+    expect(windowLayout.getState().railOpen).toBe(true);
   });
 });

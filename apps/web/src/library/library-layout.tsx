@@ -16,7 +16,6 @@ import { useSyncExternalStore } from "react";
 
 import { ThemeProvider } from "#components/theme-provider";
 
-import { AppearanceProvider } from "./appearance";
 import { PageLibraryProvider } from "./cloud/library-context";
 import { libraryQueries } from "./cloud/library-queries";
 import { PausedWrites } from "./cloud/needs-connection";
@@ -60,17 +59,15 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
     <QueryClientProvider client={queryClient}>
       <PageLibraryProvider library={library}>
         <ThemeProvider>
-          <AppearanceProvider>
-            <MotionPolicy>
-              <TooltipProvider>
-                <WorkspaceLayout />
-                <ConfirmDialogHost />
-                <Toaster position="bottom-right" />
-                <PausedWrites />
-                <DesktopUpdateBanner />
-              </TooltipProvider>
-            </MotionPolicy>
-          </AppearanceProvider>
+          <MotionPolicy>
+            <TooltipProvider>
+              <WorkspaceLayout />
+              <ConfirmDialogHost />
+              <Toaster position="bottom-right" />
+              <PausedWrites />
+              <DesktopUpdateBanner />
+            </TooltipProvider>
+          </MotionPolicy>
         </ThemeProvider>
       </PageLibraryProvider>
     </QueryClientProvider>

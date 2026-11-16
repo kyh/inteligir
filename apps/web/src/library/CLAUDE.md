@@ -71,11 +71,12 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
   is a history entry, so Back and Forward work, a search's words ride beside it as `?find=` until
   the item's find bar is on them, and Settings is a layer over the inert workspace, since a sibling
   route unmounts the item. `apps/web/src/library/library-search.ts`.
-- **A tab preference is a row, and so is an appearance dial.** What the tab remembers is one `PREFS`
-  row behind `readPref`, `writePref` and `usePref`, the site's theme among them, since a theme is
-  the device's and not the account's. `apps/web/src/library/prefs.ts`.
+- **What the tab remembers is a field of a persisted store, by whose it is.** The device's (the
+  site's theme, the dials, spell check) reach every window, the window's layout opens the next, and
+  the account's scope goes with the account, each a zod field behind `usePref`, since a pref
+  nothing subscribes to grows a sync of its own. `apps/web/src/library/prefs.ts`.
 - **Spell check is the tab's attribute.** WKWebView has no session-wide spell-check switch, so it
-  is a pref on the document root. `apps/web/src/library/spellcheck.ts`.
+  is a pref on the document root. `apps/web/src/library/document-prefs.ts`.
 - **The tab's text is not selectable unless someone would copy it.** The library's body is
   `user-select: none` and what a person would copy opts in, since selectable by default makes every
   new control remember `select-none`. `apps/web/src/library/styles/globals.css`.

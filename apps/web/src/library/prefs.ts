@@ -1,121 +1,136 @@
-// CLAUDE.md § A tab preference is a row
+// CLAUDE.md § What the tab remembers is a field of a persisted store
 
+import { libraryScopeSchema } from "@repo/contract/library-scope";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/lib/sidebar-bounds";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
-import { useState } from "react";
 import { z } from "zod";
-import { libraryScopeSchema } from "@repo/contract/library-scope";
-import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
+import { useStore } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
+import { createStore } from "zustand/vanilla";
+import type { StoreApi } from "zustand/vanilla";
 
-export interface PagePref<Value, Fallback> {
-  readonly key: string;
-  readonly schema: z.ZodType<Value, string>;
-  readonly fallback: Fallback;
-}
+import { appearanceSchema } from "./appearance-options";
 
-const pref = <Value>(
-  key: string,
-  schema: z.ZodType<Value, string>,
-  fallback: NoInfer<Value>,
-): PagePref<Value, Value> => ({ fallback, key, schema });
-
-// a row with nothing to say until something writes it
-const unsetPref = <Value>(
-  key: string,
-  schema: z.ZodType<Value, string>,
-): PagePref<Value, null> => ({ fallback: null, key, schema });
-
-const json = <Value>(schema: z.ZodType<Value>) =>
-  z.codec(z.string(), z.unknown().pipe(schema), {
-    decode: (raw, payload) => {
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        return parsed;
-      } catch {
-        payload.issues.push({ code: "custom", input: raw, message: "not JSON" });
-        return z.NEVER;
-      }
-    },
-    encode: (value) => JSON.stringify(value),
-  });
-
-const flag = z.stringbool({ case: "sensitive", falsy: ["false"], truthy: ["true"] });
-
-// Clamped with the rail's own bounds, or a stored width the rail cannot produce comes back on reload.
-const railWidth = z.codec(
-  z.string(),
-  z
-    .number()
-    .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)))),
-  { decode: Number, encode: String },
-);
-
-const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
-
-// the orders the grid offers; a search ranks, so it takes none of them
-export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
-export type LibrarySort = (typeof LIBRARY_SORTS)[number];
-
-export const PREFS = {
-  appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
-  // the scope the library opens on; a folder that is no longer listed reads as every item
-  libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
-  librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
-  // closed until asked for: the open item's panel button or an ask of the agent opens it
-  panelOpen: pref("inteligir.panel-open", flag, false),
-  // the right panel is the same primitive as the rail, dragged by the same handle
-  panelWidth: pref("inteligir.panel-width", railWidth, 320),
-  railTagsOpen: pref("inteligir.rail-tags-open", flag, true),
-  sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
-  // the document's own `spellcheck`, which every field inherits unless it sets its own
-  spellcheck: pref("inteligir.spellcheck", flag, true),
-  // the account `account-storage.ts` holds for: its opaque id, as nothing here needs its address
-  storageAccount: unsetPref("inteligir.storage-account", z.string()),
-  theme: pref("inteligir.theme", themeName, "system"),
-};
-
-const store = (key: string, value: string | null): void => {
+const quietly = (touch: (storage: Storage) => void): void => {
   try {
-    if (value === null) {
-      window.localStorage.removeItem(key);
-    } else {
-      window.localStorage.setItem(key, value);
-    }
+    touch(window.localStorage);
   } catch {
     // A full or blocked store loses a preference, nothing more.
   }
 };
 
-export const readPref = <Value, Fallback>(row: PagePref<Value, Fallback>): Value | Fallback => {
-  let raw: string | null;
-  try {
-    raw = window.localStorage.getItem(row.key);
-  } catch {
-    return row.fallback;
-  }
-  if (raw === null) {
-    return row.fallback;
-  }
-  const decoded = row.schema.safeParse(raw);
-  return decoded.success ? decoded.data : row.fallback;
+// a Worker's render has no storage, so it reads every store's defaults
+const quietLocalStorage: StateStorage<void> = {
+  getItem: (name) => {
+    try {
+      return window.localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  removeItem: (name) => {
+    quietly((storage) => {
+      storage.removeItem(name);
+    });
+  },
+  setItem: (name, value) => {
+    quietly((storage) => {
+      storage.setItem(name, value);
+    });
+  },
 };
 
-export const writePref = <Value>(row: PagePref<Value, unknown>, value: Value): void => {
-  store(row.key, row.schema.encode(value));
-};
+// a field reads a stored value it cannot parse as its default, so one bad field costs only itself
+const field = <Schema extends z.ZodType>(schema: Schema, fallback: z.output<Schema>) =>
+  // oxlint-disable-next-line promise/prefer-await-to-then, promise/valid-params -- zod's catch, not a promise's: it takes the fallback positionally
+  z.catch(schema, fallback);
 
-export const forgetPref = (row: PagePref<unknown, unknown>): void => {
-  store(row.key, null);
-};
+const persisted = <State extends object>(name: string, schema: z.ZodType<State>) =>
+  createStore<State>()(
+    persist(() => schema.parse({}), {
+      merge: (stored, current) => {
+        const read = schema.safeParse(stored);
+        return read.success ? read.data : current;
+      },
+      name,
+      storage: createJSONStorage(() => quietLocalStorage),
+    }),
+  );
 
-export const usePref = <Value>(
-  row: PagePref<Value, Value>,
-): readonly [Value, (next: Value) => void] => {
-  const [value, setValue] = useState(() => readPref(row));
-  const choose = (next: Value): void => {
-    writePref(row, next);
-    setValue(next);
-  };
-  return [value, choose];
-};
+const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
+
+// Clamped with the rail's own bounds, or a stored width the rail cannot produce comes back on reload.
+const paneWidth = z
+  .number()
+  .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px))));
+
+// the orders the grid offers; a search ranks, so it takes none of them
+export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
+export type LibrarySort = (typeof LIBRARY_SORTS)[number];
+
+const DEVICE_PREFS = "inteligir.prefs";
+
+// the device's, so a change in one window reaches every other
+export const devicePrefs = persisted(
+  DEVICE_PREFS,
+  z.object({
+    appearance: appearanceSchema,
+    // the document's own `spellcheck`, which every field inherits unless it sets its own
+    spellcheck: field(z.boolean(), true),
+    theme: field(themeName, "system"),
+  }),
+);
+
+// the window's, so another window's moves stay there and the last any window made opens the next
+export const windowLayout = persisted(
+  "inteligir.layout",
+  z.object({
+    librarySort: field(z.enum(LIBRARY_SORTS), "saved"),
+    // closed until asked for: the open item's panel button or an ask of the agent opens it
+    panelOpen: field(z.boolean(), false),
+    // the right panel is the same primitive as the rail, dragged by the same handle
+    panelWidth: field(paneWidth, 320),
+    railOpen: field(z.boolean(), true),
+    railTagsOpen: field(z.boolean(), true),
+    railWidth: field(paneWidth, 260),
+  }),
+);
+
+// the account's, which every way of leaving it forgets (`cloud/account-storage.ts`)
+export const accountPrefs = persisted(
+  "inteligir.account",
+  z.object({
+    // whose these are: its opaque id, as nothing here needs its address
+    accountId: field(z.string().nullable(), null),
+    // the scope the library opens on; a folder that is no longer listed reads as every item
+    libraryScope: field(libraryScopeSchema, { kind: "all" }),
+  }),
+);
+
+// One blob, so a window that missed another's write would put back what that one changed with its
+// own next write.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key === DEVICE_PREFS) {
+      void devicePrefs.persist.rehydrate();
+    }
+  });
+}
+
+export const usePref = <State extends object, Key extends keyof State>(
+  store: StoreApi<State>,
+  key: Key,
+): readonly [State[Key], (next: State[Key]) => void] => [
+  useStore(store, (state) => state[key]),
+  (next) => {
+    const patch: Partial<State> = {};
+    patch[key] = next;
+    store.setState(patch);
+  },
+];
+
+// runs in <head> before the first paint of a page the Worker drew, over the blob `persist` writes;
+// a theme it cannot read follows the system's
+export const noFlashThemeScript = `(function(){var t;try{t=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS)})).state.theme}catch(e){}document.documentElement.classList.toggle("dark",t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches))})();`;

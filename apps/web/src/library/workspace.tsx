@@ -49,7 +49,7 @@ import { listingQuery, saveTagsOf } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
-import { PREFS, readPref, usePref, writePref } from "./prefs";
+import { accountPrefs, usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
@@ -74,9 +74,12 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const verbs = useLibraryVerbs();
   const navigate = useNavigate();
   const modifier = platformShortcutModifier();
-  const [storedScope, storeScope] = usePref(PREFS.libraryScope);
-  const [sort, setSort] = usePref(PREFS.librarySort);
-  const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
+  const [storedScope, storeScope] = usePref(accountPrefs, "libraryScope");
+  const [sort, setSort] = usePref(windowLayout, "librarySort");
+  const [panelOpen, setPanelOpen] = usePref(windowLayout, "panelOpen");
+  const [panelWidth, setPanelWidth] = usePref(windowLayout, "panelWidth");
+  const [railOpen, setRailOpen] = usePref(windowLayout, "railOpen");
+  const [railWidth, setRailWidth] = usePref(windowLayout, "railWidth");
   const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
   const [composer, dispatchComposer] = useReducer(composerAfter, COMPOSER_START);
@@ -91,7 +94,6 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
   const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
-  const [railOpen, setRailOpen] = useState(true);
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
@@ -406,10 +408,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
           onOpenChange={setRailOpen}
           actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
-          defaultWidth={`${String(readPref(PREFS.sidebarWidth))}px`}
-          onWidthCommitted={(px) => {
-            writePref(PREFS.sidebarWidth, px);
-          }}
+          defaultWidth={`${String(railWidth)}px`}
+          onWidthCommitted={setRailWidth}
         >
           <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
             <Rail
@@ -466,10 +466,8 @@ export const Workspace = ({ openItem, covered }: WorkspaceProps) => {
               open={panelOpen}
               onOpenChange={setPanelOpen}
               shortcut={bindingFor("toggle-panel", modifier)}
-              defaultWidth={`${String(readPref(PREFS.panelWidth))}px`}
-              onWidthCommitted={(px) => {
-                writePref(PREFS.panelWidth, px);
-              }}
+              defaultWidth={`${String(panelWidth)}px`}
+              onWidthCommitted={setPanelWidth}
             >
               <SidebarInset className="relative bg-surface">
                 {openItem === null ? (
