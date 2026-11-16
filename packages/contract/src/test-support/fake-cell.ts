@@ -29,10 +29,11 @@ import {
 } from "../v1-errors";
 import { UNKNOWN_FILE_TYPE } from "../items/item-kind";
 import { urlKey } from "../items/item-url";
-import { folderOpLanding, folderOpRefusal, organizeOps } from "../library/cell-rules";
+import { canonicalJson } from "../library/canonical-json";
+import { folderOpLanding, folderOpRefusal, organized } from "../library/cell-rules";
 import type { FolderReader, FolderTarget, OrganizeInput } from "../library/cell-rules";
 import { applyFieldOps } from "../library/field-ops";
-import { readingOps } from "../library/item-reading";
+import { withReading } from "../library/item-reading";
 import type { FieldOp } from "../library/field-ops";
 import { compareText, ordBetween } from "../library/order-key";
 import { deriveBody, deriveItem } from "../library/derive-item";
@@ -258,31 +259,32 @@ export const createFakeCell = (): FakeCell => {
     return null;
   };
 
-  const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
-    const item = items.get(input.itemId);
-    if (item === undefined) {
-      throw new NotFoundError();
-    }
-    const outcome = applyFieldOps(item.fields, input.ops);
-    if (outcome.kind === "conflict") {
-      throw new ConflictError();
-    }
-    if (outcome.kind === "invalid") {
-      throw new PayloadTooLargeError();
-    }
-    // every op already true, a resend's after its answer was let go: the item as it stands
-    if (!outcome.changed) {
-      return { item: liveRow(input.itemId, item) };
-    }
-    return land(input.itemId, outcome.fields, item.blocks);
-  };
-
   const holding = (id: string): CellItem => {
     const item = items.get(id);
     if (item === undefined) {
       throw new NotFoundError();
     }
     return item;
+  };
+
+  // an item's fields as a write leaves them; fields left as they were land nothing, and answer
+  // the item as it stands
+  const landFields = (id: string, fields: LibraryItemFields) => {
+    const item = holding(id);
+    return canonicalJson(item.fields) === canonicalJson(fields)
+      ? { item: liveRow(id, item) }
+      : land(id, fields, item.blocks);
+  };
+
+  const write = (input: { readonly itemId: string; readonly ops: readonly FieldOp[] }) => {
+    const outcome = applyFieldOps(holding(input.itemId).fields, input.ops);
+    if (outcome.kind === "conflict") {
+      throw new ConflictError();
+    }
+    if (outcome.kind === "invalid") {
+      throw new PayloadTooLargeError();
+    }
+    return landFields(input.itemId, outcome.fields);
   };
 
   const held = (id: string): HeldItem => {
@@ -314,7 +316,7 @@ export const createFakeCell = (): FakeCell => {
     return target.id;
   };
 
-  // tags, folder, pin and title for each item, by the ops the cell's own organize lands
+  // tags, folder, pin and title for each item, as the cell's own organize leaves them
   // (`organizeItems` in `@repo/service`); an id naming no item refuses them all
   const organize = (input: OrganizeInput): LiveRow[] => {
     const folderId = folderIdOf(input.folder);
@@ -323,8 +325,7 @@ export const createFakeCell = (): FakeCell => {
       throw new NotFoundError();
     }
     return ids.map(
-      (itemId) =>
-        write({ itemId, ops: organizeOps(holding(itemId).fields, input, folderId, NOW) }).item,
+      (itemId) => landFields(itemId, organized(holding(itemId).fields, input, folderId, NOW)).item,
     );
   };
 
@@ -435,7 +436,7 @@ export const createFakeCell = (): FakeCell => {
             if (fields.url === null) {
               throw new NotFoundError();
             }
-            return write({ itemId: input.id, ops: readingOps(fields, { kind: "asked" }) });
+            return landFields(input.id, withReading(fields, { kind: "asked" }));
           }),
         ),
         restore: os.library.items.restore.handler(({ input }) =>

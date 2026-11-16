@@ -7,7 +7,7 @@
 import type { z } from "zod";
 
 import { titleKey } from "./derive-item";
-import type { FieldOp } from "./field-ops";
+import { mergeListField } from "./field-ops";
 import type { LibraryItemFields } from "./library-item";
 import type { folderOpSchema, folderRowSchema } from "./library-wire";
 
@@ -166,31 +166,38 @@ export const folderOpLanding = (
 
 const tagKey = (tag: string): string => tag.toLowerCase();
 
-// the field ops an organize lands on one item's fields, `folderId` the folder its target named
-// (undefined to leave the item where it is)
-export const organizeOps = (
+// a tag added in another spelling of one the item keeps leaves the one kept, and one taken out and
+// put back in another spelling is respelled where it stood
+const tagsAfter = (tags: string[], input: OrganizeInput): string[] => {
+  if (input.addTags === undefined && input.removeTags === undefined) {
+    return tags;
+  }
+  const removed = new Set((input.removeTags ?? []).map(tagKey));
+  const kept = tags.filter((tag) => !removed.has(tagKey(tag)));
+  const held = new Set(kept.map(tagKey));
+  const added = (input.addTags ?? []).filter((tag) => !held.has(tagKey(tag)));
+  return mergeListField("tags", tags, tags, [...kept, ...added]);
+};
+
+// a pin keeps when it was pinned
+const pinnedAtAfter = (held: number | null, pinned: boolean | undefined, now: number) => {
+  if (pinned === undefined || pinned === (held !== null)) {
+    return held;
+  }
+  return pinned ? now : null;
+};
+
+// an item's fields as an organize leaves them, `folderId` the folder its target named (undefined to
+// leave the item where it is)
+export const organized = (
   fields: LibraryItemFields,
   input: OrganizeInput,
   folderId: string | null | undefined,
   now: number,
-): FieldOp[] => {
-  const ops: FieldOp[] = [];
-  if (input.addTags !== undefined || input.removeTags !== undefined) {
-    const removed = new Set((input.removeTags ?? []).map(tagKey));
-    const kept = fields.tags.filter((tag) => !removed.has(tagKey(tag)));
-    const held = new Set(kept.map(tagKey));
-    const added = (input.addTags ?? []).filter((tag) => !held.has(tagKey(tag)));
-    ops.push({ base: fields.tags, op: "tags", value: [...kept, ...new Set(added)] });
-  }
-  if (folderId !== undefined && folderId !== fields.folderId) {
-    ops.push({ base: fields.folderId, field: "folderId", op: "set", value: folderId });
-  }
-  if (input.pinned !== undefined && input.pinned !== (fields.pinnedAt !== null)) {
-    const value = input.pinned ? now : null;
-    ops.push({ base: fields.pinnedAt, field: "pinnedAt", op: "set", value });
-  }
-  if (input.title !== undefined && input.title !== fields.title) {
-    ops.push({ base: fields.title, field: "title", op: "set", value: input.title });
-  }
-  return ops;
-};
+): LibraryItemFields => ({
+  ...fields,
+  folderId: folderId === undefined ? fields.folderId : folderId,
+  pinnedAt: pinnedAtAfter(fields.pinnedAt, input.pinned, now),
+  tags: tagsAfter(fields.tags, input),
+  title: input.title ?? fields.title,
+});

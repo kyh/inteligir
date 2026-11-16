@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { folderOpLanding, folderOpRefusal } from "./cell-rules";
+import { folderOpLanding, folderOpRefusal, organized } from "./cell-rules";
 import type { FolderReader } from "./cell-rules";
+import { noteFixture } from "../test-support/library-items";
 
 const TOP = "01890a5d-ac96-774b-bcce-b302099a8001";
 const UNDER = "01890a5d-ac96-774b-bcce-b302099a8002";
@@ -69,5 +70,25 @@ describe("a folder op against the tree its writer read", () => {
       { deletedAt: 9, id: TOP },
       { deletedAt: 9, id: UNDER },
     ]);
+  });
+});
+
+describe(organized, () => {
+  const fields = noteFixture({ pinnedAt: 5, tags: ["Foo", "bar"] });
+
+  it("respells a tag taken out and put back where it stood, and keeps when a pin was made", () => {
+    const input = { addTags: ["foo", "BAR", "new"], ids: [], pinned: true, removeTags: ["Foo"] };
+    expect(organized(fields, input, undefined, 9)).toStrictEqual({
+      ...fields,
+      tags: ["foo", "bar", "new"],
+    });
+  });
+
+  it("leaves what it was not asked to change", () => {
+    expect(organized(fields, { ids: [] }, undefined, 9)).toStrictEqual(fields);
+    expect(organized(fields, { ids: [], pinned: false }, null, 9)).toStrictEqual({
+      ...fields,
+      pinnedAt: null,
+    });
   });
 });

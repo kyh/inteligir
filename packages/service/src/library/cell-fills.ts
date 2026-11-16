@@ -13,8 +13,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { jobs } from "@repo/db/cell/schema";
-import type { FieldOp } from "@repo/contract/library/field-ops";
-import { readingOf, readingOps } from "@repo/contract/library/item-reading";
+import { readingOf, withReading } from "@repo/contract/library/item-reading";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
@@ -28,9 +27,9 @@ import type { CellDb } from "./cell-db";
 import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { changes, landRead, pageFieldOps } from "./cell-saves";
+import { landRead, withPage } from "./cell-saves";
 import { foldReading } from "./change-sets";
-import { landWrite } from "./cell-writes";
+import { landFields } from "./cell-writes";
 
 export const FILL_ACTOR: CellActor = { kind: "fill" };
 
@@ -174,23 +173,18 @@ const pageOf = (landing: Extract<FillLanding, { kind: "read" }>) => ({
   title: landing.title ?? "",
 });
 
-// the fields a reading sets: a read page's, and the kind its address or its player shows it to be
-const readFieldOps = (
+// the fields a reading leaves: a read page's, and the kind its address or its player shows it to be
+const readFields = (
   fields: LibraryItemFields,
   landing: Extract<FillLanding, { kind: "read" }>,
   now: number,
-): FieldOp[] => {
+): LibraryItemFields => {
   const upgraded = kindForUrl(landing.finalUrl);
   const kind =
     fields.kind === "link"
       ? (landing.playable ?? (upgraded === "link" ? fields.kind : upgraded))
       : fields.kind;
-  return [
-    ...pageFieldOps(fields, pageOf(landing), now),
-    ...(kind === fields.kind
-      ? []
-      : [{ base: fields.kind, field: "kind", op: "set", value: kind } as const]),
-  ];
+  return { ...withPage(fields, pageOf(landing), now), kind };
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
@@ -234,35 +228,28 @@ const landOn = (
   const { fields } = item;
   switch (landing.kind) {
     case "failed": {
-      const ops = readingOps(fields, { at: scope.now, error: landing.sentence, kind: "failed" });
-      return landWrite(scope, { itemId: item.id, ops });
+      return landFields(
+        scope,
+        item,
+        withReading(fields, { at: scope.now, error: landing.sentence, kind: "failed" }),
+      );
     }
     case "file": {
-      const ops: FieldOp[] = [
-        { base: fields.kind, field: "kind", op: "set", value: landing.fileKind },
-        {
-          base: fields.coverSha,
-          field: "coverSha",
-          op: "set",
-          value: landing.fileKind === "image" ? landing.originalSha : fields.coverSha,
-        },
-        { base: fields.originalSha, field: "originalSha", op: "set", value: landing.originalSha },
-        {
-          base: fields.originalName,
-          field: "originalName",
-          op: "set",
-          value: landing.originalName,
-        },
-        ...readingOps(fields, { at: scope.now, kind: "read" }),
-      ];
-      return landWrite(scope, { itemId: item.id, ops: ops.filter(changes) });
+      const file: LibraryItemFields = {
+        ...fields,
+        coverSha: landing.fileKind === "image" ? landing.originalSha : fields.coverSha,
+        kind: landing.fileKind,
+        originalName: landing.originalName,
+        originalSha: landing.originalSha,
+      };
+      return landFields(scope, item, withReading(file, { at: scope.now, kind: "read" }));
     }
     case "read": {
       return landRead(
         scope,
         item,
         { article: landing.article, articleInNote },
-        readFieldOps(fields, landing, scope.now),
+        readFields(fields, landing, scope.now),
       );
     }
     // no default

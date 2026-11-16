@@ -8,12 +8,10 @@
 
 import type { FolderTarget } from "@repo/contract/library/cell-rules";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import { applyFieldOps } from "@repo/contract/library/field-ops";
-import type { FieldOp } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { pageFields, stubFields } from "@repo/contract/library/item-makes";
-import { readingOf, readingOps } from "@repo/contract/library/item-reading";
+import { readingOf, withReading } from "@repo/contract/library/item-reading";
 import { readLiveItem } from "./library-queries";
 import type { LiveStoredItem } from "./library-queries";
 import { itemNameFromUrl } from "@repo/contract/items/item-name";
@@ -28,7 +26,7 @@ import { landItem, urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { landNew, noteBlocksOf } from "./cell-items";
 import { refuse } from "./cell-refusal";
-import { landWrite, liveRowOf } from "./cell-writes";
+import { landFields, liveRowOf } from "./cell-writes";
 
 export interface SavedItem {
   readonly item: LiveItemRow;
@@ -62,35 +60,27 @@ type ReadPage = Pick<SaveInput, "article" | "coverSha" | "facts" | "title">;
 const noteOf = (codec: CellCodec, words: string | undefined): readonly BodyBlock[] =>
   words === undefined || words.trim() === "" ? [] : noteBlocksOf(codec, words);
 
-// a field op that changes something; one whose value is its base is left out
-export const changes = (op: FieldOp): boolean => op.op !== "set" || op.base !== op.value;
-
-const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
-
-// the fields a read page sets, however it reached the item: what it said of itself where it said
-// anything (a value it did not give never removes one an import gave), its cover where it brought
-// one, the reading's own state, and its title (empty when it gave none) only over the address the
-// item is still named by
-export const pageFieldOps = (
+// an item's fields once a page is read into it, however it reached the item: what the page said of
+// itself where it said anything (a value it did not give never removes one an import gave), its
+// cover where it brought one, the reading's own state, and its title (empty when it gave none) only
+// over the address the item is still named by
+export const withPage = (
   fields: LibraryItemFields,
   page: Pick<ReadPage, "coverSha" | "facts" | "title">,
   now: number,
-): FieldOp[] => {
-  const ops: FieldOp[] = [];
-  for (const field of FACT_FIELDS) {
-    const value = page.facts[field];
-    if (value !== null) {
-      ops.push({ base: fields[field], field, op: "set", value });
-    }
-  }
-  if (page.coverSha !== null) {
-    ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
-  }
-  ops.push(...readingOps(fields, { at: now, kind: "read" }));
-  if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
-    ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
-  }
-  return ops.filter(changes);
+): LibraryItemFields => {
+  const { facts } = page;
+  const named = fields.url !== null && fields.title === itemNameFromUrl(fields.url);
+  return {
+    ...withReading(fields, { at: now, kind: "read" }),
+    author: facts.author ?? fields.author,
+    coverSha: page.coverSha ?? fields.coverSha,
+    description: facts.description ?? fields.description,
+    lang: facts.lang ?? fields.lang,
+    published: facts.published ?? fields.published,
+    site: facts.site ?? fields.site,
+    title: page.title !== "" && named ? page.title : fields.title,
+  };
 };
 
 // a page no live item holds the address of, as a new read item
@@ -101,28 +91,24 @@ const newPage = (scope: LandingScope, input: SaveInput, note: readonly BodyBlock
     id: input.id,
   });
 
-// A page read into an item: the fields `fieldOps` set, and its article in place of the item's, a
-// page that held none leaving the item's. A body its note writes takes no article here: the write
-// is refused, and lands again once the note took it (`articleInNote`).
+// A page read into an item: `fields` as the reading leaves them, and its article in place of the
+// item's, a page that held none leaving the item's. A body its note writes takes no article here:
+// the write is refused, and lands again once the note took it (`articleInNote`).
 export const landRead = (
   scope: LandingScope,
   item: LiveStoredItem,
   page: Pick<ReadPage, "article"> & { readonly articleInNote: boolean },
-  fieldOps: readonly FieldOp[],
+  fields: LibraryItemFields,
 ): LiveItemRow => {
   if (page.article.length === 0 || page.articleInNote) {
-    return landWrite(scope, { itemId: item.id, ops: fieldOps });
+    return landFields(scope, item, fields);
   }
   if (bodyWriter(item.body.home) === "note") {
     return refuse({ itemId: item.id, kind: "note-opened", seq: item.seq });
   }
-  const outcome = applyFieldOps(item.fields, fieldOps);
-  if (outcome.kind !== "applied") {
-    return refuse({ kind: "too-large" });
-  }
   return landItem(scope, {
     before: item,
-    fields: outcome.fields,
+    fields,
     itemId: item.id,
     seed: withArticle(readSeedBlocks(scope.db, item.id), page.article),
   });
@@ -150,7 +136,7 @@ export const savePage = (
   return item !== null && input.article.length > 0 && awaitsRead(item)
     ? {
         created: false,
-        item: landRead(scope, item, input, pageFieldOps(item.fields, input, scope.now)),
+        item: landRead(scope, item, input, withPage(item.fields, input, scope.now)),
       }
     : { created: false, item: liveRowOf(scope, held.id) };
 };

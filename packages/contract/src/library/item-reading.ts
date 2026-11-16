@@ -1,9 +1,8 @@
 // Where a saved page's reading stands, the one value an item's fetchState, fetchError and
 // fetchedAt spell: never asked (a note, a file), asked and waiting, read, or tried and failed, each
-// with when the page was last read. Every writer moves it through `readingOps` and every surface
+// with when the page was last read. Every writer moves it through `withReading` and every surface
 // reads it through `readingOf`, so no writer or reader pairs the three fields its own way.
 
-import type { FieldOp } from "./field-ops";
 import type { LibraryItemFields } from "./library-item";
 
 export type Reading =
@@ -74,14 +73,8 @@ export const readingAfter = (reading: Reading, event: ReadingEvent): Reading => 
     : { at: event.at, error: event.error, state: "failed" };
 };
 
-// the fields' ops for the reading after `event`, each on the value it was computed from; a field
-// the event leaves as it was takes none
-export const readingOps = (fields: ReadingFields, event: ReadingEvent): FieldOp[] => {
-  const next = readingFields(readingAfter(readingOf(fields), event));
-  const ops: FieldOp[] = [
-    { base: fields.fetchState, field: "fetchState", op: "set", value: next.fetchState },
-    { base: fields.fetchError, field: "fetchError", op: "set", value: next.fetchError },
-    { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: next.fetchedAt },
-  ];
-  return ops.filter((op) => op.op !== "set" || op.base !== op.value);
-};
+// an item's fields with the reading after `event`
+export const withReading = (fields: LibraryItemFields, event: ReadingEvent): LibraryItemFields => ({
+  ...fields,
+  ...readingFields(readingAfter(readingOf(fields), event)),
+});

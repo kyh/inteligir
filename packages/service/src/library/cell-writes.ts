@@ -1,12 +1,16 @@
-// One item's field ops landed inside a write's transaction: guarded field by field
-// (`@repo/contract/library/field-ops`), whole or not at all, and the item laid only when something
-// changed. Every write the cell's procedures make of an existing item's fields comes through here:
-// a device's own ops, a reading, an organize, Deleted and back. An undo (`./cell-undo`) lands the
-// fields it merged, and a purge (`./library-engine`) a tombstone.
+// An existing item's fields landed inside a write's transaction, by the rules every write meets
+// (`./cell-landing`), and only when something changed. The cell's own verbs compute the fields over
+// the item they read in the same transaction and land them: an organize, Deleted and back, a
+// reading. A device's ops are guarded by the values it showed (`@repo/contract/library/field-ops`).
+// An undo (`./cell-undo`) lands the fields its way back leaves, and a purge (`./library-engine`) a
+// tombstone.
 
 import { applyFieldOps } from "@repo/contract/library/field-ops";
 import type { FieldOp } from "@repo/contract/library/field-ops";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
+import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { readLiveItem } from "./library-queries";
+import type { LiveStoredItem } from "./library-queries";
 
 import { landItem } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
@@ -17,20 +21,33 @@ export interface ItemWrite {
   readonly ops: readonly FieldOp[];
 }
 
-// the item's row as it stands, for a write every op of which was already true, or a save of an
-// address the item holds
+const rowOf = ({ card, fields, id, seq, updatedAt }: LiveStoredItem): LiveItemRow => ({
+  card,
+  fields,
+  id,
+  seq,
+  updatedAt,
+});
+
+// the item's row as it stands, for a save of an address the item holds
 export const liveRowOf = (scope: LandingScope, itemId: string): LiveItemRow => {
   const item = readLiveItem(scope.db, itemId);
-  if (item === null) {
-    return refuse({ kind: "not-found" });
-  }
-  const { card, fields, seq, updatedAt } = item;
-  return { card, fields, id: itemId, seq, updatedAt };
+  return item === null ? refuse({ kind: "not-found" }) : rowOf(item);
 };
 
+// the item with `fields` in place of its own; fields left as they were land nothing, and answer the
+// item as it stands
+export const landFields = (
+  scope: LandingScope,
+  item: LiveStoredItem,
+  fields: LibraryItemFields,
+): LiveItemRow =>
+  canonicalJson(item.fields) === canonicalJson(fields)
+    ? rowOf(item)
+    : landItem(scope, { before: item, fields, itemId: item.id, seed: null });
+
 export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow => {
-  const { itemId } = input;
-  const before = readLiveItem(scope.db, itemId);
+  const before = readLiveItem(scope.db, input.itemId);
   if (before === null) {
     return refuse({ kind: "not-found" });
   }
@@ -38,7 +55,5 @@ export const landWrite = (scope: LandingScope, input: ItemWrite): LiveItemRow =>
   if (outcome.kind !== "applied") {
     return refuse({ kind: outcome.kind === "conflict" ? "conflict" : "too-large" });
   }
-  return outcome.changed
-    ? landItem(scope, { before, fields: outcome.fields, itemId, seed: null })
-    : liveRowOf(scope, itemId);
+  return landFields(scope, before, outcome.fields);
 };
