@@ -26,6 +26,7 @@ import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
 import { PickerRaceKit } from "@repo/editor/combobox-input";
+import { ReadOnlyGuardPlugin } from "@repo/editor/live/edit-guard";
 import { NoteSectionPlugin } from "@repo/editor/live/note-section";
 import { PickerOwnerPlugin } from "@repo/editor/live/picker-owner";
 
@@ -57,6 +58,8 @@ export const CONTENT_KIT = [
   ...MarkdownKit,
   NoteSectionPlugin,
   PickerOwnerPlugin,
+  // last, so it wraps every plugin before it: an op it refuses reaches none of them
+  ReadOnlyGuardPlugin,
 ];
 
 // A later plugin's aboveNodes wraps an earlier one's, so the fold stays inside the drag handle.

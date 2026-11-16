@@ -193,6 +193,9 @@ describe("an item's surface", () => {
       await expect(screen.findByText("A one")).resolves.toBeDefined();
       expect(screen.getByText(HELD_BACK[held])).toBeDefined();
       expect(editable()).toBeNull();
+      // what a node's own button would write, which no read-only editable stops
+      typeInto(A, " more");
+      expect(Node.string(editorOf(A))).toBe("A one");
     },
   );
 
@@ -255,11 +258,16 @@ describe("an item's surface with no connection", () => {
     });
     expect(editable()).toBeNull();
     expect(screen.getByText(NEEDS_CONNECTION)).toBeDefined();
+    typeInto(A, " offline");
+    expect(Node.string(editorOf(A))).toBe("A one");
+    expect(lastNote().unsent()).toBe(false);
     act(() => {
       host.goOffline(false);
     });
     expect(editable()).not.toBeNull();
     expect(screen.queryByText(NEEDS_CONNECTION)).toBeNull();
+    typeInto(A, " online");
+    await expect(screen.findByText("A one online")).resolves.toBeDefined();
   });
 
   it("says a note in Deleted is there even with no connection", async () => {

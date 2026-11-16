@@ -23,9 +23,9 @@ const cell = (name: string): HTMLInputElement => {
 
 const mountGrid = (chart: ChartPayload) => {
   const onCommit = vi.fn<(next: ChartPayload) => void>();
-  const view = render(<ChartGridEditor chart={chart} onCommit={onCommit} onRawEdit={() => {}} />);
+  const view = render(<ChartGridEditor chart={chart} onCommit={onCommit} />);
   const rerender = (next: ChartPayload): void => {
-    view.rerender(<ChartGridEditor chart={next} onCommit={onCommit} onRawEdit={() => {}} />);
+    view.rerender(<ChartGridEditor chart={next} onCommit={onCommit} />);
   };
   return { onCommit, rerender };
 };

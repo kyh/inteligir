@@ -5,12 +5,12 @@
 
 import { useRef } from "react";
 import { ElementApi, PathApi } from "platejs";
-import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import { PlateElement, useEditorRef, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
+import { useFrozen, useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { LockedContent } from "./rich-block-chrome";
@@ -26,10 +26,8 @@ export const ColumnGroupElement = (props: PlateElementProps) => (
 );
 
 export const ColumnElement = (props: PlateElementProps) => {
-  const readOnly = useReadOnly();
   const locked = useRichBlocksLocked();
-  // a locked column draws as a read-only one: no edit frame, no resize handle
-  const frozen = readOnly || locked;
+  const frozen = useFrozen();
   const editor = useEditorRef();
   const element = useElement();
   const hostRef = useRef<HTMLDivElement | null>(null);

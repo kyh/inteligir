@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { getLinkAttributes, unwrapLink } from "@platejs/link";
 import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
-import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import { PlateElement, useEditorRef, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
@@ -12,6 +12,8 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import { isHttpUrl } from "@repo/editor/lib/url";
 import { stringProp } from "@repo/editor/node-props";
+
+import { useEditPopover } from "./edit-popover";
 
 const PopoverButton = ({
   onClick,
@@ -36,9 +38,8 @@ const PopoverButton = ({
 export const LinkElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
-  const readOnly = useReadOnly();
   const anchorRef = useRef<HTMLAnchorElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useEditPopover();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -82,9 +83,7 @@ export const LinkElement = (props: PlateElementProps) => {
         ...getLinkAttributes(editor, { children: element.children, type: element.type, url }),
         onClick: (event: React.MouseEvent) => {
           event.preventDefault();
-          if (!readOnly) {
-            setOpen(true);
-          }
+          setOpen(true);
         },
       }}
     >

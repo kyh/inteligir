@@ -1,8 +1,8 @@
 // Never toDateString() (en-US locale bytes) or toISOString() (UTC-shifts across midnight): the
 // chip saves its `date` as `@YYYY-MM-DD`.
 
-import { Suspense, lazy, useState } from "react";
-import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import { Suspense, lazy } from "react";
+import { PlateElement, useEditorRef, useElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { formatIsoDate, parseIsoDate } from "@repo/contract/iso-date";
@@ -12,6 +12,8 @@ import { stringProp } from "@repo/editor/node-props";
 import { cn } from "@repo/ui/lib/cn";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
+
+import { useEditPopover } from "./edit-popover";
 
 const Calendar = lazy(
   async () =>
@@ -42,21 +44,13 @@ const label = (value: string): string => {
 export const DateElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
-  const readOnly = useReadOnly();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useEditPopover();
 
   const value = stringProp(element, "date") ?? "";
 
   return (
     <PlateElement {...props} as="span" className="inline-block">
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          if (!readOnly) {
-            setOpen(next);
-          }
-        }}
-      >
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           className={cn(
             "w-fit cursor-pointer rounded-sm px-0.5 text-primary/65 transition-colors hover:bg-primary/10",

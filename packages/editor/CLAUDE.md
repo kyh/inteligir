@@ -82,6 +82,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   the model** (owner decision). Inside a chart, canvas, html, tabs or columns block only a
   whole-block op lands, since hiding the buttons lets a paste or key in.
   `packages/editor/src/kits/rich-block-lock-kit.ts`.
+- **Chart, canvas and html draw through one shell.** A block gives its parse, its view and its
+  structured editor, and the shell holds the mode, the raw editor, the degraded view and the frozen
+  check, since a lifecycle copied per block drifts.
+  `packages/editor/src/nodes/rich-block-chrome.tsx`.
 - **A Mermaid fence is drawn by Pele, synchronously, and its theme is CSS.** Pele reads Mermaid
   into SVG with no dependency in each change's layout effect, where mermaid.js is 2 MB, async and
   bakes its theme into its DOM. `packages/editor/src/nodes/code-block-mermaid.tsx`.
@@ -112,6 +116,10 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   `readOnly` and says "Needs a connection", every writing handler `editOnly`, since the cloud is the
   truth; typing from before the drop reaches the note once it is back.
   `packages/editor/src/read-only-handlers.test.ts`.
+- **A note that takes no edit refuses one in the model.** Offline, held or refused, it drops every
+  local op but a selection, and a node hides its controls by `useReadOnly` or `useFrozen`, since
+  Plate's `readOnly` gates handlers and drawing, never a transform.
+  `packages/editor/src/live/edit-guard.ts`.
 - **A key typed before a picker's input has focus is its query.** Slate drops an insert in the
   picker's void, so `PickerRaceKit` lands it in the hidden text and the input types it in.
   `tools/e2e/src/editor.spec.ts`.

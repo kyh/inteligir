@@ -183,20 +183,16 @@ const CellInput = ({
 export const ChartGridEditor = ({
   chart,
   onCommit,
-  onRawEdit,
 }: {
   chart: ChartPayload;
   onCommit: (next: ChartPayload) => void;
-  onRawEdit: () => void;
 }) => {
   const view = chartGridView(chart);
   if (view === null) {
     return (
       <div className="px-3 py-2 text-body text-muted-foreground">
-        The series disagree on labels, which the grid cannot show faithfully.{" "}
-        <button type="button" className="underline hover:text-foreground" onClick={onRawEdit}>
-          Edit raw JSON
-        </button>
+        The series disagree on labels, which the grid cannot show faithfully. Edit the payload
+        instead.
       </div>
     );
   }
@@ -322,10 +318,6 @@ export const ChartGridEditor = ({
             </button>
           </>
         ) : null}
-        <span className="flex-1" />
-        <button type="button" className="hover:text-foreground" onClick={onRawEdit}>
-          Raw JSON
-        </button>
       </div>
     </div>
   );

@@ -23,7 +23,7 @@ const chartOf = (payload: string) => {
   if (!parsed.ok) {
     throw new Error(parsed.reason);
   }
-  return parsed.chart;
+  return parsed.payload;
 };
 
 describe(chartGridView, () => {
