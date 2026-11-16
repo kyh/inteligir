@@ -102,6 +102,24 @@ export const installPageHost = (first: PageProps): PageHost => {
   const offlineListeners = new Set<() => void>();
   const itemListeners = new Set<(ids: ReadonlySet<string> | null) => void>();
 
+  // one address per file for the page's life, so blocks naming one file read its bytes once; a
+  // read that failed is let go, so the next ask reads again
+  const fileSrcs = new Map<string, Promise<string>>();
+  const srcOf = async (sha: string): Promise<string> => {
+    try {
+      const file = await props.readFile(sha);
+      if (file !== null) {
+        return URL.createObjectURL(
+          new Blob([bytesFromBase64(file.base64)], { type: file.mediaType }),
+        );
+      }
+    } catch {
+      // native reached no copy either
+    }
+    fileSrcs.delete(sha);
+    throw new Error("the phone holds no copy of this file now");
+  };
+
   const readTargets = oneReadAtATime(async () => {
     setLibraryTitles(await props.linkTargets());
   });
@@ -129,6 +147,11 @@ export const installPageHost = (first: PageProps): PageHost => {
     },
     io: {
       fileMaxBytes: BLOB_MAX_BYTES,
+      fileSrc: async (sha) => {
+        const src = fileSrcs.get(sha) ?? srcOf(sha);
+        fileSrcs.set(sha, src);
+        return await src;
+      },
       keepFile: async (bytes, mime) =>
         await props.keepFile({ base64: base64FromBytes(bytes), mediaType: mime }),
       notes: {
@@ -152,15 +175,8 @@ export const installPageHost = (first: PageProps): PageHost => {
       openItem: (itemId) => {
         props.openItem(itemId);
       },
-      readFile: async (sha) => {
-        const file = await props.readFile(sha);
-        if (file === null) {
-          throw new Error("the phone holds no copy of this file now");
-        }
-        return new Blob([bytesFromBase64(file.base64)], { type: file.mediaType });
-      },
+      readFile: null,
       readItemBlocks: async (itemId) => await props.readItem(itemId),
-      savesFiles: false,
     },
   });
 

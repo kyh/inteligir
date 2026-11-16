@@ -14,7 +14,7 @@ import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, ItemActions } from "@repo/editor/host-io";
 import { onlineManager } from "@tanstack/react-query";
 
-import { readFile, uploadFile } from "../cloud/library-files";
+import { fileUrl, readFile, uploadFile } from "../cloud/library-files";
 import type { FileCloud } from "../cloud/library-files";
 import type { LibrarySocket } from "@repo/client/library-cache";
 import type { CloudWire } from "../cloud/v1";
@@ -57,6 +57,7 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
 
   const io: EditorHostIo = {
     fileMaxBytes: BLOB_MAX_BYTES,
+    fileSrc: async (sha) => await Promise.resolve(fileUrl(sha)),
     keepFile: async (bytes, mime) => ({ sha: await uploadFile(ports.cloud, bytes, mime) }),
     notes: {
       notePath,
@@ -80,7 +81,6 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       const item = await orNone(client.library.items.get({ id: itemId }));
       return item?.blocks.map(({ block }) => block) ?? null;
     },
-    savesFiles: true,
   };
 
   installEditorHost({

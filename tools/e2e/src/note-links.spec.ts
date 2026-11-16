@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect } from "@playwright/test";
+import { V1_BLOBS_PATH } from "@repo/contract/library/library-blobs";
 import type { Page } from "@playwright/test";
 import { EDITOR, markdownOf, openLibrary, test, typeAfter } from "./fixtures";
 
@@ -13,10 +14,10 @@ const PIXEL = Buffer.from(
 
 const rows = (page: Page) => page.getByRole("option");
 
-// the note's picture as drawn: from bytes the tab holds, once decoded
+// the note's picture as drawn: from the library's own address, once decoded
 const drawnPicture = async (page: Page) =>
   await page.locator(`${EDITOR} img`).evaluate((img: HTMLImageElement) => ({
-    blob: img.src.startsWith("blob:"),
+    path: new URL(img.src).pathname,
     width: img.complete ? img.naturalWidth : 0,
   }));
 
@@ -112,11 +113,11 @@ test("a picture pasted into a note is kept by its sha and drawn at once, after a
     },
     [...PIXEL],
   );
-  const drawn = { blob: true, width: 1 };
+  const sha = createHash("sha256").update(PIXEL).digest("hex");
+  const drawn = { path: `${V1_BLOBS_PATH}/${sha}`, width: 1 };
   await expect.poll(async () => await drawnPicture(page)).toEqual(drawn);
 
   // the cell takes no write naming a file it does not hold, so this says the bytes went up first
-  const sha = createHash("sha256").update(PIXEL).digest("hex");
   await expect.poll(async () => await markdownOf(library, item.id)).toContain(`assets/${sha}`);
   expect(await markdownOf(library, item.id)).toContain(PARAGRAPH);
 

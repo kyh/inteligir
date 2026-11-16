@@ -407,10 +407,8 @@ const storedShas = (server: NoteServer): unknown[] =>
   readBlocks(server.note(A).doc).flatMap(({ block }) => (block.type === "img" ? [block.sha] : []));
 
 describe("a file still being kept in an open note", () => {
-  // jsdom has no object URLs, and no isContentEditable, without which slate hands no paste on
+  // jsdom has no isContentEditable, without which slate hands no paste on
   beforeAll(() => {
-    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:kept" });
-    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => {} });
     Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
       configurable: true,
       get(this: HTMLElement) {
@@ -420,8 +418,6 @@ describe("a file still being kept in an open note", () => {
   });
 
   afterAll(() => {
-    Reflect.deleteProperty(URL, "createObjectURL");
-    Reflect.deleteProperty(URL, "revokeObjectURL");
     Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
   });
 

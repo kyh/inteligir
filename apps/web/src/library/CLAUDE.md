@@ -117,9 +117,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **Tidy my library is a request from Unsorted, and the filing rules are the cell's.** The request
   never says whether rules exist, since every turn carries the rules the cell read for it.
   `apps/web/src/library/agent/tidy-library.ts`.
-- **A file in a note is read where the tab draws its files, and one pasted there goes up before its
-  block.** The host reads `/v1/blobs/<sha>` and sends a pasted file up first, so the cell never
-  meets a sha it does not hold. `apps/web/src/library/item/page-editor-host.ts`.
+- **A file in a note is drawn where the tab draws its files, and one pasted there goes up before its
+  block.** The host hands the editor `/v1/blobs/<sha>`, which the cloud serves in ranges, and sends
+  a pasted file up first, so the cell never meets a sha it does not hold.
+  `apps/web/src/library/item/page-editor-host.ts`.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
   reserves no corner and asks its shell only for the update, since an overlay title bar costs a
   branch per host for a few pixels. `apps/web/src/library/top-bar.tsx`.

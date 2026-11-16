@@ -267,7 +267,8 @@ spctl --assess --type execute --verbose=4 "$app" && xcrun stapler validate "$app
 - **Dictation**: fn fn in a note lands the words once.
 - **Paste and drop** from Safari, Chrome, Arc and Finder: a link, a screenshot,
   a PDF and a file; over 100 MB refused; picture, PDF, mp4, mov and m4a items
-  play in WebKit; Download lands in Downloads.
+  play in WebKit, and a recording in a note seeks before it has all loaded;
+  Download lands in Downloads, from an item and from a file in a note.
 - **Scale**: a 300-block article and a library of 20,000 to 50,000 items stay
   smooth; VoiceOver reads the grid and ⌘P.
 

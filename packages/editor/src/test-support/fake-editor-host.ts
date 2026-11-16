@@ -26,6 +26,7 @@ export interface FakeEditorHostOptions {
   // answers a kept file in place of keeping it, still recorded, so a case can refuse it
   readonly keepFile?: EditorHostIo["keepFile"];
   readonly fileMaxBytes?: number;
+  // false for a host that hands no file to the system to save, as the phone's page
   readonly savesFiles?: boolean;
   // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
   // refuse it
@@ -47,11 +48,14 @@ const FILE_MAX_BYTES = 100 * 1024 * 1024;
 // the cloud a note's socket dials, apart from the page's own location
 export const NOTES_ORIGIN = "https://notes.test";
 
+// where the fake draws a file it holds, under its sha
+export const FILES_ORIGIN = "https://files.test";
+
 // Installs the singleton the hooks read and hands the editor the library's titles; the io half
 // answers from the items and files it is handed, keeps a file by its real sha and then draws it
-// (refusing one with no type, as the hosts do), dials a note at the Worker's path on
-// `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing, and an
-// open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
+// under `FILES_ORIGIN` (refusing one with no type, as the hosts do), dials a note at the Worker's
+// path on `NOTES_ORIGIN` on a fresh ticket each time, the shell hears every other ask as nothing,
+// and an open, a new note and a kept file are recorded in `calls`. `changed` says items moved, as a
 // host's change feed does, and `goOffline` that the connection went or came back.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
@@ -117,15 +121,21 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     openItem: (itemId) => {
       calls.push({ action: "openItem", args: [itemId] });
     },
-    readFile: async (sha) => {
-      const file = files.get(sha);
-      return await (file === undefined
-        ? Promise.reject(new Error(`no file ${sha}`))
-        : Promise.resolve(file));
-    },
+    fileSrc: async (sha) =>
+      await (files.has(sha)
+        ? Promise.resolve(`${FILES_ORIGIN}/${sha}`)
+        : Promise.reject(new Error(`no file ${sha}`))),
+    readFile:
+      options.savesFiles === false
+        ? null
+        : async (sha) => {
+            const file = files.get(sha);
+            return await (file === undefined
+              ? Promise.reject(new Error(`no file ${sha}`))
+              : Promise.resolve(file));
+          },
     notes,
     readItemBlocks: async (itemId) => await Promise.resolve(options.itemBlocks?.(itemId) ?? null),
-    savesFiles: options.savesFiles ?? true,
   };
 
   installEditorHost({

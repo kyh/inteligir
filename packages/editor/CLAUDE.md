@@ -101,8 +101,12 @@ installed once per host by `installEditorHost`, so no host keeps a store of its 
   a pause need a merge a live document does not; a leave asks the connection's `holds`, whose one
   table also says what is unsaved. `packages/editor/src/item/note-connection.ts`.
 - **The editor's host speaks the library: an item by its id, a file by its sha.** `openItem`,
-  `readItemBlocks`, `onItemsChanged` and `notes` take ids and `readFile` a sha, since paths a host
-  mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
+  `readItemBlocks`, `onItemsChanged` and `notes` take ids, and `fileSrc` and `readFile` a sha,
+  since paths a host mapped to items let two titles share one. `packages/editor/src/host-io.ts`.
+- **A file in a note draws from an address the host hands, and the editor reads no bytes.** An
+  `<img>` or a `<video>` loads, caches and seeks it, since every block of a note is mounted and a
+  read of the bytes fetches each file whole at open; only the phone reads them, once a file.
+  `packages/editor/src/nodes/library-file.ts`.
 - **A file pasted or dropped into a note is kept before its block is written.** The host keeps it
   by sha (`keepFile`), and only an editor whose edits still reach the note inserts the block, since
   bytes held until a pause are lost to a quit. `packages/editor/src/kits/image-kit.tsx`.

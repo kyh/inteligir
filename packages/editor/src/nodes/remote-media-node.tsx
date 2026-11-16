@@ -23,12 +23,13 @@ const NOT_HERE = "This recording isn't on this device yet.";
 
 // a recording the library holds by its sha, played from where the host draws its files
 const LibraryVideo = ({ selected, sha }: { selected: boolean; sha: string }) => {
-  const file = useLibraryFile(sha);
+  const [file, failed] = useLibraryFile(sha);
   if (file.kind === "ready") {
     return (
       // oxlint-disable-next-line jsx-a11y/media-has-caption -- a person's own recording has no caption track to offer
       <video
         controls
+        onError={failed}
         src={file.url}
         className={cn("max-w-full rounded-md", selected && "ring-2 ring-ring ring-offset-2")}
       />
