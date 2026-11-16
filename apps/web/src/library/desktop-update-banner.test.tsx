@@ -115,21 +115,40 @@ describe("the Mac app's update", () => {
     });
   });
 
-  it("says why an update didn't go through, and checks again on Try again", async () => {
+  it("says why a download didn't go through, and checks again on Try again", async () => {
     const asked = underShell(
       new Map<string, DesktopUpdateState>([
-        ["check_for_updates", { message: "The signature didn't match.", status: "error" }],
+        ["check_for_updates", { status: "available", version: "1.2.3" }],
+        ["download_update", { message: "The signature didn't match.", status: "error" }],
       ]),
     );
     await shown();
-    const failed = await banner();
-    expect(within(failed).getByText("The update didn't go through")).toBeDefined();
-    expect(within(failed).getByText("The signature didn't match.")).toBeDefined();
+    const update = await banner();
+    fireEvent.click(within(update).getByRole("button", { name: "Download" }));
+    expect(await within(update).findByText("The update didn't go through")).toBeDefined();
+    expect(within(update).getByText("The signature didn't match.")).toBeDefined();
 
-    fireEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+    fireEvent.click(within(update).getByRole("button", { name: "Try again" }));
     await vi.waitFor(() => {
-      expect(asked).toStrictEqual(["check_for_updates", "check_for_updates"]);
+      expect(asked).toStrictEqual(["check_for_updates", "download_update", "check_for_updates"]);
     });
+  });
+
+  it("says a check that failed in Settings alone", async () => {
+    underShell(
+      new Map<string, DesktopUpdateState>([
+        ["check_for_updates", { status: "available", version: "1.2.3" }],
+      ]),
+    );
+    await shown();
+    await banner();
+    await vi.waitFor(async () => {
+      await pushed({ message: "The feed didn't answer.", status: "check-failed" });
+      expect(within(notices()).queryByRole("listitem")).toBeNull();
+    });
+    expect(screen.getByText("Inteligir couldn't check for updates.")).toBeDefined();
+    expect(screen.getByText("The feed didn't answer.")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Check for updates" })).toBeDefined();
   });
 
   it("leaves once there is nothing to do about the update", async () => {

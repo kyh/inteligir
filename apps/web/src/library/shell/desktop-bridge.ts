@@ -13,7 +13,7 @@ const updateStateSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("available"), version: z.string() }),
   z.object({ downloadPercent: z.number(), status: z.literal("downloading") }),
   z.object({ status: z.literal("downloaded"), version: z.string() }),
-  z.object({ message: z.string(), status: z.literal("error") }),
+  z.object({ message: z.string(), status: z.enum(["check-failed", "error"]) }),
 ]);
 
 export type DesktopUpdateState = z.infer<typeof updateStateSchema>;

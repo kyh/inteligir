@@ -30,6 +30,9 @@ pub enum UpdateState {
     Downloaded {
         version: String,
     },
+    CheckFailed {
+        message: String,
+    },
     Error {
         message: String,
     },
@@ -60,6 +63,11 @@ enum Phase<U> {
     Installing {
         version: String,
     },
+    /// The feed could not be read, so the session holds no update to act on.
+    CheckFailed {
+        message: String,
+    },
+    /// A download or an install that did not go through.
     Failed {
         message: String,
     },
@@ -91,13 +99,18 @@ enum Work<U> {
 fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
     match (phase, event) {
         (
-            Phase::Idle | Phase::NotAvailable | Phase::Available { .. } | Phase::Failed { .. },
+            Phase::Idle
+            | Phase::NotAvailable
+            | Phase::Available { .. }
+            | Phase::CheckFailed { .. }
+            | Phase::Failed { .. },
             Event::CheckAsked,
         ) => (Phase::Checking, Some(Work::Check)),
         (Phase::Checking, Event::Checked(Ok(Some((version, update))))) => {
             (Phase::Available { version, update }, None)
         }
         (Phase::Checking, Event::Checked(Ok(None))) => (Phase::NotAvailable, None),
+        (Phase::Checking, Event::Checked(Err(message))) => (Phase::CheckFailed { message }, None),
         (Phase::Available { version, update }, Event::DownloadAsked) => (
             Phase::Downloading {
                 version,
@@ -127,8 +140,7 @@ fn apply<U>(phase: Phase<U>, event: Event<U>) -> (Phase<U>, Option<Work<U>>) {
             Phase::Installing { version },
             Some(Work::Install(update, bytes)),
         ),
-        (Phase::Checking, Event::Checked(Err(message)))
-        | (Phase::Downloading { .. }, Event::DownloadEnded(Err(message)))
+        (Phase::Downloading { .. }, Event::DownloadEnded(Err(message)))
         | (Phase::Installing { .. }, Event::InstallFailed(message)) => {
             (Phase::Failed { message }, None)
         }
@@ -155,6 +167,9 @@ impl<U> Phase<U> {
                     version: version.clone(),
                 }
             }
+            Self::CheckFailed { message } => UpdateState::CheckFailed {
+                message: message.clone(),
+            },
             Self::Failed { message } => UpdateState::Error {
                 message: message.clone(),
             },
@@ -335,10 +350,16 @@ mod tests {
             json!({ "status": "downloaded", "version": "1.2.3" })
         );
         assert_eq!(
-            wire(&UpdateState::Error {
+            wire(&UpdateState::CheckFailed {
                 message: "offline".into()
             }),
-            json!({ "status": "error", "message": "offline" })
+            json!({ "status": "check-failed", "message": "offline" })
+        );
+        assert_eq!(
+            wire(&UpdateState::Error {
+                message: "cut off".into()
+            }),
+            json!({ "status": "error", "message": "cut off" })
         );
     }
 
@@ -434,12 +455,40 @@ mod tests {
         assert_eq!(
             (phase, work),
             (
-                Phase::Failed {
+                Phase::CheckFailed {
                     message: "offline".into()
                 },
                 None
             )
         );
+    }
+
+    #[test]
+    fn a_failed_check_is_told_from_a_failed_update_and_a_check_leaves_both() {
+        let (unread, _) = apply(Phase::<()>::Checking, Event::Checked(Err("offline".into())));
+        assert_eq!(
+            unread.wire(),
+            UpdateState::CheckFailed {
+                message: "offline".into()
+            }
+        );
+        let downloading = Phase::<()>::Downloading {
+            version: "1.2.3".into(),
+            percent: 7,
+        };
+        let (cut, _) = apply(downloading, Event::DownloadEnded(Err("cut off".into())));
+        assert_eq!(
+            cut.wire(),
+            UpdateState::Error {
+                message: "cut off".into()
+            }
+        );
+        for failed in [unread, cut] {
+            assert_eq!(
+                apply(failed, Event::CheckAsked),
+                (Phase::Checking, Some(Work::Check))
+            );
+        }
     }
 
     #[test]

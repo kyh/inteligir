@@ -138,9 +138,10 @@ app's update.
 - **The Mac app's window keeps the system's title bar, so the tab draws the same in every host.** It
   reserves no corner and asks its shell only for the update, since an overlay title bar costs a
   branch per host for a few pixels. `apps/web/src/library/top-bar.tsx`.
-- **The Mac app's update is a toast that stays, and Settings says the same.** One of the toasts, so
-  it stacks with them and their live region announces it; the updater is the shell's, so one store
-  mirrors what it pushes and nothing downloads or restarts without a click.
+- **The Mac app's update is a toast that stays while there is something to do, and Settings says
+  every state.** One of the toasts, so it stacks with them and their live region announces it; a
+  check that failed found no update, so only Settings says it; the updater is the shell's, so one
+  store mirrors what it pushes and nothing downloads or restarts without a click.
   `apps/web/src/library/desktop-updates.ts`.
 - **The agent's composer is one state the workspace keeps.** Moved by `composerAfter` under one
   `useReducer`, since a `useState` per concern lets a Tidy sit beside an open conversation.

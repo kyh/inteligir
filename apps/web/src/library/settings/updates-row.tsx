@@ -37,6 +37,9 @@ const rowWords = (state: DesktopUpdateState): RowWords => {
         status: `Inteligir ${state.version} installs when it restarts.`,
       };
     }
+    case "check-failed": {
+      return { button: CHECK, status: "Inteligir couldn't check for updates." };
+    }
     case "error": {
       return { button: CHECK, status: "The last update didn't go through." };
     }
@@ -72,7 +75,7 @@ export const UpdatesRow = () => {
         )}
         <span className="text-subtitle text-muted-foreground">{status}</span>
       </span>
-      {state.status === "error" ? (
+      {"message" in state ? (
         <span className="mt-1 block text-body text-destructive">{state.message}</span>
       ) : null}
     </Row>
