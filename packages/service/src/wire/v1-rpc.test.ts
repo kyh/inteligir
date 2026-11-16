@@ -90,6 +90,20 @@ describe("the one wire's door", () => {
     }
   });
 
+  it("refuses a call with no session before it reads what the call asks, on the library and the account alike", async () => {
+    for (const row of ["library/items/read", "account/devices/revoke", "account/no-such-row"]) {
+      const answer = await exports.default.fetch(`${ORIGIN}${V1_RPC_PATH}/${row}`, {
+        body: JSON.stringify({ json: { id: 7 } }),
+        headers: { ...buildHeaders(), "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(answer.status, row).toBe(401);
+      await expect(answer.json(), row).resolves.toMatchObject({
+        json: { code: "UNAUTHORIZED", defined: true },
+      });
+    }
+  });
+
   it("reaches the account's own library on the phone's cookie under its app scheme, and no cookie another caller sends", async () => {
     const { phone, phoneCookie } = await signedUp("rpc-phone@example.test");
     const { item } = await phone.library.items.createNote({ markdown: "From the phone." });
@@ -129,7 +143,11 @@ describe("the one wire's door", () => {
       token,
       `${token}.${signature.split("").toReversed().join("")}`,
     ]) {
-      const forged = v1Link({ ...sessionHeaders(cookie), authorization: `Bearer ${bearer}` });
+      const forged = v1Link({
+        ...sessionHeaders(cookie),
+        ...buildHeaders(),
+        authorization: `Bearer ${bearer}`,
+      });
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
         async () => await forged.library.items.list({}),

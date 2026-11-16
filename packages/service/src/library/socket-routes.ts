@@ -6,6 +6,7 @@
 // so whatever ends its session later closes its sockets here (`severSockets`).
 
 import { SOCKET_TICKET_PARAM } from "@repo/contract/library/library-socket";
+import { UnauthorizedError } from "@repo/contract/v1/errors";
 import { and, eq, gt } from "drizzle-orm";
 
 import { createDb } from "@repo/db/d1/client";
@@ -17,6 +18,7 @@ import type { SocketHolder } from "./cell-sockets";
 import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
 import { headersForCell, SOCKET_HOLDER_HEADER } from "./library-principal";
+import { plainRefusal } from "../wire/rpc-refusal";
 import { readSocketTicket } from "./socket-ticket";
 import type { SocketClaim } from "./socket-ticket";
 
@@ -91,7 +93,7 @@ export const openForHolder = async (
     ticket === null ? null : await readSocketTicket(env.BETTER_AUTH_SECRET, ticket, now);
   const db = createDb(env.DB);
   if (claim === null || !(await holderStands(db, claim.accountId, claim.holder, now))) {
-    return plainText(401, "You're signed out. Sign in again.");
+    return plainRefusal(new UnauthorizedError());
   }
   const opened = await open(claim);
   // a sever closes only the sockets already accepted, so an end that came between the check and the

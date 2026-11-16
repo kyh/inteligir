@@ -44,6 +44,11 @@ clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   the floor** (owner decision). The session stays live, so the next build
   resumes signed in; a page the Worker served ships in its deploy and needs
   none. `packages/service/src/client-floor.ts`.
+- **A `/v1` call or file is admitted once, by one function: the floor, the
+  door, its session, then the session's budget.** A check per handler is an
+  order each spells again and a new route forgets, and a call is refused as
+  unsigned before anything reads what it asks.
+  `packages/service/src/wire/v1-principal.ts`.
 - **`/v1` is one oRPC wire, `/v1/rpc`, its refusals declared once.** REST beside
   RPC is two serializers and two error vocabularies; only a file's bytes and the
   sockets stay plain HTTP. `packages/service/src/wire/rpc-refusal.ts`.

@@ -18,11 +18,12 @@ interface WrongMethod {
 
 const SHA = "a".repeat(64);
 
-// a method each door does not take, and what the door answered to it before Start served the doors
+// a method each door does not take, and what the door answers it
 const WRONG_METHODS = {
   auth: { method: "PUT", path: "/api/auth/get-session", status: 404 },
   signUp: { method: "GET", path: "/api/sign-up", status: 404 },
-  rpc: { method: "GET", path: "/v1/rpc/account/devices/list", status: 404, withBuild: true },
+  // the wire admits a call before it reads its method, and this one brings no session
+  rpc: { method: "GET", path: "/v1/rpc/account/devices/list", status: 401, withBuild: true },
   blobs: { method: "DELETE", path: `/v1/blobs/${SHA}`, status: 405, withBuild: true },
   socket: { method: "POST", path: "/v1/socket", status: 400 },
   note: { method: "POST", path: "/v1/notes/0190a3f2-7c4e-7d1a-9b2c-3e4f5a6b7c8d", status: 400 },
@@ -72,7 +73,7 @@ describe("the doors", () => {
   });
 
   it.each(Object.entries(WRONG_METHODS))(
-    "%s answers a method it does not take as it always has",
+    "%s answers a method it does not take itself",
     async (_door, { method, path, status, ...wrong }) => {
       const headers = "withBuild" in wrong ? buildHeaders() : {};
       const response = await drained(workerFetch(`${ORIGIN}${path}`, { headers, method }));

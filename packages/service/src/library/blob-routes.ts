@@ -12,11 +12,10 @@ import { UNKNOWN_FILE_TYPE } from "@repo/contract/items/item-kind";
 import { SHA256_HEX_RE } from "@repo/contract/library/library-item";
 import { z } from "zod";
 
-import { isBelowFloor } from "../client-floor";
 import { errorFields } from "../log";
 import { declaredLength, plainText } from "../plain-http";
-import { spendCallBudget } from "../rate-limit";
-import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
+import { rpcRefusal } from "../wire/rpc-refusal";
+import { admit } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
 import { keepBytes, stubPort } from "./keep-bytes";
@@ -263,9 +262,6 @@ export const handleBlobRoute = async (
   ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
-  if (isBelowFloor(request, env)) {
-    return plainText(426, "This version of the app is too old. Update it to keep going.");
-  }
   const sha = BLOB_PATH.exec(url.pathname)?.groups?.sha ?? "";
   if (!SHA256_HEX_RE.test(sha)) {
     return plainText(404, "A file is named by its SHA-256.");
@@ -273,13 +269,11 @@ export const handleBlobRoute = async (
   if (!["GET", "HEAD", "PUT"].includes(request.method)) {
     return plainText(405, "A file is read or written.", { allow: "GET, HEAD, PUT" });
   }
-  const principal = await lazyPrincipal(request, env, ctx)();
-  if (principal === null) {
-    return plainText(401, "You're signed out. Sign in again.");
+  const admission = await admit(request, env, ctx, env.BLOBS_LIMIT);
+  if (admission.kind === "refused") {
+    return await rpcRefusal(admission.refusal);
   }
-  if (!(await spendCallBudget(env, env.BLOBS_LIMIT, holderIdOf(principal)))) {
-    return plainText(429, "Too many requests. Try again in a minute.");
-  }
+  const { principal } = admission;
   return request.method === "PUT"
     ? await writeBlob(request, env, ctx, { accountId: principal.accountId, sha })
     : await readObject(request, env.BLOBS, blobKey(principal.accountId, sha), principal);

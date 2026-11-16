@@ -36,9 +36,9 @@ const DOORS: Record<DoorName, Door> = {
   // the site's sign-up form, which its own page posts and which ships in the same deploy
   signUp: async (request, env, ctx) =>
     request.method === "POST" ? await handleInviteSignUp(request, env, ctx) : notFound(),
-  // the one wire: its own floor, credential and refusals, all in its protocol
+  // the one wire: its admission and its refusals, all in its protocol
   rpc: handleV1Rpc,
-  // the library's files: the floor and the session checked as the wire checks them
+  // the library's files, admitted as the wire's calls are
   blobs: handleBlobRoute,
   // a browser's socket cannot name its build, and its ticket came from a call that met the floor
   socket: handleLibrarySocket,
