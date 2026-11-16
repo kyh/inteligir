@@ -4,7 +4,8 @@
 // next sequence number once, stamps every row it touches with it, joins its actor's change set,
 // and keeps its answer under its `opId` for 30 days, so a client resending after a lost answer is
 // told what landed. What follows a commit is the engine's own, in the turn that committed it: the
-// sockets told what it moved and the alarm set to the earliest job, so no caller settles a write.
+// sockets told what it moved, the alarm set to the earliest job and each note whose item went into
+// Deleted or came back told to reopen, so no caller settles a write.
 
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
@@ -49,6 +50,7 @@ import {
   settleUpload,
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
+import { bodyWriter } from "./cell-body";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
@@ -68,8 +70,6 @@ import type { LandingScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
 import type { MovedCollector } from "./cell-moved";
 import {
-  bodyInNote,
-  confirmSeed,
   forgetNoteSockets,
   landProjection,
   openNote,
@@ -92,8 +92,13 @@ export interface LibraryEngineDeps {
   readonly ids: CellIds;
   readonly bytesCap: number;
   // what follows every commit, in the turn that made it: what it moved, null for nothing a client
-  // reads, and when the earliest job waits, null for none
-  readonly committed: (moved: MovedFrame | null, nextJobAt: number | null) => void;
+  // reads, when the earliest job waits, null for none, and the items it moved into or out of
+  // Deleted whose notes are open
+  readonly committed: (
+    moved: MovedFrame | null,
+    nextJobAt: number | null,
+    reopens: readonly string[],
+  ) => void;
 }
 
 export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
@@ -193,7 +198,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const commit = <T>(work: (moved: MovedCollector) => T): T => {
     const moved = collectMoved();
     const value = db.$client.transactionSync(() => work(moved));
-    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null);
+    deps.committed(moved.frame(), deletedAt() === null ? nextJobAt(db) : null, moved.reopens());
     return value;
   };
 
@@ -304,7 +309,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         db.delete(changeSetItems).where(eq(changeSetItems.itemId, id)).run();
         dropItemBlobs(db, id, scope.now);
         forgetNoteSockets(db, id);
-        if (bodyInNote(item)) {
+        if (bodyWriter(item.body.home) === "note") {
           scheduleJob(
             db,
             { id: `note-purge:${id}`, kind: "note-purge", payload: { itemId: id } },
@@ -397,7 +402,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // A page the cloud read, landed as a change set of the fill's own; an article its note already
   // took lands as the note's projection. When the library would not take it, the alarm lets go at
-  // once what it kept that no item names.
+  // once what it kept that no item names; a reading its note is yet to take lands again.
   const landReading = (landing: FillLanding, inNote: NoteProjection | null) => {
     const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) => {
       const filled = landFill(scope, landing, inNote !== null);
@@ -406,7 +411,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       return filled;
     });
-    if (!landed.ok && landed.refusal.kind !== "gone") {
+    if (!landed.ok && landed.refusal.kind !== "gone" && landed.refusal.kind !== "note-opened") {
       commit(() => {
         hurryUnnamed(db, readingFiles(landing), deps.now());
       });
@@ -502,12 +507,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const seedFor = (itemId: string): SeedAnswer =>
     commit(() => (deletedAt() === null ? readSeed(db, itemId) : { kind: "missing" }));
 
-  const seedTaken = (itemId: string): void => {
-    commit(() => {
-      confirmSeed(db, itemId);
-    });
-  };
-
   // a note's save, joining no change set: typing is no change Undo takes back
   const projectNote = (itemId: string, projection: NoteProjection): CellResult<ProjectAnswer> =>
     transact({ answer: projectAnswerSchema, openSet: noSet, opId: undefined }, (scope) =>
@@ -570,7 +569,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     reserve,
     runDueJobs,
     seedFor,
-    seedTaken,
     sessionNotes,
     settle,
     tombstone,

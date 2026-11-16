@@ -28,7 +28,7 @@ import {
 const TAG_ORIGINS = ["field", "inline"] as const;
 
 // where an item's body lives: in the cell's `seed_blocks` until its note first opens; `opening`
-// once the note has read its seed, which the cell keeps until the note confirms it holds the body;
+// once the note has read its seed, which the cell keeps until the note's first projection lands;
 // then in the note's own object, of which the cell keeps the projection
 export const BODY_HOMES = ["seed", "opening", "note"] as const;
 

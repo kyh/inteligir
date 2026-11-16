@@ -12,7 +12,7 @@ import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { items } from "@repo/db/cell/schema";
-import { readBodyText, storeBodyText, storeSeed } from "./cell-body";
+import { bodyWriter, readBodyText, storeBodyText, storeSeed } from "./cell-body";
 import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
 import type { MovedCollector } from "./cell-moved";
@@ -141,7 +141,7 @@ const landedBody = (landing: Landing): LandedBody => {
     }
     return { body: before.body, seed: null };
   }
-  if (before !== null && before.body.home !== "seed") {
+  if (before !== null && bodyWriter(before.body.home) === "note") {
     throw new LibraryRowError(`the item ${landing.itemId} has a note, which no seed replaces`);
   }
   const derived = deriveBody(seed);
@@ -233,5 +233,14 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
     storeItemBlobs(db, itemId, shas, scope.now);
   }
   scope.moved.item(itemId, seq);
+  // every writer of `deletedAt` lands here, and a note's door reads it for each socket as it
+  // opens, so the sockets already open are opened again
+  if (
+    before !== null &&
+    bodyWriter(before.body.home) === "note" &&
+    (before.fields.deletedAt === null) !== (fields.deletedAt === null)
+  ) {
+    scope.moved.reopen(itemId);
+  }
   return { card: derived.card, fields, id: itemId, seq, updatedAt: scope.now };
 };

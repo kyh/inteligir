@@ -345,6 +345,28 @@ describe("a page's reading, landed", () => {
     );
     expect(fields?.fetchState).toBe("pending");
   });
+
+  it("lands the article by the item's note while that note is still opening", async () => {
+    const accountId = newAccountId();
+    const cell = cellOf(accountId);
+    const url = "https://pages.example/opening";
+    const saved = await inCell(
+      cell,
+      async (state) => await cellIn(state).client.items.saveLink({ note: "For Tuesday.", url }),
+    );
+    // the note read its seed and went no further
+    await expect(cell.readSeed(saved.item.id)).resolves.toMatchObject({ kind: "seed" });
+    await expect(
+      cell.landFill(read({ itemId: saved.item.id, url }, [paragraph("p1", "The article.")])),
+    ).resolves.toStrictEqual({ ok: true, value: { kind: "filled" } });
+    const item = await inCell(
+      cell,
+      async (state) => await cellIn(state).client.items.read({ id: saved.item.id }),
+    );
+    expect(item.fields.fetchState).toBe("filled");
+    expect(item.view.markdown).toContain("For Tuesday.");
+    expect(item.view.markdown).toContain("The article.");
+  });
 });
 
 const madeSetOf = async (library: ReturnType<typeof cellIn>["client"], itemId: string) => {

@@ -108,7 +108,7 @@ export const editByNote = async (deps: EditDeps, input: EditInput): Promise<Cell
   let projection: NoteProjection | null = null;
   let moved: BodyBlock[] = [];
   for (let tries = 0; tries < 2 && projection === null; tries += 1) {
-    // an item in Deleted takes no edit, as its note says once it opened, and one it never opened too
+    // an item in Deleted takes no edit, which the cell alone knows: its note keeps no word of it
     const editable = library.read((db) => readLiveItem(db, input.id)?.fields.deletedAt === null);
     if (!editable.ok || !editable.value) {
       return editable.ok ? refused({ kind: "not-found" }) : editable;

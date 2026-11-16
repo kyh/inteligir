@@ -3,9 +3,8 @@
 // and the item has no article yet, its reading still waiting or failed: then the read lands on it
 // as a reading does. Only an address no live item holds makes an item. A page a device read lands
 // read; one saved to read later lands at once as an unread stub, `pending`, which the cloud reads
-// afterwards. The words saved with it go in the new item's note. An item whose note has opened
-// takes a page's article in its note, which the caller sends there before the write
-// (`replaceArticle`), so the write lands only the fields.
+// afterwards. The words saved with it go in the new item's note. An item whose note writes its
+// body takes a page's article there (`./article-landing`), so the write lands only the fields.
 
 import type { FolderTarget } from "@repo/contract/library/cell-rules";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
@@ -21,9 +20,8 @@ import { itemNameFromUrl } from "@repo/contract/items/item-name";
 import { urlKey } from "@repo/contract/items/item-url";
 
 import { withArticle } from "../note/article-body";
-import { readSeedBlocks } from "./cell-body";
+import { bodyWriter, readSeedBlocks } from "./cell-body";
 import type { CellCodec } from "./cell-codec";
-import type { CellDb } from "./cell-db";
 import { folderOfTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { landItem, urlHolder } from "./cell-landing";
@@ -104,9 +102,8 @@ const newPage = (scope: LandingScope, input: SaveInput, note: readonly BodyBlock
   });
 
 // A page read into an item: the fields `fieldOps` set, and its article in place of the item's, a
-// page that held none leaving the item's. A note's article is the note's to replace, which the
-// caller did before this write (`articleInNote`); an item whose note opened since lands nothing
-// here, so the caller tries again by the note.
+// page that held none leaving the item's. A body its note writes takes no article here: the write
+// is refused, and lands again once the note took it (`articleInNote`).
 export const landRead = (
   scope: LandingScope,
   item: LiveStoredItem,
@@ -116,8 +113,8 @@ export const landRead = (
   if (page.article.length === 0 || page.articleInNote) {
     return landWrite(scope, { itemId: item.id, ops: fieldOps });
   }
-  if (item.body.home === "note") {
-    return refuse({ kind: "note-opened", itemId: item.id });
+  if (bodyWriter(item.body.home) === "note") {
+    return refuse({ itemId: item.id, kind: "note-opened", seq: item.seq });
   }
   const outcome = applyFieldOps(item.fields, fieldOps);
   if (outcome.kind !== "applied") {
@@ -135,15 +132,6 @@ export const landRead = (
 const awaitsRead = (item: LiveStoredItem): boolean => {
   const { state } = readingOf(item.fields);
   return (state === "pending" || state === "failed") && !item.body.digest.article;
-};
-
-// the item a device's read of `url` would land on, its article bound for the item's note: one that
-// holds the address, waits for its page and has opened its note
-export const pageForNote = (db: CellDb, url: string): LiveStoredItem | null => {
-  const key = urlKey(url);
-  const holder = key === null ? null : urlHolder(db, key, null);
-  const item = holder === null ? null : readLiveItem(db, holder.id);
-  return item !== null && item.body.home === "note" && awaitsRead(item) ? item : null;
 };
 
 // a page the device read: a new read item, or the item that holds its address as it stands, which

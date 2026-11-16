@@ -144,12 +144,18 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **An agent turn's undo in a note replays the turn's own Yjs updates, and flags
   what it takes with a block the turn added.** One merged update per set loses
   an edit made between two of the turn's. `packages/service/src/note/turn-log.ts`.
-- **A note object's duties to its cell are one deadline, each duty keeping its
-  own retry.** One shared retry lets a landed duty clear or re-arm the other's.
-  `packages/service/src/note/note-duty.ts`.
-- **A note's standing is one value, and leaving full or Deleted reopens every
-  socket.** A boolean per standing leaves devices read-only after a compaction.
-  `packages/service/src/note/note-standing.ts`.
+- **A note owes its cell one thing, the versions of its body the cell has yet
+  to land, and the first to land hands the seed over.** A confirm of the seed's
+  own is a second duty, retry and column that says nothing the first projection
+  does not. `packages/service/src/note/note-duty.ts`.
+- **A note's standing is one value, open, full or gone, and leaving full
+  reopens every socket.** A boolean per standing leaves devices read-only after
+  a compaction. `packages/service/src/note/note-standing.ts`.
+- **Whether an item is in Deleted is the cell's alone: the door asks it for
+  every socket, and the landing that moves it reopens its note's sockets.** A
+  copy in the note is one that an Undo's or an import's restore never reaches,
+  so the item opens read-only for good.
+  `packages/service/src/library/cell-landing.ts`.
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
   it again. `packages/service/src/library/cell-jobs.ts`.

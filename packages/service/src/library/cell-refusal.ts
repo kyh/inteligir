@@ -34,9 +34,9 @@ export type CellRefusal =
   | { readonly kind: "agent-budget"; readonly resetsAt: number }
   // the built-in agent's turn the call is one of is no longer open
   | { readonly kind: "turn-ended" }
-  // the write would have kept a body in the cell for an item whose note opened since it looked, so
-  // it goes again by the note
-  | { readonly kind: "note-opened"; readonly itemId: string };
+  // the write brought a body for an item whose note writes it, so it goes again by the note
+  // (`./article-landing`); `seq` is the item's as the write met it
+  | { readonly kind: "note-opened"; readonly itemId: string; readonly seq: number };
 
 export type CellResult<T> =
   | { readonly ok: true; readonly value: T }

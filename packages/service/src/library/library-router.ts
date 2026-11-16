@@ -15,10 +15,9 @@ import { noteFields } from "@repo/contract/library/item-makes";
 import { z } from "zod";
 
 import { agentRouter } from "../agent/agent-router";
-import { errorFields } from "../log";
 import { noteBlocksSchema } from "../note/note-wire";
 import type { TurnUndone } from "../note/note-wire";
-import { articleThenLand } from "./article-landing";
+import { landArticle } from "./article-landing";
 import { heldBody } from "./cell-body";
 import { cellCodec } from "./cell-codec";
 import { editByNote } from "./cell-edits";
@@ -34,7 +33,7 @@ import {
   refreshItem,
   setDeleted,
 } from "./cell-items";
-import { bodyInNote, landProjection } from "./cell-notes";
+import { landProjection } from "./cell-notes";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { itemRow, itemWhole, listingPage } from "./cell-listing";
 import {
@@ -45,13 +44,12 @@ import {
   searchItems,
   summaryOf,
 } from "./cell-reads";
-import { pageForNote, saveLink, savePage } from "./cell-saves";
+import { saveLink, savePage } from "./cell-saves";
 import { mergeTurnUndos, planUndo } from "./cell-undo";
 import type { CellActor } from "./cell-actor";
 import { landedSchema, libraryHead } from "./library-engine";
 import { answer, os, PAGE_DEFAULT } from "./library-orpc";
 import type { CellContext } from "./library-orpc";
-import { readLiveItem } from "./library-queries";
 
 const savedSchema = z.object({ created: z.boolean(), item: liveItemRowSchema });
 const organizedSchema = z.object({ items: z.array(liveItemRowSchema) });
@@ -77,28 +75,6 @@ const bodyOf = async (context: CellContext, itemId: string) => {
   }
   const read = await context.notes(itemId).read();
   return noteBlocksSchema.parse(read.blocks);
-};
-
-// Deleted or back, told to each changed item's note once the write committed, so its sockets turn
-// read-only or open again writable; a note that misses it meets the item's place on its next open
-const tellNotesDeleted = async (
-  context: CellContext,
-  ids: readonly string[],
-  deleted: boolean,
-): Promise<void> => {
-  const inNotes = context.read((db) =>
-    ids.filter((id) => {
-      const item = readLiveItem(db, id);
-      return item !== null && bodyInNote(item);
-    }),
-  );
-  for (const id of inNotes) {
-    try {
-      await context.notes(id).setDeleted(deleted);
-    } catch (error) {
-      console.warn({ deleted, event: "note-deleted-unsent", ...errorFields(error) });
-    }
-  }
 };
 
 // the cloud's reading of a link a write left waiting: a built-in agent's turn holds it until the
@@ -180,12 +156,11 @@ export const libraryRouter = os.router({
         item: createNote(scope, cellCodec(scope.db, ids), ids, input),
       }));
     }),
-    delete: os.items.delete.handler(async ({ context, input }) => {
+    delete: os.items.delete.handler(({ context, input }) => {
       const { changed, missing } = context.land(
         { answer: changedSchema, opId: input.opId },
         (scope) => setDeleted(scope, { deleted: true, ids: input.ids }),
       );
-      await tellNotesDeleted(context, changed, true);
       return { deleted: changed, missing };
     }),
     edit: os.items.edit.handler(async ({ context, input }) =>
@@ -233,7 +208,7 @@ export const libraryRouter = os.router({
         return { item };
       }),
     ),
-    restore: os.items.restore.handler(async ({ context, input }) => {
+    restore: os.items.restore.handler(({ context, input }) => {
       const { addressHeld, changed, missing } = context.land(
         { answer: changedSchema, opId: input.opId },
         (scope, actor) => {
@@ -244,32 +219,24 @@ export const libraryRouter = os.router({
           return restored;
         },
       );
-      await tellNotesDeleted(context, changed, false);
       return { addressHeld, missing, restored: changed };
     }),
     row: os.items.row.handler(({ context, input }) => context.read((db) => itemRow(db, input.id))),
-    // a page read into an item whose note opened puts its article in the note first, once per op
+    // a page read into an item whose note writes its body lands its article by the note
     save: os.items.save.handler(async ({ context, input }) => {
       const { library } = context;
-      const saved = await articleThenLand(context.notes, {
-        land: (inNote) =>
-          library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
-            const page = savePage(scope, cellCodec(scope.db, library.ids), {
-              ...input,
-              articleInNote: inNote !== null,
-            });
-            if (inNote !== null) {
-              landProjection(scope, inNote.itemId, inNote.projection);
-            }
-            return page;
-          }),
-        target: () => {
-          const item = context.read((db) => pageForNote(db, input.url));
-          return item === null
-            ? null
-            : { article: input.article, itemId: item.id, onceId: `save:${input.opId}` };
-        },
-      });
+      const saved = await landArticle(context.notes, input.article, (inNote) =>
+        library.land(context.actor(), { answer: savedSchema, opId: input.opId }, (scope) => {
+          const page = savePage(scope, cellCodec(scope.db, library.ids), {
+            ...input,
+            articleInNote: inNote !== null,
+          });
+          if (inNote !== null) {
+            landProjection(scope, inNote.itemId, inNote.projection);
+          }
+          return page;
+        }),
+      );
       return answer(saved);
     }),
     // a stub saved to read later lands `pending`; the cloud's read of its page follows the commit
