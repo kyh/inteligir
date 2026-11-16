@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
 import { useLibraryQueries, useLibraryWrites, usePageLibrary } from "../cloud/library-context";
+import { useLibraryCommands } from "../library/library-commands";
 import { shortcutFor } from "../shortcuts";
 import { TopBar } from "../top-bar";
 import { FileStage, ReadingNotice, SourceHeader } from "./item-stages";
@@ -27,7 +28,6 @@ const libraryRoute = getRouteApi("/library");
 
 export interface ItemViewProps {
   readonly itemId: string;
-  readonly onBack: () => void;
   readonly onNote: (note: OpenNote | null) => void;
 }
 
@@ -76,8 +76,9 @@ const EditorScroller = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-export const ItemView = ({ itemId, onBack, onNote }: ItemViewProps) => {
+export const ItemView = ({ itemId, onNote }: ItemViewProps) => {
   const { workspace } = usePageLibrary();
+  const commands = useLibraryCommands();
   const item = useQuery(useLibraryQueries().item(itemId));
   const modifier = platformShortcutModifier();
   const find = libraryRoute.useSearch({ select: (search) => search.find });
@@ -104,7 +105,7 @@ export const ItemView = ({ itemId, onBack, onNote }: ItemViewProps) => {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (shortcutFor(event.nativeEvent, "item", modifier)?.action === "back-to-library") {
       event.preventDefault();
-      onBack();
+      commands.closeItem();
     }
   };
 
@@ -117,7 +118,9 @@ export const ItemView = ({ itemId, onBack, onNote }: ItemViewProps) => {
           variant="ghost"
           size="icon-compact"
           aria-label="Back to the library"
-          onClick={onBack}
+          onClick={() => {
+            commands.closeItem();
+          }}
         >
           <ArrowLeftIcon />
         </Button>

@@ -2,6 +2,7 @@
 // the grid of the rail's scope, one card per item, read from the cell's listing a page at a time;
 // an empty scope says why and offers a next step.
 
+import { saveFolderOf } from "@repo/client/library-labels";
 import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { refusalText } from "@repo/contract/refusal-text";
 import type { ItemKind } from "@repo/contract/items/item-kind";
@@ -17,15 +18,19 @@ import {
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import type { LibraryScope } from "@repo/contract/library-scope";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
+import { useRef } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
+import { useLibraryQueries } from "../cloud/library-context";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { TopBar } from "../top-bar";
+import { filesPayload } from "./capture/capture-payload";
 import { formatCount } from "./item-labels";
-import type { LibraryGridActions } from "./item-menu";
 import { KindChips } from "./kind-chips";
+import { useLibraryCommands } from "./library-commands";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
 import type { ListingView } from "@repo/client/listing-view";
@@ -50,27 +55,14 @@ const SORT_LABELS = {
 const sortNamed = (value: string): LibrarySort | null =>
   LIBRARY_SORTS.find((sort) => sort === value) ?? null;
 
-interface LibraryAdd {
-  readonly newNote: () => void;
-  readonly saveLink: () => void;
-  readonly addFiles: () => void;
-  readonly newFolder: () => void;
-}
-
 export interface LibraryViewProps {
   readonly scope: LibraryScope;
   readonly title: string;
   readonly listing: LibraryListing;
   readonly kind: ItemKind | null;
-  readonly onKindChange: (kind: ItemKind | null) => void;
   readonly sort: LibrarySort;
   readonly onSortChange: (sort: LibrarySort) => void;
   readonly selection: LibrarySelectionStore;
-  readonly actions: LibraryGridActions;
-  readonly add: LibraryAdd;
-  readonly onEmptyDeleted: () => void;
-  // offered while the library holds items to file or tag
-  readonly onTidy: (() => void) | null;
 }
 
 interface EmptyWords {
@@ -105,47 +97,68 @@ const emptyWords = (scope: LibraryScope): EmptyWords => {
   }
 };
 
-const AddMenu = ({ add }: { add: LibraryAdd }) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger
-      render={<Button size="compact" variant="secondary" aria-label="Add to the library" />}
-    >
-      <PlusIcon />
-      Add
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem
-        onClick={() => {
-          add.newNote();
+// what the shown scope takes: a note, a link, files through the browser's own picker, a folder
+const AddMenu = ({ scope }: { scope: LibraryScope }) => {
+  const commands = useLibraryCommands();
+  const picker = useRef<HTMLInputElement | null>(null);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button size="compact" variant="secondary" aria-label="Add to the library" />}
+        >
+          <PlusIcon />
+          Add
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() => {
+              commands.newNote();
+            }}
+          >
+            New note
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              commands.askSaveLink();
+            }}
+          >
+            Save a link…
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              picker.current?.click();
+            }}
+          >
+            Add files…
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              commands.newFolder(saveFolderOf(scope));
+            }}
+          >
+            New folder…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input
+        ref={picker}
+        type="file"
+        multiple
+        hidden
+        aria-label="Add files"
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = "";
+          if (files.length > 0) {
+            commands.save(filesPayload(files));
+          }
         }}
-      >
-        New note
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => {
-          add.saveLink();
-        }}
-      >
-        Save a link…
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => {
-          add.addFiles();
-        }}
-      >
-        Add files…
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onClick={() => {
-          add.newFolder();
-        }}
-      >
-        New folder…
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-);
+      />
+    </>
+  );
+};
 
 const SortMenu = ({
   sort,
@@ -181,19 +194,10 @@ const SortMenu = ({
   </DropdownMenu>
 );
 
-type LibraryBodyProps = Pick<
-  LibraryViewProps,
-  "scope" | "listing" | "kind" | "onKindChange" | "selection" | "actions"
->;
+type LibraryBodyProps = Pick<LibraryViewProps, "scope" | "listing" | "kind" | "selection">;
 
-const LibraryBody = ({
-  scope,
-  listing,
-  kind,
-  onKindChange,
-  selection,
-  actions,
-}: LibraryBodyProps) => {
+const LibraryBody = ({ scope, listing, kind, selection }: LibraryBodyProps) => {
+  const commands = useLibraryCommands();
   const { standing, more } = listing;
   switch (standing.kind) {
     case "needs-connection": {
@@ -229,14 +233,20 @@ const LibraryBody = ({
   const empty = emptyWords(scope);
   return (
     <>
-      <KindChips counts={page.kindCounts} kind={kind} onKindChange={onKindChange} />
+      <KindChips
+        counts={page.kindCounts}
+        kind={kind}
+        onKindChange={(next) => {
+          commands.showKind(next);
+        }}
+      />
       {page.total === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
           <p className="m-0 text-subtitle font-medium">{empty.title}</p>
           <p className="m-0 text-body text-muted-foreground">{empty.body}</p>
         </div>
       ) : (
-        <LibraryGrid rows={page.items} selection={selection} actions={actions} onNearEnd={more} />
+        <LibraryGrid rows={page.items} selection={selection} onNearEnd={more} />
       )}
     </>
   );
@@ -248,15 +258,14 @@ export const LibraryView = ({
   title,
   listing,
   kind,
-  onKindChange,
   sort,
   onSortChange,
   selection,
-  actions,
-  add,
-  onEmptyDeleted,
-  onTidy,
 }: LibraryViewProps) => {
+  const commands = useLibraryCommands();
+  const counts = useQuery(useLibraryQueries().scopes()).data;
+  // offered while something waits to be filed or tagged
+  const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
   const total = listing.standing.kind === "answered" ? listing.standing.data.total : null;
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
@@ -266,34 +275,35 @@ export const LibraryView = ({
           <span className="text-body text-muted-foreground tabular-nums">{formatCount(total)}</span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          {onTidy === null || scope.kind === "deleted" ? null : (
-            <Button size="compact" variant="ghost" onClick={onTidy}>
+          {tidyOffered && scope.kind !== "deleted" ? (
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={() => {
+                commands.startTidy();
+              }}
+            >
               {TIDY_LABEL}
             </Button>
-          )}
+          ) : null}
           <SortMenu sort={sort} onSortChange={onSortChange} />
           {scope.kind === "deleted" ? (
             <Button
               size="compact"
               variant="destructive"
               disabled={total === null || total === 0}
-              onClick={onEmptyDeleted}
+              onClick={() => {
+                commands.emptyDeleted();
+              }}
             >
               Empty Deleted…
             </Button>
           ) : (
-            <AddMenu add={add} />
+            <AddMenu scope={scope} />
           )}
         </div>
       </TopBar>
-      <LibraryBody
-        scope={scope}
-        listing={listing}
-        kind={kind}
-        onKindChange={onKindChange}
-        selection={selection}
-        actions={actions}
-      />
+      <LibraryBody scope={scope} listing={listing} kind={kind} selection={selection} />
     </div>
   );
 };

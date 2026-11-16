@@ -43,23 +43,14 @@ import { useState } from "react";
 
 import { useLibraryQueries } from "../cloud/library-context";
 import { formatCount } from "../library/item-labels";
+import { useLibraryCommands } from "../library/library-commands";
 import { usePref, windowLayout } from "../prefs";
 import { folderPaths } from "./folder-paths";
-
-interface FolderActions {
-  readonly create: (parentId: string | null) => void;
-  readonly rename: (folderId: string, name: string) => void;
-  readonly remove: (folderId: string, name: string) => void;
-}
 
 export interface RailProps {
   readonly scope: LibraryScope;
   // an item is open over the grid, so no scope row is lit
   readonly itemOpen: boolean;
-  readonly onScope: (scope: LibraryScope) => void;
-  readonly folders: FolderActions;
-  readonly onOpenSearch: () => void;
-  readonly onOpenSettings: () => void;
 }
 
 const Count = ({ count }: { count: number }) => (
@@ -87,17 +78,8 @@ interface FolderMenu {
   readonly name: string;
 }
 
-const FolderRows = ({
-  scope,
-  itemOpen,
-  onScope,
-  actions,
-}: {
-  scope: LibraryScope;
-  itemOpen: boolean;
-  onScope: (scope: LibraryScope) => void;
-  actions: FolderActions;
-}) => {
+const FolderRows = ({ scope, itemOpen }: RailProps) => {
+  const commands = useLibraryCommands();
   const folders = useQuery(useLibraryQueries().scopes()).data?.folders ?? [];
   const [menu, setMenu] = useState<FolderMenu | null>(null);
   const counts = new Map(folders.map((folder) => [folder.id, folder.items]));
@@ -114,7 +96,7 @@ const FolderRows = ({
                 style={{ paddingLeft: `${String(8 + row.depth * 12)}px` }}
                 data-folder-id={row.id}
                 onClick={() => {
-                  onScope(target);
+                  commands.showScope(target);
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -150,7 +132,7 @@ const FolderRows = ({
             <DropdownMenuItem
               onClick={() => {
                 setMenu(null);
-                actions.create(menu.id);
+                commands.newFolder(menu.id);
               }}
             >
               New folder inside…
@@ -158,7 +140,7 @@ const FolderRows = ({
             <DropdownMenuItem
               onClick={() => {
                 setMenu(null);
-                actions.rename(menu.id, menu.name);
+                commands.renameFolder(menu.id, menu.name);
               }}
             >
               Rename…
@@ -168,7 +150,7 @@ const FolderRows = ({
               variant="destructive"
               onClick={() => {
                 setMenu(null);
-                actions.remove(menu.id, menu.name);
+                commands.deleteFolder(menu.id, menu.name);
               }}
             >
               Delete folder…
@@ -180,15 +162,8 @@ const FolderRows = ({
   );
 };
 
-const TagRows = ({
-  scope,
-  itemOpen,
-  onScope,
-}: {
-  scope: LibraryScope;
-  itemOpen: boolean;
-  onScope: (scope: LibraryScope) => void;
-}) => {
+const TagRows = ({ scope, itemOpen }: RailProps) => {
+  const commands = useLibraryCommands();
   const tags = useQuery(useLibraryQueries().scopes()).data?.tags ?? [];
   if (tags.length === 0) {
     return <p className="m-0 px-3 py-1 text-caption text-muted-foreground">No tags yet</p>;
@@ -203,7 +178,7 @@ const TagRows = ({
               icon={HashIcon}
               isActive={isLit(scope, itemOpen, target)}
               onClick={() => {
-                onScope(target);
+                commands.showScope(target);
               }}
             >
               {tag}
@@ -216,14 +191,8 @@ const TagRows = ({
   );
 };
 
-export const Rail = ({
-  scope,
-  itemOpen,
-  onScope,
-  folders,
-  onOpenSearch,
-  onOpenSettings,
-}: RailProps) => {
+export const Rail = ({ scope, itemOpen }: RailProps) => {
+  const commands = useLibraryCommands();
   const scopes = useQuery(useLibraryQueries().scopes()).data;
   const [tagsOpen, setTagsOpen] = usePref(windowLayout, "railTagsOpen");
   const all: LibraryScope = { kind: "all" };
@@ -239,7 +208,9 @@ export const Rail = ({
             size="icon-compact"
             className="size-6 shrink-0"
             aria-label="Search"
-            onClick={onOpenSearch}
+            onClick={() => {
+              commands.openPalette();
+            }}
           >
             <SearchIcon />
           </Button>
@@ -254,7 +225,7 @@ export const Rail = ({
                 icon={LibraryIcon}
                 isActive={isLit(scope, itemOpen, all)}
                 onClick={() => {
-                  onScope(all);
+                  commands.showScope(all);
                 }}
               >
                 All items
@@ -266,7 +237,7 @@ export const Rail = ({
                 icon={InboxIcon}
                 isActive={isLit(scope, itemOpen, unsorted)}
                 onClick={() => {
-                  onScope(unsorted);
+                  commands.showScope(unsorted);
                 }}
               >
                 Unsorted
@@ -282,14 +253,14 @@ export const Rail = ({
               <SidebarGroupAction
                 aria-label="New folder"
                 onClick={() => {
-                  folders.create(null);
+                  commands.newFolder(null);
                 }}
               >
                 <FolderPlusIcon />
               </SidebarGroupAction>
             </Tooltip>
           </SidebarGroupActions>
-          <FolderRows scope={scope} itemOpen={itemOpen} onScope={onScope} actions={folders} />
+          <FolderRows scope={scope} itemOpen={itemOpen} />
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel
@@ -305,7 +276,7 @@ export const Rail = ({
               className={tagsOpen ? "shrink-0" : "shrink-0 -rotate-90"}
             />
           </SidebarGroupLabel>
-          {tagsOpen ? <TagRows scope={scope} itemOpen={itemOpen} onScope={onScope} /> : null}
+          {tagsOpen ? <TagRows scope={scope} itemOpen={itemOpen} /> : null}
         </SidebarGroup>
         <SidebarGroup>
           <SidebarMenu aria-label="Deleted">
@@ -314,7 +285,7 @@ export const Rail = ({
                 icon={Trash2Icon}
                 isActive={isLit(scope, itemOpen, deleted)}
                 onClick={() => {
-                  onScope(deleted);
+                  commands.showScope(deleted);
                 }}
               >
                 Deleted
@@ -330,7 +301,9 @@ export const Rail = ({
             size="icon-compact"
             className="size-6 shrink-0"
             aria-label="Settings"
-            onClick={onOpenSettings}
+            onClick={() => {
+              commands.openSettings();
+            }}
           >
             <SettingsIcon />
           </Button>

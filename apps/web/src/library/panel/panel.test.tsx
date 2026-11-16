@@ -11,12 +11,7 @@ describe("the panel", () => {
     const { library } = fakePageLibrary();
     library.workspace.showPanelTab("agent");
     renderOnLibrary(
-      <Panel
-        itemId={null}
-        viewContext={() => {}}
-        infoActions={{ move: vi.fn<() => void>(), tag: vi.fn<() => void>() }}
-        flushOpen={vi.fn<() => Promise<void>>()}
-      />,
+      <Panel itemId={null} viewContext={() => {}} flushOpen={vi.fn<() => Promise<void>>()} />,
       library,
     );
 

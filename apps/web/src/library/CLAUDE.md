@@ -7,13 +7,14 @@ the open item, the panel, the palette, Settings and the tab's own preferences.
 
 The tab is the site's `/library` route (`apps/web/src/routes/library.tsx`), its children the
 workspace and Settings, its code this folder. `library-tab.ts` opens the tab once a document (the
-session, the wire, the account's socket and the QueryClient) in the route's `beforeLoad`, and
-`library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1` client, the
-queries, the writes and the socket; `workspace.tsx` the rail, the grid or the open item, the panel
-and the palette, and `workspace-store.ts` what they hold between them; `library/` the grid and its
-verbs; `item/` the open item; `panel/` Info; `agent/`
-the agent's conversations; `palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the
-sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
+session, the wire, the account's socket, the shell's store and the QueryClient) in the route's
+`beforeLoad`, and `library-layout.tsx` draws what every library route shares. `cloud/` is the `/v1`
+client, the queries, the writes and the socket; `workspace.tsx` lays out the rail, the grid or the
+open item, the panel and the palette, `workspace-store.ts` holds what they share and
+`library-place.ts` moves where the tab is; `library/` the grid, its verbs and the commands every
+screen presses; `item/` the open item; `panel/` Info; `agent/` the agent's conversations;
+`palette/` ⌘P; `sidebar/` the rail; `settings/` Settings; `styles/` the sheet only this route
+links; `shell/desktop-bridge.ts` the Mac app's update.
 
 ## The tab over the cell
 
@@ -55,6 +56,10 @@ sheet only this route links; `shell/desktop-bridge.ts` the Mac app's update.
 - **Window-level hosts mount in the library's layout.** The confirm and ask hosts, the toaster, the
   tooltip provider, the theme and the notices sit above every library route, since a host one route
   mounts leaves another's `confirm()` parked. `apps/web/src/library/library-layout.tsx`.
+- **A press is a command, made once and read by context.** Each asks or confirms first where it
+  must, runs its verb and goes where it leads, one function a menu row, a chord and ⌘P call alike,
+  since a verb handed down is a bag of props per screen, tested only by drawing the whole page.
+  `apps/web/src/library/library/library-commands.tsx`.
 - **A command asks through one host, and one ask stands at a time.** A name, a folder and a tag
   change each answer a promise as `confirm()` does, the form mounted with its ask, since a dialog
   state per verb lets two stand at once and a draft outlive the ask it was typed for.

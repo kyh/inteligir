@@ -1,4 +1,4 @@
-// What the grid, its menu, the palette and the window's saves do to the library, over the writes
+// What a command does to the cell (`./library-commands.tsx`), over the writes
 // `../cloud/library-writes.ts` holds. A verb over several items or several saves is one run that
 // says how it went (`./bulk-actions.ts`); a new note answers its caller, and a folder's write says
 // its own refusal.
@@ -239,3 +239,5 @@ export const useLibraryVerbs = () => {
     },
   };
 };
+
+export type LibraryVerbs = ReturnType<typeof useLibraryVerbs>;

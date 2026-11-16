@@ -10,20 +10,21 @@ import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Outlet, useMatch, useRouter } from "@tanstack/react-router";
 import { useState, useSyncExternalStore } from "react";
 
 import { ThemeProvider } from "#components/theme-provider";
 
-import { PageLibraryProvider } from "./cloud/library-context";
+import { PageLibraryProvider, useLibraryQueries } from "./cloud/library-context";
 import { libraryQueries } from "./cloud/library-queries";
 import { PausedWrites } from "./cloud/needs-connection";
 import { OpenFailedPage } from "./cloud/open-failed-page";
 import { DesktopUpdateBanner } from "./desktop-update-banner";
 import { installPageEditorHost } from "./item/page-editor-host";
 import { AskDialogHost } from "./library/ask-dialog-host";
-import { libraryGoes, placeOf } from "./library-place";
+import { LibraryCommandsProvider } from "./library/library-commands";
+import { libraryGoes, placeOf, shownScope } from "./library-place";
 import { seedReads } from "./library-tab";
 import type { TabOpening } from "./library-tab";
 import { Workspace } from "./workspace";
@@ -36,12 +37,18 @@ const TOO_OLD =
   "This browser is too old to open your library. Update it, or open the library in another browser.";
 
 const WorkspaceLayout = () => {
-  const place = placeOf(libraryRoute.useSearch());
+  const { kind, openItem, scope } = placeOf(libraryRoute.useSearch());
+  const listed = useQuery(useLibraryQueries().scopes()).data;
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/library/", shouldThrow: false }) === undefined;
   return (
     <>
-      <Workspace {...place} covered={covered} />
+      <Workspace
+        scope={shownScope(scope, listed)}
+        kind={kind}
+        openItem={openItem}
+        covered={covered}
+      />
       {covered ? (
         <div className="fixed inset-0 bg-surface text-ink">
           <Outlet />
@@ -79,7 +86,9 @@ const OpenLibrary = ({ library, queryClient }: Opened) => {
         <ThemeProvider>
           <MotionPolicy>
             <TooltipProvider>
-              <WorkspaceLayout />
+              <LibraryCommandsProvider>
+                <WorkspaceLayout />
+              </LibraryCommandsProvider>
               <ConfirmDialogHost />
               <AskDialogHost />
               <Toaster position="bottom-right" />

@@ -3,6 +3,7 @@
 // go by one spelling and read the address as they are asked.
 
 import type { ItemKind } from "@repo/contract/items/item-kind";
+import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { NavigateFn } from "@tanstack/react-router";
 import type { z } from "zod";
@@ -20,6 +21,12 @@ export const placeOf = (search: z.infer<typeof librarySearchSchema>): LibraryPla
   openItem: search.item ?? null,
   scope: search.scope ?? { kind: "all" },
 });
+
+// the scope the tab shows: its address's, a folder judged once the rail's scopes have answered
+export const shownScope = (
+  addressed: LibraryScope,
+  listed: { readonly folders: readonly { readonly id: string }[] } | undefined,
+): LibraryScope => (listed === undefined ? addressed : listedScope(addressed, listed.folders));
 
 interface PlaceRouter {
   readonly navigate: NavigateFn;

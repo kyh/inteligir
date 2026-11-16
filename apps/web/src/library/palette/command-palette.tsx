@@ -29,22 +29,12 @@ import { useStore } from "zustand";
 import { TIDY_LABEL } from "../agent/tidy-library";
 import { useLibraryQueries, usePageLibrary } from "../cloud/library-context";
 import { cellStanding } from "../cloud/needs-connection";
+import { useLibraryCommands } from "../library/library-commands";
 import type { ListedItem } from "../library/listing";
 import { hotkeyFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
 
 type WindowAction = ShortcutIn<"window">["action"];
-
-export interface PaletteActions {
-  // a search's hit, opened on the words it was found by
-  readonly openHit: (itemId: string, query: string) => void;
-  readonly newNote: () => void;
-  readonly saveLink: (url: string) => void;
-  readonly askSaveLink: () => void;
-  readonly openSettings: () => void;
-  readonly askAgent: () => void;
-  readonly startTidy: () => void;
-}
 
 // a row of the palette: a search's hit, which draws its snippet under its title, or a verb, which
 // draws the chord the window answers it by
@@ -114,8 +104,9 @@ const searchShown = (
   }
 };
 
-export const CommandPalette = ({ actions }: { actions: PaletteActions }) => {
+export const CommandPalette = () => {
   const { workspace } = usePageLibrary();
+  const commands = useLibraryCommands();
   const open = useStore(workspace.store, (state) => state.paletteOpen);
   const [query, setQuery] = useState("");
   const typed = query.trim();
@@ -146,7 +137,7 @@ export const CommandPalette = ({ actions }: { actions: PaletteActions }) => {
                 action: "Save",
                 label: "Save this link",
                 onSelect: run(() => {
-                  actions.saveLink(typed);
+                  commands.saveLink(typed);
                 }),
                 value: "save-link",
               },
@@ -163,8 +154,9 @@ export const CommandPalette = ({ actions }: { actions: PaletteActions }) => {
               action: "Open",
               hit: { itemId: hit.id, snippet: hit.snippet ?? "" },
               label: shownTitle(hit.card.title),
+              // on the words it was found by
               onSelect: run(() => {
-                actions.openHit(hit.id, typed);
+                commands.openItem(hit.id, typed);
               }),
               value: `hit:${hit.id}`,
             })),
@@ -173,11 +165,11 @@ export const CommandPalette = ({ actions }: { actions: PaletteActions }) => {
     {
       heading: "Commands",
       items: [
-        verb("new-note", "New note", actions.newNote),
-        verb("ask-save-link", "Save a link…", actions.askSaveLink),
-        verb("ask-agent", "Ask the agent", actions.askAgent, "open-agent"),
-        verb("tidy", TIDY_LABEL, actions.startTidy),
-        verb("settings", "Settings", actions.openSettings, "open-settings"),
+        verb("new-note", "New note", commands.newNote),
+        verb("ask-save-link", "Save a link…", commands.askSaveLink),
+        verb("ask-agent", "Ask the agent", commands.askAgent, "open-agent"),
+        verb("tidy", TIDY_LABEL, commands.startTidy),
+        verb("settings", "Settings", commands.openSettings, "open-settings"),
       ],
     },
   ];

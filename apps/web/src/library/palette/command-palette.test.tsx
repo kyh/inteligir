@@ -3,28 +3,16 @@ import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
 import { createFakeCell } from "@repo/contract/test-support/fake-cell";
 import { onlineManager } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
+import { fakePageLibrary, renderOnLibrary, spyCommands } from "../test-support/fake-page-library";
 import type { CellCall } from "../test-support/fake-page-library";
 import { CommandPalette } from "./command-palette";
-import type { PaletteActions } from "./command-palette";
 
 afterEach(() => {
   onlineManager.setOnline(true);
 });
-
-const spyActions = () =>
-  ({
-    askAgent: vi.fn<() => void>(),
-    askSaveLink: vi.fn<() => void>(),
-    newNote: vi.fn<() => void>(),
-    openHit: vi.fn<() => void>(),
-    openSettings: vi.fn<() => void>(),
-    saveLink: vi.fn<() => void>(),
-    startTidy: vi.fn<() => void>(),
-  }) satisfies PaletteActions;
 
 const WORDS = z.object({ words: z.string() });
 
@@ -56,11 +44,11 @@ const drawPalette = () => {
     },
     cell,
   });
-  const actions = spyActions();
+  const commands = spyCommands();
   library.workspace.setPaletteOpen(true);
-  renderOnLibrary(<CommandPalette actions={actions} />, library);
+  renderOnLibrary(<CommandPalette />, library, commands);
   return {
-    actions,
+    commands,
     calls,
     isOpen: () => library.workspace.store.getState().paletteOpen,
     plans,
@@ -112,7 +100,7 @@ describe("the palette", () => {
   });
 
   it("moves the light with the arrows while the field keeps focus, and runs the lit row on Enter", async () => {
-    const { actions, isOpen } = drawPalette();
+    const { commands, isOpen } = drawPalette();
     await waitFor(() => {
       expect(document.activeElement).toBe(field());
     });
@@ -124,13 +112,13 @@ describe("the palette", () => {
     expect(lit()).toBe("Save a link…");
     expect(document.activeElement).toBe(field());
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(actions.askSaveLink).toHaveBeenCalledOnce();
-    expect(actions.newNote).not.toHaveBeenCalled();
+    expect(commands.askSaveLink).toHaveBeenCalledOnce();
+    expect(commands.newNote).not.toHaveBeenCalled();
     expect(isOpen()).toBe(false);
   });
 
   it("searches the cell as the field changes, and opens a hit on the words it was found by", async () => {
-    const { actions, calls, plans } = drawPalette();
+    const { calls, commands, plans } = drawPalette();
     fireEvent.change(field(), { target: { value: "spring" } });
     const hit = await screen.findByRole("option", { name: /Plans/u });
     expect(searches(calls)).toStrictEqual([
@@ -144,7 +132,7 @@ describe("the palette", () => {
     });
     expect(screen.getByText("Open")).toBeDefined();
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(actions.openHit).toHaveBeenCalledWith(plans, "spring");
+    expect(commands.openItem).toHaveBeenCalledWith(plans, "spring");
   });
 
   it("calls a hit with no title Untitled", async () => {
@@ -154,22 +142,22 @@ describe("the palette", () => {
   });
 
   it("offers to save a typed web address", async () => {
-    const { actions } = drawPalette();
+    const { commands } = drawPalette();
     fireEvent.change(field(), { target: { value: "https://example.com/a" } });
     fireEvent.click(await screen.findByRole("option", { name: "Save this link" }));
-    expect(actions.saveLink).toHaveBeenCalledWith("https://example.com/a");
+    expect(commands.saveLink).toHaveBeenCalledWith("https://example.com/a");
   });
 
   it("lights Save over the hits for a pasted web address, so Enter saves it", async () => {
-    const { actions } = drawPalette();
+    const { commands } = drawPalette();
     fireEvent.change(field(), { target: { value: "https://example.com/spring" } });
     await screen.findByRole("option", { name: /Plans/u });
     await waitFor(() => {
       expect(lit()).toBe("Save this link");
     });
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(actions.saveLink).toHaveBeenCalledWith("https://example.com/spring");
-    expect(actions.openHit).not.toHaveBeenCalled();
+    expect(commands.saveLink).toHaveBeenCalledWith("https://example.com/spring");
+    expect(commands.openItem).not.toHaveBeenCalled();
   });
 
   it("says why a search has no hits: none match, the cell did not answer, or it waits offline", async () => {

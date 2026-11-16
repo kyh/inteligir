@@ -1,54 +1,43 @@
-// The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
-// the right panel (Info, the agent), over the account's library cell. Every screen reads the cell
-// through the page's queries and writes through its mutations, so each needs a connection and says
-// so without one. A link or a file pasted or dropped where no field takes it is saved where the
-// grid's scope saves. Where the tab is rides the url, the grid's scope and kind and the item open
-// over them, so a reload, Back and a link all open it.
+// The library's page as a layout: the rail of scopes, the grid of the scope or the item open in its
+// place, and the right panel (Info, the agent), over the account's library cell. It draws where
+// the tab is, which rides the url, and keeps what only it holds: the grid's listing and selection,
+// the window's chords and the save of a paste or a drop no field took. What a press does is a
+// command's (`./library/library-commands.tsx`), and what the shell holds between its screens the
+// tab's store's (`./workspace-store.ts`).
 
 import { viewContextOf } from "@repo/client/agent-send";
 import type { AgentViewContext } from "@repo/client/agent-send";
-import { saveFolderOf, scopeTitle } from "@repo/client/library-labels";
+import { scopeTitle } from "@repo/client/library-labels";
 import { listingView } from "@repo/client/listing-view";
-import { listedScope } from "@repo/contract/library-scope";
 import type { LibraryScope } from "@repo/contract/library-scope";
 import type { OpenNote } from "@repo/editor/item/item-editor";
 import type { ItemKind } from "@repo/contract/items/item-kind";
-import { isWebUrl } from "@repo/contract/items/item-url";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
-import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { plural } from "@repo/ui/lib/plural";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { useLibraryQueries, usePageLibrary } from "./cloud/library-context";
 import { cellStanding } from "./cloud/needs-connection";
-import { refusalText } from "@repo/contract/refusal-text";
 import { bindingFor, useWindowShortcuts } from "./shortcuts";
 import { ItemView } from "./item/item-view";
 import { useLeaveItem } from "./item/leave-item";
-import { filesPayload } from "./library/capture/capture-payload";
-import type { CapturePayload } from "./library/capture/capture-payload";
 import { useWindowCapture } from "./library/capture/window-capture";
-import { askFolder, askName, askTags } from "./library/ask";
-import type { LibraryGridActions } from "./library/item-menu";
+import { useLibraryCommands } from "./library/library-commands";
 import { createLibrarySelection } from "./library/library-selection";
-import { useLibraryVerbs } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { libraryGoes } from "./library-place";
-import { listingQuery, saveTagsOf } from "./library/listing";
+import { listingQuery } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import { usePref, windowLayout } from "./prefs";
 import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
-  // where the tab is, as its address says
+  // where the tab is: its address's scope as the library lists it, the kind it is narrowed to and
+  // the item open over them
   readonly scope: LibraryScope;
   readonly kind: ItemKind | null;
   readonly openItem: string | null;
@@ -56,21 +45,10 @@ export interface WorkspaceProps {
   readonly covered: boolean;
 }
 
-// a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
-const DELETE_ASKS_OVER = 50;
-
-// what a tag's verb acts on: each item and the tags its own field holds, which it can take off
-interface TagSubject {
-  readonly id: string;
-  readonly tags: readonly string[];
-}
-
-export const Workspace = ({ scope: addressed, kind, openItem, covered }: WorkspaceProps) => {
+export const Workspace = ({ scope, kind, openItem, covered }: WorkspaceProps) => {
   const { workspace } = usePageLibrary();
   const queries = useLibraryQueries();
-  const verbs = useLibraryVerbs();
-  const router = useRouter();
-  const goes = libraryGoes(router);
+  const commands = useLibraryCommands();
   const modifier = platformShortcutModifier();
   const [sort, setSort] = usePref(windowLayout, "librarySort");
   const [panelOpen, setPanelOpen] = usePref(windowLayout, "panelOpen");
@@ -81,26 +59,15 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   const [selection] = useState(createLibrarySelection);
   const noteRef = useRef<OpenNote | null>(null);
   useLeaveItem(noteRef);
-  const filesRef = useRef<HTMLInputElement | null>(null);
   // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
-  const counts = useQuery(queries.scopes()).data;
-  const folders = counts?.folders ?? [];
-  // an addressed folder is judged once the rail's folders have answered
-  const scope = counts === undefined ? addressed : listedScope(addressed, folders);
+  const folders = useQuery(queries.scopes()).data?.folders ?? [];
   const scopeName = scopeTitle(scope, folders, "All items");
   const listing = useInfiniteQuery(queries.listing(listingQuery({ kind, scope, sort })));
   const view = listingView(listing.data?.pages ?? []);
-
-  const startTidy = (): void => {
-    workspace.compose({ kind: "tidy" });
-    workspace.revealPanel("agent");
-  };
-  // offered while something waits to be filed or tagged
-  const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
 
   // a scope opens with nothing selected however the tab reached it, a row, a tag or Back, since the
   // prune below waits for the scope's listing and keeps an id both scopes list
@@ -129,15 +96,15 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
   useWindowShortcuts({ enabled: !covered, modifier }, (action) => {
     switch (action) {
       case "open-agent": {
-        workspace.revealPanel("agent");
+        commands.askAgent();
         break;
       }
       case "open-palette": {
-        workspace.setPaletteOpen(true);
+        commands.openPalette();
         break;
       }
       case "open-settings": {
-        goes.openSettings();
+        commands.openSettings();
         break;
       }
       case "toggle-panel": {
@@ -152,180 +119,12 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
     }
   });
 
-  const into = () => ({ folderId: saveFolderOf(scope), tags: saveTagsOf(scope) });
-
-  const newNote = (): void => {
-    void (async () => {
-      try {
-        goes.openItem(await verbs.createNote(into()));
-      } catch (error) {
-        toast.error(refusalText(error, "The note couldn't be made."));
-      }
-    })();
-  };
-
-  const saveLink = (url: string): void => {
-    void verbs.saveLinks([{ title: null, url }], into(), goes.openItem);
-  };
-
-  // what a paste, a drop or the file picker handed over: each file and each link saved where the
-  // grid's scope saves, and what could not be taken said
-  const savePayload = (payload: CapturePayload): void => {
-    for (const sentence of payload.refused) {
-      toast.error(sentence);
-    }
-    void verbs.saveLinks(payload.urls, into(), goes.openItem);
-    void verbs.addFiles(payload.files, into());
-  };
-
   const { catcherRef, dropInto } = useWindowCapture({
     enabled: !covered,
     into: () => (scope.kind === "folder" ? scopeName : "Unsorted"),
     modifier,
-    onCapture: savePayload,
+    onCapture: commands.save,
   });
-
-  const askSaveLink = (): void => {
-    void (async () => {
-      const address = await askName({
-        confirm: "Save",
-        initial: "",
-        label: "The page's address",
-        refuse: (typed) =>
-          isWebUrl(typed) ? null : "Type the whole address, starting with https://",
-        title: "Save a link",
-      });
-      if (address !== null) {
-        saveLink(address);
-      }
-    })();
-  };
-
-  const newFolder = (parentId: string | null): void => {
-    void (async () => {
-      const name = await askName({
-        confirm: "Create",
-        initial: "",
-        label: "Folder name",
-        title: "New folder",
-      });
-      if (name !== null) {
-        verbs.createFolder(name, parentId);
-      }
-    })();
-  };
-
-  const removeItems = (ids: readonly string[]): void => {
-    void (async () => {
-      if (
-        ids.length > DELETE_ASKS_OVER &&
-        !(await confirm({
-          body: "They wait in Deleted, where you can restore them.",
-          confirmLabel: "Delete",
-          destructive: true,
-          title: `Delete ${plural(ids.length, "item")}?`,
-        }))
-      ) {
-        return;
-      }
-      // deleted on the person's word, so its leave asks nothing
-      if (openItem !== null && ids.includes(openItem)) {
-        goes.closeItem({ unasked: true });
-      }
-      await verbs.remove(ids);
-    })();
-  };
-
-  const purge = (ids: readonly string[]): void => {
-    void (async () => {
-      if (
-        !(await confirm({
-          body: "Their text and files are gone for good. This can't be undone.",
-          confirmLabel: "Delete forever",
-          destructive: true,
-          title: `Delete ${plural(ids.length, "item")} forever?`,
-        }))
-      ) {
-        return;
-      }
-      await verbs.purge(ids);
-    })();
-  };
-
-  const emptyDeleted = (): void => {
-    void (async () => {
-      let ids: string[];
-      try {
-        ids = await verbs.deletedIds();
-      } catch (error) {
-        toast.error(refusalText(error, "Deleted couldn't be read."));
-        return;
-      }
-      if (ids.length > 0) {
-        purge(ids);
-      }
-    })();
-  };
-
-  const askMove = (ids: readonly string[]): void => {
-    void (async () => {
-      const picked = await askFolder({ count: ids.length });
-      if (picked !== null) {
-        await verbs.move(ids, picked.folderId);
-      }
-    })();
-  };
-
-  const askTag = (subjects: readonly TagSubject[]): void => {
-    // the tags every subject carries, which the dialog offers to take off
-    let held: string[] = [...(subjects[0]?.tags ?? [])];
-    for (const subject of subjects.slice(1)) {
-      held = held.filter((tag) => subject.tags.includes(tag));
-    }
-    void (async () => {
-      const change = await askTags({ count: subjects.length, held });
-      if (change !== null) {
-        await verbs.tag(
-          subjects.map((subject) => subject.id),
-          change,
-        );
-      }
-    })();
-  };
-
-  const actions: LibraryGridActions = {
-    askAgent: (rows) => {
-      selection.apply({ kind: "all", order: rows.map((row) => row.id) });
-      workspace.revealPanel("agent");
-    },
-    move: (rows) => {
-      askMove(rows.map((row) => row.id));
-    },
-    open: (row) => {
-      goes.openItem(row.id);
-    },
-    pin: (rows, pinned) => {
-      void verbs.pin(
-        rows.map((row) => row.id),
-        pinned,
-      );
-    },
-    purge: (rows) => {
-      purge(rows.map((row) => row.id));
-    },
-    refresh: (row) => {
-      verbs.refresh(row.id);
-    },
-    remove: (rows) => {
-      removeItems(rows.map((row) => row.id));
-    },
-    restore: (rows) => {
-      void verbs.restore(rows.map((row) => row.id));
-    },
-    tag: (rows) => {
-      askTag(rows.map((row) => ({ id: row.id, tags: row.fields.tags })));
-    },
-  };
 
   // what the agent is told about the screen a message leaves from
   const viewContext = (): AgentViewContext | undefined =>
@@ -348,49 +147,7 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
           onWidthCommitted={setRailWidth}
         >
           <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
-            <Rail
-              scope={scope}
-              itemOpen={openItem !== null}
-              onScope={(next) => {
-                goes.showScope(next);
-              }}
-              onOpenSearch={() => {
-                workspace.setPaletteOpen(true);
-              }}
-              onOpenSettings={() => {
-                goes.openSettings();
-              }}
-              folders={{
-                create: newFolder,
-                remove: (folderId, name) => {
-                  void (async () => {
-                    if (
-                      await confirm({
-                        body: "Its items move to Unsorted.",
-                        confirmLabel: "Delete folder",
-                        destructive: true,
-                        title: `Delete the folder “${name}”?`,
-                      })
-                    ) {
-                      verbs.deleteFolder(folderId);
-                    }
-                  })();
-                },
-                rename: (folderId, name) => {
-                  void (async () => {
-                    const next = await askName({
-                      confirm: "Rename",
-                      initial: name,
-                      label: "Folder name",
-                      title: "Rename folder",
-                    });
-                    if (next !== null) {
-                      verbs.renameFolder(folderId, next);
-                    }
-                  })();
-                },
-              }}
-            />
+            <Rail scope={scope} itemOpen={openItem !== null} />
           </Sidebar>
           <SidebarInset className="relative bg-surface">
             <SidebarProvider
@@ -419,32 +176,13 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                       }),
                     }}
                     kind={kind}
-                    onKindChange={(next) => {
-                      goes.showKind(next);
-                    }}
                     sort={sort}
                     onSortChange={setSort}
                     selection={selection}
-                    actions={actions}
-                    add={{
-                      addFiles: () => {
-                        filesRef.current?.click();
-                      },
-                      newFolder: () => {
-                        newFolder(saveFolderOf(scope));
-                      },
-                      newNote,
-                      saveLink: askSaveLink,
-                    }}
-                    onEmptyDeleted={emptyDeleted}
-                    onTidy={tidyOffered ? startTidy : null}
                   />
                 ) : (
                   <ItemView
                     itemId={openItem}
-                    onBack={() => {
-                      goes.closeItem();
-                    }}
                     onNote={(opened) => {
                       noteRef.current = opened;
                     }}
@@ -466,52 +204,18 @@ export const Workspace = ({ scope: addressed, kind, openItem, covered }: Workspa
                   flushOpen={async () => {
                     await noteRef.current?.holds();
                   }}
-                  infoActions={{
-                    move: (itemId) => {
-                      askMove([itemId]);
-                    },
-                    tag: (itemId, tags) => {
-                      askTag([{ id: itemId, tags }]);
-                    },
-                  }}
                 />
               </Sidebar>
             </SidebarProvider>
           </SidebarInset>
         </SidebarProvider>
       </div>
-      <CommandPalette
-        actions={{
-          askAgent: () => {
-            workspace.revealPanel("agent");
-          },
-          askSaveLink,
-          newNote,
-          openHit: goes.openItem,
-          openSettings: goes.openSettings,
-          saveLink,
-          startTidy,
-        }}
-      />
+      <CommandPalette />
       <textarea
         ref={catcherRef}
         aria-hidden
         tabIndex={-1}
         className="pointer-events-none fixed -top-full left-0 size-px opacity-0"
-      />
-      <input
-        ref={filesRef}
-        type="file"
-        multiple
-        hidden
-        aria-label="Add files"
-        onChange={(event) => {
-          const files = [...(event.currentTarget.files ?? [])];
-          event.currentTarget.value = "";
-          if (files.length > 0) {
-            savePayload(filesPayload(files));
-          }
-        }}
       />
     </>
   );
