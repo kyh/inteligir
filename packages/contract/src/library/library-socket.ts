@@ -70,7 +70,8 @@ const movedFrameSchema = z.object({
 export type MovedFrame = z.infer<typeof movedFrameSchema>;
 
 // the reply the built-in agent is writing in a thread, its text so far, which no read ever answers:
-// a moved frame naming the thread lets it go, since by then the reply landed or the turn moved on
+// a moved frame naming the thread says the reply landed or the turn moved on, and a device lets it
+// go once the read that frame starts brings what landed
 const previewFrameSchema = z.object({
   text: z.string(),
   threadId: idSchema,

@@ -600,7 +600,7 @@ export const landPush = (cell: AgentCell, request: PushRequest): CellAnswer<null
 };
 
 // the reply as it is written, on the account's sockets alone: never stored, never read again, and
-// let go by each device once the moved frame of a later commit names its thread
+// let go by each device once the read a later commit's moved frame starts brings what landed
 export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswer<null> => {
   const parsed = previewRequestSchema.safeParse(request);
   if (!parsed.success) {
