@@ -166,15 +166,12 @@ const PAGE_PORTS = { image: (): null => null, item: (): null => null };
 
 export interface ArticleBlocks {
   readonly blocks: readonly LibraryBlock[];
+  // the blocks no store takes, which the article goes without
+  readonly refused: number;
 }
 
 // a page a fill read (the reader's canonical markdown) as its item's article section, in order
 export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
   const converted = parseMarkdown(markdown);
-  if (!converted.ok) {
-    return null;
-  }
-  const drafts = readBlocks(converted.value, PAGE_PORTS);
-  const named = nameDrafts(drafts, newBlockId);
-  return { blocks: named.blocks };
+  return converted.ok ? nameDrafts(readBlocks(converted.value, PAGE_PORTS), newBlockId) : null;
 };

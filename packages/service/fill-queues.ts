@@ -13,7 +13,3 @@ export const FILL_FAILED_QUEUE = "inteligir-fill-failed";
 // the queue's own retries of a message; the consumer's last delivery says the failure in the item
 // rather than asking for another
 export const FILL_RETRIES = 3;
-
-// two pages a batch: a reading at the article's budget is seconds of CPU, and a consumer's
-// invocation has 30 s of it (developers.cloudflare.com/workers/platform/limits/)
-export const FILL_BATCH_SIZE = 2;

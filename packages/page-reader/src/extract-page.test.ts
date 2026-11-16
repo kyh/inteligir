@@ -11,10 +11,9 @@ import { describe, expect, it } from "vitest";
 import { canonicalizeImported, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { FILL_LIMITS } from "@repo/contract/items/link-fill";
 
-import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
-import type { ParsePage } from "./extract-page";
-import { parsePage } from "./linkedom-page";
+import { extractPage, KEPT_MIN } from "./extract-page";
 import type { ExtractedPage } from "./page-facts";
+import { readHtml } from "./read-html";
 import { longPage } from "./test-support/long-page";
 
 // spelled in two halves: the scheme the article must not hold, never a link of this suite's
@@ -25,11 +24,8 @@ const PAGE_URL = "https://pages.example/posts/item";
 
 const page = (name: string): string => readFileSync(path.join(CORPUS, `${name}.html`), "utf-8");
 
-const extracted = (
-  name: string,
-  prefer: "article" | "description" = "article",
-  parse: ParsePage = parsePage,
-): ExtractedPage => extractPage({ html: page(name), prefer, url: PAGE_URL }, parse);
+const extracted = (name: string, prefer: "article" | "description" = "article"): ExtractedPage =>
+  extractPage({ html: page(name), prefer, url: PAGE_URL });
 
 interface SlateNode {
   type?: string;
@@ -75,7 +71,7 @@ describe("page meta", () => {
 
   it("keeps the day an ISO time was written in, not UTC's", () => {
     const html = `<html><head><meta property="article:published_time" content="2024-03-05T20:30:00-08:00"></head><body></body></html>`;
-    expect(extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage).facts.published).toBe(
+    expect(extractPage({ html, prefer: "article", url: PAGE_URL }).facts.published).toBe(
       "2024-03-05",
     );
   });
@@ -117,9 +113,7 @@ describe("page meta", () => {
 
   it("takes no in-page anchor for a picture", () => {
     const html = `<html><head><meta property="og:image" content="#top"></head><body></body></html>`;
-    expect(
-      extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage).facts.images,
-    ).toStrictEqual([]);
+    expect(extractPage({ html, prefer: "article", url: PAGE_URL }).facts.images).toStrictEqual([]);
   });
 
   it("drops a script url among the images", () => {
@@ -198,10 +192,7 @@ describe("the article's budget", () => {
     { timeout: 30_000 },
     () => {
       const long = longPage(FILL_LIMITS.articleBytes * 2);
-      const { article } = extractPage(
-        { html: long.html, prefer: "article", url: PAGE_URL },
-        parsePage,
-      );
+      const { article } = extractPage({ html: long.html, prefer: "article", url: PAGE_URL });
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
       // whole paragraphs: the last one kept ends its sentence
@@ -221,10 +212,7 @@ describe("the article's budget", () => {
       const wrapped = long.html
         .replace("<article>", "<article><div><div>")
         .replace("</article>", "</div></div></article>");
-      const { article } = extractPage(
-        { html: wrapped, prefer: "article", url: PAGE_URL },
-        parsePage,
-      );
+      const { article } = extractPage({ html: wrapped, prefer: "article", url: PAGE_URL });
       expect(article).toContain("Paragraph 0 opens with");
       expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
     },
@@ -232,10 +220,7 @@ describe("the article's budget", () => {
 
   it("leaves a page within the budget whole", () => {
     const short = longPage(FILL_LIMITS.articleBytes / 4);
-    const { article } = extractPage(
-      { html: short.html, prefer: "article", url: PAGE_URL },
-      parsePage,
-    );
+    const { article } = extractPage({ html: short.html, prefer: "article", url: PAGE_URL });
     expect(article).toContain(`Paragraph ${String(short.paragraphs - 1)} opens`);
   });
 });
@@ -287,14 +272,11 @@ describe("every corpus page", () => {
 describe("the body ladder", () => {
   it("falls to the plain text rung for a page nested past any recursion", () => {
     const depth = 3000;
-    const result = extractPage(
-      {
-        html: `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
-        prefer: "article",
-        url: PAGE_URL,
-      },
-      parsePage,
-    );
+    const result = extractPage({
+      html: `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
+      prefer: "article",
+      url: PAGE_URL,
+    });
     expect(result.rung).toBe("text");
     expect(result.article).toBe("deep words here\n\nafter them\n");
     expect(canonicalizeImported(result.article)?.markdown).toBe(result.article);
@@ -317,12 +299,8 @@ describe("the article as blocks", () => {
 
   it.each(names)("%s reads as its item's article section, every block stored", (name) => {
     const html = page(name);
-    const read = extractPageBlocks(
-      { html, prefer: "article", url: PAGE_URL },
-      parsePage,
-      counter(),
-    );
-    const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
+    const read = readHtml({ html, prefer: "article", url: PAGE_URL }, counter());
+    const { article } = extractPage({ html, prefer: "article", url: PAGE_URL });
     expect(read.article.blocks.map((block) => block.id)).toStrictEqual(
       read.article.blocks.map((_, index) => `page${String(index + 1)}`),
     );
@@ -335,13 +313,12 @@ describe("the article as blocks", () => {
   });
 
   it("keeps a page's hashtag and highlight spelling as the page's text", () => {
-    const read = extractPageBlocks(
+    const read = readHtml(
       {
         html: "<html><body><article><p>A post about #rust with ==marks== and a %%note%% in it, longer than a line.</p></article></body></html>",
         prefer: "article",
         url: PAGE_URL,
       },
-      parsePage,
       counter(),
     );
     const stored = JSON.stringify(read.article.blocks);

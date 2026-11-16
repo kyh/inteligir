@@ -1,11 +1,9 @@
-// The library's reads and writes over the cell's schema (`@repo/db/cell/schema`), through drizzle's
-// builders: an item's row, its derived rows, `meta` and the search index, whose MATCH and rank and
-// the literal scan's instr() are fragments. A write binds every value and cuts every many-row
-// statement under a Durable Object's limits (`insertChunks`); a user's text is matched with
-// instr(), since a Durable Object refuses a pattern-match operand past 50 bytes. A row is applied
-// only over an older one, so a write stamped with a sequence the row has passed lands nothing.
+// The library's reads and writes over the cell's schema (`@repo/db/cell/schema`): an item's row,
+// its derived rows and `meta`, through drizzle's builders. A write binds every value and cuts every
+// many-row statement under a Durable Object's limits (`insertChunks`). A row is applied only over
+// an older one, so a write stamped with a sequence the row has passed lands nothing.
 
-import { and, asc, eq, getColumns, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, getColumns, gt, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
 
@@ -18,25 +16,22 @@ import {
   meta,
   seedBlocks,
 } from "@repo/db/cell/schema";
-import { renderFtsMatch } from "../knowledge/fts-match";
-import { searchExcerpt } from "../knowledge/search-excerpt";
-import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
-import { canonicalJson, utf8ByteLength } from "@repo/contract/library/canonical-json";
+import { canonicalJson } from "@repo/contract/library/canonical-json";
 import { bodyDigestSchema, itemCardSchema } from "@repo/contract/library/derive-item";
 import type {
   BodyDigest,
   DerivedLink,
   DerivedTag,
   ItemCard,
-  ItemSearchText,
 } from "@repo/contract/library/derive-item";
 import type { ItemKind } from "@repo/contract/items/item-kind";
 import type { ListingRow } from "@repo/contract/library/library-index";
 import { libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { dropSearchRow } from "../search/search-index";
 import { LibraryRowError } from "./library-sql";
 
-import { excluded, insertChunks, searchFts } from "./cell-db";
+import { excluded, insertChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 
 const parseJsonColumn = <T>(text: string, schema: z.ZodType<T>, what: string): T => {
@@ -161,7 +156,7 @@ export const storeTombstone = (db: CellDb, write: TombstoneWrite): boolean => {
   if (landed === undefined) {
     return false;
   }
-  db.delete(searchFts).where(eq(searchFts.rowid, landed.rid)).run();
+  dropSearchRow(db, landed.rid);
   db.delete(seedBlocks).where(eq(seedBlocks.itemId, write.id)).run();
   db.delete(bodyTexts).where(eq(bodyTexts.itemId, write.id)).run();
   db.delete(links).where(eq(links.sourceId, write.id)).run();
@@ -345,217 +340,6 @@ export const storeTags = (db: CellDb, itemId: string, tags: readonly DerivedTag[
   for (const chunk of insertChunks(itemTags, tagRows)) {
     db.insert(itemTags).values(chunk).onConflictDoNothing().run();
   }
-};
-
-// ---- search ----
-
-// a Durable Object row holds 2 MB, and an index row holds every column with its stem shadow
-export const SEARCH_ROW_MAX_BYTES = 1_900_000;
-const TITLE_MAX_BYTES = 4096;
-const HEADINGS_MAX_BYTES = 256 * 1024;
-const META_MAX_BYTES = 64 * 1024;
-
-// the longest prefix of `text` within `maxBytes` of UTF-8, never splitting a character
-const clipToBytes = (text: string, maxBytes: number): string => {
-  if (utf8ByteLength(text) <= maxBytes) {
-    return text;
-  }
-  let bytes = 0;
-  let end = 0;
-  for (const char of text) {
-    const size = utf8ByteLength(char);
-    if (bytes + size > maxBytes) {
-      break;
-    }
-    bytes += size;
-    end += char.length;
-  }
-  return text.slice(0, end);
-};
-
-export interface SearchRow {
-  readonly title: string;
-  readonly headings: string;
-  readonly meta: string;
-  readonly body: string;
-  readonly titleStems: string;
-  readonly headingStems: string;
-  readonly metaStems: string;
-  readonly bodyStems: string;
-}
-
-export const searchRowBytes = (row: SearchRow): number =>
-  [
-    row.title,
-    row.headings,
-    row.meta,
-    row.body,
-    row.titleStems,
-    row.headingStems,
-    row.metaStems,
-    row.bodyStems,
-  ].reduce((sum, column) => sum + utf8ByteLength(column), 0);
-
-// an item's index row within SEARCH_ROW_MAX_BYTES: the short columns are capped, and the body
-// gets what is left, so a long item ranks by the part of it the row can hold
-export const searchRowOf = (text: ItemSearchText): SearchRow => {
-  const title = clipToBytes(text.title, TITLE_MAX_BYTES);
-  const headings = clipToBytes(text.headings, HEADINGS_MAX_BYTES);
-  const metaText = clipToBytes(text.meta, META_MAX_BYTES);
-  const fixed = {
-    headingStems: stemText(headings),
-    headings,
-    meta: metaText,
-    metaStems: stemText(metaText),
-    title,
-    titleStems: stemText(title),
-  };
-  const room = SEARCH_ROW_MAX_BYTES - searchRowBytes({ ...fixed, body: "", bodyStems: "" });
-  let budget = Math.floor(room / 2);
-  for (;;) {
-    const body = clipToBytes(text.body, budget);
-    const row = { ...fixed, body, bodyStems: stemText(body) };
-    if (searchRowBytes(row) <= SEARCH_ROW_MAX_BYTES || budget === 0) {
-      return row;
-    }
-    budget = Math.floor(budget * 0.9);
-  }
-};
-
-// an item's row in the index, replaced whole under its `rid`
-export const storeSearchRow = (db: CellDb, itemId: string, text: ItemSearchText): void => {
-  const item = db.select({ rid: items.rid }).from(items).where(eq(items.id, itemId)).get();
-  if (item === undefined) {
-    return;
-  }
-  db.delete(searchFts).where(eq(searchFts.rowid, item.rid)).run();
-  db.insert(searchFts)
-    .values({ rowid: item.rid, ...searchRowOf(text) })
-    .run();
-};
-
-const COLUMN_WEIGHTS = sql.raw(
-  [
-    SEARCH_FIELD_WEIGHTS.title,
-    SEARCH_FIELD_WEIGHTS.headings,
-    SEARCH_FIELD_WEIGHTS.meta,
-    SEARCH_FIELD_WEIGHTS.body,
-  ].join(", "),
-);
-
-// fts5's rank of a hit, lower the better, each column weighed beside its stem shadow
-const RANK = sql`bm25(${searchFts}, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS})`
-  .mapWith(Number)
-  .as("rank");
-
-// the side of Deleted a search answers from: an item in Deleted is found only from Deleted itself
-export type SearchSide = "live" | "deleted";
-
-export interface LibrarySearchHit {
-  readonly itemId: string;
-  readonly title: string;
-  readonly snippet: string;
-  // higher is better
-  readonly score: number;
-}
-
-// the search policy's plans in turn, every term required first, until one finds anything. The body
-// comes back whole and search-excerpt cuts it, since fts5's snippet() cannot see a stem-only hit; a
-// search answers from one side of Deleted
-export const searchLibrary = (
-  db: CellDb,
-  query: string,
-  limit: number,
-  side: SearchSide = "live",
-): LibrarySearchHit[] => {
-  if (limit <= 0) {
-    return [];
-  }
-  for (const plan of planSearchQuery(query)) {
-    const rows = db
-      .select({
-        body: searchFts.body,
-        id: items.id,
-        meta: searchFts.meta,
-        rank: RANK,
-        title: searchFts.title,
-      })
-      .from(searchFts)
-      .innerJoin(items, eq(items.rid, searchFts.rowid))
-      .where(
-        and(
-          sql`${searchFts} MATCH ${renderFtsMatch(plan)}`,
-          side === "deleted" ? isNotNull(items.deletedAt) : isNull(items.deletedAt),
-          eq(items.purged, 0),
-        ),
-      )
-      .orderBy(RANK, asc(items.id))
-      .limit(limit)
-      .all();
-    if (rows.length > 0) {
-      return rows.map((row) => {
-        const snippet = searchExcerpt(row.body, plan.terms) || searchExcerpt(row.meta, plan.terms);
-        return {
-          itemId: row.id,
-          score: -row.rank,
-          snippet: snippet === "" ? row.title : snippet,
-          title: row.title,
-        };
-      });
-    }
-  }
-  return [];
-};
-
-// ---- literal matches ----
-
-export interface LiteralMatch {
-  readonly itemId: string;
-  // the first line of the item's body that holds the needle
-  readonly text: string;
-}
-
-// the live items whose body holds `needle` (printable ascii, matched case-folded, since SQLite's
-// lower() folds ascii alone), in id order after `after` and at most `limit` of them, each with its
-// first such line: a body's text is cut into parts at line ends, so a line lives in one part, and
-// only the first part that holds the needle is read, whatever the library holds
-export const literalMatches = (
-  db: CellDb,
-  needle: string,
-  page: { readonly after: string | null; readonly limit: number },
-): LiteralMatch[] => {
-  const folded = needle.toLowerCase();
-  const holds = sql`instr(lower(${bodyTexts.text}), ${folded}) > 0`;
-  const held = db
-    .selectDistinct({ itemId: bodyTexts.itemId })
-    .from(bodyTexts)
-    .innerJoin(items, eq(items.id, bodyTexts.itemId))
-    .where(
-      and(
-        gt(bodyTexts.itemId, page.after ?? ""),
-        isNull(items.deletedAt),
-        eq(items.purged, 0),
-        holds,
-      ),
-    )
-    .orderBy(asc(bodyTexts.itemId))
-    .limit(page.limit)
-    .all();
-  const matches: LiteralMatch[] = [];
-  for (const { itemId } of held) {
-    const part = db
-      .select({ text: bodyTexts.text })
-      .from(bodyTexts)
-      .where(and(eq(bodyTexts.itemId, itemId), holds))
-      .orderBy(asc(bodyTexts.part))
-      .limit(1)
-      .get();
-    const line = part?.text.split("\n").find((one) => one.toLowerCase().includes(folded));
-    if (line !== undefined) {
-      matches.push({ itemId, text: line });
-    }
-  }
-  return matches;
 };
 
 // ---- links ----

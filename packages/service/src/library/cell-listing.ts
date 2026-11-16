@@ -5,11 +5,6 @@
 // lists and searches read the same index and the same search (`./cell-reads`).
 
 import {
-  excerptAround,
-  findTextOffsets,
-  isPrintableAscii,
-} from "@repo/editor/knowledge/text-matches";
-import {
   answerCard,
   itemListing,
   LibraryIndex,
@@ -17,15 +12,9 @@ import {
 } from "@repo/contract/library/library-index";
 import type { ListingPageInput, ListingRow } from "@repo/contract/library/library-index";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
-import {
-  literalMatches,
-  readItem,
-  readListingRows,
-  readListingSince,
-  readLiveItem,
-  searchLibrary,
-} from "./library-queries";
-import type { LiteralMatch, LiveStoredItem, SearchSide } from "./library-queries";
+import { searchHits } from "../search/search-hits";
+import { readItem, readListingRows, readListingSince, readLiveItem } from "./library-queries";
+import type { LiveStoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 import { asc, gt, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -127,56 +116,6 @@ export const listedWhole = (db: CellDb, id: string): LiveStoredItem => {
     throw new LibraryRowError(`the listing names the item ${id}, which the library does not hold`);
   }
   return item;
-};
-
-// ---- search ----
-
-// how many hits a search ranks before its filters, and how many items holding its exact text a
-// read of the bodies' text names at once
-const SEARCH_CANDIDATES = 200;
-const LITERAL_PAGE = 50;
-
-// the line of a body's text that holds the query, as an excerpt around its first match
-const lineExcerpt = (text: string, query: string): string | null => {
-  for (const line of text.split("\n")) {
-    const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
-    if (match !== undefined) {
-      const excerpt = excerptAround(line, match);
-      return `${excerpt.before}${excerpt.text}${excerpt.after}`;
-    }
-  }
-  return null;
-};
-
-// each hit's passage, best first: the ranked index, then the live items holding the query's exact
-// text the index's words miss (a part of a word, punctuation), a page of them at a time until the
-// candidates are full, so a common needle reads no more of the library's text than those pages'
-// lines; only an ascii query on one
-// line has such a scan, since SQLite folds ascii case alone and a match lives in one line
-export const searchHits = (db: CellDb, query: string, side: SearchSide): Map<string, string> => {
-  const hits = new Map<string, string>();
-  for (const hit of searchLibrary(db, query, SEARCH_CANDIDATES, side)) {
-    hits.set(hit.itemId, hit.snippet);
-  }
-  if (side === "deleted" || !isPrintableAscii(query)) {
-    return hits;
-  }
-  let after: string | null = null;
-  while (hits.size < SEARCH_CANDIDATES) {
-    const page: LiteralMatch[] = literalMatches(db, query, { after, limit: LITERAL_PAGE });
-    for (const match of page) {
-      const excerpt = hits.has(match.itemId) ? null : lineExcerpt(match.text, query);
-      if (excerpt !== null && hits.size < SEARCH_CANDIDATES) {
-        hits.set(match.itemId, excerpt);
-      }
-    }
-    const last: LiteralMatch | undefined = page.at(-1);
-    if (last === undefined || page.length < LITERAL_PAGE) {
-      break;
-    }
-    after = last.itemId;
-  }
-  return hits;
 };
 
 // ---- the apps' listing ----

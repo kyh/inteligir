@@ -1,5 +1,8 @@
 // what a page says about itself and what the reader made of its text, in types that name no DOM and
-// no extractor.
+// no extractor, so a program typed without a DOM (the cloud's Worker,
+// apps/web/src/worker/tsconfig.json) can name what `read-html.ts` answers.
+
+import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 
 // a page to read: its html, the address it was read at, and which text it is kept for, its prose or
 // (a video's, a song's) its description
@@ -31,5 +34,14 @@ export interface ExtractedPage {
   readonly facts: PageFacts;
   // the share of the converted letters the fixpoint kept
   readonly kept: number;
+  readonly rung: Rung | null;
+}
+
+// the same reading, its article as the library's blocks
+export interface ExtractedPageBlocks {
+  readonly facts: PageFacts;
+  // the article as its item's article section; no blocks when the page holds no text the editor
+  // could keep
+  readonly article: ArticleBlocks;
   readonly rung: Rung | null;
 }

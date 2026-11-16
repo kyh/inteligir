@@ -20,7 +20,8 @@ import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
 import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
-import { storeItemRow, storeLinks, storeSearchRow, storeTags } from "./library-queries";
+import { storeSearchRow } from "../search/search-index";
+import { storeItemRow, storeLinks, storeTags } from "./library-queries";
 import type { ItemBody, LiveStoredItem } from "./library-queries";
 import { LibraryRowError } from "./library-sql";
 

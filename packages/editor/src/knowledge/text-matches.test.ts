@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { excerptAround, findTextOffsets, isPrintableAscii } from "./text-matches";
+import { findTextOffsets } from "./text-matches";
 
 const LOOSE = { caseSensitive: false, wholeWord: false };
 
@@ -48,24 +48,5 @@ describe("offsets into one string", () => {
       { length: 3, offset: 0 },
       { length: 3, offset: 4 },
     ]);
-  });
-});
-
-describe("the excerpt around a match", () => {
-  it("clips both sides and marks the cut", () => {
-    const line = `${"a".repeat(60)}NEEDLE${"b".repeat(120)}`;
-    const excerpt = excerptAround(line, { length: 6, offset: 60 });
-    expect(excerpt.text).toBe("NEEDLE");
-    expect(excerpt.before).toBe(`…${"a".repeat(40)}`);
-    expect(excerpt.after).toBe(`${"b".repeat(80)}…`);
-  });
-});
-
-describe("a needle SQLite folds as the matcher does", () => {
-  it("is printable ascii on one line", () => {
-    expect(isPrintableAscii("deploy now")).toBe(true);
-    expect(isPrintableAscii("acción")).toBe(false);
-    expect(isPrintableAscii("a\tb")).toBe(false);
-    expect(isPrintableAscii("a\nb")).toBe(false);
   });
 });

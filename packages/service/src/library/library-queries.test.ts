@@ -7,22 +7,18 @@ import { deriveBody, deriveItem } from "@repo/contract/library/derive-item";
 import type { BodyBlock } from "@repo/contract/library/derive-item";
 import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
+import { literalMatches, searchHits } from "../search/search-hits";
+import { searchLibrary, searchRowOf, storeSearchRow } from "../search/search-index";
 import {
   linksTo,
   linksToUrl,
-  literalMatches,
   nextHead,
   readItem,
   readLiveItem,
   readMeta,
-  SEARCH_ROW_MAX_BYTES,
-  searchLibrary,
-  searchRowBytes,
-  searchRowOf,
   readListingRows,
   storeItemRow,
   storeLinks,
-  storeSearchRow,
   storeTags,
   storeTombstone,
   writeMeta,
@@ -177,8 +173,8 @@ describe("items", () => {
         }),
       ).toBe(false);
       expect(laidOf(db, "item-1")).toStrictEqual(newer);
-      expect(searchLibrary(db, "older", 10)).toStrictEqual([]);
-      expect(searchLibrary(db, "newer", 10).map((hit) => hit.itemId)).toStrictEqual(["item-1"]);
+      expect(searchLibrary(db, "older", 10).ids).toStrictEqual([]);
+      expect(searchLibrary(db, "newer", 10).ids).toStrictEqual(["item-1"]);
       expect(
         db.all(sql`SELECT tag, origin FROM item_tags WHERE item_id = ${"item-1"}`),
       ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
@@ -224,7 +220,7 @@ describe("items", () => {
         updatedAt: 8,
       });
       expect(readSeedBlocks(db, "gone")).toStrictEqual([]);
-      expect(searchLibrary(db, "findable", 10)).toStrictEqual([]);
+      expect(searchLibrary(db, "findable", 10).ids).toStrictEqual([]);
       expect(db.all(sql`SELECT count(*) AS n FROM item_tags`)).toStrictEqual([{ n: 0 }]);
     });
   });
@@ -235,7 +231,7 @@ describe("items", () => {
       put(db, "kept", state, 5);
       expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 })).toBe(false);
       expect(laidOf(db, "kept")).toStrictEqual(state);
-      expect(searchLibrary(db, "findable", 10).map((hit) => hit.itemId)).toStrictEqual(["kept"]);
+      expect(searchLibrary(db, "findable", 10).ids).toStrictEqual(["kept"]);
       expect(storeTombstone(db, { deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 })).toBe(true);
     });
   });
@@ -349,43 +345,54 @@ describe("search", () => {
         "gone",
         itemOf([paragraph("a", "gardening")], noteFixture({ deletedAt: 1, title: "Old" })),
       );
-      expect(searchLibrary(db, "gardening", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "titled",
-        "body",
-      ]);
-      expect(searchLibrary(db, "garden", 10).map((hit) => hit.itemId)).toStrictEqual([
-        "titled",
-        "body",
-      ]);
+      expect(searchLibrary(db, "gardening", 10).ids).toStrictEqual(["titled", "body"]);
+      expect(searchLibrary(db, "garden", 10).ids).toStrictEqual(["titled", "body"]);
     });
   });
 
   it(
-    "cuts an item's index row under a Durable Object's row limit",
+    "indexes as much of a body, and of its stems, as a Durable Object binds in a value",
     { timeout: 30_000 },
     async () => {
-      const huge = "word ".repeat(1_000_000);
-      const row = searchRowOf({ body: huge, headings: "", meta: "", title: "t" });
-      expect(searchRowBytes(row)).toBeLessThanOrEqual(SEARCH_ROW_MAX_BYTES);
-      expect(row.body.length).toBeGreaterThan(500_000);
+      // decomposed for its stems, Hangul is two and a half times its bytes
+      const row = searchRowOf({
+        body: "한국어 ".repeat(100_000),
+        headings: "",
+        meta: "",
+        title: "",
+      });
+      expect(
+        Object.fromEntries(
+          Object.entries(row).map(([column, text]) => [column, utf8ByteLength(text)]),
+        ),
+      ).toStrictEqual({
+        body: 1_000_000,
+        bodyStems: 1_900_000,
+        headingStems: 0,
+        headings: 0,
+        meta: 0,
+        metaStems: 0,
+        title: 0,
+        titleStems: 0,
+      });
       await inLibrary(({ db }) => {
         put(
           db,
           "huge",
           itemOf(
             Array.from({ length: 12 }, (_, index) =>
-              paragraph(`p${String(index)}`, huge.slice(0, 400_000)),
+              paragraph(`p${String(index)}`, "word ".repeat(80_000)),
             ),
           ),
         );
-        expect(searchLibrary(db, "word", 1).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
+        expect(searchLibrary(db, "word", 1).ids).toStrictEqual(["huge"]);
       });
     },
   );
 });
 
 describe(literalMatches, () => {
-  it("names each live item whose body holds the text, ascii case folded, with its first such line", async () => {
+  it("names each live item whose body holds the text, ascii case folded", async () => {
     await inLibrary(({ db, statements }) => {
       put(
         db,
@@ -397,30 +404,65 @@ describe(literalMatches, () => {
       );
       put(db, "two", itemOf([paragraph("a", "slow")], noteFixture({ title: "Two" })));
       put(db, "gone", itemOf([paragraph("a", "quick")], noteFixture({ deletedAt: 1 })));
-      expect(literalMatches(db, "QUICK", { after: null, limit: 10 })).toStrictEqual([
-        { itemId: "one", text: "The Quick fox" },
-      ]);
+      expect(literalMatches(db, "QUICK", { after: null, limit: 10 })).toStrictEqual(["one"]);
       expect(
         statements.some((statement) => statement.includes(`instr(lower("body_texts"."text"), ?)`)),
       ).toBe(true);
     });
   });
 
-  it("pages through the items in id order, reading no more of them than a page asks", async () => {
-    await inLibrary(({ db, statements }) => {
+  it("pages through the items in id order", async () => {
+    await inLibrary(({ db }) => {
       for (const id of ["c", "a", "d", "b"]) {
         put(db, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
       }
-      const before = statements.length;
-      const first = literalMatches(db, "xyzzy", { after: null, limit: 3 });
-      expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
-      const reads = statements
-        .slice(before)
-        .filter((statement) => statement.startsWith(`select "text" from "body_texts"`));
-      expect(reads).toHaveLength(3);
-      expect(literalMatches(db, "xyzzy", { after: "c", limit: 3 })).toStrictEqual([
-        { itemId: "d", text: "item d holds xyzzy" },
-      ]);
+      expect(literalMatches(db, "xyzzy", { after: null, limit: 3 })).toStrictEqual(["a", "b", "c"]);
+      expect(literalMatches(db, "xyzzy", { after: "c", limit: 3 })).toStrictEqual(["d"]);
+    });
+  });
+});
+
+describe(searchHits, () => {
+  it("ranks every hit, and cuts a passage around the match only for the hit it is asked of", async () => {
+    await inLibrary(({ db, statements }) => {
+      const deep = `${"filler ".repeat(60)}the zebrafish swims`;
+      put(db, "deep", itemOf([paragraph("a", deep)], noteFixture({ title: "Deep" })));
+      put(
+        db,
+        "described",
+        itemOf(
+          [],
+          noteFixture({
+            description: "All about zebrafish.",
+            kind: "link",
+            title: "A page",
+            url: "https://example.com/a",
+          }),
+        ),
+      );
+      put(db, "titled", itemOf([paragraph("a", "nothing")], noteFixture({ title: "Zebrafish" })));
+      put(db, "part", itemOf([paragraph("a", "jumps"), paragraph("b", "call parse_zebrafish(x)")]));
+      // a read of one item's body text, which the scan for the exact text is not
+      const bodyReads = (): number =>
+        statements.filter(
+          (statement) =>
+            /^select (?!distinct)/u.test(statement) &&
+            statement.includes(`from "body_texts" where`),
+        ).length;
+
+      const hits = searchHits(db, "zebrafish", "live");
+      expect(new Set(hits.rank.keys())).toStrictEqual(
+        new Set(["deep", "described", "titled", "part"]),
+      );
+      // the index's words miss a part of a word, so its exact text finds it last
+      expect(hits.rank.get("part")).toBe(3);
+      expect(bodyReads()).toBe(0);
+
+      expect(hits.passage("deep")).toBe(`… ${"filler ".repeat(5)}the zebrafish swims`);
+      expect(hits.passage("described")).toBe("All about zebrafish.");
+      expect(hits.passage("titled")).toBeNull();
+      expect(hits.passage("part")).toBe("call parse_zebrafish(x)");
+      expect(bodyReads()).toBe(4);
     });
   });
 });

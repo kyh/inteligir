@@ -270,5 +270,6 @@ CREATE INDEX `thread_events_thread` ON `thread_events` (`thread_id`,`idx`);
 CREATE VIRTUAL TABLE `search_fts` USING fts5(
   title, headings, meta, body,
   title_stems, heading_stems, meta_stems, body_stems,
+  content='', contentless_delete=1,
   tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
 );

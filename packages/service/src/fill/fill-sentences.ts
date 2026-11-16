@@ -11,12 +11,10 @@ export type FetchFailure =
   // `reason` is the platform's own wording of the status, never the site's
   | { kind: "status"; status: number; reason: string; transient: boolean }
   | { kind: "timeout" }
-  | { kind: "unreachable"; transient: boolean }
-  | { kind: "tls" }
+  | { kind: "unreachable" }
   | { kind: "redirects" }
   // `bytes`: the size the site declared, or what had arrived when the read stopped
-  | { kind: "too-large"; bytes: number }
-  | { kind: "aborted" };
+  | { kind: "too-large"; bytes: number };
 
 // the standard's own wording of a refused status, never the site's, which is its own to say
 const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
@@ -84,6 +82,8 @@ interface FillFailure {
 }
 
 export const TEXT_NOT_SAVED = "The page's text couldn't be saved.";
+// a connection that failed, and a link the queue's retries could not read
+export const PAGE_UNREACHED = "The page couldn't be reached.";
 const MB = 1024 * 1024;
 
 const LIMIT_MB = 10;
@@ -133,19 +133,13 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
       return { sentence: "The page took too long to answer.", transient: true };
     }
     case "unreachable": {
-      return { sentence: "The page couldn't be reached.", transient: failure.transient };
-    }
-    case "tls": {
-      return { sentence: "The site's certificate isn't trusted.", transient: false };
+      return { sentence: PAGE_UNREACHED, transient: true };
     }
     case "redirects": {
       return { sentence: "The page redirected too many times.", transient: false };
     }
     case "too-large": {
       return { sentence: fileOnlyLinked(failure.bytes), transient: false };
-    }
-    case "aborted": {
-      return { sentence: "The page couldn't be reached.", transient: true };
     }
     default: {
       const exhaustive: never = failure;

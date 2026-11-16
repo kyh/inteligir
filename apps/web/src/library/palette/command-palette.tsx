@@ -1,11 +1,14 @@
 // CLAUDE.md § There is one search surface, and it is ⌘P. One field over the library and the page's
 // commands: what is typed is searched by the cell's full-text index (titles, notes and saved
 // articles), ranked as the cell ranks it for every device; a hit opens its item with the find
-// bar on the words, and a typed web address leads with saving it. The commands are the page's verbs
-// that need no item: a new note, a link, the agent and Tidy my library, Settings.
+// bar on the words, a search with no hits says why, and a typed web address leads with saving it.
+// The commands are the page's verbs that need no item: a new note, a link, the agent and Tidy my
+// library, Settings.
 
 import { shownTitle } from "@repo/contract/items/item-name";
 import { isWebUrl } from "@repo/contract/items/item-url";
+import { NEEDS_CONNECTION } from "@repo/contract/needs-connection";
+import { refusalText } from "@repo/contract/refusal-text";
 import {
   CommandDialog,
   CommandFooter,
@@ -14,14 +17,18 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut,
+  CommandStatus,
 } from "@repo/ui/components/command";
 import type { CommandRow, CommandRowGroup } from "@repo/ui/components/command";
 import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useQuery } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
 import { useLibraryQueries } from "../cloud/library-context";
+import { cellStanding } from "../cloud/needs-connection";
+import type { ListedItem } from "../library/listing";
 import { hotkeyFor } from "../shortcuts";
 import type { ShortcutIn } from "../shortcuts";
 
@@ -72,6 +79,40 @@ const RowContent = ({ row }: { row: PaletteRow }) => {
   );
 };
 
+// CLAUDE.md § A cell call pauses offline and says so. What the palette shows of its search for the
+// words typed: the hits, else why there are none. The hits typed before answer other words, so
+// they stay up only while the next are asked.
+const searchShown = (
+  typed: string,
+  search: UseQueryResult<{ readonly items: readonly ListedItem[] }>,
+) => {
+  if (typed === "") {
+    return { hits: [], said: null };
+  }
+  const standing = cellStanding({
+    data: search.isPlaceholderData ? undefined : search.data,
+    error: search.error,
+    fetchStatus: search.fetchStatus,
+  });
+  switch (standing.kind) {
+    case "answered": {
+      const hits = standing.data.items;
+      return { hits, said: hits.length === 0 ? "Nothing in your library matches." : null };
+    }
+    case "loading": {
+      return { hits: search.data?.items ?? [], said: null };
+    }
+    case "needs-connection": {
+      return { hits: [], said: NEEDS_CONNECTION };
+    }
+    case "missing":
+    case "unreachable": {
+      return { hits: [], said: refusalText(standing.error, "Your library couldn't be searched.") };
+    }
+    // no default
+  }
+};
+
 export const CommandPalette = ({
   open,
   onOpenChange,
@@ -83,7 +124,7 @@ export const CommandPalette = ({
 }) => {
   const [query, setQuery] = useState("");
   const typed = query.trim();
-  const hits = useQuery(useLibraryQueries().search(typed)).data?.items ?? [];
+  const { hits, said } = searchShown(typed, useQuery(useLibraryQueries().search(typed)));
   const close = (): void => {
     onOpenChange(false);
     setQuery("");
@@ -118,7 +159,7 @@ export const CommandPalette = ({
           },
         ]
       : []),
-    ...(typed === "" || hits.length === 0
+    ...(hits.length === 0
       ? []
       : [
           {
@@ -162,6 +203,7 @@ export const CommandPalette = ({
       groups={groups}
     >
       <CommandInput aria-label="Search the library" placeholder="Search the library…" />
+      <CommandStatus>{said}</CommandStatus>
       <CommandList>
         {groups.map((group) => (
           <CommandGroup key={group.heading} heading={group.heading}>

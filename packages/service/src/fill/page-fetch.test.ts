@@ -4,9 +4,8 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { PageRequest } from "../items/page-fetch";
-
 import { fetchPage, pageFetch } from "./page-fetch";
+import type { PageRequest } from "./page-fetch";
 import { readPage } from "./read-page";
 import { htmlPage, serveWeb } from "./test-support/fill-cell";
 
@@ -257,7 +256,7 @@ describe("a page that did not answer", () => {
   it("says a connection that failed as worth a later try", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Network connection lost."));
     await expect(fetchPage(asking("https://down.example/"))).resolves.toStrictEqual({
-      failure: { kind: "unreachable", transient: true },
+      failure: { kind: "unreachable" },
       ok: false,
     });
   });

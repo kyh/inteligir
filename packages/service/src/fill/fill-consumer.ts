@@ -1,15 +1,13 @@
 // The fill queue's consumer: each message one page the cloud reads for one account's item
-// (`./fill-job`), the batch's messages handled one after another to stay within the consumer's CPU
-// budget, and each acked or retried on its own, so one message's retry never retries another. A
-// message is read only while its item still waits for it; the reading (`./read-page`) keeps its
-// files in the library as it goes and lands in one awaited call to the account's cell, which lands
-// it once however often the message comes. A page a later try may get past (a timeout, a site
-// saying it is busy) is asked again, later each time, until the queue's retries are spent, and then
-// said in the item; a message whose handling threw goes back to the queue, and one the retries
-// could not handle reaches the dead-letter queue, whose consumer says the failure in the item, so
-// no link waits unread for good.
-
-import { failureOf, TEXT_NOT_SAVED } from "../items/fill-sentences";
+// (`./fill-job`), delivered alone (`apps/web/cloudflare.config.ts`) and acked or retried on its
+// own, so one page's failure never spends another's deliveries. A message is read only while its
+// item still waits for it; the reading (`./read-page`) keeps its files in the library as it goes
+// and lands in one awaited call to the account's cell, which lands it once however often the
+// message comes. A page a later try may get past (a timeout, a site saying it is busy) is asked
+// again, later each time, until the queue's retries are spent, and then said in the item; a
+// message whose handling threw goes back to the queue, and one the retries could not handle
+// reaches the dead-letter queue, whose consumer says the failure in the item, so no link waits
+// unread for good.
 
 import { libraryCell } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
@@ -18,6 +16,7 @@ import { fillJobSchema } from "./fill-job";
 import type { FillJob } from "./fill-job";
 import { checkedLanding } from "./fill-landing";
 import type { FillLanding } from "./fill-landing";
+import { PAGE_UNREACHED, TEXT_NOT_SAVED } from "./fill-sentences";
 import { fetchPage } from "./page-fetch";
 import { readPage } from "./read-page";
 import { storeFile } from "./store-file";
@@ -35,9 +34,6 @@ const failedLanding = (job: FillJob, sentence: string): FillLanding => ({
   sentence,
   url: job.url,
 });
-
-// what the dead-letter queue says in an item the retries could not read
-const UNREACHED = failureOf({ kind: "unreachable", transient: false }).sentence;
 
 type Cell = DurableObjectStub<LibraryDO>;
 
@@ -67,7 +63,7 @@ const consumeOne = async (
 ): Promise<void> => {
   const cell = libraryCell(exports, job.accountId);
   if (deadLetter) {
-    await land(cell, job, failedLanding(job, UNREACHED));
+    await land(cell, job, failedLanding(job, PAGE_UNREACHED));
     message.ack();
     return;
   }

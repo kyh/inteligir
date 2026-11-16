@@ -2,10 +2,10 @@
   "name": "@repo/page-reader",
   "version": "0.1.0",
   "private": true,
-  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over a DOM the host hands it. One reading for everything that fills a link: the Worker's fill and the extension's worker.",
+  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over linkedom. One reading for everything that fills a link: the Worker's fill and the extension's worker.",
   "type": "module",
   "exports": {
-    "./page-reading": "./src/page-reading.ts",
+    "./page-facts": "./src/page-facts.ts",
     "./read-html": {
       "types": "./src/read-html-api.ts",
       "default": "./src/read-html.ts"

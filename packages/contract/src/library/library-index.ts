@@ -429,13 +429,20 @@ export interface ListingPageInput {
   readonly limit: number;
 }
 
-// a page of a screen's listing; `hits`, a search's items best first, each with the passage that
-// matched, narrows it to them and ranks them under the `relevance` sort; `whole` gives a row of the
-// page as an answer carries it, so an index may hold only what it filters and orders by
+export interface SearchHits {
+  // each hit's place, best first
+  readonly rank: ReadonlyMap<string, number>;
+  // the passage a hit was found by, cut for a row a page shows; null when only its title holds it
+  readonly passage: (id: string) => string | null;
+}
+
+// a page of a screen's listing; `hits`, a search's, narrows it to them and ranks them under the
+// `relevance` sort; `whole` gives a row of the page as an answer carries it, so an index may hold
+// only what it filters and orders by
 export const listingPageOf = <R extends ListingRow>(
   index: LibraryIndex<R>,
   input: ListingPageInput,
-  hits: ReadonlyMap<string, string> | null,
+  hits: SearchHits | null,
   whole: (row: R) => ItemListing,
 ) => {
   const offset = input.cursor ?? 0;
@@ -443,11 +450,13 @@ export const listingPageOf = <R extends ListingRow>(
     ...input.query,
     limit: input.limit,
     offset,
-    within: hits === null ? undefined : new Map([...hits.keys()].map((id, rank) => [id, rank])),
+    within: hits?.rank,
   });
   const end = offset + page.items.length;
   return {
-    items: page.items.map((row) => listedItem(whole(row), hits?.get(row.id))),
+    items: page.items.map((row) =>
+      listedItem(whole(row), hits === null ? undefined : (hits.passage(row.id) ?? row.title)),
+    ),
     kindCounts: page.kindCounts,
     nextCursor: end < page.total ? end : null,
     total: page.total,

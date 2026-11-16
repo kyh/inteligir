@@ -31,7 +31,7 @@ export const CELL_SCHEMA: ObjectSchema = { ddl, what: "cell" };
 
 // The search index, declared here to be read and written alone: an fts5 table is none sqlite-core
 // can make, so the schema drizzle-kit exports holds none of it and `@repo/db`'s DDL spells it by
-// hand. Its row id is the item's `rid`.
+// hand. Its row id is the item's `rid`, and it keeps no text, so a column it is asked for reads null.
 export const searchFts = sqliteTable("search_fts", {
   rowid: integer().notNull(),
   title: text().notNull(),

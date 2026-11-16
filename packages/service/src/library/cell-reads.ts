@@ -37,7 +37,8 @@ import type { CellCodec } from "./cell-codec";
 import { listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
 import { liveFolders } from "./cell-folders";
-import { listedWhole, searchHits } from "./cell-listing";
+import { searchHits } from "../search/search-hits";
+import { listedWhole } from "./cell-listing";
 import { readFieldsPart } from "./cell-parts";
 import { refuse } from "./cell-refusal";
 
@@ -164,12 +165,12 @@ export const searchItems = (db: CellDb, listing: LibraryIndex<ListingRow>, input
     sort: "relevance",
     subfolders: true,
     tag: input.tag,
-    within: new Map([...hits.keys()].map((id, rank) => [id, rank])),
+    within: hits.rank,
   });
   return {
     cursor: nextCursor(offset, page.items.length, page.total),
     hits: page.items.map((row): SearchHit => {
-      const snippet = hits.get(row.id) ?? row.title;
+      const snippet = hits.passage(row.id) ?? row.title;
       return {
         id: row.id,
         kind: row.kind,

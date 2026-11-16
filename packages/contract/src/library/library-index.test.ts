@@ -210,20 +210,29 @@ describe(listingPageOf, () => {
     expect(last.nextCursor).toBeNull();
   });
 
-  it("answers only a search's hits, best first, each with the passage that matched", () => {
+  it("answers only a search's hits, best first, cutting a passage for each row of the page alone", () => {
+    const cut: string[] = [];
     const page = listingPageOf(
       answering(),
-      { limit: 10, query: { deleted: false, sort: "relevance" } },
-      new Map([
-        ["cherry", "a cherry tree"],
-        ["banana", "banana bread"],
-      ]),
+      { limit: 2, query: { deleted: false, sort: "relevance" } },
+      {
+        passage: (id) => {
+          cut.push(id);
+          return id === "cherry" ? "a cherry tree" : null;
+        },
+        rank: new Map([
+          ["cherry", 0],
+          ["banana", 1],
+          ["apple", 2],
+        ]),
+      },
       whole,
     );
     expect(page.items.map(({ id, snippet }) => [id, snippet])).toStrictEqual([
       ["cherry", "a cherry tree"],
-      ["banana", "banana bread"],
+      ["banana", "Banana"],
     ]);
-    expect(page.total).toBe(2);
+    expect(page).toMatchObject({ nextCursor: 2, total: 3 });
+    expect(cut).toStrictEqual(["cherry", "banana"]);
   });
 });

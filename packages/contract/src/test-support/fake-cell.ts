@@ -52,10 +52,9 @@ import {
   listedItem,
   listingPageOf,
 } from "../library/library-index";
-import type { ItemListing } from "../library/library-index";
+import type { ItemListing, SearchHits } from "../library/library-index";
 import type { LibraryItemFields } from "../library/library-item";
 import { uuidV7 } from "../library/uuid-v7";
-import { clipSnippet } from "../text/clip-text";
 import { mulberry32 } from "./seeded-random";
 import { z } from "zod";
 
@@ -201,19 +200,22 @@ export const createFakeCell = (): FakeCell => {
   // a search's hits on one side, each with the line holding its words. Only their exact text is
   // searched, ignoring case, and the hits rank in the order their items were made: the ranked
   // index, its stems and its weights are the Worker's suites' to hold
-  const searchHits = (words: string, deleted: boolean): Map<string, string> => {
+  const searchHits = (words: string, deleted: boolean): SearchHits => {
     const needle = words.toLowerCase();
-    const hits = new Map<string, string>();
+    const lines = new Map<string, string>();
     for (const [id, item] of items) {
       const { search, text } = derivedOf(item);
       const line = [search.title, search.headings, search.meta, text]
         .flatMap((part) => part.split("\n"))
         .find((candidate) => candidate.toLowerCase().includes(needle));
       if ((item.fields.deletedAt !== null) === deleted && line !== undefined) {
-        hits.set(id, clipSnippet(line.trim()));
+        lines.set(id, line);
       }
     }
-    return hits;
+    return {
+      passage: (id) => lines.get(id)?.trim() ?? null,
+      rank: new Map([...lines.keys()].map((id, place) => [id, place])),
+    };
   };
 
   const land = (id: string, fields: LibraryItemFields, blocks: readonly BodyBlock[]) => {

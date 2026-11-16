@@ -4,13 +4,13 @@
 // reading it makes (`./read-page`), so no page served to the consumer breaks a cap; a reading is
 // built here instead.
 
-import { TEXT_NOT_SAVED } from "../items/fill-sentences";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { FillJob } from "./fill-job";
 import { checkedLanding } from "./fill-landing";
 import type { FillLanding } from "./fill-landing";
+import { TEXT_NOT_SAVED } from "./fill-sentences";
 
 afterEach(() => {
   vi.restoreAllMocks();

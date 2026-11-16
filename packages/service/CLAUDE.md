@@ -161,6 +161,9 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   the write may roll back, a second sender races the alarm for the row, and a
   page's seconds of CPU on the alarm hold every write.
   `packages/service/src/library/cell-fills.ts`.
+- **The fill queue delivers one page a batch.** A larger batch waits five
+  seconds to fill, and a page that kills its invocation spends a delivery of
+  every message beside it. `apps/web/cloudflare.config.ts`.
 - **The cloud's fetch is the platform's, each hop judged by how its address is
   spelled.** A Worker resolves no name, so `fetchPage` refuses a private
   spelling at once rather than after three vague retries.
@@ -179,7 +182,15 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 
 - **Stemming is a shadow of the indexed text, never a rewrite of it.** FTS5's
   `porter` stems the index, so a half-typed word's prefix stops matching.
-  `packages/service/src/knowledge/search-query.ts`.
+  `packages/service/src/search/search-query.ts`.
+- **A search ranks ids, and a passage is cut only for a row its page shows,
+  around the match.** A cut for every candidate reads two hundred bodies a
+  keystroke to show twenty, and a line cut from its start can leave the match
+  out. `packages/service/src/search/search-hits.ts`.
+- **The index ranks and keeps no text: a body's one copy is `body_texts`.** An
+  FTS5 table that keeps its content stores each body twice more against the
+  1 GiB, in a row that must fit 2 MB whole.
+  `packages/service/src/search/search-index.ts`.
 
 ## The connector
 
