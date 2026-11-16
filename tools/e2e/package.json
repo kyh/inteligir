@@ -16,6 +16,7 @@
     "@repo/contract": "workspace:*",
     "@repo/messages-fake": "workspace:*",
     "@types/node": "catalog:",
+    "@zip.js/zip.js": "^2.25.0",
     "miniflare": "catalog:",
     "typescript": "catalog:",
     "zod": "catalog:"
