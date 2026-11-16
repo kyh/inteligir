@@ -230,6 +230,14 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    `curl -s https://inteligir.com/.well-known/oauth-authorization-server`
    answers `"issuer":"https://inteligir.com"`.
 
+5. **The Worker's secrets.** `pnpm --filter @repo/web exec cf workers secrets
+   list --worker inteligir-web` names `BETTER_AUTH_SECRET`,
+   `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`, which
+   `apps/web/README.md` § Build & deploy sets; Deploy is refused while the
+   Worker lacks one. `secrets update` refuses a name the Worker still binds as
+   a plain variable: change that variable's type to Secret in the dashboard,
+   under the Worker's Settings › Variables and Secrets.
+
 ## 4. The phone's internal build
 
 1. **Pre-flight.** `docs/privacy.md` names every address the phone talks to,
@@ -258,8 +266,9 @@ again at step 1.
 
 In the Cloudflare dashboard of the account `CLOUDFLARE_ACCOUNT_ID` names.
 
-- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET` and
-  `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV namespace is its own.
+- **Secrets and bindings**: the Worker holds only `BETTER_AUTH_SECRET`,
+  `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN` as secrets, and the OAuth KV
+  namespace is its own.
 - **The fill queues**: `inteligir-fill` consumed with `inteligir-fill-failed`
   as its dead-letter queue, and a link a connected assistant saves is read.
 - **Files**: a `PUT /v1/blobs/<sha>` of bytes hashing to another sha answers 400.
@@ -388,7 +397,8 @@ turns a UTC day (`AGENT_ALLOWANCE` in `packages/service/agent-limits.ts`).
 
 - **The gateway**: it holds its own key, with Authenticated Gateway on, no
   payload logs and a spend limit of $5 a day split by the `account` metadata
-  key; its Anthropic workspace is separate and capped; the Deploy run names it.
+  key; its Anthropic workspace is separate and capped; `AGENT_GATEWAY_URL` is
+  its Anthropic route.
 - **A real turn**, open in a tab and the Mac at once: events
   stream, the conversation follows the reply to its end and the reply does not
   blink as it lands, one change set, Undo keeps your typing, the allowance

@@ -1,5 +1,4 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
-import { z } from "zod";
 import { AGENT_ALLOWANCE } from "@repo/service/agent-limits";
 import { compatibilityDate, compatibilityFlags } from "@repo/service/compatibility";
 import type { FillJob } from "@repo/service/fill/fill-job";
@@ -51,30 +50,6 @@ const worker = defineWorker({
 // The next release owes the floor: this Worker's `library.write` takes property ops alone, a
 // CONFLICT carries no data and an item's row no `kind`.
 const MIN_CLIENT_BUILD = "0.7.0";
-
-// the production AI Gateway, `inteligir`, on its provider-native Anthropic route
-// (developers.cloudflare.com/ai-gateway/usage/providers/anthropic/). The account comes from the
-// deploy job's CLOUDFLARE_ACCOUNT_ID (apps/web/turbo.json hands it to the build task). Node
-// evaluates this file, but the Worker's own program types it too and declares no `process`, so it
-// is parsed off `globalThis`; a build without it, CI's, names no gateway, and its Worker refuses
-// every agent send
-const gatewayUrl = (): string => {
-  const account = z
-    .object({
-      process: z.object({
-        env: z.object({
-          CLOUDFLARE_ACCOUNT_ID: z
-            .string()
-            .regex(/^[0-9a-f]{32}$/u)
-            .optional(),
-        }),
-      }),
-    })
-    .parse(globalThis).process.env.CLOUDFLARE_ACCOUNT_ID;
-  return account === undefined
-    ? ""
-    : `https://gateway.ai.cloudflare.com/v1/${account}/inteligir/anthropic`;
-};
 
 // cf reads the default export of the file it is pointed at
 /** @public */
@@ -131,18 +106,19 @@ export default defineConfig(({ isPreview, mode }) => {
         // what the fill consumer needs of its queues' config, handed over rather than imported,
         // since the dev server cannot load a module this file also loads (@repo/service/fill-queues)
         FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
-        // the token of the AI Gateway, whose Authenticated Gateway admits only requests that carry
-        // it (packages/service/src/agent/anthropic-client.ts): `cf workers secrets update` in
-        // production, the root .env for a gateway of a developer's own. The Worker holds no
-        // Anthropic key: the gateway stores it
+        // the AI Gateway the agent reaches Claude through, on its provider-native Anthropic route
+        // (developers.cloudflare.com/ai-gateway/usage/providers/anthropic/), and its token, which
+        // its Authenticated Gateway asks of every request
+        // (packages/service/src/agent/anthropic-client.ts): `cf workers secrets update` in
+        // production, where a deploy is refused while either is unset, and the root .env for a
+        // gateway of a developer's own, never production's. The Worker holds no Anthropic key: the
+        // gateway stores it
+        AGENT_GATEWAY_URL: bindings.secret(),
         AI_GATEWAY_TOKEN: bindings.secret(),
         // the turns the built-in agent may run for one account; its dollars are the gateway's spend
         // limit, split by the `account` the client names (@repo/service/agent-limits, read by
         // packages/service/src/agent/agent-allowance.ts)
         AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
-        // none for the local Worker: the root .env names the scripted Messages API, or a gateway of
-        // the developer's own (.env.example), never production's
-        AGENT_GATEWAY_URL: bindings.text<string>(mode === "development" ? "" : gatewayUrl()),
         // the scripted Messages API the root .env names (tools/messages-fake), declared
         // by `vite dev` alone, so no deployed Worker can be pointed at one
         ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
