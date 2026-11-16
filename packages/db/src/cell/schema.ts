@@ -397,14 +397,32 @@ export const agentUsage = sqliteTable("agent_usage", {
   turns: integer().notNull(),
 });
 
+// what the cell's alarm runs, in the order a run takes the kinds: the storage's own first, so a
+// file one of them lets go is a stray the same run takes out of R2
+export const JOB_KINDS = [
+  "seal",
+  "prune",
+  "upload",
+  "unnamed",
+  "fill",
+  "stray",
+  "note-purge",
+  "agent-deliver",
+  "agent-watch",
+] as const;
+
+// a job waits until `next_at`; `attempts` counts the runs that took it since it was last asked for
 export const jobs = sqliteTable(
   "jobs",
   {
     id: text().primaryKey(),
-    kind: text().notNull(),
+    kind: text({ enum: JOB_KINDS }).notNull(),
     payload: text().notNull(),
     attempts: integer().notNull(),
-    nextAt: integer("next_at"),
+    nextAt: integer("next_at").notNull(),
   },
-  (t) => [index("jobs_next").on(t.nextAt)],
+  (t) => [
+    index("jobs_next").on(t.nextAt),
+    check("jobs_kind", sql`${t.kind} IN (${oneOf(JOB_KINDS)})`),
+  ],
 );

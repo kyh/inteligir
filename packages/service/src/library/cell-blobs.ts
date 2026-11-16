@@ -18,8 +18,8 @@ import { readCellState, writeCellState } from "./library-queries";
 
 import { excluded, insertChunks, listChunks } from "./cell-db";
 import type { CellDb } from "./cell-db";
-import { dropJob, ensureJob, retryJob, scheduleJob } from "./cell-jobs";
-import type { DueJob, JobRequest } from "./cell-jobs";
+import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
+import type { JobRequest } from "./cell-jobs";
 import { holdRoomFor } from "./cell-quota";
 import type { CellResult } from "./cell-refusal";
 import type { LibraryEngine } from "./library-engine";
@@ -246,9 +246,10 @@ const releaseHeld = (db: CellDb, sha: string): void => {
 
 // A stray is what R2 may hold under a sha no file row names: an upload the cell refused, or one
 // whose room was let go before it settled. Its removal is a job the alarm runs between two
-// transactions, since it waits on R2. While the job waits a settle of that sha lands nothing, and
-// a settle whose look in R2 began before a removal ended lands nothing either, by the count of
-// removals it read first, and looks again, so no file row ever names an object a removal took.
+// transactions (`./cell-alarm`), since it waits on R2. While the job waits a settle of that sha
+// lands nothing, and a settle whose look in R2 began before a removal ended lands nothing either,
+// by the count of removals it read first, and looks again, so no file row ever names an object a
+// removal took.
 
 const strayJobId = (sha: string): string => `stray:${sha}`;
 
@@ -342,14 +343,13 @@ export const endRemoval = (db: CellDb, sha: string): void => {
   dropJob(db, strayJobId(sha));
 };
 
-// R2 failed the removal, which waits its turn again, unless an upload's room took the sha while it
-// ran: that upload's settle or release decides what stays, as when a removal is about to begin, and
-// what a settle read of R2 meanwhile it reads again, since a removal that failed may have removed
-export const failRemoval = (db: CellDb, job: DueJob<"stray">, now: number): void => {
-  if (heldUpload(db, job.payload.sha) === null) {
-    retryJob(db, job, now);
-  } else {
-    endRemoval(db, job.payload.sha);
+// R2 failed the removal, which keeps its lease and waits its turn again, unless an upload's room
+// took the sha while it ran: that upload's settle or release decides what stays, as when a removal
+// is about to begin, and what a settle read of R2 meanwhile it reads again, since a removal that
+// failed may have removed
+export const failRemoval = (db: CellDb, sha: string): void => {
+  if (heldUpload(db, sha) !== null) {
+    endRemoval(db, sha);
   }
 };
 

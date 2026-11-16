@@ -16,7 +16,7 @@ import { CONNECTOR_PATH } from "@repo/contract/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
-import { landPush, runAgentJobs, runTurnTool, showPreview } from "../agent/agent-turns";
+import { landPush, runTurnTool, showPreview } from "../agent/agent-turns";
 import type {
   CellAnswer,
   PreviewRequest,
@@ -35,8 +35,8 @@ import { purgeAccount } from "./account-purge";
 import { landArticle } from "./article-landing";
 import { reserve, settleStored } from "./cell-blobs";
 import type { Settlement, UploadRequest, UploadRoom } from "./cell-blobs";
+import { runJobs } from "./cell-alarm";
 import { fillWaits, landReading } from "./cell-fills";
-import { logJobFailure, removeStrays, sendFills } from "./cell-library";
 import { landProjection, openNote, readSeed, takeSessionNotes } from "./cell-notes";
 import type { CellResult } from "./cell-refusal";
 import { collectMoved } from "./cell-moved";
@@ -63,21 +63,8 @@ import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 import { openCell } from "./open-cell";
 import type { Cell } from "./open-cell";
 
-// an alarm whose run failed outright tries again after this; a job's own failure waits longer
+// an alarm whose run failed outright tries again after this; a job's own failure waits by its lease
 const ALARM_RETRY_MS = 60_000;
-
-// the purged items' notes, emptied between two transactions; one that fails waits its turn again
-const purgeNotes = async ({ library, notes }: Cell): Promise<void> => {
-  for (const purge of library.claimNotePurges()) {
-    try {
-      await notes(purge.itemId).purge();
-      library.notePurged(purge, true);
-    } catch (error) {
-      logJobFailure(purge.job, error);
-      library.notePurged(purge, false);
-    }
-  }
-};
 
 export class LibraryDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -172,20 +159,15 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // The jobs due, on a cell of the run's own, whose writes' frames are told as one when it ends:
-  // each job lands in a transaction of its own, and a call landing meanwhile tells its own at once,
-  // on the wake's cell. The storage's jobs first, then the readings to send, then what waits on R2
-  // or another object. Every commit sets the alarm again, so the run leaves it at the earliest job
-  // still waiting
+  // The jobs due (`./cell-alarm`), on a cell of the run's own, whose writes' frames are told as
+  // one when it ends: each job lands in a transaction of its own, and a call landing meanwhile
+  // tells its own at once, on the wake's cell. Every commit sets the alarm again, so the run
+  // leaves it at the earliest job still waiting
   override async alarm(): Promise<void> {
     const moved = collectMoved();
     const cell = openCell(this.ctx, this.env, { moved: moved.add });
     try {
-      cell.library.runDueJobs(logJobFailure);
-      await sendFills(this.ctx, this.env, cell.library);
-      await removeStrays(this.env, cell.accountId, cell.library);
-      await purgeNotes(cell);
-      await runAgentJobs(cell);
+      await runJobs(cell);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
       await this.ctx.storage.setAlarm(Date.now() + ALARM_RETRY_MS);

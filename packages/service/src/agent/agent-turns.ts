@@ -2,7 +2,7 @@
 // asks, and the three calls each conversation's object makes back (`./thread-wire`). A send is let
 // in, in one transaction, when the agent is on and Claude reachable, and the day's turns allow it: a new thread gets its row, and the turn opens, or waits behind its thread's open turn
 // or while the account runs as many as it may at once. An open turn is handed to its thread's
-// object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every tool
+// object (`./agent-thread`) after the commit, and again by the alarm until it lands; every tool
 // call runs here, under the turn, against the library's own procedures; and what the turn did
 // lands here as pushes, each once by its sequence, as the thread's stored events. The push that
 // ends a turn seals it: one
@@ -20,8 +20,8 @@ import { z } from "zod";
 
 import { changeSets, threadEvents } from "@repo/db/cell/schema";
 import type { CellActor } from "../library/cell-actor";
-import { dropJob, deferJob, dueJobs, retryJob, scheduleJob } from "../library/cell-jobs";
-import type { DueJob, JobRequest } from "../library/cell-jobs";
+import { dropJob, scheduleJob } from "../library/cell-jobs";
+import type { JobRequest } from "../library/cell-jobs";
 import { releaseHeldFills } from "../library/cell-fills";
 import type { WriteScope } from "../library/cell-landing";
 import type { CellDb } from "../library/cell-db";
@@ -93,8 +93,6 @@ const NOT_FOUND = { ok: false, refusal: { kind: "not-found" } } as const;
 
 // a turn's object is asked after once it has been quiet this long
 const WATCH_EVERY_MS = 5 * 60_000;
-// a delivery that did not land goes again this long after
-const DELIVER_AGAIN_MS = 30_000;
 
 const deliverJob = (threadId: string): JobRequest<"agent-deliver"> => ({
   id: `agent-deliver:${threadId}`,
@@ -206,8 +204,9 @@ const closeTurn = (scope: WriteScope, turn: OpenTurn, reason: TurnEndReason): vo
 // ---- handing a turn to its thread ----
 
 // the open turn handed to its thread's object with the last push landed of it, and stopped there
-// when the person stopped it; the job stays for the alarm until both landed
-const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
+// when the person stopped it; the job stays for the alarm until both landed, so a delivery that
+// fails is the alarm's to make again
+export const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((db) => {
     const turn = openTurnOf(db, threadId);
     return turn === null
@@ -239,9 +238,6 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => 
     }
   } catch (error) {
     console.warn({ event: "agent-deliver-failed", threadId, ...errorFields(error) });
-    cell.library.rows((db, now) => {
-      deferJob(db, deliverJob(threadId).id, now + DELIVER_AGAIN_MS);
-    });
     return;
   }
   cell.library.rows((db) => {
@@ -608,7 +604,7 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
 // a turn whose object the cell has not heard from in five minutes, asked after: the ask starts the
 // object, which wakes any work an instance left, and an object that holds no open turn and nothing
 // unsent, one that started over on another version of its tables, is handed the turn again
-const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
+export const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((db) => openTurnOf(db, threadId));
   const turn = read.ok ? read.value : null;
   if (turn !== null && cell.now() - turn.heardAt >= WATCH_EVERY_MS) {
@@ -629,34 +625,6 @@ const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
       scheduleJob(db, watchJob(threadId), now + WATCH_EVERY_MS);
     }
   });
-};
-
-const AGENT_JOBS = ["agent-deliver", "agent-watch"] as const;
-
-const runAgentJob = async (
-  cell: AgentCell,
-  job: DueJob<(typeof AGENT_JOBS)[number]>,
-): Promise<void> => {
-  const { threadId } = job.payload;
-  await (job.kind === "agent-deliver" ? deliverTurn(cell, threadId) : watchTurn(cell, threadId));
-};
-
-// the agent's jobs due, each leaving its own row as it should be; one that throws is put off
-export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
-  const due = cell.library.read((db) => dueJobs(db, cell.now(), AGENT_JOBS));
-  if (!due.ok) {
-    return;
-  }
-  for (const job of due.value) {
-    try {
-      await runAgentJob(cell, job);
-    } catch (error) {
-      console.error({ event: "agent-job-failed", kind: job.kind, ...errorFields(error) });
-      cell.library.rows((db, now) => {
-        retryJob(db, job, now);
-      });
-    }
-  }
 };
 
 // ---- the account's deletion ----

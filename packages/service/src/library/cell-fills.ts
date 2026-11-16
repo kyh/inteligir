@@ -2,14 +2,14 @@
 // its page queues the reading in the same transaction, as a `fill` row of the jobs table, so a
 // reading is never asked for a write that did not land and never lost by one that did. The row is
 // due at once, so the write's commit sets the alarm for now, and the alarm alone sends it to the
-// fill queue (`packages/service/fill-queues.ts`), again a minute on while the row still waits: a
-// send that failed, or a cell evicted before the queue took it. The consumer reads the page and
-// hands it back (`../fill/fill-consumer`), and it lands here as a change set of its own: only the
-// article and the facts a fill owns, so the person's note and fields are never touched, and only on
-// an item still waiting for that reading at that address, so a message met twice lands once. A page
-// whose redirects end at another address is read into the item that waited for it, which keeps the
-// address it was saved at. An item whose note writes its body takes the article there
-// (`./article-landing`).
+// fill queue (`packages/service/fill-queues.ts`), again while the row still waits, later each
+// time: a send that failed, or a cell evicted before the queue took it. The consumer reads the
+// page and hands it back (`../fill/fill-consumer`), and it lands here as a change set of its own:
+// only the article and the facts a fill owns, so the person's note and fields are never touched,
+// and only on an item still waiting for that reading at that address, so a message met twice lands
+// once. A page whose redirects end at another address is read into the item that waited for it,
+// which keeps the address it was saved at. An item whose note writes its body takes the article
+// there (`./article-landing`).
 
 import { and, eq, sql } from "drizzle-orm";
 
@@ -27,8 +27,8 @@ import type { NoteProjection } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
-import { deferJob, dueJobs, payloadText, scheduleJob } from "./cell-jobs";
-import type { DueJob } from "./cell-jobs";
+import { scheduleJob } from "./cell-jobs";
+import type { Lease } from "./cell-jobs";
 import type { ItemScope, LiveItemRow, WriteScope } from "./cell-landing";
 import { landProjection } from "./cell-notes";
 import type { CellResult } from "./cell-refusal";
@@ -39,10 +39,6 @@ import type { LibraryEngine } from "./library-engine";
 
 // who a page's reading is by, in its change set's words
 export const FILL_ACTOR: CellActor = { kind: "fill", label: "Read from the web" };
-
-// how long a sent reading's row waits before the alarm sends it again: long enough for the send
-// that just went to have landed in the queue, which then holds it
-const RESEND_AFTER_MS = 60_000;
 
 interface FillRequest {
   readonly itemId: string;
@@ -137,41 +133,22 @@ export const releaseHeldFills = (
 const turnSealed = (db: CellDb, changeSetId: string): boolean =>
   setSealed(db, changeSetId) !== false;
 
-export interface ClaimedFill {
-  readonly job: DueJob<"fill">;
+// a leased reading to send: its job, and its ask as the queue's message carries it
+interface FillSend {
+  readonly job: Lease<"fill">;
   readonly request: FillRequest;
-  // the time the row now waits for, which only this claim set
-  readonly resendAt: number;
 }
 
-// the readings waiting to be sent, each put off a minute, so a send that never answers is sent
-// again by the alarm's next run
-export const claimFills = (db: CellDb, now: number): ClaimedFill[] =>
-  dueJobs(db, now, ["fill"]).flatMap((job) => {
+// of the readings the alarm leased, those to send now; one its turn still holds waits a day more
+export const fillsToSend = (db: CellDb, now: number, lot: readonly Lease<"fill">[]): FillSend[] =>
+  lot.flatMap((job) => {
     const { heldBy, ...request } = job.payload;
     if (heldBy !== null && !turnSealed(db, heldBy)) {
-      deferJob(db, job.id, now + HELD_MS);
+      scheduleJob(db, job, now + HELD_MS);
       return [];
     }
-    const resendAt = now + RESEND_AFTER_MS;
-    deferJob(db, job.id, resendAt);
-    return [{ job, request, resendAt }];
+    return [{ job, request }];
   });
-
-// the readings the queue took; a row asked for again since its claim stays for its own send
-export const sentFills = (db: CellDb, claimed: readonly ClaimedFill[]): void => {
-  for (const fill of claimed) {
-    db.delete(jobs)
-      .where(
-        and(
-          eq(jobs.id, fill.job.id),
-          eq(jobs.nextAt, fill.resendAt),
-          eq(jobs.payload, payloadText("fill", fill.job.payload)),
-        ),
-      )
-      .run();
-  }
-};
 
 const pageOf = (landing: Extract<FillLanding, { kind: "read" }>) => ({
   article: landing.article,

@@ -1,11 +1,12 @@
 // A file past the item that named it, driven through the verbs a device calls, the cell's own
 // write of a cover and the alarm's jobs: it stays while an item or any change set names it, and
-// once nothing does it leaves the library, the quota and R2. And a file on its way in, settled
-// while the alarm takes another out.
+// once nothing does it leaves the library, the quota and R2. And a file on its way in: its room
+// held against the cap, what a refused or abandoned upload left taken out of R2, and its row
+// settled while the alarm takes another out.
 
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { pngOf } from "../fill/test-support/fill-cell";
 import {
@@ -15,13 +16,14 @@ import {
   inCell,
   landedValue,
   person,
+  refusalOf,
   writeItem,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
-import { uploadedFile } from "../test-support/library-files";
-import { blobKey, reserve, settleStored } from "./cell-blobs";
+import { removalsOf, uploadedFile } from "../test-support/library-files";
+import { runJobs, runKind } from "./cell-alarm";
+import { blobKey, endRemoval, reserve, settle, settleStored } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
-import { removeStrays } from "./cell-library";
 
 const DAY = 24 * 60 * 60_000;
 
@@ -73,12 +75,6 @@ const purge = async ({ client }: Cell, itemId: string): Promise<void> => {
   await client.items.purge({ ids: [itemId] });
 };
 
-// the alarm's turn at what waits on a file
-const runAlarm = async ({ accountId, library }: Cell): Promise<void> => {
-  library.runDueJobs(() => {});
-  await removeStrays(env, accountId, library);
-};
-
 const fileRows = ({ state }: Cell, sha: string): number =>
   state.storage.sql.exec("SELECT 1 FROM blobs WHERE sha256 = ?", sha).toArray().length;
 
@@ -104,7 +100,7 @@ describe("a file nothing names any more", () => {
       const itemId = await fileItem(cell, sha);
       expect(bytesUsed(cell)).toBe(file.bytes.length);
       await purge(cell, itemId);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, sha)).toBe(0);
       expect(bytesUsed(cell)).toBe(0);
       await expect(inR2(cell, sha)).resolves.toBe(false);
@@ -117,11 +113,11 @@ describe("a file nothing names any more", () => {
       const first = await fileItem(cell, sha);
       const second = await fileItem(cell, sha);
       await purge(cell, first);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, sha)).toBe(1);
       await expect(inR2(cell, sha)).resolves.toBe(true);
       await purge(cell, second);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, sha)).toBe(0);
     });
   });
@@ -137,15 +133,15 @@ describe("a file nothing names any more", () => {
       setCover(cell, note, null, old);
       // sealed, so the next write's set keeps the cover it replaces
       cell.clock.now += 120_000;
-      cell.library.runDueJobs(() => {});
+      await runJobs(cell);
       setCover(cell, note, old, fresh);
       await purge(cell, fileHolder);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, old)).toBe(1);
       await expect(inR2(cell, old)).resolves.toBe(true);
       // the note's change set alone names the old cover, and that goes with the note
       await purge(cell, note);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, old)).toBe(0);
       expect(fileRows(cell, fresh)).toBe(0);
       expect(bytesUsed(cell)).toBe(0);
@@ -161,10 +157,10 @@ describe("a file nothing names any more", () => {
       const note = await noteItem(cell);
       setCover(cell, note, null, first);
       setCover(cell, note, first, second);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, first)).toBe(1);
       cell.clock.now += DAY;
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, first)).toBe(0);
       expect(fileRows(cell, second)).toBe(1);
     });
@@ -184,12 +180,11 @@ describe("a file nothing names any more", () => {
       write([{ base: null, field: "coverSha", op: "set", value: old }]);
       write([{ base: old, field: "coverSha", op: "set", value: fresh }]);
       clock.now += 6 * DAY;
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, old)).toBe(1);
+      // the prune drops the set, and the same run lets go the file it alone named
       clock.now += 2 * DAY;
-      await runAlarm(cell);
-      expect(fileRows(cell, old)).toBe(1);
-      await runAlarm(cell);
+      await runJobs(cell);
       expect(fileRows(cell, old)).toBe(0);
       expect(fileRows(cell, fresh)).toBe(1);
       await expect(inR2(cell, old)).resolves.toBe(false);
@@ -197,13 +192,118 @@ describe("a file nothing names any more", () => {
   });
 });
 
+// what R2 holds of an upload
+const stored = (bytes: number) => ({ bytes, mime: "image/png" });
+
+const strayJobs = (state: DurableObjectState) =>
+  state.storage.sql
+    .exec("SELECT id, attempts FROM jobs WHERE kind = 'stray' ORDER BY id")
+    .toArray();
+
+describe("an upload's room", () => {
+  it("is held against the cap, and let go when nothing landed", async () => {
+    await inCell(cellOf(), (state) => {
+      const bytesCap = state.storage.sql.databaseSize + 1000;
+      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
+      const sha = "b".repeat(64);
+      expect(refusalOf(reserve(library, { ...stored(5000), sha }))).toMatchObject({
+        bytesCap,
+        kind: "quota",
+      });
+      landedValue(reserve(library, { ...stored(500), sha }));
+      expect(refusalOf(reserve(library, { ...stored(600), sha: "c".repeat(64) }))).toMatchObject({
+        kind: "quota",
+      });
+      expect(landedValue(settle(library, sha, null, removalsOf(library)))).toBe("absent");
+      landedValue(reserve(library, { ...stored(600), sha: "c".repeat(64) }));
+    });
+  });
+
+  it("goes when its upload is refused, whose bytes leave R2, and the sha lands only once they are out", async () => {
+    await inCell(cellOf(), async (state) => {
+      const bytesCap = state.storage.sql.databaseSize + 100_000;
+      const cell = cellIn(state, { bytesCap, clock: clockAt() });
+      const { library } = cell;
+      const sha = "e".repeat(64);
+      landedValue(reserve(library, { ...stored(500), sha }));
+      expect(refusalOf(settle(library, sha, stored(200_000), removalsOf(library)))).toMatchObject({
+        kind: "quota",
+      });
+      expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toStrictEqual([]);
+      // what R2 showed may be the refused bytes, or gone under the removal: nothing lands
+      expect(landedValue(settle(library, sha, stored(500), removalsOf(library)))).toBe("removing");
+      const before = removalsOf(library);
+      await runKind(cell, "stray");
+      expect(strayJobs(state)).toStrictEqual([]);
+      // a settle that looked in R2 before the removal ended lands nothing; one after it lands
+      expect(landedValue(settle(library, sha, stored(500), before))).toBe("stale");
+      expect(landedValue(settle(library, sha, stored(500), removalsOf(library)))).toBe("held");
+    });
+  });
+
+  it("leaves nothing in R2 once it is let go unused, unless the sha is held again", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
+      const [kept, retried] = ["f".repeat(64), "0".repeat(64)];
+      for (const sha of [kept, retried]) {
+        landedValue(reserve(library, { ...stored(10), sha }));
+      }
+      clock.now += 60 * 60_000;
+      await runKind(cell, "upload");
+      expect(strayJobs(state)).toStrictEqual([
+        { attempts: 0, id: `stray:${retried}` },
+        { attempts: 0, id: `stray:${kept}` },
+      ]);
+      // a device asks for room again for one: its removal is called off
+      landedValue(reserve(library, { ...stored(10), sha: kept }));
+      // R2 fails the other: it keeps its lease to wait its turn again, and the count of removals
+      // stays
+      const count = removalsOf(library);
+      const r2 = vi.spyOn(env.BLOBS, "delete").mockRejectedValueOnce(new Error("R2 is down"));
+      await runKind(cell, "stray");
+      expect(r2).toHaveBeenCalledExactlyOnceWith([blobKey(cell.accountId, retried)]);
+      r2.mockRestore();
+      expect(strayJobs(state)).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
+      expect(removalsOf(library)).toBe(count);
+    });
+  });
+
+  it("calls off a removal R2 failed once it holds the sha again, and its settle looks again", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
+      const sha = "1".repeat(64);
+      landedValue(reserve(library, { ...stored(500), sha }));
+      clock.now += 60 * 60_000;
+      await runKind(cell, "upload");
+      const before = removalsOf(library);
+      // a device asks for room while R2 is asked, and R2 fails the removal
+      const r2 = vi.spyOn(env.BLOBS, "delete").mockImplementationOnce(async () => {
+        landedValue(reserve(library, { ...stored(500), sha }));
+        await Promise.reject(new Error("R2 is down"));
+      });
+      await runKind(cell, "stray");
+      r2.mockRestore();
+      expect(strayJobs(state)).toStrictEqual([]);
+      // a removal that failed may have removed, so what a settle read of R2 under it is read again
+      expect(landedValue(settle(library, sha, stored(500), before))).toBe("stale");
+      expect(landedValue(settle(library, sha, stored(500), removalsOf(library)))).toBe("held");
+    });
+  });
+});
+
 describe("a file settled while a removal runs", () => {
   it("lands on a second look in R2 when the removal that ended under the first was another file's", async () => {
-    await inLibrary(async ({ accountId, clock, library }) => {
+    await inLibrary(async (cell) => {
+      const { accountId, clock, library } = cell;
       // room nobody used is a stray an hour on, its removal due
-      landedValue(reserve(library, { bytes: 10, mime: "image/png", sha: "9".repeat(64) }));
+      const stray = "9".repeat(64);
+      landedValue(reserve(library, { bytes: 10, mime: "image/png", sha: stray }));
       clock.now += 60 * 60_000;
-      library.runDueJobs(() => {});
+      await runKind(cell, "upload");
       const sha = "a".repeat(64);
       landedValue(reserve(library, { bytes: 5, mime: "image/png", sha }));
       await env.BLOBS.put(blobKey(accountId, sha), "bytes", {
@@ -211,7 +311,11 @@ describe("a file settled while a removal runs", () => {
       });
       // R2 is being read when the stray's removal ends
       const settling = settleStored(env, accountId, library, sha);
-      library.endStrayRemovals(library.beginStrayRemovals(), true);
+      landedValue(
+        library.rows((db) => {
+          endRemoval(db, stray);
+        }),
+      );
       await expect(settling).resolves.toStrictEqual({ ok: true, value: "held" });
     });
   });

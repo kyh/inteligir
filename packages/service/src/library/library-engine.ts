@@ -21,21 +21,9 @@ import { appliedOps } from "@repo/db/cell/schema";
 
 import type { TurnUndone } from "../note/note-wire";
 import type { CellActor } from "./cell-actor";
-import { beginRemoval, endRemoval, failRemoval, releaseUnnamed, releaseUpload } from "./cell-blobs";
-import { claimFills, sentFills } from "./cell-fills";
-import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { holdListing } from "./cell-listing";
-import {
-  deferJob,
-  dropJob,
-  dueJobs,
-  ensureJob,
-  nextJobAt,
-  retryJob,
-  scheduleJob,
-} from "./cell-jobs";
-import type { DueJob } from "./cell-jobs";
+import { ensureJob, nextJobAt } from "./cell-jobs";
 import type { ItemScope, WriteScope } from "./cell-landing";
 import { collectMoved } from "./cell-moved";
 import type { MovedCollector } from "./cell-moved";
@@ -44,7 +32,7 @@ import type { CellResult } from "./cell-refusal";
 import { undoChangeSets } from "./cell-undo";
 import { joinChangeSet, openUndoSet, PRUNE_JOB, sealChangeSet } from "./change-sets";
 import type { OpenSet } from "./change-sets";
-import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
+import { PRUNE_EVERY_MS } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
   readonly db: CellDb;
@@ -89,18 +77,6 @@ export interface NotesUndone {
   readonly notes: ReadonlyMap<string, TurnUndone>;
 }
 
-// a purged item's note, emptied by the alarm between two transactions
-export interface NotePurge {
-  readonly job: DueJob<"note-purge">;
-  readonly itemId: string;
-}
-
-// a stray file whose removal from R2 has begun
-export interface StrayRemoval {
-  readonly job: DueJob<"stray">;
-  readonly sha: string;
-}
-
 const undoSchema = z.object({
   changeSetId: z.string().nullable(),
   kept: z.array(z.string()),
@@ -111,14 +87,6 @@ const undoSchema = z.object({
 
 // the last sequence number a write took, 0 before the first
 export const libraryHead = (db: CellDb): number => readCellState(db)?.head ?? 0;
-
-// the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
-// runs it between two (`removeStrays` in `./cell-library`)
-const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
-
-const PRUNE_AGAIN_MS = 1000;
-// a note's purge the alarm could not reach is asked again this long after
-const NOTE_PURGE_AGAIN_MS = 60_000;
 
 // what a write took on its first landing: the library's next sequence number and the set it joined
 interface Taken {
@@ -269,39 +237,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }),
     );
 
-  // the strays whose removal is due, each begun unless a file row or an upload's room holds its
-  // sha again
-  const beginStrayRemovals = (): StrayRemoval[] =>
-    commit(() =>
-      dueJobs(db, deps.now(), ["stray"]).flatMap((job) => {
-        const { sha } = job.payload;
-        return beginRemoval(db, sha) ? [{ job, sha }] : [];
-      }),
-    );
-
-  // the removals R2 took, or the ones it failed
-  const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
-    const now = deps.now();
-    commit(() => {
-      for (const removal of removals) {
-        if (removed) {
-          endRemoval(db, removal.sha);
-        } else {
-          failRemoval(db, removal.job, now);
-        }
-      }
-    });
-  };
-
-  // the readings committed writes asked for, each put off a minute: its send's own time to land
-  const claimDueFills = (): ClaimedFill[] => commit(() => claimFills(db, deps.now()));
-
-  const fillsSent = (claimed: readonly ClaimedFill[]): void => {
-    commit(() => {
-      sentFills(db, claimed);
-    });
-  };
-
   // a read, refused once the account is being deleted, or by its own rules (a cursor this library
   // never gave, an id naming nothing)
   const reading = <T>(work: () => T): CellResult<T> =>
@@ -325,67 +260,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   ): CellResult<z.output<S> | null> =>
     reading(() => (opId === undefined ? null : priorAnswer(opId, answer)));
 
-  const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
-    switch (job.kind) {
-      case "seal": {
-        sealChangeSet(db, job.payload.changeSetId, now);
-        break;
-      }
-      case "upload": {
-        releaseUpload(db, job.payload.sha, now);
-        break;
-      }
-      case "unnamed": {
-        releaseUnnamed(db, [job.payload.sha], now);
-        break;
-      }
-      case "prune": {
-        const more = pruneChangeSets(db, now);
-        scheduleJob(db, PRUNE_JOB, now + (more ? PRUNE_AGAIN_MS : PRUNE_EVERY_MS));
-        break;
-      }
-      // no default
-    }
-  };
-
-  // what the alarm runs: every job due, each in its own transaction, so one that fails is tried
-  // again later and the rest still run
-  const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
-    const now = deps.now();
-    for (const job of commit(() => dueJobs(db, now, STORAGE_JOBS))) {
-      try {
-        commit(() => {
-          runJob(job, now);
-        });
-      } catch (error) {
-        onFailure(job, error);
-        commit(() => {
-          retryJob(db, job, now);
-        });
-      }
-    }
-  };
-
-  // the purged items' notes due to be emptied, each put off until it is reported done
-  const claimNotePurges = (): NotePurge[] =>
-    commit(() => {
-      const now = deps.now();
-      return dueJobs(db, now, ["note-purge"]).map((job) => {
-        deferJob(db, job.id, now + NOTE_PURGE_AGAIN_MS);
-        return { itemId: job.payload.itemId, job };
-      });
-    });
-
-  const notePurged = (purge: NotePurge, done: boolean): void => {
-    commit(() => {
-      if (done) {
-        dropJob(db, purge.job.id);
-      } else {
-        retryJob(db, purge.job, deps.now());
-      }
-    });
-  };
-
   // the account's deletion has begun: every later write and read is refused
   const tombstone = (): void => {
     commit(() => {
@@ -395,25 +269,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  return {
-    answered,
-    beginStrayRemovals,
-    claimDueFills,
-    claimNotePurges,
-    deletedAt,
-    endStrayRemovals,
-    fillsSent,
-    ids,
-    land,
-    landApart,
-    notePurged,
-    read,
-    readListing,
-    rows,
-    runDueJobs,
-    tombstone,
-    undo,
-  };
+  return { answered, deletedAt, ids, land, landApart, read, readListing, rows, tombstone, undo };
 };
 
 export type LibraryEngine = ReturnType<typeof openLibraryEngine>;

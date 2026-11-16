@@ -20,6 +20,7 @@ import {
 } from "../test-support/library-cell";
 import { removalsOf } from "../test-support/library-files";
 import type { CellActor } from "./cell-actor";
+import { runJobs } from "./cell-alarm";
 import { reserve, settle } from "./cell-blobs";
 import { FILL_ACTOR } from "./cell-fills";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
@@ -66,9 +67,6 @@ const retitle = (
 
 const titleOf = (library: LibraryEngine, itemId: string): string | null =>
   storedItemOf(library, itemId)?.fields.title ?? null;
-
-// what R2 holds of an image upload
-const png = (bytes: number) => ({ bytes, mime: "image/png" });
 
 describe("a write to the library cell", () => {
   it("lands each field only over the value it was read at, and answers a stale one with the field as it is", async () => {
@@ -288,110 +286,14 @@ describe("a write to the library cell", () => {
       ).toStrictEqual([{ item_id: itemId }]);
     });
   });
-
-  it("holds room for an upload against the cap, and lets it go when nothing landed", async () => {
-    await inCell(cellOf(), (state) => {
-      const bytesCap = state.storage.sql.databaseSize + 1000;
-      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
-      const sha = "b".repeat(64);
-      expect(refusalOf(reserve(library, { bytes: 5000, mime: "image/png", sha }))).toMatchObject({
-        bytesCap,
-        kind: "quota",
-      });
-      landedValue(reserve(library, { bytes: 500, mime: "image/png", sha }));
-      expect(
-        refusalOf(reserve(library, { bytes: 600, mime: "image/png", sha: "c".repeat(64) })),
-      ).toMatchObject({
-        kind: "quota",
-      });
-      expect(landedValue(settle(library, sha, null, removalsOf(library)))).toBe("absent");
-      landedValue(reserve(library, { bytes: 600, mime: "image/png", sha: "c".repeat(64) }));
-    });
-  });
-
-  it("lets a refused upload's room go, takes its bytes out of R2, and lands the sha only once they are out", async () => {
-    await inCell(cellOf(), (state) => {
-      const bytesCap = state.storage.sql.databaseSize + 100_000;
-      const { library } = cellIn(state, { bytesCap, clock: clockAt() });
-      const sha = "e".repeat(64);
-      landedValue(reserve(library, { ...png(500), sha }));
-      expect(refusalOf(settle(library, sha, png(200_000), removalsOf(library)))).toMatchObject({
-        kind: "quota",
-      });
-      expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toStrictEqual([]);
-      // what R2 showed may be the refused bytes, or gone under the removal: nothing lands
-      expect(landedValue(settle(library, sha, png(500), removalsOf(library)))).toBe("removing");
-      const before = removalsOf(library);
-      const removals = library.beginStrayRemovals();
-      expect(removals.map((removal) => removal.sha)).toStrictEqual([sha]);
-      library.endStrayRemovals(removals, true);
-      expect(library.beginStrayRemovals()).toStrictEqual([]);
-      // a settle that looked in R2 before the removal ended lands nothing; one after it lands
-      expect(landedValue(settle(library, sha, png(500), before))).toBe("stale");
-      expect(landedValue(settle(library, sha, png(500), removalsOf(library)))).toBe("held");
-    });
-  });
-
-  it("takes out of R2 what an upload left once its room is let go, unless the sha is held again", async () => {
-    await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const { library } = cellIn(state, { clock });
-      const [kept, retried] = ["f".repeat(64), "0".repeat(64)];
-      for (const sha of [kept, retried]) {
-        landedValue(reserve(library, { bytes: 10, mime: "image/png", sha }));
-      }
-      clock.now += 60 * 60_000;
-      library.runDueJobs(() => {});
-      const strays = () =>
-        state.storage.sql
-          .exec("SELECT id, attempts FROM jobs WHERE kind = 'stray' ORDER BY id")
-          .toArray();
-      expect(strays()).toStrictEqual([
-        { attempts: 0, id: `stray:${retried}` },
-        { attempts: 0, id: `stray:${kept}` },
-      ]);
-      // a device asks for room again for one: its removal is called off
-      landedValue(reserve(library, { bytes: 10, mime: "image/png", sha: kept }));
-      const removals = library.beginStrayRemovals();
-      expect(removals.map((removal) => removal.sha)).toStrictEqual([retried]);
-      // R2 failed the other: it waits its turn again, and the count of removals stays
-      const count = removalsOf(library);
-      library.endStrayRemovals(removals, false);
-      expect(strays()).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
-      expect(removalsOf(library)).toBe(count);
-      expect(library.beginStrayRemovals()).toStrictEqual([]);
-    });
-  });
-
-  it("calls off a removal R2 failed once an upload's room holds its sha, and that upload's settle looks again", async () => {
-    await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const { library } = cellIn(state, { clock });
-      const sha = "1".repeat(64);
-      landedValue(reserve(library, { ...png(500), sha }));
-      clock.now += 60 * 60_000;
-      library.runDueJobs(() => {});
-      const removals = library.beginStrayRemovals();
-      expect(removals.map((removal) => removal.sha)).toStrictEqual([sha]);
-      // a device asks for room while R2 is asked, and R2 fails the removal
-      landedValue(reserve(library, { ...png(500), sha }));
-      const before = removalsOf(library);
-      library.endStrayRemovals(removals, false);
-      expect(
-        state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'stray'").toArray(),
-      ).toStrictEqual([]);
-      // a removal that failed may have removed, so what a settle read of R2 under it is read again
-      expect(landedValue(settle(library, sha, png(500), before))).toBe("stale");
-      expect(landedValue(settle(library, sha, png(500), removalsOf(library)))).toBe("held");
-    });
-  });
 });
 
 describe("change sets and undo", () => {
   it("joins a person's writes into one set until 15 s of quiet, then seals it with its after", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt();
-      const { alarmAt, library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { alarmAt, library } = cell;
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -406,21 +308,22 @@ describe("change sets and undo", () => {
           .one().after_fields;
       expect(sets()).toHaveLength(1);
       clock.now = start + 24_000;
-      library.runDueJobs(() => {});
+      await runJobs(cell);
       expect(sets()[0]?.sealed_at).toBeNull();
       expect(after()).toBeNull();
       expect(alarmAt()).toBe(start + 25_000);
       clock.now = start + 25_000;
-      library.runDueJobs(() => {});
+      await runJobs(cell);
       expect(sets()[0]?.sealed_at).toBe(start + 25_000);
       expect(after()).not.toBeNull();
     });
   });
 
   it("seals a person's set a minute after its first write however busy, and opens the next", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt();
-      const { alarmAt, library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { alarmAt, library } = cell;
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -435,7 +338,7 @@ describe("change sets and undo", () => {
       }
       expect(alarmAt()).toBe(start + 60_000);
       clock.now = start + 60_000;
-      library.runDueJobs(() => {});
+      await runJobs(cell);
       clock.now = start + 61_000;
       retitle(library, person(), itemId, title, "After the cap");
       const sets = state.storage.sql
@@ -594,9 +497,10 @@ describe("change sets and undo", () => {
   });
 
   it("writes each set's after when its state stops being the item's, so each is the item as that set left it", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt();
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
@@ -611,7 +515,7 @@ describe("change sets and undo", () => {
       clock.now = start + 3000;
       retitle(library, person(), itemId, "A later reading", "The person again");
       clock.now = start + 62_000;
-      library.runDueJobs(() => {});
+      await runJobs(cell);
       const titleSchema = z.object({ title: z.string() });
       const afters = state.storage.sql
         .exec(
@@ -678,33 +582,6 @@ describe("change sets and undo", () => {
             .one().n,
         ).toBe(0);
       }
-    });
-  });
-});
-
-describe("the cell's alarm", () => {
-  it("drops a job whose payload its kind no longer reads, so no run fails on it again", async () => {
-    await inCell(cellOf(), (state) => {
-      const clock = clockAt();
-      const { library } = cellIn(state, { clock });
-      for (const [id, kind] of [
-        ["seal:unread", "seal"],
-        ["stray:unread", "stray"],
-      ] as const) {
-        state.storage.sql.exec(
-          "INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, '{}', 0, ?)",
-          id,
-          kind,
-          clock.now,
-        );
-      }
-      const failed: string[] = [];
-      library.runDueJobs((job) => {
-        failed.push(job.id);
-      });
-      expect(library.beginStrayRemovals()).toStrictEqual([]);
-      expect(failed).toStrictEqual([]);
-      expect(state.storage.sql.exec("SELECT id FROM jobs").toArray()).toStrictEqual([]);
     });
   });
 });

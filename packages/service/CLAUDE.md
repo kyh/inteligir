@@ -165,6 +165,11 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A cell job's payload is one schema per kind, parsed where its row is
   taken.** A row that no longer reads is dropped and logged, so no run fails on
   it again. `packages/service/src/library/cell-jobs.ts`.
+- **Every job is taken by one lease and run from one table: a due row is counted
+  and put off before anything runs, and a kind is the schema's enum, held to a
+  run by the table's type.** A claim per kind left a row its run neither dropped
+  nor put off setting the alarm in the past, and a run the platform ended went
+  uncounted. `packages/service/src/library/cell-alarm.ts`.
 - **The cell keeps its listing in memory, caught up by sequence, and builds it
   again as it wakes.** A build on every read costs about 245 ms at 10,000 items,
   measured. `packages/service/src/library/cell-listing.ts`.

@@ -4,9 +4,8 @@
 
 import type { LibraryBlock } from "@repo/contract/library/library-nodes";
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { FillJob } from "../fill/fill-job";
 import type { FillLanding } from "../fill/fill-landing";
 import { pngOf } from "../fill/test-support/fill-cell";
 import { paragraph } from "@repo/contract/test-support/library-items";
@@ -20,9 +19,9 @@ import {
   writeItem,
 } from "../test-support/library-cell";
 import { uploadedFile } from "../test-support/library-files";
+import { runJobs, runKind } from "./cell-alarm";
 import { readBlobRow } from "./cell-blobs";
 import { landReading } from "./cell-fills";
-import { sendFills } from "./cell-library";
 import { heldBody } from "./cell-body";
 import { cellDbOf } from "./cell-db";
 import { readItem } from "./library-queries";
@@ -190,10 +189,11 @@ describe("a page's reading, landed", () => {
   it("asks for the reading again when a link still waiting comes back from Deleted", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library } = cell;
       const url = "https://pages.example/restored";
       const saved = await library.items.saveLink({ url });
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [saved.item.id] });
       expect(fillJobs(state)).toStrictEqual([]);
       // the queue's message met a deleted item, so it was acked with nothing landed
@@ -208,13 +208,14 @@ describe("a page's reading, landed", () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const clock = clockAt(Date.now());
-      const { client: library, library: engine } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { client: library } = cell;
       const saved = await library.items.saveLink({ url: "https://pages.example/undone" });
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       clock.now += 120_000;
       await library.items.delete({ ids: [saved.item.id] });
       clock.now += 120_000;
-      engine.runDueJobs(() => {});
+      await runJobs(cell);
       const { changeSets } = await library.history.list({});
       const deleted = changeSets.find((set) =>
         set.items.some((item) => item.id === saved.item.id && item.deleted),
@@ -230,11 +231,12 @@ describe("a page's reading, landed", () => {
   it("asks nothing for a link that stays in Deleted, or one already read", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const url = "https://pages.example/read";
       const saved = await library.items.saveLink({ url });
       landReading(engine, read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]), null);
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [saved.item.id] });
       await library.items.refresh({ id: saved.item.id });
       expect(fillJobs(state)).toStrictEqual([]);
@@ -246,7 +248,7 @@ describe("a page's reading, landed", () => {
         ]),
         null,
       );
-      await sendFills(state, env, engine);
+      await runKind(cell, "fill");
       await library.items.delete({ ids: [other.item.id] });
       await library.items.restore({ ids: [other.item.id] });
       expect(fillJobs(state)).toStrictEqual([]);
@@ -283,7 +285,8 @@ describe("a page's reading, landed", () => {
   it("lets go at the alarm's next run the cover it kept, once it lands nowhere", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const { client: library, library: engine } = cellIn(state);
+      const cell = cellIn(state);
+      const { client: library, library: engine } = cell;
       const db = cellDbOf(state.storage);
       const png = { mime: "image/png" };
       const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
@@ -304,9 +307,7 @@ describe("a page's reading, landed", () => {
         });
       }
       expect(readBlobRow(db, stray)).not.toBeNull();
-      engine.runDueJobs(() => {
-        throw new Error("no job fails here");
-      });
+      await runJobs(cell);
       expect(readBlobRow(db, stray)).toBeNull();
       expect(readBlobRow(db, named)).not.toBeNull();
     });
@@ -521,62 +522,56 @@ describe("Undo of a saved link, once its page is read", () => {
 });
 
 describe("a reading's ask", () => {
-  it("is a job row the write lands, claimed a minute at a time until the queue takes it", async () => {
+  it("is a job row the write lands, which the alarm sends to the fill queue, again later while the send fails", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
       const clock = clockAt();
-      const { client: library, library: engine } = cellIn(state, { clock });
-      const saved = await library.items.saveLink({ url: "https://pages.example/h" });
+      const cell = cellIn(state, { clock });
+      const { client: library } = cell;
+      const url = "https://pages.example/h";
+      const saved = await library.items.saveLink({ url });
       expect(fillJobs(state)).toStrictEqual([
         { id: `fill:${saved.item.id}`, payload: expect.any(String) },
       ]);
-      const claimed = engine.claimDueFills();
-      expect(claimed.map((fill) => fill.request)).toStrictEqual([
-        { coverHint: null, itemId: saved.item.id, url: "https://pages.example/h" },
+      const queue = vi
+        .spyOn(env.FILLS, "sendBatch")
+        .mockRejectedValueOnce(new Error("the queue is down"));
+      await runKind(cell, "fill");
+      expect(fillJobs(state)).toHaveLength(1);
+      // the failed send keeps its lease, so the alarm's next run does not send it again at once
+      await runKind(cell, "fill");
+      expect(queue).toHaveBeenCalledTimes(1);
+      clock.now += 30_000;
+      await runKind(cell, "fill");
+      expect(queue).toHaveBeenLastCalledWith([
+        { body: { accountId, coverHint: null, itemId: saved.item.id, url }, contentType: "json" },
       ]);
-      // claimed, so the alarm's next run does not send it again at once
-      expect(engine.claimDueFills()).toStrictEqual([]);
-      clock.now += 60_000;
-      const again = engine.claimDueFills();
-      expect(again).toHaveLength(1);
-      engine.fillsSent(again);
+      queue.mockRestore();
       expect(fillJobs(state)).toStrictEqual([]);
       // a refresh asks again; a save of a held address asks nothing
       await library.items.refresh({ id: saved.item.id });
-      await library.items.saveLink({ url: "https://pages.example/h" });
+      await library.items.saveLink({ url });
       expect(fillJobs(state)).toHaveLength(1);
     });
   });
 
-  it("is sent to the fill queue by the alarm, and kept for its next run when the send fails", async () => {
-    const accountId = newAccountId();
-    await inCell(cellOf(accountId), async (state) => {
-      const { client, library } = cellIn(state);
-      await client.items.saveLink({ url: "https://pages.example/i" });
-      const sent: FillJob[] = [];
-      const refusing: Queue<FillJob> = {
-        metrics: async () => await Promise.reject(new Error("the queue is down")),
-        send: async () => await Promise.reject(new Error("the queue is down")),
-        sendBatch: async () => await Promise.reject(new Error("the queue is down")),
-      };
-      await sendFills(state, { ...env, FILLS: refusing }, library);
-      expect(fillJobs(state)).toHaveLength(1);
-      const taking: Queue<FillJob> = {
-        ...refusing,
-        sendBatch: async (messages) => {
-          for (const message of messages) {
-            sent.push(message.body);
-          }
-          return await env.FILLS.sendBatch(messages);
-        },
-      };
-      // the failed send's claim holds the row a minute; the alarm then sends it again
-      state.storage.sql.exec("UPDATE jobs SET next_at = 0 WHERE kind = 'fill'");
-      await sendFills(state, { ...env, FILLS: taking }, library);
+  it("stays for a send of its own when it is asked again while the queue takes the first", async () => {
+    await inCell(cellOf(), async (state) => {
+      const cell = cellIn(state);
+      const { client: library } = cell;
+      const saved = await library.items.saveLink({ url: "https://pages.example/i" });
+      const queue = vi.spyOn(env.FILLS, "sendBatch").mockImplementationOnce(async (messages) => {
+        await library.items.refresh({ id: saved.item.id });
+        return await env.FILLS.sendBatch(messages);
+      });
+      await runKind(cell, "fill");
+      // the first send's end left the row the refresh asked for, its runs counted from none
+      expect(
+        state.storage.sql.exec("SELECT attempts FROM jobs WHERE kind = 'fill'").toArray(),
+      ).toStrictEqual([{ attempts: 0 }]);
+      await runKind(cell, "fill");
+      queue.mockRestore();
       expect(fillJobs(state)).toStrictEqual([]);
-      expect(sent).toStrictEqual([
-        { accountId, coverHint: null, itemId: expect.any(String), url: "https://pages.example/i" },
-      ]);
     });
   });
 });

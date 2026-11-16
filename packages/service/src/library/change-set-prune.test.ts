@@ -17,21 +17,25 @@ import {
   writeItem,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
+import { runJobs } from "./cell-alarm";
 import { FILL_ACTOR } from "./cell-fills";
 import { sealChangeSet } from "./change-sets";
 import type { LibraryEngine } from "./library-engine";
+import type { Cell } from "./open-cell";
 
 const DAY = 24 * 60 * 60_000;
 const START = Date.UTC(2026, 9, 1);
 
 const agent: CellActor = { kind: "agent", label: "Agent", threadId: crypto.randomUUID(), turn: 1 };
 
-const failOn = (job: { readonly kind: string }, cause: unknown): never => {
-  throw new Error(`the ${job.kind} job failed`, { cause });
-};
-
 const count = (state: DurableObjectState, sql: string, ...params: string[]): number =>
   Number(state.storage.sql.exec(sql, ...params).one().n);
+
+// the alarm's run, no job of which fails: one that failed would keep its lease
+const run = async (cell: Cell, state: DurableObjectState): Promise<void> => {
+  await runJobs(cell);
+  expect(count(state, "SELECT count(*) AS n FROM jobs WHERE attempts > 0")).toBe(0);
+};
 
 const agentSet = (state: DurableObjectState): string =>
   z
@@ -44,9 +48,10 @@ const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: Field
 
 describe("the change-set prune", () => {
   it("drops a set seven days after it closed, with what only it named, and the set after it still undoes", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = crypto.randomUUID();
       landedValue(
         createItem(library, FILL_ACTOR, {
@@ -62,7 +67,7 @@ describe("the change-set prune", () => {
         set(library, person(), itemId, { base: title, field: "title", op: "set", value: next });
         title = next;
         clock.now += 60_000;
-        library.runDueJobs(failOn);
+        await run(cell, state);
       }
       // three days on the agent describes it, and a day after that the person renames it again
       clock.now = START + 3 * DAY;
@@ -87,14 +92,14 @@ describe("the change-set prune", () => {
         value: "typed later",
       });
       clock.now += 60_000;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       const parts = (): number =>
         count(state, "SELECT count(*) AS n FROM snapshot_parts WHERE item_id = ?", itemId);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(6);
       // every state of the fields a set began or left
       expect(parts()).toBe(6);
       clock.now = START + 8 * DAY;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       // the reading's and the first three of the person's went; the agent's and the last stay
       expect(
         state.storage.sql
@@ -114,9 +119,10 @@ describe("the change-set prune", () => {
   });
 
   it("keeps a set still open, however old", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = crypto.randomUUID();
       const line = paragraph("a", "the first line");
       landedValue(
@@ -133,7 +139,7 @@ describe("the change-set prune", () => {
         value: "the agent's",
       });
       clock.now = START + 30 * DAY;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       expect(
         count(state, "SELECT count(*) AS n FROM change_set_items WHERE item_id = ?", itemId),
       ).toBe(1);
@@ -147,9 +153,10 @@ describe("the change-set prune", () => {
   });
 
   it("drops a page a run, and runs again at once while more wait", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt(START);
-      const { alarmAt, library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { alarmAt, library } = cell;
       for (let index = 0; index < 101; index += 1) {
         landedValue(
           createItem(library, FILL_ACTOR, {
@@ -160,19 +167,20 @@ describe("the change-set prune", () => {
         );
       }
       clock.now = START + 8 * DAY;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(1);
       expect(alarmAt()).toBe(clock.now + 1000);
       clock.now += 1000;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(0);
     });
   });
 
   it("forgets an op's answer after 30 days", async () => {
-    await inCell(cellOf(), (state) => {
+    await inCell(cellOf(), async (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const opId = crypto.randomUUID();
       landedValue(
         createItem(library, FILL_ACTOR, {
@@ -185,10 +193,10 @@ describe("the change-set prune", () => {
       const answers = (): number =>
         count(state, "SELECT count(*) AS n FROM applied_ops WHERE op_id = ?", opId);
       clock.now = START + 29 * DAY;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       expect(answers()).toBe(1);
       clock.now = START + 31 * DAY;
-      library.runDueJobs(failOn);
+      await run(cell, state);
       expect(answers()).toBe(0);
     });
   });
