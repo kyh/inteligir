@@ -267,19 +267,8 @@ export const itemReadSchema = z.object({
   }),
 });
 
-// who a change set is by: the person, the built-in agent, a connected assistant, an import, the
-// cloud reading a page, or an undo
-export const CHANGE_SET_ACTORS = [
-  "person",
-  "agent",
-  "assistant",
-  "import",
-  "fill",
-  "undo",
-] as const;
-
+// what one turn of the built-in agent changed, which its Undo takes back
 export const changeSetSchema = z.object({
-  actor: z.enum(CHANGE_SET_ACTORS),
   closedAt: isoInstant.nullable(),
   id: idSchema,
   // how many items the set changed; `items` names the first of them, at most a page
@@ -292,13 +281,10 @@ export const changeSetSchema = z.object({
       title: z.string(),
     }),
   ),
-  // who in words: "You on this Mac", "Claude", "Raindrop import"
-  label: z.string(),
   openedAt: isoInstant,
-  // the conversation and turn of the built-in agent's that made it; null for every other writer
-  threadId: idSchema.nullable(),
-  turn: z.number().int().positive().nullable(),
-  undoneBy: idSchema.nullable(),
+  threadId: idSchema,
+  turn: z.number().int().positive(),
+  undoneAt: isoInstant.nullable(),
 });
 
 // ---- what the built-in agent is asked from ----
@@ -336,11 +322,10 @@ export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
 const count = z.number().int().nonnegative();
 
 // an import as it runs and once it ended: what it found, what it added, what the library already
-// held by its address, what it left out and why, and the change set it landed in
+// held by its address, and what it left out and why
 export const importJobSchema = z.object({
   added: count,
   alreadySaved: count,
-  changeSetId: idSchema.nullable(),
   finishedAt: instant.nullable(),
   id: idSchema,
   // why a job failed, in a sentence the person reads

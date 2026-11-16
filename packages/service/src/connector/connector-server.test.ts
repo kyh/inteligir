@@ -138,10 +138,9 @@ describe("the connector's tools", () => {
     });
     expect(after.view.markdown).toContain("It jumped over the dog.");
 
+    // only the built-in agent's turns keep a change set
     const history = await v1Link(sessionHeaders(cookie)).library.history.list({});
-    expect(history.changeSets).toStrictEqual([
-      expect.objectContaining({ actor: "assistant", itemCount: 1, label: "Claude" }),
-    ]);
+    expect(history.changeSets).toStrictEqual([]);
     await client.close();
   });
 

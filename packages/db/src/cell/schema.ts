@@ -18,12 +18,7 @@ import {
 import { ITEM_KINDS } from "@repo/contract/items/item-kind";
 import { FETCH_STATES } from "@repo/contract/library/library-item";
 import { LIBRARY_SECTIONS } from "@repo/contract/library/library-nodes";
-import {
-  CHANGE_SET_ACTORS,
-  IMPORT_PHASES,
-  IMPORT_SOURCES,
-  IMPORT_STATES,
-} from "@repo/contract/library/library-wire";
+import { IMPORT_PHASES, IMPORT_SOURCES, IMPORT_STATES } from "@repo/contract/library/library-wire";
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 
@@ -227,30 +222,24 @@ export const itemBlobs = sqliteTable(
   (t) => [primaryKey({ columns: [t.itemId, t.sha256] })],
 );
 
-// A change set's item names its fields before and after by part, each kept once per item under its
-// content hash (`snapshot_parts`), so no row nears a Durable Object's 2 MB. A set's after is null
-// while the set is open and the item is as it left it; it is written when the set seals, or when
-// another set is about to change the item. A body is no part: the agent's edits to it are its
-// note's turn log, and a person's typing is no change set
+// One built-in agent turn's change set, which its Undo takes back; no other writer keeps one. Its
+// item names its fields before and after by part, each kept once per item under its content hash
+// (`snapshot_parts`), so no row nears a Durable Object's 2 MB. A set's after is null while the set
+// is open and the item is as it left it; it is written when the set seals, or when anyone else is
+// about to change the item. A body is no part: the turn's edits to it are its note's turn log
 export const changeSets = sqliteTable(
   "change_sets",
   {
     id: text().primaryKey(),
-    actor: text({ enum: CHANGE_SET_ACTORS }).notNull(),
-    actorId: text("actor_id"),
-    label: text().notNull(),
-    sessionId: text("session_id"),
-    threadId: text("thread_id"),
-    turn: integer(),
-    clientId: text("client_id"),
+    threadId: text("thread_id").notNull(),
+    turn: integer().notNull(),
     openedAt: integer("opened_at").notNull(),
-    touchedAt: integer("touched_at").notNull(),
     sealedAt: integer("sealed_at"),
-    undoneBy: text("undone_by"),
+    undoneAt: integer("undone_at"),
   },
   (t) => [
-    index("change_sets_open").on(t.actor, t.sealedAt),
-    check("change_sets_actor", sql`${t.actor} IN (${oneOf(CHANGE_SET_ACTORS)})`),
+    uniqueIndex("change_sets_turn").on(t.threadId, t.turn),
+    check("change_sets_undone", sql`${t.undoneAt} IS NULL OR ${t.sealedAt} IS NOT NULL`),
   ],
 );
 
@@ -385,7 +374,6 @@ export const importJobs = sqliteTable(
     alreadySaved: integer("already_saved").notNull(),
     skipped: integer().notNull(),
     unreadable: integer().notNull(),
-    changeSetId: text("change_set_id"),
     message: text(),
     startedAt: integer("started_at").notNull(),
     finishedAt: integer("finished_at"),

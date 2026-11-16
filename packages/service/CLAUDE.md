@@ -86,10 +86,10 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
 - **A library write changes fields alone, only on the bases it names, in one
   transaction.** Last write wins loses an edit unseen, and a whole-item base
   makes two devices always conflict. `packages/service/src/library/cell-writes.ts`.
-- **A change set seals by the cell's one alarm, and Undo reaches back seven
-  days** (owner decision). A timer per set dies with an eviction, and with no
-  version history Undo needs only a set's before and after.
-  `packages/service/src/library/change-sets.ts`.
+- **A change set is one built-in agent turn's, sealed by the push that ends
+  the turn, and Undo reaches back seven days** (owner decision). Undo takes
+  back only the agent's turns, so a set for any other writer is history nobody
+  reads. `packages/service/src/library/change-sets.ts`.
 - **Undo runs a change set's fields backwards three ways, and each note takes
   its turn back first.** Every later edit stays; Yjs's UndoManager lives in
   memory, which an eviction ends. `packages/service/src/library/cell-undo.ts`.
@@ -177,9 +177,12 @@ the clock, random bytes and fresh ids injected (`oxlint.config.ts`).
   spelled.** A Worker resolves no name, so `fetchPage` refuses a private
   spelling at once rather than after three vague retries.
   `packages/service/src/fill/page-fetch.ts`.
-- **A reading lands only the article and the facts a fill owns, as its own change
-  set, on an item still waiting for it.** Bases the consumer read would conflict
-  with every save meanwhile. `packages/service/src/library/article-landing.ts`.
+- **A reading lands only the article and the facts a fill owns, on an item still
+  waiting for it.** Bases the consumer read would conflict with every save
+  meanwhile. `packages/service/src/library/article-landing.ts`.
+- **A reading of a link an agent's turn saved folds into that turn's change
+  set.** A reading is no person's change, and Undo would keep the link as
+  changed since the turn. `packages/service/src/library/change-sets.ts`.
 - **The cloud keeps a page's cover as the site served it, and each device draws
   its own thumbnail.** A decoded picture is four bytes a pixel in an isolate the
   reading already fills. `packages/service/src/fill/read-page.ts`.

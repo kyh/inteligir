@@ -312,10 +312,9 @@ describe("a turn's seal", () => {
       await asLaptop(account, async (client) => {
         const listed = await client.items.list({});
         expect(listed.items).toHaveLength(2);
-        const history = await client.history.list({});
-        const sets = history.changeSets.filter((set) => set.label === "Agent");
-        expect(sets).toHaveLength(1);
-        await client.history.undo({ changeSetIds: [sets[0]?.id ?? ""] });
+        const { changeSets } = await client.history.list({});
+        expect(changeSets).toHaveLength(1);
+        await client.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] });
         const undone = await client.items.list({});
         expect(undone.items).toStrictEqual([]);
       });
@@ -334,7 +333,7 @@ describe("a turn's seal", () => {
       await settled(account, other.threadId);
       await asLaptop(account, async (client) => {
         const everything = await client.history.list({});
-        expect(everything.changeSets.filter((set) => set.actor === "agent")).toHaveLength(2);
+        expect(everything.changeSets).toHaveLength(2);
         const { changeSets } = await client.history.list({ threadId: first.threadId });
         expect(changeSets.map((set) => [set.threadId, set.turn])).toStrictEqual([
           [first.threadId, 1],
@@ -402,14 +401,17 @@ describe("a turn's seal", () => {
     );
     const [held] = await cellRows(account, "SELECT payload, next_at FROM jobs WHERE kind = 'fill'");
     const payload = z
-      .object({ heldBy: z.string(), url: z.string() })
+      .object({ heldBy: z.object({ threadId: z.string(), turn: z.number() }), url: z.string() })
       .parse(JSON.parse(z.string().parse(held?.payload)));
-    expect(payload.url).toBe("https://example.com/held");
+    expect(payload).toStrictEqual({
+      heldBy: { threadId: sent.threadId, turn: 1 },
+      url: "https://example.com/held",
+    });
     expect(z.number().parse(held?.next_at)).toBeGreaterThan(Date.now() + 60 * 60_000);
     const set = await cellRows(
       account,
-      "SELECT sealed_at FROM change_sets WHERE id = ?",
-      payload.heldBy,
+      "SELECT sealed_at FROM change_sets WHERE thread_id = ?",
+      sent.threadId,
     );
     expect(set).toStrictEqual([{ sealed_at: null }]);
     // the turn stopped and sealed, and the reading sent with the seal's commit

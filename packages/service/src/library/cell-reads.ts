@@ -377,16 +377,14 @@ export const listChangeSets = (db: CellDb, input: ChangeSetsInput) => {
         .all()
         .map((entry) => setItemOf(db, entry));
       return {
-        actor: set.actor,
         closedAt: set.sealedAt === null ? null : isoOf(set.sealedAt),
         id: set.id,
         itemCount: set.itemCount,
         items: setItems,
-        label: set.label,
         openedAt: isoOf(set.openedAt),
         threadId: set.threadId,
         turn: set.turn,
-        undoneBy: set.undoneBy,
+        undoneAt: set.undoneAt === null ? null : isoOf(set.undoneAt),
       };
     }),
     cursor: sets.length > input.limit ? String(offset + input.limit) : null,

@@ -38,14 +38,14 @@ const REGISTRATION_TTL_SECONDS = 90 * DAY_SECONDS;
 const GRANT_IDLE_TTL_SECONDS = 30 * DAY_SECONDS;
 
 // what a grant keeps: whose library, and the client's name as it gave it on the consent page,
-// which change sets and the account's list of assistants show
+// which the account's list of assistants shows
 const grantPropsSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   clientName: z.string().min(1).max(128),
 });
 
 // an access token's: its grant's, and the grant it was minted under, which the token alone does not
-// say and every call's change set and budget are keyed on
+// say and every call's budget is keyed on
 const tokenPropsSchema = grantPropsSchema.extend({
   grantId: credentialIdSchema,
 });

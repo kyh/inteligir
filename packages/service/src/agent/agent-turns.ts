@@ -1,14 +1,14 @@
 // The built-in agent's turns, as the account's cell keeps them: `library.agent.*` as the person
 // asks, and the three calls each conversation's object makes back (`./thread-wire`). A send is let
-// in, in one transaction, when the agent is on and Claude reachable, and the day's turns allow it: a new thread gets its row, and the turn opens, or waits behind its thread's open turn
-// or while the account runs as many as it may at once. An open turn is handed to its thread's
-// object (`./agent-thread`) after the commit, again every 30 seconds until it lands; every tool
-// call runs here, under the turn, against the library's own procedures; and what the turn did
-// lands here as pushes, each once by its sequence, as the thread's stored events. The push that
-// ends a turn seals it: one
-// change set, the turn given back when Claude could not be reached, the links it saved read, and
-// the next waiting send let in. A watch job asks after a turn whose object it has not heard from
-// in five minutes.
+// in, in one transaction, when the agent is on and Claude reachable, and the day's turns allow it:
+// a new thread gets its row, and the turn opens, or waits behind its thread's open turn or while
+// the account runs as many as it may at once. An open turn is handed to its thread's object
+// (`./agent-thread`) after the commit, again every 30 seconds until it lands; every tool call runs
+// here, under the turn, against the library's own procedures, its writes in the turn's change set;
+// and what the turn did lands here as pushes, each once by its sequence, as the thread's stored
+// events. The push that ends a turn seals it: its change set sealed, the turn given back when
+// Claude could not be reached, the links it saved read, and the next waiting send let in. A watch
+// job asks after a turn whose object it has not heard from in five minutes.
 
 import { agentEventSchema } from "@repo/contract/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/library/agent-events";
@@ -18,7 +18,7 @@ import type { agentViewContextSchema } from "@repo/contract/library/library-wire
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { changeSets, threadEvents } from "@repo/db/cell/schema";
+import { threadEvents } from "@repo/db/cell/schema";
 import type { CellActor } from "../library/cell-actor";
 import { dropJob, deferJob, dueJobs, retryJob, scheduleJob } from "../library/cell-jobs";
 import type { DueJob, JobRequest } from "../library/cell-jobs";
@@ -28,7 +28,7 @@ import type { CellDb } from "../library/cell-db";
 import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
 import { deleteThread } from "../library/cell-threads";
-import { sealChangeSet } from "../library/change-sets";
+import { sealTurnSet } from "../library/change-sets";
 import type { LibraryEngine } from "../library/library-engine";
 import { filingRules } from "../library/library-rules";
 import { jsonTextSchema } from "../library/sql-value";
@@ -164,41 +164,16 @@ const openWaiting = (scope: LandingScope, allowance: Allowance, first: string | 
   }
 };
 
-// the change set a turn's writes opened, sealed: one undoable set a turn
-const sealTurnSet = (
-  db: CellDb,
-  turn: Pick<OpenTurn, "threadId" | "turn">,
-  now: number,
-): string[] => {
-  const sets = db
-    .select({ id: changeSets.id, sealedAt: changeSets.sealedAt })
-    .from(changeSets)
-    .where(
-      and(
-        eq(changeSets.actor, "agent"),
-        eq(changeSets.threadId, turn.threadId),
-        eq(changeSets.turn, turn.turn),
-      ),
-    )
-    .all();
-  for (const set of sets) {
-    if (set.sealedAt === null) {
-      sealChangeSet(db, set.id, now);
-    }
-  }
-  return sets.map(({ id }) => id);
-};
-
 // a turn over: its change set sealed, the turn given back when it ended because Claude could not be
 // reached, the links it saved let go to be read, and its row gone. A turn the person stopped still
 // counts, so a send stopped at once is no free call
 const closeTurn = (scope: LandingScope, turn: OpenTurn, reason: TurnEndReason): void => {
   const { db, now } = scope;
-  const sets = sealTurnSet(db, turn, now);
+  sealTurnSet(db, turn, now);
   if (reason === "unavailable") {
     bookTurn(db, dayOf(turn.startedAt), -1);
   }
-  releaseHeldFills(db, sets, now);
+  releaseHeldFills(db, turn, now);
   dropTurn(db, turn.threadId);
   dropJob(db, deliverJob(turn.threadId).id);
   dropJob(db, watchJob(turn.threadId).id);

@@ -1,16 +1,15 @@
-// Undo takes change sets back in one write of its own: newest set first, each item's fields run
+// Undo takes sealed turns' change sets back in one write: newest set first, each item's fields run
 // backwards by `./revert-change` against the item as the newer sets' undo left it, so an item
-// someone changed since stays whole and is named. What an agent's set did to a note's body its note
-// undoes first, outside any transaction (`planUndo` names those notes), and the write lands what
-// each note answered: its body after, whether the undo took someone's text, whether anyone but an
-// agent wrote there. An item whose way back a rule refuses (its url now another live item's, a file
-// gone) is named apart and the rest land, and its set stays undoable, since the file or the address
-// can come back; when nothing lands the rule's refusal is the answer. A set of which only
-// kept items remain stays undoable too, since the edit since can go, and when no set moved no write
-// of its own is made.
+// someone changed since stays whole and is named. What a set did to a note's body its note undoes
+// first, outside any transaction (`planUndo` names those notes), and the write lands what each note
+// answered: its body after, whether the undo took someone's text, whether anyone but an agent wrote
+// there. An item whose way back a rule refuses (its url now another live item's, a file gone) is
+// named apart and the rest land, and its set stays undoable, since the file or the address can come
+// back; when nothing lands the rule's refusal is the answer. A set of which only kept items remain
+// stays undoable too, since the edit since can go.
 
 import { compareText } from "@repo/contract/library/order-key";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { changeSetItems, changeSets } from "@repo/db/cell/schema";
 
@@ -25,14 +24,11 @@ import { landProjection } from "./cell-notes";
 import { readFieldsPart } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import type { CellRefusal } from "./cell-refusal";
-import { sealChangeSet } from "./change-sets";
 import { readLiveItem } from "./library-queries";
 import { revertChangeSets } from "./revert-change";
-import type { FillChange, ItemChange, ItemNow } from "./revert-change";
+import type { ItemChange, ItemNow } from "./revert-change";
 
 export interface UndoAnswer {
-  // null: no item went back and no set was undone, so no undo was made
-  readonly changeSetId: string | null;
   readonly kept: readonly string[];
   readonly refused: readonly string[];
   readonly reverted: readonly string[];
@@ -41,11 +37,10 @@ export interface UndoAnswer {
 }
 
 const SET_COLUMNS = {
-  actor: changeSets.actor,
   id: changeSets.id,
   openedAt: changeSets.openedAt,
   sealedAt: changeSets.sealedAt,
-  undoneBy: changeSets.undoneBy,
+  undoneAt: changeSets.undoneAt,
 };
 
 const loadSets = (db: CellDb, ids: readonly string[]) =>
@@ -53,38 +48,23 @@ const loadSets = (db: CellDb, ids: readonly string[]) =>
     db.select(SET_COLUMNS).from(changeSets).where(inArray(changeSets.id, chunk)).all(),
   );
 
-// the sets asked for, newest first; refuses an id no set has, and a set already undone
+// the sets asked for, newest first; refuses an id no set has, a set already undone, and one whose
+// turn is still open, since what it did is not yet fixed
 const undoableSets = (db: CellDb, ids: readonly string[]) => {
   const sets = loadSets(db, ids);
   if (sets.length !== new Set(ids).size) {
     refuse({ kind: "not-found" });
   }
   for (const set of sets) {
-    if (set.undoneBy !== null) {
-      refuse({ changeSetId: set.id, kind: "already-undone", undoneBy: set.undoneBy });
+    if (set.undoneAt !== null) {
+      refuse({ changeSetId: set.id, kind: "already-undone" });
+    }
+    if (set.sealedAt === null) {
+      refuse({ kind: "conflict" });
     }
   }
   return sets.toSorted((a, b) => b.openedAt - a.openedAt || compareText(b.id, a.id));
 };
-
-// what each fill did to the item, which a made item's undo keeps
-const fillsOf = (db: CellDb, itemId: string): FillChange[] =>
-  db
-    .select({ afterFields: changeSetItems.afterFields, beforeFields: changeSetItems.beforeFields })
-    .from(changeSetItems)
-    .innerJoin(changeSets, eq(changeSets.id, changeSetItems.changeSetId))
-    .where(and(eq(changeSetItems.itemId, itemId), eq(changeSets.actor, "fill")))
-    .all()
-    .flatMap(({ afterFields, beforeFields }) =>
-      afterFields === null || beforeFields === null
-        ? []
-        : [
-            {
-              after: readFieldsPart(db, itemId, afterFields),
-              before: readFieldsPart(db, itemId, beforeFields),
-            },
-          ],
-    );
 
 const setItems = (db: CellDb, setId: string) =>
   db
@@ -103,36 +83,31 @@ const changesOf = (db: CellDb, setId: string): Map<string, ItemChange> => {
     if (afterFields === null) {
       continue;
     }
-    const after = readFieldsPart(db, itemId, afterFields);
-    changes.set(
-      itemId,
-      beforeFields === null
-        ? { after, before: null, fills: fillsOf(db, itemId) }
-        : { after, before: readFieldsPart(db, itemId, beforeFields) },
-    );
+    changes.set(itemId, {
+      after: readFieldsPart(db, itemId, afterFields),
+      before: beforeFields === null ? null : readFieldsPart(db, itemId, beforeFields),
+    });
   }
   return changes;
 };
 
-// a note an agent's set wrote in, which the undo asks to take that set's edits back
+// a note a set wrote in, which the undo asks to take that set's edits back
 export interface NoteToUndo {
   readonly setId: string;
   readonly itemId: string;
 }
 
-// What an undo asks of notes before its write, newest set first: each item an agent's set touched
-// whose body is its note's. A person's sets are field writes alone, so they ask nothing.
+// What an undo asks of notes before its write, newest set first: each item a set touched whose
+// body is its note's.
 export const planUndo = (db: CellDb, changeSetIds: readonly string[]): NoteToUndo[] =>
-  undoableSets(db, changeSetIds)
-    .filter((set) => set.actor === "agent")
-    .flatMap((set) =>
-      setItems(db, set.id).flatMap(({ itemId }) => {
-        const item = readLiveItem(db, itemId);
-        return item !== null && bodyWriter(item.body.home) === "note"
-          ? [{ itemId, setId: set.id }]
-          : [];
-      }),
-    );
+  undoableSets(db, changeSetIds).flatMap((set) =>
+    setItems(db, set.id).flatMap(({ itemId }) => {
+      const item = readLiveItem(db, itemId);
+      return item !== null && bodyWriter(item.body.home) === "note"
+        ? [{ itemId, setId: set.id }]
+        : [];
+    }),
+  );
 
 // what the notes answered, an item's answers taken together: its text lost by any, anyone else's
 // writing there, and its body after the last
@@ -151,33 +126,16 @@ export const mergeTurnUndos = (
   return merged;
 };
 
-// the undo's own set, named on each set it settled
-const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
-  const undoSet = scope.set();
-  for (const set of settled) {
-    scope.db
-      .update(changeSets)
-      .set({ undoneBy: undoSet.id })
-      .where(eq(changeSets.id, set.id))
-      .run();
-  }
-  return undoSet.id;
-};
-
 export const undoChangeSets = (
   scope: LandingScope,
   changeSetIds: readonly string[],
   notes: ReadonlyMap<string, TurnUndone>,
 ): UndoAnswer => {
   const { db, now } = scope;
-  const sets = undoableSets(db, changeSetIds);
-  // a set still open closes first, so what it did is fixed
-  for (const set of sets) {
-    if (set.sealedAt === null) {
-      sealChangeSet(db, set.id, now);
-    }
-  }
-  const ordered = sets.map((set) => ({ id: set.id, items: changesOf(db, set.id) }));
+  const ordered = undoableSets(db, changeSetIds).map((set) => ({
+    id: set.id,
+    items: changesOf(db, set.id),
+  }));
   const items = new Map<string, ItemNow | null>();
   for (const set of ordered) {
     for (const itemId of set.items.keys()) {
@@ -227,12 +185,13 @@ export const undoChangeSets = (
     (set) => !verdict.leftWhole.has(set.id) && ![...set.items.keys()].some((id) => refused.has(id)),
   );
   const [first] = refused.values();
-  const moved = reverted.size > 0 || settled.length > 0;
-  if (first !== undefined && !moved) {
+  if (first !== undefined && reverted.size === 0 && settled.length === 0) {
     refuse(first);
   }
+  for (const set of settled) {
+    db.update(changeSets).set({ undoneAt: now }).where(eq(changeSets.id, set.id)).run();
+  }
   return {
-    changeSetId: moved ? markUndone(scope, settled) : null,
     kept: [...kept].filter((id) => !refused.has(id)).toSorted(),
     lostText: [...notes]
       .filter(([, undone]) => undone.lostText)

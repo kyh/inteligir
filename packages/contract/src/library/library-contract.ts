@@ -405,17 +405,17 @@ const organizeContract = {
   ),
 };
 
-// the change sets the cell keeps, each until seven days after it closed
+// the built-in agent's turns' change sets, each kept until seven days after its turn closed
 const historyContract = {
   // the sets one conversation's turns made, or the library's newest
   list: signedBase
     .input(z.strictObject({ cursor, limit, threadId: idSchema.optional() }))
     .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
 
-  // newest first, in one change set of its own; an item a later edit overlaps is named under
-  // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
-  // only kept items remain stays undoable too, and `changeSetId` is null when no item went back
-  // and no set was undone. When a rule held back all that could land, its own error is the answer
+  // newest first, in one write; an item a later edit overlaps is named under `kept`, and one a
+  // rule refuses under `refused`, its set left to undo again. A set of which only kept items remain
+  // stays undoable too, and a set whose turn is still open is a conflict. When a rule held back all
+  // that could land, its own error is the answer
   undo: signedBase
     .errors({
       [AlreadyUndoneError.code]: AlreadyUndoneError,
@@ -427,7 +427,6 @@ const historyContract = {
     .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(
       z.object({
-        changeSetId: idSchema.nullable(),
         kept: z.array(idSchema),
         // the items whose undo took text someone wrote inside a block the undone turn added
         lostText: z.array(idSchema),
@@ -438,8 +437,7 @@ const historyContract = {
 };
 
 // an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
-// zip of markdown, an Obsidian vault included. The cell runs it as a job, a page at a time, every
-// item it adds in one change set
+// zip of markdown, an Obsidian vault included. The cell runs it as a job, a page at a time
 const importsContract = {
   start: signedBase
     .errors({
@@ -457,7 +455,7 @@ const importsContract = {
   // the newest import, null when the library never imported
   latest: signedBase.output(z.object({ job: importJobSchema.nullable() })),
 
-  // stops after the page it is on; what it added stays, and its change set closes
+  // stops after the page it is on; what it added stays
   cancel: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ id: idSchema, opId }))

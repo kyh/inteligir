@@ -6,11 +6,19 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { pngOf } from "../fill/test-support/fill-cell";
-import { cellIn, cellOf, clockAt, inCell, landedValue, person } from "../test-support/library-cell";
+import {
+  cellIn,
+  cellOf,
+  clockAt,
+  inCell,
+  landedValue,
+  openTurn,
+  PERSON,
+} from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uploadedFile, zipOf } from "../test-support/library-files";
+import type { CellActor } from "./cell-actor";
 import { blobKey } from "./cell-blobs";
-import { FILL_ACTOR } from "./cell-fills";
 import { runImports } from "./cell-imports";
 import { removeStrays } from "./cell-library";
 
@@ -53,9 +61,15 @@ const noteItem = async ({ client, clock, library }: Cell): Promise<string> => {
   return item.id;
 };
 
-const setCover = ({ library }: Cell, itemId: string, base: string | null, value: string): void => {
+const setCover = (
+  { library }: Cell,
+  actor: CellActor,
+  itemId: string,
+  base: string | null,
+  value: string,
+): void => {
   landedValue(
-    library.write(person(), { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
+    library.write(actor, { itemId, ops: [{ base, field: "coverSha", op: "set", value }] }),
   );
 };
 
@@ -119,11 +133,11 @@ describe("a file nothing names any more", () => {
       ];
       const fileHolder = await fileItem(cell, old);
       const note = await noteItem(cell);
-      setCover(cell, note, null, old);
-      // sealed, so the next write's set keeps the cover it replaces
-      cell.clock.now += 120_000;
-      cell.library.runDueJobs(() => {});
-      setCover(cell, note, old, fresh);
+      setCover(cell, PERSON, note, null, old);
+      // the agent's turn replaces it, so its set keeps the cover it found
+      const turn = openTurn(cell);
+      setCover(cell, turn.actor, note, old, fresh);
+      turn.end();
       await purge(cell, fileHolder);
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);
@@ -144,8 +158,8 @@ describe("a file nothing names any more", () => {
         await uploadedFile(cell.library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      setCover(cell, note, null, first);
-      setCover(cell, note, first, second);
+      setCover(cell, PERSON, note, null, first);
+      setCover(cell, PERSON, note, first, second);
       await runAlarm(cell);
       expect(fileRows(cell, first)).toBe(1);
       cell.clock.now += DAY;
@@ -163,11 +177,15 @@ describe("a file nothing names any more", () => {
         await uploadedFile(library, cell.accountId, png(1300)),
       ];
       const note = await noteItem(cell);
-      const write = (ops: Parameters<Cell["library"]["write"]>[1]["ops"]) =>
-        landedValue(library.write(FILL_ACTOR, { itemId: note, ops }));
-      // a reading's writes, each a set of its own: the second's before names the old cover
-      write([{ base: null, field: "coverSha", op: "set", value: old }]);
-      write([{ base: old, field: "coverSha", op: "set", value: fresh }]);
+      // two of the agent's turns, each a set of its own: the second's before names the old cover
+      for (const [base, value] of [
+        [null, old],
+        [old, fresh],
+      ] as const) {
+        const turn = openTurn(cell);
+        setCover(cell, turn.actor, note, base, value);
+        turn.end();
+      }
       clock.now += 6 * DAY;
       await runAlarm(cell);
       expect(fileRows(cell, old)).toBe(1);

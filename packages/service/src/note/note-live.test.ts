@@ -34,7 +34,7 @@ import {
   traces,
 } from "../test-support/fetch-web-socket";
 import { runAlarmsUntil } from "../test-support/library-files";
-import { cellOf } from "../test-support/library-cell";
+import { cellIn, cellOf, inCell, openTurn } from "../test-support/library-cell";
 import { NOTE_STATE_CAP, NOTE_UPDATE_CAP } from "./note-do";
 import { noteDbOf } from "./note-db";
 import { noteStub } from "./note-stub";
@@ -323,7 +323,7 @@ describe("a note edited live", () => {
     await until(async () => await converged(accountId, itemId, [a, b]));
 
     await evictDurableObject(note, { webSockets: "hibernate" });
-    const undone = await note.undoTurn("turn-1", "undo-1");
+    const undone = await note.undoTurn("turn-1");
     expect(undone).toMatchObject({ lostText: false, personEdited: true });
     expect(undone.projection).not.toBeNull();
     await until(async () => await converged(accountId, itemId, [a, b]));
@@ -333,7 +333,7 @@ describe("a note edited live", () => {
     expect(after).toContain("dish");
     expect(after).not.toContain("red");
     // a turn undone again changes nothing
-    await expect(note.undoTurn("turn-1", "undo-2")).resolves.toMatchObject({ projection: null });
+    await expect(note.undoTurn("turn-1")).resolves.toMatchObject({ projection: null });
     a.provider.destroy();
     b.provider.destroy();
   });
@@ -361,7 +361,7 @@ describe("a note edited live", () => {
     typeInto(a, 1, 0, "mine ");
     await until(async () => (await serverLine(accountId, itemId, 1)) === "mine The agent's line.");
 
-    const undone = await note.undoTurn("turn-add", "undo-add");
+    const undone = await note.undoTurn("turn-add");
     expect(undone.lostText).toBe(true);
     await until(async () => await converged(accountId, itemId, [a]));
     await expect(serverText(accountId, itemId)).resolves.toStrictEqual([
@@ -513,10 +513,13 @@ describe("a note's door", () => {
   it("opens a note writable again once its delete is undone", async () => {
     const email = "door-undone@example.test";
     const { accountId, itemId, library, ticket } = await signedIn(email);
-    // another device's delete, so its change set holds the delete alone
-    const phone = v1Link(phoneHeaders(await signInPhone(email)));
     const open = await openClient(itemId, ticket, "undone-open");
-    await phone.library.items.delete({ ids: [itemId] });
+    // the built-in agent's turn deletes it, so its change set holds the delete alone
+    await inCell(cellOf(accountId), async (state) => {
+      const turn = openTurn(cellIn(state));
+      await turn.client.items.delete({ ids: [itemId] });
+      turn.end();
+    });
     await until(() => opens.get("undone-open") === 2 && open.provider.synced);
 
     const { changeSets } = await library.history.list({});
@@ -574,7 +577,7 @@ describe("a note's door", () => {
       held: "gone",
       kind: "held",
     });
-    await expect(note.undoTurn("turn-gone", "undo-gone")).resolves.toMatchObject({
+    await expect(note.undoTurn("turn-gone")).resolves.toMatchObject({
       projection: null,
     });
   });
@@ -653,7 +656,7 @@ describe("a note's size", () => {
     // the writer's document holds the frames the note refused, which a reopen would send again
     writer.provider.destroy();
 
-    const undone = await note.undoTurn("turn-long", "undo-long");
+    const undone = await note.undoTurn("turn-long");
     expect(undone.projection).not.toBeNull();
     await until(
       () => traces.get("shrink-watcher")?.closes.includes(NOTE_SOCKET.reopenCode) === true,
@@ -742,7 +745,7 @@ describe("a note after every object was aborted", () => {
     const before = blockAt(await serverBlocks(accountId, itemId), 2);
     await note.applyChange(agentPut("turn-abort", before, withText(before, "Rewritten.")));
     await abortAllDurableObjects();
-    const undone = await noteOf(accountId, itemId).undoTurn("turn-abort", "undo-abort");
+    const undone = await noteOf(accountId, itemId).undoTurn("turn-abort");
     expect(undone).toMatchObject({ lostText: false, personEdited: false });
     await expect(serverLine(accountId, itemId, 2)).resolves.toBe("Below the fox.");
   });

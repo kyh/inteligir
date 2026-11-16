@@ -1,5 +1,5 @@
-// Imports as the cell runs them: a file the device uploaded, read by the alarm a page at a time
-// into one change set, an address the library holds counted rather than saved twice; a run cut off
+// Imports as the cell runs them: a file the device uploaded, read by the alarm a page at a time,
+// an address the library holds counted rather than saved twice; a run cut off
 // by an eviction resumes where it stood; a zip of notes, Obsidian's way included, read with its
 // links, its files and its folders.
 
@@ -71,7 +71,7 @@ const items = (state: DurableObjectState) =>
     .toArray();
 
 describe("a Raindrop import", () => {
-  it("lands every bookmark as an unread link in one change set, the file let go after", async () => {
+  it("lands every bookmark as an unread link, keeping no change set, the file let go after", async () => {
     const accountId = newAccountId();
     const started = await startImport(accountId, csv(RAINDROP_EXPORT), "raindrop", "platform");
     await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
@@ -103,12 +103,7 @@ describe("a Raindrop import", () => {
       expect(outline.folders.map((folder) => folder.name).toSorted()).toStrictEqual(
         expect.arrayContaining(["Cooking", "Reading", "Weeknight"]),
       );
-      const sets = state.storage.sql
-        .exec("SELECT id, label, sealed_at FROM change_sets WHERE actor = 'import'")
-        .toArray();
-      expect(sets).toStrictEqual([
-        { id: job.changeSetId, label: "Imported from Raindrop", sealed_at: expect.any(Number) },
-      ]);
+      expect(state.storage.sql.exec("SELECT id FROM change_sets").toArray()).toStrictEqual([]);
       expect(readBlobRow(cellDbOf(state.storage), started.sha)).toBeNull();
       // every reading the links wait for was sent to the fill queue
       expect(

@@ -1,7 +1,8 @@
 // A library cell under test: a fresh one per test, opened inside it as its object opens it
 // (`../library/open-cell`) over the clock, the bindings and the cap a suite states, its alarm held
-// unless the suite asks for the platform's, and items built by hand. The cell is the real Durable
-// Object, so every statement meets a SQLite Durable Object's own limits.
+// unless the suite asks for the platform's, items built by hand, and the built-in agent's turns
+// opened and ended as its conversations open and end them. The cell is the real Durable Object, so
+// every statement meets a SQLite Durable Object's own limits.
 
 import type { LibrarySocketFrame } from "@repo/contract/library/library-socket";
 import type { LibraryBlock, LibrarySection } from "@repo/contract/library/library-nodes";
@@ -11,8 +12,13 @@ import { readItem } from "../library/library-queries";
 import type { StoredItem } from "../library/library-queries";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
-import type { CellActor } from "../library/cell-actor";
+import { changeSets } from "@repo/db/cell/schema";
+import { landPush } from "../agent/agent-turns";
+import { createThread, insertTurn, restatus } from "../agent/turn-rows";
+import type { CellActor, TurnActor } from "../library/cell-actor";
 import { landNew } from "../library/cell-items";
 import type { NewItem } from "../library/cell-items";
 import { tellSockets } from "../library/cell-sockets";
@@ -21,8 +27,10 @@ import { libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { landedSchema, libraryHead } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
+import { agentPrincipal } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
 import { openCell } from "../library/open-cell";
+import type { Cell } from "../library/open-cell";
 
 export const newAccountId = (): string => crypto.randomUUID();
 
@@ -89,11 +97,7 @@ export const inCell = async <T>(
 ): Promise<T> =>
   await runInDurableObject(stub, async (cell: LibraryDO, state) => await run(state, cell));
 
-export const person = (sessionId = "laptop"): CellActor => ({
-  kind: "person",
-  label: `You on ${sessionId}`,
-  sessionId,
-});
+export const PERSON: CellActor = { kind: "person" };
 
 // a new item, landed as the library's own procedures land one
 export const createItem = (
@@ -106,11 +110,8 @@ export const createItem = (
   }));
 
 // an undo of sets that wrote no note's body, so no note has anything to answer first
-export const undoFields = (
-  library: LibraryEngine,
-  actor: CellActor,
-  changeSetIds: readonly string[],
-) => library.undo(actor, { changeSetIds }, { notes: new Map(), undoSetId: crypto.randomUUID() });
+export const undoFields = (library: LibraryEngine, changeSetIds: readonly string[]) =>
+  library.undo({ changeSetIds }, new Map());
 
 // blocks in the order given, in one section
 export const placed = (
@@ -134,6 +135,61 @@ export const refusalOf = <T>(result: CellResult<T>) => {
     );
   }
   return result.refusal;
+};
+
+const TURN_TEXT = "A turn under test.";
+
+// A turn of the built-in agent in a thread of its own, opened in the cell as a send opens one: whom
+// its writes are by, the library's procedures as its tool calls reach them, the push that ends it
+// landed as its conversation's object sends it, and the change set its writes joined.
+export const openTurn = (cell: Cell) => {
+  const threadId = crypto.randomUUID();
+  const actor: TurnActor = { kind: "agent", threadId, turn: 1 };
+  landedValue(
+    cell.library.landApart({ answer: z.object({}), opId: undefined }, (scope) => {
+      createThread(scope, threadId, TURN_TEXT);
+      insertTurn(scope.db, {
+        at: scope.now,
+        message: { text: TURN_TEXT, viewContext: null },
+        threadId,
+        turn: actor.turn,
+      });
+      restatus(scope, threadId);
+      return {};
+    }),
+  );
+  return {
+    actor,
+    client: createRouterClient(libraryRouter, {
+      context: cell.contextFor(agentPrincipal(cell.accountId, actor)),
+    }),
+    end: (): void => {
+      const ended = landPush(cell, {
+        events: [{ reason: "done", turn: actor.turn, type: "turn.ended" }],
+        seq: 1,
+        threadId,
+        turn: actor.turn,
+      });
+      if (!ended.ok) {
+        throw new Error(`the cell landed no end of the turn: ${ended.refusal}`);
+      }
+    },
+    setId: (): string =>
+      z
+        .string()
+        .parse(
+          landedValue(
+            cell.library.read(
+              (db) =>
+                db
+                  .select({ id: changeSets.id })
+                  .from(changeSets)
+                  .where(eq(changeSets.threadId, threadId))
+                  .get()?.id,
+            ),
+          ),
+        ),
+  };
 };
 
 // an item's blocks as the cell's seed holds them, in order; an item whose body went to its note

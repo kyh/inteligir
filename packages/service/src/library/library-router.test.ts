@@ -15,6 +15,7 @@ import {
   createItem,
   inCell,
   landedValue,
+  openTurn,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
@@ -565,31 +566,44 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("lists the change sets under the device's name and undoes a set once", async () => {
+  it("lists the agent's turns' change sets, keeps none of the person's, and undoes a sealed set once", async () => {
     await inCell(cellOf(), async (state) => {
-      const clock = clockAt();
-      const library = clientIn(state, clock);
-      const { item } = await library.items.createNote({ markdown: "Before." });
+      const cell = cellIn(state, { clock: clockAt() });
+      const { client: library } = cell;
+      await library.items.createNote({ markdown: "The person's." });
+      await expect(library.history.list({})).resolves.toStrictEqual({
+        changeSets: [],
+        cursor: null,
+      });
+      const turn = openTurn(cell);
+      const { item } = await turn.client.items.createNote({ markdown: "Before." });
       const { changeSets } = await library.history.list({});
       expect(changeSets).toStrictEqual([
         expect.objectContaining({
-          actor: "person",
+          closedAt: null,
           itemCount: 1,
           items: [expect.objectContaining({ created: true, id: item.id })],
-          label: "You in the browser",
+          threadId: turn.actor.threadId,
+          turn: 1,
+          undoneAt: null,
         }),
       ]);
       const [made] = changeSets;
       if (made === undefined) {
         throw new Error("no change set");
       }
+      // a set whose turn is still open is refused before any note is asked to undo
+      await expect(
+        refusalOf(library.history.undo({ changeSetIds: [made.id] })),
+      ).resolves.toMatchObject({ code: "CONFLICT" });
+      turn.end();
       const undone = await library.history.undo({ changeSetIds: [made.id] });
       expect(undone.reverted).toStrictEqual([item.id]);
       await expect(
         refusalOf(library.history.undo({ changeSetIds: [made.id] })),
       ).resolves.toStrictEqual({
         code: "ALREADY_UNDONE",
-        data: { changeSetId: made.id, undoneBy: undone.changeSetId },
+        data: { changeSetId: made.id },
         defined: true,
       });
     });
@@ -679,13 +693,13 @@ describe("the library's procedures", () => {
 
   it("answers an undo another item's link holds back in words that say so", async () => {
     await inCell(cellOf(), async (state) => {
-      const clock = clockAt();
-      const library = clientIn(state, clock);
+      const cell = cellIn(state, { clock: clockAt() });
+      const { client: library } = cell;
       const url = "https://pages.example/held";
       const { item } = await library.items.saveLink({ url });
-      clock.now += 120_000;
-      await library.items.delete({ ids: [item.id] });
-      clock.now += 120_000;
+      const turn = openTurn(cell);
+      await turn.client.items.delete({ ids: [item.id] });
+      turn.end();
       const { changeSets } = await library.history.list({});
       await library.items.saveLink({ url });
       await expect(

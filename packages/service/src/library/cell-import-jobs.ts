@@ -35,7 +35,6 @@ export type ImportJob = Readonly<typeof importJobs.$inferSelect>;
 export const importJobView = (job: ImportJob): z.input<typeof importJobSchema> => ({
   added: job.added,
   alreadySaved: job.alreadySaved,
-  changeSetId: job.changeSetId,
   finishedAt: job.finishedAt,
   id: job.id,
   message: job.message,
@@ -101,7 +100,6 @@ export interface ImportStep {
   readonly total?: number | undefined;
   // each added to what the job counted so far
   readonly counts?: ImportCounts | undefined;
-  readonly changeSetId?: string | undefined;
 }
 
 // the job moved on by one step: its cursor, its phase, what it counted; a run that moves it on
@@ -121,10 +119,6 @@ export const advanceImport = (db: CellDb, id: string, step: ImportStep): void =>
   db.update(importJobs)
     .set({
       ...counted,
-      changeSetId:
-        step.changeSetId === undefined
-          ? undefined
-          : sql`coalesce(${importJobs.changeSetId}, ${step.changeSetId})`,
       cursor: step.cursor,
       phase: step.phase,
       total: step.total,

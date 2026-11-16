@@ -33,22 +33,20 @@ the connector is an assistant's door alone. Not a route: a door answers every
 method of its paths.
 
 **principal** — who a library call is by, as the Worker verified it at its
-**door**: the account and the actor whose **change set** its writes join (a
-**session**, or a **connected assistant** under one grant, the only actor with
-scopes). The Worker stamps it on the call it forwards to the cell and drops
-any copy the request brought (`packages/service/src/library/library-principal.ts`);
-the rate limits and the socket's **ticket** key on it. Not a credential: the
-cell never sees one.
+**door**: the account and the actor its writes are by (a **session**, or a
+**connected assistant** under one grant, the only actor with scopes). The
+Worker stamps it on the call it forwards to the cell and drops any copy the
+request brought (`packages/service/src/library/library-principal.ts`); the
+rate limits and the socket's **ticket** key on it. Not a credential: the cell
+never sees one.
 
-**change set** — the unit of undo. Every write lands in one, which records each
-item it touched before and after, its actor (a person in one session, the
-agent, an assistant, an import, a fill or an undo) and when it opened and
-sealed. A person's writes seal after a short quiet, their typing in a note
-joins no set, a **turn** is one set, and an assistant's writes are one set per
-grant until it idles (`SEAL_POLICIES`,
-`packages/service/src/library/cell-actor.ts`). An undo is a set of its own,
-and the cell keeps each for the undo window
-(`packages/service/src/library/change-sets.ts`).
+**change set** — the unit of undo: what one **turn** of the **built-in agent**
+changed, each item it touched before and after, keyed by the turn and sealed
+as the turn ends. No other writer keeps one: a person's, a connected
+assistant's, an import's and a page's reading land with nothing to undo, and a
+reading of a link the turn saved folds into the turn's set. The cell keeps each
+for the undo window (`packages/service/src/library/change-sets.ts`). Not a
+version: an undo writes forward and keeps no set of its own.
 
 **block** — one top-level element of a note's **live document**, named by its
 id and its **section**. The agent edits a body by block id, and a change to a

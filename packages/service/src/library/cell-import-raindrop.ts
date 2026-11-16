@@ -31,7 +31,7 @@ import {
   DONE,
   failed,
   FILE_GONE,
-  importActor,
+  IMPORT_ACTOR,
   landingOutcome,
   MORE,
   PAGE_MS,
@@ -149,10 +149,9 @@ const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutc
     return DONE;
   }
   for (const { idx, value } of page.value) {
-    const landed = library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
+    const landed = library.land(IMPORT_ACTOR, { answer: LANDED, opId: undefined }, (scope) => {
       const result = landBookmark(scope, host, value);
       advanceImport(scope.db, job.id, {
-        changeSetId: result === "added" ? scope.set().id : undefined,
         counts: result === "added" ? { added: 1 } : { alreadySaved: 1 },
         cursor: idx + 1,
       });

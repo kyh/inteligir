@@ -1,11 +1,11 @@
 // The library cell's engine: every rule over the account's library, as synchronous calls over the
 // cell's SQLite, each write one `transactionSync`. Its one state is the listing it keeps
 // (`./cell-listing`), so the cell opens it once a wake (`./open-cell`). A write takes the library's
-// next sequence number once, stamps every row it touches with it, joins its actor's change set,
-// and keeps its answer under its `opId` for 30 days, so a client resending after a lost answer is
-// told what landed. What follows a commit is the engine's own, in the turn that committed it: the
-// sockets told what it moved, the alarm set to the earliest job and each note whose item went into
-// Deleted or came back told to reopen, so no caller settles a write.
+// next sequence number once, stamps every row it touches with it, joins its turn's change set when
+// the built-in agent made it, and keeps its answer under its `opId` for 30 days, so a client
+// resending after a lost answer is told what landed. What follows a commit is the engine's own, in
+// the turn that committed it: the sockets told what it moved, the alarm set to the earliest job and
+// each note whose item went into Deleted or came back told to reopen, so no caller settles a write.
 
 import type { LibraryIndex, ListingRow } from "@repo/contract/library/library-index";
 import type { MovedFrame } from "@repo/contract/library/library-socket";
@@ -18,7 +18,6 @@ import {
   storeTombstone,
   writeMeta,
 } from "./library-queries";
-import { LibraryRowError } from "./library-sql";
 import type { CellDb } from "./cell-db";
 import { jsonTextSchema } from "./sql-value";
 import { eq } from "drizzle-orm";
@@ -35,7 +34,7 @@ import type {
   SeedAnswer,
   TurnUndone,
 } from "../note/note-wire";
-import type { CellActor } from "./cell-actor";
+import type { CellActor, TurnActor } from "./cell-actor";
 import {
   awaitNameAgain,
   beginRemoval,
@@ -81,8 +80,7 @@ import type { CellResult } from "./cell-refusal";
 import { undoChangeSets } from "./cell-undo";
 import { landWrite } from "./cell-writes";
 import type { ItemWrite } from "./cell-writes";
-import { joinChangeSet, openUndoSet, PRUNE_JOB, sealChangeSet } from "./change-sets";
-import type { OpenSet } from "./change-sets";
+import { joinTurnSet, PRUNE_JOB } from "./change-sets";
 import { PRUNE_EVERY_MS, pruneChangeSets } from "./change-set-prune";
 
 export interface LibraryEngineDeps {
@@ -128,13 +126,6 @@ export interface UndoInput {
   readonly opId?: string | undefined;
 }
 
-// what an undo's notes answered before its write, and the id its own set takes, which each note
-// undid under
-export interface NotesUndone {
-  readonly undoSetId: string;
-  readonly notes: ReadonlyMap<string, TurnUndone>;
-}
-
 // a purged item's note, emptied by the alarm between two transactions
 export interface NotePurge {
   readonly job: DueJob<"note-purge">;
@@ -154,7 +145,6 @@ export interface StrayRemoval {
 export const landedSchema = z.object({ item: liveItemRowSchema });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
 const undoSchema = z.object({
-  changeSetId: z.string().nullable(),
   kept: z.array(z.string()),
   lostText: z.array(z.string()),
   refused: z.array(z.string()),
@@ -167,7 +157,7 @@ export const libraryHead = (db: CellDb): number => readCount(db, "head");
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
 // runs it between two (`removeStrays` in `./cell-library`)
-const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
+const STORAGE_JOBS = ["prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
 // a note's purge the alarm could not reach is asked again this long after
@@ -175,16 +165,11 @@ const NOTE_PURGE_AGAIN_MS = 60_000;
 // a file no item names is asked about again this long after, while an import may yet name it
 const PLAN_AGAIN_MS = 10 * 60_000;
 
-// what a write took on its first landing: the library's next sequence number and its actor's set
+// what a write took on its first landing: the library's next sequence number and its turn's set
 interface Taken {
   seq: number | null;
-  set: OpenSet | null;
+  set: string | null;
 }
-
-// a write that lands in no change set: a file's room, a purge
-const noSet = (): OpenSet => {
-  throw new LibraryRowError("this write joins no change set");
-};
 
 export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   const { bytesCap, db, ids } = deps;
@@ -215,7 +200,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // one write: refused once the account is being deleted, answered from its op's record when it
   // already landed, else run whole or not at all
   const transact = <S extends z.ZodType>(
-    request: WriteRequest<S> & { readonly openSet: (now: number) => OpenSet },
+    request: WriteRequest<S> & { readonly turn: TurnActor | null },
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => {
     try {
@@ -238,16 +223,16 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
             return taken.seq;
           },
           set: () => {
-            taken.set ??= request.openSet(now);
+            const { turn } = request;
+            if (turn === null) {
+              return null;
+            }
+            taken.set ??= joinTurnSet(db, turn, now, ids.changeSet);
             return taken.set;
           },
           db,
         };
         const value = request.answer.parse(work(scope));
-        const joined = taken.set;
-        if (joined?.policy.kind === "commit") {
-          sealChangeSet(db, joined.id, now);
-        }
         if (request.opId !== undefined) {
           db.insert(appliedOps)
             .values({ answer: JSON.stringify(value), at: now, opId: request.opId })
@@ -264,21 +249,19 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }
   };
 
-  const joining = (actor: CellActor) => (now: number) =>
-    joinChangeSet(db, actor, now, ids.changeSet);
-
-  // a write by `actor`, joining its change set
+  // a write by `actor`, joining its turn's change set when it is the built-in agent's
   const land = <S extends z.ZodType>(
     actor: CellActor,
     request: WriteRequest<S>,
     work: (scope: LandingScope) => Built<z.input<S>>,
-  ): CellResult<z.output<S>> => transact({ ...request, openSet: joining(actor) }, work);
+  ): CellResult<z.output<S>> =>
+    transact({ ...request, turn: actor.kind === "agent" ? actor : null }, work);
 
-  // a write that touches no item, so joins no set: a folder, a thread
+  // a write no turn made, so no change set keeps: a folder, a thread, a purge, a file's room
   const landApart = <S extends z.ZodType>(
     request: WriteRequest<S>,
     work: (scope: LandingScope) => Built<z.input<S>>,
-  ): CellResult<z.output<S>> => transact({ ...request, openSet: noSet }, work);
+  ): CellResult<z.output<S>> => transact({ ...request, turn: null }, work);
 
   const write = (actor: CellActor, input: WriteItemInput) =>
     land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
@@ -286,10 +269,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     }));
 
   // emptying Deleted: the item keeps its id and sequence as a tombstone, its body and every change
-  // set's hold on it go, and the alarm lets go the files nothing else names; it joins no set, since
-  // nothing can take it back
+  // set's hold on it go, and the alarm lets go the files nothing else names
   const purgeItems = (input: PurgeItemsInput) =>
-    transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
+    landApart({ answer: purgedSchema, opId: input.opId }, (scope) => {
       const purged: string[] = [];
       const missing: string[] = [];
       for (const id of new Set(input.ids)) {
@@ -322,28 +304,16 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { missing, purged };
     });
 
-  const undo = (requester: CellActor, input: UndoInput, undone: NotesUndone) =>
-    transact(
-      {
-        answer: undoSchema,
-        openSet: (now) => openUndoSet(db, requester, now, () => undone.undoSetId),
-        opId: input.opId,
-      },
-      (scope) => undoChangeSets(scope, input.changeSetIds, undone.notes),
+  // what each note the sets wrote in answered first lands beside the fields
+  const undo = (input: UndoInput, notes: ReadonlyMap<string, TurnUndone>) =>
+    landApart({ answer: undoSchema, opId: input.opId }, (scope) =>
+      undoChangeSets(scope, input.changeSetIds, notes),
     );
-
-  // an import closes its own set
-  const closeChangeSet = (changeSetId: string): void => {
-    commit(() => {
-      sealChangeSet(db, changeSetId, deps.now());
-    });
-  };
 
   // room for a file a device is about to upload
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
-    transact(
-      { answer: z.object({ held: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => reserveUpload(db, bytesCap, request, scope.now),
+    landApart({ answer: z.object({ held: z.boolean() }), opId: undefined }, (scope) =>
+      reserveUpload(db, bytesCap, request, scope.now),
     );
 
   // the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
@@ -353,8 +323,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     stored: StoredObject | null,
     removalsSeen: number,
   ): CellResult<UploadSettlement> => {
-    const result = transact(
-      { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
+    const result = landApart(
+      { answer: z.object({ settled: z.boolean() }), opId: undefined },
       (scope) => ({
         settled: settleUpload(db, bytesCap, { removalsSeen, sha, stored }, scope.now),
       }),
@@ -400,8 +370,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  // A page the cloud read, landed as a change set of the fill's own; an article its note already
-  // took lands as the note's projection. When the library would not take it, the alarm lets go at
+  // A page the cloud read, folded into the change set that made its item (`./cell-fills`); an
+  // article its note already took lands as the note's projection. When the library would not take it, the alarm lets go at
   // once what it kept that no item names; a reading its note is yet to take lands again.
   const landReading = (landing: FillLanding, inNote: NoteProjection | null) => {
     const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) => {
@@ -455,10 +425,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
-      case "seal": {
-        sealChangeSet(db, job.payload.changeSetId, now);
-        break;
-      }
       case "upload": {
         releaseUpload(db, job.payload.sha, now);
         break;
@@ -509,7 +475,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   // a note's save, joining no change set: typing is no change Undo takes back
   const projectNote = (itemId: string, projection: NoteProjection): CellResult<ProjectAnswer> =>
-    transact({ answer: projectAnswerSchema, openSet: noSet, opId: undefined }, (scope) =>
+    landApart({ answer: projectAnswerSchema, opId: undefined }, (scope) =>
       landProjection(scope, itemId, projection),
     );
 
@@ -551,7 +517,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     blobRemovals: () => blobRemovals(db),
     claimDueFills,
     claimNotePurges,
-    closeChangeSet,
     deletedAt,
     endStrayRemovals,
     fillWanted,

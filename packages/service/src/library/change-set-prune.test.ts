@@ -1,6 +1,5 @@
 import type { FieldOp } from "@repo/contract/library/field-ops";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { noteFixture, paragraph } from "@repo/contract/test-support/library-items";
 import {
@@ -9,8 +8,9 @@ import {
   createItem,
   cellIn,
   inCell,
+  openTurn,
   landedValue,
-  person,
+  PERSON,
   placed,
   storedItemOf,
   undoFields,
@@ -22,8 +22,6 @@ import type { LibraryEngine } from "./library-engine";
 const DAY = 24 * 60 * 60_000;
 const START = Date.UTC(2026, 9, 1);
 
-const agent: CellActor = { kind: "agent", label: "Agent", threadId: crypto.randomUUID(), turn: 1 };
-
 const failOn = (job: { readonly kind: string }, cause: unknown): never => {
   throw new Error(`the ${job.kind} job failed`, { cause });
 };
@@ -31,73 +29,70 @@ const failOn = (job: { readonly kind: string }, cause: unknown): never => {
 const count = (state: DurableObjectState, sql: string, ...params: string[]): number =>
   Number(state.storage.sql.exec(sql, ...params).one().n);
 
-const agentSet = (state: DurableObjectState): string =>
-  z
-    .string()
-    .parse(state.storage.sql.exec("SELECT id FROM change_sets WHERE actor = 'agent'").one().id);
-
 const set = (library: LibraryEngine, actor: CellActor, itemId: string, op: FieldOp): void => {
   landedValue(library.write(actor, { itemId, ops: [op] }));
 };
 
 describe("the change-set prune", () => {
-  it("drops a set seven days after it closed, with what only it named, and the set after it still undoes", async () => {
+  it("drops a set seven days after its turn ended, with what only it named, and the set after it still undoes", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const itemId = crypto.randomUUID();
       landedValue(
-        createItem(library, FILL_ACTOR, {
+        createItem(library, PERSON, {
           blocks: placed([paragraph("a", "the first line")]),
           fields: noteFixture(),
           id: itemId,
         }),
       );
-      // the person's renaming, three sets a minute apart
+      // the agent's renaming, three turns a minute apart
       let title = "A note";
       for (const next of ["typed", "typed more", "typed most"]) {
         clock.now += 60_000;
-        set(library, person(), itemId, { base: title, field: "title", op: "set", value: next });
+        const turn = openTurn(cell);
+        set(library, turn.actor, itemId, { base: title, field: "title", op: "set", value: next });
+        turn.end();
         title = next;
-        clock.now += 60_000;
-        library.runDueJobs(failOn);
       }
-      // three days on the agent describes it, and a day after that the person renames it again
+      // three days on a turn describes it, and a day after that one renames it again
       clock.now = START + 3 * DAY;
-      set(library, agent, itemId, {
+      const describing = openTurn(cell);
+      set(library, describing.actor, itemId, {
         base: null,
         field: "description",
         op: "set",
         value: "the agent's",
       });
-      library.closeChangeSet(agentSet(state));
+      describing.end();
       clock.now = START + 4 * DAY;
-      set(library, person(), itemId, {
+      const renaming = openTurn(cell);
+      set(library, renaming.actor, itemId, {
         base: title,
         field: "title",
         op: "set",
         value: "typed later",
       });
-      clock.now += 60_000;
-      library.runDueJobs(failOn);
+      renaming.end();
       const parts = (): number =>
         count(state, "SELECT count(*) AS n FROM snapshot_parts WHERE item_id = ?", itemId);
-      expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(6);
+      expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(5);
       // every state of the fields a set began or left
       expect(parts()).toBe(6);
       clock.now = START + 8 * DAY;
       library.runDueJobs(failOn);
-      // the reading's and the first three of the person's went; the agent's and the last stay
+      // the first three turns' sets went; the describing and the last renaming stay
       expect(
         state.storage.sql
-          .exec("SELECT actor FROM change_sets ORDER BY opened_at")
+          .exec("SELECT thread_id FROM change_sets ORDER BY opened_at")
           .toArray()
-          .map((row) => row.actor),
-      ).toStrictEqual(["agent", "person"]);
-      // what only the dropped sets named went: the fields the agent found, left, and the person's
-      // last renaming left
+          .map((row) => row.thread_id),
+      ).toStrictEqual([describing.actor.threadId, renaming.actor.threadId]);
+      // what only the dropped sets named went: the fields the describing found, left, and the last
+      // renaming left
       expect(parts()).toBe(3);
-      const answer = landedValue(undoFields(library, person(), [agentSet(state)]));
+      const answer = landedValue(undoFields(library, [describing.setId()]));
       expect(answer.reverted).toStrictEqual([itemId]);
       expect(storedItemOf(library, itemId)).toMatchObject({
         fields: { description: null, title: "typed later" },
@@ -105,54 +100,50 @@ describe("the change-set prune", () => {
     });
   });
 
-  it("keeps a set still open, however old", async () => {
+  it("keeps a set whose turn is still open, however old", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
-      const itemId = crypto.randomUUID();
-      const line = paragraph("a", "the first line");
-      landedValue(
-        createItem(library, FILL_ACTOR, {
-          blocks: placed([line]),
-          fields: noteFixture(),
-          id: itemId,
-        }),
-      );
-      set(library, agent, itemId, {
-        base: "A note",
-        field: "title",
-        op: "set",
-        value: "the agent's",
-      });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
+      const [ended, open] = [openTurn(cell), openTurn(cell)];
+      for (const turn of [ended, open]) {
+        landedValue(
+          createItem(library, turn.actor, {
+            blocks: placed([paragraph("a", "the first line")]),
+            fields: noteFixture(),
+            id: crypto.randomUUID(),
+          }),
+        );
+      }
+      ended.end();
       clock.now = START + 30 * DAY;
       library.runDueJobs(failOn);
       expect(
-        count(state, "SELECT count(*) AS n FROM change_set_items WHERE item_id = ?", itemId),
-      ).toBe(1);
-      expect(
-        state.storage.sql
-          .exec("SELECT sealed_at FROM change_sets")
-          .toArray()
-          .map((row) => row.sealed_at),
-      ).toStrictEqual([null]);
+        state.storage.sql.exec("SELECT thread_id, sealed_at FROM change_sets").toArray(),
+      ).toStrictEqual([{ sealed_at: null, thread_id: open.actor.threadId }]);
+      expect(count(state, "SELECT count(*) AS n FROM change_set_items")).toBe(1);
     });
   });
 
   it("drops a page a run, and runs again at once while more wait", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const { alarmAt, library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { alarmAt, library } = cell;
+      const turn = openTurn(cell);
       for (let index = 0; index < 101; index += 1) {
         landedValue(
-          createItem(library, FILL_ACTOR, {
+          createItem(library, turn.actor, {
             blocks: placed([paragraph("a", String(index))]),
             fields: noteFixture(),
             id: crypto.randomUUID(),
           }),
         );
       }
+      turn.end();
       clock.now = START + 8 * DAY;
       library.runDueJobs(failOn);
+      expect(count(state, "SELECT count(*) AS n FROM change_set_items")).toBe(1);
       expect(count(state, "SELECT count(*) AS n FROM change_sets")).toBe(1);
       expect(alarmAt()).toBe(clock.now + 1000);
       clock.now += 1000;
@@ -164,7 +155,8 @@ describe("the change-set prune", () => {
   it("forgets an op's answer after 30 days", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt(START);
-      const { library } = cellIn(state, { clock });
+      const cell = cellIn(state, { clock });
+      const { library } = cell;
       const opId = crypto.randomUUID();
       landedValue(
         createItem(library, FILL_ACTOR, {

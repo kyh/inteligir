@@ -2,8 +2,8 @@
 // (`/v1/blobs`) and what it is, and the alarm runs the job a page at a time
 // (`./cell-import-raindrop`, `./cell-import-markdown`), each run ending well inside an alarm's
 // limits and asking for the next, so a large import never holds the cell and resumes where it
-// stood after an eviction. Every item it adds joins one change set, closed when the job ends; the
-// file it read, and every file it kept that no item came to name, are let go then.
+// stood after an eviction. When the job ends, the file it read, and every file it kept that no item
+// came to name, are let go.
 
 import { readBlobRow, releaseUnnamed } from "./cell-blobs";
 import { apart } from "./cell-import-host";
@@ -48,7 +48,7 @@ export const startImport = (
   return insertImportJob(scope.db, { id: ids.item(), ...input }, scope.now);
 };
 
-// stops after the page it is on; what it added stays, and its change set closes on the next run
+// stops after the page it is on; what it added stays
 export const cancelImport = (scope: LandingScope, id: string): ImportJob => {
   const job = readImportJob(scope.db, id);
   if (job === null) {
@@ -66,15 +66,11 @@ const readJob = (host: ImportHost, id: string): ImportJob | null => {
   return read.ok ? read.value : null;
 };
 
-// an ended job's set closed, its plan let go, and with it the file it read and every file its first
-// pass kept that no item names, however it ended (done, cancelled, the library full, failed); while
-// another import runs, whose plan may name one, they wait for the alarm instead (`./cell-blobs`)
+// an ended job's plan let go, and with it the file it read and every file its first pass kept that
+// no item names, however it ended (done, cancelled, the library full, failed); while another
+// import runs, whose plan may name one, they wait for the alarm instead (`./cell-blobs`)
 const finish = (host: ImportHost, id: string): void => {
   const job = readJob(host, id);
-  const setId = job?.changeSetId ?? null;
-  if (setId !== null) {
-    host.library.closeChangeSet(setId);
-  }
   apart(host.library, (scope) => {
     const { db } = scope;
     const kept =

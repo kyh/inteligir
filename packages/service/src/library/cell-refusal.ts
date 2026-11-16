@@ -22,7 +22,7 @@ export type CellRefusal =
   | { readonly kind: "blob-missing"; readonly shas: readonly string[] }
   // the write would give a second live item a url another one holds
   | { readonly kind: "url-held" }
-  | { readonly kind: "already-undone"; readonly changeSetId: string; readonly undoneBy: string }
+  | { readonly kind: "already-undone"; readonly changeSetId: string }
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
   // a page's cursor this library never answered with

@@ -16,23 +16,12 @@ import {
 import type { FieldOp, ScalarField } from "@repo/contract/library/field-ops";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 
-// a fill's own change set for an item, which is the record of what it wrote there
-export interface FillChange {
-  readonly before: LibraryItemFields;
+// what a change set did to one item's fields: `before` null when the set made it, whose after then
+// holds what a page's reading wrote there since (`./change-sets`)
+export interface ItemChange {
+  readonly before: LibraryItemFields | null;
   readonly after: LibraryItemFields;
 }
-
-// what a change set did to one item's fields: `before` null when the set made it, with every fill
-// of the item since
-export type ItemChange =
-  | { readonly before: LibraryItemFields; readonly after: LibraryItemFields }
-  | {
-      readonly before: null;
-      readonly after: LibraryItemFields;
-      readonly fills: readonly FillChange[];
-    };
-
-type MadeItem = Extract<ItemChange, { before: null }>;
 
 // the item as it is now, and whether anyone but an agent ever wrote in its note
 export interface ItemNow {
@@ -110,24 +99,13 @@ const fieldOps = (
   return ops;
 };
 
-// whether anyone but a fill changed the item since `left`: a field holds what `left` holds or what
-// a fill wrote there, read off the fill's own change, since one field can be either's (a fill names
-// an unread link, and a person renames it). A fill writes no folder or list, so a change to either
-// is a person's, as is any writing in the item's note
-const personTouched = (
-  left: LibraryItemFields,
-  fills: readonly FillChange[],
-  now: ItemNow,
-): boolean => {
+// whether anyone changed the item since the set left it, in its fields or in its note
+const changedSince = (left: LibraryItemFields, now: ItemNow): boolean => {
   const { fields } = now;
-  const fillWrote = (field: ScalarField): boolean =>
-    fills.some(
-      (fill) => fill.after[field] === fields[field] && fill.before[field] !== fill.after[field],
-    );
   return (
     now.bodyEdited ||
     !(
-      SCALAR_FIELDS.every((field) => fields[field] === left[field] || fillWrote(field)) &&
+      SCALAR_FIELDS.every((field) => fields[field] === left[field]) &&
       fields.folderId === left.folderId &&
       sameList(fields.tags, left.tags) &&
       sameList(fields.aliases, left.aliases) &&
@@ -146,13 +124,12 @@ const landed = (now: ItemNow, ops: readonly FieldOp[]): ItemRevert => {
   return outcome.changed ? { fields: outcome.fields, kind: "revert", ops } : UNCHANGED;
 };
 
-// an item the set made goes to Deleted, unless a person has touched it since: a fill reading its
-// page since is not a reason to keep it
-const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemRevert => {
+// an item the set made goes to Deleted, unless a person has touched it since
+const revertCreated = (left: LibraryItemFields, now: ItemNow | null, at: number): ItemRevert => {
   if (now?.fields.deletedAt !== null) {
     return UNCHANGED;
   }
-  if (personTouched(change.after, change.fills, now)) {
+  if (changedSince(left, now)) {
     return EDITED_SINCE;
   }
   return landed(now, [setOp("deletedAt", null, at)]);
@@ -161,7 +138,7 @@ const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemR
 export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
   const { change, now } = input;
   if (change.before === null) {
-    return revertCreated(change, now, input.at);
+    return revertCreated(change.after, now, input.at);
   }
   if (now === null) {
     return { kind: "keep", reason: "purged" };

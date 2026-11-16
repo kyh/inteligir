@@ -1,4 +1,4 @@
-// Who a call to the library is by: the account, and the actor whose change set its writes join. The
+// Who a call to the library is by: the account, and the actor its writes are by. The
 // Worker resolves it from the credential the request carried (a session through the door it came
 // by on `/v1`, an assistant's OAuth token on the connector), drops any copy the request brought, and stamps it on the request it forwards to the account's cell
 // (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there alone, since
@@ -137,30 +137,7 @@ export const principalFromHeader = (value: string | null): NamedPrincipal | null
   return principal.success ? principal.data : null;
 };
 
-// a session's change sets are named by the door its writes came through, which says the surface
-// where a stored user agent would only guess at it
-const SESSION_LABELS = {
-  extension: "You from the browser extension",
-  page: "You in the browser",
-  phone: "You on your iPhone",
-} as const satisfies Record<SessionDoor, string>;
-
-// the actor a principal's writes are by, in its change set's words for it
-export const cellActorOf = (principal: NamedPrincipal): CellActor => {
-  const { actor } = principal;
-  switch (actor.kind) {
-    case "session": {
-      return { kind: "person", label: SESSION_LABELS[actor.door], sessionId: actor.sessionId };
-    }
-    // every call under one grant joins one set, sealed after its quiet (`./cell-actor`)
-    case "assistant": {
-      return {
-        clientId: actor.clientId,
-        grantId: actor.grantId,
-        kind: "assistant",
-        label: actor.clientName,
-      };
-    }
-    // no default
-  }
-};
+// the actor a principal's writes are by
+export const cellActorOf = (principal: NamedPrincipal): CellActor => ({
+  kind: principal.actor.kind === "session" ? "person" : "assistant",
+});

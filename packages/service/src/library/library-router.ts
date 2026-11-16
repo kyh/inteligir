@@ -1,8 +1,8 @@
 // The library's procedures, implemented once over the account's cell: `/v1/rpc/library` serves
 // them to the apps (`./library-rpc`), the connector serves its tools to assistants, and the cell
 // runs those for the built-in agent (`../agent/agent-tools`), each call by the actor its principal
-// resolves to. Every write lands through the engine in one transaction, which joins its actor's
-// change set, tells the sockets and sets the alarm; every refusal answers as the error its row
+// resolves to. Every write lands through the engine in one transaction, which joins the change set
+// of the agent's turn that made it, tells the sockets and sets the alarm; every refusal answers as the error its row
 // declares (`./library-orpc`). The built-in agent's rows are `../agent/agent-router`'s.
 
 import { NotFoundError } from "@repo/contract/v1/errors";
@@ -81,7 +81,7 @@ const bodyOf = async (context: CellContext, itemId: string) => {
 // turn seals, so the agent never reads, within its turn, a page it saved
 const askReading = (scope: LandingScope, actor: CellActor, item: LiveItemRow): void => {
   if (actor.kind === "agent") {
-    askFillAfterTurn(scope, item, scope.set().id);
+    askFillAfterTurn(scope, item, actor);
   } else {
     askFill(scope, item);
   }
@@ -101,19 +101,15 @@ export const libraryRouter = os.router({
     list: os.history.list.handler(({ context, input }) =>
       context.read((db) => listChangeSets(db, { ...input, limit: input.limit ?? PAGE_DEFAULT })),
     ),
-    // the notes an agent's sets wrote in undo first, outside any transaction, each under the
-    // undo's own set; the write then lands what they answered beside the fields
+    // the notes the sets wrote in undo first, outside any transaction; the write then lands what
+    // they answered beside the fields
     undo: os.history.undo.handler(async ({ context, input }) => {
-      const { library } = context;
       const plan = context.read((db) => planUndo(db, input.changeSetIds));
-      const undoSetId = library.ids.changeSet();
       const answers: { itemId: string; undone: TurnUndone }[] = [];
       for (const { itemId, setId } of plan) {
-        answers.push({ itemId, undone: await context.notes(itemId).undoTurn(setId, undoSetId) });
+        answers.push({ itemId, undone: await context.notes(itemId).undoTurn(setId) });
       }
-      return answer(
-        library.undo(context.actor(), input, { notes: mergeTurnUndos(answers), undoSetId }),
-      );
+      return answer(context.library.undo(input, mergeTurnUndos(answers)));
     }),
   },
   imports: {

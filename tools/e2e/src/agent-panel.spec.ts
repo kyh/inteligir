@@ -18,7 +18,7 @@ test("the built-in agent writes, asks before deleting, undoes its conversation a
   };
   const agentSets = async () => {
     const { changeSets } = await library.history.list({});
-    return changeSets.filter((set) => set.actor === "agent");
+    return changeSets;
   };
   const card = (id: string) => page.locator(`[role="gridcell"][data-item-id="${id}"]`);
   await openLibrary(page, cloud);

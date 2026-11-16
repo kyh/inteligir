@@ -18,7 +18,7 @@ import {
   threadEvents,
   threads,
 } from "@repo/db/cell/schema";
-import type { CellActor } from "../library/cell-actor";
+import type { TurnActor } from "../library/cell-actor";
 import { excluded } from "../library/cell-db";
 import type { CellDb } from "../library/cell-db";
 import type { LandingScope } from "../library/cell-landing";
@@ -26,9 +26,6 @@ import { refuse } from "../library/cell-refusal";
 import { jsonTextSchema } from "../library/sql-value";
 
 type ThreadStatus = (typeof THREAD_STATUSES)[number];
-
-// the built-in agent's change sets' label
-const AGENT_LABEL = "Agent";
 
 // a thread's name: its first message's first line, as long as a row shows
 const TITLE_MAX = 80;
@@ -114,10 +111,9 @@ export const openTurnOf = (db: CellDb, threadId: string): OpenTurn | null => {
     : { ...row, cancel: row.cancel === 1, message: messageText.parse(row.message) };
 };
 
-// the actor a turn's writes are by, which every call it runs joins
-export const turnActor = (turn: Pick<OpenTurn, "threadId" | "turn">): CellActor => ({
+// the actor a turn's writes are by, whose change set every call it runs joins
+export const turnActor = (turn: Pick<OpenTurn, "threadId" | "turn">): TurnActor => ({
   kind: "agent",
-  label: AGENT_LABEL,
   threadId: turn.threadId,
   turn: turn.turn,
 });

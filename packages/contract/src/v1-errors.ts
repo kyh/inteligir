@@ -67,7 +67,7 @@ export const EditRefusedError = error("UNPROCESSABLE_CONTENT", {
 
 // an undo names a change set already undone: undoing it again would redo it
 export const AlreadyUndoneError = error("ALREADY_UNDONE", {
-  data: z.object({ changeSetId: z.string().min(1), undoneBy: z.string().min(1) }),
+  data: z.object({ changeSetId: z.string().min(1) }),
   message: "That change was already undone.",
 });
 

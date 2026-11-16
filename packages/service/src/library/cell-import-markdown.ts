@@ -47,7 +47,7 @@ import {
   DONE,
   failed,
   FILE_GONE,
-  importActor,
+  IMPORT_ACTOR,
   keepFile,
   landingOutcome,
   LIBRARY_FULL,
@@ -400,7 +400,6 @@ const restoreDoc = (
   }
   const back = restored.changed.length > 0;
   advanceImport(scope.db, job.id, {
-    changeSetId: back ? scope.set().id : undefined,
     counts: back ? { added: 1 } : { alreadySaved: 1 },
     cursor: idx + 1,
   });
@@ -458,7 +457,7 @@ const docOutcome = async (
       library,
       job,
       idx,
-      library.land(importActor(job), { answer: CAME_BACK, opId: undefined }, (scope) =>
+      library.land(IMPORT_ACTOR, { answer: CAME_BACK, opId: undefined }, (scope) =>
         restoreDoc(scope, job, row.doc.itemId, idx),
       ),
     );
@@ -489,10 +488,9 @@ const docOutcome = async (
     library,
     job,
     idx,
-    library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
+    library.land(IMPORT_ACTOR, { answer: LANDED, opId: undefined }, (scope) => {
       const result = landDoc(scope, host, read.read);
       advanceImport(scope.db, job.id, {
-        changeSetId: result.held ? undefined : scope.set().id,
         counts: result.held
           ? { alreadySaved: 1 }
           : { added: 1, unreadable: read.read.item.leftOut },
@@ -608,30 +606,25 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
     return DONE;
   }
   for (const { idx, value } of page.value) {
-    const landed = library.land(
-      importActor(job),
-      { answer: LANDED_FILE, opId: undefined },
-      (scope) => {
-        const held = readItem(scope.db, value.itemId)?.kind === "live";
-        if (!held) {
-          landNew(scope, {
-            blocks: [],
-            fields: {
-              ...value.fields,
-              deletedAt: null,
-              folderId: folderIdOf(scope, host, value.folderPath),
-            },
-            id: value.itemId,
-          });
-        }
-        advanceImport(scope.db, job.id, {
-          changeSetId: held ? undefined : scope.set().id,
-          counts: held ? { alreadySaved: 1 } : { added: 1 },
-          cursor: idx + 1,
+    const landed = library.land(IMPORT_ACTOR, { answer: LANDED_FILE, opId: undefined }, (scope) => {
+      const held = readItem(scope.db, value.itemId)?.kind === "live";
+      if (!held) {
+        landNew(scope, {
+          blocks: [],
+          fields: {
+            ...value.fields,
+            deletedAt: null,
+            folderId: folderIdOf(scope, host, value.folderPath),
+          },
+          id: value.itemId,
         });
-        return { held };
-      },
-    );
+      }
+      advanceImport(scope.db, job.id, {
+        counts: held ? { alreadySaved: 1 } : { added: 1 },
+        cursor: idx + 1,
+      });
+      return { held };
+    });
     const outcome = landingOutcome(library, job, idx, landed);
     if (outcome !== null) {
       return outcome;

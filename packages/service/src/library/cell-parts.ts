@@ -1,6 +1,6 @@
 // What a change set keeps of an item: its fields, kept once per item under their content hash, so
 // sets that leave the fields alike share one part. A body is no part: an agent's edits to a note are
-// its note's turn log, and a person's typing is no change set.
+// its note's turn log.
 
 import { contentHash } from "@repo/contract/library/content-hash";
 import { canonicalJson } from "@repo/contract/library/canonical-json";
@@ -12,6 +12,10 @@ import { snapshotParts } from "@repo/db/cell/schema";
 import { LibraryRowError } from "./library-sql";
 import { fieldFilesOf, keepSetFiles } from "./cell-blobs";
 import type { CellDb } from "./cell-db";
+
+// the hash a part of these fields is kept under
+export const fieldsPartHash = (fields: LibraryItemFields): string =>
+  contentHash(canonicalJson(fields));
 
 // the fields' part, and the files they name kept beside it; answers its hash
 export const storeFieldsPart = (db: CellDb, itemId: string, fields: LibraryItemFields): string => {

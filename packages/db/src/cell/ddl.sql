@@ -83,18 +83,12 @@ CREATE TABLE `change_set_items` (
 
 CREATE TABLE `change_sets` (
 	`id` text PRIMARY KEY,
-	`actor` text NOT NULL,
-	`actor_id` text,
-	`label` text NOT NULL,
-	`session_id` text,
-	`thread_id` text,
-	`turn` integer,
-	`client_id` text,
+	`thread_id` text NOT NULL,
+	`turn` integer NOT NULL,
 	`opened_at` integer NOT NULL,
-	`touched_at` integer NOT NULL,
 	`sealed_at` integer,
-	`undone_by` text,
-	CONSTRAINT "change_sets_actor" CHECK("actor" IN ('person', 'agent', 'assistant', 'import', 'fill', 'undo'))
+	`undone_at` integer,
+	CONSTRAINT "change_sets_undone" CHECK("undone_at" IS NULL OR "sealed_at" IS NOT NULL)
 );
 
 CREATE TABLE `folders` (
@@ -118,7 +112,6 @@ CREATE TABLE `import_jobs` (
 	`already_saved` integer NOT NULL,
 	`skipped` integer NOT NULL,
 	`unreadable` integer NOT NULL,
-	`change_set_id` text,
 	`message` text,
 	`started_at` integer NOT NULL,
 	`finished_at` integer,
@@ -256,7 +249,7 @@ CREATE INDEX `agent_queue_order` ON `agent_queue` (`queued_at`,`id`);
 CREATE INDEX `applied_ops_at` ON `applied_ops` (`at`);
 CREATE INDEX `change_set_blobs_sha` ON `change_set_blobs` (`sha256`);
 CREATE INDEX `change_set_items_item` ON `change_set_items` (`item_id`);
-CREATE INDEX `change_sets_open` ON `change_sets` (`actor`,`sealed_at`);
+CREATE UNIQUE INDEX `change_sets_turn` ON `change_sets` (`thread_id`,`turn`);
 CREATE INDEX `item_tags_tag` ON `item_tags` (`tag`);
 CREATE UNIQUE INDEX `items_id` ON `items` (`id`);
 CREATE UNIQUE INDEX `one_url` ON `items` (`url_key`) WHERE "items"."deleted_at" IS NULL AND "items"."url_key" IS NOT NULL;

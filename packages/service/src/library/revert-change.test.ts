@@ -5,7 +5,7 @@ import type { FieldOp } from "@repo/contract/library/field-ops";
 import { ITEM_FIELD_CAPS } from "@repo/contract/library/library-item";
 import type { LibraryItemFields } from "@repo/contract/library/library-item";
 import { revertChangeSets, revertItemChange } from "./revert-change";
-import type { FillChange, ItemChange, ItemNow, ItemRevert } from "./revert-change";
+import type { ItemChange, ItemNow, ItemRevert } from "./revert-change";
 import { noteFixture } from "@repo/contract/test-support/library-items";
 import { mulberry32, pick } from "@repo/contract/test-support/seeded-random";
 
@@ -19,11 +19,10 @@ const landed = (fields: LibraryItemFields, ops: readonly FieldOp[]): LibraryItem
   return outcome.fields;
 };
 
-const changeOf = (
-  before: LibraryItemFields | null,
-  after: LibraryItemFields,
-  fills: readonly FillChange[] = [],
-): ItemChange => (before === null ? { after, before: null, fills } : { after, before });
+const changeOf = (before: LibraryItemFields | null, after: LibraryItemFields): ItemChange => ({
+  after,
+  before,
+});
 
 const nowOf = (fields: LibraryItemFields, bodyEdited = false): ItemNow => ({ bodyEdited, fields });
 
@@ -36,11 +35,6 @@ const fieldsOf = (verdict: ItemRevert): LibraryItemFields => {
   }
   return verdict.fields;
 };
-
-const fillOf = (before: LibraryItemFields, after: LibraryItemFields): FillChange => ({
-  after,
-  before,
-});
 
 const retitle = (fields: LibraryItemFields, value: string) =>
   landed(fields, [{ base: fields.title, field: "title", op: "set", value }]);
@@ -92,49 +86,6 @@ describe(revertItemChange, () => {
     expect(revert(change, nowOf(retitled))).toStrictEqual(EDITED);
     expect(revert(change, nowOf(made, true))).toStrictEqual(EDITED);
     expect(revert(change, null)).toStrictEqual({ kind: "unchanged" });
-  });
-
-  describe("an item it made that a fill read since", () => {
-    const made = noteFixture({ fetchState: "pending", kind: "link" });
-    const read: readonly FieldOp[] = [
-      { base: "pending", field: "fetchState", op: "set", value: "filled" },
-      { base: null, field: "originalName", op: "set", value: "page.pdf" },
-    ];
-    const named: readonly FieldOp[] = [
-      ...read,
-      { base: "A note", field: "title", op: "set", value: "The page" },
-    ];
-
-    it("still goes to Deleted, whatever the fill wrote", () => {
-      const filled = landed(made, named);
-      const change = changeOf(null, made, [fillOf(made, filled)]);
-      expect(fieldsOf(revert(change, nowOf(filled))).deletedAt).toBe(AT);
-    });
-
-    it("stays once a person changes what the fill wrote", () => {
-      const filled = landed(made, named);
-      const renamed = landed(filled, [
-        { base: "The page", field: "title", op: "set", value: "Mine" },
-      ]);
-      const change = changeOf(null, made, [fillOf(made, filled)]);
-      expect(revert(change, nowOf(renamed))).toStrictEqual(EDITED);
-    });
-
-    it("stays when a person's name came first and the fill only left it there", () => {
-      const renamed = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
-      const filled = landed(renamed, read);
-      const change = changeOf(null, made, [fillOf(renamed, filled)]);
-      expect(revert(change, nowOf(filled))).toStrictEqual(EDITED);
-    });
-
-    it("goes when the set itself wrote a name the fill has since replaced", () => {
-      const filled = landed(made, named);
-      const renamed = landed(filled, [
-        { base: "The page", field: "title", op: "set", value: "Mine" },
-      ]);
-      const change = changeOf(null, renamed, [fillOf(made, filled)]);
-      expect(fieldsOf(revert(change, nowOf(renamed))).deletedAt).toBe(AT);
-    });
   });
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {

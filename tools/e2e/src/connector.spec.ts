@@ -209,9 +209,8 @@ test("an assistant signs in through the consent page and works the library, unti
   await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
     view: { markdown: "The quick brown fox.\n\nIt jumped over the dog.\n" },
   });
-  await expect(library.history.list({})).resolves.toMatchObject({
-    changeSets: [{ actor: "assistant", itemCount: 1, label: "Claude" }],
-  });
+  // only the built-in agent's turns keep a change set
+  await expect(library.history.list({})).resolves.toStrictEqual({ changeSets: [], cursor: null });
   const stale = await claude.client.callTool({
     arguments: { edits: [{ newText: "It sat.", oldText: "It jumped." }], id: item.id },
     name: "edit_item",

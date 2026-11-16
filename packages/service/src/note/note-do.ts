@@ -624,9 +624,9 @@ export class NoteDO extends YServer<Env> {
     return { kind: "applied", projection: this.#projection() };
   }
 
-  // A turn's edits here taken back as a forward edit under the undo's own origin, keeping every
+  // A turn's edits here taken back as a forward edit under an origin naming its undo, keeping every
   // later change; a turn already undone, or one that never wrote here, changes nothing.
-  async undoTurn(changeSetId: string, undoSetId: string): Promise<TurnUndone> {
+  async undoTurn(changeSetId: string): Promise<TurnUndone> {
     await this.#ready();
     if (refusedBy(this.#standing, "undo") !== null) {
       return { lostText: false, personEdited: this.#meta().personEdited === 1, projection: null };
@@ -639,7 +639,7 @@ export class NoteDO extends YServer<Env> {
       .all();
     const undone = undoTurn(rows, this.document);
     if (undone.update !== null) {
-      Y.applyUpdate(this.document, undone.update, `undo:${undoSetId}`);
+      Y.applyUpdate(this.document, undone.update, `undo:${changeSetId}`);
     }
     return {
       lostText: undone.lostText,

@@ -1,7 +1,6 @@
 // What an import's run works with inside the account's cell: the engine every write lands
 // through, the bucket the library's files live in, and the steps its runs share. An item lands as
-// a write of the import's own actor, so every item one import adds is one change set Undo takes
-// back; the job's rows move in the same transaction.
+// a write by the import, and the job's rows move in the same transaction.
 
 import { z } from "zod";
 
@@ -46,20 +45,11 @@ export const FILE_GONE = "The file to import is no longer in the library. Choose
 export const LIBRARY_FULL =
   "Your library is full, so the import stopped. Free some room and import again.";
 
-const LABELS = {
-  markdown: "Imported from Markdown",
-  raindrop: "Imported from Raindrop",
-} as const;
-
-export const importActor = (job: ImportJob): CellActor => ({
-  jobId: job.id,
-  kind: "import",
-  label: LABELS[job.source],
-});
+export const IMPORT_ACTOR: CellActor = { kind: "import" };
 
 const NOTHING = z.object({});
 
-// a write of the job's own rows alone, joining no change set; false once the account is going
+// a write of the job's own rows alone; false once the account is going
 export const apart = (library: LibraryEngine, work: (scope: LandingScope) => void): boolean =>
   library.landApart({ answer: NOTHING, opId: undefined }, (scope) => {
     work(scope);

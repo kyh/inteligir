@@ -21,7 +21,7 @@ conventions; `CONTEXT.md` is the glossary and `docs/development.md` the commands
   no version history. Why: a live document removes merge logic.
 - **Each account's library is one SQLite Durable Object, its cell**, holding
   fields, folders, tags, search, links, change sets and quota; R2 holds bytes,
-  D1 accounts. Why: one object guards and logs every write.
+  D1 accounts. Why: one object guards every write.
 - **One oRPC contract, and a tool is a procedure tagged `mcp.tool`**, which the
   apps, the connector and the agent call alike. Why: the agent does what the
   app does, and nothing it cannot.

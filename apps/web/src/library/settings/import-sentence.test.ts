@@ -5,7 +5,6 @@ import { importSentence } from "./import-section";
 const JOB = {
   added: 0,
   alreadySaved: 0,
-  changeSetId: null,
   finishedAt: null,
   id: "0199a4c2-0000-7000-8000-0000000000aa",
   message: null,

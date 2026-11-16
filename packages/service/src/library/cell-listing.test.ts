@@ -5,7 +5,7 @@ import { isOrpcError } from "@repo/contract/v1/errors";
 import { uuidV7 } from "@repo/contract/library/uuid-v7";
 import { describe, expect, it } from "vitest";
 
-import { cellIn, cellOf, clockAt, inCell } from "../test-support/library-cell";
+import { cellIn, cellOf, clockAt, inCell, openTurn } from "../test-support/library-cell";
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
@@ -216,25 +216,22 @@ describe("what the apps read of the library", () => {
     });
   });
 
-  it("lists what a change set did as it lands, once it seals and once it is undone", async () => {
+  it("lists what a turn did as it lands, once the turn ends and once it is undone", async () => {
     await inCell(cellOf(), async (state) => {
-      const { clock, engine, library } = laptopIn(state);
+      const cell = cellIn(state, { clock: clockAt() });
+      const { client: library } = cell;
       const titles = async () => {
         const page = await library.listing.page({ limit: 10, query: LIVE });
         return page.items.map(({ card }) => card.title);
       };
-      const seal = () => {
-        clock.now += 60_000;
-        engine.runDueJobs(() => {});
-      };
       const apple = await library.items.createNote({ markdown: "Apple.", title: "Apple" });
-      seal();
       await expect(titles()).resolves.toStrictEqual(["Apple"]);
 
-      await library.items.createNote({ markdown: "Banana.", title: "Banana" });
-      await library.items.organize({ addTags: ["fruit"], ids: [apple.item.id] });
+      const turn = openTurn(cell);
+      await turn.client.items.createNote({ markdown: "Banana.", title: "Banana" });
+      await turn.client.items.organize({ addTags: ["fruit"], ids: [apple.item.id] });
       await expect(titles()).resolves.toStrictEqual(["Apple", "Banana"]);
-      seal();
+      turn.end();
       const history = await library.history.list({});
       const [sealed] = history.changeSets;
       expect(sealed?.closedAt).not.toBeNull();
